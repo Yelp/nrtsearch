@@ -1,16 +1,4 @@
-// Copyright 2015 The gRPC Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/* Description of Platypus Service APIs and message types */
 syntax = "proto3";
 
 option java_multiple_files = true;
@@ -157,59 +145,6 @@ message Field {
     FacetType facet = 22; // Whether this field should index facets, and how.
     string facetIndexFieldName = 23; // "Which underlying Lucene index field is used to hold any indexed taxonomy or sorted set doc values facets
 
-    /*
-          new Param("dateTimeFormat", "Format string used to parse datetime fields", new StringType()),
-          new Param("search", "True if the value should be available for searching (or numeric range searching, for a numeric field).", new BooleanType(), false),
-          new Param("tokenize", "True if the value should be tokenized.", new BooleanType(), true),
-          new Param("store", "True if the value should be stored.", new BooleanType(), false),
-          new Param("multiValued", "True if this field may sometimes have more than one value.", new BooleanType(), false),
-          new Param("highlight", "True if the value should be indexed for highlighting.", new BooleanType(), false),
-          new Param("postingsFormat", "Which PostingsFormat should be used to index this field.",
-                    new StringType(), "Lucene50"),
-          new Param("docValuesFormat", "Which DocValuesFormat should be used to index this field.",
-                    new StringType(), "Lucene54"),
-          new Param("sort", "True if the value should be indexed into doc values for sorting.", new BooleanType(), false),
-          new Param("group", "True if the value should be indexed into doc values for grouping.", new BooleanType(), false),
-          new Param("facet", "Whether this field should index facets, and how.",
-                    new EnumType("no", "No facets are indexed.",
-                                 "flat", "Facets are indexed with no hierarchy.",
-                                 "hierarchy", "Facets are indexed and are hierarchical.",
-                                 "numericRange", "Compute facet counts for custom numeric ranges",
-                                 "sortedSetDocValues", "Use SortedSetDocValuesFacetCounts, which must be flat but don't require a taxonomy index"),
-                    "no"),
-          new Param("facetIndexFieldName",
-                    "Which underlying Lucene index field is used to hold any indexed taxonomy or sorted set doc values facets",
-                    new StringType(), FacetsConfig.DEFAULT_INDEX_FIELD_NAME),
-          new Param("storeDocValues", "Whether to index the value into doc values.", new BooleanType(), false),
-          new Param("omitNorms", "True if norms are omitted.", new BooleanType(), false),
-          new Param("analyzer", "Analyzer to use for this field during indexing and searching.", ANALYZER_TYPE),
-          new Param("indexAnalyzer", "Analyzer to use for this field during indexing.", ANALYZER_TYPE),
-          new Param("searchAnalyzer", "Analyzer to use for this field during searching.", ANALYZER_TYPE),
-          new Param("indexOptions", "How the tokens should be indexed.",
-                    new EnumType("docs", "Index only doc ids (for binary search).",
-                                 "docsFreqs", "Index doc ids and term frequencies.",
-                                 "docsFreqsPositions", "Index doc ids, term frequences and positions.",
-                                 "docsFreqsPositionsOffsets", "Index doc ids, term frequencies, positions and offsets."),
-                    "docsFreqsPositions"),
-          new Param("expression", "The JavaScript expression defining a virtual field's value (only used with type=virtual).", new StringType()),
-          new Param("termVectors", "Whether/how term vectors should be indexed.",
-                    new EnumType("terms", "Index terms and freqs only.",
-                                 "termsPositions", "Index terms, freqs and positions.",
-                                 "termsPpositionsOffsets", "Index terms, freqs, positions and offsets.",
-                                 "termsPositionsdOoffsetsPayloads", "Index terms, freqs, positions, offsets and payloads."
-                                 )),
-          new Param("similarity", "Which Similarity implementation to use for this field.",
-                    new StructType(
-                                   new Param("class",
-                                             "Which Similarity class to use.",
-                                             new PolyType(Similarity.class,
-                                                 new PolyEntry("DefaultSimilarity", "Expert: Default scoring implementation. (see @lucene:core:org.apache.lucene.search.similarities.DefaultSimilarity)", new StructType()),
-                                                 new PolyEntry("BM25Similarity", "BM25 Similarity (see @lucene:core:org.apache.lucene.search.similarities.BM25Similarity)",
-                                                     new StructType(new Param("k1", "Controls non-linear term frequency normalization (saturation).", new FloatType(), 1.2f),
-                                                                    new Param("b", "Controls to what degree document length normalizes tf values.", new FloatType(), 0.75f)))),
-                                             "DefaultSimilarity")))
-
-    */
 }
 
 /* Input to registerFields */
@@ -241,52 +176,12 @@ message SettingsRequest {
     public constructor taking a single File argument default: FSDirectory */
     string directory = 11;
 
-    /*
-        new Param("indexName", "Index name", new StringType()),
-        new Param("mergeMaxMBPerSec", "Rate limit merges to at most this many MB/sec", new FloatType()),
-        new Param("nrtCachingDirectory.maxMergeSizeMB", "Largest merged segment size to cache in RAMDirectory", new FloatType(), 5.0),
-        new Param("nrtCachingDirectory.maxSizeMB", "Largest overall size for all files cached in NRTCachingDirectory; set to 0 to disable NRTCachingDirectory", new FloatType(), 60.0),
-        new Param("concurrentMergeScheduler.maxThreadCount", "How many merge threads to allow at once", new IntType()),
-        new Param("concurrentMergeScheduler.maxMergeCount", "Maximum backlog of pending merges before indexing threads are stalled", new IntType()),
-        new Param("indexSort", "Index time sorting; can only be written once", SearchHandler.SORT_TYPE),
-        new Param("index.verbose", "Turn on IndexWriter's infoStream (to stdout)", new BooleanType(), false),
-        new Param("index.merge.scheduler.auto_throttle", "Turn on/off the merge scheduler's auto throttling", new BooleanType(), true),
-        // nocommit how to accept any class on the CP that
-        // implements NormsFormat and has default ctor ...?
-        new Param("normsFormat", "Which NormsFormat should be used for all indexed fields.",
-                  new StructType(
-                      new Param("class", "Which NormsFormat implementation to use",
-                                new PolyType(NormsFormat.class,
-                                             new PolyEntry("Lucene53", "Default norms format", new StructType()))))),
-        new Param("directory", "Base Directory implementation to use (NRTCachingDirectory will wrap this); either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument",
-            new StringType(), "FSDirectory"));
-
-    */
-
 }
 
 /* Settings Response returned from Server */
 message SettingsResponse {
     string response = 1;
 }
-
-/*
-  final static Type SORT_TYPE = new ListType(
-                                    new StructType(new Param("field", "The field to sort on.  Pass <code>docid</code> for index order and <code>score</code> for relevance sort.", new StringType()),
-                                                   new Param("selector", "For multi valued fields, how to select which value is used for sorting",
-                                                             new EnumType("min", "Minimum value",
-                                                                          "max", "Maximum value",
-                                                                          "middle_min", "Middle value of the set; if there are an even number of values, the lower of the middle two is chosen",
-                                                                          "middle_max", "Middle value of the set; if there are an even number of values, the upper of the middle two is chosen"),
-                                                             "min"),
-                                                   new Param("origin", "For distance sort, the point that we measure distance from",
-                                                             new StructType(
-                                                                            new Param("latitude", "Latitude of the origin", new FloatType()),
-                                                                            new Param("longitude", "Longitude of the origin", new FloatType()))),
-                                                   new Param("missingLast", "Whether missing values should sort last instead of first.  Note that this runs \"before\" reverse, so if you sort missing first and reverse=true then missing values will be at the end.", new BooleanType(), false),
-                                                   new Param("reverse", "Sort in reverse of the field's natural order", new BooleanType(), false)));
-
-*/
 
 /* Fields to sort on either during index time or search time*/
 message SortFields {
@@ -320,20 +215,7 @@ message Point {
     double longitude = 2; // Longitude of the point
 }
 
-/*
-  private static StructType TYPE = new StructType(
-                                       new Param("indexName", "Index name", new StringType()),
-                                       new Param("mode", "Standalone or NRT primary/replica",
-                                                 new EnumType("standalone", "Standalone index",
-                                                              "primary", "Primary index, replicating changes to zero or more replicas",
-                                                              "replica", "Replica index"),
-                                                 "standalone"),
-                                       new Param("primaryGen", "For mode=primary, the generation of this primary (should increment each time a new primary starts for this index)", new LongType()),
-                                       new Param("primaryAddress", "For mode=replica, the IP address or host name of the remote primary", new StringType()),
-                                       new Param("primaryPort", "For mode=replica, the TCP port of the remote primary", new IntType())
-                                                 );
-
-*/
+/* Start the index */
 message StartIndexRequest {
     string indexName = 1; //index name
     Mode mode = 2; //Standalone, NRT primary or replica mode to start this index.

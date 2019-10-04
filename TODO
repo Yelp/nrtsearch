@@ -1,8 +1,7 @@
 *Functionality*
 - Support more analyzers (i.e. other than StandardAnalyzer), including constructing custom ones using TokenStreams
 - Support custom Similarity.
-- generate documentation from proto files? https://github.com/pseudomuto/protoc-gen-doc
-  or https://github.com/sourcegraph/prototools/blob/master/README.doc.md
+- support live documentation from gRPC? might need to support gRPC-web
 - add suggest functionality
 - remove boost option from RegisterHandler since individual fields can no longer setBoost while indexing:https://issues.apache.org/jira/browse/LUCENE-6819
 - support nested docs (both indexing and searching time)
