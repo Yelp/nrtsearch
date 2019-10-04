@@ -1,0 +1,107 @@
+plugins {
+    // Provide convenience executables for trying out the examples.
+    id 'application'
+    // ASSUMES GRADLE 2.12 OR HIGHER. Use plugin version 0.7.5 with earlier gradle versions
+    id 'com.google.protobuf' version '0.8.8'
+    // Generate IntelliJ IDEA's .idea & .iml project files
+    id 'idea'
+}
+
+repositories {
+    maven { // The google mirror is less flaky than mavenCentral()
+        url "https://maven-central.storage-download.googleapis.com/repos/central/data/" }
+    mavenLocal()
+}
+
+sourceCompatibility = 1.12
+targetCompatibility = 1.12
+
+// IMPORTANT: You probably want the non-SNAPSHOT version of gRPC. Make sure you
+// are looking at a tagged version of the example and not "master"!
+
+// Feel free to delete the comment at the next line. It is just for safely
+// updating the version in our release process.
+def grpcVersion = '1.23.0' // CURRENT_GRPC_VERSION
+def protobufVersion = '3.9.0'
+def protocVersion = protobufVersion
+def luceneVersion = '8.2.0'
+def slf4jVersion = '2.0.0-alpha0'
+def gsonVersion = '2.8.5'
+
+dependencies {
+    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+    implementation "io.grpc:grpc-stub:${grpcVersion}"
+    implementation "javax.annotation:javax.annotation-api:1.2"
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+    implementation "com.google.code.gson:gson:${gsonVersion}"
+
+    //lucene deps
+    implementation "org.apache.lucene:lucene-core:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-queries:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-facet:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-replicator:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-analyzers-common:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-suggest:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-expressions:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-queries:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-queryparser:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-highlighter:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-grouping:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-queries:${luceneVersion}"
+
+    // examples/advanced need this for JsonFormat
+    implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+
+    //cli deps
+    implementation 'info.picocli:picocli:4.0.4'
+    implementation 'org.apache.commons:commons-csv:1.7'
+
+
+    runtimeOnly "io.grpc:grpc-netty-shaded:${grpcVersion}"
+
+    testImplementation "io.grpc:grpc-testing:${grpcVersion}"
+    testImplementation "junit:junit:4.12"
+    testImplementation "org.mockito:mockito-core:2.25.1"
+}
+
+protobuf {
+    protoc { artifact = "com.google.protobuf:protoc:${protocVersion}" }
+    plugins {
+        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" }
+    }
+    generateProtoTasks {
+        all()*.plugins { grpc {} }
+    }
+}
+
+// Inform IDEs like IntelliJ IDEA, Eclipse or NetBeans about the generated code.
+sourceSets {
+    main {
+        java {
+            srcDirs 'build/generated/source/proto/main/grpc'
+            srcDirs 'build/generated/source/proto/main/java'
+        }
+    }
+}
+
+startScripts.enabled = false
+
+task luceneServer(type: CreateStartScripts) {
+    mainClassName = 'org.apache.platypus.server.grpc.LuceneServer'
+    applicationName = 'lucene-server'
+    outputDir = new File(project.buildDir, 'tmp')
+    classpath = startScripts.classpath
+}
+
+task luceneServerClient(type: CreateStartScripts) {
+    mainClassName = 'org.apache.platypus.server.grpc.LuceneServerClient'
+    applicationName = 'lucene-client'
+    outputDir = new File(project.buildDir, 'tmp')
+    classpath = startScripts.classpath
+}
+
+applicationDistribution.into('bin') {
+    from(luceneServer)
+    from(luceneServerClient)
+    fileMode = 0755
+}
