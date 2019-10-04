@@ -119,7 +119,5 @@ The build uses protoc-gen-doc program to generate the documentation needed in ht
 ./gradlew buildDocs
 ```
 
-This should create a src/main/docs/index.html file that can be seen in your local browser. A sample snapshot is pasted below
-![Snapshot of API]
-(https://gist.github.com/umeshdangat/468fcf6a8e73f0bd45e197c33a3c2c12#file-platypus_api-png)
+This should create a src/main/docs/index.html file that can be seen in your local browser. A [sample snapshot](https://gist.github.com/umeshdangat/468fcf6a8e73f0bd45e197c33a3c2c12#file-platypus_api-png)
 
