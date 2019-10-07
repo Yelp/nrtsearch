@@ -36,6 +36,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -253,9 +254,10 @@ public class LuceneServer {
             logger.info("LuceneServerUmesh....addDocuments called");
             return new StreamObserver<AddDocumentRequest>() {
                 //TODO make this a config
-                private static final int MAX_BUFFER_LEN = 4;
+                private static final int MAX_BUFFER_LEN = 100;
                 private long count = 0;
                 Queue<AddDocumentRequest> addDocumentRequestQueue = new ArrayBlockingQueue(MAX_BUFFER_LEN);
+                List<Future<Long>> futures = new ArrayList<>();
 
                 @Override
                 public void onNext(AddDocumentRequest addDocumentRequest) {
@@ -265,8 +267,9 @@ public class LuceneServer {
                     if (addDocumentRequestQueue.size() == MAX_BUFFER_LEN) {
                         logger.info(String.format("indexing addDocumentRequestQueue of size: %s", addDocumentRequestQueue.size()));
                         try {
-                            //TODO: non blocking fire and forget via a callable
-                            new AddDocumentHandler.DocumentIndexer().runIndexingJob(globalState, addDocumentRequestQueue.stream().collect(Collectors.toList()));
+                            List<AddDocumentRequest> addDocRequestList = addDocumentRequestQueue.stream().collect(Collectors.toList());
+                            Future<Long> future = globalState.submitIndexingTask(new AddDocumentHandler.DocumentIndexer(globalState, addDocRequestList));
+                            futures.add(future);
                         } catch (Exception e) {
                             responseObserver.onError(e);
                         } finally {
@@ -284,26 +287,42 @@ public class LuceneServer {
                 @Override
                 public void onCompleted() {
                     logger.info(String.format("onCompleted, addDocumentRequestQueue: %s", addDocumentRequestQueue.size()));
-                    if (!addDocumentRequestQueue.isEmpty()) {
-                        logger.info(String.format("indexing left over addDocumentRequestQueue of size: %s", addDocumentRequestQueue.size()));
-                        try {
-                            //TODO: make this blocking to ensure all indexing callables (future.get) are done
-                            new AddDocumentHandler.DocumentIndexer().runIndexingJob(globalState, addDocumentRequestQueue.stream().collect(Collectors.toList()));
-                            responseObserver.onNext(AddDocumentResponse.newBuilder().setGenId(String.valueOf(count)).build());
-                            responseObserver.onCompleted();
-                        } catch (Exception e) {
-                            responseObserver.onError(Status
-                                    .PERMISSION_DENIED
-                                    .withDescription("error while trying to addDocuments ")
-                                    .augmentDescription(e.getMessage())
-                                    .withCause(e)
-                                    .asRuntimeException());
-
-                        } finally {
-                            addDocumentRequestQueue.clear();
-                            count = 0;
+                    try {
+                        //index the left over docs
+                        if (!addDocumentRequestQueue.isEmpty()) {
+                            logger.info(String.format("indexing left over addDocumentRequestQueue of size: %s", addDocumentRequestQueue.size()));
+                            List<AddDocumentRequest> addDocRequestList = addDocumentRequestQueue.stream().collect(Collectors.toList());
+                            Future<Long> future = globalState.submitIndexingTask(new AddDocumentHandler.DocumentIndexer(globalState, addDocRequestList));
+                            futures.add(future);
                         }
+                        //collect futures, block if needed
+                        PriorityQueue<Long> pq = new PriorityQueue<>(Collections.reverseOrder());
+                        int numIndexingChunks = futures.size();
+                        long t0 = System.nanoTime();
+                        for (Future<Long> result : futures) {
+                            Long gen = result.get();
+                            logger.info(String.format("Indexing returned sequence-number %s", gen));
+                            pq.offer(gen);
+                        }
+                        long t1 = System.nanoTime();
+
+                        responseObserver.onNext(AddDocumentResponse.newBuilder().setGenId(String.valueOf(pq.peek())).build());
+                        responseObserver.onCompleted();
+                        logger.info(String.format("Indexing job completed for %s docs, in %s chunks, with latest sequence number: %s, took: %s micro seconds",
+                                count, numIndexingChunks, pq.peek(), ((t1-t0)/1000)));
+                    } catch (Exception e) {
+                        responseObserver.onError(Status
+                                .PERMISSION_DENIED
+                                .withDescription("error while trying to addDocuments ")
+                                .augmentDescription(e.getMessage())
+                                .withCause(e)
+                                .asRuntimeException());
+
+                    } finally {
+                        addDocumentRequestQueue.clear();
+                        count = 0;
                     }
+
                     //TODO: refresh searcher so freshly indexed data is available.
                 }
             };

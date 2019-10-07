@@ -19,10 +19,12 @@ package org.apache.platypus.server;
 import com.google.gson.*;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.NamedThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.util.concurrent.ExecutorService;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -30,9 +32,7 @@ import java.nio.channels.SeekableByteChannel;
 import java.nio.file.*;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.*;
 
 public class GlobalState implements Closeable {
     // TODO: make these controllable
@@ -48,6 +48,20 @@ public class GlobalState implements Closeable {
     public final String nodeName;
 
     public final List<RemoteNodeConnection> remoteNodes = new CopyOnWriteArrayList<>();
+
+    private final static int MAX_BUFFERED_ITEMS = Math.max(100, 2*MAX_INDEXING_THREADS);
+
+    // Seems to be substantially faster than ArrayBlockingQueue at high throughput:
+    final BlockingQueue<Runnable> docsToIndex = new LinkedBlockingQueue<Runnable>(MAX_BUFFERED_ITEMS);
+
+    //same as Executors.newFixedThreadPool except we want a NamedThreadFactory instead of defaultFactory
+    private final ExecutorService indexService = new ThreadPoolExecutor(MAX_INDEXING_THREADS,
+            MAX_INDEXING_THREADS,
+            0, TimeUnit.SECONDS,
+            docsToIndex,
+            new NamedThreadFactory("LuceneIndexing"));
+
+
     /**
      * Current indices.
      */
@@ -191,6 +205,10 @@ public class GlobalState implements Closeable {
             }
             return state;
         }
+    }
+
+    public Future<Long> submitIndexingTask(Callable job) throws InterruptedException {
+        return indexService.submit(job);
     }
 
 }

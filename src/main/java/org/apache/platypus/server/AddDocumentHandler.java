@@ -36,6 +36,7 @@ import org.apache.platypus.server.grpc.LuceneServer;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -311,9 +312,16 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
 
     }
 
-    public static class DocumentIndexer {
-        public void runIndexingJob(GlobalState globalState, List<AddDocumentRequest> addDocumentRequestList) throws Exception {
-            //TODO: should run this in a separate thread using Executor;
+    public static class DocumentIndexer implements Callable<Long> {
+        private final GlobalState globalState;
+        private final List<AddDocumentRequest> addDocumentRequestList;
+
+        public DocumentIndexer(GlobalState globalState, List<AddDocumentRequest> addDocumentRequestList) {
+            this.globalState = globalState;
+            this.addDocumentRequestList = addDocumentRequestList;
+        }
+
+        public long runIndexingJob() throws Exception {
             logger.info(String.format("running indexing job on threadId: %s", Thread.currentThread().getName() + Thread.currentThread().getId()));
             Queue<Document> documents = new LinkedBlockingDeque<>();
             IndexState indexState = null;
@@ -328,8 +336,9 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 }
             }
             ShardState shardState = indexState.getWritableShard();
+            long gen;
             try {
-                shardState.writer.addDocuments(new Iterable<Document>() {
+                gen = shardState.writer.addDocuments(new Iterable<Document>() {
                     @Override
                     public Iterator<Document> iterator() {
                         final boolean hasFacets = shardState.indexState.hasFacets();
@@ -366,6 +375,12 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 logger.log(Level.WARNING, String.format("ThreadId: %s, IndexWriter.addDocuments failed", Thread.currentThread().getName() + Thread.currentThread().getId()));
                 throw new IOException(e);
             }
+            return gen;
+        }
+
+        @Override
+        public Long call() throws Exception {
+            return runIndexingJob();
         }
     }
 
