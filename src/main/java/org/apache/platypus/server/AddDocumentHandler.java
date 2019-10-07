@@ -171,12 +171,12 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
         private static void parseOneNativeValue(FieldDef fd, Document doc, Object o) throws AddDocumentHandlerException {
             assert o != null;
             assert fd != null;
-            if (fd.faceted.equals("flat")) {
+            if (fd.faceted.equals(FieldDef.FacetValueType.FLAT)) {
                 if (o instanceof List) {
                     throw new AddDocumentHandlerException(String.format("%s value should be String when facet=flat; got %s", fd.name, o.getClass()));
                 }
                 doc.add(new FacetField(fd.name, o.toString()));
-            } else if (fd.faceted.equals("hierarchy")) {
+            } else if (fd.faceted.equals(FieldDef.FacetValueType.HIERARCHY)) {
                 //TODO: hierarchy is broken right now (We need to support List<<List<String>> within MultiValueFields in proto file
                 // o is never a List in the current form
                 if (o instanceof List) {
@@ -192,7 +192,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 } else {
                     doc.add(new FacetField(fd.name, o.toString()));
                 }
-            } else if (fd.faceted.equals("sortedSetDocValues")) {
+            } else if (fd.faceted.equals(FieldDef.FacetValueType.SORTED_SET_DOC_VALUES)) {
                 if (o instanceof List) {
                     throw new AddDocumentHandlerException(String.format("%s value should be String when facet=sortedSetDocValues; got %s", fd.name, o.getClass()));
                 }
@@ -212,7 +212,6 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
 
             // Separately index doc values:
             DocValuesType dvType = fd.fieldType.docValuesType();
-            //TODO: neither BINARY nor SORTED allows for multiValued fields during indexing (Use SortedSet instead at register time?)
             if (dvType == DocValuesType.BINARY || dvType == DocValuesType.SORTED) {
                 if (o instanceof String == false) {
                     throw new AddDocumentHandlerException(String.format("%s expected String but got: %s", fd.name, o));

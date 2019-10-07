@@ -21,20 +21,17 @@ package org.apache.platypus.server;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.facet.DrillDownQuery;
-import org.apache.lucene.facet.DrillSideways;
-import org.apache.lucene.facet.Facets;
-import org.apache.lucene.facet.FacetsCollector;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.*;
-import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.*;
-import org.apache.lucene.search.grouping.*;
+import org.apache.lucene.search.grouping.AllGroupsCollector;
+import org.apache.lucene.search.grouping.FirstPassGroupingCollector;
+import org.apache.lucene.search.grouping.TopGroups;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.platypus.server.grpc.*;
@@ -48,7 +45,7 @@ import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
 public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
@@ -706,7 +703,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             if (advance) {
                                 for (; ; ) {
                                     long ord = sortedSetDocValues.nextOrd();
-                                    if (ord == NO_MORE_DOCS) {
+                                    if (ord == NO_MORE_ORDS) {
                                         break;
                                     }
                                     BytesRef bytesRef = sortedSetDocValues.lookupOrd(ord);

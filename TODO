@@ -8,18 +8,14 @@
 
 
 *Potential bugs/issues*
-- Seems like only SortedSetDocValuesWriter and SortedNumericDocValuesWriter allow doc values to be indexed for multiValued fields:
-  So only use SortedSetDocValuesWriter for text and atom field types when multiValued: true?
-  curl -XPOST localhost:4000/registerFields -d '{"indexName": "old1", "fields": {"vendor_name4": {"type": "text", "multiValued": true, "storeDocValues": true}}}'
-  curl -XPOST localhost:4000/addDocument -d '{"indexName": "old1", "fields": {"vendor_name4": ["vendor one", "vendor two"]}}'
-  java.lang.IllegalArgumentException: DocValuesField "vendor_name4" appears more than once in this document (only one value is allowed per field)
-          at org.apache.lucene.index.BinaryDocValuesWriter.addValue(BinaryDocValuesWriter.java:70)
 - Call commit after registerFields? Else the Field states is not durable
 - Separate out committing state (for registerFields, settings, liveSettings) from being done only upon committing an index
 
 *Enhancements*
 - Support highlights at search time
 - Support facets at search time
+  - hierarchy is broken right now (We need to support List<<List<String>> within MultiValueFields in proto file
+
 - Support blockJoinQuery parent-child
 - Specify searcher in search request
   - from a previous snapshot (during indexing we have option to keep previous states of the indexes)
@@ -37,4 +33,3 @@
 - support searching over segments in parallel: https://issues.apache.org/jira/browse/LUCENE-6294. See: `TestTopDocsCollector.doConcurrentSearchWithThreshold`
 which creates a CollectorManager
 
-- create threadpool and use threads for indexing chunks

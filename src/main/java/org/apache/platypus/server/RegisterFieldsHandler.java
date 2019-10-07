@@ -113,7 +113,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
             JsonObject fieldAsJsonObject = jsonParser.parse(saveStates.get(ent.getKey())).getAsJsonObject();
             indexState.addField(ent.getValue(), fieldAsJsonObject);
         }
-        String response =  indexState.getAllFieldsJSON();
+        String response = indexState.getAllFieldsJSON();
         FieldDefResponse reply = FieldDefResponse.newBuilder().setResponse(response).build();
         return reply;
     }
@@ -209,7 +209,13 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                 if (grouped) {
                     ft.setDocValuesType(DocValuesType.SORTED);
                 } else if (dv) {
-                    ft.setDocValuesType(DocValuesType.BINARY);
+                    //needed to support multivalued text fields even though its not grouped
+                    //since neither BINARY nor SORTED allows for multiValued fields during indexing
+                    if (multiValued) {
+                        ft.setDocValuesType(DocValuesType.SORTED_SET);
+                    } else {
+                        ft.setDocValuesType(DocValuesType.BINARY);
+                    }
                 }
                 if (highlighted) {
                     if (stored == false) {
@@ -245,7 +251,13 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                         ft.setDocValuesType(DocValuesType.SORTED);
                     }
                 } else if (grouped || dv) {
-                    ft.setDocValuesType(DocValuesType.BINARY);
+                    //needed to support multivalued text fields even though its not grouped
+                    //since neither BINARY nor SORTED allows for multiValued fields during indexing
+                    if (multiValued) {
+                        ft.setDocValuesType(DocValuesType.SORTED_SET);
+                    } else {
+                        ft.setDocValuesType(DocValuesType.BINARY);
+                    }
                 }
                 break;
 
