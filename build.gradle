@@ -34,8 +34,11 @@ def slf4jVersion = '2.0.0-alpha0'
 def gsonVersion = '2.8.5'
 
 dependencies {
+    //grpc deps
     implementation "io.grpc:grpc-protobuf:${grpcVersion}"
     implementation "io.grpc:grpc-stub:${grpcVersion}"
+
+    //
     implementation "javax.annotation:javax.annotation-api:1.2"
     implementation "org.slf4j:slf4j-api:${slf4jVersion}"
     implementation "com.google.code.gson:gson:${gsonVersion}"
@@ -61,12 +64,14 @@ dependencies {
     implementation 'info.picocli:picocli:4.0.4'
     implementation 'org.apache.commons:commons-csv:1.7'
 
-
     runtimeOnly "io.grpc:grpc-netty-shaded:${grpcVersion}"
 
+    //test deps
     testImplementation "io.grpc:grpc-testing:${grpcVersion}"
     testImplementation "junit:junit:4.12"
     testImplementation "org.mockito:mockito-core:2.25.1"
+    testImplementation "org.apache.lucene:lucene-test-framework:${luceneVersion}"
+    testImplementation "org.slf4j:slf4j-jdk14:2.0.0-alpha1"
 }
 
 protobuf {

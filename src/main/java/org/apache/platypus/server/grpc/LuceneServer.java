@@ -21,11 +21,9 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherLifetimeManager;
 import org.apache.platypus.server.*;
@@ -35,19 +33,18 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Server that manages startup/shutdown of a {@code LuceneServer} server.
  */
 public class LuceneServer {
-    private static final Logger logger = Logger.getLogger(LuceneServer.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
 
     private Server server;
     private LuceneServerConfiguration luceneServerConfiguration;
@@ -68,9 +65,9 @@ public class LuceneServer {
             @Override
             public void run() {
                 // Use stderr here since the logger may have been reset by its JVM shutdown hook.
-                logger.severe("*** shutting down gRPC server since JVM is shutting down");
+                logger.error("*** shutting down gRPC server since JVM is shutting down");
                 LuceneServer.this.stop();
-                logger.severe("*** server shut down");
+                logger.error("*** server shut down");
             }
         });
     }
@@ -123,7 +120,7 @@ public class LuceneServer {
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (IllegalArgumentException e) {
-                logger.log(Level.WARNING, "invalid IndexName: " + req.getIndexName(), e);
+                logger.warn("invalid IndexName: " + req.getIndexName(), e);
                 responseObserver.onError(Status
                         .ALREADY_EXISTS
                         .withDescription("invalid indexName: " + req.getIndexName())
@@ -131,7 +128,7 @@ public class LuceneServer {
                         .withCause(e)
                         .asRuntimeException());
             } catch (Exception e) {
-                logger.log(Level.WARNING, "error while trying to save index state to disk for indexName: " + req.getIndexName() + "at rootDir: " + req.getRootDir() + req.getIndexName(), e);
+                logger.warn("error while trying to save index state to disk for indexName: " + req.getIndexName() + "at rootDir: " + req.getRootDir() + req.getIndexName(), e);
                 responseObserver.onError(Status
                         .INTERNAL
                         .withDescription("error while trying to save index state to disk for indexName: " + req.getIndexName() + "at rootDir: " + req.getRootDir())
@@ -150,7 +147,7 @@ public class LuceneServer {
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (IllegalArgumentException e) {
-                logger.log(Level.WARNING, "index: " + req.getIndexName() + " was not yet created", e);
+                logger.warn("index: " + req.getIndexName() + " was not yet created", e);
                 responseObserver.onError(Status
                         .ALREADY_EXISTS
                         .withDescription("invalid indexName: " + req.getIndexName())
@@ -158,7 +155,7 @@ public class LuceneServer {
                         .withCause(e)
                         .asRuntimeException());
             } catch (Exception e) {
-                logger.log(Level.WARNING, "error while trying to read index state dir for indexName: " + req.getIndexName(), e);
+                logger.warn("error while trying to read index state dir for indexName: " + req.getIndexName(), e);
                 responseObserver.onError(Status
                         .INTERNAL
                         .withDescription("error while trying to read index state dir for indexName: " + req.getIndexName() + "at rootDir: ")
@@ -177,7 +174,7 @@ public class LuceneServer {
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (IOException e) {
-                logger.log(Level.WARNING, "error while trying to read index state dir for indexName: " + fieldDefRequest.getIndexName(), e);
+                logger.warn("error while trying to read index state dir for indexName: " + fieldDefRequest.getIndexName(), e);
                 responseObserver.onError(Status
                         .INTERNAL
                         .withDescription("error while trying to read index state dir for indexName: " + fieldDefRequest.getIndexName())
@@ -185,7 +182,7 @@ public class LuceneServer {
                         .withCause(e)
                         .asRuntimeException());
             } catch (Exception e) {
-                logger.log(Level.WARNING, "error while trying to RegisterFields for index " + fieldDefRequest.getIndexName(), e);
+                logger.warn("error while trying to RegisterFields for index " + fieldDefRequest.getIndexName(), e);
                 responseObserver.onError(Status
                         .INVALID_ARGUMENT
                         .withDescription("error while trying to RegisterFields for index: " + fieldDefRequest.getIndexName())
@@ -203,7 +200,7 @@ public class LuceneServer {
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (IOException e) {
-                logger.log(Level.WARNING, "error while trying to read index state dir for indexName: " + settingsRequest.getIndexName(), e);
+                logger.warn("error while trying to read index state dir for indexName: " + settingsRequest.getIndexName(), e);
                 responseObserver.onError(Status
                         .INTERNAL
                         .withDescription("error while trying to read index state dir for indexName: " + settingsRequest.getIndexName())
@@ -211,7 +208,7 @@ public class LuceneServer {
                         .withCause(e)
                         .asRuntimeException());
             } catch (Exception e) {
-                logger.log(Level.WARNING, "error while trying to update/get settings for index " + settingsRequest.getIndexName(), e);
+                logger.warn("error while trying to update/get settings for index " + settingsRequest.getIndexName(), e);
                 responseObserver.onError(Status
                         .INVALID_ARGUMENT
                         .withDescription("error while trying to update/get settings for index: " + settingsRequest.getIndexName())
@@ -232,7 +229,7 @@ public class LuceneServer {
                 responseObserver.onCompleted();
 
             } catch (IOException e) {
-                logger.log(Level.WARNING, "error while trying to read index state dir for indexName: " + startIndexRequest.getIndexName(), e);
+                logger.warn("error while trying to read index state dir for indexName: " + startIndexRequest.getIndexName(), e);
                 responseObserver.onError(Status
                         .INTERNAL
                         .withDescription("error while trying to read index state dir for indexName: " + startIndexRequest.getIndexName())
@@ -240,7 +237,7 @@ public class LuceneServer {
                         .withCause(e)
                         .asRuntimeException());
             } catch (Exception e) {
-                logger.log(Level.WARNING, "error while trying to start index " + startIndexRequest.getIndexName(), e);
+                logger.warn("error while trying to start index " + startIndexRequest.getIndexName(), e);
                 responseObserver.onError(Status
                         .INVALID_ARGUMENT
                         .withDescription("error while trying to start index: " + startIndexRequest.getIndexName())
@@ -280,7 +277,7 @@ public class LuceneServer {
 
                 @Override
                 public void onError(Throwable t) {
-                    logger.log(Level.WARNING, "addDocuments Cancelled");
+                    logger.warn("addDocuments Cancelled");
                     responseObserver.onError(t);
                 }
 
@@ -309,7 +306,7 @@ public class LuceneServer {
                         responseObserver.onNext(AddDocumentResponse.newBuilder().setGenId(String.valueOf(pq.peek())).build());
                         responseObserver.onCompleted();
                         logger.info(String.format("Indexing job completed for %s docs, in %s chunks, with latest sequence number: %s, took: %s micro seconds",
-                                count, numIndexingChunks, pq.peek(), ((t1-t0)/1000)));
+                                count, numIndexingChunks, pq.peek(), ((t1 - t0) / 1000)));
                     } catch (Exception e) {
                         responseObserver.onError(Status
                                 .PERMISSION_DENIED
@@ -342,7 +339,7 @@ public class LuceneServer {
                 refreshResponseStreamObserver.onNext(reply);
                 refreshResponseStreamObserver.onCompleted();
             } catch (IOException e) {
-                logger.log(Level.WARNING, "error while trying to read index state dir for indexName: " + refreshRequest.getIndexName(), e);
+                logger.warn("error while trying to read index state dir for indexName: " + refreshRequest.getIndexName(), e);
                 refreshResponseStreamObserver.onError(Status
                         .INTERNAL
                         .withDescription("error while trying to read index state dir for indexName: " + refreshRequest.getIndexName())
@@ -350,7 +347,7 @@ public class LuceneServer {
                         .withCause(e)
                         .asRuntimeException());
             } catch (Exception e) {
-                logger.log(Level.WARNING, "error while trying to refresh index " + refreshRequest.getIndexName(), e);
+                logger.warn("error while trying to refresh index " + refreshRequest.getIndexName(), e);
                 refreshResponseStreamObserver.onError(Status
                         .UNKNOWN
                         .withDescription("error while trying to refresh index: " + refreshRequest.getIndexName())
@@ -369,7 +366,7 @@ public class LuceneServer {
                 commitResponseStreamObserver.onNext(reply);
                 commitResponseStreamObserver.onCompleted();
             } catch (IOException e) {
-                logger.log(Level.WARNING, "error while trying to read index state dir for indexName: " + commitRequest.getIndexName(), e);
+                logger.warn("error while trying to read index state dir for indexName: " + commitRequest.getIndexName(), e);
                 commitResponseStreamObserver.onError(Status
                         .INTERNAL
                         .withDescription("error while trying to read index state dir for indexName: " + commitRequest.getIndexName())
@@ -377,7 +374,7 @@ public class LuceneServer {
                         .withCause(e)
                         .asRuntimeException());
             } catch (Exception e) {
-                logger.log(Level.WARNING, "error while trying to commit to  index " + commitRequest.getIndexName(), e);
+                logger.warn("error while trying to commit to  index " + commitRequest.getIndexName(), e);
                 commitResponseStreamObserver.onError(Status
                         .UNKNOWN
                         .withDescription("error while trying to commit to index: " + commitRequest.getIndexName())
@@ -440,7 +437,7 @@ public class LuceneServer {
                 statsResponseStreamObserver.onNext(reply);
                 statsResponseStreamObserver.onCompleted();
             } catch (IOException e) {
-                logger.log(Level.WARNING, "error while trying to read index state dir for indexName: " + statsRequest.getIndexName(), e);
+                logger.warn("error while trying to read index state dir for indexName: " + statsRequest.getIndexName(), e);
                 statsResponseStreamObserver.onError(Status
                         .INTERNAL
                         .withDescription("error while trying to read index state dir for indexName: " + statsRequest.getIndexName())
@@ -448,7 +445,7 @@ public class LuceneServer {
                         .withCause(e)
                         .asRuntimeException());
             } catch (Exception e) {
-                logger.log(Level.WARNING, "error while trying to retrieve stats for index " + statsRequest.getIndexName(), e);
+                logger.warn("error while trying to retrieve stats for index " + statsRequest.getIndexName(), e);
                 statsResponseStreamObserver.onError(Status
                         .UNKNOWN
                         .withDescription("error while trying to retrieve stats for index: " + statsRequest.getIndexName())
@@ -467,7 +464,7 @@ public class LuceneServer {
                 searchResponseStreamObserver.onNext(reply);
                 searchResponseStreamObserver.onCompleted();
             } catch (IOException e) {
-                logger.log(Level.WARNING, "error while trying to read index state dir for indexName: " + searchRequest.getIndexName(), e);
+                logger.warn("error while trying to read index state dir for indexName: " + searchRequest.getIndexName(), e);
                 searchResponseStreamObserver.onError(Status
                         .INTERNAL
                         .withDescription("error while trying to read index state dir for indexName: " + searchRequest.getIndexName())
@@ -475,7 +472,7 @@ public class LuceneServer {
                         .withCause(e)
                         .asRuntimeException());
             } catch (Exception e) {
-                logger.log(Level.WARNING, String.format("error while trying to execute search %s for index %s", searchRequest.getIndexName(), searchRequest.toString()), e);
+                logger.warn(String.format("error while trying to execute search %s for index %s", searchRequest.getIndexName(), searchRequest.toString()), e);
                 searchResponseStreamObserver.onError(Status
                         .UNKNOWN
                         .withDescription(String.format("error while trying to execute search %s for index %s", searchRequest.getIndexName(), searchRequest.toString()))

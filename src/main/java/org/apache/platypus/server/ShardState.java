@@ -214,8 +214,7 @@ public class ShardState implements Closeable {
 
     @Override
     public synchronized void close() throws IOException {
-        logger.info(String.format("IndexState.close name= %s" + name));
-        logger.info(String.format("INDEX STATE close"));
+        logger.info(String.format("ShardState.close name= %s", name));
 
         commit();
 
