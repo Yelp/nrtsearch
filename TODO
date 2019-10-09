@@ -1,11 +1,11 @@
-*Functionality*
+*Missing Functionality*
 - Support more analyzers (i.e. other than StandardAnalyzer), including constructing custom ones using TokenStreams
 - Support custom Similarity.
 - support live documentation from gRPC? might need to support gRPC-web
 - add suggest functionality
 - remove boost option from RegisterHandler since individual fields can no longer setBoost while indexing:https://issues.apache.org/jira/browse/LUCENE-6819
-- support nested docs (both indexing and searching time)
-
+- support parent-child join docs (both indexing and searching time)
+- Snapshot/Restore
 
 *Potential bugs/issues*
 - Call commit after registerFields? Else the Field states is not durable
@@ -15,6 +15,7 @@
 - Support highlights at search time
 - Support facets at search time
   - hierarchy is broken right now (We need to support List<<List<String>> within MultiValueFields in proto file
+
 
 - Support blockJoinQuery parent-child
 - Specify searcher in search request

@@ -1,0 +1,28 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "vendor_name",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "vendor_name_atom",
+      "type": "ATOM",
+      "search": true,
+      "store": true,
+      "multiValued": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "license_no",
+      "type": "INT",
+      "multiValued": true,
+      "storeDocValues": true
+    }
+  ]
+}

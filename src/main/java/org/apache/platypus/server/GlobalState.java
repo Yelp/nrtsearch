@@ -150,11 +150,11 @@ public class GlobalState implements Closeable {
 
     @Override
     public void close() throws IOException {
-        //logger.info("GlobalState.close: indices=" + indices);
+        logger.info("GlobalState.close: indices=" + indices);
         //searchThread.interrupt();
         IOUtils.close(remoteNodes);
         IOUtils.close(indices.values());
-        //indexService.shutdown();
+        indexService.shutdown();
         TimeLimitingCollector.getGlobalTimerThread().stopTimer();
         try {
             TimeLimitingCollector.getGlobalTimerThread().join();

@@ -484,16 +484,17 @@ public class IndexState implements Closeable {
 
     @Override
     public void close() throws IOException {
+        logger.info(String.format("IndexState.close name= %s", name));
         commit();
         List<Closeable> closeables = new ArrayList<>();
         closeables.addAll(shards.values());
         closeables.addAll(fields.values());
         //TODO: dont support suggestions yet
-//        for(Lookup suggester : suggesters.values()) {
-//            if (suggester instanceof Closeable) {
-//                closeables.add((Closeable) suggester);
-//            }
-//        }
+        for(Lookup suggester : suggesters.values()) {
+            if (suggester instanceof Closeable) {
+                closeables.add((Closeable) suggester);
+            }
+        }
         IOUtils.close(closeables);
 
         // nocommit should we remove this instance?  if app
@@ -735,7 +736,7 @@ public class IndexState implements Closeable {
             throw new IllegalArgumentException("field \"" + fd.name + "\" was already registered");
         }
         fields.put(fd.name, fd);
-        assert null != fieldsSaveState.get(fd.name);
+        assert null == fieldsSaveState.get(fd.name);
         fieldsSaveState.add(fd.name, jsonObject);
         // nocommit support sorted set dv facets
         if (fd.faceted != null && fd.faceted.equals(FieldDef.FacetValueType.NO_FACETS) == false && fd.faceted.equals(FieldDef.FacetValueType.NUMERIC_RANGE) == false) {
