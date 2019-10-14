@@ -49,7 +49,7 @@ public class GlobalState implements Closeable {
 
     public final List<RemoteNodeConnection> remoteNodes = new CopyOnWriteArrayList<>();
 
-    private final static int MAX_BUFFERED_ITEMS = Math.max(100, 2*MAX_INDEXING_THREADS);
+    private final static int MAX_BUFFERED_ITEMS = Math.max(100, 2 * MAX_INDEXING_THREADS);
 
     // Seems to be substantially faster than ArrayBlockingQueue at high throughput:
     final BlockingQueue<Runnable> docsToIndex = new LinkedBlockingQueue<Runnable>(MAX_BUFFERED_ITEMS);
@@ -67,7 +67,9 @@ public class GlobalState implements Closeable {
      */
     final Map<String, IndexState> indices = new ConcurrentHashMap<String, IndexState>();
 
-    /** Server shuts down once this latch is decremented. */
+    /**
+     * Server shuts down once this latch is decremented.
+     */
     public final CountDownLatch shutdownNow = new CountDownLatch(1);
 
     final Path stateDir;
@@ -122,7 +124,7 @@ public class GlobalState implements Closeable {
     }
 
     private void saveIndexNames() throws IOException {
-        synchronized(indices) {
+        synchronized (indices) {
             lastIndicesGen++;
             byte[] bytes = IndexState.toUTF8(indexNames.toString());
             Path f = stateDir.resolve("indices." + lastIndicesGen);
@@ -163,7 +165,9 @@ public class GlobalState implements Closeable {
         }
     }
 
-    /** Create a new index. */
+    /**
+     * Create a new index.
+     */
     public IndexState createIndex(String name, Path rootDir) throws IllegalArgumentException, IOException {
         synchronized (indices) {
             if (indexNames.get(name) != null) {
@@ -184,9 +188,11 @@ public class GlobalState implements Closeable {
         }
     }
 
-    /** Get the {@link IndexState} by index name. */
-    public IndexState getIndex(String name)  throws IllegalArgumentException, IOException{
-        synchronized(indices) {
+    /**
+     * Get the {@link IndexState} by index name.
+     */
+    public IndexState getIndex(String name) throws IllegalArgumentException, IOException {
+        synchronized (indices) {
             IndexState state = indices.get(name);
             if (state == null) {
                 String rootPath = indexNames.get(name).getAsString();
@@ -211,4 +217,12 @@ public class GlobalState implements Closeable {
         return indexService.submit(job);
     }
 
+    /**
+     * Remove the specified index.
+     */
+    public void deleteIndex(String name) {
+        synchronized (indices) {
+            indexNames.remove(name);
+        }
+    }
 }

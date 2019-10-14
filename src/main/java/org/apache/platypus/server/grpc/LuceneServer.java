@@ -427,6 +427,7 @@ public class LuceneServer {
 
                         Searcher.Builder searcher = Searcher.newBuilder();
                         searcher.setSegments(s.searcher.toString());
+                        searcher.setNumDocs(s.searcher.getIndexReader().numDocs());
                         statsResponseBuilder.setCurrentSearcher(searcher.build());
                     } finally {
                         shardState.release(s);
@@ -480,6 +481,61 @@ public class LuceneServer {
                         .asRuntimeException());
             }
         }
+
+        @Override
+        public void delete(AddDocumentRequest addDocumentRequest, StreamObserver<AddDocumentResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(addDocumentRequest.getIndexName());
+                AddDocumentResponse reply = new DeleteDocumentsHandler().handle(indexState, addDocumentRequest);
+                logger.info("DeleteDocumentsHandler returned " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            }  catch (Exception e) {
+                logger.warn("error while trying to delete documents for index " + addDocumentRequest.getIndexName(), e);
+                responseObserver.onError(Status
+                        .INVALID_ARGUMENT
+                        .withDescription("error while trying to delete documents for index: " + addDocumentRequest.getIndexName())
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+        @Override
+        public void deleteAll(DeleteAllDocumentsRequest deleteAllDocumentsRequest, StreamObserver<DeleteAllDocumentsResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(deleteAllDocumentsRequest.getIndexName());
+                DeleteAllDocumentsResponse reply = new DeleteAllDocumentsHandler().handle(indexState, deleteAllDocumentsRequest);
+                logger.info("DeleteAllDocumentsHandler returned " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            }  catch (Exception e) {
+                logger.warn("error while trying to deleteAll for index " + deleteAllDocumentsRequest.getIndexName(), e);
+                responseObserver.onError(Status
+                        .INVALID_ARGUMENT
+                        .withDescription("error while trying to deleteAll for index: " + deleteAllDocumentsRequest.getIndexName())
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+        @Override
+        public void deleteIndex(DeleteIndexRequest deleteIndexRequest, StreamObserver<DeleteIndexResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(deleteIndexRequest.getIndexName());
+                DeleteIndexResponse reply = new DeleteIndexHandler().handle(indexState, deleteIndexRequest);
+                logger.info("DeleteAllDocumentsHandler returned " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            }  catch (Exception e) {
+                logger.warn("error while trying to delete index " + deleteIndexRequest.getIndexName(), e);
+                responseObserver.onError(Status
+                        .INVALID_ARGUMENT
+                        .withDescription("error while trying to delete index: " + deleteIndexRequest.getIndexName())
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
 
     }
 }

@@ -42,6 +42,7 @@ import java.util.stream.Stream;
 import static org.apache.platypus.server.cli.AddDocumentsCommand.ADD_DOCUMENTS;
 import static org.apache.platypus.server.cli.CommitCommand.COMMIT;
 import static org.apache.platypus.server.cli.CreateIndexCommand.CREATE_INDEX;
+import static org.apache.platypus.server.cli.DeleteDocumentsCommand.DELETE_DOCS;
 import static org.apache.platypus.server.cli.LiveSettingsCommand.LIVE_SETTINGS;
 import static org.apache.platypus.server.cli.RefreshCommand.REFRESH;
 import static org.apache.platypus.server.cli.RegisterFieldsCommand.REGISTER_FIELDS;
@@ -250,6 +251,18 @@ public class LuceneServerClient {
         logger.info("Server returned : " + response.toString());
     }
 
+    public void delete(Path filePath) throws IOException {
+        AddDocumentRequest addDocumentRequest = new LuceneServerClientBuilder.DeleteDocumentsBuilder().buildRequest(filePath);
+        AddDocumentResponse response;
+        try {
+            response = blockingStub.delete(addDocumentRequest);
+        } catch (StatusRuntimeException e) {
+            logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+            return;
+        }
+        logger.info("Server returned indexGen : " + response.getGenId());
+    }
+
     private FieldDefRequest getFieldDefRequest(String jsonStr) {
         logger.info(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
         FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
@@ -354,6 +367,11 @@ public class LuceneServerClient {
                     SearchCommand searchCommand = (SearchCommand) subCommand;
                     filePath = Paths.get(searchCommand.getFileName());
                     client.search(filePath);
+                    break;
+                case DELETE_DOCS:
+                    DeleteDocumentsCommand deleteDocumentsCommand = (DeleteDocumentsCommand) subCommand;
+                    filePath = Paths.get(deleteDocumentsCommand.getFileName());
+                    client.delete(filePath);
                     break;
                 default:
                     logger.warning(String.format("%s is not a valid server command", subCommandStr));

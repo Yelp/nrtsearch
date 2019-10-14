@@ -95,7 +95,6 @@ public interface LuceneServerClientBuilder<T> {
 
     class AddDcoumentsClientBuilder implements LuceneServerClientBuilder<Stream<AddDocumentRequest>> {
         private static final Logger logger = Logger.getLogger(AddDcoumentsClientBuilder.class.getName());
-        public static final String DOC_ID = "doc_id";
         private final String indexName;
         private final CSVParser csvParser;
 
@@ -111,14 +110,12 @@ public interface LuceneServerClientBuilder<T> {
             int cnt = 0;
             for (CSVRecord csvRecord : csvParser) {
                 { //data rows
-                    addDocumentRequestBuilder.setIndexName(indexName).setDocId(csvRecord.get(DOC_ID));
+                    addDocumentRequestBuilder.setIndexName(indexName);
                     for (String fieldName : csvParser.getHeaderNames()) {
-                        if (!fieldName.equals(DOC_ID)) {
-                            String fieldValues = csvRecord.get(fieldName);
-                            List<String> fieldVals = Arrays.asList(fieldValues.split(";"));
-                            AddDocumentRequest.MultiValuedField.Builder multiValuedFieldsBuilder = AddDocumentRequest.MultiValuedField.newBuilder();
-                            addDocumentRequestBuilder.putFields(fieldName, multiValuedFieldsBuilder.addAllValue(fieldVals).build());
-                        }
+                        String fieldValues = csvRecord.get(fieldName);
+                        List<String> fieldVals = Arrays.asList(fieldValues.split(";"));
+                        AddDocumentRequest.MultiValuedField.Builder multiValuedFieldsBuilder = AddDocumentRequest.MultiValuedField.newBuilder();
+                        addDocumentRequestBuilder.putFields(fieldName, multiValuedFieldsBuilder.addAllValue(fieldVals).build());
                     }
                     builder.add(addDocumentRequestBuilder.build());
                 }
@@ -145,6 +142,26 @@ public interface LuceneServerClientBuilder<T> {
             SearchRequest searchRequest = searchRequestBuilder.build();
             logger.info(String.format("jsonStr converted to proto SearchRequest: \n%s", searchRequest.toString()));
             return searchRequest;
+        }
+    }
+
+
+    class DeleteDocumentsBuilder implements LuceneServerClientBuilder<AddDocumentRequest> {
+        private static final Logger logger = Logger.getLogger(DeleteDocumentsBuilder.class.getName());
+
+        @Override
+        public AddDocumentRequest buildRequest(Path filePath) throws IOException {
+            String jsonStr = Files.readString(filePath);
+            logger.info(String.format("Converting fields %s to proto AddDocumentRequest", jsonStr));
+            AddDocumentRequest.Builder addDocumentRequestBuilder = AddDocumentRequest.newBuilder();
+            try {
+                JsonFormat.parser().merge(jsonStr, addDocumentRequestBuilder);
+            } catch (InvalidProtocolBufferException e) {
+                throw new RuntimeException(e);
+            }
+            AddDocumentRequest addDocumentRequest = addDocumentRequestBuilder.build();
+            logger.info(String.format("jsonStr converted to proto AddDocumentRequest: \n%s", addDocumentRequest.toString()));
+            return addDocumentRequest;
         }
     }
 }
