@@ -21,20 +21,24 @@ package org.apache.platypus.server.cli;
 
 import picocli.CommandLine;
 
-/*Each new command needs to be added here*/
-@CommandLine.Command(name = "cmd", synopsisSubcommandLabel = "COMMAND", subcommands = {
-        CreateIndexCommand.class,
-        LiveSettingsCommand.class,
-        RegisterFieldsCommand.class,
-        SettingsCommand.class,
-        StartIndexCommand.class,
-        AddDocumentsCommand.class,
-        RefreshCommand.class,
-        CommitCommand.class,
-        StatsCommand.class,
-        SearchCommand.class,
-        DeleteDocumentsCommand.class
-})
-public class Cmd {
-    //noop
+
+@CommandLine.Command(name = DeleteDocumentsCommand.DELETE_DOCS, mixinStandardHelpOptions = true, version = "delete 0.1",
+        description = "Delete documents from index that match any terms")
+public class DeleteDocumentsCommand {
+    public static final String DELETE_DOCS = "delete";
+
+    @CommandLine.Option(names = {"-i", "--indexName"}, description = "name of the index whose docs are to be deleted", required = true)
+    private String indexName;
+
+    public String getIndexName() {
+        return indexName;
+    }
+
+    @CommandLine.Option(names = {"-f", "--fileName"}, description = "file containing document filters to be deleted", required = true)
+    private String fileName;
+
+    public String getFileName() {
+        return fileName;
+    }
+
 }

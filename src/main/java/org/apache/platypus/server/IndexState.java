@@ -158,6 +158,13 @@ public class IndexState implements Closeable {
         return writableShard;
     }
 
+    public void deleteIndex() throws IOException {
+        for(ShardState shardState : shards.values()) {
+            shardState.deleteShard();
+        }
+        globalState.deleteIndex(name);
+    }
+
     /**
      * Tracks snapshot references to generations.
      */

@@ -44,6 +44,16 @@ service LuceneServer {
     /* Search */
     rpc search (SearchRequest) returns (SearchResponse) {
     }
+    /* Delete documents */
+    rpc delete (AddDocumentRequest) returns (AddDocumentResponse) {
+    }
+    /* Delete all documents for index */
+    rpc deleteAll (DeleteAllDocumentsRequest) returns (DeleteAllDocumentsResponse) {
+    }
+    /* Delete index */
+    rpc deleteIndex (DeleteIndexRequest) returns (DeleteIndexResponse) {
+    }
+
 }
 
 /* Input to createIndex */
@@ -239,9 +249,9 @@ message StartIndexResponse {
 
 message AddDocumentRequest {
     string indexName = 1; //name of the index
-    string docId = 2; //documentId to be indexed
-    message MultiValuedField { //we use this wrapper object to represent each field as a multivalued field.
-                               repeated string value = 1; //list of values for this field
+    //we use this wrapper object to represent each field as a multivalued field.
+    message MultiValuedField {
+        repeated string value = 1; //list of values for this field
     }
     map<string, MultiValuedField> fields = 3; //map of field name to a list of string values.
 }
@@ -333,4 +343,20 @@ message QuerySortField {
     bool doDocScores = 1; //Compute the doc score for each collected (costs added CPU); default:false
     bool doMaxScore = 2; //Compute the max score across all hits (costs added CPU); default: false
     SortFields fields = 3; //List of Fields to sort on.
+}
+
+message DeleteAllDocumentsRequest {
+    string indexName = 1; //index to delete all documents  from
+}
+
+message DeleteAllDocumentsResponse {
+    string genId = 1; //Returns the index generation (indexGen) that reflects the deletion.
+}
+
+message DeleteIndexRequest {
+    string indexName = 1; //index to delete
+}
+
+message DeleteIndexResponse {
+    string ok = 1; //Returns "ok" string on  success
 }

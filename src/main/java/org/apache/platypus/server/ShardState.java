@@ -17,6 +17,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
@@ -188,6 +190,32 @@ public class ShardState implements Closeable {
     public String getState() {
         //TODO FIX ME: should it be read-only, etc?
         return isStarted() ? "started" : "not started";
+    }
+
+    /** Delete this shard. */
+    public void deleteShard() throws IOException {
+        if (rootDir != null) {
+            deleteAllFiles(rootDir);
+        }
+    }
+
+    private static void deleteAllFiles(Path dir) throws IOException {
+        if (Files.exists(dir)) {
+            if (Files.isRegularFile(dir)) {
+                Files.delete(dir);
+            } else {
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
+                    for (Path path : stream) {
+                        if (Files.isDirectory(path)) {
+                            deleteAllFiles(path);
+                        } else {
+                            Files.delete(path);
+                        }
+                    }
+                }
+                Files.delete(dir);
+            }
+        }
     }
 
     public static class HostAndPort {

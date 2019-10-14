@@ -337,7 +337,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
             ShardState shardState = indexState.getWritableShard();
             long gen;
             try {
-                gen = shardState.writer.addDocuments(new Iterable<Document>() {
+                shardState.writer.addDocuments(new Iterable<Document>() {
                     @Override
                     public Iterator<Document> iterator() {
                         final boolean hasFacets = shardState.indexState.hasFacets();
@@ -374,7 +374,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 logger.log(Level.WARNING, String.format("ThreadId: %s, IndexWriter.addDocuments failed", Thread.currentThread().getName() + Thread.currentThread().getId()));
                 throw new IOException(e);
             }
-            return gen;
+            return shardState.writer.getMaxCompletedSequenceNumber();
         }
 
         @Override
