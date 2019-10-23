@@ -20,9 +20,15 @@
 package org.apache.platypus.server;
 
 import com.google.protobuf.GeneratedMessageV3;
+import org.apache.platypus.server.grpc.ReplicationServerClient;
 
 /* Interface for handlers that take in an indexState and the protoBuff request and returns the protoBuff response */
 public interface Handler<T extends GeneratedMessageV3, S extends GeneratedMessageV3> {
+
+    default boolean isValidMagicHeader(int magicHeader) {
+        return magicHeader == ReplicationServerClient.BINARY_MAGIC;
+    }
+
     S handle(IndexState indexState, T protoRequest) throws HandlerException;
 
     class HandlerException extends Exception {

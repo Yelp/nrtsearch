@@ -6,11 +6,17 @@ import java.nio.file.Paths;
 public class LuceneServerConfiguration {
 
     private int port;
+    private int replicationPort;
     private String nodeName;
     private Path stateDir;
+    private String hostName;
 
     public int getPort() {
         return port;
+    }
+
+    public int getReplicationPort() {
+        return replicationPort;
     }
 
     public String getNodeName() {
@@ -21,8 +27,14 @@ public class LuceneServerConfiguration {
         return stateDir;
     }
 
+    public String getHostName() {
+        return hostName;
+    }
+
 
     public static class Builder {
+        private String hostName;
+        private int replicationPort;
         private int port;
         private String nodeName;
         private Path stateDir;
@@ -30,12 +42,14 @@ public class LuceneServerConfiguration {
         public Builder() {
             //set default values
             this.nodeName = "main";
-            this.stateDir = Paths.get(System.getProperty("user.home"), "lucene", "server");
+            this.hostName = "localhost";
+            this.stateDir = Paths.get(System.getProperty("user.home"), "lucene", "server", String.valueOf(ProcessHandle.current().pid()));
             this.port = 50051;
+            this.replicationPort = 50052;
         }
 
-        public Builder withPort(Path port) {
-            this.stateDir = port;
+        public Builder withStateDir(Path stateDir) {
+            this.stateDir = stateDir;
             return this;
         }
 
@@ -50,11 +64,23 @@ public class LuceneServerConfiguration {
             return this;
         }
 
+        public Builder withReplicationPort(int replicationPort) {
+            this.replicationPort = replicationPort;
+            return this;
+        }
+
+        public Builder withHostName(String hostName) {
+            this.hostName = hostName;
+            return this;
+        }
+
         public LuceneServerConfiguration build() {
             LuceneServerConfiguration luceneServerConfiguration = new LuceneServerConfiguration();
             luceneServerConfiguration.nodeName = this.nodeName;
             luceneServerConfiguration.stateDir = this.stateDir;
             luceneServerConfiguration.port = this.port;
+            luceneServerConfiguration.hostName = this.hostName;
+            luceneServerConfiguration.replicationPort = this.replicationPort;
             return luceneServerConfiguration;
         }
 

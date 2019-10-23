@@ -17,6 +17,7 @@ package org.apache.platypus.server.grpc;
  */
 
 
+import com.google.protobuf.ByteString;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
@@ -28,16 +29,14 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherLifetimeManager;
 import org.apache.platypus.server.*;
 import org.apache.platypus.server.config.LuceneServerConfiguration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.stream.Collectors;
 
 /**
@@ -47,6 +46,7 @@ public class LuceneServer {
     private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
 
     private Server server;
+    private Server replicationServer;
     private LuceneServerConfiguration luceneServerConfiguration;
 
     public LuceneServer(LuceneServerConfiguration luceneServerConfiguration) {
@@ -54,13 +54,22 @@ public class LuceneServer {
     }
 
     private void start() throws IOException {
-        GlobalState globalState = new GlobalState(luceneServerConfiguration.getNodeName(), luceneServerConfiguration.getStateDir());
+        GlobalState globalState = new GlobalState(luceneServerConfiguration.getNodeName(),
+                luceneServerConfiguration.getStateDir(), luceneServerConfiguration.getHostName(), luceneServerConfiguration.getPort());
         /* The port on which the server should run */
         server = ServerBuilder.forPort(luceneServerConfiguration.getPort())
                 .addService(new LuceneServerImpl(globalState))
                 .build()
                 .start();
-        logger.info("Server started, listening on " + luceneServerConfiguration.getPort());
+        logger.info("Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
+
+        /* The port on which the replication server should run */
+        replicationServer = ServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
+                .addService(new ReplicationServerImpl(globalState))
+                .build()
+                .start();
+        logger.info("Server started, listening on " + luceneServerConfiguration.getReplicationPort() + " for replication messages");
+
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
@@ -76,6 +85,9 @@ public class LuceneServer {
         if (server != null) {
             server.shutdown();
         }
+        if (replicationServer != null) {
+            replicationServer.shutdown();
+        }
     }
 
     /**
@@ -85,6 +97,9 @@ public class LuceneServer {
         if (server != null) {
             server.awaitTermination();
         }
+        if (replicationServer != null) {
+            replicationServer.awaitTermination();
+        }
     }
 
     /**
@@ -92,7 +107,12 @@ public class LuceneServer {
      */
     public static void main(String[] args) throws IOException, InterruptedException {
         //TODO parse the LuceneServerConfiguration from a yaml file to be able to customize it.
-        LuceneServerConfiguration luceneServerConfiguration = new LuceneServerConfiguration.Builder().build();
+        LuceneServerConfiguration.Builder configurationBuilder = new LuceneServerConfiguration.Builder();
+        if (args.length > 1) {
+            configurationBuilder.withPort(Integer.parseInt(args[0]));
+            configurationBuilder.withReplicationPort(Integer.parseInt(args[1]));
+        }
+        LuceneServerConfiguration luceneServerConfiguration = configurationBuilder.build();
         final LuceneServer server = new LuceneServer(luceneServerConfiguration);
         server.start();
         server.blockUntilShutdown();
@@ -320,7 +340,6 @@ public class LuceneServer {
                         count = 0;
                     }
 
-                    //TODO: refresh searcher so freshly indexed data is available.
                 }
             };
         }
@@ -490,7 +509,7 @@ public class LuceneServer {
                 logger.info("DeleteDocumentsHandler returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
-            }  catch (Exception e) {
+            } catch (Exception e) {
                 logger.warn("error while trying to delete documents for index " + addDocumentRequest.getIndexName(), e);
                 responseObserver.onError(Status
                         .INVALID_ARGUMENT
@@ -508,7 +527,7 @@ public class LuceneServer {
                 logger.info("DeleteAllDocumentsHandler returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
-            }  catch (Exception e) {
+            } catch (Exception e) {
                 logger.warn("error while trying to deleteAll for index " + deleteAllDocumentsRequest.getIndexName(), e);
                 responseObserver.onError(Status
                         .INVALID_ARGUMENT
@@ -526,7 +545,7 @@ public class LuceneServer {
                 logger.info("DeleteAllDocumentsHandler returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
-            }  catch (Exception e) {
+            } catch (Exception e) {
                 logger.warn("error while trying to delete index " + deleteIndexRequest.getIndexName(), e);
                 responseObserver.onError(Status
                         .INVALID_ARGUMENT
@@ -536,6 +555,149 @@ public class LuceneServer {
             }
         }
 
+
+    }
+
+    static class ReplicationServerImpl extends ReplicationServerGrpc.ReplicationServerImplBase {
+        private final GlobalState globalState;
+
+        public ReplicationServerImpl(GlobalState globalState) {
+            this.globalState = globalState;
+        }
+
+        @Override
+        public void addReplicas(AddReplicaRequest addReplicaRequest, StreamObserver<AddReplicaResponse> responseStreamObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(addReplicaRequest.getIndexName());
+                AddReplicaResponse reply = new AddReplicaHandler().handle(indexState, addReplicaRequest);
+                logger.info("AddReplicaHandler returned " + reply.toString());
+                responseStreamObserver.onNext(reply);
+                responseStreamObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn("error while trying addReplicas " + addReplicaRequest.getIndexName(), e);
+                responseStreamObserver.onError(Status
+                        .INTERNAL
+                        .withDescription("error while trying to addReplicas for index: " + addReplicaRequest.getIndexName())
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+
+        @Override
+        public StreamObserver<RawFileChunk> sendRawFile(StreamObserver<TransferStatus> responseObserver) {
+            OutputStream outputStream = null;
+            try {
+                //TODO: where do we write these files to?
+                outputStream = new FileOutputStream(File.createTempFile("tempfile", ".tmp"));
+            } catch (IOException e) {
+                new RuntimeException(e);
+            }
+            return new SendRawFileStreamObserver(outputStream, responseObserver);
+        }
+
+        static class SendRawFileStreamObserver implements StreamObserver<RawFileChunk> {
+            private static final Logger logger = LoggerFactory.getLogger(SendRawFileStreamObserver.class.getName());
+            private final OutputStream outputStream;
+            private final StreamObserver<TransferStatus> responseObserver;
+            private final long startTime;
+
+            SendRawFileStreamObserver(OutputStream outputStream, StreamObserver<TransferStatus> responseObserver) {
+                this.outputStream = outputStream;
+                this.responseObserver = responseObserver;
+                startTime = System.nanoTime();
+            }
+
+            @Override
+            public void onNext(RawFileChunk value) {
+                //called by client once per chunk of data
+                try {
+                    logger.trace("sendRawFile onNext");
+                    value.getContent().writeTo(outputStream);
+                } catch (IOException e) {
+                    try {
+                        outputStream.close();
+                    } catch (IOException ex) {
+                        logger.warn("error trying to close outputStream", ex);
+                    } finally {
+                        //we either had error in writing to outputStream or cant close it,
+                        //either case we need to raise it back to client
+                        responseObserver.onError(e);
+                    }
+                }
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                logger.warn("sendRawFile cancelled", t);
+                try {
+                    outputStream.close();
+                } catch (IOException e) {
+                    logger.warn("error while trying to close outputStream", e);
+                } finally {
+                    //we want to raise error always here
+                    responseObserver.onError(t);
+                }
+            }
+
+            @Override
+            public void onCompleted() {
+                logger.info("sendRawFile completed");
+                //called by client after the entire file is sent
+                try {
+                    outputStream.close();
+                    //TOOD: should we send fileSize copied?
+                    long endTime = System.nanoTime();
+                    long totalTimeInMilliSeoncds = (endTime - startTime) / (1000 * 1000);
+                    responseObserver.onNext(TransferStatus.newBuilder().setCode(TransferStatusCode.Ok).setMessage(String.valueOf(totalTimeInMilliSeoncds)).build());
+                    responseObserver.onCompleted();
+                } catch (IOException e) {
+                    logger.warn("error while trying to close outputStream", e);
+                    responseObserver.onError(e);
+                }
+            }
+
+        }
+
+        @Override
+        public void recvRawFile(FileInfo fileInfoRequest, StreamObserver<RawFileChunk> rawFileChunkStreamObserver) {
+            try {
+                InputStream inputStream = new FileInputStream(new File(fileInfoRequest.getFileName()));
+                byte[] chunk = new byte[1024 * 64];
+                int totalRead;
+                while ((totalRead = inputStream.read(chunk)) != -1) {
+                    RawFileChunk rawFileChunk = RawFileChunk.newBuilder().setContent(ByteString.copyFrom(chunk, 0, totalRead)).build();
+                    rawFileChunkStreamObserver.onNext(rawFileChunk);
+                }
+                //EOF
+                rawFileChunkStreamObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn("error on recvRawFile " + fileInfoRequest.getFileName(), e);
+                rawFileChunkStreamObserver.onError(Status
+                        .INTERNAL
+                        .withDescription("error on recvRawFile: " + fileInfoRequest.getFileName())
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+        @Override
+        public void recvCopyState(CopyStateRequest request, StreamObserver<CopyState> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(request.getIndexName());
+                CopyState reply = new RecvCopyStateHandler().handle(indexState, request);
+                logger.info("AddReplicaHandler returned " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn(String.format("error on recvCopyState for replicaId: %s, for index: %s", request.getReplicaId(), request.getIndexName()), e);
+                responseObserver.onError(Status
+                        .INTERNAL
+                        .withDescription(String.format("error on recvCopyState for replicaId: %s, for index: %s", request.getReplicaId(), request.getIndexName()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
 
     }
 }

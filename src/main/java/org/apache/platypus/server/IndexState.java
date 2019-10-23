@@ -118,8 +118,6 @@ public class IndexState implements Closeable {
     final JsonObject suggestSaveState = new JsonObject();
 
     private final static Pattern reSimpleName = Pattern.compile("^[a-zA-Z_][a-zA-Z_0-9]*$");
-    ;
-
 
     public ShardState addShard(int shardOrd, boolean doCreate) {
         if (shards.containsKey(shardOrd)) {

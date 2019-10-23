@@ -19,18 +19,16 @@
 
 package org.apache.platypus.server;
 
-import com.google.gson.JsonObject;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.IndexReader;
 import org.apache.platypus.server.grpc.Mode;
+import org.apache.platypus.server.grpc.ReplicationServerClient;
 import org.apache.platypus.server.grpc.StartIndexRequest;
 import org.apache.platypus.server.grpc.StartIndexResponse;
-import org.apache.platypus.server.grpc.StartIndexResponseOrBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 
 public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexResponse> {
     Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
@@ -61,8 +59,9 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
             if (mode.equals(Mode.PRIMARY)) {
                 shardState.startPrimary(primaryGen);
             } else if (mode.equals(Mode.REPLICA)) {
-                // nocommit can we use "caller ID" instead somehow?  rob says this is much better!
-                shardState.startReplica(new InetSocketAddress(primaryAddress, primaryPort), primaryGen);
+                // channel/client to talk to primary on
+                ReplicationServerClient primaryNodeClient = new ReplicationServerClient(primaryAddress, primaryPort);
+                shardState.startReplica(primaryNodeClient, primaryGen);
             } else {
                 indexState.start();
             }
