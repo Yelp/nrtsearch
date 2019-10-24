@@ -10,8 +10,10 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NRTCachingDirectory;
-import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.IOUtils;
+import org.apache.platypus.server.grpc.ReplicationServerClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -24,9 +26,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ShardState implements Closeable {
     Logger logger = LoggerFactory.getLogger(ShardState.class);
@@ -192,7 +191,9 @@ public class ShardState implements Closeable {
         return isStarted() ? "started" : "not started";
     }
 
-    /** Delete this shard. */
+    /**
+     * Delete this shard.
+     */
     public void deleteShard() throws IOException {
         if (rootDir != null) {
             deleteAllFiles(rootDir);
@@ -217,6 +218,11 @@ public class ShardState implements Closeable {
             }
         }
     }
+
+    public boolean isPrimary() {
+        return nrtPrimaryNode != null;
+    }
+
 
     public static class HostAndPort {
         public final InetAddress host;
@@ -508,20 +514,219 @@ public class ShardState implements Closeable {
      * a given index.
      */
     public synchronized void startPrimary(long primaryGen) throws Exception {
-        throw new UnsupportedOperationException("TODO: Support running server in Primary Mode ");
+        if (isStarted()) {
+            throw new IllegalStateException("index \"" + name + "\" was already started");
+        }
+
+        // nocommit share code better w/ start and startReplica!
+
+        boolean success = false;
+
+        try {
+
+            if (indexState.saveLoadState == null) {
+                indexState.initSaveLoadState();
+            }
+
+            Path indexDirFile;
+            if (rootDir == null) {
+                indexDirFile = null;
+            } else {
+                indexDirFile = rootDir.resolve("index");
+            }
+            origIndexDir = indexState.df.open(indexDirFile);
+
+            if ((origIndexDir instanceof MMapDirectory) == false) {
+                double maxMergeSizeMB = indexState.getDoubleSetting("nrtCachingDirectoryMaxMergeSizeMB", 5.0);
+                double maxSizeMB = indexState.getDoubleSetting("nrtCachingDirectoryMaxSizeMB", 60.0);
+                if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
+                    indexDir = new NRTCachingDirectory(origIndexDir, maxMergeSizeMB, maxSizeMB);
+                } else {
+                    indexDir = origIndexDir;
+                }
+            } else {
+                indexDir = origIndexDir;
+            }
+
+            // Rather than rely on IndexWriter/TaxonomyWriter to
+            // figure out if an index is new or not by passing
+            // CREATE_OR_APPEND (which can be dangerous), we
+            // already know the intention from the app (whether
+            // it called createIndex vs openIndex), so we make it
+            // explicit here:
+            IndexWriterConfig.OpenMode openMode;
+            if (doCreate) {
+                // nocommit shouldn't we set doCreate=false after we've done the create?
+                openMode = IndexWriterConfig.OpenMode.CREATE;
+            } else {
+                openMode = IndexWriterConfig.OpenMode.APPEND;
+            }
+
+            // TODO: get facets working!
+
+            boolean verbose = indexState.getBooleanSetting("indexVerbose", false);
+
+            writer = new IndexWriter(indexDir, indexState.getIndexWriterConfig(openMode, origIndexDir, shardOrd));
+            snapshots = (PersistentSnapshotDeletionPolicy) writer.getConfig().getIndexDeletionPolicy();
+
+            // NOTE: must do this after writer, because SDP only
+            // loads its commits after writer calls .onInit:
+            for (IndexCommit c : snapshots.getSnapshots()) {
+                long gen = c.getGeneration();
+                SegmentInfos sis = SegmentInfos.readCommit(origIndexDir, IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", gen));
+                snapshotGenToVersion.put(c.getGeneration(), sis.getVersion());
+            }
+
+            InetSocketAddress localSocketAddress = new InetSocketAddress(indexState.globalState.getHostName(), indexState.globalState.getPort());
+            nrtPrimaryNode = new NRTPrimaryNode(indexState.name, localSocketAddress, writer, 0, primaryGen, -1,
+                    new SearcherFactory() {
+                        @Override
+                        public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) throws IOException {
+                            IndexSearcher searcher = new MyIndexSearcher(r);
+                            searcher.setSimilarity(indexState.sim);
+                            return searcher;
+                        }
+                    },
+                    verbose ? System.out : null);
+
+            // nocommit this isn't used?
+            searcherManager = new NRTPrimaryNode.PrimaryNodeReferenceManager(nrtPrimaryNode,
+                    new SearcherFactory() {
+                        @Override
+                        public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) throws IOException {
+                            IndexSearcher searcher = new MyIndexSearcher(r);
+                            searcher.setSimilarity(indexState.sim);
+                            return searcher;
+                        }
+                    });
+            restartReopenThread();
+
+            startSearcherPruningThread(indexState.globalState.shutdownNow);
+            success = true;
+        } finally {
+            if (!success) {
+                IOUtils.closeWhileHandlingException(reopenThread,
+                        nrtPrimaryNode,
+                        writer,
+                        taxoWriter,
+                        slm,
+                        indexDir,
+                        taxoDir);
+                writer = null;
+            }
+        }
+
     }
 
     /**
      * Start this index as replica, pulling NRT changes from the specified primary
      */
-    public synchronized void startReplica(InetSocketAddress primaryAddress, long primaryGen) throws Exception {
-        throw new UnsupportedOperationException("TODO: Support running server in Replica Mode ");
+    public synchronized void startReplica(ReplicationServerClient primaryAddress, long primaryGen) throws Exception {
+        if (isStarted()) {
+            throw new IllegalStateException("index \"" + name + "\" was already started");
+        }
+
+        // nocommit share code better w/ start and startPrimary!
+        boolean success = false;
+        try {
+            if (indexState.saveLoadState == null) {
+                indexState.initSaveLoadState();
+            }
+            Path indexDirFile;
+            if (rootDir == null) {
+                indexDirFile = null;
+            } else {
+                indexDirFile = rootDir.resolve("index");
+            }
+            origIndexDir = indexState.df.open(indexDirFile);
+            // nocommit don't allow RAMDir
+            // nocommit remove NRTCachingDir too?
+            if ((origIndexDir instanceof MMapDirectory) == false) {
+                double maxMergeSizeMB = indexState.getDoubleSetting("nrtCachingDirectoryMaxMergeSizeMB", 5.0);
+                double maxSizeMB = indexState.getDoubleSetting("nrtCachingDirectoryMaxSizeMB", 60.0);
+                if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
+                    indexDir = new NRTCachingDirectory(origIndexDir, maxMergeSizeMB, maxSizeMB);
+                } else {
+                    indexDir = origIndexDir;
+                }
+            } else {
+                indexDir = origIndexDir;
+            }
+
+            manager = null;
+            nrtPrimaryNode = null;
+
+            boolean verbose = indexState.getBooleanSetting("indexVerbose", false);
+
+            InetSocketAddress localSocketAddress = new InetSocketAddress(indexState.globalState.getHostName(), indexState.globalState.getPort());
+            nrtReplicaNode = new NRTReplicaNode(indexState.name, primaryAddress, localSocketAddress, 0, indexDir,
+                    new SearcherFactory() {
+                        @Override
+                        public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) throws IOException {
+                            IndexSearcher searcher = new MyIndexSearcher(r);
+                            searcher.setSimilarity(indexState.sim);
+                            return searcher;
+                        }
+                    },
+                    verbose ? System.out : null, primaryGen);
+
+            startSearcherPruningThread(indexState.globalState.shutdownNow);
+
+            // Necessary so that the replica "hang onto" all versions sent to it, since the version is sent back to the user on writeNRTPoint
+            addRefreshListener(new ReferenceManager.RefreshListener() {
+                @Override
+                public void beforeRefresh() {
+                }
+
+                @Override
+                public void afterRefresh(boolean didRefresh) throws IOException {
+                    SearcherTaxonomyManager.SearcherAndTaxonomy current = acquire();
+                    try {
+                        slm.record(current.searcher);
+                    } finally {
+                        release(current);
+                    }
+                }
+            });
+            success = true;
+        } finally {
+            if (!success) {
+                IOUtils.closeWhileHandlingException(reopenThread,
+                        nrtReplicaNode,
+                        writer,
+                        taxoWriter,
+                        slm,
+                        indexDir,
+                        taxoDir);
+                writer = null;
+            }
+        }
     }
+
+    public void addRefreshListener(ReferenceManager.RefreshListener listener) {
+        if (nrtPrimaryNode != null) {
+            nrtPrimaryNode.getSearcherManager().addListener(listener);
+        } else if (nrtReplicaNode != null) {
+            nrtReplicaNode.getSearcherManager().addListener(listener);
+        } else {
+            manager.addListener(listener);
+        }
+    }
+
 
     public void maybeRefreshBlocking() throws IOException {
         if (nrtPrimaryNode != null) {
+            /* invokes: SearcherManager.refreshIfNeeded which creates a new Searcher
+            * over a new IndexReader if new docs have been written */
             nrtPrimaryNode.getSearcherManager().maybeRefreshBlocking();
+            /* Do we need this as well? (probably)
+              invokes PrimaryNodeReferenceManager.refreshIfNeeded()
+              The above method calls primary.flushAndRefresh() (which updates copyState on Primary) and primary.sendNewNRTPointToReplicas().
+              This is also run in a separate thread every near-real-time interval (1s) (see: restartReopenThread for Primary)
+            */
+            searcherManager.maybeRefreshBlocking();
         } else {
+            /* SearchAndTaxnomyManager for stand alone mode */
             manager.maybeRefreshBlocking();
         }
     }

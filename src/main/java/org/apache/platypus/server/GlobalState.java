@@ -39,6 +39,8 @@ public class GlobalState implements Closeable {
     // nocommit allow controlling per CSV/json bulk import max concurrency sent into IW?
     private final static int MAX_INDEXING_THREADS = Runtime.getRuntime().availableProcessors();
     public static final String NULL = "NULL";
+    private final String hostName;
+    private final int port;
 
     Logger logger = LoggerFactory.getLogger(GlobalState.class);
     Gson gson = new Gson();
@@ -82,16 +84,26 @@ public class GlobalState implements Closeable {
     /**
      * Sole constructor.
      */
-    public GlobalState(String nodeName, Path stateDir) throws IOException {
+    public GlobalState(String nodeName, Path stateDir, String hostName, int port) throws IOException {
         logger.info("MAX INDEXING THREADS " + MAX_INDEXING_THREADS);
         this.nodeName = nodeName;
         this.stateDir = stateDir;
+        this.hostName = hostName;
+        this.port = port;
         if (Files.exists(stateDir) == false) {
             Files.createDirectories(stateDir);
         }
         //TODO: figure if we need SearchQueue when we get searching
         //searchQueue = new SearchQueue(this);
         loadIndexNames();
+    }
+
+    public String getHostName() {
+        return hostName;
+    }
+
+    public int getPort() {
+        return port;
     }
 
     //need to call this first time LuceneServer comes up

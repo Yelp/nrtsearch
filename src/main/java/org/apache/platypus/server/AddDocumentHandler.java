@@ -334,7 +334,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                     throw new Exception(e); //parent thread should catch and send error back to client
                 }
             }
-            ShardState shardState = indexState.getWritableShard();
+            ShardState shardState = indexState.getShard(0);
             long gen;
             try {
                 shardState.writer.addDocuments(new Iterable<Document>() {

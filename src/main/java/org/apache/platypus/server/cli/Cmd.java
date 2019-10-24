@@ -36,5 +36,11 @@ import picocli.CommandLine;
         DeleteDocumentsCommand.class
 })
 public class Cmd {
-    //noop
+    @CommandLine.Option(names = {"-p", "--port"}, description = "port number of server to connect to", required = true)
+    private String port;
+
+    public int getPort() {
+        return Integer.parseInt(port);
+    }
+
 }

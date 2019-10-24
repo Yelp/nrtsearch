@@ -145,7 +145,6 @@ public interface LuceneServerClientBuilder<T> {
         }
     }
 
-
     class DeleteDocumentsBuilder implements LuceneServerClientBuilder<AddDocumentRequest> {
         private static final Logger logger = Logger.getLogger(DeleteDocumentsBuilder.class.getName());
 

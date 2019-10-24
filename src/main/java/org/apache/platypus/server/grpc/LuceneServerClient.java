@@ -308,11 +308,12 @@ public class LuceneServerClient {
      */
     public static void main(String[] args) throws Exception {
         /* TODO: read host port from cmd. Access a service running on the local machine on port 50051 */
-        LuceneServerClient client = new LuceneServerClient("localhost", 50051);
         CommandLine commandLine = new CommandLine(new Cmd());
         CommandLine.ParseResult cmdResult = commandLine.parseArgs(args);
         String subCommandStr = cmdResult.subcommand().commandSpec().name();
         Object subCommand = cmdResult.subcommand().commandSpec().userObject();
+        Cmd baseComand = (Cmd) cmdResult.commandSpec().userObject();
+        LuceneServerClient client = new LuceneServerClient("localhost", baseComand.getPort());
         try {
             String jsonStr = "";
             Path filePath;
