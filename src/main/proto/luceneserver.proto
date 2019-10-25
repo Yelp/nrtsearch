@@ -67,8 +67,12 @@ service ReplicationServer {
     /* Send a file as a stream in chunks*/
     rpc sendRawFile (stream RawFileChunk) returns (TransferStatus) {
     }
-    /* Receives a file as a stream in chunks*/
+    /* Receives a file as a stream in chunks. Typically issued by replica on primary */
     rpc recvRawFile (FileInfo) returns (stream RawFileChunk) {
+    }
+    /* Issued by primary on replica to inform it to start copying files either pre-warming (new merged segments) or when replica comes up first time */
+    rpc copyFiles (CopyFiles) returns (stream TransferStatus ) {
+
     }
 
 }
@@ -454,8 +458,9 @@ message RawFileChunk {
 
 enum TransferStatusCode {
     Unknown = 0;
-    Ok = 1;
+    Done = 1;
     Failed = 2;
+    Ongoing =  3;
 }
 
 message TransferStatus {

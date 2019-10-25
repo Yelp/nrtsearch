@@ -84,6 +84,13 @@ public class ReplicationServerClient implements Closeable {
         return this.blockingStub.recvRawFile(fileInfo);
     }
 
+
+    public CopyState recvCopyState(String indexName, int replicaId) {
+        CopyStateRequest.Builder builder = CopyStateRequest.newBuilder();
+        CopyStateRequest copyStateRequest = builder.setMagicNumber(BINARY_MAGIC).setReplicaId(replicaId).setIndexName(indexName).build();
+         return this.blockingStub.recvCopyState(copyStateRequest);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

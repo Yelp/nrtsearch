@@ -39,6 +39,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
+import static io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall;
+
 /**
  * Server that manages startup/shutdown of a {@code LuceneServer} server.
  */
@@ -649,7 +651,7 @@ public class LuceneServer {
                     //TOOD: should we send fileSize copied?
                     long endTime = System.nanoTime();
                     long totalTimeInMilliSeoncds = (endTime - startTime) / (1000 * 1000);
-                    responseObserver.onNext(TransferStatus.newBuilder().setCode(TransferStatusCode.Ok).setMessage(String.valueOf(totalTimeInMilliSeoncds)).build());
+                    responseObserver.onNext(TransferStatus.newBuilder().setCode(TransferStatusCode.Done).setMessage(String.valueOf(totalTimeInMilliSeoncds)).build());
                     responseObserver.onCompleted();
                 } catch (IOException e) {
                     logger.warn("error while trying to close outputStream", e);
@@ -697,6 +699,11 @@ public class LuceneServer {
                         .augmentDescription(e.getMessage())
                         .asRuntimeException());
             }
+        }
+
+        @Override
+        public void copyFiles(CopyFiles request, StreamObserver<TransferStatus> responseObserver) {
+
         }
 
     }

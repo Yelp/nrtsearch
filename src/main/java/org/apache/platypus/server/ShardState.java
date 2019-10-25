@@ -223,6 +223,11 @@ public class ShardState implements Closeable {
         return nrtPrimaryNode != null;
     }
 
+    public boolean isReplica() {
+        return nrtReplicaNode != null;
+    }
+
+
 
     public static class HostAndPort {
         public final InetAddress host;

@@ -74,7 +74,7 @@ public class CopyFileTest {
         assertEquals(true, ((SendRawFileStreamObserver)responseObserver).isCompleted());
         assertEquals(false, ((SendRawFileStreamObserver)responseObserver).isError());
         assertEquals(true,
-                ((SendRawFileStreamObserver)responseObserver).getTransferStatus().getCode().equals(TransferStatusCode.Ok));
+                ((SendRawFileStreamObserver)responseObserver).getTransferStatus().getCode().equals(TransferStatusCode.Done));
 
         System.out.println(((SendRawFileStreamObserver)responseObserver).getTransferStatus().getMessage());
     }

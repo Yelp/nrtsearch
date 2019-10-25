@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 
-public class StartChannel {
+public class GrpcChannel {
     private final GrpcCleanupRule grpcCleanup;
     private final TemporaryFolder temporaryFolder;
     private String rootDirName;
@@ -34,7 +34,7 @@ public class StartChannel {
 
     private GlobalState globalState;
 
-    public StartChannel(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder, boolean isReplication, GlobalState globalState, String rootDirName, String index) throws IOException {
+    public GrpcChannel(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder, boolean isReplication, GlobalState globalState, String rootDirName, String index) throws IOException {
         this.grpcCleanup = grpcCleanup;
         this.temporaryFolder = temporaryFolder;
         this.globalState = globalState;
@@ -125,16 +125,16 @@ public class StartChannel {
         }
     }
 
-    public static class TestAddDocuments {
-        private final StartChannel startChannel;
+    public static class TestServer {
+        private final GrpcChannel grpcChannel;
         public AddDocumentResponse addDocumentResponse;
         public boolean completed = false;
         public boolean error = false;
 
-        TestAddDocuments(StartChannel startChannel, boolean startIndex, boolean primary) throws IOException {
-            this.startChannel = startChannel;
+        TestServer(GrpcChannel grpcChannel, boolean startIndex, Mode mode) throws IOException {
+            this.grpcChannel = grpcChannel;
             if (startIndex) {
-                new RegisterFields(startChannel).setUpIndexWithFields(primary);
+                new IndexAndRoleManager(grpcChannel).createStartIndexAndRegisterFields(mode);
             }
         }
 
@@ -160,7 +160,7 @@ public class StartChannel {
                 }
             };
             //requestObserver sends requests to Server (one onNext per AddDocumentRequest and one onCompleted)
-            StreamObserver<AddDocumentRequest> requestObserver = startChannel.getStub().addDocuments(responseStreamObserver);
+            StreamObserver<AddDocumentRequest> requestObserver = grpcChannel.getStub().addDocuments(responseStreamObserver);
             //parse CSV into a stream of AddDocumentRequest
             Stream<AddDocumentRequest> addDocumentRequestStream = getAddDocumentRequestStream();
             try {
@@ -182,31 +182,36 @@ public class StartChannel {
             Path filePath = Paths.get("src", "test", "resources", "addDocs.csv");
             Reader reader = Files.newBufferedReader(filePath);
             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
-            return new LuceneServerClientBuilder.AddDcoumentsClientBuilder(startChannel.getTestIndex(), csvParser).buildRequest(filePath);
+            return new LuceneServerClientBuilder.AddDcoumentsClientBuilder(grpcChannel.getTestIndex(), csvParser).buildRequest(filePath);
         }
 
 
     }
 
-    public static class RegisterFields {
+    public static class IndexAndRoleManager {
 
-        private StartChannel startChannel;
+        private GrpcChannel grpcChannel;
 
-        public RegisterFields(StartChannel startChannel) {
-            this.startChannel = startChannel;
+        public IndexAndRoleManager(GrpcChannel grpcChannel) {
+            this.grpcChannel = grpcChannel;
         }
 
-        public FieldDefResponse setUpIndexWithFields(boolean primary) throws IOException {
-            String rootDirName = startChannel.getRootDirName();
-            String testIndex = startChannel.getTestIndex();
-            LuceneServerGrpc.LuceneServerBlockingStub blockingStub = startChannel.getBlockingStub();
+        public FieldDefResponse createStartIndexAndRegisterFields(Mode mode) throws IOException {
+            String rootDirName = grpcChannel.getRootDirName();
+            String testIndex = grpcChannel.getTestIndex();
+            LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcChannel.getBlockingStub();
             //create the index
             blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(testIndex).setRootDir(rootDirName).build());
             //start the index
             StartIndexRequest.Builder startIndexBuilder = StartIndexRequest.newBuilder().setIndexName(testIndex);
-            if (primary) {
+            if (mode.equals(Mode.PRIMARY)) {
                 startIndexBuilder.setMode(Mode.PRIMARY);
                 startIndexBuilder.setPrimaryGen(0);
+            }
+            //TODO: these are not used in tests ?
+            else if (mode.equals(Mode.REPLICA)) {
+                startIndexBuilder.setPrimaryAddress("replica:localhost");
+                startIndexBuilder.setPort(9999);
             }
             blockingStub.startIndex(startIndexBuilder.build());
             //register the fields

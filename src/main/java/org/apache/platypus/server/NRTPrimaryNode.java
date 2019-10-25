@@ -8,6 +8,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.ThreadInterruptedException;
 import org.apache.platypus.server.grpc.ReplicationServerClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -148,16 +150,169 @@ public class NRTPrimaryNode extends PrimaryNode {
 
     @Override
     protected void preCopyMergedSegmentFiles(SegmentCommitInfo info, Map<String, FileMetaData> files) throws IOException {
-        throw new UnsupportedEncodingException();
-    }
+            if (replicasInfos.isEmpty()) {
+                logger.info("no replicas, skip warming "+ info);
+                message("no replicas; skip warming " + info);
+                return;
+            }
+
+            logger.info("top: warm merge " + info + " to " + replicasInfos.size() + " replicas; localAddress=" + localAddress + ": files=" + files.keySet());
+            message("top: warm merge " + info + " to " + replicasInfos.size() + " replicas; localAddress=" + localAddress + ": files=" + files.keySet());
+
+            MergePreCopy preCopy = new MergePreCopy(files);
+            warmingSegments.add(preCopy);
+
+            try {
+                // Ask all currently known replicas to pre-copy this newly merged segment's files:
+                Iterator<ReplicaDetails> replicaInfos = replicasInfos.iterator();
+//                while (replicaInfos.hasNext()) {
+//                    try {
+//                        ReplicaDetails replicaDetails = replicaInfos.next();
+//                        Connection c = new Connection(replicaAddress);
+//                        c.out.writeInt(Server.BINARY_MAGIC);
+//                        c.out.writeString("copyFiles");
+//                        c.out.writeString(indexName);
+//                        c.out.writeVLong(primaryGen);
+//                        CopyFilesHandler.writeFilesMetaData(c.out, files);
+//                        c.flush();
+//                        c.s.shutdownOutput();
+//                        message("warm connection " + c.s);
+//                        preCopy.connections.add(replicaDetails.replicationServerClient);
+//                    } catch (Throwable t) {
+//                        message("top: ignore exception trying to warm to replica port " +  replicaDetails + ": " + t);
+//                        //t.printStackTrace(System.out);
+//                    }
+//                }
+//
+//                long startNS = System.nanoTime();
+//                long lastWarnNS = startNS;
+//
+//                // TODO: maybe ... place some sort of time limit on how long we are willing to wait for slow replica(s) to finish copying?
+//                while (preCopy.finished() == false) {
+//                    try {
+//                        Thread.sleep(10);
+//                    } catch (InterruptedException ie) {
+//                        throw new ThreadInterruptedException(ie);
+//                    }
+//
+//                    if (isClosed()) {
+//                        message("top: primary is closing: now cancel segment warming");
+//                        synchronized(preCopy.connections) {
+//                            IOUtils.closeWhileHandlingException(preCopy.connections);
+//                        }
+//                        return;
+//                    }
+//
+//                    long ns = System.nanoTime();
+//                    if (ns - lastWarnNS > 1000000000L) {
+//                        message(String.format(Locale.ROOT, "top: warning: still warming merge " + info + " to " + preCopy.connections.size() + " replicas for %.1f sec...", (ns - startNS)/1000000000.0));
+//                        lastWarnNS = ns;
+//                    }
+//
+//                    // Because a replica can suddenly start up and "join" into this merge pre-copy:
+//                    synchronized(preCopy.connections) {
+//                        Iterator<Connection> it = preCopy.connections.iterator();
+//                        while (it.hasNext()) {
+//                            Connection c = it.next();
+//                            try {
+//                                long nowNS = System.nanoTime();
+//                                boolean done = false;
+//                                // nocommit find a way not to use available here:
+//                                while (c.sockIn.available() > 0) {
+//                                    byte b = c.in.readByte();
+//                                    if (b == 0) {
+//                                        // keep-alive
+//                                        c.lastKeepAliveNS = nowNS;
+//                                        message("keep-alive for socket=" + c.s + " merge files=" + files.keySet());
+//                                    } else {
+//                                        // merge is done pre-copying to this node
+//                                        if (b != 1) {
+//                                            throw new IllegalArgumentException();
+//                                        }
+//                                        message("connection socket=" + c.s + " is done warming its merge " + info + " files=" + files.keySet());
+//                                        IOUtils.closeWhileHandlingException(c);
+//                                        it.remove();
+//                                        done = true;
+//                                        break;
+//                                    }
+//                                }
+//                            } catch (Throwable t) {
+//                                message("top: ignore exception trying to read byte during warm for segment=" + info + " to replica socket=" + c.s + ": " + t + " files=" + files.keySet());
+//                                IOUtils.closeWhileHandlingException(c);
+//                                it.remove();
+//                            }
+//                        }
+//                    }
+//
+//                    // TODO
+//
+//                    // Process keep-alives:
+//        /*
+//        synchronized(preCopy.connections) {
+//          Iterator<Connection> it = preCopy.connections.iterator();
+//          while (it.hasNext()) {
+//            Connection c = it.next();
+//            try {
+//              long nowNS = System.nanoTime();
+//              boolean done = false;
+//              while (c.sockIn.available() > 0) {
+//                byte b = c.in.readByte();
+//                if (b == 0) {
+//                  // keep-alive
+//                  c.lastKeepAliveNS = nowNS;
+//                  message("keep-alive for socket=" + c.s + " merge files=" + files.keySet());
+//                } else {
+//                  // merge is done pre-copying to this node
+//                  if (b != 1) {
+//                    throw new IllegalArgumentException();
+//                  }
+//                  message("connection socket=" + c.s + " is done warming its merge " + info + " files=" + files.keySet());
+//                  IOUtils.closeWhileHandlingException(c);
+//                  it.remove();
+//                  done = true;
+//                  break;
+//                }
+//              }
+//
+//              // If > 2 sec since we saw a keep-alive, assume this replica is dead:
+//              if (done == false && nowNS - c.lastKeepAliveNS > 2000000000L) {
+//                message("top: warning: replica socket=" + c.s + " for segment=" + info + " seems to be dead; closing files=" + files.keySet());
+//                IOUtils.closeWhileHandlingException(c);
+//                it.remove();
+//                done = true;
+//              }
+//
+//              if (done == false && random.nextInt(1000) == 17) {
+//                message("top: warning: now randomly dropping replica from merge warming; files=" + files.keySet());
+//                IOUtils.closeWhileHandlingException(c);
+//                it.remove();
+//                done = true;
+//              }
+//
+//            } catch (Throwable t) {
+//              message("top: ignore exception trying to read byte during warm for segment=" + info + " to replica socket=" + c.s + ": " + t + " files=" + files.keySet());
+//              IOUtils.closeWhileHandlingException(c);
+//              it.remove();
+//            }
+//          }
+//        }
+//        */
+//                }
+                message("top: done warming merge " + info);
+            } finally {
+                warmingSegments.remove(preCopy);
+            }
+        }
+
 
     public void setRAMBufferSizeMB(double mb) {
         writer.getConfig().setRAMBufferSizeMB(mb);
     }
 
     public void addReplica(int replicaID, ReplicationServerClient replicationServerClient) throws IOException {
+        logger.info("add replica: " + warmingSegments.size() + " current warming merges ");
+        message("add replica: " + warmingSegments.size() + " current warming merges ");
 
-        message("add replica: " + warmingSegments.size() + " current warming merges");
         replicasInfos.add(new ReplicaDetails(replicaID, replicationServerClient));
 
         // Step through all currently warming segments and try to add this replica if it isn't there already:

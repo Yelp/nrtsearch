@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static org.apache.platypus.server.grpc.StartChannel.rmDir;
+import static org.apache.platypus.server.grpc.GrpcChannel.rmDir;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(JUnit4.class)
@@ -31,41 +31,71 @@ public class ReplicationServerTest {
     @Rule
     public final TemporaryFolder folder = new TemporaryFolder();
 
-    private StartChannel startReplicationChannel;
-    private StartChannel startLuenceChannel;
+    private GrpcChannel startLuenceChannelPrimary;
+    private GrpcChannel startReplicationChannelPrimary;
+
+    private GrpcChannel startLuenceChannelSecondary;
+    private GrpcChannel startReplicationChannelSecondary;
 
     @After
     public void tearDown() throws IOException {
-        startLuenceChannel.getGlobalState().close();
-        rmDir(Paths.get(startLuenceChannel.getRootDirName()));
+        startLuenceChannelPrimary.getGlobalState().close();
+        startLuenceChannelSecondary.getGlobalState().close();
+        rmDir(Paths.get(startLuenceChannelPrimary.getRootDirName()));
+        rmDir(Paths.get(startLuenceChannelSecondary.getRootDirName()));
     }
 
     @Before
     public void setUp() throws IOException {
-        String nodeName = "server1";
-        String rootDirName = "server1RootDirName1";
-        Path rootDir = folder.newFolder(rootDirName).toPath();
+        //set up primary channels
+        String nodeNamePrimary = "serverPrimary";
+        String rootDirNamePrimary = "serverPrimaryRootDirName";
+        Path rootDirPrimary = folder.newFolder(rootDirNamePrimary).toPath();
         String testIndex = "test_index";
-        GlobalState globalState = new GlobalState(nodeName, rootDir, "localhost", 9900);
-        startReplicationChannel = new StartChannel(grpcCleanup, folder, true, globalState, nodeName, testIndex);
-        startLuenceChannel = new StartChannel(grpcCleanup, folder, false, globalState, nodeName, testIndex);
+        GlobalState globalStatePrimary = new GlobalState(nodeNamePrimary, rootDirPrimary, "localhost", 9900);
+        startReplicationChannelPrimary = new GrpcChannel(grpcCleanup, folder, true, globalStatePrimary, nodeNamePrimary, testIndex);
+        startLuenceChannelPrimary = new GrpcChannel(grpcCleanup, folder, false, globalStatePrimary, nodeNamePrimary, testIndex);
+
+        //set up secondary channels
+        String nodeNameSecondary = "serverSecondary";
+        String rootDirNameSecondary = "serverSecondaryRootDirName";
+        Path rootDirSecondary = folder.newFolder(rootDirNameSecondary).toPath();
+        GlobalState globalStateSecondary = new GlobalState(nodeNameSecondary, rootDirSecondary, "localhost", 9900);
+        startReplicationChannelSecondary = new GrpcChannel(grpcCleanup, folder, true, globalStateSecondary, nodeNameSecondary, testIndex);
+        startLuenceChannelSecondary = new GrpcChannel(grpcCleanup, folder, false, globalStateSecondary, nodeNameSecondary, testIndex);
+
     }
 
     @Test
     public void recvCopyState() throws IOException, InterruptedException {
-        StartChannel.TestAddDocuments testAddDocs = new StartChannel.TestAddDocuments(startLuenceChannel, true, true);
-        testAddDocs.addDocuments();
-        assertEquals(false, testAddDocs.error);
-        assertEquals(true, testAddDocs.completed);
+        GrpcChannel.TestServer testServer = new GrpcChannel.TestServer(startLuenceChannelPrimary, true, Mode.PRIMARY);
+        testServer.addDocuments();
+        assertEquals(false, testServer.error);
+        assertEquals(true, testServer.completed);
 
-        startLuenceChannel.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName("test_index").build());
+        //This causes the copyState on primary to be refreshed
+        startLuenceChannelPrimary.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName("test_index").build());
 
         CopyStateRequest copyStateRequest = CopyStateRequest.newBuilder()
                 .setMagicNumber(ReplicationServerClient.BINARY_MAGIC)
-                .setIndexName(startReplicationChannel.getTestIndex())
+                .setIndexName(startReplicationChannelPrimary.getTestIndex())
                 .setReplicaId(0).build();
-        CopyState copyState = startReplicationChannel.getReplicationServerBlockingStub().recvCopyState(copyStateRequest);
-        System.out.println(copyState);
+        CopyState copyState = startReplicationChannelPrimary.getReplicationServerBlockingStub().recvCopyState(copyStateRequest);
+        assertEquals(0, copyState.getGen());
+        FilesMetadata filesMetadata = copyState.getFilesMetadata();
+        assertEquals(3, filesMetadata.getNumFiles());
     }
 
+    @Test
+    public void copyFiles() throws IOException, InterruptedException {
+        GrpcChannel.TestServer testServerPrimary = new GrpcChannel.TestServer(startLuenceChannelPrimary, true, Mode.PRIMARY);
+        testServerPrimary.addDocuments();
+
+        GrpcChannel.TestServer testServerReplica = new GrpcChannel.TestServer(startLuenceChannelSecondary, true, Mode.REPLICA);
+    }
+
+    @Test
+    public void addReplica() {
+
+    }
 }

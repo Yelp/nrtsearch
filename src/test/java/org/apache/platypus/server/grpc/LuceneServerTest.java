@@ -39,12 +39,12 @@ public class LuceneServerTest {
     @Rule
     public final TemporaryFolder folder = new TemporaryFolder();
 
-    private StartChannel startChannel;
+    private GrpcChannel grpcChannel;
 
     @After
     public void tearDown() throws IOException {
-        startChannel.getGlobalState().close();
-        rmDir(Paths.get(startChannel.getRootDirName()));
+        grpcChannel.getGlobalState().close();
+        rmDir(Paths.get(grpcChannel.getRootDirName()));
     }
 
     @Before
@@ -54,23 +54,23 @@ public class LuceneServerTest {
         Path rootDir = folder.newFolder(rootDirName).toPath();
         String testIndex = "test_index";
         GlobalState globalState = new GlobalState(nodeName, rootDir, null, 9000);
-        startChannel = new StartChannel(grpcCleanup, folder, false, globalState,  rootDirName, testIndex);
+        grpcChannel = new GrpcChannel(grpcCleanup, folder, false, globalState,  rootDirName, testIndex);
     }
 
     @Test
     public void testCreateIndex() throws Exception {
-        String rootDirName = startChannel.getRootDirName();
-        String testIndex = startChannel.getTestIndex();
-        LuceneServerGrpc.LuceneServerBlockingStub blockingStub = startChannel.getBlockingStub();
+        String rootDirName = grpcChannel.getRootDirName();
+        String testIndex = grpcChannel.getTestIndex();
+        LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcChannel.getBlockingStub();
         CreateIndexResponse reply = blockingStub.createIndex(CreateIndexRequest.newBuilder().build().newBuilder().setIndexName(testIndex).setRootDir(rootDirName).build());
         assertEquals(reply.getResponse(), String.format("Created Index name: %s, at rootDir: %s", testIndex, rootDirName));
     }
 
     @Test
     public void testStartShard() throws IOException {
-        String rootDirName = startChannel.getRootDirName();
-        String testIndex = startChannel.getTestIndex();
-        LuceneServerGrpc.LuceneServerBlockingStub blockingStub = startChannel.getBlockingStub();
+        String rootDirName = grpcChannel.getRootDirName();
+        String testIndex = grpcChannel.getTestIndex();
+        LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcChannel.getBlockingStub();
         //create the index
         blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(testIndex).setRootDir(rootDirName).build());
         //start the index
@@ -82,7 +82,7 @@ public class LuceneServerTest {
 
     @Test
     public void testRegisterFieldsBasic() throws Exception {
-        FieldDefResponse reply = new StartChannel.RegisterFields(startChannel).setUpIndexWithFields(false);
+        FieldDefResponse reply = new GrpcChannel.IndexAndRoleManager(grpcChannel).createStartIndexAndRegisterFields(Mode.STANDALONE);
         assertTrue(reply.getResponse().contains("vendor_name"));
         assertTrue(reply.getResponse().contains("vendor_name_atom"));
         assertTrue(reply.getResponse().contains("license_no"));
@@ -90,7 +90,7 @@ public class LuceneServerTest {
 
     @Test
     public void testAddDocumentsBasic() throws IOException, InterruptedException {
-        StartChannel.TestAddDocuments testAddDocs = new StartChannel.TestAddDocuments(startChannel, true, false);
+        GrpcChannel.TestServer testAddDocs = new GrpcChannel.TestServer(grpcChannel, true, Mode.STANDALONE);
         testAddDocs.addDocuments();
         assertEquals(false, testAddDocs.error);
         assertEquals(true, testAddDocs.completed);
@@ -112,16 +112,16 @@ public class LuceneServerTest {
 
     @Test
     public void testStats() throws IOException, InterruptedException {
-        new StartChannel.RegisterFields(startChannel).setUpIndexWithFields(false);
-        StatsResponse statsResponse = startChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        new GrpcChannel.IndexAndRoleManager(grpcChannel).createStartIndexAndRegisterFields(Mode.STANDALONE);
+        StatsResponse statsResponse = grpcChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
         assertEquals(0, statsResponse.getNumDocs());
         assertEquals(0, statsResponse.getMaxDoc());
         assertEquals(0, statsResponse.getOrd());
         assertEquals(0, statsResponse.getCurrentSearcher().getNumDocs());
         assertEquals("started", statsResponse.getState());
-        StartChannel.TestAddDocuments testAddDocs = new StartChannel.TestAddDocuments(startChannel, false,false);
+        GrpcChannel.TestServer testAddDocs = new GrpcChannel.TestServer(grpcChannel, false,Mode.STANDALONE);
         testAddDocs.addDocuments();
-        statsResponse = startChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        statsResponse = grpcChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
         assertEquals(2, statsResponse.getNumDocs());
         assertEquals(2, statsResponse.getMaxDoc());
         assertEquals(0, statsResponse.getOrd());
@@ -133,8 +133,8 @@ public class LuceneServerTest {
 
     @Test
     public void testRefresh() throws IOException, InterruptedException {
-        new StartChannel.TestAddDocuments(startChannel, true, false).addDocuments();
-        StatsResponse statsResponse = startChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        new GrpcChannel.TestServer(grpcChannel, true, Mode.STANDALONE).addDocuments();
+        StatsResponse statsResponse = grpcChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
         assertEquals(2, statsResponse.getNumDocs());
         assertEquals(2, statsResponse.getMaxDoc());
         assertEquals(0, statsResponse.getOrd());
@@ -142,19 +142,19 @@ public class LuceneServerTest {
         //Note: (does refresh in background thread eventually every indexState.indexMaxRefreshSec)
         assertEquals(0, statsResponse.getCurrentSearcher().getNumDocs());
         //manual refresh
-        startChannel.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        grpcChannel.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
         //check status on currentSearchAgain
-        statsResponse = startChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        statsResponse = grpcChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
         assertEquals(2, statsResponse.getCurrentSearcher().getNumDocs());
     }
 
     @Test
     public void testDelete() throws IOException, InterruptedException {
-        StartChannel.TestAddDocuments testAddDocs = new StartChannel.TestAddDocuments(startChannel, true, false);
+        GrpcChannel.TestServer testAddDocs = new GrpcChannel.TestServer(grpcChannel, true, Mode.STANDALONE);
         //add 2 docs
         testAddDocs.addDocuments();
         //check stats numDocs for 2 docs
-        StatsResponse statsResponse = startChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        StatsResponse statsResponse = grpcChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
         assertEquals(2, statsResponse.getNumDocs());
         assertEquals(2, statsResponse.getMaxDoc());
 
@@ -163,13 +163,13 @@ public class LuceneServerTest {
         addDocumentRequestBuilder.setIndexName("test_index");
         AddDocumentRequest.MultiValuedField.Builder multiValuedFieldsBuilder = AddDocumentRequest.MultiValuedField.newBuilder();
         addDocumentRequestBuilder.putFields("doc_id", multiValuedFieldsBuilder.addValue("1").build());
-        AddDocumentResponse addDocumentResponse = startChannel.getBlockingStub().delete(addDocumentRequestBuilder.build());
+        AddDocumentResponse addDocumentResponse = grpcChannel.getBlockingStub().delete(addDocumentRequestBuilder.build());
 
         //manual refresh needed to depict changes in buffered deletes (i.e. not committed yet)
-        startChannel.getBlockingStub().refresh(RefreshRequest.newBuilder().build().newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        grpcChannel.getBlockingStub().refresh(RefreshRequest.newBuilder().build().newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
 
         //check stats numDocs for 1 docs
-        statsResponse = startChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        statsResponse = grpcChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
         assertEquals(1, statsResponse.getNumDocs());
         //note maxDoc stays 2 since it does not include delete documents
         assertEquals(2, statsResponse.getMaxDoc());
@@ -178,21 +178,21 @@ public class LuceneServerTest {
 
     @Test
     public void testDeleteAllDocuments() throws IOException, InterruptedException {
-        StartChannel.TestAddDocuments testAddDocs = new StartChannel.TestAddDocuments(startChannel, true,false);
+        GrpcChannel.TestServer testAddDocs = new GrpcChannel.TestServer(grpcChannel, true,Mode.STANDALONE);
         //add 2 docs
         testAddDocs.addDocuments();
         //check stats numDocs for 2 docs
-        StatsResponse statsResponse = startChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        StatsResponse statsResponse = grpcChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
         assertEquals(2, statsResponse.getNumDocs());
         assertEquals(2, statsResponse.getMaxDoc());
 
         //deleteAll documents
         DeleteAllDocumentsRequest.Builder deleteAllDocumentsBuilder = DeleteAllDocumentsRequest.newBuilder();
         DeleteAllDocumentsRequest deleteAllDocumentsRequest = deleteAllDocumentsBuilder.setIndexName("test_index").build();
-        startChannel.getBlockingStub().deleteAll(deleteAllDocumentsRequest);
+        grpcChannel.getBlockingStub().deleteAll(deleteAllDocumentsRequest);
 
         //check stats numDocs for 1 docs
-        statsResponse = startChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        statsResponse = grpcChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
         assertEquals(0, statsResponse.getNumDocs());
         assertEquals(0, statsResponse.getMaxDoc());
 
@@ -200,17 +200,17 @@ public class LuceneServerTest {
 
     @Test
     public void testDeleteIndex() throws IOException, InterruptedException {
-        StartChannel.TestAddDocuments testAddDocs = new StartChannel.TestAddDocuments(startChannel,true, false);
+        GrpcChannel.TestServer testAddDocs = new GrpcChannel.TestServer(grpcChannel,true, Mode.STANDALONE);
         //add 2 docs
         testAddDocs.addDocuments();
         //check stats numDocs for 2 docs
-        StatsResponse statsResponse = startChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        StatsResponse statsResponse = grpcChannel.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
         assertEquals(2, statsResponse.getNumDocs());
         assertEquals(2, statsResponse.getMaxDoc());
 
         //deleteIndex
         DeleteIndexRequest deleteIndexRequest = DeleteIndexRequest.newBuilder().setIndexName("test_index").build();
-        DeleteIndexResponse deleteIndexResponse = startChannel.getBlockingStub().deleteIndex(deleteIndexRequest);
+        DeleteIndexResponse deleteIndexResponse = grpcChannel.getBlockingStub().deleteIndex(deleteIndexRequest);
 
         assertEquals("ok", deleteIndexResponse.getOk());
 
@@ -218,14 +218,14 @@ public class LuceneServerTest {
 
     @Test
     public void testSearchBasic() throws IOException, InterruptedException {
-        StartChannel.TestAddDocuments testAddDocs = new StartChannel.TestAddDocuments(startChannel, true, false);
+        GrpcChannel.TestServer testAddDocs = new GrpcChannel.TestServer(grpcChannel, true, Mode.STANDALONE);
         //2 docs addDocuments
         testAddDocs.addDocuments();
         //manual refresh
-        startChannel.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(startChannel.getTestIndex()).build());
+        grpcChannel.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcChannel.getTestIndex()).build());
 
-        SearchResponse searchResponse = startChannel.getBlockingStub().search(SearchRequest.newBuilder()
-                .setIndexName(startChannel.getTestIndex())
+        SearchResponse searchResponse = grpcChannel.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcChannel.getTestIndex())
                 .setStartHit(0)
                 .setTopHits(10)
                 .addAllRetrieveFields(RETRIEVED_VALUES)
@@ -303,7 +303,7 @@ public class LuceneServerTest {
         Path filePath = Paths.get("src", "test", "resources", "addDocs.csv");
         Reader reader = Files.newBufferedReader(filePath);
         CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
-        return new LuceneServerClientBuilder.AddDcoumentsClientBuilder(startChannel.getTestIndex(), csvParser).buildRequest(filePath);
+        return new LuceneServerClientBuilder.AddDcoumentsClientBuilder(grpcChannel.getTestIndex(), csvParser).buildRequest(filePath);
     }
 
 }
