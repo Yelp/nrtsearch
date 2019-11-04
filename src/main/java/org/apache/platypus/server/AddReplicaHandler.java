@@ -20,6 +20,7 @@ public class AddReplicaHandler implements Handler<AddReplicaRequest, AddReplicaR
         }
         try {
             shardState.nrtPrimaryNode.addReplica(addReplicaRequest.getReplicaId(),
+                    //channel for primary to talk to replica
                     new ReplicationServerClient(addReplicaRequest.getHostName(), addReplicaRequest.getPort()));
         } catch (IOException e) {
             throw new RuntimeException(e);

@@ -58,7 +58,7 @@ public class NRTReplicaNode extends ReplicaNode {
         } else {
             copyState = null;
         }
-        return new SimpleCopyJob(reason, primaryAddress, copyState, this, files, highPriority, onceDone);
+        return new SimpleCopyJob(reason, primaryAddress, copyState, this, files, highPriority, onceDone, indexName);
     }
 
     private CopyState getCopyStateFromPrimary() throws IOException {

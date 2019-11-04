@@ -79,40 +79,40 @@ public class CopyFileTest {
         System.out.println(((SendRawFileStreamObserver)responseObserver).getTransferStatus().getMessage());
     }
 
-    @Test
-    public void recvRawFileOnBlockingClient() throws Exception {
-        // Generate a unique in-process server name.
-        String serverName = InProcessServerBuilder.generateName();
-
-        // Create a server, add service, start, and register for automatic graceful shutdown.
-        grpcCleanup.register(InProcessServerBuilder
-                .forName(serverName).directExecutor().addService(new LuceneServer.ReplicationServerImpl(null)).build().start());
-
-        ReplicationServerGrpc.ReplicationServerBlockingStub blockingStub = ReplicationServerGrpc.newBlockingStub(
-                // Create a client channel and register for automatic graceful shutdown.
-                grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build()));
-        ReplicationServerGrpc.ReplicationServerStub stub = ReplicationServerGrpc.newStub(
-                grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build()));
-
-        //create and write to file total_chunk * chunk_size
-        File tempFile = folder.newFile("temp");
-        OutputStream outputStream = new FileOutputStream(tempFile);
-        Random random = new Random();
-        byte[] chunk = new byte[CHUNK_SIZE];
-        for (int i = 0; i < TOTAL_CHUNKS; i++) {
-            random.nextBytes(chunk);
-            outputStream.write(chunk);
-        }
-        outputStream.close();
-
-        Iterator<RawFileChunk> rawFileChunks = blockingStub.recvRawFile(FileInfo.newBuilder().setFileName(tempFile.getAbsolutePath()).setFpStart(0).build());
-        long totalBytesReceived = 0;
-        while(rawFileChunks.hasNext()){
-            RawFileChunk rawFileChunk = rawFileChunks.next();
-            totalBytesReceived+=rawFileChunk.getContent().size();
-        }
-        assertEquals(CHUNK_SIZE * TOTAL_CHUNKS, totalBytesReceived);
-    }
+//    @Test
+//    public void recvRawFileOnBlockingClient() throws Exception {
+//        // Generate a unique in-process server name.
+//        String serverName = InProcessServerBuilder.generateName();
+//
+//        // Create a server, add service, start, and register for automatic graceful shutdown.
+//        grpcCleanup.register(InProcessServerBuilder
+//                .forName(serverName).directExecutor().addService(new LuceneServer.ReplicationServerImpl(null)).build().start());
+//
+//        ReplicationServerGrpc.ReplicationServerBlockingStub blockingStub = ReplicationServerGrpc.newBlockingStub(
+//                // Create a client channel and register for automatic graceful shutdown.
+//                grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build()));
+//        ReplicationServerGrpc.ReplicationServerStub stub = ReplicationServerGrpc.newStub(
+//                grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build()));
+//
+//        //create and write to file total_chunk * chunk_size
+//        File tempFile = folder.newFile("temp");
+//        OutputStream outputStream = new FileOutputStream(tempFile);
+//        Random random = new Random();
+//        byte[] chunk = new byte[CHUNK_SIZE];
+//        for (int i = 0; i < TOTAL_CHUNKS; i++) {
+//            random.nextBytes(chunk);
+//            outputStream.write(chunk);
+//        }
+//        outputStream.close();
+//
+//        Iterator<RawFileChunk> rawFileChunks = blockingStub.recvRawFile(FileInfo.newBuilder().setFileName(tempFile.getAbsolutePath()).setFpStart(0).build());
+//        long totalBytesReceived = 0;
+//        while(rawFileChunks.hasNext()){
+//            RawFileChunk rawFileChunk = rawFileChunks.next();
+//            totalBytesReceived+=rawFileChunk.getContent().size();
+//        }
+//        assertEquals(CHUNK_SIZE * TOTAL_CHUNKS, totalBytesReceived);
+//    }
 
     static class SendRawFileStreamObserver implements StreamObserver<TransferStatus> {
 

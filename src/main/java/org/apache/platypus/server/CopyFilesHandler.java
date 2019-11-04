@@ -5,15 +5,15 @@ import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.FileMetaData;
 import org.apache.platypus.server.grpc.CopyFiles;
 import org.apache.platypus.server.grpc.TransferStatus;
+import org.apache.platypus.server.grpc.TransferStatusCode;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
-
-
-    public TransferStatus handle(IndexState indexState, CopyFiles copyFilesRequest) throws HandlerException {
+    @Override
+    public void handle(IndexState indexState, CopyFiles copyFilesRequest, StreamObserver<TransferStatus> responseObserver) throws Exception {
         String indexName = copyFilesRequest.getIndexName();
         ShardState shardState = indexState.getShard(0);
 
@@ -26,19 +26,15 @@ public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
         }
 
         long primaryGen = copyFilesRequest.getPrimaryGen();
-
         // these are the files that the remote (primary) wants us to copy
-        Map<String, FileMetaData> files = null;
-        try {
-            files = NRTReplicaNode.readFilesMetaData(copyFilesRequest.getFilesMetadata());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        Map<String, FileMetaData> files = NRTReplicaNode.readFilesMetaData(copyFilesRequest.getFilesMetadata());
 
         AtomicBoolean finished = new AtomicBoolean();
-        try {
+        try{
             CopyJob job = shardState.nrtReplicaNode.launchPreCopyFiles(finished, primaryGen, files);
         } catch (IOException e) {
+            responseObserver.onNext(TransferStatus.newBuilder().setMessage(String.format("replica failed to launchPreCopyFiles" + files.keySet())).setCode(TransferStatusCode.Failed).build());
+            //called must set; //responseObserver.onError(e);
             throw new RuntimeException(e);
         }
 
@@ -46,18 +42,23 @@ public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
         while (true) {
             // nocommit don't poll!  use a condition...
             if (finished.get()) {
+                responseObserver.onNext(TransferStatus.newBuilder().setMessage("replica is done copying files.." + files.keySet()).setCode(TransferStatusCode.Done).build());
+                responseObserver.onCompleted();
                 break;
             }
             try {
                 Thread.sleep(10);
+                responseObserver.onNext(TransferStatus.newBuilder().setMessage("replica is copying files..." + files.keySet()).setCode(TransferStatusCode.Ongoing).build());
             } catch (InterruptedException e) {
+                responseObserver.onNext(TransferStatus.newBuilder().setMessage(String.format("replica failed to copy files..." + files.keySet())).setCode(TransferStatusCode.Failed).build());
+                //called must set; //responseObserver.onError(e);
                 throw new RuntimeException(e);
             }
-            // TODO: keep alive mechanism so primary can better "guess" when we dropped off
         }
+    }
 
-//        out.writeByte((byte) 1);
-//        streamOut.flush();
-        return null;
+    @Override
+    public TransferStatus handle(IndexState indexState, CopyFiles protoRequest) throws HandlerException {
+        throw new UnsupportedOperationException("This method is in not implemented for this class");
     }
 }

@@ -582,7 +582,7 @@ public class ShardState implements Closeable {
                 snapshotGenToVersion.put(c.getGeneration(), sis.getVersion());
             }
 
-            InetSocketAddress localSocketAddress = new InetSocketAddress(indexState.globalState.getHostName(), indexState.globalState.getPort());
+            InetSocketAddress localSocketAddress = new InetSocketAddress(indexState.globalState.getHostName(), indexState.globalState.getReplicationPort());
             nrtPrimaryNode = new NRTPrimaryNode(indexState.name, localSocketAddress, writer, 0, primaryGen, -1,
                     new SearcherFactory() {
                         @Override
@@ -663,7 +663,7 @@ public class ShardState implements Closeable {
 
             boolean verbose = indexState.getBooleanSetting("indexVerbose", false);
 
-            InetSocketAddress localSocketAddress = new InetSocketAddress(indexState.globalState.getHostName(), indexState.globalState.getPort());
+            InetSocketAddress localSocketAddress = new InetSocketAddress(indexState.globalState.getHostName(), indexState.globalState.getReplicationPort());
             nrtReplicaNode = new NRTReplicaNode(indexState.name, primaryAddress, localSocketAddress, 0, indexDir,
                     new SearcherFactory() {
                         @Override

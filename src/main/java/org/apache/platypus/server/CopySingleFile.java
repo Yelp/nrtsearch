@@ -10,6 +10,10 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.platypus.server.grpc.RawFileChunk;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.Locale;
 
@@ -19,11 +23,14 @@ public class CopySingleFile extends CopyOneFile {
     private final ReplicaNode dest;
     private final long copyStartNS;
     private final byte[] buffer;
+    private final String tempName;
     private long bytesCopied;
     public final String name;
-    public final String tmpName;
+
+
     public final FileMetaData metaData;
     public final long bytesToCopy;
+    private long remoteFileChecksum;
 
 
     public CopySingleFile(Iterator<RawFileChunk> rawFileChunkIterator, ReplicaNode dest, String name, FileMetaData metaData, byte[] buffer) throws IOException {
@@ -32,9 +39,9 @@ public class CopySingleFile extends CopyOneFile {
         this.name = name;
         this.dest = dest;
         this.buffer = buffer;
-        // TODO: pass correct IOCtx, e.g. seg total size
+        // TODO: ugly, we create a temp folder on top of a temp folder created by base class with tempName duplicated as well
         out = dest.createTempOutput(name, "copy", IOContext.DEFAULT);
-        tmpName = out.getName();
+        tempName = out.getName();
         // last 8 bytes are checksum:
         bytesToCopy = metaData.length - 8;
         if (Node.VERBOSE_FILES) {
@@ -42,8 +49,6 @@ public class CopySingleFile extends CopyOneFile {
         }
         copyStartNS = System.nanoTime();
         this.metaData = metaData;
-        dest.startCopyFile(name);
-
     }
 
     public CopySingleFile(CopySingleFile other, Iterator<RawFileChunk> rawFileChunkIterator) {
@@ -51,13 +56,17 @@ public class CopySingleFile extends CopyOneFile {
         this.rawFileChunkIterator = rawFileChunkIterator;
         this.dest = other.dest;
         this.name = other.name;
+        this.tempName = other.tmpName;
         this.out = other.out;
-        this.tmpName = other.tmpName;
         this.metaData = other.metaData;
         this.bytesCopied = other.bytesCopied;
         this.bytesToCopy = other.bytesToCopy;
         this.copyStartNS = other.copyStartNS;
         this.buffer = other.buffer;
+    }
+
+    public String getTmpName() {
+        return tempName;
     }
 
     /**
@@ -69,8 +78,13 @@ public class CopySingleFile extends CopyOneFile {
         if (rawFileChunkIterator.hasNext()) {
             RawFileChunk rawFileChunk = rawFileChunkIterator.next();
             ByteString byteString = rawFileChunk.getContent();
-            out.writeBytes(byteString.toByteArray(), 0, byteString.size());
             bytesCopied += byteString.size();
+            if (bytesCopied < bytesToCopy) {
+                out.writeBytes(byteString.toByteArray(), 0, byteString.size());
+            } else { // last chunk, last 8 bytes are crc32 checksum
+                out.writeBytes(byteString.toByteArray(), 0, byteString.size() - 8);
+                remoteFileChecksum = ByteBuffer.wrap(byteString.substring(byteString.size() - 8, byteString.size()).toByteArray()).getLong();
+            }
             return false;
         } else {
             long checksum = out.getChecksum();
@@ -81,9 +95,7 @@ public class CopySingleFile extends CopyOneFile {
             }
             // Paranoia: make sure the primary node is not smoking crack, by somehow sending us an already corrupted file whose checksum (in its
             // footer) disagrees with reality:
-            //TODO: Primary needs to send checksum for this to work at the end of file raw stream.
-            // long actualChecksumIn = in.readLong();
-            long actualChecksumIn = metaData.checksum;
+            long actualChecksumIn = remoteFileChecksum;
             if (actualChecksumIn != checksum) {
                 dest.message("file " + tmpName + ": checksum claimed by primary disagrees with the file's footer: claimed checksum=" + checksum + " vs actual=" + actualChecksumIn);
                 throw new IOException("file " + name + ": checksum mismatch after file copy");
@@ -94,7 +106,7 @@ public class CopySingleFile extends CopyOneFile {
                 dest.message(String.format(Locale.ROOT, "file %s: done copying [%s, %.3fms]",
                         name,
                         Node.bytesToString(metaData.length),
-                        (System.nanoTime() - copyStartNS)/1000000.0));
+                        (System.nanoTime() - copyStartNS) / 1000000.0));
             }
             return true;
         }
@@ -103,7 +115,11 @@ public class CopySingleFile extends CopyOneFile {
     @Override
     public void close() throws IOException {
         out.close();
-        dest.finishCopyFile(name);
+        super.close();
+        //ugh sad! delete temp file in base class, since "out" in base class is private and we have our own in this class.
+        String tempFileResourceString = out.toString();
+        Path unusedTempFile = Paths.get(tempFileResourceString.split("\"")[1].split("index")[0], "index", super.tmpName);
+        Files.deleteIfExists(unusedTempFile);
     }
 
     @Override

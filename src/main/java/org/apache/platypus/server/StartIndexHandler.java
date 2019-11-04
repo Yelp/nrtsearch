@@ -59,7 +59,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
             if (mode.equals(Mode.PRIMARY)) {
                 shardState.startPrimary(primaryGen);
             } else if (mode.equals(Mode.REPLICA)) {
-                // channel/client to talk to primary on
+                // channel for replica to talk to primary on
                 ReplicationServerClient primaryNodeClient = new ReplicationServerClient(primaryAddress, primaryPort);
                 shardState.startReplica(primaryNodeClient, primaryGen);
             } else {

@@ -27,19 +27,22 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherLifetimeManager;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.platypus.server.*;
 import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
-
-import static io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall;
 
 /**
  * Server that manages startup/shutdown of a {@code LuceneServer} server.
@@ -57,7 +60,8 @@ public class LuceneServer {
 
     private void start() throws IOException {
         GlobalState globalState = new GlobalState(luceneServerConfiguration.getNodeName(),
-                luceneServerConfiguration.getStateDir(), luceneServerConfiguration.getHostName(), luceneServerConfiguration.getPort());
+                luceneServerConfiguration.getStateDir(), luceneServerConfiguration.getHostName(),
+                luceneServerConfiguration.getPort(), luceneServerConfiguration.getReplicationPort());
         /* The port on which the server should run */
         server = ServerBuilder.forPort(luceneServerConfiguration.getPort())
                 .addService(new LuceneServerImpl(globalState))
@@ -664,12 +668,21 @@ public class LuceneServer {
         @Override
         public void recvRawFile(FileInfo fileInfoRequest, StreamObserver<RawFileChunk> rawFileChunkStreamObserver) {
             try {
-                InputStream inputStream = new FileInputStream(new File(fileInfoRequest.getFileName()));
-                byte[] chunk = new byte[1024 * 64];
-                int totalRead;
-                while ((totalRead = inputStream.read(chunk)) != -1) {
-                    RawFileChunk rawFileChunk = RawFileChunk.newBuilder().setContent(ByteString.copyFrom(chunk, 0, totalRead)).build();
+                IndexState indexState = globalState.getIndex(fileInfoRequest.getIndexName());
+                ShardState shardState = indexState.getShard(0);
+                IndexInput luceneFile = shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT);
+                long len = luceneFile.length();
+                long pos = fileInfoRequest.getFpStart();
+                luceneFile.seek(pos);
+                byte[] buffer = new byte[1024 * 64];
+                long totalRead;
+                totalRead = pos;
+                while (totalRead < len) {
+                    int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
+                    luceneFile.readBytes(buffer, 0, chunkSize);
+                    RawFileChunk rawFileChunk = RawFileChunk.newBuilder().setContent(ByteString.copyFrom(buffer, 0, chunkSize)).build();
                     rawFileChunkStreamObserver.onNext(rawFileChunk);
+                    totalRead += chunkSize;
                 }
                 //EOF
                 rawFileChunkStreamObserver.onCompleted();
@@ -703,8 +716,79 @@ public class LuceneServer {
 
         @Override
         public void copyFiles(CopyFiles request, StreamObserver<TransferStatus> responseObserver) {
-
+            try {
+                IndexState indexState = globalState.getIndex(request.getIndexName());
+                CopyFilesHandler copyFilesHandler = new CopyFilesHandler();
+                //we need to send multiple responses to client from this method
+                copyFilesHandler.handle(indexState, request, responseObserver);
+                logger.info("CopyFilesHandler returned successfully");
+            } catch (Exception e) {
+                logger.warn(String.format("error on copyFiles for primaryGen: %s, for index: %s", request.getPrimaryGen(), request.getIndexName()), e);
+                responseObserver.onError(Status
+                        .INTERNAL
+                        .withDescription(String.format("error on copyFiles for primaryGen: %s, for index: %s", request.getPrimaryGen(), request.getIndexName()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
         }
+
+        @Override
+        public void newNRTPoint(NewNRTPoint request, StreamObserver<TransferStatus> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(request.getIndexName());
+                NewNRTPointHandler newNRTPointHander = new NewNRTPointHandler();
+                TransferStatus reply = newNRTPointHander.handle(indexState, request);
+                logger.info("NewNRTPointHandler returned status " + reply.getCode() + " message: " + reply.getMessage());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn(String.format("error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s", request.getIndexName(), request.getVersion(), request.getPrimaryGen()), e);
+                responseObserver.onError(Status
+                        .INTERNAL
+                        .withDescription(String.format("error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s", request.getIndexName(), request.getVersion(), request.getPrimaryGen()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+        @Override
+        public void writeNRTPoint(IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(indexNameRequest.getIndexName());
+                WriteNRTPointHandler writeNRTPointHander = new WriteNRTPointHandler();
+                SearcherVersion reply = writeNRTPointHander.handle(indexState, indexNameRequest);
+                logger.info("WriteNRTPointHandler returned version " + reply.getVersion());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn(String.format("error on writeNRTPoint for indexName: %s", indexNameRequest.getIndexName()), e);
+                responseObserver.onError(Status
+                        .INTERNAL
+                        .withDescription(String.format("error on writeNRTPoint for indexName: %s", indexNameRequest.getIndexName()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+        @Override
+        public void getCurrentSearcherVersion(IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(indexNameRequest.getIndexName());
+                ReplicaCurrentSearchingVersionHandler replicaCurrentSearchingVersionHandler = new ReplicaCurrentSearchingVersionHandler();
+                SearcherVersion reply = replicaCurrentSearchingVersionHandler.handle(indexState, indexNameRequest);
+                logger.info("ReplicaCurrentSearchingVersionHandler returned version " + reply.getVersion());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn(String.format("error on getCurrentSearcherVersion for indexName: %s", indexNameRequest.getIndexName()), e);
+                responseObserver.onError(Status
+                        .INTERNAL
+                        .withDescription(String.format("error on getCurrentSearcherVersion for indexName: %s", indexNameRequest.getIndexName()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
 
     }
 }

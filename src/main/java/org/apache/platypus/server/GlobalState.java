@@ -41,6 +41,7 @@ public class GlobalState implements Closeable {
     public static final String NULL = "NULL";
     private final String hostName;
     private final int port;
+    private final int replicationPort;
 
     Logger logger = LoggerFactory.getLogger(GlobalState.class);
     Gson gson = new Gson();
@@ -84,12 +85,13 @@ public class GlobalState implements Closeable {
     /**
      * Sole constructor.
      */
-    public GlobalState(String nodeName, Path stateDir, String hostName, int port) throws IOException {
+    public GlobalState(String nodeName, Path stateDir, String hostName, int port, int replicationPort) throws IOException {
         logger.info("MAX INDEXING THREADS " + MAX_INDEXING_THREADS);
         this.nodeName = nodeName;
         this.stateDir = stateDir;
         this.hostName = hostName;
         this.port = port;
+        this.replicationPort = replicationPort;
         if (Files.exists(stateDir) == false) {
             Files.createDirectories(stateDir);
         }
@@ -236,5 +238,9 @@ public class GlobalState implements Closeable {
         synchronized (indices) {
             indexNames.remove(name);
         }
+    }
+
+    public int getReplicationPort() {
+        return replicationPort;
     }
 }
