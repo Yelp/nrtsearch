@@ -2,7 +2,10 @@ package org.apache.platypus.server.grpc;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-import io.grpc.inprocess.InProcessChannelBuilder;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
@@ -22,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 
-public class StartChannel {
+public class GrpcServer {
     private final GrpcCleanupRule grpcCleanup;
     private final TemporaryFolder temporaryFolder;
     private String rootDirName;
@@ -33,14 +36,15 @@ public class StartChannel {
     private ReplicationServerGrpc.ReplicationServerStub replicationServerStub;
 
     private GlobalState globalState;
+    private LuceneServerClient luceneServerClient;
 
-    public StartChannel(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder, boolean isReplication, GlobalState globalState, String rootDirName, String index) throws IOException {
+    public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder, boolean isReplication, GlobalState globalState, String rootDirName, String index, int port) throws IOException {
         this.grpcCleanup = grpcCleanup;
         this.temporaryFolder = temporaryFolder;
         this.globalState = globalState;
         this.rootDirName = rootDirName;
         this.testIndex = index;
-        invoke(isReplication);
+        invoke(isReplication, port);
     }
 
     public String getRootDirName() {
@@ -75,30 +79,40 @@ public class StartChannel {
      * To test the server, make calls with a real stub using the in-process channel, and verify
      * behaviors or state changes from the client side.
      */
-    private void invoke(boolean isReplication) throws IOException {
+    private void invoke(boolean isReplication, int port) throws IOException {
         // Generate a unique in-process server name.
         String serverName = InProcessServerBuilder.generateName();
         if (!isReplication) {
             // Create a server, add service, start, and register for automatic graceful shutdown.
-            grpcCleanup.register(InProcessServerBuilder
-                    .forName(serverName).directExecutor().addService(new LuceneServer.LuceneServerImpl(globalState)).build().start());
-            blockingStub = LuceneServerGrpc.newBlockingStub(
-                    // Create a client channel and register for automatic graceful shutdown.
-                    grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build()));
-            stub = LuceneServerGrpc.newStub(
-                    grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build()));
+            Server server = ServerBuilder.forPort(port)
+                    .addService(new LuceneServer.LuceneServerImpl(globalState))
+                    .build()
+                    .start();
+            grpcCleanup.register(server);
+
+            // Create a client channel and register for automatic graceful shutdown.
+            ManagedChannel managedChannel = ManagedChannelBuilder.forAddress("localhost", port).usePlaintext().build();
+            grpcCleanup.register(managedChannel);
+            blockingStub = LuceneServerGrpc.newBlockingStub(managedChannel);
+            stub = LuceneServerGrpc.newStub(managedChannel);
+
             replicationServerBlockingStub = null;
             replicationServerStub = null;
 
         } else {
             // Create a server, add service, start, and register for automatic graceful shutdown.
-            grpcCleanup.register(InProcessServerBuilder
-                    .forName(serverName).directExecutor().addService(new LuceneServer.ReplicationServerImpl(globalState)).build().start());
-            replicationServerBlockingStub = ReplicationServerGrpc.newBlockingStub(
-                    // Create a client channel and register for automatic graceful shutdown.
-                    grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build()));
-            replicationServerStub = ReplicationServerGrpc.newStub(
-                    grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build()));
+            Server server = ServerBuilder.forPort(port)
+                    .addService(new LuceneServer.ReplicationServerImpl(globalState))
+                    .build()
+                    .start();
+            grpcCleanup.register(server);
+
+            // Create a client channel and register for automatic graceful shutdown.
+            ManagedChannel managedChannel = ManagedChannelBuilder.forAddress("localhost", port).usePlaintext().build();
+            grpcCleanup.register(managedChannel);
+            replicationServerBlockingStub = ReplicationServerGrpc.newBlockingStub(managedChannel);
+            replicationServerStub = ReplicationServerGrpc.newStub(managedChannel);
+
             blockingStub = null;
             stub = null;
         }
@@ -125,16 +139,16 @@ public class StartChannel {
         }
     }
 
-    public static class TestAddDocuments {
-        private final StartChannel startChannel;
+    public static class TestServer {
+        private final GrpcServer grpcServer;
         public AddDocumentResponse addDocumentResponse;
         public boolean completed = false;
         public boolean error = false;
 
-        TestAddDocuments(StartChannel startChannel, boolean startIndex, boolean primary) throws IOException {
-            this.startChannel = startChannel;
+        TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode) throws IOException {
+            this.grpcServer = grpcServer;
             if (startIndex) {
-                new RegisterFields(startChannel).setUpIndexWithFields(primary);
+                new IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(mode);
             }
         }
 
@@ -160,7 +174,7 @@ public class StartChannel {
                 }
             };
             //requestObserver sends requests to Server (one onNext per AddDocumentRequest and one onCompleted)
-            StreamObserver<AddDocumentRequest> requestObserver = startChannel.getStub().addDocuments(responseStreamObserver);
+            StreamObserver<AddDocumentRequest> requestObserver = grpcServer.getStub().addDocuments(responseStreamObserver);
             //parse CSV into a stream of AddDocumentRequest
             Stream<AddDocumentRequest> addDocumentRequestStream = getAddDocumentRequestStream();
             try {
@@ -182,31 +196,36 @@ public class StartChannel {
             Path filePath = Paths.get("src", "test", "resources", "addDocs.csv");
             Reader reader = Files.newBufferedReader(filePath);
             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
-            return new LuceneServerClientBuilder.AddDcoumentsClientBuilder(startChannel.getTestIndex(), csvParser).buildRequest(filePath);
+            return new LuceneServerClientBuilder.AddDcoumentsClientBuilder(grpcServer.getTestIndex(), csvParser).buildRequest(filePath);
         }
 
 
     }
 
-    public static class RegisterFields {
+    public static class IndexAndRoleManager {
 
-        private StartChannel startChannel;
+        private GrpcServer grpcServer;
 
-        public RegisterFields(StartChannel startChannel) {
-            this.startChannel = startChannel;
+        public IndexAndRoleManager(GrpcServer grpcServer) {
+            this.grpcServer = grpcServer;
         }
 
-        public FieldDefResponse setUpIndexWithFields(boolean primary) throws IOException {
-            String rootDirName = startChannel.getRootDirName();
-            String testIndex = startChannel.getTestIndex();
-            LuceneServerGrpc.LuceneServerBlockingStub blockingStub = startChannel.getBlockingStub();
+        public FieldDefResponse createStartIndexAndRegisterFields(Mode mode) throws IOException {
+            String rootDirName = grpcServer.getRootDirName();
+            String testIndex = grpcServer.getTestIndex();
+            LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
             //create the index
             blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(testIndex).setRootDir(rootDirName).build());
             //start the index
             StartIndexRequest.Builder startIndexBuilder = StartIndexRequest.newBuilder().setIndexName(testIndex);
-            if (primary) {
+            if (mode.equals(Mode.PRIMARY)) {
                 startIndexBuilder.setMode(Mode.PRIMARY);
                 startIndexBuilder.setPrimaryGen(0);
+            }
+            else if (mode.equals(Mode.REPLICA)) {
+                startIndexBuilder.setMode(Mode.REPLICA);
+                startIndexBuilder.setPrimaryAddress("localhost");
+                startIndexBuilder.setPort(9001); //primary port for replication server
             }
             blockingStub.startIndex(startIndexBuilder.build());
             //register the fields

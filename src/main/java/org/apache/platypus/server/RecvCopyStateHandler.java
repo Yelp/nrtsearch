@@ -63,7 +63,7 @@ public class RecvCopyStateHandler implements Handler<CopyStateRequest, CopyState
         return builder.build();
     }
 
-    private static FilesMetadata writeFilesMetaData(Map<String, FileMetaData> files) throws IOException {
+    public static FilesMetadata writeFilesMetaData(Map<String, FileMetaData> files) throws IOException {
         FilesMetadata.Builder builder = FilesMetadata.newBuilder();
         builder.setNumFiles(files.size());
 

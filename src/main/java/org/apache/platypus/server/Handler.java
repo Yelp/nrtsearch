@@ -20,6 +20,7 @@
 package org.apache.platypus.server;
 
 import com.google.protobuf.GeneratedMessageV3;
+import io.grpc.stub.StreamObserver;
 import org.apache.platypus.server.grpc.ReplicationServerClient;
 
 /* Interface for handlers that take in an indexState and the protoBuff request and returns the protoBuff response */
@@ -27,6 +28,10 @@ public interface Handler<T extends GeneratedMessageV3, S extends GeneratedMessag
 
     default boolean isValidMagicHeader(int magicHeader) {
         return magicHeader == ReplicationServerClient.BINARY_MAGIC;
+    }
+
+    default void handle(IndexState indexState, T protoRequest, StreamObserver<S> responseObserver) throws Exception {
+        throw new UnsupportedOperationException("This method is not supported");
     }
 
     S handle(IndexState indexState, T protoRequest) throws HandlerException;

@@ -79,9 +79,43 @@ public class ReplicationServerClient implements Closeable {
         return this.blockingStub.addReplicas(addDocumentRequest);
     }
 
-    public Iterator<RawFileChunk> recvRawFile(String fileName, long fpOffset) {
-        FileInfo fileInfo = FileInfo.newBuilder().setFileName(fileName).setFpStart(fpOffset).build();
+    public Iterator<RawFileChunk> recvRawFile(String fileName, long fpOffset, String indexName) {
+        FileInfo fileInfo = FileInfo.newBuilder()
+                .setFileName(fileName)
+                .setFpStart(fpOffset)
+                .setIndexName(indexName)
+                .build();
         return this.blockingStub.recvRawFile(fileInfo);
+    }
+
+
+    public CopyState recvCopyState(String indexName, int replicaId) {
+        CopyStateRequest.Builder builder = CopyStateRequest.newBuilder();
+        CopyStateRequest copyStateRequest = builder
+                .setMagicNumber(BINARY_MAGIC)
+                .setReplicaId(replicaId)
+                .setIndexName(indexName).build();
+        return this.blockingStub.recvCopyState(copyStateRequest);
+    }
+
+    public Iterator<TransferStatus> copyFiles(String indexName, long primaryGen, FilesMetadata filesMetadata) {
+        CopyFiles.Builder copyFilesBuilder = CopyFiles.newBuilder();
+        CopyFiles copyFiles = copyFilesBuilder
+                .setMagicNumber(BINARY_MAGIC)
+                .setIndexName(indexName)
+                .setPrimaryGen(primaryGen)
+                .setFilesMetadata(filesMetadata).build();
+        return this.blockingStub.copyFiles(copyFiles);
+    }
+
+    public TransferStatus newNRTPoint(String indexName, long primaryGen, long version) {
+        NewNRTPoint.Builder builder = NewNRTPoint.newBuilder();
+        NewNRTPoint request = builder
+                .setMagicNumber(BINARY_MAGIC)
+                .setIndexName(indexName)
+                .setPrimaryGen(primaryGen)
+                .setVersion(version).build();
+        return this.blockingStub.newNRTPoint(request);
     }
 
     @Override

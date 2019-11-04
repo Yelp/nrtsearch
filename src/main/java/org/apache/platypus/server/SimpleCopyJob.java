@@ -11,21 +11,23 @@ public class SimpleCopyJob extends CopyJob {
     final byte[] copyBuffer = new byte[65536];
     private final CopyState copyState;
     private final ReplicationServerClient primaryAddres;
+    private final String indexName;
     private Iterator<Map.Entry<String, FileMetaData>> iter;
 
 
     public SimpleCopyJob(String reason, ReplicationServerClient primaryAddress,
                          CopyState copyState, ReplicaNode dest,
-                         Map<String, FileMetaData> files, boolean highPriority, OnceDone onceDone)
+                         Map<String, FileMetaData> files, boolean highPriority, OnceDone onceDone, String indexName)
             throws IOException {
         super(reason, files, dest, highPriority, onceDone);
         this.copyState = copyState;
         this.primaryAddres = primaryAddress;
+        this.indexName = indexName;
     }
 
     @Override
     protected CopyOneFile newCopyOneFile(CopyOneFile prev) {
-        Iterator<RawFileChunk> rawFileChunkIterator = primaryAddres.recvRawFile(prev.name, prev.getBytesCopied());
+        Iterator<RawFileChunk> rawFileChunkIterator = primaryAddres.recvRawFile(prev.name, prev.getBytesCopied(), indexName);
         return new CopySingleFile((CopySingleFile) current, rawFileChunkIterator);
     }
 
@@ -33,6 +35,15 @@ public class SimpleCopyJob extends CopyJob {
     public void start() throws IOException {
         if (iter == null) {
             iter = toCopy.iterator();
+            // This means we resumed an already in-progress copy; we do this one first:
+            if(current != null) {
+                totBytes += current.metaData.length;
+            }
+            for (Map.Entry<String,FileMetaData> ent : toCopy) {
+                FileMetaData metaData = ent.getValue();
+                totBytes += metaData.length;
+            }
+
             // Send all file names / offsets up front to avoid ping-ping latency:
             try {
                 dest.message("SimpleCopyJob.init: done start files count=" + toCopy.size() + " totBytes=" + totBytes);
@@ -168,12 +179,12 @@ public class SimpleCopyJob extends CopyJob {
             Map.Entry<String, FileMetaData> next = iter.next();
             FileMetaData metaData = next.getValue();
             String fileName = next.getKey();
-            Iterator<RawFileChunk> rawFileChunkIterator = primaryAddres.recvRawFile(fileName, 0);
+            Iterator<RawFileChunk> rawFileChunkIterator = primaryAddres.recvRawFile(fileName, 0, indexName);
             current = new CopySingleFile(rawFileChunkIterator, dest, fileName, metaData, copyBuffer);
         }
         if (current.visit()) {
             // This file is done copying
-            copiedFiles.put(current.name, current.tmpName);
+            copiedFiles.put(current.name, ((CopySingleFile)current).getTmpName());
             totBytesCopied += current.getBytesCopied();
             assert totBytesCopied <= totBytes : "totBytesCopied=" + totBytesCopied + " totBytes=" + totBytes;
             current = null;

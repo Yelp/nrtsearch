@@ -17,6 +17,7 @@ package org.apache.platypus.server.grpc;
  */
 
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import io.grpc.ManagedChannel;
@@ -58,6 +59,17 @@ public class LuceneServerClient {
     private static final Logger logger = Logger.getLogger(LuceneServerClient.class.getName());
 
     private final ManagedChannel channel;
+
+    @VisibleForTesting
+    public LuceneServerGrpc.LuceneServerBlockingStub getBlockingStub() {
+        return blockingStub;
+    }
+
+    @VisibleForTesting
+    public LuceneServerGrpc.LuceneServerStub getAsyncStub() {
+        return asyncStub;
+    }
+
     private final LuceneServerGrpc.LuceneServerBlockingStub blockingStub;
     private final LuceneServerGrpc.LuceneServerStub asyncStub;
 
