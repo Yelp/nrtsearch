@@ -17,19 +17,26 @@
  *
  */
 
-package org.apache.platypus.server.cli;
+package org.apache.platypus.server.luceneserver;
 
-import picocli.CommandLine;
+import java.util.regex.Pattern;
 
-@CommandLine.Command(name = SearchCommand.SEARCH, mixinStandardHelpOptions = true, version = "search 0.1",
-        description = "Execute a search")
-public class SearchCommand {
-    public static final String SEARCH = "search";
-
-    @CommandLine.Option(names = {"-f", "--fileName"}, description = "name of the file containing the search to be executed", required = true)
-    private String fileName;
-
-    public String getFileName() {
-        return fileName;
+/**
+ * Static constants.
+ */
+public class Constants {
+    private Constants() {
     }
+
+    // nocommit can we nuke this hack now?
+    /**
+     * Used to join multi-valued fields.
+     */
+    public static final char INFORMATION_SEP = '\u001f';
+
+    /**
+     * Regexp version of {@link #INFORMATION_SEP}.
+     */
+    public static final String INFORMATION_SEP_REGEX = Pattern.quote(Character.toString(INFORMATION_SEP));
 }
+

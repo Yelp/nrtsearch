@@ -11,7 +11,7 @@ import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
-import org.apache.platypus.server.GlobalState;
+import org.apache.platypus.server.luceneserver.GlobalState;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;

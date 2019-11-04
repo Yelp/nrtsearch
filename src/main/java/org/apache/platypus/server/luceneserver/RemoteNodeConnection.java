@@ -17,19 +17,25 @@
  *
  */
 
-package org.apache.platypus.server.cli;
+package org.apache.platypus.server.luceneserver;
 
-import picocli.CommandLine;
+import java.io.Closeable;
+import java.io.IOException;
 
-@CommandLine.Command(name = SearchCommand.SEARCH, mixinStandardHelpOptions = true, version = "search 0.1",
-        description = "Execute a search")
-public class SearchCommand {
-    public static final String SEARCH = "search";
+/**
+ * Persistent connections to other nodes in the cluster for us to send commands to them
+ */
+public final class RemoteNodeConnection implements Closeable {
+    public final byte[] nodeID;
+    public final Connection c;
 
-    @CommandLine.Option(names = {"-f", "--fileName"}, description = "name of the file containing the search to be executed", required = true)
-    private String fileName;
+    public RemoteNodeConnection(byte[] nodeID, Connection c) {
+        this.nodeID = nodeID;
+        this.c = c;
+    }
 
-    public String getFileName() {
-        return fileName;
+    @Override
+    public void close() throws IOException {
+        c.close();
     }
 }

@@ -2,7 +2,7 @@ package org.apache.platypus.server.grpc;
 
 import com.google.gson.Gson;
 import io.grpc.testing.GrpcCleanupRule;
-import org.apache.platypus.server.GlobalState;
+import org.apache.platypus.server.luceneserver.GlobalState;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
