@@ -563,6 +563,23 @@ public class LuceneServer {
             }
         }
 
+        @Override
+        public void stopIndex(StopIndexRequest stopIndexRequest, StreamObserver<DummyResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(stopIndexRequest.getIndexName());
+                DummyResponse reply = new StopIndexHandler().handle(indexState, stopIndexRequest);
+                logger.info("StopIndexHandler returned " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn("error while trying to stop index " + stopIndexRequest.getIndexName(), e);
+                responseObserver.onError(Status
+                        .INVALID_ARGUMENT
+                        .withDescription("error while trying to stop index: " + stopIndexRequest.getIndexName())
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
 
     }
 

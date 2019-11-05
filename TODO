@@ -34,3 +34,19 @@
 - support searching over segments in parallel: https://issues.apache.org/jira/browse/LUCENE-6294. See: `TestTopDocsCollector.doConcurrentSearchWithThreshold`
 which creates a CollectorManager
 
+
+*Replication Related Functionality*
+- Primary needs an endpoint to update the currently known replicas (e.g. if a replica goes down, it needs to be removed)
+- Refresh related:
+  - currently "refresh" on primary will create a newNRTPoint post flushing all recently indexed docs to primary and sendNewNRT to replicas
+  which will in turn copy files from primary
+- Commit related
+  - "commit" will commit all state on primary only.
+  - "writeNRTPoint" will flush all docs to primary and sendNewNRT to replicas, returning the most recent searcher version to caller
+  - "getCurrentSearchingVersion" on replica returns the most recent searcher version on replicas.
+- TODO: Outside of this system
+  - Need to keep state the primaryGen (a long) along with host:port of current primary and replicas
+  - Each time a primary starts we need to increment the primaryGen
+  - Each time a replica crashes, primary needs to know the current set of active replicas
+  - Each time a primary crashes we need to pick a new replica. Probably the one with newestNRT point.
+

@@ -45,7 +45,9 @@ import java.util.stream.Stream;
 import static org.apache.platypus.server.cli.AddDocumentsCommand.ADD_DOCUMENTS;
 import static org.apache.platypus.server.cli.CommitCommand.COMMIT;
 import static org.apache.platypus.server.cli.CreateIndexCommand.CREATE_INDEX;
+import static org.apache.platypus.server.cli.DeleteAllDocumentsCommand.DELETE_ALL_DOCS;
 import static org.apache.platypus.server.cli.DeleteDocumentsCommand.DELETE_DOCS;
+import static org.apache.platypus.server.cli.DeleteIndexCommand.DELETE_INDEX;
 import static org.apache.platypus.server.cli.LiveSettingsCommand.LIVE_SETTINGS;
 import static org.apache.platypus.server.cli.RefreshCommand.REFRESH;
 import static org.apache.platypus.server.cli.RegisterFieldsCommand.REGISTER_FIELDS;
@@ -53,6 +55,7 @@ import static org.apache.platypus.server.cli.SearchCommand.SEARCH;
 import static org.apache.platypus.server.cli.SettingsCommand.SETTINGS;
 import static org.apache.platypus.server.cli.StartIndexCommand.START_INDEX;
 import static org.apache.platypus.server.cli.StatsCommand.STATS;
+import static org.apache.platypus.server.cli.StopIndexCommand.STOP_INDEX;
 
 /**
  * A simple client that requests a greeting from the {@link LuceneServer}.
@@ -277,6 +280,20 @@ public class LuceneServerClient {
         logger.info("Server returned indexGen : " + response.getGenId());
     }
 
+    public void deleteIndex(String indexName) {
+        DeleteIndexResponse response = blockingStub.deleteIndex(DeleteIndexRequest.newBuilder().setIndexName(indexName).build());
+        logger.info("Server returned response : " + response.getOk());
+    }
+
+    public void deleteAllDocuments(String indexName) {
+        DeleteAllDocumentsResponse response = blockingStub.deleteAll(DeleteAllDocumentsRequest.newBuilder().setIndexName(indexName).build());
+        logger.info("Server returned genId : " + response.getGenId());
+    }
+
+    public void stopIndex(String indexName) {
+        blockingStub.stopIndex(StopIndexRequest.newBuilder().setIndexName(indexName).build());
+    }
+
     private FieldDefRequest getFieldDefRequest(String jsonStr) {
         logger.info(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
         FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
@@ -387,6 +404,18 @@ public class LuceneServerClient {
                     DeleteDocumentsCommand deleteDocumentsCommand = (DeleteDocumentsCommand) subCommand;
                     filePath = Paths.get(deleteDocumentsCommand.getFileName());
                     client.delete(filePath);
+                    break;
+                case DELETE_ALL_DOCS:
+                    DeleteAllDocumentsCommand deleteAllDocumentsCommand = (DeleteAllDocumentsCommand) subCommand;
+                    client.deleteAllDocuments(deleteAllDocumentsCommand.getIndexName());
+                    break;
+                case DELETE_INDEX:
+                    DeleteIndexCommand deleteIndexCommand = (DeleteIndexCommand) subCommand;
+                    client.deleteIndex(deleteIndexCommand.getIndexName());
+                    break;
+                case STOP_INDEX:
+                    StopIndexCommand stopIndexCommand = (StopIndexCommand) subCommand;
+                    client.stopIndex(stopIndexCommand.getIndexName());
                     break;
                 default:
                     logger.warning(String.format("%s is not a valid server command", subCommandStr));

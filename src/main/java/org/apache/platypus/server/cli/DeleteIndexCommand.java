@@ -19,26 +19,18 @@
 
 package org.apache.platypus.server.cli;
 
-        import picocli.CommandLine;
+import picocli.CommandLine;
 
+@CommandLine.Command(name = DeleteIndexCommand.DELETE_INDEX, mixinStandardHelpOptions = true, version = "deleteIndex 0.1",
+        description = "Delete index")
+public class DeleteIndexCommand {
+    public static final String DELETE_INDEX = "deleteIndex";
 
-@CommandLine.Command(name = DeleteDocumentsCommand.DELETE_DOCS, mixinStandardHelpOptions = true, version = "delete 0.1",
-        description = "Delete documents from index that match any terms")
-public class DeleteDocumentsCommand {
-    public static final String DELETE_DOCS = "delete";
-
-    @CommandLine.Option(names = {"-i", "--indexName"}, description = "name of the index whose docs are to be deleted", required = true)
+    @CommandLine.Option(names = {"-i", "--indexName"}, description = "name of the index which is to be deleted", required = true)
     private String indexName;
 
     public String getIndexName() {
         return indexName;
-    }
-
-    @CommandLine.Option(names = {"-f", "--fileName"}, description = "file containing document filters to be deleted", required = true)
-    private String fileName;
-
-    public String getFileName() {
-        return fileName;
     }
 
 }
