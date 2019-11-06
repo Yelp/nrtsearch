@@ -116,9 +116,10 @@ public class LuceneServer {
     public static void main(String[] args) throws IOException, InterruptedException {
         //TODO parse the LuceneServerConfiguration from a yaml file to be able to customize it.
         LuceneServerConfiguration.Builder configurationBuilder = new LuceneServerConfiguration.Builder();
-        if (args.length > 1) {
+        if (args.length > 2) {
             configurationBuilder.withPort(Integer.parseInt(args[0]));
             configurationBuilder.withReplicationPort(Integer.parseInt(args[1]));
+            configurationBuilder.withStateDir(args[2]);
         }
         LuceneServerConfiguration luceneServerConfiguration = configurationBuilder.build();
         final LuceneServer server = new LuceneServer(luceneServerConfiguration);
@@ -563,6 +564,23 @@ public class LuceneServer {
             }
         }
 
+        @Override
+        public void stopIndex(StopIndexRequest stopIndexRequest, StreamObserver<DummyResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(stopIndexRequest.getIndexName());
+                DummyResponse reply = new StopIndexHandler().handle(indexState, stopIndexRequest);
+                logger.info("StopIndexHandler returned " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn("error while trying to stop index " + stopIndexRequest.getIndexName(), e);
+                responseObserver.onError(Status
+                        .INVALID_ARGUMENT
+                        .withDescription("error while trying to stop index: " + stopIndexRequest.getIndexName())
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
 
     }
 

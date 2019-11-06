@@ -29,6 +29,9 @@ service LuceneServer {
     /* Starts an index */
     rpc startIndex (StartIndexRequest) returns (StartIndexResponse) {
     }
+    /* Stops an index */
+    rpc stopIndex (StopIndexRequest) returns (DummyResponse) {
+    }
     /* Adds a stream of Documents */
     rpc addDocuments (stream AddDocumentRequest) returns (AddDocumentResponse) {
     }
@@ -71,7 +74,7 @@ service ReplicationServer {
     rpc recvRawFile (FileInfo) returns (stream RawFileChunk) {
     }
     /* Issued by primary on replica to inform it to start copying files either pre-warming (new merged segments) or when replica comes up first time */
-    rpc copyFiles (CopyFiles) returns (stream TransferStatus ) {
+    rpc copyFiles (CopyFiles) returns (stream TransferStatus) {
     }
     /* Invoked externally to replica, to notify it that a new NRT point was just created on the primary */
     rpc newNRTPoint (NewNRTPoint) returns (TransferStatus) {
@@ -394,6 +397,10 @@ message DummyResponse {
     string ok = 1; // returns "ok" string on success
 }
 
+message StopIndexRequest {
+    string indexName = 1; //index name to stop
+}
+
 message AddReplicaRequest {
     int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
     string indexName = 2; //index name
@@ -457,7 +464,7 @@ message FilesInfo {
 
 message FileInfo {
     string fileName = 1; // Name of the file the replica wants primary to send
-    int64 fpStart = 2;  // Starting offset in the file primary should start sending bytes from:
+    int64 fpStart = 2; // Starting offset in the file primary should start sending bytes from:
     string indexName = 3; //index name these files belong to
 }
 
@@ -469,7 +476,7 @@ enum TransferStatusCode {
     Unknown = 0;
     Done = 1;
     Failed = 2;
-    Ongoing =  3;
+    Ongoing = 3;
 }
 
 message TransferStatus {
@@ -491,5 +498,5 @@ message IndexName {
 
 message SearcherVersion {
     int64 version = 1; //returns the version recorded in the commit that the reader opened.  This version is advanced every time a change is made with IndexWriter
-    bool didRefresh =2 ; //true if refresh happened
+    bool didRefresh = 2; //true if refresh happened
 }

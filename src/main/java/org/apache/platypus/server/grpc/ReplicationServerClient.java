@@ -107,7 +107,6 @@ public class ReplicationServerClient implements Closeable {
         return this.blockingStub.recvRawFile(fileInfo);
     }
 
-
     public CopyState recvCopyState(String indexName, int replicaId) {
         CopyStateRequest.Builder builder = CopyStateRequest.newBuilder();
         CopyStateRequest copyStateRequest = builder
@@ -135,6 +134,12 @@ public class ReplicationServerClient implements Closeable {
                 .setPrimaryGen(primaryGen)
                 .setVersion(version).build();
         return this.blockingStub.newNRTPoint(request);
+    }
+
+    public SearcherVersion writeNRTPoint(String indexName) {
+        return blockingStub.writeNRTPoint(IndexName.newBuilder()
+                .setMagicNumber(BINARY_MAGIC)
+                .setIndexName(indexName).build());
     }
 
     @Override

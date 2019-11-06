@@ -33,7 +33,11 @@ import picocli.CommandLine;
         CommitCommand.class,
         StatsCommand.class,
         SearchCommand.class,
-        DeleteDocumentsCommand.class
+        DeleteDocumentsCommand.class,
+        DeleteAllDocumentsCommand.class,
+        DeleteIndexCommand.class,
+        StopIndexCommand.class,
+        WriteNRTPointCommand.class
 })
 public class Cmd {
     @CommandLine.Option(names = {"-p", "--port"}, description = "port number of server to connect to", required = true)
