@@ -48,6 +48,7 @@ import static org.apache.platypus.server.cli.CreateIndexCommand.CREATE_INDEX;
 import static org.apache.platypus.server.cli.DeleteAllDocumentsCommand.DELETE_ALL_DOCS;
 import static org.apache.platypus.server.cli.DeleteDocumentsCommand.DELETE_DOCS;
 import static org.apache.platypus.server.cli.DeleteIndexCommand.DELETE_INDEX;
+import static org.apache.platypus.server.cli.GetCurrentSearcherVersion.CURRENT_SEARCHER_VERSION;
 import static org.apache.platypus.server.cli.LiveSettingsCommand.LIVE_SETTINGS;
 import static org.apache.platypus.server.cli.RefreshCommand.REFRESH;
 import static org.apache.platypus.server.cli.RegisterFieldsCommand.REGISTER_FIELDS;
@@ -421,9 +422,15 @@ public class LuceneServerClient {
                 case WRITE_NRT_POINT:
                     WriteNRTPointCommand writeNRTPointCommand = (WriteNRTPointCommand) subCommand;
                     ReplicationServerClient replicationServerClient = new ReplicationServerClient(writeNRTPointCommand.getHostName(), writeNRTPointCommand.getPort());
-                    SearcherVersion foo = replicationServerClient.writeNRTPoint(writeNRTPointCommand.getIndexName());
-                    logger.info("didRefresh: " + foo.getDidRefresh());
-                    logger.info("searcherVersion: " + foo.getVersion());
+                    SearcherVersion searcherVersion = replicationServerClient.writeNRTPoint(writeNRTPointCommand.getIndexName());
+                    logger.info("didRefresh: " + searcherVersion.getDidRefresh());
+                    logger.info("searcherVersion: " + searcherVersion.getVersion());
+                    break;
+                case CURRENT_SEARCHER_VERSION:
+                    GetCurrentSearcherVersion getCurrentSearcherVersion = (GetCurrentSearcherVersion) subCommand;
+                    ReplicationServerClient replServerClient = new ReplicationServerClient(getCurrentSearcherVersion.getHostName(), getCurrentSearcherVersion.getPort());
+                    searcherVersion = replServerClient.getCurrentSearcherVersion(getCurrentSearcherVersion.getIndexName());
+                    logger.info("searcherVersion: " + searcherVersion.getVersion());
                     break;
                 default:
                     logger.warning(String.format("%s is not a valid server command", subCommandStr));
