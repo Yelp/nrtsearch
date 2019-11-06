@@ -34,6 +34,8 @@ import picocli.CommandLine;
         StatsCommand.class,
         SearchCommand.class,
         DeleteDocumentsCommand.class,
+        DeleteAllDocumentsCommand.class,
+        DeleteIndexCommand.class,
         StopIndexCommand.class,
         WriteNRTPointCommand.class
 })
