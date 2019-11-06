@@ -142,6 +142,12 @@ public class ReplicationServerClient implements Closeable {
                 .setIndexName(indexName).build());
     }
 
+    public SearcherVersion getCurrentSearcherVersion(String indexName) {
+        return blockingStub.getCurrentSearcherVersion(IndexName.newBuilder()
+                .setMagicNumber(BINARY_MAGIC)
+                .setIndexName(indexName).build());
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
