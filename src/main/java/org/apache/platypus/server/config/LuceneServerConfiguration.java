@@ -62,13 +62,13 @@ public class LuceneServerConfiguration {
             //set default values
             this.nodeName = "main";
             this.hostName = "localhost";
-            this.stateDir = Paths.get(System.getProperty("user.home"), "lucene", "server", String.valueOf(ProcessHandle.current().pid()));
+            this.stateDir = Paths.get(System.getProperty("user.home"), "lucene", "server");
             this.port = 50051;
             this.replicationPort = 50052;
         }
 
-        public Builder withStateDir(Path stateDir) {
-            this.stateDir = stateDir;
+        public Builder withStateDir(String tempStateDir) {
+            this.stateDir = Paths.get(stateDir.toString(), tempStateDir);
             return this;
         }
 

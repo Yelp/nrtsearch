@@ -47,7 +47,7 @@ public class SimpleCopyJob extends CopyJob {
     @Override
     protected CopyOneFile newCopyOneFile(CopyOneFile prev) {
         Iterator<RawFileChunk> rawFileChunkIterator = primaryAddres.recvRawFile(prev.name, prev.getBytesCopied(), indexName);
-        return new CopySingleFile((CopySingleFile) current, rawFileChunkIterator);
+        return new CopySingleFile((CopySingleFile) prev, rawFileChunkIterator);
     }
 
     @Override

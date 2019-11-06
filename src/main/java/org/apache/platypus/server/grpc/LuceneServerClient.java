@@ -56,6 +56,7 @@ import static org.apache.platypus.server.cli.SettingsCommand.SETTINGS;
 import static org.apache.platypus.server.cli.StartIndexCommand.START_INDEX;
 import static org.apache.platypus.server.cli.StatsCommand.STATS;
 import static org.apache.platypus.server.cli.StopIndexCommand.STOP_INDEX;
+import static org.apache.platypus.server.cli.WriteNRTPointCommand.WRITE_NRT_POINT;
 
 /**
  * A simple client that requests a greeting from the {@link LuceneServer}.
@@ -416,6 +417,13 @@ public class LuceneServerClient {
                 case STOP_INDEX:
                     StopIndexCommand stopIndexCommand = (StopIndexCommand) subCommand;
                     client.stopIndex(stopIndexCommand.getIndexName());
+                    break;
+                case WRITE_NRT_POINT:
+                    WriteNRTPointCommand writeNRTPointCommand = (WriteNRTPointCommand) subCommand;
+                    ReplicationServerClient replicationServerClient = new ReplicationServerClient(writeNRTPointCommand.getHostName(), writeNRTPointCommand.getPort());
+                    SearcherVersion foo = replicationServerClient.writeNRTPoint(writeNRTPointCommand.getIndexName());
+                    logger.info("didRefresh: " + foo.getDidRefresh());
+                    logger.info("searcherVersion: " + foo.getVersion());
                     break;
                 default:
                     logger.warning(String.format("%s is not a valid server command", subCommandStr));

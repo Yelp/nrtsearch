@@ -116,9 +116,10 @@ public class LuceneServer {
     public static void main(String[] args) throws IOException, InterruptedException {
         //TODO parse the LuceneServerConfiguration from a yaml file to be able to customize it.
         LuceneServerConfiguration.Builder configurationBuilder = new LuceneServerConfiguration.Builder();
-        if (args.length > 1) {
+        if (args.length > 2) {
             configurationBuilder.withPort(Integer.parseInt(args[0]));
             configurationBuilder.withReplicationPort(Integer.parseInt(args[1]));
+            configurationBuilder.withStateDir(args[2]);
         }
         LuceneServerConfiguration luceneServerConfiguration = configurationBuilder.build();
         final LuceneServer server = new LuceneServer(luceneServerConfiguration);
