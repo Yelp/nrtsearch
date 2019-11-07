@@ -44,6 +44,9 @@ import java.text.ParseException;
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
@@ -446,19 +449,155 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
      * (latest) one.
      */
     public static SearcherTaxonomyManager.SearcherAndTaxonomy getSearcherAndTaxonomy(SearchRequest searchRequest, ShardState state, JsonObject diagnostics) throws InterruptedException, IOException {
+        Logger logger = LoggerFactory.getLogger(SearcherTaxonomyManager.SearcherAndTaxonomy.class);
         //TODO: Figure out which searcher to use:
         //final long searcherVersion; e.g. searcher.getLong("version")
         //final IndexState.Gens searcherSnapshot; e.g. searcher.getLong("indexGen")
         //Currently we only use the current(latest) searcher
         SearcherTaxonomyManager.SearcherAndTaxonomy s;
-        {
+
+        SearchRequest.SearcherCase searchCase = searchRequest.getSearcherCase();
+        long version;
+        IndexState.Gens snapshot;
+
+        if (searchCase.equals(SearchRequest.SearcherCase.VERSION)) {
+            // Searcher is identified by a version, returned by
+            // a prior search or by a refresh.  Apps use this when
+            // the user does a follow-on search (next page, drill
+            // down, etc.), or to ensure changes from a refresh
+            // or NRT replication point are reflected:
+            version = searchRequest.getVersion();
+            snapshot = null;
+            // nocommit need to generify this so we can pull
+            // TaxoReader too:
+            IndexSearcher priorSearcher = state.slm.acquire(version);
+            if (priorSearcher == null) {
+                if (snapshot != null) {
+                    // First time this snapshot is being searched
+                    // against since this server started, or the call
+                    // to createSnapshot didn't specify
+                    // openSearcher=true; now open the reader:
+                    s = openSnapshotReader(state, snapshot, diagnostics);
+                } else {
+                    SearcherTaxonomyManager.SearcherAndTaxonomy current = state.acquire();
+                    long currentVersion = ((DirectoryReader) current.searcher.getIndexReader()).getVersion();
+                    if (currentVersion == version) {
+                        s = current;
+                    } else if (version > currentVersion) {
+                        logger.info("SearchHandler: now await version=" + version + " vs currentVersion=" + currentVersion);
+
+                        // TODO: should we have some timeout here? if user passes bogus future version, we hang forever:
+
+                        // user is asking for search version beyond what we are currently searching ... wait for us to refresh to it:
+
+                        state.release(current);
+
+                        // TODO: Use FutureTask<SearcherAndTaxonomy> here?
+
+                        // nocommit: do this in an async way instead!  this task should be parked somewhere and resumed once refresh runs and exposes
+                        // the requested version, instead of blocking the current search thread
+                        Lock lock = new ReentrantLock();
+                        Condition cond = lock.newCondition();
+                        ReferenceManager.RefreshListener listener = new ReferenceManager.RefreshListener() {
+                            @Override
+                            public void beforeRefresh() {
+                            }
+
+                            @Override
+                            public void afterRefresh(boolean didRefresh) throws IOException {
+                                SearcherTaxonomyManager.SearcherAndTaxonomy current = state.acquire();
+                                logger.info("SearchHandler: refresh completed newVersion=" + ((DirectoryReader) current.searcher.getIndexReader()).getVersion());
+                                try {
+                                    if (((DirectoryReader) current.searcher.getIndexReader()).getVersion() >= version) {
+                                        lock.lock();
+                                        try {
+                                            logger.info("SearchHandler: now signal new version");
+                                            cond.signal();
+                                        } finally {
+                                            lock.unlock();
+                                        }
+                                    }
+                                } finally {
+                                    state.release(current);
+                                }
+                            }
+                        };
+                        state.addRefreshListener(listener);
+                        lock.lock();
+                        try {
+                            current = state.acquire();
+                            if (((DirectoryReader) current.searcher.getIndexReader()).getVersion() < version) {
+                                // still not there yet
+                                state.release(current);
+                                cond.await();
+                                current = state.acquire();
+                                assert ((DirectoryReader) current.searcher.getIndexReader()).getVersion() >= version;
+                            }
+                            s = current;
+                        } finally {
+                            lock.unlock();
+                            state.removeRefreshListener(listener);
+                        }
+                    } else {
+                        // Specific searcher version was requested,
+                        // but this searcher has timed out.  App
+                        // should present a "your session expired" to
+                        // user:
+                        throw new RuntimeException("searcher: This searcher has expired version=" + version + " vs currentVersion=" + currentVersion);
+                    }
+                }
+            } else {
+                // nocommit messy ... we pull an old searcher
+                // but the latest taxoReader ... necessary
+                // because SLM can't take taxo reader yet:
+                SearcherTaxonomyManager.SearcherAndTaxonomy s2 = state.acquire();
+                s = new SearcherTaxonomyManager.SearcherAndTaxonomy(priorSearcher, s2.taxonomyReader);
+                s2.searcher.getIndexReader().decRef();
+            }
+        } else if (searchCase.equals(SearchRequest.SearcherCase.SEARCHER_NOT_SET)) {
             // Request didn't specify any specific searcher;
             // just use the current (latest) searcher:
             s = state.acquire();
             state.slm.record(s.searcher);
+        } else {
+            throw new UnsupportedOperationException(searchCase.name() + " is not yet supported ");
         }
 
         return s;
+    }
+
+    /** Returns a ref. */
+    private static SearcherTaxonomyManager.SearcherAndTaxonomy openSnapshotReader(ShardState state, IndexState.Gens snapshot, JsonObject diagnostics) throws IOException {
+        // TODO: this "reverse-NRT" is ridiculous: we acquire
+        // the latest reader, and from that do a reopen to an
+        // older snapshot ... this is inefficient if multiple
+        // snaphots share older segments that the latest reader
+        // does not share ... Lucene needs a reader pool
+        // somehow:
+        SearcherTaxonomyManager.SearcherAndTaxonomy s = state.acquire();
+        try {
+            // This returns a new reference to us, which
+            // is decRef'd in the finally clause after
+            // search is done:
+            long t0 = System.nanoTime();
+
+            // Returns a ref, which we return to caller:
+            IndexReader r = DirectoryReader.openIfChanged((DirectoryReader) s.searcher.getIndexReader(),
+                    state.snapshots.getIndexCommit(snapshot.indexGen));
+
+            // Ref that we return to caller
+            s.taxonomyReader.incRef();
+
+            SearcherTaxonomyManager.SearcherAndTaxonomy result = new SearcherTaxonomyManager.SearcherAndTaxonomy(new MyIndexSearcher(r), s.taxonomyReader);
+            state.slm.record(result.searcher);
+            long t1 = System.nanoTime();
+            if (diagnostics != null) {
+                diagnostics.addProperty("newSnapshotSearcherOpenMS", ((t1-t0)/1000000.0));
+            }
+            return result;
+        } finally {
+            state.release(s);
+        }
     }
 
     /**
@@ -741,12 +880,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 else if (fd.fieldType != null && fd.fieldType.stored()) {
                     String[] values = s.doc(hit.doc).getValues(name);
                     JsonArray jsonArray = new JsonArray();
-                    for(String fieldValue:  values){
+                    for (String fieldValue : values) {
                         jsonArray.add(fieldValue);
                     }
                     result.add(name, jsonArray);
-                }
-                else {
+                } else {
                     Object v = doc.get(name);
                     if (v != null) {
                         // We caught same field name above:

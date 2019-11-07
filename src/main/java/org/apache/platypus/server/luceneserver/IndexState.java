@@ -1008,4 +1008,30 @@ public class IndexState implements Closeable {
         return result;
     }
 
+    /** Holds metadata for one snapshot, including its id, and
+     *  the index, taxonomy and state generations. */
+    public static class Gens {
+
+        /** Index generation. */
+        public final long indexGen;
+
+        /** Taxonomy index generation. */
+        public final long taxoGen;
+
+        /** State generation. */
+        public final long stateGen;
+
+        /** Snapshot id. */
+        public final String id;
+
+        /** Sole constructor. */
+        public Gens(long indexGen, long taxoGen, long stateGen, String id) {
+            this.indexGen = indexGen;
+            this.taxoGen = taxoGen;
+            this.stateGen = stateGen;
+            this.id = id;
+        }
+    }
+
+
 }

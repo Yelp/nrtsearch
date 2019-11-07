@@ -736,6 +736,16 @@ public class ShardState implements Closeable {
             manager.addListener(listener);
         }
     }
+    public void removeRefreshListener(ReferenceManager.RefreshListener listener) {
+        if (nrtPrimaryNode != null) {
+            nrtPrimaryNode.getSearcherManager().removeListener(listener);
+        } else if (nrtReplicaNode != null) {
+            nrtReplicaNode.getSearcherManager().removeListener(listener);
+        } else {
+            manager.removeListener(listener);
+        }
+    }
+
 
 
     public void maybeRefreshBlocking() throws IOException {

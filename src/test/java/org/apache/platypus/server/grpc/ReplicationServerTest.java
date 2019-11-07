@@ -165,23 +165,16 @@ public class ReplicationServerTest {
                 .setIndexName(luceneServerPrimary.getTestIndex())
                 .setStartHit(0)
                 .setTopHits(10)
+                .setVersion(searcherVersionPrimary.getVersion())
                 .addAllRetrieveFields(RETRIEVED_VALUES)
                 .build());
-
-        //get searcherVersion on replica. Does it have primary searcher version yet?
-        long replicaSearcherVersion = 0;
-        while (replicaSearcherVersion != searcherVersionPrimary.getVersion()) {
-            SearcherVersion searcherVersionReplica = replicationServerSecondary.getReplicationServerBlockingStub().getCurrentSearcherVersion(IndexName.newBuilder().setIndexName("test_index").build());
-            replicaSearcherVersion = searcherVersionReplica.getVersion();
-            Thread.sleep(10);
-        }
-        assertEquals(replicaSearcherVersion, searcherVersionPrimary.getVersion());
 
         // replica should too!
         SearchResponse searchResponseSecondary = luceneServerSecondary.getBlockingStub().search(SearchRequest.newBuilder()
                 .setIndexName(luceneServerSecondary.getTestIndex())
                 .setStartHit(0)
                 .setTopHits(10)
+                .setVersion(searcherVersionPrimary.getVersion())
                 .addAllRetrieveFields(RETRIEVED_VALUES)
                 .build());
 
