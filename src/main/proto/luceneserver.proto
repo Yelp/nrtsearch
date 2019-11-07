@@ -359,6 +359,11 @@ message SearchRequest {
     repeated VirtualField virtualFielsd = 7; //Defines virtual fields (name'd dynamic expressions) for this query.
     string query = 8; //TODO: not implemented. Full query to execute using QueryNodes
     QuerySortField querySort = 9; //Sort hits by field (default is by relevance).
+    oneof Searcher {
+        int64 indexGen = 10; //Search a generation previously returned by an indexing operation such as #addDocument.  Use this to search a non-committed (near-real-time) view of the index.
+        int64 version = 11;  //Search a specific searcher version.  This is typically used by follow-on searches (e.g., user clicks next page, drills down, or changes sort, etc.) to get the same searcher used by the original search.
+        string snapshot = 12; //Search a snapshot previously created with #createSnapshot
+    }
 }
 
 message SearchResponse {
