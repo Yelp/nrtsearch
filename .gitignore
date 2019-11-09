@@ -1,0 +1,42 @@
+# Gradle
+build
+.gradle
+local.properties
+out
+
+# Maven (examples)
+target
+
+# Bazel
+bazel-bin
+bazel-examples
+bazel-genfiles
+bazel-grpc-java
+bazel-out
+bazel-testlogs
+
+# IntelliJ IDEA
+.idea
+*.iml
+*.ipr
+*.iws
+
+# Eclipse
+.classpath
+.project
+.settings
+bin
+
+# OS X
+.DS_Store
+
+# Emacs
+*~
+\#*\#
+
+buid/
+data/
+install/
+lib/
+lucene8x/
+

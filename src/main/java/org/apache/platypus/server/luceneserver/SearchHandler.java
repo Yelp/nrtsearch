@@ -366,7 +366,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             // s.getIndexReader().decRef(), which is what release
             // does:
             try {
-                shardState.release(s);
+                if (s != null) {
+                    shardState.release(s);
+                }
             } catch (IOException e) {
                 logger.warn("Failed to release searcher reference previously acquired by acquire()", e);
                 throw new SearchHandlerException(e);
@@ -566,7 +568,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         return s;
     }
 
-    /** Returns a ref. */
+    /**
+     * Returns a ref.
+     */
     private static SearcherTaxonomyManager.SearcherAndTaxonomy openSnapshotReader(ShardState state, IndexState.Gens snapshot, JsonObject diagnostics) throws IOException {
         // TODO: this "reverse-NRT" is ridiculous: we acquire
         // the latest reader, and from that do a reopen to an
@@ -592,7 +596,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             state.slm.record(result.searcher);
             long t1 = System.nanoTime();
             if (diagnostics != null) {
-                diagnostics.addProperty("newSnapshotSearcherOpenMS", ((t1-t0)/1000000.0));
+                diagnostics.addProperty("newSnapshotSearcherOpenMS", ((t1 - t0) / 1000000.0));
             }
             return result;
         } finally {

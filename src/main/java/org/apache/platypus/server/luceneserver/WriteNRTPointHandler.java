@@ -19,17 +19,23 @@
 
 package org.apache.platypus.server.luceneserver;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.platypus.server.grpc.IndexName;
 import org.apache.platypus.server.grpc.ReplicationServerClient;
 import org.apache.platypus.server.grpc.SearcherVersion;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Queue;
 
 public class WriteNRTPointHandler implements Handler<IndexName, SearcherVersion> {
+    Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
+
     @Override
     public SearcherVersion handle(IndexState indexState, IndexName protoRequest) throws HandlerException {
         final ShardState shardState = indexState.getShard(0);
@@ -54,7 +60,24 @@ public class WriteNRTPointHandler implements Handler<IndexName, SearcherVersion>
                     NRTPrimaryNode.ReplicaDetails replicaDetails = it.next();
                     int replicaID = replicaDetails.getReplicaId();
                     ReplicationServerClient currentReplicaServerClient = replicaDetails.getReplicationServerClient();
-                    currentReplicaServerClient.newNRTPoint(indexState.name, shardState.nrtPrimaryNode.getPrimaryGen(), version);
+                    try {
+                        // TODO: we should use multicast to broadcast files out to replicas
+                        // TODO: ... replicas could copy from one another instead of just primary
+                        // TODO: we could also prioritize one replica at a time?
+                        currentReplicaServerClient.newNRTPoint(indexState.name, shardState.nrtPrimaryNode.getPrimaryGen(), version);
+                    } catch (StatusRuntimeException e) {
+                        Status status = e.getStatus();
+                        if (status.equals(Status.UNAVAILABLE)) {
+                            //TODO: what is its just temporarily down? We should add retries
+                            logger.info("NRTPRimaryNode: sendNRTPoint, lost connection to replicaId: " + replicaDetails.getReplicaId()
+                                    + " host: " + replicaDetails.getReplicationServerClient().getHost() + " port: " + replicaDetails.getReplicationServerClient().getPort());
+                            it.remove();
+                        }
+                    } catch (Exception e) {
+                        shardState.nrtPrimaryNode.message("top: failed to connect R" + replicaID + " for newNRTPoint; skipping: " + e.getMessage());
+                        logger.info("top: failed to connect R" + replicaID + " for newNRTPoint; skipping: " + e.getMessage());
+                    }
+
                 }
                 return searchverVersionBuilder.setVersion(version).setDidRefresh(true).build();
             } else {

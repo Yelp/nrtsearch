@@ -1,66 +1,63 @@
 /*
  *
- *  * Copyright 2019 Yelp Inc.
  *  *
- *  * Licensed under the Apache License, Version 2.0 (the "License");
- *  * you may not use this file except in compliance with the License.
- *  * You may obtain a copy of the License at
- *  *     http://www.apache.org/licenses/LICENSE-2.0
+ *  *  Copyright 2019 Yelp Inc.
  *  *
- *  * Unless required by applicable law or agreed to in writing, software
- *  * distributed under the License is distributed on an "AS IS" BASIS,
- *  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
- *  * either express or implied.
- *  * See the License for the specific language governing permissions and
- *  * limitations under the License.
+ *  *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  *  you may not use this file except in compliance with the License.
+ *  *  You may obtain a copy of the License at
+ *  *       http://www.apache.org/licenses/LICENSE-2.0
+ *  *
+ *  *  Unless required by applicable law or agreed to in writing, software
+ *  *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+ *  *  either express or implied.
+ *  *  See the License for the specific language governing permissions and
+ *  *  limitations under the License.
+ *  *
+ *  *
  *
  *
  */
 
-package org.apache.platypus.server.luceneserver;
+package org.apache.lucene.replicator.nrt;
 
 import com.google.protobuf.ByteString;
-import org.apache.lucene.replicator.nrt.CopyOneFile;
-import org.apache.lucene.replicator.nrt.FileMetaData;
-import org.apache.lucene.replicator.nrt.Node;
-import org.apache.lucene.replicator.nrt.ReplicaNode;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.platypus.server.grpc.RawFileChunk;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.Locale;
 
-public class CopySingleFile extends CopyOneFile {
+public class CopyOneFile implements Closeable {
     private final Iterator<RawFileChunk> rawFileChunkIterator;
     private final IndexOutput out;
     private final ReplicaNode dest;
-    private final long copyStartNS;
-    private final byte[] buffer;
-    private final String tempName;
-    private long bytesCopied;
     public final String name;
-
-
+    public final String tmpName;
     public final FileMetaData metaData;
     public final long bytesToCopy;
+    private final long copyStartNS;
+    private final byte[] buffer;
+
+
+    private long bytesCopied;
     private long remoteFileChecksum;
 
 
-    public CopySingleFile(Iterator<RawFileChunk> rawFileChunkIterator, ReplicaNode dest, String name, FileMetaData metaData, byte[] buffer) throws IOException {
-        super(null, dest, name, metaData, buffer);
+    public CopyOneFile(Iterator<RawFileChunk> rawFileChunkIterator, ReplicaNode dest, String name, FileMetaData metaData, byte[] buffer) throws IOException {
+
         this.rawFileChunkIterator = rawFileChunkIterator;
         this.name = name;
         this.dest = dest;
         this.buffer = buffer;
-        // TODO: ugly, we create a temp folder on top of a temp folder created by base class with tempName duplicated as well
+        // TODO: pass correct IOCtx, e.g. seg total size
         out = dest.createTempOutput(name, "copy", IOContext.DEFAULT);
-        tempName = out.getName();
+        tmpName = out.getName();
         // last 8 bytes are checksum:
         bytesToCopy = metaData.length - 8;
         if (Node.VERBOSE_FILES) {
@@ -68,15 +65,18 @@ public class CopySingleFile extends CopyOneFile {
         }
         copyStartNS = System.nanoTime();
         this.metaData = metaData;
+        dest.startCopyFile(name);
     }
 
-    public CopySingleFile(CopySingleFile other, Iterator<RawFileChunk> rawFileChunkIterator) {
-        super(other, null);
+    /**
+     * Transfers this file copy to another input, continuing where the first one left off
+     */
+    public CopyOneFile(CopyOneFile other, Iterator<RawFileChunk> rawFileChunkIterator) {
         this.rawFileChunkIterator = rawFileChunkIterator;
         this.dest = other.dest;
         this.name = other.name;
-        this.tempName = other.tmpName;
         this.out = other.out;
+        this.tmpName = other.tmpName;
         this.metaData = other.metaData;
         this.bytesCopied = other.bytesCopied;
         this.bytesToCopy = other.bytesToCopy;
@@ -84,16 +84,33 @@ public class CopySingleFile extends CopyOneFile {
         this.buffer = other.buffer;
     }
 
-    public String getTmpName() {
-        return tempName;
+    /**
+     * Closes this stream and releases any system resources associated
+     * with it. If the stream is already closed then invoking this
+     * method has no effect.
+     *
+     * <p> As noted in {@link AutoCloseable#close()}, cases where the
+     * close may fail require careful attention. It is strongly advised
+     * to relinquish the underlying resources and to internally
+     * <em>mark</em> the {@code Closeable} as closed, prior to throwing
+     * the {@code IOException}.
+     *
+     * @throws IOException if an I/O error occurs
+     */
+    @Override
+    public void close() throws IOException {
+        out.close();
+        dest.finishCopyFile(name);
+    }
+
+    public long getBytesCopied() {
+        return bytesCopied;
     }
 
     /**
      * Copy another chunk of bytes, returning true once the copy is done
      */
-    @Override
     public boolean visit() throws IOException {
-        //TODO: add checksum validation? Primary sends entire file + checksum?
         if (rawFileChunkIterator.hasNext()) {
             RawFileChunk rawFileChunk = rawFileChunkIterator.next();
             ByteString byteString = rawFileChunk.getContent();
@@ -103,6 +120,7 @@ public class CopySingleFile extends CopyOneFile {
             } else { // last chunk, last 8 bytes are crc32 checksum
                 out.writeBytes(byteString.toByteArray(), 0, byteString.size() - 8);
                 remoteFileChecksum = ByteBuffer.wrap(byteString.substring(byteString.size() - 8, byteString.size()).toByteArray()).getLong();
+                bytesCopied -= 8;
             }
             return false;
         } else {
@@ -131,18 +149,4 @@ public class CopySingleFile extends CopyOneFile {
         }
     }
 
-    @Override
-    public void close() throws IOException {
-        out.close();
-        super.close();
-        //ugh sad! delete temp file in base class, since "out" in base class is private and we have our own in this class.
-        String tempFileResourceString = out.toString();
-        Path unusedTempFile = Paths.get(tempFileResourceString.split("\"")[1].split("index")[0], "index", super.tmpName);
-        Files.deleteIfExists(unusedTempFile);
-    }
-
-    @Override
-    public long getBytesCopied() {
-        return bytesCopied;
-    }
 }

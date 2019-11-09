@@ -19,6 +19,8 @@
 
 package org.apache.platypus.server.luceneserver;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -120,7 +122,20 @@ public class NRTPrimaryNode extends PrimaryNode {
             ReplicaDetails replicaDetails = it.next();
             int replicaID = replicaDetails.replicaId;
             ReplicationServerClient currentReplicaServerClient = replicaDetails.replicationServerClient;
-            currentReplicaServerClient.newNRTPoint(indexName, primaryGen, version);
+            try {
+                currentReplicaServerClient.newNRTPoint(indexName, primaryGen, version);
+            } catch (StatusRuntimeException e) {
+                Status status = e.getStatus();
+                if (status.equals(Status.UNAVAILABLE)) {
+                    //TODO: what if its just temporarily down? We should add retries
+                    logger.info("NRTPRimaryNode: sendNRTPoint, lost connection to replicaId: " + replicaDetails.replicaId
+                            + " host: " + replicaDetails.replicationServerClient.getHost() + " port: " + replicaDetails.replicationServerClient.getPort());
+                    it.remove();
+                }
+            } catch (Exception e) {
+                message("top: failed to connect R" + replicaID + " for newNRTPoint; skipping: " + e.getMessage());
+                logger.info("top: failed to connect R" + replicaID + " for newNRTPoint; skipping: " + e.getMessage());
+            }
         }
     }
 
