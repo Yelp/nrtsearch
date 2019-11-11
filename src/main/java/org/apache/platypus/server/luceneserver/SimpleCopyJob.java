@@ -20,6 +20,7 @@
 package org.apache.platypus.server.luceneserver;
 
 import org.apache.lucene.replicator.nrt.*;
+import org.apache.lucene.util.IOUtils;
 import org.apache.platypus.server.grpc.RawFileChunk;
 import org.apache.platypus.server.grpc.ReplicationServerClient;
 
@@ -47,7 +48,7 @@ public class SimpleCopyJob extends CopyJob {
     @Override
     protected CopyOneFile newCopyOneFile(CopyOneFile prev) {
         Iterator<RawFileChunk> rawFileChunkIterator = primaryAddres.recvRawFile(prev.name, prev.getBytesCopied(), indexName);
-        return new CopySingleFile((CopySingleFile) prev, rawFileChunkIterator);
+        return new CopyOneFile(prev, rawFileChunkIterator);
     }
 
     @Override
@@ -131,6 +132,11 @@ public class SimpleCopyJob extends CopyJob {
 
         // nocommit syncMetaData here?
         copiedFiles.clear();
+        //ugh sad! delete temp file in base class, since "out" in base class is private and we have our own in this class.
+//        String tempFileResourceString = out.toString();
+//        Path unusedTempFile = Paths.get(tempFileResourceString.split("\"")[1].split("index")[0], "index", super.tmpName);
+//        Files.deleteIfExists(unusedTempFile);
+
 
     }
 
@@ -199,11 +205,11 @@ public class SimpleCopyJob extends CopyJob {
             FileMetaData metaData = next.getValue();
             String fileName = next.getKey();
             Iterator<RawFileChunk> rawFileChunkIterator = primaryAddres.recvRawFile(fileName, 0, indexName);
-            current = new CopySingleFile(rawFileChunkIterator, dest, fileName, metaData, copyBuffer);
+            current = new CopyOneFile(rawFileChunkIterator, dest, fileName, metaData, copyBuffer);
         }
         if (current.visit()) {
             // This file is done copying
-            copiedFiles.put(current.name, ((CopySingleFile)current).getTmpName());
+            copiedFiles.put(current.name, current.tmpName);
             totBytesCopied += current.getBytesCopied();
             assert totBytesCopied <= totBytes : "totBytesCopied=" + totBytesCopied + " totBytes=" + totBytes;
             current = null;
@@ -216,5 +222,6 @@ public class SimpleCopyJob extends CopyJob {
     public String toString() {
         return "SimpleCopyJob(ord=" + ord + " " + reason + " highPriority=" + highPriority + " files count=" + files.size() + " bytesCopied=" + totBytesCopied + " (of " + totBytes + ") filesCopied=" + copiedFiles.size() + ")";
     }
+
 
 }

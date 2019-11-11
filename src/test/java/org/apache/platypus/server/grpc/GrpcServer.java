@@ -37,6 +37,10 @@ public class GrpcServer {
 
     private GlobalState globalState;
     private LuceneServerClient luceneServerClient;
+    private Server luceneServer;
+    private ManagedChannel luceneServerManagedChannel;
+    private Server replicationServer;
+    private ManagedChannel replicationServerManagedChannel;
 
     public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder, boolean isReplication, GlobalState globalState, String rootDirName, String index, int port) throws IOException {
         this.grpcCleanup = grpcCleanup;
@@ -75,6 +79,17 @@ public class GrpcServer {
         return globalState;
     }
 
+    public void shutdown() {
+        if (luceneServer != null && luceneServerManagedChannel != null) {
+            luceneServer.shutdown();
+            luceneServerManagedChannel.shutdown();
+        }
+        if (replicationServer != null && replicationServerManagedChannel != null) {
+            replicationServer.shutdown();
+            replicationServerManagedChannel.shutdown();
+        }
+    }
+
     /**
      * To test the server, make calls with a real stub using the in-process channel, and verify
      * behaviors or state changes from the client side.
@@ -93,11 +108,15 @@ public class GrpcServer {
             // Create a client channel and register for automatic graceful shutdown.
             ManagedChannel managedChannel = ManagedChannelBuilder.forAddress("localhost", port).usePlaintext().build();
             grpcCleanup.register(managedChannel);
+            luceneServer = server;
+            luceneServerManagedChannel = managedChannel;
             blockingStub = LuceneServerGrpc.newBlockingStub(managedChannel);
             stub = LuceneServerGrpc.newStub(managedChannel);
 
             replicationServerBlockingStub = null;
             replicationServerStub = null;
+            replicationServer = null;
+            replicationServerManagedChannel = null;
 
         } else {
             // Create a server, add service, start, and register for automatic graceful shutdown.
@@ -110,11 +129,17 @@ public class GrpcServer {
             // Create a client channel and register for automatic graceful shutdown.
             ManagedChannel managedChannel = ManagedChannelBuilder.forAddress("localhost", port).usePlaintext().build();
             grpcCleanup.register(managedChannel);
+            replicationServer = server;
+            replicationServerManagedChannel = managedChannel;
             replicationServerBlockingStub = ReplicationServerGrpc.newBlockingStub(managedChannel);
             replicationServerStub = ReplicationServerGrpc.newStub(managedChannel);
 
             blockingStub = null;
             stub = null;
+            luceneServer = null;
+            luceneServerManagedChannel = null;
+
+
         }
 
     }
@@ -221,8 +246,7 @@ public class GrpcServer {
             if (mode.equals(Mode.PRIMARY)) {
                 startIndexBuilder.setMode(Mode.PRIMARY);
                 startIndexBuilder.setPrimaryGen(0);
-            }
-            else if (mode.equals(Mode.REPLICA)) {
+            } else if (mode.equals(Mode.REPLICA)) {
                 startIndexBuilder.setMode(Mode.REPLICA);
                 startIndexBuilder.setPrimaryAddress("localhost");
                 startIndexBuilder.setPort(9001); //primary port for replication server
