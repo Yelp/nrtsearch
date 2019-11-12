@@ -170,11 +170,15 @@ public class GrpcServer {
         public boolean completed = false;
         public boolean error = false;
 
-        TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode) throws IOException {
+        TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode, int primaryGen) throws IOException {
             this.grpcServer = grpcServer;
             if (startIndex) {
-                new IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(mode);
+                new IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(mode, primaryGen);
             }
+        }
+
+        TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode) throws IOException {
+            this(grpcServer, startIndex, mode, 0);
         }
 
         public void addDocuments() throws IOException, InterruptedException {
@@ -236,6 +240,10 @@ public class GrpcServer {
         }
 
         public FieldDefResponse createStartIndexAndRegisterFields(Mode mode) throws IOException {
+            return createStartIndexAndRegisterFields(mode, 0);
+        }
+
+        public FieldDefResponse createStartIndexAndRegisterFields(Mode mode, int primaryGen) throws IOException {
             String rootDirName = grpcServer.getRootDirName();
             String testIndex = grpcServer.getTestIndex();
             LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
@@ -245,7 +253,7 @@ public class GrpcServer {
             StartIndexRequest.Builder startIndexBuilder = StartIndexRequest.newBuilder().setIndexName(testIndex);
             if (mode.equals(Mode.PRIMARY)) {
                 startIndexBuilder.setMode(Mode.PRIMARY);
-                startIndexBuilder.setPrimaryGen(0);
+                startIndexBuilder.setPrimaryGen(primaryGen);
             } else if (mode.equals(Mode.REPLICA)) {
                 startIndexBuilder.setMode(Mode.REPLICA);
                 startIndexBuilder.setPrimaryAddress("localhost");
