@@ -148,8 +148,7 @@ public class NRTReplicaNode extends ReplicaNode {
 
     @Override
     public void close() throws IOException {
-        //TODO: copy jobs running in their own thread
-        //jobs.close();
+        jobs.close();
         logger.info("CLOSE NRT REPLICA");
         message("top: jobs closed");
         synchronized (mergeCopyJobs) {
