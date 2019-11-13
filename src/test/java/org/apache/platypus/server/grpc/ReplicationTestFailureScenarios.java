@@ -183,7 +183,6 @@ public class ReplicationTestFailureScenarios {
         testServerPrimary.addDocuments();
         publishNRTAndValidateSearchResults(4);
 
-
     }
 
     private void gracefullRestartSecondary() {

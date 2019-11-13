@@ -19,13 +19,22 @@
 
 package org.apache.platypus.server.luceneserver;
 
-import org.apache.lucene.replicator.nrt.*;
-import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.replicator.nrt.CopyJob;
+import org.apache.lucene.replicator.nrt.CopyOneFile;
+import org.apache.lucene.replicator.nrt.CopyState;
+import org.apache.lucene.replicator.nrt.FileMetaData;
+import org.apache.lucene.replicator.nrt.Node;
+import org.apache.lucene.replicator.nrt.NodeCommunicationException;
+import org.apache.lucene.replicator.nrt.ReplicaNode;
 import org.apache.platypus.server.grpc.RawFileChunk;
 import org.apache.platypus.server.grpc.ReplicationServerClient;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 public class SimpleCopyJob extends CopyJob {
     final byte[] copyBuffer = new byte[65536];
@@ -56,10 +65,10 @@ public class SimpleCopyJob extends CopyJob {
         if (iter == null) {
             iter = toCopy.iterator();
             // This means we resumed an already in-progress copy; we do this one first:
-            if(current != null) {
+            if (current != null) {
                 totBytes += current.metaData.length;
             }
-            for (Map.Entry<String,FileMetaData> ent : toCopy) {
+            for (Map.Entry<String, FileMetaData> ent : toCopy) {
                 FileMetaData metaData = ent.getValue();
                 totBytes += metaData.length;
             }
@@ -132,11 +141,6 @@ public class SimpleCopyJob extends CopyJob {
 
         // nocommit syncMetaData here?
         copiedFiles.clear();
-        //ugh sad! delete temp file in base class, since "out" in base class is private and we have our own in this class.
-//        String tempFileResourceString = out.toString();
-//        Path unusedTempFile = Paths.get(tempFileResourceString.split("\"")[1].split("index")[0], "index", super.tmpName);
-//        Files.deleteIfExists(unusedTempFile);
-
 
     }
 
