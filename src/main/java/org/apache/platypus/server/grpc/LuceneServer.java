@@ -277,7 +277,6 @@ public class LuceneServer {
 
         @Override
         public StreamObserver<AddDocumentRequest> addDocuments(StreamObserver<AddDocumentResponse> responseObserver) {
-            logger.info("LuceneServerUmesh....addDocuments called");
             return new StreamObserver<AddDocumentRequest>() {
                 //TODO make this a config
                 private static final int MAX_BUFFER_LEN = 100;

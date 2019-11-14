@@ -40,10 +40,12 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         final long primaryGen;
         final String primaryAddress;
         final int primaryPort;
+        boolean restore = false;
         if (mode.equals(Mode.PRIMARY)) {
             primaryGen = startIndexRequest.getPrimaryGen();
             primaryAddress = null;
             primaryPort = -1;
+            restore = startIndexRequest.getRestore();
         } else if (mode.equals(Mode.REPLICA)) {
             primaryGen = startIndexRequest.getPrimaryGen();
             primaryAddress = startIndexRequest.getPrimaryAddress();
@@ -57,7 +59,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         long t0 = System.nanoTime();
         try {
             if (mode.equals(Mode.PRIMARY)) {
-                shardState.startPrimary(primaryGen);
+                shardState.startPrimary(primaryGen, restore);
             } else if (mode.equals(Mode.REPLICA)) {
                 // channel for replica to talk to primary on
                 ReplicationServerClient primaryNodeClient = new ReplicationServerClient(primaryAddress, primaryPort);

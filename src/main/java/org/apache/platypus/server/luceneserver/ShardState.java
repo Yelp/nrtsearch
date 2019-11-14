@@ -19,13 +19,28 @@
 
 package org.apache.platypus.server.luceneserver;
 
+import com.google.common.annotations.VisibleForTesting;
+import org.apache.commons.io.FileUtils;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesReaderState;
 import org.apache.lucene.facet.taxonomy.OrdinalsReader;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.facet.taxonomy.directory.DirectoryTaxonomyWriter;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.PersistentSnapshotDeletionPolicy;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ControlledRealTimeReopenThread;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.SearcherFactory;
+import org.apache.lucene.search.SearcherLifetimeManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NRTCachingDirectory;
@@ -35,16 +50,29 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.*;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Phaser;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.apache.platypus.server.luceneserver.IndexState.BASE_BACKUP_PATH;
 
 public class ShardState implements Closeable {
     Logger logger = LoggerFactory.getLogger(ShardState.class);
@@ -245,7 +273,6 @@ public class ShardState implements Closeable {
     public boolean isReplica() {
         return nrtReplicaNode != null;
     }
-
 
 
     public static class HostAndPort {
@@ -537,7 +564,7 @@ public class ShardState implements Closeable {
      * Start this index as primary, to NRT-replicate to replicas.  primaryGen should be incremented each time a new primary is promoted for
      * a given index.
      */
-    public synchronized void startPrimary(long primaryGen) throws Exception {
+    public synchronized void startPrimary(long primaryGen, boolean restore) throws Exception {
         if (isStarted()) {
             throw new IllegalStateException("index \"" + name + "\" was already started");
         }
@@ -547,7 +574,19 @@ public class ShardState implements Closeable {
         boolean success = false;
 
         try {
-
+            //we have backups and are not creating a new index
+            //use that to load indexes and other state (registeredFields, settings)
+            if (!doCreate && restore) {
+                File latestBackUpDir = remoteStateExists(BASE_BACKUP_PATH);
+                if (latestBackUpDir == null) {
+                    throw new RuntimeException("No restore state available in remote storage to load indexes from");
+                }
+                if (indexState.rootDir != null) {
+                    //copy remote state into rootDir
+                    FileUtils.copyDirectory(latestBackUpDir, indexState.rootDir.toAbsolutePath().toFile());
+                    indexState.initSaveLoadState();
+                }
+            }
             if (indexState.saveLoadState == null) {
                 indexState.initSaveLoadState();
             }
@@ -639,6 +678,41 @@ public class ShardState implements Closeable {
                 writer = null;
             }
         }
+
+    }
+
+    /* TODO: read remote state from s3 */
+    @VisibleForTesting
+    public static File remoteStateExists(Path basePath) {
+        File[] primaryGenDirs = basePath.toFile().listFiles(File::isDirectory);
+        File highestNumberedPrimaryGen = getHighestNumberedDir(primaryGenDirs);
+        if (highestNumberedPrimaryGen == null) {
+            return null;
+        }
+
+        File[] nrtVersions = basePath.resolve(Paths.get(highestNumberedPrimaryGen.getName()))
+                .toFile()
+                .listFiles(File::isDirectory);
+        File highestNumberVerion = getHighestNumberedDir(nrtVersions);
+        return highestNumberVerion;
+    }
+
+    @VisibleForTesting
+    private static File getHighestNumberedDir(File[] directories) {
+        if (directories.length == 0) {
+            return null;
+        }
+        File latestDir = directories[0];
+        int highestVersion = 0;
+        for (File directory : directories) {
+            int versionNum = Integer.valueOf(directory.getName());
+            if (versionNum > highestVersion) {
+                highestVersion = versionNum;
+                latestDir = directory;
+            }
+        }
+        return latestDir;
+
 
     }
 
@@ -736,6 +810,7 @@ public class ShardState implements Closeable {
             manager.addListener(listener);
         }
     }
+
     public void removeRefreshListener(ReferenceManager.RefreshListener listener) {
         if (nrtPrimaryNode != null) {
             nrtPrimaryNode.getSearcherManager().removeListener(listener);
@@ -747,11 +822,10 @@ public class ShardState implements Closeable {
     }
 
 
-
     public void maybeRefreshBlocking() throws IOException {
         if (nrtPrimaryNode != null) {
             /* invokes: SearcherManager.refreshIfNeeded which creates a new Searcher
-            * over a new IndexReader if new docs have been written */
+             * over a new IndexReader if new docs have been written */
             nrtPrimaryNode.getSearcherManager().maybeRefreshBlocking();
             /* Do we need this as well? (probably)
               invokes PrimaryNodeReferenceManager.refreshIfNeeded()

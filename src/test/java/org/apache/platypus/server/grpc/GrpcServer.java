@@ -170,11 +170,16 @@ public class GrpcServer {
         public boolean completed = false;
         public boolean error = false;
 
-        TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode, int primaryGen) throws IOException {
+
+        TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode, int primaryGen, boolean startOldIndex) throws IOException {
             this.grpcServer = grpcServer;
             if (startIndex) {
-                new IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(mode, primaryGen);
+                new IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(mode, primaryGen, startOldIndex);
             }
+        }
+
+        TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode, int primaryGen) throws IOException {
+            this(grpcServer, startIndex, mode, primaryGen, false);
         }
 
         TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode) throws IOException {
@@ -244,26 +249,42 @@ public class GrpcServer {
         }
 
         public FieldDefResponse createStartIndexAndRegisterFields(Mode mode, int primaryGen) throws IOException {
+            return createStartIndexAndRegisterFields(mode, primaryGen, false);
+        }
+
+        public FieldDefResponse createStartIndexAndRegisterFields(Mode mode, int primaryGen, boolean startOldIndex) throws IOException {
             String rootDirName = grpcServer.getRootDirName();
             String testIndex = grpcServer.getTestIndex();
             LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
-            //create the index
-            blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(testIndex).setRootDir(rootDirName).build());
+            if (!startOldIndex) {
+                //create the index
+                blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(testIndex).setRootDir(rootDirName).build());
+
+            }
             //start the index
             StartIndexRequest.Builder startIndexBuilder = StartIndexRequest.newBuilder().setIndexName(testIndex);
             if (mode.equals(Mode.PRIMARY)) {
                 startIndexBuilder.setMode(Mode.PRIMARY);
                 startIndexBuilder.setPrimaryGen(primaryGen);
+                startIndexBuilder.setRestore(startOldIndex);
             } else if (mode.equals(Mode.REPLICA)) {
                 startIndexBuilder.setMode(Mode.REPLICA);
                 startIndexBuilder.setPrimaryAddress("localhost");
                 startIndexBuilder.setPort(9001); //primary port for replication server
             }
             blockingStub.startIndex(startIndexBuilder.build());
-            //register the fields
-            FieldDefRequest fieldDefRequest = buildFieldDefRequest(Paths.get("src", "test", "resources", "registerFieldsBasic.json"));
-            return blockingStub.registerFields(fieldDefRequest);
+
+            if (!startOldIndex) {
+                //register the fields
+                FieldDefRequest fieldDefRequest = buildFieldDefRequest(Paths.get("src", "test", "resources", "registerFieldsBasic.json"));
+                return blockingStub.registerFields(fieldDefRequest);
+            }
+            else {//dummy
+                return FieldDefResponse.newBuilder().build();
+            }
+
         }
+
 
         private FieldDefRequest buildFieldDefRequest(Path filePath) throws IOException {
             return getFieldDefRequest(Files.readString(filePath));

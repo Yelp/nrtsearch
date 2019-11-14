@@ -19,16 +19,31 @@
 
 package org.apache.platypus.server.luceneserver;
 
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import org.apache.commons.io.FileUtils;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.util.FilesystemResourceLoader;
 import org.apache.lucene.facet.FacetsConfig;
-import org.apache.lucene.index.*;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
+import org.apache.lucene.index.ConcurrentMergeScheduler;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.PersistentSnapshotDeletionPolicy;
+import org.apache.lucene.index.SimpleMergedSegmentWarmer;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
@@ -41,7 +56,9 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.apache.lucene.util.packed.PackedInts;
-import org.apache.platypus.server.grpc.*;
+import org.apache.platypus.server.grpc.FieldDefRequest;
+import org.apache.platypus.server.grpc.LiveSettingsRequest;
+import org.apache.platypus.server.grpc.SettingsRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,11 +66,21 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
-import java.nio.charset.*;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CodingErrorAction;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
@@ -69,17 +96,29 @@ import java.util.regex.Pattern;
  * specified when the index is created.  Under each
  * ootDir:
  * <ul>
- *   <li> {@code index} has the Lucene index
- *   <li> {@code taxonomy} has the taxonomy index (empty if
- *    no facets are indexed)
- *  <li> {@code state} has all current settings
- *  <li> {@code state/state.N} gen files holds all settings
- *  <li> {@code state/saveLoadRefCounts.N} gen files holds
- *    all reference counts from live snapshots
+ * <li> {@code index} has the Lucene index
+ * <li> {@code taxonomy} has the taxonomy index (empty if
+ * no facets are indexed)
+ * <li> {@code state} has all current settings
+ * <li> {@code state/state.N} gen files holds all settings
+ * <li> {@code state/saveLoadRefCounts.N} gen files holds
+ * all reference counts from live snapshots
  * </ul>
  */
 
 public class IndexState implements Closeable {
+
+    private static final Path BASE_LUCENE_SERVER_PATH;
+    public static final Path BASE_BACKUP_PATH;
+    public static final Path BASE_STATE_BACKUP_PATH;
+
+    static {
+        //TODO: These should be base paths in remote storage e.g. s3 buckets
+        BASE_LUCENE_SERVER_PATH = Paths.get(System.getProperty("user.home"), "lucene", "server");
+        BASE_BACKUP_PATH = Paths.get(BASE_LUCENE_SERVER_PATH.toString(), "backup");
+        BASE_STATE_BACKUP_PATH = Paths.get(BASE_LUCENE_SERVER_PATH.toString(), "backup_state_dir");
+    }
+
     Logger logger = LoggerFactory.getLogger(IndexState.class);
     public final GlobalState globalState;
 
@@ -159,7 +198,7 @@ public class IndexState implements Closeable {
     }
 
     public void deleteIndex() throws IOException {
-        for(ShardState shardState : shards.values()) {
+        for (ShardState shardState : shards.values()) {
             shardState.deleteShard();
         }
         globalState.deleteIndex(name);
@@ -492,12 +531,11 @@ public class IndexState implements Closeable {
     @Override
     public void close() throws IOException {
         logger.info(String.format("IndexState.close name= %s", name));
-        commit();
         List<Closeable> closeables = new ArrayList<>();
         closeables.addAll(shards.values());
         closeables.addAll(fields.values());
         //TODO: dont support suggestions yet
-        for(Lookup suggester : suggesters.values()) {
+        for (Lookup suggester : suggesters.values()) {
             if (suggester instanceof Closeable) {
                 closeables.add((Closeable) suggester);
             }
@@ -592,7 +630,38 @@ public class IndexState implements Closeable {
         saveState.add("state", getSaveState());
         saveLoadState.save(saveState);
 
+        //commit state to remote storage
+        for (ShardState shard : shards.values()) {
+            //commit to remote storage if primary node
+            if (shard.nrtPrimaryNode != null) {
+                long version;
+                if (shard.nrtPrimaryNode.flushAndRefresh()) {
+                    version = shard.nrtPrimaryNode.getCopyStateVersion();
+                } else {
+                    SearcherTaxonomyManager.SearcherAndTaxonomy s = shard.acquire();
+                    try {
+                        version = ((DirectoryReader) s.searcher.getIndexReader()).getVersion();
+                    } finally {
+                        shard.release(s);
+                    }
+                }
+                copyToRemote(shard, version);
+            }
+        }
         return gen;
+    }
+
+    /* TODO: should be copying this to remote storage like s3 */
+    private void copyToRemote(ShardState shard, long version) throws IOException {
+        //copy indexes and fieldDef state
+        Path sourcePath = rootDir.toAbsolutePath();
+        Path latestPrimaryGen = BASE_BACKUP_PATH.resolve(String.valueOf(shard.nrtPrimaryNode.getPrimaryGen()));
+        Path latestVersion = latestPrimaryGen.resolve(String.valueOf(version));
+        FileUtils.copyDirectory(sourcePath.toFile(), latestVersion.toFile());
+        //copy stateDir
+        latestPrimaryGen = BASE_STATE_BACKUP_PATH.resolve(String.valueOf(shard.nrtPrimaryNode.getPrimaryGen()));
+        latestVersion = latestPrimaryGen.resolve(String.valueOf(version));
+        FileUtils.copyDirectory(globalState.stateDir.toFile(), latestVersion.toFile());
     }
 
     /**
@@ -995,10 +1064,12 @@ public class IndexState implements Closeable {
 
     }
 
-    /** Returns all field names that are indexed and analyzed. */
+    /**
+     * Returns all field names that are indexed and analyzed.
+     */
     public List<String> getIndexedAnalyzedFields() {
         List<String> result = new ArrayList<String>();
-        for(FieldDef fd : fields.values()) {
+        for (FieldDef fd : fields.values()) {
             // TODO: should we default to include numeric fields too...?
             if (fd.fieldType != null && fd.fieldType.indexOptions() != IndexOptions.NONE && fd.searchAnalyzer != null) {
                 result.add(fd.name);
@@ -1008,23 +1079,35 @@ public class IndexState implements Closeable {
         return result;
     }
 
-    /** Holds metadata for one snapshot, including its id, and
-     *  the index, taxonomy and state generations. */
+    /**
+     * Holds metadata for one snapshot, including its id, and
+     * the index, taxonomy and state generations.
+     */
     public static class Gens {
 
-        /** Index generation. */
+        /**
+         * Index generation.
+         */
         public final long indexGen;
 
-        /** Taxonomy index generation. */
+        /**
+         * Taxonomy index generation.
+         */
         public final long taxoGen;
 
-        /** State generation. */
+        /**
+         * State generation.
+         */
         public final long stateGen;
 
-        /** Snapshot id. */
+        /**
+         * Snapshot id.
+         */
         public final String id;
 
-        /** Sole constructor. */
+        /**
+         * Sole constructor.
+         */
         public Gens(long indexGen, long taxoGen, long stateGen, String id) {
             this.indexGen = indexGen;
             this.taxoGen = taxoGen;
