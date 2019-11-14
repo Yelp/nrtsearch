@@ -3,9 +3,9 @@ A high performance gRPC server on top of [Apache Lucene](http://lucene.apache.or
 core functionality over a simple gRPC based API.
 
 Please note that 
-* this code is heavily influenced by another github project [Lucene Server](https://github.com/mikemccand/luceneserver)
+* this code is influenced by another github project [Lucene Server](https://github.com/mikemccand/luceneserver)
 since it aspires to use some of the similar design principles like [near-realtime-replication](https://github.com/mikemccand/luceneserver#near-real-time-replication).
-* it is a work in progress with several features missing which are compiled in the [TODO](https://github.com/umeshdangat/platypus/blob/master/TODO)
+* it is a work in progress with the missing features compiled in the [TODO](https://github.com/umeshdangat/platypus/blob/master/TODO)
 
 # Design
 The design goals are mostly similar to the ones mentioned in the [Lucene Server](https://github.com/mikemccand/luceneserver#design) project from where the source code is based off. 
@@ -22,15 +22,24 @@ The example platypus client implemented here reads a CSV file and streams docume
 continues to send more documents over its stream. gRPC enables this with minimal application code and yields higher performance compared to JSON. TODO[citation needed]: Add performance numbers of stream based indexing for some datasets.
 
 # Near-real-time-replication
-This requirement is one of the primary reasons to create this project. [near-real-time-replication](https://issues.apache.org/jira/browse/LUCENE-5438) seems a good alternative to document based replication when it comes to costs associated with 
-maintaing large clusters. Scaling document based clusters up/down in a timely manner could be slower due to data migration between nodes apart
-from payig the cost for reindexing as you add more replicas.
+This requirement is one of the primary reasons to create this project. [near-real-time-replication](https://issues.apache.org/jira/browse/LUCENE-5438) seems a good alternative to document based replication when it comes to costs associated with maintaing large clusters. Scaling document based clusters up/down in a timely manner could be slower
+due to data migration between nodes apart from paying the cost for reindexing on all nodes.
+
+Below is a depiction of how the system works in regards to Near-real-time(NRT) replication and durability.
+![alt text](https://github.com/Yelp/platypus/blob/master/src/images/nrt.png "Platypus NRT and durability")
+
+* Primary node comes up with either no index or can restore an index from remote storage if the `restore` option is specified by the client on the `startIndex` command. This node will accept `indexing` requests from clients. It will also periodically  `publishNrtUpdate` to replicas giving them a chance to catch up with latest primary indexing changes.
+* Replica nodes are also started using the `startIndex` command. They will sync with the current primary and update their indexes using lucene's NRT APIs. These nodes will serve client's `search` queries.
+* Each time client invokes `commit` on primary, it will save its current index state and related metadata e.g. schemas, settings to a remote storage. Clients should use the ack from this endpoint to commit the data in their channel e.g. kafka.
+* If a replica crashes, a new one can be brought up and will re-sync with the current primary. It will register itself with the primary once its brought up.
+* If a primary crashes, a new one can be brought up with the `restore` option on `startIndex` command to regain previous stored state. The replicas will then re-sync their indexes with the primary.
+
 
 # Build Server and Client
 In the home directory.
 
 ```
-./gradlew clean && ./gradlew installDist
+./gradlew clean && ./gradlew installDist && ./gradlew test
 ```
 
 Note: This code has been tested on *Java12*
