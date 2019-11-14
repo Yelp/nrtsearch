@@ -40,10 +40,6 @@ which creates a CollectorManager
 - Refresh related:
   - currently "refresh" on primary will create a newNRTPoint post flushing all recently indexed docs to primary and sendNewNRT to replicas
   which will in turn copy files from primary
-- Commit related
-  - "commit" will commit all state on primary only.
-  - "writeNRTPoint" will flush all docs to primary and sendNewNRT to replicas, returning the most recent searcher version to caller
-  - "getCurrentSearchingVersion" on replica returns the most recent searcher version on replicas.
 - TODO: Outside of this system
   - Need to keep state the primaryGen (a long) along with host:port of current primary and replicas
   - Each time a primary starts we need to increment the primaryGen

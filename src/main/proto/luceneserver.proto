@@ -264,6 +264,7 @@ message StartIndexRequest {
     int64 primaryGen = 3; //primary, the generation of this primary (should increment each time a new primary starts for this index)
     string primaryAddress = 4; //replica, the IP address or host name of the remote primary
     int32 port = 5; //replica, the TCP port of the remote primary
+    bool restore = 6; //primary, restore index from backup
 }
 
 enum Mode {
