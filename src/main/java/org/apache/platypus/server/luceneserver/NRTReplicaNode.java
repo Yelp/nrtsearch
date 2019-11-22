@@ -22,6 +22,7 @@ package org.apache.platypus.server.luceneserver;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
+import org.apache.lucene.replicator.nrt.NodeCommunicationException;
 import org.apache.lucene.replicator.nrt.ReplicaNode;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.store.Directory;
@@ -72,7 +73,12 @@ public class NRTReplicaNode extends ReplicaNode {
         //sendMeFiles(?) (we dont need this, just send Index,replica, and request for copy State)
         if (files == null) {
             // No incoming CopyState: ask primary for latest one now
-            copyState = getCopyStateFromPrimary();
+            try {
+                // Exceptions in here mean something went wrong talking over the socket, which are fine (e.g. primary node crashed):
+                copyState = getCopyStateFromPrimary();
+            } catch (Throwable t) {
+                throw new NodeCommunicationException("exc while reading files to copy", t);
+            }
             files = copyState.files;
         } else {
             copyState = null;

@@ -23,11 +23,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class LuceneServerConfiguration {
+    public final static Path DEFAULT_USER_STATE_DIR = Paths.get(System.getProperty("user.home"), "lucene", "server");
 
     private int port;
     private int replicationPort;
     private String nodeName;
-    private Path stateDir;
+    private String stateDir;
     private String hostName;
 
     public int getPort() {
@@ -42,7 +43,7 @@ public class LuceneServerConfiguration {
         return nodeName;
     }
 
-    public Path getStateDir() {
+    public String getStateDir() {
         return stateDir;
     }
 
@@ -50,6 +51,37 @@ public class LuceneServerConfiguration {
         return hostName;
     }
 
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    public void setReplicationPort(int replicationPort) {
+        this.replicationPort = replicationPort;
+    }
+
+    public void setNodeName(String nodeName) {
+        this.nodeName = nodeName;
+    }
+
+    public void setStateDir(String stateDir) {
+        this.stateDir = stateDir;
+    }
+
+    public void setHostName(String hostName) {
+        this.hostName = hostName;
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
+        sb.append("port=").append(port);
+        sb.append(", replicationPort=").append(replicationPort);
+        sb.append(", nodeName='").append(nodeName).append('\'');
+        sb.append(", stateDir=").append(stateDir);
+        sb.append(", hostName='").append(hostName).append('\'');
+        sb.append('}');
+        return sb.toString();
+    }
 
     public static class Builder {
         private String hostName;
@@ -62,7 +94,7 @@ public class LuceneServerConfiguration {
             //set default values
             this.nodeName = "main";
             this.hostName = "localhost";
-            this.stateDir = Paths.get(System.getProperty("user.home"), "lucene", "server");
+            this.stateDir = DEFAULT_USER_STATE_DIR;
             this.port = 50051;
             this.replicationPort = 50052;
         }
@@ -96,18 +128,13 @@ public class LuceneServerConfiguration {
         public LuceneServerConfiguration build() {
             LuceneServerConfiguration luceneServerConfiguration = new LuceneServerConfiguration();
             luceneServerConfiguration.nodeName = this.nodeName;
-            luceneServerConfiguration.stateDir = this.stateDir;
+            luceneServerConfiguration.stateDir = this.stateDir.toString();
             luceneServerConfiguration.port = this.port;
             luceneServerConfiguration.hostName = this.hostName;
             luceneServerConfiguration.replicationPort = this.replicationPort;
             return luceneServerConfiguration;
         }
 
-    }
-
-    //private Constructor
-    private LuceneServerConfiguration() {
-        //noop
     }
 
 

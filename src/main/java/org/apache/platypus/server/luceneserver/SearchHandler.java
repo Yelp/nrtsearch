@@ -205,12 +205,16 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             }
 
             int topHits = searchRequest.getTopHits();
+            int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
+            if (searchRequest.getTotalHitsThreshold() != 0) {
+                totalHitsThreshold = searchRequest.getTotalHitsThreshold();
+            }
 
             //TODO: support "grouping" and "useBlockJoinCollector"
             if (sort == null) {
                 //TODO: support "searchAfter" when supplied by user
                 ScoreDoc searchAfter = null;
-                c = TopScoreDocCollector.create(topHits, searchAfter, TOTAL_HITS_THRESHOLD);
+                c = TopScoreDocCollector.create(topHits, searchAfter, totalHitsThreshold);
             } else {
 
                 // If any of the sort fields require score, than
@@ -223,7 +227,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 //TODO: support "searchAfter" when supplied by user
                 FieldDoc searchAfter;
                 searchAfter = null;
-                c = TopFieldCollector.create(sort, topHits, searchAfter, TOTAL_HITS_THRESHOLD);
+                c = TopFieldCollector.create(sort, topHits, searchAfter, totalHitsThreshold);
             }
 
             long timeoutMS;

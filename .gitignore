@@ -39,4 +39,5 @@ data/
 install/
 lib/
 lucene8x/
-
+primary_state/
+replica_state/

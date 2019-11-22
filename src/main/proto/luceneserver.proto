@@ -57,6 +57,10 @@ service LuceneServer {
     rpc deleteIndex (DeleteIndexRequest) returns (DeleteIndexResponse) {
     }
 
+    /* healthcheck */
+    rpc status (HealthCheckRequest) returns (HealthCheckResponse) {
+    }
+
 }
 
 //The ReplicationServer service definition.
@@ -172,7 +176,7 @@ message Field {
     bool multiValued = 9; // True if this field may sometimes have more than one value.
     bool highlight = 10; // True if the value should be indexed for highlighting.
     bool omitNorms = 11; // True if norms are omitted.
-    string dateTimeFromat = 12; // Format string used to parse datetime fields
+    string dateTimeFormat = 12; // Format string used to parse datetime fields
     string postingsFormat = 13; // Which PostingsFormat should be used to index this field.
     string docValuesFormat = 14; // Which DocValuesFormat should be used to index this field.
     IndexOptions indexOptions = 15; //How the tokens should be indexed.
@@ -362,9 +366,11 @@ message SearchRequest {
     QuerySortField querySort = 9; //Sort hits by field (default is by relevance).
     oneof Searcher {
         int64 indexGen = 10; //Search a generation previously returned by an indexing operation such as #addDocument.  Use this to search a non-committed (near-real-time) view of the index.
-        int64 version = 11;  //Search a specific searcher version.  This is typically used by follow-on searches (e.g., user clicks next page, drills down, or changes sort, etc.) to get the same searcher used by the original search.
+        int64 version = 11; //Search a specific searcher version.  This is typically used by follow-on searches (e.g., user clicks next page, drills down, or changes sort, etc.) to get the same searcher used by the original search.
         string snapshot = 12; //Search a snapshot previously created with #createSnapshot
     }
+    int32 totalHitsThreshold = 13; //By default we count hits accurately up to 1000. This makes sure that we don't spend most time on computing hit counts
+
 }
 
 message SearchResponse {
@@ -483,6 +489,14 @@ enum TransferStatusCode {
     Done = 1;
     Failed = 2;
     Ongoing = 3;
+}
+
+message HealthCheckRequest {
+    bool check = 1; //healthcheck request
+}
+
+message HealthCheckResponse {
+    TransferStatusCode health = 1; //enum response of healthcheck;
 }
 
 message TransferStatus {
