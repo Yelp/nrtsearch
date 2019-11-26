@@ -1,0 +1,6 @@
+!!org.apache.platypus.server.config.LuceneServerConfiguration
+nodeName: "lucene_server_primary"
+hostName: "localhost"
+port: "8000"
+replicationPort: "8001"
+stateDir: "primary_state"

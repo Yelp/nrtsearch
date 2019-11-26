@@ -1,0 +1,5 @@
+!!org.apache.platypus.server.config.LuceneServerConfiguration
+nodeName: "lucene_server"
+hostName: "localhost"
+port: "6000"
+replicationPort: "6001"

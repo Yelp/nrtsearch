@@ -35,11 +35,14 @@ import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.luceneserver.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -62,7 +65,7 @@ public class LuceneServer {
 
     private void start() throws IOException {
         GlobalState globalState = new GlobalState(luceneServerConfiguration.getNodeName(),
-                luceneServerConfiguration.getStateDir(), luceneServerConfiguration.getHostName(),
+                Paths.get(luceneServerConfiguration.getStateDir()), luceneServerConfiguration.getHostName(),
                 luceneServerConfiguration.getPort(), luceneServerConfiguration.getReplicationPort());
         /* The port on which the server should run */
         server = ServerBuilder.forPort(luceneServerConfiguration.getPort())
@@ -114,14 +117,16 @@ public class LuceneServer {
      * Main launches the server from the command line.
      */
     public static void main(String[] args) throws IOException, InterruptedException {
-        //TODO parse the LuceneServerConfiguration from a yaml file to be able to customize it.
-        LuceneServerConfiguration.Builder configurationBuilder = new LuceneServerConfiguration.Builder();
-        if (args.length > 2) {
-            configurationBuilder.withPort(Integer.parseInt(args[0]));
-            configurationBuilder.withReplicationPort(Integer.parseInt(args[1]));
-            configurationBuilder.withStateDir(args[2]);
+        LuceneServerConfiguration luceneServerConfiguration;
+        System.out.println("arguments passed: " + args.length);
+        if (args.length == 0) {
+            Path filePath = Paths.get("src", "main", "resources", "lucene_server_default_configuration.yaml");
+            luceneServerConfiguration = new Yaml().load(new FileInputStream(filePath.toFile()));
+            luceneServerConfiguration.setStateDir(LuceneServerConfiguration.DEFAULT_USER_STATE_DIR.toString());
+        } else {
+            luceneServerConfiguration = new Yaml().load(new FileInputStream(args[0]));
         }
-        LuceneServerConfiguration luceneServerConfiguration = configurationBuilder.build();
+        logger.info(luceneServerConfiguration.toString());
         final LuceneServer server = new LuceneServer(luceneServerConfiguration);
         server.start();
         server.blockUntilShutdown();
@@ -336,8 +341,9 @@ public class LuceneServer {
                         logger.info(String.format("Indexing job completed for %s docs, in %s chunks, with latest sequence number: %s, took: %s micro seconds",
                                 count, numIndexingChunks, pq.peek(), ((t1 - t0) / 1000)));
                     } catch (Exception e) {
+                        logger.warn("error while trying to addDocuments" ,e);
                         responseObserver.onError(Status
-                                .PERMISSION_DENIED
+                                .INTERNAL
                                 .withDescription("error while trying to addDocuments ")
                                 .augmentDescription(e.getMessage())
                                 .withCause(e)
@@ -581,6 +587,22 @@ public class LuceneServer {
             }
         }
 
+        @Override
+        public void status(HealthCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
+            try {
+                HealthCheckResponse reply = HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
+                logger.info("StopIndexHandler returned " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn("error while trying to get status", e);
+                responseObserver.onError(Status
+                        .INVALID_ARGUMENT
+                        .withDescription("error while trying to get status")
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
     }
 
     static class ReplicationServerImpl extends ReplicationServerGrpc.ReplicationServerImplBase {

@@ -30,7 +30,7 @@ public class CreateIndexCommand {
     @CommandLine.Option(names = {"-i", "--indexName"}, description = "name of the index to be created", required = true)
     private String indexName;
 
-    @CommandLine.Option(names = {"-d", "--rootDir"}, description = "name of the directorry where index is to be created", required = true)
+    @CommandLine.Option(names = {"-d", "--rootDir"}, description = "name of the directory where index is to be created", required = true)
     private String rootDir;
 
     public String getIndexName() {

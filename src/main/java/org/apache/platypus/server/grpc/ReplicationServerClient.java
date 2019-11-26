@@ -39,6 +39,15 @@ public class ReplicationServerClient implements Closeable {
     private final String host;
     private final int port;
     private final ManagedChannel channel;
+
+    public ReplicationServerGrpc.ReplicationServerBlockingStub getBlockingStub() {
+        return blockingStub;
+    }
+
+    public ReplicationServerGrpc.ReplicationServerStub getAsyncStub() {
+        return asyncStub;
+    }
+
     private final ReplicationServerGrpc.ReplicationServerBlockingStub blockingStub;
     private final ReplicationServerGrpc.ReplicationServerStub asyncStub;
 

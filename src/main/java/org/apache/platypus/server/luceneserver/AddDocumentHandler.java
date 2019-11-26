@@ -278,8 +278,11 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 } else if (fd.valueType == FieldDef.FieldValueType.LAT_LON) {
                     double[] latLon = (double[]) o;
                     doc.add(new LatLonPoint(fd.name, latLon[0], latLon[1]));
+                } else if (fd.valueType == FieldDef.FieldValueType.DATE_TIME) {
+                    //TODO: should we add a separate point field?
+                    logger.warning("add point field not supported for DATE_TIME type");
                 } else {
-                    throw new AssertionError();
+                    throw new AssertionError(String.format("fd.usePoints=true, invalid Type specified: %s", fd.valueType));
                 }
             }
 
@@ -370,6 +373,9 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 logger.log(Level.WARNING, String.format("ThreadId: %s, IndexWriter.addDocuments failed", Thread.currentThread().getName() + Thread.currentThread().getId()));
                 throw new IOException(e);
             }
+            logger.info(String.format("indexing job on threadId: %s done with SequenceId: %s",
+                    Thread.currentThread().getName() + Thread.currentThread().getId(),
+                    shardState.writer.getMaxCompletedSequenceNumber()));
             return shardState.writer.getMaxCompletedSequenceNumber();
         }
 

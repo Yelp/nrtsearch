@@ -1,0 +1,70 @@
+{
+  "indexName": "yelp_reviews_test_0",
+  "field": [
+    {
+      "name": "review_id",
+      "type": "ATOM",
+      "search": true,
+      "store": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "user_id",
+      "type": "ATOM",
+      "search": true,
+      "store": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "business_id",
+      "type": "ATOM",
+      "search": true,
+      "store": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "stars",
+      "type": "INT",
+      "search": true,
+      "store": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "useful",
+      "type": "INT",
+      "search": true,
+      "store": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "funny",
+      "type": "INT",
+      "search": true,
+      "store": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "cool",
+      "type": "INT",
+      "search": true,
+      "store": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "text",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "storeDocValues": true,
+      "tokenize": true
+    },
+    {
+      "name": "date",
+      "type": "DATE_TIME",
+      "search": true,
+      "store": true,
+      "storeDocValues": true,
+      "dateTimeFormat": "yyyy-MM-dd HH:mm:ss"
+    }
+  ]
+}

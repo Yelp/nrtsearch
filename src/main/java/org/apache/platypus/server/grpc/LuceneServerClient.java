@@ -67,12 +67,10 @@ public class LuceneServerClient {
 
     private final ManagedChannel channel;
 
-    @VisibleForTesting
     public LuceneServerGrpc.LuceneServerBlockingStub getBlockingStub() {
         return blockingStub;
     }
 
-    @VisibleForTesting
     public LuceneServerGrpc.LuceneServerStub getAsyncStub() {
         return asyncStub;
     }
@@ -81,7 +79,7 @@ public class LuceneServerClient {
     private final LuceneServerGrpc.LuceneServerStub asyncStub;
 
     /**
-     * Construct client connecting to HelloWorld server at {@code host:port}.
+     * Construct client connecting to LuceneServer server at {@code host:port}.
      */
     public LuceneServerClient(String host, int port) {
         this(ManagedChannelBuilder.forAddress(host, port)
@@ -92,7 +90,7 @@ public class LuceneServerClient {
     }
 
     /**
-     * Construct client for accessing HelloWorld server using the existing channel.
+     * Construct client for accessing LuceneServer server using the existing channel.
      */
     LuceneServerClient(ManagedChannel channel) {
         this.channel = channel;
@@ -213,9 +211,9 @@ public class LuceneServerClient {
 
         logger.info("sent async addDocumentsRequest to server...");
 
-        // Receiving happens asynchronously, so block here for 1 minute
-        if (!finishLatch.await(1, TimeUnit.MINUTES)) {
-            logger.log(Level.WARNING, "addDocuments can not finish within 1 minutes");
+        // Receiving happens asynchronously, so block here for 5 minutes
+        if (!finishLatch.await(5, TimeUnit.MINUTES)) {
+            logger.log(Level.WARNING, "addDocuments can not finish within 5 minutes");
         }
     }
 
@@ -295,6 +293,7 @@ public class LuceneServerClient {
     public void stopIndex(String indexName) {
         blockingStub.stopIndex(StopIndexRequest.newBuilder().setIndexName(indexName).build());
     }
+
 
     private FieldDefRequest getFieldDefRequest(String jsonStr) {
         logger.info(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));

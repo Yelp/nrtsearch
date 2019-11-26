@@ -293,7 +293,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
 
                 // nocommit maybe we only accept https://www.ietf.org/rfc/rfc3339.txt
 
-                dateTimeFormat = currentField.getDateTimeFromat();
+                dateTimeFormat = currentField.getDateTimeFormat();
 
                 // make sure the format is valid:
                 try {

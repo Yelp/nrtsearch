@@ -56,7 +56,18 @@ public class SimpleCopyJob extends CopyJob {
 
     @Override
     protected CopyOneFile newCopyOneFile(CopyOneFile prev) {
-        Iterator<RawFileChunk> rawFileChunkIterator = primaryAddres.recvRawFile(prev.name, prev.getBytesCopied(), indexName);
+        Iterator<RawFileChunk> rawFileChunkIterator;
+        try {
+            rawFileChunkIterator = primaryAddres.recvRawFile(prev.name, prev.getBytesCopied(), indexName);
+        } catch (Throwable t){
+            try {
+                cancel("exc during start", t);
+            } catch (IOException e) {
+                throw new NodeCommunicationException("cancel IOException during newCopyOneFile", e);
+            }
+            throw new NodeCommunicationException("exc during start", t);
+        }
+
         return new CopyOneFile(prev, rawFileChunkIterator);
     }
 
@@ -208,7 +219,13 @@ public class SimpleCopyJob extends CopyJob {
             Map.Entry<String, FileMetaData> next = iter.next();
             FileMetaData metaData = next.getValue();
             String fileName = next.getKey();
-            Iterator<RawFileChunk> rawFileChunkIterator = primaryAddres.recvRawFile(fileName, 0, indexName);
+            Iterator<RawFileChunk> rawFileChunkIterator;
+            try {
+                rawFileChunkIterator = primaryAddres.recvRawFile(fileName, 0, indexName);
+            } catch (Throwable t) {
+                cancel("exc during start", t);
+                throw new NodeCommunicationException("exc during start", t);
+            }
             current = new CopyOneFile(rawFileChunkIterator, dest, fileName, metaData, copyBuffer);
         }
         if (current.visit()) {
