@@ -3,7 +3,7 @@ install: true
 dist: bionic
 
 jdk:
-  - oraclejdk12
+  - oraclejdk13
 
 script:
   - ./gradlew clean check test --info
