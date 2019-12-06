@@ -42,7 +42,8 @@ In the home directory.
 ./gradlew clean && ./gradlew installDist && ./gradlew test
 ```
 
-Note: This code has been tested on *Java12*
+Note: This code has been tested on *Java13*
+
 
 # Run Server
 

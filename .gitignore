@@ -41,3 +41,5 @@ lib/
 lucene8x/
 primary_state/
 replica_state/
+serverPrimary/
+serverSecondary/
