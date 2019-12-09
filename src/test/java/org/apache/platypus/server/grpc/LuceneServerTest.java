@@ -23,6 +23,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Stream;
 
+import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.*;
 
 @RunWith(JUnit4.class)
@@ -278,27 +279,6 @@ public class LuceneServerTest {
         Collections.sort(actualValues);
         assertEquals(expectedValues, actualValues);
     }
-
-    //TODO fix server to not need to use specific named directories?
-    public static void rmDir(Path dir) throws IOException {
-        if (Files.exists(dir)) {
-            if (Files.isRegularFile(dir)) {
-                Files.delete(dir);
-            } else {
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
-                    for (Path path : stream) {
-                        if (Files.isDirectory(path)) {
-                            rmDir(path);
-                        } else {
-                            Files.delete(path);
-                        }
-                    }
-                }
-                Files.delete(dir);
-            }
-        }
-    }
-
 
     private Stream<AddDocumentRequest> getAddDocumentRequestStream() throws IOException {
         Path filePath = Paths.get("src", "test", "resources", "addDocs.csv");

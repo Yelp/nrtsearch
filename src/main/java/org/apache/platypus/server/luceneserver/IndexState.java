@@ -33,6 +33,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.util.FilesystemResourceLoader;
+import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
@@ -514,6 +515,11 @@ public class IndexState implements Closeable {
 
     public final FacetsConfig facetsConfig = new FacetsConfig();
 
+    /**
+     * {@link Bindings} to pass when evaluating expressions.
+     */
+    public final Bindings exprBindings = new FieldDefBindings(fields);
+
     public final Map<Integer, ShardState> shards = new ConcurrentHashMap<>();
 
     private ShardState writableShard;
@@ -534,7 +540,6 @@ public class IndexState implements Closeable {
         List<Closeable> closeables = new ArrayList<>();
         closeables.addAll(shards.values());
         closeables.addAll(fields.values());
-        //TODO: dont support suggestions yet
         for (Lookup suggester : suggesters.values()) {
             if (suggester instanceof Closeable) {
                 closeables.add((Closeable) suggester);
@@ -892,12 +897,11 @@ public class IndexState implements Closeable {
             }
         }
 
-        //TODO add suggest functionality
-//        if (suggesterSettings != null) {
-//            // load suggesters:
-//            ((BuildSuggestHandler) globalState.getHandler("buildSuggest")).load(this, suggesterSettings);
-//            suggesterSettings = null;
-//        }
+        if (suggesterSettings != null) {
+            // load suggesters:
+            new BuildSuggestHandler().load(this, suggesterSettings);
+            suggesterSettings = null;
+        }
     }
 
     IndexWriterConfig getIndexWriterConfig(IndexWriterConfig.OpenMode openMode, Directory origIndexDir, int shardOrd) throws IOException {
@@ -1114,6 +1118,13 @@ public class IndexState implements Closeable {
             this.stateGen = stateGen;
             this.id = id;
         }
+    }
+
+    /**
+     * Records a new suggester state.
+     */
+    public synchronized void addSuggest(String name, JsonObject o) {
+        suggestSaveState.add(name, o);
     }
 
 

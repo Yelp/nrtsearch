@@ -49,6 +49,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
+import static io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall;
+
 /**
  * Server that manages startup/shutdown of a {@code LuceneServer} server.
  */
@@ -341,7 +343,7 @@ public class LuceneServer {
                         logger.info(String.format("Indexing job completed for %s docs, in %s chunks, with latest sequence number: %s, took: %s micro seconds",
                                 count, numIndexingChunks, pq.peek(), ((t1 - t0) / 1000)));
                     } catch (Exception e) {
-                        logger.warn("error while trying to addDocuments" ,e);
+                        logger.warn("error while trying to addDocuments", e);
                         responseObserver.onError(Status
                                 .INTERNAL
                                 .withDescription("error while trying to addDocuments ")
@@ -603,6 +605,45 @@ public class LuceneServer {
                         .asRuntimeException());
             }
         }
+
+        @Override
+        public void buildSuggest(BuildSuggestRequest buildSuggestRequest, StreamObserver<BuildSuggestResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(buildSuggestRequest.getIndexName());
+                BuildSuggestHandler buildSuggestHandler = new BuildSuggestHandler();
+                BuildSuggestResponse reply = buildSuggestHandler.handle(indexState, buildSuggestRequest);
+                logger.info(String.format("BuildSuggestHandler returned results %s", reply.toString()));
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn(String.format("error while trying to build suggester %s for index %s", buildSuggestRequest.getSuggestName(), buildSuggestRequest.getIndexName()), e);
+                responseObserver.onError(Status
+                        .UNKNOWN
+                        .withDescription(String.format("error while trying to build suggester %s for index %s", buildSuggestRequest.getSuggestName(), buildSuggestRequest.getIndexName()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+        @Override
+        public void suggestLookup(SuggestLookupRequest suggestLookupRequest, StreamObserver<SuggestLookupResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(suggestLookupRequest.getIndexName());
+                SuggestLookupHandler suggestLookupHandler = new SuggestLookupHandler();
+                SuggestLookupResponse reply = suggestLookupHandler.handle(indexState, suggestLookupRequest);
+                logger.info(String.format("SuggestLookupHandler returned results %s", reply.toString()));
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn(String.format("error while trying to lookup suggester %s for index %s", suggestLookupRequest.getSuggestName(), suggestLookupRequest.getIndexName()), e);
+                responseObserver.onError(Status
+                        .UNKNOWN
+                        .withDescription(String.format("error while trying to lookup suggester %s for index %s", suggestLookupRequest.getSuggestName(), suggestLookupRequest.getIndexName()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
     }
 
     static class ReplicationServerImpl extends ReplicationServerGrpc.ReplicationServerImplBase {
