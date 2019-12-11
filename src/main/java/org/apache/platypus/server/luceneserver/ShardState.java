@@ -274,6 +274,14 @@ public class ShardState implements Closeable {
         return nrtReplicaNode != null;
     }
 
+    public void waitForGeneration(long gen) throws InterruptedException, IOException {
+        if (nrtPrimaryNode != null) {
+            reopenThreadPrimary.waitForGeneration(gen);
+        } else {
+            reopenThread.waitForGeneration(gen);
+        }
+    }
+
 
     public static class HostAndPort {
         public final InetAddress host;

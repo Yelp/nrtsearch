@@ -560,6 +560,22 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 s = new SearcherTaxonomyManager.SearcherAndTaxonomy(priorSearcher, s2.taxonomyReader);
                 s2.searcher.getIndexReader().decRef();
             }
+        } else if (searchCase.equals((SearchRequest.SearcherCase.INDEXGEN))) {
+            // Searcher is identified by an indexGen, returned
+            // from a previous indexing operation,
+            // e.g. addDocument.  Apps use this then they want
+            // to ensure a specific indexing change is visible:
+            long t0 = System.nanoTime();
+            long gen = searchRequest.getIndexGen();
+            if (gen > state.writer.getMaxCompletedSequenceNumber()) {
+                throw new RuntimeException("indexGen: requested indexGen (" + gen + ") is beyond the current maximum generation (" + state.writer.getMaxCompletedSequenceNumber() + ")");
+            }
+            state.waitForGeneration(gen);
+            if (diagnostics != null) {
+                diagnostics.addProperty("nrtWaitMS", (System.nanoTime() - t0)/1000000);
+            }
+            s = state.acquire();
+            state.slm.record(s.searcher);
         } else if (searchCase.equals(SearchRequest.SearcherCase.SEARCHER_NOT_SET)) {
             // Request didn't specify any specific searcher;
             // just use the current (latest) searcher:

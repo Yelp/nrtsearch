@@ -187,6 +187,10 @@ public class GrpcServer {
         }
 
         public void addDocuments() throws IOException, InterruptedException {
+            addDocuments(null);
+        }
+
+        public AddDocumentResponse addDocuments(String fileName) throws IOException, InterruptedException {
             CountDownLatch finishLatch = new CountDownLatch(1);
             //observers responses from Server(should get one onNext and oneCompleted)
             StreamObserver<AddDocumentResponse> responseStreamObserver = new StreamObserver<AddDocumentResponse>() {
@@ -210,7 +214,7 @@ public class GrpcServer {
             //requestObserver sends requests to Server (one onNext per AddDocumentRequest and one onCompleted)
             StreamObserver<AddDocumentRequest> requestObserver = grpcServer.getStub().addDocuments(responseStreamObserver);
             //parse CSV into a stream of AddDocumentRequest
-            Stream<AddDocumentRequest> addDocumentRequestStream = getAddDocumentRequestStream();
+            Stream<AddDocumentRequest> addDocumentRequestStream = getAddDocumentRequestStream(fileName);
             try {
                 addDocumentRequestStream.forEach(addDocumentRequest -> requestObserver.onNext(addDocumentRequest));
             } catch (RuntimeException e) {
@@ -224,10 +228,13 @@ public class GrpcServer {
             if (!finishLatch.await(20, TimeUnit.SECONDS)) {
                 throw new RuntimeException("addDocuments can not finish within 20 seconds");
             }
+            return addDocumentResponse;
+
         }
 
-        private Stream<AddDocumentRequest> getAddDocumentRequestStream() throws IOException {
-            Path filePath = Paths.get("src", "test", "resources", "addDocs.csv");
+        private Stream<AddDocumentRequest> getAddDocumentRequestStream(String fileName) throws IOException {
+            String addDocsFile = fileName == null ? "addDocs.csv" : fileName;
+            Path filePath = Paths.get("src", "test", "resources", addDocsFile);
             Reader reader = Files.newBufferedReader(filePath);
             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
             return new LuceneServerClientBuilder.AddDcoumentsClientBuilder(grpcServer.getTestIndex(), csvParser).buildRequest(filePath);
@@ -253,6 +260,11 @@ public class GrpcServer {
         }
 
         public FieldDefResponse createStartIndexAndRegisterFields(Mode mode, int primaryGen, boolean startOldIndex) throws IOException {
+            return createStartIndexAndRegisterFields(mode, primaryGen, startOldIndex, null);
+        }
+
+        public FieldDefResponse createStartIndexAndRegisterFields(Mode mode, int primaryGen, boolean startOldIndex, String registerFieldsFileName) throws IOException {
+            String registerFields = registerFieldsFileName == null ? "registerFieldsBasic.json" : registerFieldsFileName;
             String rootDirName = grpcServer.getRootDirName();
             String testIndex = grpcServer.getTestIndex();
             LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
@@ -276,15 +288,12 @@ public class GrpcServer {
 
             if (!startOldIndex) {
                 //register the fields
-                FieldDefRequest fieldDefRequest = buildFieldDefRequest(Paths.get("src", "test", "resources", "registerFieldsBasic.json"));
+                FieldDefRequest fieldDefRequest = buildFieldDefRequest(Paths.get("src", "test", "resources", registerFields));
                 return blockingStub.registerFields(fieldDefRequest);
-            }
-            else {//dummy
+            } else {//dummy
                 return FieldDefResponse.newBuilder().build();
             }
-
         }
-
 
         private FieldDefRequest buildFieldDefRequest(Path filePath) throws IOException {
             return getFieldDefRequest(Files.readString(filePath));

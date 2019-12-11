@@ -65,6 +65,10 @@ service LuceneServer {
     /* Perform an auto-suggest lookup.*/
     rpc suggestLookup (SuggestLookupRequest) returns (SuggestLookupResponse) {
     }
+    /* Updates existing suggestions, if the suggester supports near-real-time changes. */
+    rpc updateSuggest (BuildSuggestRequest) returns (BuildSuggestResponse) {
+    }
+
 }
 
 //The ReplicationServer service definition.

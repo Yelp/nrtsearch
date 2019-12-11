@@ -644,6 +644,24 @@ public class LuceneServer {
             }
         }
 
+        @Override
+        public void updateSuggest(BuildSuggestRequest buildSuggestRequest, StreamObserver<BuildSuggestResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(buildSuggestRequest.getIndexName());
+                UpdateSuggestHandler updateSuggestHandler = new UpdateSuggestHandler();
+                BuildSuggestResponse reply = updateSuggestHandler.handle(indexState, buildSuggestRequest);
+                logger.info(String.format("UpdateSuggestHandler returned results %s", reply.toString()));
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn(String.format("error while trying to update suggester %s for index %s", buildSuggestRequest.getSuggestName(), buildSuggestRequest.getIndexName()), e);
+                responseObserver.onError(Status
+                        .UNKNOWN
+                        .withDescription(String.format("error while trying to update suggester %s for index %s", buildSuggestRequest.getSuggestName(), buildSuggestRequest.getIndexName()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
     }
 
     static class ReplicationServerImpl extends ReplicationServerGrpc.ReplicationServerImplBase {
