@@ -56,9 +56,17 @@ service LuceneServer {
     /* Delete index */
     rpc deleteIndex (DeleteIndexRequest) returns (DeleteIndexResponse) {
     }
-
     /* healthcheck */
     rpc status (HealthCheckRequest) returns (HealthCheckResponse) {
+    }
+    /* Builds a new auto-suggester, loading suggestions via the provided local file path.*/
+    rpc buildSuggest (BuildSuggestRequest) returns (BuildSuggestResponse) {
+    }
+    /* Perform an auto-suggest lookup.*/
+    rpc suggestLookup (SuggestLookupRequest) returns (SuggestLookupResponse) {
+    }
+    /* Updates existing suggestions, if the suggester supports near-real-time changes. */
+    rpc updateSuggest (BuildSuggestRequest) returns (BuildSuggestResponse) {
     }
 
 }
@@ -89,6 +97,7 @@ service ReplicationServer {
     /** Invoked externally to replica, to get the current Searcher version on replica. Typically used to check i */
     rpc getCurrentSearcherVersion (IndexName) returns (SearcherVersion) {
     }
+
 
 }
 
@@ -412,6 +421,123 @@ message DummyResponse {
 message StopIndexRequest {
     string indexName = 1; //index name to stop
 }
+
+message BuildSuggestRequest {
+    string indexName = 1; //index name
+    oneof Suggester {
+        //A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)
+        InfixSuggester infixSuggester = 2;
+        /* Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and
+        then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester*/
+        AnalyzingSuggester analyzingSuggester = 3;
+        /* Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester*/
+        FuzzySuggester fuzzySuggester = 4;
+    }
+    oneof Source {
+        SuggestLocalSource localSource = 5;
+        SuggestNonLocalSource nonLocalSource = 6;
+    }
+    string suggestName = 7; //Unique name for this suggest build.
+}
+
+message BuildSuggestResponse {
+    int64 sizeInBytes = 1; //size in bytes in RAM if using AnalyzingSuggester
+    int64 count = 2; //total number of suggester entries
+}
+
+message SuggestLookupRequest {
+    string indexName = 1; //Index name
+    string suggestName = 2; //Which suggester to use
+    string text = 3; //Text to suggest from
+    bool highlight = 4; //True if the suggestions should be highlighted (currently only works with AnalyzingInfixSuggester)
+    bool allTermsRequired = 5; //If true then all terms must be found (this only applies to InfixSuggester currently)
+    repeated string contexts = 6; //Which contexts to filter by
+    int32 count = 7; //How many suggestions to return, default = 5
+}
+
+message SuggestLookupResponse {
+    repeated OneSuggestLookupResponse results = 1; //SuggestLookup results as an array
+}
+
+message OneSuggestLookupResponse {
+    oneof HighlightKey {
+        /* Expert: custom Object to hold the result of a highlighted suggestion (currently only works with AnalyzingInfixSuggester) */
+        SuggestLookupHighlight suggestLookupHighlight = 1;
+        /* the key's text */
+        string key = 2;
+    }
+    int64 weight = 3; //the key's weight
+    string payload = 4; //the key's payload (null if not present)
+}
+
+message SuggestLookupHighlight {
+    repeated OneHighlight oneHighlight = 1;
+}
+
+message OneHighlight {
+    bool isHit = 1;
+    string text = 2;
+}
+
+message SuggestLocalSource {
+    /* Local file (to the server) to read suggestions + weights from; format is weight U+001F suggestion U+001F payload,
+    one per line, with suggestion UTF-8 encoded. If this option is used then searcher, suggestField,
+    weightField/Expression, payloadField should not be specified.*/
+    string localFile = 1;
+    bool hasContexts = 2; //True if this file provides per-suggestion contexts.
+}
+
+message SuggestNonLocalSource {
+    /* Specific searcher version to use for pull suggestions to build.  There are three different ways to specify a searcher version.*/
+    oneof Searcher {
+        int64 indexGen = 1; //Search a generation previously returned by an indexing operation such as #addDocument.  Use this to search a non-committed (near-real-time) view of the index.
+        int64 version = 2; //Search a specific searcher version.  This is typically used by follow-on searches (e.g., user clicks next page, drills down, or changes sort, etc.) to get the same searcher used by the original search.
+        string snapshot = 3; //Search a snapshot previously created with #createSnapshot
+    }
+    string suggestField = 4; //Field (from stored documents) containing the suggestion text
+    oneof Weight {
+        string weightField = 5; //Numeric field (from stored documents) containing the weight
+        string weightExpression = 6; //Alternative to weightField, an expression that's evaluated to the weight. Note that any fields referenced in the expression must have been indexed with sort=true
+
+    }
+    string payloadField = 7; //Optional binary or string field (from stored documents) containing the payload
+}
+
+/* A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)*/
+message InfixSuggester {
+    string analyzer = 1; //Index and query analyzer
+    string indexAnalyzer = 2; // Index Analyzer
+    string queryAnalyzer = 3; // Query Analyzer
+}
+
+/* Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and
+then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester*/
+message AnalyzingSuggester {
+    string analyzer = 1; //Index and query analyzer
+    string indexAnalyzer = 2; // Index Analyzer
+    string queryAnalyzer = 3; // Query Analyzer
+    int32 maxSurfaceFormsPerAnalyzedForm = 4; //Maximum number of surface forms to keep for a single analyzed form
+    int32 maxGraphExpansions = 5; //Maximum number of graph paths to expand from the analyzed from
+    bool preserveSep = 6; //True if token separators should be preserved when matching
+    bool exactFirst = 7; //True if the exact match should always be returned first regardless of score
+}
+
+/* Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester*/
+message FuzzySuggester {
+    string analyzer = 1; //Index and query analyzer
+    string indexAnalyzer = 2; // Index Analyzer
+    string queryAnalyzer = 3; // Query Analyzer
+    int32 maxSurfaceFormsPerAnalyzedForm = 4; //Maximum number of surface forms to keep for a single analyzed form
+    int32 maxGraphExpansions = 5; //Maximum number of graph paths to expand from the analyzed from
+    bool preserveSep = 6; //True if token separators should be preserved when matching
+    bool exactFirst = 7; //True if the exact match should always be returned first regardless of score
+    int32 minFuzzyLength = 8; //Minimum key length before edits are allowed,
+    int32 nonFuzzyPrefix = 9; //Key prefix where edits are not allowed,
+    int32 maxEdits = 10; //Maximum number of edits for fuzzy suggestions
+    bool transpositions = 11; //Whether transpositions are allowed
+    bool unicodeAware = 12; //True if all edits are measured in unicode characters, not UTF-8 bytes
+}
+
 
 message AddReplicaRequest {
     int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only

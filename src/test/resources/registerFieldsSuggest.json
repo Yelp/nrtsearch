@@ -1,0 +1,23 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "text",
+      "type": "TEXT",
+      "store": true,
+      "search": false
+    },
+    {
+      "name": "weight",
+      "type": "FLOAT",
+      "store": true,
+      "search": false
+    },
+    {
+      "name": "payload",
+      "type": "TEXT",
+      "store": true,
+      "search": false
+    }
+  ]
+}
