@@ -98,8 +98,18 @@ public class SuggestTest {
         BuildSuggestResponse response = sendBuildSuggest("suggest2", false, false, Suggester.INFIX);
         assertEquals(1, response.getCount());
 
-        assertOneHighlightOnIndexLoveLost("lost", "suggest2", 15, "foobar");
-        assertMultipleHighlightsOnIndexLoveLost("lo", "suggest2", 15, "foobar");
+        for (int i = 0; i < 2; i++) {
+            assertOneHighlightOnIndexLoveLost("lost", "suggest2", 15, "foobar");
+            assertMultipleHighlightsOnIndexLoveLost("lo", "suggest2", 15, "foobar");
+
+            //commit state and indexes
+            grpcServer.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+            //mimic bounce server to make sure suggestions survive restart
+            grpcServer.getBlockingStub().stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
+            grpcServer.getBlockingStub().startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
+
+        }
+
     }
 
     private BuildSuggestResponse sendBuildSuggest(String suggestName, boolean hasContexts, boolean isUpdate, Suggester suggester) {
@@ -195,38 +205,47 @@ public class SuggestTest {
         response = sendBuildSuggest("suggestnrt", false, true, Suggester.INFIX);
         assertEquals(2, response.getCount());
 
-        assertOneHighlightOnIndexLoveLost("lost", "suggestnrt", 10, "foobaz");
+        for (int i = 0; i < 2; i++) {
+            assertOneHighlightOnIndexLoveLost("lost", "suggestnrt", 10, "foobaz");
 
-        SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
-        suggestLookupBuilder.setText("lo");
-        suggestLookupBuilder.setSuggestName("suggestnrt");
-        suggestLookupBuilder.setIndexName("test_index");
-        suggestLookupBuilder.setHighlight(true);
-        SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
-        List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
-        assertEquals(20, results.get(0).getWeight());
-        assertEquals("fooboo", results.get(0).getPayload());
+            SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+            suggestLookupBuilder.setText("lo");
+            suggestLookupBuilder.setSuggestName("suggestnrt");
+            suggestLookupBuilder.setIndexName("test_index");
+            suggestLookupBuilder.setHighlight(true);
+            SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+            List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+            assertEquals(20, results.get(0).getWeight());
+            assertEquals("fooboo", results.get(0).getPayload());
 
-        SuggestLookupHighlight suggestLookupHighLight = results.get(0).getSuggestLookupHighlight();
-        SuggestLookupHighlight expected = SuggestLookupHighlight.newBuilder()
-                .addOneHighlight(OneHighlight.newBuilder().setText("lo").setIsHit(true).build())
-                .addOneHighlight(OneHighlight.newBuilder().setText("ve").setIsHit(false).build())
-                .addOneHighlight(OneHighlight.newBuilder().setText(" ").setIsHit(false).build())
-                .addOneHighlight(OneHighlight.newBuilder().setText("found").setIsHit(false).build())
-                .build();
-        assertEquals(expected, suggestLookupHighLight);
+            SuggestLookupHighlight suggestLookupHighLight = results.get(0).getSuggestLookupHighlight();
+            SuggestLookupHighlight expected = SuggestLookupHighlight.newBuilder()
+                    .addOneHighlight(OneHighlight.newBuilder().setText("lo").setIsHit(true).build())
+                    .addOneHighlight(OneHighlight.newBuilder().setText("ve").setIsHit(false).build())
+                    .addOneHighlight(OneHighlight.newBuilder().setText(" ").setIsHit(false).build())
+                    .addOneHighlight(OneHighlight.newBuilder().setText("found").setIsHit(false).build())
+                    .build();
+            assertEquals(expected, suggestLookupHighLight);
 
-        assertEquals(10, results.get(1).getWeight());
-        assertEquals("foobaz", results.get(1).getPayload());
-        suggestLookupHighLight = results.get(1).getSuggestLookupHighlight();
-        expected = SuggestLookupHighlight.newBuilder()
-                .addOneHighlight(OneHighlight.newBuilder().setText("lo").setIsHit(true).build())
-                .addOneHighlight(OneHighlight.newBuilder().setText("ve").setIsHit(false).build())
-                .addOneHighlight(OneHighlight.newBuilder().setText(" ").setIsHit(false).build())
-                .addOneHighlight(OneHighlight.newBuilder().setText("lo").setIsHit(true).build())
-                .addOneHighlight(OneHighlight.newBuilder().setText("st").setIsHit(false).build())
-                .build();
-        assertEquals(expected, suggestLookupHighLight);
+            assertEquals(10, results.get(1).getWeight());
+            assertEquals("foobaz", results.get(1).getPayload());
+            suggestLookupHighLight = results.get(1).getSuggestLookupHighlight();
+            expected = SuggestLookupHighlight.newBuilder()
+                    .addOneHighlight(OneHighlight.newBuilder().setText("lo").setIsHit(true).build())
+                    .addOneHighlight(OneHighlight.newBuilder().setText("ve").setIsHit(false).build())
+                    .addOneHighlight(OneHighlight.newBuilder().setText(" ").setIsHit(false).build())
+                    .addOneHighlight(OneHighlight.newBuilder().setText("lo").setIsHit(true).build())
+                    .addOneHighlight(OneHighlight.newBuilder().setText("st").setIsHit(false).build())
+                    .build();
+            assertEquals(expected, suggestLookupHighLight);
+
+            //commit state and indexes
+            grpcServer.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+            //mimic bounce server to make sure suggestions survive restart
+            grpcServer.getBlockingStub().stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
+            grpcServer.getBlockingStub().startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
+
+        }
     }
 
     @Test
@@ -243,39 +262,49 @@ public class SuggestTest {
         BuildSuggestResponse response = sendBuildSuggest("suggest", false, false, Suggester.ANALYZING);
         assertEquals(5, response.getCount());
 
-        SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
-        suggestLookupBuilder.setText("l");
-        suggestLookupBuilder.setSuggestName("suggest");
-        suggestLookupBuilder.setIndexName("test_index");
-        SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
-        List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
 
-        assertEquals(3, results.size());
+        for (int i = 0; i < 2; i++) {
+            SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+            suggestLookupBuilder.setText("l");
+            suggestLookupBuilder.setSuggestName("suggest");
+            suggestLookupBuilder.setIndexName("test_index");
+            SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+            List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
 
-        assertEquals("love", results.get(0).getKey());
-        assertEquals(15, results.get(0).getWeight());
-        assertEquals("foobar", results.get(0).getPayload());
+            assertEquals(3, results.size());
 
-        assertEquals("lucifer", results.get(1).getKey());
-        assertEquals(10, results.get(1).getWeight());
-        assertEquals("foobar", results.get(1).getPayload());
+            assertEquals("love", results.get(0).getKey());
+            assertEquals(15, results.get(0).getWeight());
+            assertEquals("foobar", results.get(0).getPayload());
 
-        assertEquals("lucene", results.get(2).getKey());
-        assertEquals(5, results.get(2).getWeight());
-        assertEquals("foobar", results.get(2).getPayload());
+            assertEquals("lucifer", results.get(1).getKey());
+            assertEquals(10, results.get(1).getWeight());
+            assertEquals("foobar", results.get(1).getPayload());
 
-        suggestLookupBuilder = SuggestLookupRequest.newBuilder();
-        suggestLookupBuilder.setText("the");
-        suggestLookupBuilder.setSuggestName("suggest");
-        suggestLookupBuilder.setIndexName("test_index");
-        suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
-        results = suggestResponse.getResultsList();
+            assertEquals("lucene", results.get(2).getKey());
+            assertEquals(5, results.get(2).getWeight());
+            assertEquals("foobar", results.get(2).getPayload());
 
-        assertEquals(2, results.size());
+            suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+            suggestLookupBuilder.setText("the");
+            suggestLookupBuilder.setSuggestName("suggest");
+            suggestLookupBuilder.setIndexName("test_index");
+            suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+            results = suggestResponse.getResultsList();
 
-        assertEquals("theories take time", results.get(0).getKey());
-        assertEquals(5, results.get(0).getWeight());
-        assertEquals("foobar", results.get(0).getPayload());
+            assertEquals(2, results.size());
+
+            assertEquals("theories take time", results.get(0).getKey());
+            assertEquals(5, results.get(0).getWeight());
+            assertEquals("foobar", results.get(0).getPayload());
+
+            //commit state and indexes
+            grpcServer.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+            //mimic bounce server to make sure suggestions survive restart
+            grpcServer.getBlockingStub().stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
+            grpcServer.getBlockingStub().startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
+
+        }
 
     }
 
@@ -290,17 +319,27 @@ public class SuggestTest {
         BuildSuggestResponse result = sendBuildSuggest("suggest3", false, false, Suggester.FUZZY);
         assertEquals(1, result.getCount());
 
-        // 1 transposition and this is prefix of "love":
-        SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
-        suggestLookupBuilder.setText("lvo");
-        suggestLookupBuilder.setSuggestName("suggest3");
-        suggestLookupBuilder.setIndexName("test_index");
-        SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
-        List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+        for (int i = 0; i < 2; i++) {
+            // 1 transposition and this is prefix of "love":
+            SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+            suggestLookupBuilder.setText("lvo");
+            suggestLookupBuilder.setSuggestName("suggest3");
+            suggestLookupBuilder.setIndexName("test_index");
+            SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+            List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
 
-        assertEquals(15, results.get(0).getWeight());
-        assertEquals("love lost", results.get(0).getKey());
-        assertEquals("foobar", results.get(0).getPayload());
+            assertEquals(15, results.get(0).getWeight());
+            assertEquals("love lost", results.get(0).getKey());
+            assertEquals("foobar", results.get(0).getPayload());
+
+            //commit state and indexes
+            grpcServer.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+            //mimic bounce server to make sure suggestions survive restart
+            grpcServer.getBlockingStub().stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
+            grpcServer.getBlockingStub().startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
+
+        }
+
     }
 
     /**
@@ -324,19 +363,29 @@ public class SuggestTest {
         BuildSuggestResponse response = grpcServer.getBlockingStub().buildSuggest(buildSuggestRequestBuilder.build());
         // nocommit count isn't returned for stored fields source:
         assertEquals(2, response.getCount());
-        SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
-        suggestLookupBuilder.setText("the");
-        suggestLookupBuilder.setSuggestName("suggest");
-        suggestLookupBuilder.setIndexName("test_index");
-        SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
-        List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
 
-        assertEquals(2, results.get(0).getWeight());
-        assertEquals("the dog barks", results.get(0).getKey());
-        assertEquals("payload2", results.get(0).getPayload());
-        assertEquals(1, results.get(1).getWeight());
-        assertEquals("the cat meows", results.get(1).getKey());
-        assertEquals("payload1", results.get(1).getPayload());
+        for (int i = 0; i < 2; i++) {
+            SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+            suggestLookupBuilder.setText("the");
+            suggestLookupBuilder.setSuggestName("suggest");
+            suggestLookupBuilder.setIndexName("test_index");
+            SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+            List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+
+            assertEquals(2, results.get(0).getWeight());
+            assertEquals("the dog barks", results.get(0).getKey());
+            assertEquals("payload2", results.get(0).getPayload());
+            assertEquals(1, results.get(1).getWeight());
+            assertEquals("the cat meows", results.get(1).getKey());
+            assertEquals("payload1", results.get(1).getPayload());
+
+            //commit state and indexes
+            grpcServer.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+            //mimic bounce server to make sure suggestions survive restart
+            grpcServer.getBlockingStub().stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
+            grpcServer.getBlockingStub().startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
+
+        }
     }
 
     /**
@@ -361,20 +410,29 @@ public class SuggestTest {
         BuildSuggestResponse response = grpcServer.getBlockingStub().buildSuggest(buildSuggestRequestBuilder.build());
         assertEquals(2, response.getCount());
 
-        // nocommit count isn't returned for stored fields source:
-        SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
-        suggestLookupBuilder.setText("the");
-        suggestLookupBuilder.setSuggestName("suggest");
-        suggestLookupBuilder.setIndexName("test_index");
-        SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
-        List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+        for (int i = 0; i < 2; i++) {
+            // nocommit count isn't returned for stored fields source:
+            SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+            suggestLookupBuilder.setText("the");
+            suggestLookupBuilder.setSuggestName("suggest");
+            suggestLookupBuilder.setIndexName("test_index");
+            SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+            List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
 
-        assertEquals(2, results.get(0).getWeight());
-        assertEquals("the dog barks", results.get(0).getKey());
-        assertEquals("payload2", results.get(0).getPayload());
-        assertEquals(1, results.get(1).getWeight());
-        assertEquals("the cat meows", results.get(1).getKey());
-        assertEquals("payload1", results.get(1).getPayload());
+            assertEquals(2, results.get(0).getWeight());
+            assertEquals("the dog barks", results.get(0).getKey());
+            assertEquals("payload2", results.get(0).getPayload());
+            assertEquals(1, results.get(1).getWeight());
+            assertEquals("the cat meows", results.get(1).getKey());
+            assertEquals("payload1", results.get(1).getPayload());
+
+            //commit state and indexes
+            grpcServer.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+            //mimic bounce server to make sure suggestions survive restart
+            grpcServer.getBlockingStub().stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
+            grpcServer.getBlockingStub().startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
+        }
+
 
     }
 
@@ -389,16 +447,26 @@ public class SuggestTest {
 
         BuildSuggestResponse response = sendBuildSuggest("suggest", true, false, Suggester.INFIX);
         assertEquals(1, response.getCount());
-        SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
-        suggestLookupBuilder.setText("lov");
-        suggestLookupBuilder.setSuggestName("suggest");
-        suggestLookupBuilder.setIndexName("test_index");
-        suggestLookupBuilder.setHighlight(true);
-        suggestLookupBuilder.addContexts("lucene");
-        SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
-        List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
-        assertEquals(1, results.size());
-        assertEquals(15, results.get(0).getWeight());
-        assertEquals("foobar", results.get(0).getPayload());
+
+        for (int i = 0; i < 2; i++) {
+            SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+            suggestLookupBuilder.setText("lov");
+            suggestLookupBuilder.setSuggestName("suggest");
+            suggestLookupBuilder.setIndexName("test_index");
+            suggestLookupBuilder.setHighlight(true);
+            suggestLookupBuilder.addContexts("lucene");
+            SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+            List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+            assertEquals(1, results.size());
+            assertEquals(15, results.get(0).getWeight());
+            assertEquals("foobar", results.get(0).getPayload());
+            //commit state and indexes
+            grpcServer.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+            //mimic bounce server to make sure suggestions survive restart
+            grpcServer.getBlockingStub().stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
+            grpcServer.getBlockingStub().startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
+
+        }
     }
+
 }
