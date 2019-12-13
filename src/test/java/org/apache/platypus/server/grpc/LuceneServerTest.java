@@ -113,6 +113,17 @@ public class LuceneServerTest {
     }
 
     @Test
+    public void testAddDocumentsLatLon() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+        new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(
+                Mode.STANDALONE, 0, false, "registerFieldsLatLon.json");
+        AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocsLatLon.csv");
+        assertEquals(false, testAddDocs.error);
+        assertEquals(true, testAddDocs.completed);
+
+    }
+
+    @Test
     public void testStats() throws IOException, InterruptedException {
         new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(Mode.STANDALONE);
         StatsResponse statsResponse = grpcServer.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
