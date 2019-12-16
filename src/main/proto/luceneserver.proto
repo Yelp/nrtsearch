@@ -501,6 +501,7 @@ message SuggestNonLocalSource {
 
     }
     string payloadField = 7; //Optional binary or string field (from stored documents) containing the payload
+    string contextField = 8; //Numeric field (from stored documents) containing the context which can be later filtered on during lookup
 }
 
 /* A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)*/

@@ -1,0 +1,3 @@
+text,weight,payload,context
+the cat meows,1,payload1,lucene
+the dog barks,2,payload2,notlucene
