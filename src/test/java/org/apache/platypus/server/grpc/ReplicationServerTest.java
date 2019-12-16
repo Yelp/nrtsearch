@@ -158,7 +158,6 @@ public class ReplicationServerTest {
 
         // publish new NRT point (retrieve the current searcher version on primary)
         SearcherVersion searcherVersionPrimary = replicationServerPrimary.getReplicationServerBlockingStub().writeNRTPoint(IndexName.newBuilder().setIndexName("test_index").build());
-        assertEquals(true, searcherVersionPrimary.getDidRefresh());
 
         // primary should show 4 hits now
         SearchResponse searchResponsePrimary = luceneServerPrimary.getBlockingStub().search(SearchRequest.newBuilder()
