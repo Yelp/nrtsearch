@@ -22,7 +22,9 @@
 
 package org.apache.platypus.server.grpc;
 
+import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
+import org.apache.platypus.server.luceneserver.AddDocumentHandler;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.junit.After;
 import org.junit.Before;
@@ -31,6 +33,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import org.locationtech.spatial4j.io.GeohashUtils;
 
 import java.io.BufferedWriter;
 import java.io.FileOutputStream;
@@ -39,7 +42,12 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
@@ -470,7 +478,7 @@ public class SuggestTest {
     }
 
     @Test
-    public void testInfixSuggesterWithContextsFromField() throws  Exception {
+    public void testInfixSuggesterWithContextsFromField() throws Exception {
         GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
         new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(
                 Mode.STANDALONE, 0, false, "registerFieldsSuggestWithContext.json");
@@ -510,7 +518,116 @@ public class SuggestTest {
 
         }
 
+    }
+
+
+    @Test
+    public void testSuggesterWithGeoHashContexts() throws Exception {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+        new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(
+                Mode.STANDALONE, 0, false, "registerFieldsSuggestGeohash.json");
+
+        AddDocumentResponse addDocumentResponse = new GeohashDocumentProducer().indexDocs(grpcServer);
+        BuildSuggestRequest.Builder buildSuggestRequestBuilder = BuildSuggestRequest.newBuilder();
+        buildSuggestRequestBuilder.setSuggestName("suggest");
+        buildSuggestRequestBuilder.setIndexName("test_index");
+        buildSuggestRequestBuilder.setInfixSuggester(InfixSuggester.newBuilder().setAnalyzer("default").build());
+        buildSuggestRequestBuilder.setNonLocalSource(SuggestNonLocalSource.newBuilder()
+                .setIndexGen(Long.valueOf(addDocumentResponse.getGenId()))
+                .setSuggestField("text")
+                .setWeightField("weight")
+                .setPayloadField("payload")
+                .setContextField("context")
+                .build());
+        BuildSuggestResponse response = grpcServer.getBlockingStub().buildSuggest(buildSuggestRequestBuilder.build());
+        // nocommit count isn't returned for stored fields source:
+        assertEquals(2, response.getCount());
+
+        SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+        suggestLookupBuilder.setText("the");
+        suggestLookupBuilder.setSuggestName("suggest");
+        suggestLookupBuilder.setIndexName("test_index");
+        suggestLookupBuilder.setHighlight(true);
+        //only need san fran Geohashes
+        List<String> geohashes = GeohashDocumentProducer.getGeoHashes(37.7749, -122.4194, 5, 7);
+        for (String geohash : geohashes) {
+            suggestLookupBuilder.addContexts(geohash);
+        }
+        SuggestLookupResponse suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+        List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+        assertEquals(1, results.size());
+        assertEquals(1, results.get(0).getWeight());
+        assertEquals("payload1", results.get(0).getPayload());
 
     }
 
+    private static class GeohashDocumentProducer {
+        AddDocumentResponse addDocumentResponse;
+
+        private static List<String> getGeoHashes(double latitude, double longitude, int minPrecision, int maxPrecision) {
+            List<String> geohashes = new ArrayList<>();
+            for (int i = minPrecision; i <= maxPrecision; i++) {
+                geohashes.add(GeohashUtils.encodeLatLon(latitude, longitude, i));
+            }
+            return geohashes;
+        }
+
+
+        private AddDocumentResponse indexDocs(GrpcServer grpcServer) throws InterruptedException {
+            List<String> sanFranGeohashes = getGeoHashes(37.7749, -122.4194, 5, 7);
+            List<String> fremontGeohashes = getGeoHashes(37.5485, -121.9886, 5, 7);
+
+            ArrayList<AddDocumentRequest> addDocumentRequests = new ArrayList<AddDocumentRequest>(
+                    Arrays.asList(
+                            AddDocumentRequest.newBuilder()
+                                    .setIndexName("test_index")
+                                    .putFields("text", AddDocumentRequest.MultiValuedField.newBuilder().addValue("the cat meows").build())
+                                    .putFields("weight", AddDocumentRequest.MultiValuedField.newBuilder().addValue(String.valueOf(1)).build())
+                                    .putFields("payload", AddDocumentRequest.MultiValuedField.newBuilder().addValue("payload1").build())
+                                    .putFields("context", AddDocumentRequest.MultiValuedField.newBuilder().addAllValue(sanFranGeohashes).build())
+                                    .build(),
+                            AddDocumentRequest.newBuilder()
+                                    .setIndexName("test_index")
+                                    .putFields("text", AddDocumentRequest.MultiValuedField.newBuilder().addValue("the dog barks").build())
+                                    .putFields("weight", AddDocumentRequest.MultiValuedField.newBuilder().addValue(String.valueOf(2)).build())
+                                    .putFields("payload", AddDocumentRequest.MultiValuedField.newBuilder().addValue("payload2").build())
+                                    .putFields("context", AddDocumentRequest.MultiValuedField.newBuilder().addAllValue(fremontGeohashes).build())
+                                    .build())
+            );
+
+            CountDownLatch finishLatch = new CountDownLatch(1);
+            AddDocumentResponse addDocResponse;
+            //observers responses from Server(should get one onNext and oneCompleted)
+            StreamObserver<AddDocumentResponse> responseStreamObserver = new StreamObserver<AddDocumentResponse>() {
+                @Override
+                public void onNext(AddDocumentResponse value) {
+                    addDocumentResponse = value;
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    finishLatch.countDown();
+                }
+
+                @Override
+                public void onCompleted() {
+                    finishLatch.countDown();
+                }
+            };
+
+            //requestObserver sends requests to Server (one onNext per AddDocumentRequest and one onCompleted)
+            StreamObserver<AddDocumentRequest> requestObserver = grpcServer.getStub().addDocuments(responseStreamObserver);
+            for (AddDocumentRequest addDocumentRequest : addDocumentRequests) {
+                requestObserver.onNext(addDocumentRequest);
+            }
+            // Mark the end of requests
+            requestObserver.onCompleted();
+            // Receiving happens asynchronously, so block here 5 seconds
+            if (!finishLatch.await(5, TimeUnit.SECONDS)) {
+                throw new RuntimeException("addDocuments can not finish within 5 seconds");
+            }
+
+            return addDocumentResponse;
+        }
+    }
 }

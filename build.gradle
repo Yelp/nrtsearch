@@ -33,6 +33,7 @@ def luceneVersion = '8.2.0'
 def slf4jVersion = '2.0.0-alpha0'
 def gsonVersion = '2.8.5'
 def snakeYamlVersion = '1.25'
+def spatial4jVersion = '0.7'
 
 dependencies {
     //grpc deps
@@ -75,6 +76,7 @@ dependencies {
     testImplementation "junit:junit:4.12"
     testImplementation "org.mockito:mockito-core:2.25.1"
     testImplementation "org.apache.lucene:lucene-test-framework:${luceneVersion}"
+    testImplementation "org.locationtech.spatial4j:spatial4j:${spatial4jVersion}"
 
 }
 
