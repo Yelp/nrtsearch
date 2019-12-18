@@ -206,6 +206,53 @@ public class IndexState implements Closeable {
     }
 
     /**
+     * True if this index has at least one commit.
+     */
+    public boolean hasCommit() throws IOException {
+        return saveLoadState.getNextWriteGen() != 0;
+    }
+
+    /**
+     * Record that this snapshot id refers to the current generation, returning it.
+     */
+    public synchronized long incRefLastCommitGen() throws IOException {
+        long nextGen = saveLoadState.getNextWriteGen();
+        if (nextGen == 0) {
+            throw new IllegalStateException("no commit exists");
+        }
+        long result = nextGen - 1;
+        incRef(result);
+        return result;
+    }
+
+    private synchronized void incRef(long stateGen) throws IOException {
+        Integer rc = genRefCounts.get(stateGen);
+        if (rc == null) {
+            genRefCounts.put(stateGen, 1);
+        } else {
+            genRefCounts.put(stateGen, 1 + rc.intValue());
+        }
+        saveLoadGenRefCounts.save(genRefCounts);
+    }
+
+    /**
+     * Drop this snapshot from the references.
+     */
+    public synchronized void decRef(long stateGen) throws IOException {
+        Integer rc = genRefCounts.get(stateGen);
+        if (rc == null) {
+            throw new IllegalArgumentException("stateGen=" + stateGen + " is not held by a snapshot");
+        }
+        assert rc.intValue() > 0;
+        if (rc.intValue() == 1) {
+            genRefCounts.remove(stateGen);
+        } else {
+            genRefCounts.put(stateGen, rc.intValue() - 1);
+        }
+        saveLoadGenRefCounts.save(genRefCounts);
+    }
+
+    /**
      * Tracks snapshot references to generations.
      */
     private static class SaveLoadRefCounts extends GenFileUtil<Map<Long, Integer>> {
@@ -1112,12 +1159,27 @@ public class IndexState implements Closeable {
         /**
          * Sole constructor.
          */
-        public Gens(long indexGen, long taxoGen, long stateGen, String id) {
-            this.indexGen = indexGen;
-            this.taxoGen = taxoGen;
-            this.stateGen = stateGen;
+        public Gens(String id, String param) {
             this.id = id;
+            final String[] gens = id.split(":");
+            if (gens.length != 3) {
+                throw new RuntimeException("invalid snapshot id \"" + id + "\": must be format N:M:O");
+            }
+            long indexGen1 = -1;
+            long taxoGen1 = -1;
+            long stateGen1 = -1;
+            try {
+                indexGen1 = Long.parseLong(gens[0]);
+                taxoGen1 = Long.parseLong(gens[1]);
+                stateGen1 = Long.parseLong(gens[2]);
+            } catch (Exception e) {
+                throw new RuntimeException("invalid snapshot id \"" + id + "\": must be format N:M:O");
+            }
+            indexGen = indexGen1;
+            taxoGen = taxoGen1;
+            stateGen = stateGen1;
         }
+
     }
 
     /**

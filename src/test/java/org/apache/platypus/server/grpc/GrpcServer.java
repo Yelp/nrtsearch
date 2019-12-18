@@ -83,10 +83,14 @@ public class GrpcServer {
         if (luceneServer != null && luceneServerManagedChannel != null) {
             luceneServer.shutdown();
             luceneServerManagedChannel.shutdown();
+            luceneServer = null;
+            luceneServerManagedChannel = null;
         }
         if (replicationServer != null && replicationServerManagedChannel != null) {
             replicationServer.shutdown();
             replicationServerManagedChannel.shutdown();
+            replicationServer = null;
+            replicationServerStub = null;
         }
     }
 
@@ -138,8 +142,6 @@ public class GrpcServer {
             stub = null;
             luceneServer = null;
             luceneServerManagedChannel = null;
-
-
         }
 
     }
