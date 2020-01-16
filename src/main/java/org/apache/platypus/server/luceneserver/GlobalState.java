@@ -111,6 +111,10 @@ public class GlobalState implements Closeable {
         return port;
     }
 
+    public Path getStateDir() {
+        return stateDir;
+    }
+
     //need to call this first time LuceneServer comes up
     private void loadIndexNames() throws IOException {
         long gen = IndexState.getLastGen(stateDir, "indices");

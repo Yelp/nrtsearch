@@ -662,6 +662,46 @@ public class LuceneServer {
                         .asRuntimeException());
             }
         }
+
+        @Override
+        public void createSnapshot(CreateSnapshotRequest createSnapshotRequest, StreamObserver<CreateSnapshotResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(createSnapshotRequest.getIndexName());
+                CreateSnapshotHandler createSnapshotHandler = new CreateSnapshotHandler();
+                CreateSnapshotResponse reply = createSnapshotHandler.handle(indexState, createSnapshotRequest);
+                logger.info(String.format("CreateSnapshotHandler returned results %s", reply.toString()));
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn(String.format("error while trying to createSnapshot for index %s", createSnapshotRequest.getIndexName()), e);
+                responseObserver.onError(Status
+                        .UNKNOWN
+                        .withDescription(String.format("error while trying to createSnapshot for index %s", createSnapshotRequest.getIndexName()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+        @Override
+        public void releaseSnapshot(ReleaseSnapshotRequest releaseSnapshotRequest, StreamObserver<ReleaseSnapshotResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(releaseSnapshotRequest.getIndexName());
+                ReleaseSnapshotHandler releaseSnapshotHandler = new ReleaseSnapshotHandler();
+                ReleaseSnapshotResponse reply = releaseSnapshotHandler.handle(indexState, releaseSnapshotRequest);
+                logger.info(String.format("CreateSnapshotHandler returned results %s", reply.toString()));
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn(String.format("error while trying to releaseSnapshott for index %s", releaseSnapshotRequest.getIndexName()), e);
+                responseObserver.onError(Status
+                        .UNKNOWN
+                        .withDescription(String.format("error while trying to releaseSnapshott for index %s", releaseSnapshotRequest.getIndexName()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+
+        }
+
     }
 
     static class ReplicationServerImpl extends ReplicationServerGrpc.ReplicationServerImplBase {

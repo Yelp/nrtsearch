@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import io.grpc.testing.GrpcCleanupRule;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
-import org.apache.platypus.server.YelpReviewsTest;
+import org.apache.commons.io.FileUtils;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.junit.After;
 import org.junit.Before;
@@ -16,7 +16,6 @@ import org.junit.runners.JUnit4;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -45,18 +44,30 @@ public class LuceneServerTest {
 
     @After
     public void tearDown() throws IOException {
+        tearDownGrpcServer(null);
+    }
+
+    private void tearDownGrpcServer(Path stateRootDir) throws IOException {
         grpcServer.getGlobalState().close();
+        grpcServer.shutdown();
         rmDir(Paths.get(grpcServer.getRootDirName()));
+        if (stateRootDir != null) {
+            rmDir(stateRootDir); //stateDir (mapping of index_name: path index dir on disk)
+        }
     }
 
     @Before
     public void setUp() throws IOException {
+        grpcServer = setUpGrpcServer(null);
+    }
+
+    private GrpcServer setUpGrpcServer(Path rootDir) throws IOException {
         String nodeName = "server1";
         String rootDirName = "server1RootDirName1";
-        Path rootDir = folder.newFolder(rootDirName).toPath();
+        Path rootDir1 = rootDir == null ? folder.newFolder(rootDirName).toPath() : rootDir;
         String testIndex = "test_index";
-        GlobalState globalState = new GlobalState(nodeName, rootDir, null, 9000, 9000);
-        grpcServer = new GrpcServer(grpcCleanup, folder, false, globalState,  rootDirName, testIndex, globalState.getPort());
+        GlobalState globalState = new GlobalState(nodeName, rootDir1, null, 9000, 9000);
+        return new GrpcServer(grpcCleanup, folder, false, globalState, rootDirName, testIndex, globalState.getPort());
     }
 
     @Test
@@ -132,7 +143,7 @@ public class LuceneServerTest {
         assertEquals(0, statsResponse.getOrd());
         assertEquals(0, statsResponse.getCurrentSearcher().getNumDocs());
         assertEquals("started", statsResponse.getState());
-        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, false,Mode.STANDALONE);
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
         testAddDocs.addDocuments();
         statsResponse = grpcServer.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
         assertEquals(2, statsResponse.getNumDocs());
@@ -191,7 +202,7 @@ public class LuceneServerTest {
 
     @Test
     public void testDeleteAllDocuments() throws IOException, InterruptedException {
-        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true,Mode.STANDALONE);
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
         //add 2 docs
         testAddDocs.addDocuments();
         //check stats numDocs for 2 docs
@@ -213,7 +224,7 @@ public class LuceneServerTest {
 
     @Test
     public void testDeleteIndex() throws IOException, InterruptedException {
-        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer,true, Mode.STANDALONE);
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
         //add 2 docs
         testAddDocs.addDocuments();
         //check stats numDocs for 2 docs
@@ -255,6 +266,51 @@ public class LuceneServerTest {
         checkHits(secondHit);
     }
 
+    @Test
+    public void testSnapshotRestore() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+        //Steps to backup an index
+        //1. commit
+        grpcServer.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+        //2. createSnapshot
+        grpcServer.getBlockingStub().createSnapshot(CreateSnapshotRequest.newBuilder().setIndexName("test_index").build());
+        //3. copy file over to remote storage
+        Path backUpDir = folder.newFolder("backup_data").toPath();
+        Path backUpStateDir = folder.newFolder("backup_state").toPath();
+        FileUtils.copyDirectory(Paths.get(grpcServer.getRootDirName()).toFile(), backUpDir.toFile());
+        FileUtils.copyDirectory(grpcServer.getGlobalState().getStateDir().toFile(), backUpStateDir.toFile());
+        //4. releaseSnapshot
+        grpcServer.getBlockingStub().releaseSnapshot(ReleaseSnapshotRequest.newBuilder().setIndexName("test_index").setId("1:1:0").build());
+        //5. stop server and remove data and state files.
+        tearDownGrpcServer(grpcServer.getGlobalState().getStateDir());
+        //Steps to restore an index
+        //1. restore files to originalDir
+        FileUtils.copyDirectory(backUpDir.toFile(), Paths.get(grpcServer.getRootDirName()).toFile());
+        FileUtils.copyDirectory(backUpStateDir.toFile(), grpcServer.getGlobalState().getStateDir().toFile());
+        //2. restart server and Index
+        grpcServer = setUpGrpcServer(grpcServer.getGlobalState().getStateDir());
+        new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(Mode.STANDALONE, 1, true);
+        //search
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(RETRIEVED_VALUES)
+                .build());
+        String response = searchResponse.getResponse();
+        Map<String, Object> resultMap = new Gson().fromJson(response, Map.class);
+        assertEquals(2.0, (double) resultMap.get("totalHits"), 0.01);
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) resultMap.get("hits");
+        assertEquals(2, ((List<Map<String, Object>>) resultMap.get("hits")).size());
+        Map<String, Object> firstHit = hits.get(0);
+        checkHits(firstHit);
+        Map<String, Object> secondHit = hits.get(1);
+        checkHits(secondHit);
+
+    }
+
     public static void checkHits(Map<String, Object> hit) {
         List<String> expectedHitFields = Arrays.asList("doc", "score", "fields");
         checkFieldNames(expectedHitFields, hit);
@@ -263,7 +319,7 @@ public class LuceneServerTest {
         checkFieldNames(expectedRetrieveFields, (Map<String, Object>) hit.get("fields"));
 
         String docId = ((List<String>) fields.get("doc_id")).get(0);
-        if(docId.equals("1")){
+        if (docId.equals("1")) {
             checkPerFieldValues(Arrays.asList("300", "3100"), (List<String>) fields.get("license_no"));
             checkPerFieldValues(Arrays.asList("first vendor", "first again"), (List<String>) fields.get("vendor_name"));
             checkPerFieldValues(Arrays.asList("first atom vendor", "first atom again"), (List<String>) fields.get("vendor_name_atom"));

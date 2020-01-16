@@ -69,6 +69,29 @@ service LuceneServer {
     rpc updateSuggest (BuildSuggestRequest) returns (BuildSuggestResponse) {
     }
 
+    /*
+    Creates a snapshot in the index, which is saved point-in-time view of the last commit
+    in the index such that no files referenced by that snapshot will be deleted by ongoing
+    indexing until the snapshot is released with @releaseSnapshot.  Note that this will
+    reference the last commit, so be sure to call commit first if you have pending changes
+    that you'd like to be included in the snapshot.
+    This can be used for backup purposes, i.e. after creating the snapshot you can copy
+    all referenced files to backup storage, and then release the snapshot once complete.
+    To restore the backup, just copy all the files back and restart the server.
+    It can also be used for transactional purposes, i.e. if you sometimes need to search a
+    specific snapshot instead of the current live index. Creating a snapshot is very fast
+    (does not require any file copying), but over time it will consume extra disk space as
+    old segments are merged in the index.  Be sure to release the snapshot once you're done.
+    Snapshots survive shutdown and restart of the server.  Returns all protected filenames
+    referenced by this snapshot: these files will not change and will not be deleted until
+    the snapshot is released.  This returns the directories and files referenced by the snapshot.
+    */
+    rpc createSnapshot (CreateSnapshotRequest) returns (CreateSnapshotResponse) {
+    }
+
+    /* releases a snapshot previously created with @createSnapshot. */
+    rpc releaseSnapshot (ReleaseSnapshotRequest) returns (ReleaseSnapshotResponse) {
+    }
 }
 
 //The ReplicationServer service definition.
@@ -539,6 +562,39 @@ message FuzzySuggester {
     bool unicodeAware = 12; //True if all edits are measured in unicode characters, not UTF-8 bytes
 }
 
+/*
+Creates a snapshot in the index, which is saved point-in-time view of the last commit in the
+index such that no files referenced by that snapshot will be deleted by ongoing indexing until
+the snapshot is released with @releaseSnapshot.  Note that this will reference the last commit,
+ so be sure to call commit first if you have pending changes that you'd like to be included in
+ the snapshot.<p>This can be used for backup purposes, i.e. after creating the snapshot you can
+ copy all referenced files to backup storage, and then release the snapshot once complete.
+ To restore the backup, just copy all the files back and restart the server.  It can also
+ be used for transactional purposes, i.e. if you sometimes need to search a specific snapshot
+ instead of the current live index.<p>Creating a snapshot is very fast (does not require any
+ file copying), but over time it will consume extra disk space as old segments are merged in
+ the index.  Be sure to release the snapshot once you're done.  Snapshots survive shutdown
+ and restart of the server.  Returns all protected filenames referenced by this snapshot:
+ these files will not change and will not be deleted until the snapshot is released.
+ This returns the directories and files referenced by the snapshot.
+ */
+message CreateSnapshotRequest {
+    string indexName = 1; //name of the index to snapshot;
+    bool openSearcher = 2; //Pass true if you intend to do searches against this snapshot, by passing searcher: {snapshot: X} to @search
+}
+
+message CreateSnapshotResponse {
+    string response = 1; //TODO dont use json string
+}
+
+message ReleaseSnapshotRequest {
+    string indexName = 1; // name of snapshotted index to be released
+    string id = 2; //The id for this snapshot; this must have been previously created via @createSnapshot.
+}
+
+message ReleaseSnapshotResponse {
+    bool success = 1; //true if successful
+}
 
 message AddReplicaRequest {
     int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
