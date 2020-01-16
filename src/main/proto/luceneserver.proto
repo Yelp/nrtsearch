@@ -173,6 +173,44 @@ enum FacetType {
     SORTED_SET_DOC_VALUES = 4; //"Use SortedSetDocValuesFacetCounts, which must be flat but don't require a taxonomy index
 }
 
+enum BooleanOccurType {
+    MUST = 0;
+    SHOULD = 1;
+    MUST_NOT = 2;
+    FILTER = 3;
+}
+
+message OccurClause {
+    BooleanOccurType occurType = 1; //which clause to use for the list of queries that follows
+    repeated BaseQuery baseQuery = 2;
+}
+
+//A Query that matches documents containing a particular sequence of terms (see @lucene:core:org.apache.lucene.search.PhraseQuery)
+message PhraseQuery {
+    repeated string terms = 1; //List of terms in the phrase
+    int64 slop = 2; //The number of other words permitted between words in the phrase.  If this is 0 (the default) then the phrase must be an exact match.
+}
+
+//A Query that matches documents containing terms with a specified prefix (see @lucene:core:org.apache.lucene.search.PrefixQuery)
+message PrefixQuery {
+    string term = 1; //Prefix text
+}
+
+//A Query that matches documents matching boolean combinations of other queries, e.g (see @lucene:core:org.apache.lucene.search.BooleanQuery)
+message BooleanQuery {
+    OccurClause occurClause =1 ;
+    bool disableCoord = 2;
+    int64 minimumNumberShouldMatch = 3;
+}
+
+message BaseQuery {
+    oneof QueryType {
+        PhraseQuery phraseQuery = 1; //A Query that matches documents containing a particular sequence of terms (see @lucene:core:org.apache.lucene.search.PhraseQuery)
+        PrefixQuery prefixQuery = 2; //A Query that matches documents containing terms with a specified prefix (see @lucene:core:org.apache.lucene.search.PrefixQuery)
+        BooleanQuery booleanQuery = 3;  ////A Query that matches documents matching boolean combinations of other queries, e.g (see @lucene:core:org.apache.lucene.search.BooleanQuery)
+    }
+}
+
 message Field {
     string name = 1; // name of the field
     FieldType type = 2;
