@@ -384,6 +384,53 @@ message Searcher {
     double staleAgeSeconds = 4; //how much time has passed since this searcher was the current (live) searcher
 }
 
+// A clause in a BooleanQuery.
+message BooleanClause {
+    // Defines how clauses may occur in matching documents.
+    enum Occur {
+        MUST = 0;
+        FILTER = 1;
+        SHOULD = 2;
+        MUST_NOT = 3;
+    }
+
+    Query query = 1; // The Query for the clause.
+    Occur occur = 2; // Specifies how this clause must occur in a matching document.
+}
+
+// A query that matches documents using boolean combinations of other queries.
+message BooleanQuery {
+    repeated BooleanClause clauses = 1; // Clauses for a boolean query.
+    int32 minimumNumberShouldMatch = 2; // Minimum number of optional clauses that must match.
+}
+
+// A Query that matches documents containing a particular sequence of terms.
+message PhraseQuery {
+    /* Edit distance between respective positions of terms as defined in this PhraseQuery and the positions
+       of terms in a document.
+    */
+    int32 slop = 1;
+    string field = 2; // The field in the index that this query applies to.
+    repeated string terms = 3; // Terms to match.
+}
+
+// Defines different types of QueryNodes.
+enum QueryType {
+    NONE = 0;
+    BOOLEAN_QUERY = 1;
+    PHRASE_QUERY = 2;
+}
+
+// Defines a full query consisting of a QueryNode which may be one of several types.
+message Query {
+    QueryType queryType = 1; // Type of the QueryNode
+
+    oneof QueryNode {
+        BooleanQuery booleanQuery = 2;
+        PhraseQuery phraseQuery = 3;
+    }
+}
+
 message SearchRequest {
     string indexName = 1; //index to search against
     int32 startHit = 2; // Which hit to start from (for pagination); default: 0
@@ -394,7 +441,7 @@ message SearchRequest {
     repeated string retrieveFields = 5; //Which fields to highlight or retrieve.
     string queryText = 6; //Query text to parse using the specified QueryParser.
     repeated VirtualField virtualFielsd = 7; //Defines virtual fields (name'd dynamic expressions) for this query.
-    string query = 8; //TODO: not implemented. Full query to execute using QueryNodes
+    Query query = 8; // Full query to execute using QueryNodes
     QuerySortField querySort = 9; //Sort hits by field (default is by relevance).
     oneof Searcher {
         int64 indexGen = 10; //Search a generation previously returned by an indexing operation such as #addDocument.  Use this to search a non-committed (near-real-time) view of the index.
