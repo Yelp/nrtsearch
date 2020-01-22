@@ -1,0 +1,23 @@
+{
+  "indexName": "yelp_suggest_test_3",
+  "field": [
+    {
+      "name": "score",
+      "type": "LONG",
+      "sort": true
+    },
+    {
+      "name": "payload",
+      "type": "TEXT",
+      "store": true,
+      "search": false
+    },
+    {
+      "name": "geo_context",
+      "type": "TEXT",
+      "store": true,
+      "search": false,
+      "multiValued": true
+    }
+  ]
+}
