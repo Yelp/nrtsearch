@@ -87,7 +87,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         {
             timestampSec = System.currentTimeMillis() / 1000;
         }
-        //TODO: Lazy!!, using JsonObject for returning results for now (replace with protobuff later)
+
         var diagnostics = SearchResponse.Diagnostics.newBuilder();
 
         final Map<String, FieldDef> dynamicFields = getDynamicFields(shardState, searchRequest);
