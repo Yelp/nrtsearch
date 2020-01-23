@@ -1,6 +1,5 @@
 package org.apache.platypus.server.grpc;
 
-import com.google.gson.Gson;
 import io.grpc.testing.GrpcCleanupRule;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.junit.After;
@@ -15,8 +14,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
 import static org.apache.platypus.server.grpc.LuceneServerTest.RETRIEVED_VALUES;
@@ -179,19 +176,17 @@ public class ReplicationServerTest {
 
         searchResponseSecondary.getResponse();
 
-        validateSearchResults(searchResponsePrimary.getResponse());
-        validateSearchResults(searchResponseSecondary.getResponse());
+        validateSearchResults(searchResponsePrimary);
+        validateSearchResults(searchResponseSecondary);
 
     }
 
-    public static void validateSearchResults(String searchResponse) {
-        Map<String, Object> resultMap = new Gson().fromJson(searchResponse, Map.class);
-        assertEquals(4.0, (double) resultMap.get("totalHits"), 0.01);
-        List<Map<String, Object>> hits = (List<Map<String, Object>>) resultMap.get("hits");
-        assertEquals(4, ((List<Map<String, Object>>) resultMap.get("hits")).size());
-        Map<String, Object> firstHit = hits.get(0);
+    public static void validateSearchResults(SearchResponse searchResponse) {
+        assertEquals(4, searchResponse.getTotalHits());
+        assertEquals(4, searchResponse.getHitsList().size());
+        SearchResponse.Hit firstHit = searchResponse.getHits(0);
         checkHits(firstHit);
-        Map<String, Object> secondHit = hits.get(1);
+        SearchResponse.Hit secondHit = searchResponse.getHits(1);
         checkHits(secondHit);
 
     }

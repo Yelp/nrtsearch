@@ -1,10 +1,8 @@
 package org.apache.platypus.server.grpc;
 
-import com.google.gson.Gson;
 import io.grpc.testing.GrpcCleanupRule;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
 import org.apache.commons.io.FileUtils;
+import org.apache.platypus.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.junit.After;
 import org.junit.Before;
@@ -15,12 +13,10 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 import java.io.IOException;
-import java.io.Reader;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.*;
@@ -255,14 +251,11 @@ public class LuceneServerTest {
                 .addAllRetrieveFields(RETRIEVED_VALUES)
                 .build());
 
-        String response = searchResponse.getResponse();
-        Map<String, Object> resultMap = new Gson().fromJson(response, Map.class);
-        assertEquals(2.0, (double) resultMap.get("totalHits"), 0.01);
-        List<Map<String, Object>> hits = (List<Map<String, Object>>) resultMap.get("hits");
-        assertEquals(2, ((List<Map<String, Object>>) resultMap.get("hits")).size());
-        Map<String, Object> firstHit = hits.get(0);
+        assertEquals(2, searchResponse.getTotalHits());
+        assertEquals(2, searchResponse.getHitsList().size());
+        SearchResponse.Hit firstHit = searchResponse.getHits(0);
         checkHits(firstHit);
-        Map<String, Object> secondHit = hits.get(1);
+        SearchResponse.Hit secondHit = searchResponse.getHits(1);
         checkHits(secondHit);
     }
 
@@ -298,14 +291,10 @@ public class LuceneServerTest {
                         .build())
                 .build());
 
-        String response = searchResponse.getResponse();
-        Map<String, Object> resultMap = new Gson().fromJson(response, Map.class);
-        assertEquals(1.0, (double) resultMap.get("totalHits"), 0.01);
-        List<Map<String, Object>> hits = (List<Map<String, Object>>) resultMap.get("hits");
-        assertEquals(1, ((List<Map<String, Object>>) resultMap.get("hits")).size());
-        Map<String, Object> hit = hits.get(0);
-        Map<String, Object> fields = (Map<String, Object>) hit.get("fields");
-        String docId = ((List<String>) fields.get("doc_id")).get(0);
+        assertEquals(1, searchResponse.getTotalHits());
+        assertEquals(1, searchResponse.getHitsList().size());
+        SearchResponse.Hit hit = searchResponse.getHits(0);
+        String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
         assertEquals("1", docId);
         checkHits(hit);
     }
@@ -334,14 +323,10 @@ public class LuceneServerTest {
                         .build())
                 .build());
 
-        String response = searchResponse.getResponse();
-        Map<String, Object> resultMap = new Gson().fromJson(response, Map.class);
-        assertEquals(1.0, (double) resultMap.get("totalHits"), 0.01);
-        List<Map<String, Object>> hits = (List<Map<String, Object>>) resultMap.get("hits");
-        assertEquals(1, ((List<Map<String, Object>>) resultMap.get("hits")).size());
-        Map<String, Object> hit = hits.get(0);
-        Map<String, Object> fields = (Map<String, Object>) hit.get("fields");
-        String docId = ((List<String>) fields.get("doc_id")).get(0);
+        assertEquals(1, searchResponse.getTotalHits());
+        assertEquals(1, searchResponse.getHitsList().size());
+        SearchResponse.Hit hit = searchResponse.getHits(0);
+        String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
         assertEquals("2", docId);
         checkHits(hit);
     }
@@ -379,43 +364,51 @@ public class LuceneServerTest {
                 .setTopHits(10)
                 .addAllRetrieveFields(RETRIEVED_VALUES)
                 .build());
-        String response = searchResponse.getResponse();
-        Map<String, Object> resultMap = new Gson().fromJson(response, Map.class);
-        assertEquals(2.0, (double) resultMap.get("totalHits"), 0.01);
-        List<Map<String, Object>> hits = (List<Map<String, Object>>) resultMap.get("hits");
-        assertEquals(2, ((List<Map<String, Object>>) resultMap.get("hits")).size());
-        Map<String, Object> firstHit = hits.get(0);
+        assertEquals(2, searchResponse.getTotalHits());
+        assertEquals(2, searchResponse.getHitsList().size());
+        SearchResponse.Hit firstHit = searchResponse.getHits(0);
         checkHits(firstHit);
-        Map<String, Object> secondHit = hits.get(1);
+        SearchResponse.Hit secondHit = searchResponse.getHits(1);
         checkHits(secondHit);
 
     }
 
-    public static void checkHits(Map<String, Object> hit) {
-        List<String> expectedHitFields = Arrays.asList("doc", "score", "fields");
-        checkFieldNames(expectedHitFields, hit);
-        Map<String, Object> fields = (Map<String, Object>) hit.get("fields");
+    public static void checkHits(SearchResponse.Hit hit) {
+        Map<String, CompositeFieldValue> fields = hit.getFieldsMap();
         List<String> expectedRetrieveFields = RETRIEVED_VALUES;
-        checkFieldNames(expectedRetrieveFields, (Map<String, Object>) hit.get("fields"));
+        checkFieldNames(expectedRetrieveFields, fields);
 
-        String docId = ((List<String>) fields.get("doc_id")).get(0);
+        checkType(FieldType.TEXT, fields.get("doc_id"));
+        String docId = fields.get("doc_id").getFieldValue(0).getTextValue();
+
+        List<String> expectedLicenseNo = null;
+        List<String> expectedVendorName = null;
+        List<String> expectedVendorNameAtom = null;
+
         if (docId.equals("1")) {
-            checkPerFieldValues(Arrays.asList("300", "3100"), (List<String>) fields.get("license_no"));
-            checkPerFieldValues(Arrays.asList("first vendor", "first again"), (List<String>) fields.get("vendor_name"));
-            checkPerFieldValues(Arrays.asList("first atom vendor", "first atom again"), (List<String>) fields.get("vendor_name_atom"));
+            expectedLicenseNo = Arrays.asList("300", "3100");
+            expectedVendorName = Arrays.asList("first vendor", "first again");
+            expectedVendorNameAtom = Arrays.asList("first atom vendor", "first atom again");
         } else if (docId.equals("2")) {
-            checkPerFieldValues(Arrays.asList("411", "4222"), (List<String>) fields.get("license_no"));
-            checkPerFieldValues(Arrays.asList("second vendor", "second again"), (List<String>) fields.get("vendor_name"));
-            checkPerFieldValues(Arrays.asList("second atom vendor", "second atom again"), (List<String>) fields.get("vendor_name_atom"));
-
+            expectedLicenseNo = Arrays.asList("411", "4222");
+            expectedVendorName = Arrays.asList("second vendor", "second again");
+            expectedVendorNameAtom = Arrays.asList("second atom vendor", "second atom again");
         } else {
-            assertFalse(String.format("docIdd %s not indexed", docId), true);
+            fail(String.format("docId %s not indexed", docId));
         }
+
+        checkType(FieldType.LONG, fields.get("license_no"));
+        checkType(FieldType.TEXT, fields.get("vendor_name"));
+        checkType(FieldType.TEXT, fields.get("vendor_name_atom"));
+
+        checkPerFieldValues(expectedLicenseNo, getLongFieldValuesListAsString(fields.get("license_no").getFieldValueList()));
+        checkPerFieldValues(expectedVendorName, getStringFieldValuesList(fields.get("vendor_name").getFieldValueList()));
+        checkPerFieldValues(expectedVendorNameAtom, getStringFieldValuesList(fields.get("vendor_name_atom").getFieldValueList()));
+
     }
 
-    public static void checkFieldNames(List<String> expectedNames, Map<String, Object> actualNames) {
-        List<String> hitFields = new ArrayList<>();
-        hitFields.addAll(actualNames.keySet());
+    public static void checkFieldNames(List<String> expectedNames, Map<String, CompositeFieldValue> actualNames) {
+        List<String> hitFields = new ArrayList<>(actualNames.keySet());
         Collections.sort(expectedNames);
         Collections.sort(hitFields);
         assertEquals(expectedNames, hitFields);
@@ -427,11 +420,20 @@ public class LuceneServerTest {
         assertEquals(expectedValues, actualValues);
     }
 
-    private Stream<AddDocumentRequest> getAddDocumentRequestStream() throws IOException {
-        Path filePath = Paths.get("src", "test", "resources", "addDocs.csv");
-        Reader reader = Files.newBufferedReader(filePath);
-        CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
-        return new LuceneServerClientBuilder.AddDcoumentsClientBuilder(grpcServer.getTestIndex(), csvParser).buildRequest(filePath);
+    private static List<String> getLongFieldValuesListAsString(List<SearchResponse.Hit.FieldValue> fieldValues) {
+        return fieldValues.stream()
+                .map(fieldValue -> String.valueOf(fieldValue.getLongValue()))
+                .collect(Collectors.toList());
+    }
+
+    private static List<String> getStringFieldValuesList(List<SearchResponse.Hit.FieldValue> fieldValues) {
+        return fieldValues.stream()
+                .map(SearchResponse.Hit.FieldValue::getTextValue)
+                .collect(Collectors.toList());
+    }
+
+    private static void checkType(FieldType expectedType, CompositeFieldValue fieldValue) {
+        assertEquals(expectedType, fieldValue.getFieldType());
     }
 
 }

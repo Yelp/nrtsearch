@@ -1,0 +1,27 @@
+/* Common message types used within other message types */
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "org.apache.platypus.server.grpc";
+option java_outer_classname = "CommonProto";
+option objc_class_prefix = "HLW";
+
+package luceneserver;
+
+//Type of the field
+enum FieldType {
+    EMPTY_FIELD = 0;
+    ATOM = 1; // Text that's indexed as a single token, with DOCS_ONLY and omitting norms.
+    TEXT = 2; // Text that's tokenized and indexed, with the index-time analyzer.
+    BOOLEAN = 3; // Boolean value.
+    LONG = 4; //Long value.
+    INT = 5; // Int value.
+    DOUBLE = 6; //Double value.
+    FLOAT = 7; // Float value.
+    LAT_LON = 8; // A latitude/longitude point.
+    DATE_TIME = 9; // Date and optional time.
+    // TODO name this "dynamic" instead of "virtual"?
+    VIRTUAL = 10; // Virtual field defined with a JavaScript expression.
+    // TODO need tests for internal:
+    INTERNAL = 11; //Internal field, currently only for holding indexed facets data.
+}

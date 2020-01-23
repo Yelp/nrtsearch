@@ -1,9 +1,7 @@
 package org.apache.platypus.server.grpc;
 
-import com.google.gson.Gson;
 import io.grpc.testing.GrpcCleanupRule;
 import org.apache.platypus.server.luceneserver.GlobalState;
-import org.apache.platypus.server.luceneserver.IndexState;
 import org.apache.platypus.server.luceneserver.ShardState;
 import org.junit.After;
 import org.junit.Before;
@@ -15,11 +13,8 @@ import org.junit.runners.JUnit4;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
-import java.util.Map;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
 import static org.apache.platypus.server.grpc.LuceneServerTest.RETRIEVED_VALUES;
@@ -235,7 +230,7 @@ public class ReplicationTestFailureScenarios {
                 .addAllRetrieveFields(RETRIEVED_VALUES)
                 .build());
 
-        validateSearchResults(4, searchResponsePrimary.getResponse());
+        validateSearchResults(4, searchResponsePrimary);
     }
 
     @Test
@@ -317,7 +312,7 @@ public class ReplicationTestFailureScenarios {
                 .addAllRetrieveFields(RETRIEVED_VALUES)
                 .build());
 
-        validateSearchResults(22, searchResponsePrimary.getResponse());
+        validateSearchResults(22, searchResponsePrimary);
     }
 
     private void gracefullRestartSecondary() {
@@ -362,18 +357,16 @@ public class ReplicationTestFailureScenarios {
                 .addAllRetrieveFields(RETRIEVED_VALUES)
                 .build());
 
-        validateSearchResults(numDocs, searchResponsePrimary.getResponse());
-        validateSearchResults(numDocs, searchResponseSecondary.getResponse());
+        validateSearchResults(numDocs, searchResponsePrimary);
+        validateSearchResults(numDocs, searchResponseSecondary);
     }
 
-    public static void validateSearchResults(int numHitsExpected, String searchResponse) {
-        Map<String, Object> resultMap = new Gson().fromJson(searchResponse, Map.class);
-        assertEquals(numHitsExpected, (double) resultMap.get("totalHits"), 0.01);
-        List<Map<String, Object>> hits = (List<Map<String, Object>>) resultMap.get("hits");
-        assertEquals(numHitsExpected, ((List<Map<String, Object>>) resultMap.get("hits")).size());
-        Map<String, Object> firstHit = hits.get(0);
+    public static void validateSearchResults(int numHitsExpected, SearchResponse searchResponse) {
+        assertEquals(numHitsExpected, searchResponse.getTotalHits());
+        assertEquals(numHitsExpected, searchResponse.getHitsList().size());
+        SearchResponse.Hit firstHit = searchResponse.getHits(0);
         checkHits(firstHit);
-        Map<String, Object> secondHit = hits.get(1);
+        SearchResponse.Hit secondHit = searchResponse.getHits(1);
         checkHits(secondHit);
     }
 
