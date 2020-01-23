@@ -18,6 +18,12 @@
       "store": true,
       "search": false,
       "multiValued": true
+    },
+    {
+      "name": "localized_completed_text",
+      "type": "TEXT",
+      "store": true,
+      "search": true
     }
   ]
 }

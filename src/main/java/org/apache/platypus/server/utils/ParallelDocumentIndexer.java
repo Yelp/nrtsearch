@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
@@ -20,12 +19,11 @@ public class ParallelDocumentIndexer {
     private static final int DOCS_PER_INDEX_REQUEST = 1000;
 
     public static List<Future<Long>> buildAndIndexDocs(OneDocBuilder oneDocBuilder, Path path, ExecutorService executorService, LuceneServerClient luceneServerClient)
-            throws IOException, ExecutionException, InterruptedException {
+            throws IOException, InterruptedException {
         try (BufferedReader br = new BufferedReader(new FileReader(path.toFile()))) {
             String line;
             List<String> rawLines = new ArrayList();
             List<Future<Long>> futures = new ArrayList<>();
-            int lines = 0;
             while ((line = br.readLine()) != null) {
                 if (rawLines.size() < DOCS_PER_INDEX_REQUEST) {
                     rawLines.add(line);
@@ -35,7 +33,6 @@ public class ParallelDocumentIndexer {
                     List<String> copiedRawLines = new ArrayList<>(rawLines);
                     Future<Long> genIdFuture = submitTask(oneDocBuilder, executorService, luceneServerClient, copiedRawLines);
                     futures.add(genIdFuture);
-                    lines += rawLines.size();
                     rawLines.clear();
                 }
             }
@@ -44,9 +41,7 @@ public class ParallelDocumentIndexer {
                 logger.info(String.format("Launching DocumentGeneratorAndIndexer task for %s docs", rawLines.size()));
                 Future<Long> genIdFuture = submitTask(oneDocBuilder, executorService, luceneServerClient, rawLines);
                 futures.add(genIdFuture);
-                lines += rawLines.size();
             }
-            System.out.println("LINES size" + lines);
             return futures;
         }
     }

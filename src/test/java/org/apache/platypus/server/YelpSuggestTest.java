@@ -1,9 +1,8 @@
 package org.apache.platypus.server;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
+
 import java.io.IOException;
-import java.nio.file.Files;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -16,97 +15,33 @@ import java.util.stream.Stream;
 
 import com.google.gson.Gson;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
-import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.grpc.*;
-import org.apache.platypus.server.luceneserver.GlobalState;
 import org.apache.platypus.server.utils.OneDocBuilder;
 import org.apache.platypus.server.utils.ParallelDocumentIndexer;
-import org.junit.rules.TemporaryFolder;
 import org.locationtech.spatial4j.io.GeohashUtils;
 
-import static org.apache.platypus.server.YelpReviewsTest.startIndex;
 
-public class YelpSuggestTest {
-
-
-//    TemporaryFolder folder = new TemporaryFolder();
-//    String nodeName = "serverSuggest";
-//    String rootDirName = "testSuggestjava";
-//    Path rootDir = folder.newFolder(rootDirName).toPath();
-//    String testIndex = "test_index";
-//    private LuceneServerConfiguration luceneServerConfiguration;
-//    private final LuceneServerGrpc.LuceneServerBlockingStub blockingStub = new LuceneServerGrpc.LuceneServerBlockingStub();
-//
-//
-//
-//    GlobalState globalState = new GlobalState(nodeName, rootDir, null, 14700, 14700);
-//
-//
-//    private LuceneServer.LuceneServerImpl myserver = new LuceneServer.LuceneServerImpl(globalState);
-//
-//
-//    public yelpSuggest(LuceneServerConfiguration luceneServerConfiguration) throws IOException {
-//        this.luceneServerConfiguration = luceneServerConfiguration;
-//    }
-
-//    private void createIndex() throws IOException{
-//        // create req and stream and call
-//        //  createIndex(CreateIndexRequest req, StreamObserver<CreateIndexResponse> responseObserver)
-//
-////        StreamObserver<CreateIndexResponse> responseObserver = new StreamObserver<CreateIndexResponse>();
-////
-////        CreateIndexRequest createIndexRequest = CreateIndexRequest.newBuilder().setIndexName(testIndex).setRootDir(rootDirName).build();
-////        this.myserver.createIndex(createIndexRequest, );
-//
-//    }
+public class YelpSuggestTest extends YelpBaseTest {
+    private static final String SUGGESTIONS_FILE_PATH =
+            Paths.get("src", "test", "resources", "yelp_5_business_suggestions.json").toAbsolutePath().toString();
 
 
     public static final String INDEX_NAME = "yelp_suggest_test_3";
-    public static final String SUGGEST_NAME_DEFAULT = "suggest_default";
-
-    private static void liveSettings(LuceneServerClient serverClient) {
-        LiveSettingsRequest liveSettingsRequest = LiveSettingsRequest.newBuilder()
-                .setIndexName(INDEX_NAME)
-                .setIndexRamBufferSizeMB(256.0)
-                .setMaxRefreshSec(1.0)
-                .build();
-        LiveSettingsResponse liveSettingsResponse = serverClient.getBlockingStub().liveSettings(liveSettingsRequest);
-//        logger.info(liveSettingsResponse.getResponse());
-    }
-
-    private static void registerFields(LuceneServerClient serverClient) throws IOException {
-//        String registerFieldsJson = Files.readString(Paths.get("/Users/fzz/platypus/src/test/resources/registerFieldsYelpSuggestTestPayload.json"));
-        String registerFieldsJson = Files.readString(Paths.get("/Users/fzz/platypus/src/test/resources/registerFieldsYelpSuggestTest.json"));
-
-        FieldDefRequest fieldDefRequest = YelpReviewsTest.getFieldDefRequest(registerFieldsJson);
-        FieldDefResponse fieldDefResponse = serverClient.getBlockingStub().registerFields(fieldDefRequest);
-//        logger.info(fieldDefResponse.getResponse());
-    }
-
-    private static void createIndex(LuceneServerClient serverClient, Path dir) {
-        CreateIndexResponse response = serverClient.getBlockingStub().createIndex(
-                CreateIndexRequest.newBuilder()
-                        .setIndexName(INDEX_NAME)
-                        .setRootDir(dir.resolve("index").toString())
-                        .build());
-//        logger.info(response.getResponse());
-    }
-
 
     private static void setUpIndex(LuceneServerClient standaloneServerClient, Path standaloneDir) throws IOException, ExecutionException, InterruptedException {
-        // create index if not exist
+        // create index if it does not exist
         try {
-            createIndex(standaloneServerClient, standaloneDir);
+            createIndex(standaloneServerClient, standaloneDir, INDEX_NAME);
         } catch(StatusRuntimeException e){
             if (!e.getStatus().getCode().name().equals("ALREADY_EXISTS"))
                 throw e;
         }
-        //live settings
-        liveSettings(standaloneServerClient);
-        // INFO: LiveSettingsHandler returned response: "{\"maxRefreshSec\":1.0,\"indexRamBufferSizeMB\":256.0}"
-        //register fields aka add mapping , catch `java.lang.IllegalArgumentException: field "localized_completed_text" was already registered`
-        registerFields(standaloneServerClient);
+        //add live settings
+        liveSettings(standaloneServerClient, INDEX_NAME);
+
+        // register fields
+        registerFields(standaloneServerClient,  Paths.get("src", "test", "resources", "registerFieldsYelpSuggestTestPayload.json").toAbsolutePath().toString());
+
         // start index
         StartIndexRequest startIndexRequest = StartIndexRequest.newBuilder()
                 .setIndexName(INDEX_NAME)
@@ -123,9 +58,8 @@ public class YelpSuggestTest {
                 (Runtime.getRuntime().availableProcessors()) / 4,
                 "LuceneIndexing");
 
-//        Path suggestionsPath = Paths.get("/Users/fzz/platypus/src/test/resources/business_index_results_prod_10012020.json");
-        Path suggestionsPath = Paths.get("/Users/fzz/platypus/src/test/resources/business_index_results.json");
-//        Path suggestionsPath = Paths.get("/Users/fzz/platypus/src/test/resources/business_index_results_2500.json");
+        Path suggestionsPath = Paths.get(SUGGESTIONS_FILE_PATH);
+
 
         List<Future<Long>> results = ParallelDocumentIndexer.buildAndIndexDocs(
                 new OneDocBuilderImpl(),
@@ -134,12 +68,11 @@ public class YelpSuggestTest {
                 standaloneServerClient
         );
 
-        //wait till all indexing done and notify search thread once done
+        //wait till all indexing done
         for (Future<Long> each : results) {
             try {
                 Long genId = each.get();
-//            logger.info(String.format("ParallelDocumentIndexer.buildAndIndexDocs returned genId: %s", genId));
-
+                logger.info(String.format("ParallelDocumentIndexer.buildAndIndexDocs returned genId: %s", genId));
             }
             catch (ExecutionException | InterruptedException futureException){
                 System.out.println(futureException.getCause());
@@ -148,11 +81,29 @@ public class YelpSuggestTest {
         long t2 = System.nanoTime();
 
         System.out.println(
-                String.format("it took %s to index dox", (t2 - t1))
+                String.format("IT took %s nanosecs to index documents", (t2 - t1))
         );
+
         // commit
         standaloneServerClient.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName(INDEX_NAME).build());
 
+    }
+
+    private static BuildSuggestResponse buildSuggester(LuceneServerClient standaloneServerClient){
+        BuildSuggestRequest.Builder buildSuggestRequestBuilder = BuildSuggestRequest.newBuilder();
+        buildSuggestRequestBuilder.setSuggestName("suggest_0");
+        buildSuggestRequestBuilder.setIndexName(INDEX_NAME);
+        buildSuggestRequestBuilder.setInfixSuggester(InfixSuggester.newBuilder().setAnalyzer("default").build());
+        buildSuggestRequestBuilder.setNonLocalSource(SuggestNonLocalSource.newBuilder()
+                .setSuggestField("localized_completed_text")
+                .setWeightField("score")
+                .setContextField("geo_context")
+                .setPayloadField("payload")
+                .build());
+
+        return standaloneServerClient.getBlockingStub().buildSuggest(
+                buildSuggestRequestBuilder.build()
+        );
     }
 
     public static void main(String[] args) throws IOException, Exception{
@@ -162,58 +113,12 @@ public class YelpSuggestTest {
         LuceneServerClient standaloneServerClient = new LuceneServerClient("dev83-uswest1adevc", 55886);
         Path standaloneDir = yelp_suggest_test_base_path.resolve("standalone_3");
 
-
-//        setUpIndex(standaloneServerClient, standaloneDir);
-
-
-
-        // TODO add exception handling
-
-
-
-//        int counter = 0;
-//        String oneLine =  reader.readLine();
-//        int linesread = 1;
-//        while(oneLine != null){
-//            linesread ++;
-//            builder.add(OneDocBuilderImpl.buildOneDoc(oneLine));
-//            counter ++;
-//            if (counter == 25000 || one_biz == null){
-//                System.out.println(String.format("Counter is %s LinesRead is %s", counter, linesread));
-//                counter = 0;
-//                Stream<AddDocumentRequest> addDocumentRequestStream = builder.build();
-//                try {
-//                    Long genId = new YelpReviewsTest.IndexerTask().index(standaloneServerClient, addDocumentRequestStream);
-//                }
-//                catch (Exception e){
-//                    e.printStackTrace();
-//                }
-//                        builder = Stream.builder();
-////                addDocumentRequestStream.close();
-//            }
-//        }
-
-
+        setUpIndex(standaloneServerClient, standaloneDir);
 
         // build Suggester
-//        BuildSuggestRequest.Builder buildSuggestRequestBuilder = BuildSuggestRequest.newBuilder();
-//        buildSuggestRequestBuilder.setSuggestName("suggest_0");
-//        buildSuggestRequestBuilder.setIndexName(INDEX_NAME);
-//        buildSuggestRequestBuilder.setInfixSuggester(InfixSuggester.newBuilder().setAnalyzer("default").build());
-//        buildSuggestRequestBuilder.setNonLocalSource(SuggestNonLocalSource.newBuilder()
-//                .setSuggestField("localized_completed_text")
-//                .setWeightField("score")
-//                .setContextField("geo_context")
-//                .build());
-//
-//        BuildSuggestResponse response = standaloneServerClient.getBlockingStub().buildSuggest(
-//                buildSuggestRequestBuilder.build()
-//        );
+        buildSuggester(standaloneServerClient);
 
-
-
-//        System.out.println(response.getCount());
-
+        // look up suggestions
         SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
         suggestLookupBuilder.setIndexName(INDEX_NAME);
         suggestLookupBuilder.setText("a");
@@ -221,7 +126,6 @@ public class YelpSuggestTest {
         suggestLookupBuilder.setHighlight(true);
 
         //Set SF lat lon lookup
-//        List<String> sanFranGeohashes = getGeoHashes(37.7749, -122.4194, 5, 7);
         List<String> sanFranGeohashes = getGeoHashes(37.785371, -122.459446, 5, 7);
 
         for (String geohash : sanFranGeohashes) {
@@ -252,33 +156,13 @@ public class YelpSuggestTest {
             AddDocumentRequest.Builder addDocumentRequestBuilder = AddDocumentRequest.newBuilder();
             addDocumentRequestBuilder.setIndexName(INDEX_NAME);
             BusinessSuggestionRecord one_biz = gson.fromJson(line, BusinessSuggestionRecord.class);
-
             try {
-                addField("category_aliases", one_biz.getCategory_aliases().toString(), addDocumentRequestBuilder);
-                addField("checkin_rate_per_day",
-                        one_biz.getCheckin_rate_per_day().toString(),
-                        addDocumentRequestBuilder);
-                addField("country", one_biz.getCountry(), addDocumentRequestBuilder);
-                addField("id",
-                        one_biz.getId().toString(), addDocumentRequestBuilder);
-                addField("language_alternate_names", one_biz.getLanguage_alternate_names().toString(), addDocumentRequestBuilder);
-                addField("localized_completed_text", one_biz.getLocalized_completed_text(), addDocumentRequestBuilder);
-                addField("location", List.of(
-                        one_biz.getLocationLat().toString(),
-                        one_biz.getLocationLon().toString()
-                ), addDocumentRequestBuilder);
-                addField("review_count", one_biz.getReview_count().toString(), addDocumentRequestBuilder);
-                addField("review_wilson_score",
-                        one_biz.getReview_wilson_score().toString(),
-                        addDocumentRequestBuilder);
+
                 addField("score",
                         one_biz.getScore().toString(),
                         addDocumentRequestBuilder);
-                addField("standardized_score",
-                        one_biz.getStandardized_score().toString(),
-                        addDocumentRequestBuilder);
-                addField("unique_id",
-                        one_biz.getUnique_id().toString(),
+                addField("payload",
+                        one_biz.toString(),
                         addDocumentRequestBuilder);
                 addField("geo_context",
                         getGeoHashes(
@@ -286,6 +170,7 @@ public class YelpSuggestTest {
                                 one_biz.getLocationLon(),
                                 5, 7),
                         addDocumentRequestBuilder);
+                addField("localized_completed_text", one_biz.getLocalized_completed_text(), addDocumentRequestBuilder);
             }
             catch (Exception hey){
                 System.out.println(hey.getLocalizedMessage());
@@ -294,5 +179,95 @@ public class YelpSuggestTest {
             return  addDocumentRequest;
         }
 
+    }
+
+    public static class BusinessSuggestionRecord {
+
+        private Long unique_id;
+        private Long score;
+        private Long id;
+        private String localized_completed_text;
+        private Map<String, Double> location;
+        private String country;
+        private Integer review_count;
+        private Double review_wilson_score;
+        private List<String> category_aliases;
+        private Double checkin_rate_per_day;
+        private Long standardized_score;
+        private List<Map<String, String>> language_alternate_names;
+
+        public Long getUnique_id() {
+            return unique_id;
+        }
+
+        public Long getScore() {
+            return score;
+        }
+
+        public Long getId() {
+            return id;
+        }
+
+        public String getLocalized_completed_text() {
+            return localized_completed_text;
+        }
+
+        public Map<String, Double> getLocation() {
+            return location;
+        }
+
+        public Double getLocationLat(){
+            return getLocation().get("y");
+        }
+
+        public Double getLocationLon(){
+            return getLocation().get("x");
+        }
+
+        @Override
+        public String toString() {
+            return "BusinessSuggestionRecord{" +
+                    "unique_id=" + unique_id +
+                    ", score=" + score +
+                    ", id=" + id +
+                    ", localized_completed_text='" + localized_completed_text + '\'' +
+                    ", location=" + location +
+                    ", country='" + country + '\'' +
+                    ", review_count=" + review_count +
+                    ", review_wilson_score=" + review_wilson_score +
+                    ", category_aliases=" + category_aliases +
+                    ", checkin_rate_per_day=" + checkin_rate_per_day +
+                    ", standardized_score=" + standardized_score +
+                    ", language_alternate_names=" + language_alternate_names +
+                    '}';
+        }
+
+        public String getCountry() {
+            return country;
+        }
+
+        public Integer getReview_count() {
+            return review_count;
+        }
+
+        public Double getReview_wilson_score() {
+            return review_wilson_score;
+        }
+
+        public List<String> getCategory_aliases() {
+            return category_aliases;
+        }
+
+        public Double getCheckin_rate_per_day() {
+            return checkin_rate_per_day;
+        }
+
+        public Long getStandardized_score() {
+            return standardized_score;
+        }
+
+        public List<Map<String, String>> getLanguage_alternate_names() {
+            return language_alternate_names;
+        }
     }
 }

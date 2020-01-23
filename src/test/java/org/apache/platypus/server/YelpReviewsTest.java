@@ -48,11 +48,9 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-public class YelpReviewsTest {
-    private static final Logger logger = Logger.getLogger(YelpReviewsTest.class.getName());
+public class YelpReviewsTest extends YelpBaseTest {
     public static final String LUCENE_SERVER_CONFIGURATION_YAML = "lucene_server_configuration.yaml";
     public static final String INDEX_NAME = "yelp_reviews_test_0";
     public static final String CLIENT_LOG = "client.log";
@@ -223,13 +221,13 @@ public class YelpReviewsTest {
 
         try {
             //create indexes
-            createIndex(primaryServerClient, primaryDir);
-            createIndex(secondaryServerClient, replicaDir);
+            createIndex(primaryServerClient, primaryDir, INDEX_NAME);
+            createIndex(secondaryServerClient, replicaDir, INDEX_NAME);
             //live settings -- only primary
-            liveSettings(primaryServerClient);
+            liveSettings(primaryServerClient, INDEX_NAME);
             //register
-            registerFields(primaryServerClient);
-            registerFields(secondaryServerClient);
+            registerFields(primaryServerClient, getPathAsStr("register_fields.json", YelpReviewsTest.ServerType.unknown));
+            registerFields(secondaryServerClient, getPathAsStr("register_fields.json", YelpReviewsTest.ServerType.unknown));
             //settings
             settings(primaryServerClient, ServerType.primary);
             settings(secondaryServerClient, ServerType.replica);
@@ -323,49 +321,11 @@ public class YelpReviewsTest {
 
     }
 
-    public static void startIndex(LuceneServerClient serverClient, StartIndexRequest startIndexRequest) {
-        StartIndexResponse startIndexResponse = serverClient
-                .getBlockingStub().startIndex(startIndexRequest);
-        logger.info(
-                String.format("numDocs: %s, maxDoc: %s, segments: %s, startTimeMS: %s",
-                        startIndexResponse.getNumDocs(),
-                        startIndexResponse.getMaxDoc(),
-                        startIndexResponse.getSegments(),
-                        startIndexResponse.getStartTimeMS()));
-    }
-
     private static void settings(LuceneServerClient serverClient, ServerType serverType) throws IOException {
-        String settingsJson = readResourceAsString("settings.json", serverType);
+        String settingsJson = readResourceAsString(getPathAsStr("settings.json", serverType));
         SettingsRequest settingsRequest = getSettings(settingsJson);
         SettingsResponse settingsResponse = serverClient.getBlockingStub().settings(settingsRequest);
         logger.info(settingsResponse.getResponse());
-    }
-
-    private static void registerFields(LuceneServerClient serverClient) throws IOException {
-        String registerFieldsJson = readResourceAsString("register_fields.json", ServerType.unknown);
-        FieldDefRequest fieldDefRequest = getFieldDefRequest(registerFieldsJson);
-        FieldDefResponse fieldDefResponse = serverClient.getBlockingStub().registerFields(fieldDefRequest);
-        logger.info(fieldDefResponse.getResponse());
-
-    }
-
-    private static void liveSettings(LuceneServerClient serverClient) {
-        LiveSettingsRequest liveSettingsRequest = LiveSettingsRequest.newBuilder()
-                .setIndexName(INDEX_NAME)
-                .setIndexRamBufferSizeMB(256.0)
-                .setMaxRefreshSec(1.0)
-                .build();
-        LiveSettingsResponse liveSettingsResponse = serverClient.getBlockingStub().liveSettings(liveSettingsRequest);
-        logger.info(liveSettingsResponse.getResponse());
-    }
-
-    private static void createIndex(LuceneServerClient serverClient, Path dir) {
-        CreateIndexResponse response = serverClient.getBlockingStub().createIndex(
-                CreateIndexRequest.newBuilder()
-                        .setIndexName(INDEX_NAME)
-                        .setRootDir(dir.resolve("index").toString())
-                        .build());
-        logger.info(response.getResponse());
     }
 
     private static Process startServer(String logFilename, String configFileName) throws IOException {
@@ -392,17 +352,6 @@ public class YelpReviewsTest {
 
     }
 
-    private static String getPathAsStr(String resourceName, ServerType serverType) {
-        if (serverType.equals(ServerType.primary)) {
-            return Paths.get("src", "test", "resources", "yelp_reviews", "primary", resourceName).toAbsolutePath().toString();
-        } else if (serverType.equals(ServerType.replica)) {
-            return Paths.get("src", "test", "resources", "yelp_reviews", "replica", resourceName).toAbsolutePath().toString();
-        } else if (serverType.equals(ServerType.unknown)) {
-            return Paths.get("src", "test", "resources", "yelp_reviews", resourceName).toAbsolutePath().toString();
-        } else {
-            throw new RuntimeException(String.format("Unknown ServerType passed: %s", serverType));
-        }
-    }
 
     private static String getLuceneServerPrimaryConfigurationYaml() {
         return getPathAsStr(LUCENE_SERVER_CONFIGURATION_YAML, ServerType.primary);
@@ -412,11 +361,17 @@ public class YelpReviewsTest {
         return getPathAsStr(LUCENE_SERVER_CONFIGURATION_YAML, ServerType.replica);
     }
 
-    private static String readResourceAsString(String resourceName, ServerType serverType) throws IOException {
-        String registerFields = getPathAsStr(resourceName, serverType);
-        return Files.readString(Paths.get(registerFields));
+    private static String getPathAsStr(String resourceName, YelpReviewsTest.ServerType serverType) {
+        if (serverType.equals(YelpReviewsTest.ServerType.primary)) {
+            return Paths.get("src", "test", "resources", "yelp_reviews", "primary", resourceName).toAbsolutePath().toString();
+        } else if (serverType.equals(YelpReviewsTest.ServerType.replica)) {
+            return Paths.get("src", "test", "resources", "yelp_reviews", "replica", resourceName).toAbsolutePath().toString();
+        } else if (serverType.equals(YelpReviewsTest.ServerType.unknown)) {
+            return Paths.get("src", "test", "resources", "yelp_reviews", resourceName).toAbsolutePath().toString();
+        } else {
+            throw new RuntimeException(String.format("Unknown ServerType passed: %s", serverType));
+        }
     }
-
     private static class HostPort {
         private final String hostName;
         private final int port;
@@ -440,18 +395,6 @@ public class YelpReviewsTest {
         }
     }
 
-    static FieldDefRequest getFieldDefRequest(String jsonStr) {
-        logger.fine(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
-        FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
-        try {
-            JsonFormat.parser().merge(jsonStr, fieldDefRequestBuilder);
-        } catch (InvalidProtocolBufferException e) {
-            throw new RuntimeException(e);
-        }
-        FieldDefRequest fieldDefRequest = fieldDefRequestBuilder.build();
-        logger.fine(String.format("jsonStr converted to proto FieldDefRequest %s", fieldDefRequest.toString()));
-        return fieldDefRequest;
-    }
 
     private static SettingsRequest getSettings(String jsonStr) {
         logger.fine(String.format("Converting fields %s to proto SettingsRequest", jsonStr));

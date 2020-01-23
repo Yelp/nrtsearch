@@ -24,7 +24,6 @@ package org.apache.platypus.server.grpc;
 
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
-import org.apache.platypus.server.luceneserver.AddDocumentHandler;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.junit.After;
 import org.junit.Before;
@@ -47,7 +46,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
