@@ -1,7 +1,6 @@
 /* Description of message types for search request and response */
 syntax = "proto3";
 
-import "commons.proto";
 import "google/type/latlng.proto";
 
 option java_multiple_files = true;
@@ -153,15 +152,7 @@ message SearchResponse {
             }
         }
 
-        enum StructureType {
-            NONE = 0; // Default value
-            SINGLE = 1; // Single value only in list
-            LIST = 2; // Multiple values present
-        }
-
         message CompositeFieldValue {
-            StructureType structureType = 1;
-            FieldType fieldType = 2;
             repeated FieldValue fieldValue = 3;
         }
 

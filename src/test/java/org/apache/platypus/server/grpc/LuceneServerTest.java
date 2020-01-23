@@ -378,7 +378,6 @@ public class LuceneServerTest {
         List<String> expectedRetrieveFields = RETRIEVED_VALUES;
         checkFieldNames(expectedRetrieveFields, fields);
 
-        checkType(FieldType.TEXT, fields.get("doc_id"));
         String docId = fields.get("doc_id").getFieldValue(0).getTextValue();
 
         List<String> expectedLicenseNo = null;
@@ -396,10 +395,6 @@ public class LuceneServerTest {
         } else {
             fail(String.format("docId %s not indexed", docId));
         }
-
-        checkType(FieldType.LONG, fields.get("license_no"));
-        checkType(FieldType.TEXT, fields.get("vendor_name"));
-        checkType(FieldType.TEXT, fields.get("vendor_name_atom"));
 
         checkPerFieldValues(expectedLicenseNo, getLongFieldValuesListAsString(fields.get("license_no").getFieldValueList()));
         checkPerFieldValues(expectedVendorName, getStringFieldValuesList(fields.get("vendor_name").getFieldValueList()));
@@ -430,10 +425,6 @@ public class LuceneServerTest {
         return fieldValues.stream()
                 .map(SearchResponse.Hit.FieldValue::getTextValue)
                 .collect(Collectors.toList());
-    }
-
-    private static void checkType(FieldType expectedType, CompositeFieldValue fieldValue) {
-        assertEquals(expectedType, fieldValue.getFieldType());
     }
 
 }

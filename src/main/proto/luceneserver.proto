@@ -1,7 +1,6 @@
 /* Description of Platypus Service APIs and message types */
 syntax = "proto3";
 
-import "commons.proto";
 import "search.proto";
 
 option java_multiple_files = true;
@@ -154,6 +153,23 @@ message LiveSettingsRequest {
 /* Response from Server to liveSettings */
 message LiveSettingsResponse {
     string response = 1;
+}
+
+//Type of the field
+enum FieldType {
+    ATOM = 0; // Text that's indexed as a single token, with DOCS_ONLY and omitting norms.
+    TEXT = 1; // Text that's tokenized and indexed, with the index-time analyzer.
+    BOOLEAN = 2; // Boolean value.
+    LONG = 3; //Long value.
+    INT = 4; // Int value.
+    DOUBLE = 5; //Double value.
+    FLOAT = 6; // Float value.
+    LAT_LON = 7; // A latitude/longitude point.
+    DATE_TIME = 8; // Date and optional time.
+    // TODO name this "dynamic" instead of "virtual"?
+    VIRTUAL = 9; // Virtual field defined with a JavaScript expression.
+    // TODO need tests for internal:
+    INTERNAL = 10; //Internal field, currently only for holding indexed facets data.
 }
 
 //How the tokens should be indexed.

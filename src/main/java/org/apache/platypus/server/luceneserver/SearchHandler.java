@@ -38,7 +38,6 @@ import org.apache.lucene.util.QueryBuilder;
 import org.apache.platypus.server.grpc.*;
 import org.apache.platypus.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import org.apache.platypus.server.grpc.SearchResponse.Hit.FieldValue;
-import org.apache.platypus.server.grpc.SearchResponse.Hit.StructureType;
 import org.apache.platypus.server.grpc.SearchResponse.SearchState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -831,9 +830,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                         }
                     });
                     DoubleValues doubleValues = fd.valueSource.getValues(leaf, null);
-                    compositeFieldValue.setStructureType(StructureType.SINGLE)
-                            .setFieldType(FieldType.DOUBLE)
-                            .addFieldValue(FieldValue.newBuilder()
+                    compositeFieldValue.addFieldValue(FieldValue.newBuilder()
                                     .setDoubleValue(doubleValues.doubleValue()));
                 } else if (fd.fieldType != null && fd.fieldType.docValuesType() != DocValuesType.NONE) {
                     List<LeafReaderContext> leaves = s.getIndexReader().leaves();
@@ -848,8 +845,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             docID = hit.doc - leaf.docBase;
                             advance = sortedNumericDocValues.advanceExact(docID);
                             if (advance) {
-                                compositeFieldValue.setStructureType(StructureType.LIST)
-                                        .setFieldType(FieldType.LONG);
                                 for (int i = 0; i < sortedNumericDocValues.docValueCount(); i++) {
                                     long val = sortedNumericDocValues.nextValue();
                                     compositeFieldValue.addFieldValue(FieldValue.newBuilder()
@@ -864,9 +859,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             advance = numericDocValues.advanceExact(docID);
                             if (advance) {
                                 long val = numericDocValues.longValue();
-                                compositeFieldValue.setStructureType(StructureType.SINGLE)
-                                        .setFieldType(FieldType.LONG)
-                                        .addFieldValue(FieldValue.newBuilder().setLongValue(val));
+                                compositeFieldValue.addFieldValue(FieldValue.newBuilder().setLongValue(val));
                             }
                             break;
                         case SORTED_SET:
@@ -875,8 +868,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             docID = hit.doc - leaf.docBase;
                             advance = sortedSetDocValues.advanceExact(docID);
                             if (advance) {
-                                compositeFieldValue.setStructureType(StructureType.LIST)
-                                        .setFieldType(FieldType.TEXT);
                                 for (; ; ) {
                                     long ord = sortedSetDocValues.nextOrd();
                                     if (ord == NO_MORE_ORDS) {
@@ -896,9 +887,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             if (advance) {
                                 int ord = sortedDocValues.ordValue();
                                 BytesRef bytesRef = sortedDocValues.lookupOrd(ord);
-                                compositeFieldValue.setStructureType(StructureType.SINGLE)
-                                        .setFieldType(FieldType.TEXT)
-                                        .addFieldValue(FieldValue.newBuilder().setTextValue(bytesRef.utf8ToString()));
+                                compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(bytesRef.utf8ToString()));
                             }
                             break;
                         case BINARY:
@@ -908,9 +897,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             advance = binaryDocValues.advanceExact(docID);
                             if (advance) {
                                 BytesRef bytesRef = binaryDocValues.binaryValue();
-                                compositeFieldValue.setStructureType(StructureType.SINGLE)
-                                        .setFieldType(FieldType.TEXT)
-                                        .addFieldValue(FieldValue.newBuilder().setTextValue(bytesRef.utf8ToString()));
+                                compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(bytesRef.utf8ToString()));
                             }
                             break;
                     }
@@ -918,8 +905,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 //retrieve stored fields
                 else if (fd.fieldType != null && fd.fieldType.stored()) {
                     String[] values = s.doc(hit.doc).getValues(name);
-                    compositeFieldValue.setStructureType(StructureType.LIST)
-                            .setFieldType(FieldType.TEXT);
                     for (String fieldValue : values) {
                         compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
                     }
@@ -927,9 +912,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                     Object v = doc.get(name); // FIXME: doc is never updated, not sure if this is correct
                     if (v != null) {
                         if (fd.multiValued == false) {
-                            convertAndSetType(fd, v, compositeFieldValue);
+                            compositeFieldValue.addFieldValue(convertType(fd, v));
                         } else {
-                            compositeFieldValue.setFieldType(getFieldType(fd, v));
                             if (!(v instanceof List)) {
                                 //FIXME: not sure this is serializable to string?
                                 compositeFieldValue.addFieldValue(convertType(fd, v));
@@ -980,41 +964,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         }
 
         return fieldValueMap;
-    }
-
-    private static void convertAndSetType(FieldDef fd, Object o, CompositeFieldValue.Builder compositeFieldValue) {
-        compositeFieldValue
-                .setStructureType(StructureType.SINGLE);
-        var fieldValue = FieldValue.newBuilder();
-        if (fd.valueType == FieldDef.FieldValueType.BOOLEAN) {
-            compositeFieldValue.setFieldType(FieldType.BOOLEAN);
-            if (((Integer) o).intValue() == 1) {
-                fieldValue.setBooleanValue(Boolean.TRUE);
-            } else {
-                assert ((Integer) o).intValue() == 0;
-                fieldValue.setBooleanValue(Boolean.FALSE);
-            }
-        } else if (fd.valueType == FieldDef.FieldValueType.DATE_TIME) {
-            compositeFieldValue.setFieldType(FieldType.DATE_TIME);
-            fieldValue.setTextValue(msecToDateString(fd, ((Number) o).longValue()));
-            //} else if (fd.valueType == FieldDef.FieldValueType.FLOAT && fd.fieldType.docValueType() == DocValuesType.NUMERIC) {
-            // nocommit not right...
-            //return Float.intBitsToFloat(((Number) o).intValue());
-        } else {
-            throw new IllegalArgumentException("Unable to convert object: " + o);
-        }
-
-        compositeFieldValue.addFieldValue(fieldValue).build();
-    }
-
-    private static FieldType getFieldType(FieldDef fd, Object o) {
-        if (fd.valueType == FieldDef.FieldValueType.BOOLEAN) {
-            return FieldType.BOOLEAN;
-        } else if (fd.valueType == FieldDef.FieldValueType.DATE_TIME) {
-            return FieldType.DATE_TIME;
-        } else {
-            throw new IllegalArgumentException("Unable to convert object: " + o);
-        }
     }
 
     private static FieldValue convertType(FieldDef fd, Object o) {
