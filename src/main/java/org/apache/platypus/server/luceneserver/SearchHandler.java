@@ -21,7 +21,6 @@ package org.apache.platypus.server.luceneserver;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.google.type.DateTime;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -29,8 +28,8 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
-import org.apache.lucene.search.*;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.grouping.AllGroupsCollector;
 import org.apache.lucene.search.grouping.FirstPassGroupingCollector;
 import org.apache.lucene.search.grouping.TopGroups;
@@ -49,9 +48,6 @@ import java.text.BreakIterator;
 import java.text.ParseException;
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -1000,7 +996,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             }
         } else if (fd.valueType == FieldDef.FieldValueType.DATE_TIME) {
             compositeFieldValue.setFieldType(FieldType.DATE_TIME);
-            fieldValue.setDateTime(msecToDateTime(fd, ((Number) o).longValue()));
+            fieldValue.setTextValue(msecToDateString(fd, ((Number) o).longValue()));
             //} else if (fd.valueType == FieldDef.FieldValueType.FLOAT && fd.fieldType.docValueType() == DocValuesType.NUMERIC) {
             // nocommit not right...
             //return Float.intBitsToFloat(((Number) o).intValue());
@@ -1031,7 +1027,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 fieldValue.setBooleanValue(Boolean.FALSE);
             }
         } else if (fd.valueType == FieldDef.FieldValueType.DATE_TIME) {
-            fieldValue.setDateTime(msecToDateTime(fd, ((Number) o).longValue()));
+            fieldValue.setTextValue(msecToDateString(fd, ((Number) o).longValue()));
         } else {
             throw new IllegalArgumentException("Unable to convert object: " + o);
         }
@@ -1039,21 +1035,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         return fieldValue.build();
     }
 
-    private static DateTime msecToDateTime(FieldDef fd, long value) {
+    private static String msecToDateString(FieldDef fd, long value) {
         assert fd.valueType == FieldDef.FieldValueType.DATE_TIME;
         // nocommit use CTL to reuse these?
-        Instant instant = Instant.ofEpochMilli(value);
-        LocalDateTime localDateTime = LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
-        return DateTime.newBuilder()
-                .setTimeZone(com.google.type.TimeZone.newBuilder().setId("UTC"))
-                .setYear(localDateTime.getYear())
-                .setMonth(localDateTime.getMonthValue())
-                .setDay(localDateTime.getDayOfMonth())
-                .setHours(localDateTime.getHour())
-                .setMinutes(localDateTime.getMinute())
-                .setSeconds(localDateTime.getSecond())
-                .setNanos(localDateTime.getNano())
-                .build();
+        return fd.getDateTimeParser().parser.format(new Date(value));
     }
 
     /**
