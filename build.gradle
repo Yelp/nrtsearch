@@ -160,4 +160,5 @@ test {
     if (!project.hasProperty('includePerfTests')) {
         exclude '**/YelpReviewsTest.class'
     }
+    systemProperties System.properties
 }

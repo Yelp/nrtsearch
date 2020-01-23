@@ -138,3 +138,7 @@ This tool indexes yelp reviews available at [Yelp dataset challenge](https://www
 ./gradlew clean && ./gradlew installDist && ./gradlew test -PincludePerfTests=* --tests "org.apache.platypus.server.YelpReviewsTest.runYelpReviews" --info
 ```
 
+# Yelp Suggest Indexing Tool
+TODO -- add more stuff
+ 
+```./gradlew test -DsuggestTmp=/nail/tmp -DsuggestHost=yourStandaloneServerHost -DsuggestPort=yourStandaloneServerHost --tests "org.apache.platypus.server.YelpSuggestTest"```
