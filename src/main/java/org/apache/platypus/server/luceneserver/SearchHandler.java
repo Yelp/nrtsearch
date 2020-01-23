@@ -39,6 +39,7 @@ import org.apache.lucene.util.QueryBuilder;
 import org.apache.platypus.server.grpc.*;
 import org.apache.platypus.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import org.apache.platypus.server.grpc.SearchResponse.Hit.FieldValue;
+import org.apache.platypus.server.grpc.SearchResponse.Hit.StructureType;
 import org.apache.platypus.server.grpc.SearchResponse.SearchState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,8 +58,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
-import static org.apache.platypus.server.grpc.SearchResponse.Hit.FieldValueCountType.MULTI_VALUED;
-import static org.apache.platypus.server.grpc.SearchResponse.Hit.FieldValueCountType.SINGLE_VALUED;
 
 public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
@@ -836,7 +835,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                         }
                     });
                     DoubleValues doubleValues = fd.valueSource.getValues(leaf, null);
-                    compositeFieldValue.setFieldValueCountType(SINGLE_VALUED)
+                    compositeFieldValue.setStructureType(StructureType.SINGLE)
                             .setFieldType(FieldType.DOUBLE)
                             .addFieldValue(FieldValue.newBuilder()
                                     .setDoubleValue(doubleValues.doubleValue()));
@@ -853,7 +852,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             docID = hit.doc - leaf.docBase;
                             advance = sortedNumericDocValues.advanceExact(docID);
                             if (advance) {
-                                compositeFieldValue.setFieldValueCountType(MULTI_VALUED)
+                                compositeFieldValue.setStructureType(StructureType.LIST)
                                         .setFieldType(FieldType.LONG);
                                 for (int i = 0; i < sortedNumericDocValues.docValueCount(); i++) {
                                     long val = sortedNumericDocValues.nextValue();
@@ -869,7 +868,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             advance = numericDocValues.advanceExact(docID);
                             if (advance) {
                                 long val = numericDocValues.longValue();
-                                compositeFieldValue.setFieldValueCountType(SINGLE_VALUED)
+                                compositeFieldValue.setStructureType(StructureType.SINGLE)
                                         .setFieldType(FieldType.LONG)
                                         .addFieldValue(FieldValue.newBuilder().setLongValue(val));
                             }
@@ -880,7 +879,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             docID = hit.doc - leaf.docBase;
                             advance = sortedSetDocValues.advanceExact(docID);
                             if (advance) {
-                                compositeFieldValue.setFieldValueCountType(MULTI_VALUED)
+                                compositeFieldValue.setStructureType(StructureType.LIST)
                                         .setFieldType(FieldType.TEXT);
                                 for (; ; ) {
                                     long ord = sortedSetDocValues.nextOrd();
@@ -901,7 +900,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             if (advance) {
                                 int ord = sortedDocValues.ordValue();
                                 BytesRef bytesRef = sortedDocValues.lookupOrd(ord);
-                                compositeFieldValue.setFieldValueCountType(SINGLE_VALUED)
+                                compositeFieldValue.setStructureType(StructureType.SINGLE)
                                         .setFieldType(FieldType.TEXT)
                                         .addFieldValue(FieldValue.newBuilder().setTextValue(bytesRef.utf8ToString()));
                             }
@@ -913,7 +912,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             advance = binaryDocValues.advanceExact(docID);
                             if (advance) {
                                 BytesRef bytesRef = binaryDocValues.binaryValue();
-                                compositeFieldValue.setFieldValueCountType(SINGLE_VALUED)
+                                compositeFieldValue.setStructureType(StructureType.SINGLE)
                                         .setFieldType(FieldType.TEXT)
                                         .addFieldValue(FieldValue.newBuilder().setTextValue(bytesRef.utf8ToString()));
                             }
@@ -923,7 +922,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 //retrieve stored fields
                 else if (fd.fieldType != null && fd.fieldType.stored()) {
                     String[] values = s.doc(hit.doc).getValues(name);
-                    compositeFieldValue.setFieldValueCountType(MULTI_VALUED)
+                    compositeFieldValue.setStructureType(StructureType.LIST)
                             .setFieldType(FieldType.TEXT);
                     for (String fieldValue : values) {
                         compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
@@ -989,7 +988,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
     private static void convertAndSetType(FieldDef fd, Object o, CompositeFieldValue.Builder compositeFieldValue) {
         compositeFieldValue
-                .setFieldValueCountType(SINGLE_VALUED);
+                .setStructureType(StructureType.SINGLE);
         var fieldValue = FieldValue.newBuilder();
         if (fd.valueType == FieldDef.FieldValueType.BOOLEAN) {
             compositeFieldValue.setFieldType(FieldType.BOOLEAN);

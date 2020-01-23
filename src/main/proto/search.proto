@@ -1,4 +1,4 @@
-/* Description of message types for search response */
+/* Description of message types for search request and response */
 syntax = "proto3";
 
 import "commons.proto";
@@ -155,14 +155,14 @@ message SearchResponse {
             }
         }
 
-        enum FieldValueCountType {
-            NONE = 0;
-            SINGLE_VALUED = 1;
-            MULTI_VALUED = 2;
+        enum StructureType {
+            NONE = 0; // Default value
+            SINGLE = 1; // Single value only in list
+            LIST = 2; // Multiple values present
         }
 
         message CompositeFieldValue {
-            FieldValueCountType fieldValueCountType = 1;
+            StructureType structureType = 1;
             FieldType fieldType = 2;
             repeated FieldValue fieldValue = 3;
         }
