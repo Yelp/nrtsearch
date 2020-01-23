@@ -2,7 +2,6 @@
 syntax = "proto3";
 
 import "commons.proto";
-import "datetime.proto";
 import "google/type/latlng.proto";
 
 option java_multiple_files = true;
@@ -144,14 +143,13 @@ message SearchResponse {
     message Hit {
         message FieldValue {
             oneof FieldValues {
-                string textValue = 1; // Value for ATOM and TEXT FieldType
+                string textValue = 1; // Value for ATOM, TEXT and DATE_TIME FieldType
                 bool booleanValue = 2; // Value for BOOLEAN FieldType
                 int32 intValue = 3; // Value for INT FieldType
                 int64 longValue = 4; // Value for LONG FieldType
                 float floatValue = 5; // Value for FLOAT FieldType
                 double doubleValue = 6; // Value for DOUBLE FieldType
                 google.type.LatLng latLngValue = 7; // Value for LAT_LON FieldType
-                google.type.DateTime dateTime = 8; // Value for DATE_TIME FieldType
             }
         }
 
