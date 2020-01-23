@@ -267,6 +267,86 @@ public class LuceneServerTest {
     }
 
     @Test
+    public void testSearchBooleanQuery() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(RETRIEVED_VALUES)
+                .setQuery(Query.newBuilder()
+                        .setQueryType(QueryType.BOOLEAN_QUERY)
+                        .setBooleanQuery(BooleanQuery.newBuilder()
+                                .addClauses(BooleanClause.newBuilder()
+                                        .setQuery(Query.newBuilder()
+                                                .setQueryType(QueryType.PHRASE_QUERY)
+                                                .setPhraseQuery(PhraseQuery.newBuilder()
+                                                        .setSlop(0)
+                                                        .setField("vendor_name")
+                                                        .addTerms("first")
+                                                        .addTerms("again")
+                                                        .build())
+                                                .build())
+                                        .setOccur(BooleanClause.Occur.MUST)
+                                        .build())
+                                .build())
+                        .build())
+                .build());
+
+        String response = searchResponse.getResponse();
+        Map<String, Object> resultMap = new Gson().fromJson(response, Map.class);
+        assertEquals(1.0, (double) resultMap.get("totalHits"), 0.01);
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) resultMap.get("hits");
+        assertEquals(1, ((List<Map<String, Object>>) resultMap.get("hits")).size());
+        Map<String, Object> hit = hits.get(0);
+        Map<String, Object> fields = (Map<String, Object>) hit.get("fields");
+        String docId = ((List<String>) fields.get("doc_id")).get(0);
+        assertEquals("1", docId);
+        checkHits(hit);
+    }
+
+    @Test
+    public void testSearchPhraseQuery() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(RETRIEVED_VALUES)
+                .setQuery(Query.newBuilder()
+                        .setQueryType(QueryType.PHRASE_QUERY)
+                        .setPhraseQuery(PhraseQuery.newBuilder()
+                                .setSlop(0)
+                                .setField("vendor_name")
+                                .addTerms("second")
+                                .addTerms("again")
+                                .build())
+                        .build())
+                .build());
+
+        String response = searchResponse.getResponse();
+        Map<String, Object> resultMap = new Gson().fromJson(response, Map.class);
+        assertEquals(1.0, (double) resultMap.get("totalHits"), 0.01);
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) resultMap.get("hits");
+        assertEquals(1, ((List<Map<String, Object>>) resultMap.get("hits")).size());
+        Map<String, Object> hit = hits.get(0);
+        Map<String, Object> fields = (Map<String, Object>) hit.get("fields");
+        String docId = ((List<String>) fields.get("doc_id")).get(0);
+        assertEquals("2", docId);
+        checkHits(hit);
+    }
+
+    @Test
     public void testSnapshotRestore() throws IOException, InterruptedException {
         GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
         //2 docs addDocuments

@@ -29,6 +29,7 @@ import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.grouping.AllGroupsCollector;
 import org.apache.lucene.search.grouping.FirstPassGroupingCollector;
 import org.apache.lucene.search.grouping.TopGroups;
@@ -57,6 +58,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
      * don't spend most time on computing hit counts
      */
     private static final int TOTAL_HITS_THRESHOLD = 1000;
+
+    private static final QueryNodeMapper QUERY_NODE_MAPPER = new QueryNodeMapper();
 
     @Override
     public SearchResponse handle(IndexState indexState, SearchRequest searchRequest) throws SearchHandlerException {
@@ -414,10 +417,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             } else {
                 q = null;
             }
-        } else if (!searchRequest.getQuery().isEmpty()) {
-            //TODO
-            //q = parseQuery(timestampSec, r, state, r.getStruct("query"), null, useBlockJoinCollector, dynamicFields);
-            throw new UnsupportedOperationException("Query nodes search is not currently implemented");
+        } else if (searchRequest.getQuery().getQueryType() != QueryType.NONE) {
+            q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery());
         } else {
             q = new MatchAllDocsQuery();
         }
