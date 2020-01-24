@@ -104,7 +104,7 @@ public class YelpSuggestTest extends TestIndexManager {
                                 one_biz.getLocationLon(),
                                 5, 7),
                         addDocumentRequestBuilder);
-                addField("localized_completed_text", one_biz.getLocalized_completed_text(), addDocumentRequestBuilder);
+                addField("localized_completed_text", one_biz.getLocalizedCompletedText(), addDocumentRequestBuilder);
             }
             catch (Exception hey){
                 System.out.println(hey.getLocalizedMessage());
@@ -130,7 +130,7 @@ public class YelpSuggestTest extends TestIndexManager {
         private Long standardized_score;
         private List<Map<String, String>> language_alternate_names;
 
-        public Long getUnique_id() {
+        public Long getUniqueId() {
             return unique_id;
         }
 
@@ -142,7 +142,7 @@ public class YelpSuggestTest extends TestIndexManager {
             return id;
         }
 
-        public String getLocalized_completed_text() {
+        public String getLocalizedCompletedText() {
             return localized_completed_text;
         }
 
@@ -180,27 +180,27 @@ public class YelpSuggestTest extends TestIndexManager {
             return country;
         }
 
-        public Integer getReview_count() {
+        public Integer getReviewCount() {
             return review_count;
         }
 
-        public Double getReview_wilson_score() {
+        public Double getReviewWilsonScore() {
             return review_wilson_score;
         }
 
-        public List<String> getCategory_aliases() {
+        public List<String> getCategoryAliases() {
             return category_aliases;
         }
 
-        public Double getCheckin_rate_per_day() {
+        public Double getCheckinRatePerDay() {
             return checkin_rate_per_day;
         }
 
-        public Long getStandardized_score() {
+        public Long getStandardizedScore() {
             return standardized_score;
         }
 
-        public List<Map<String, String>> getLanguage_alternate_names() {
+        public List<Map<String, String>> getLanguageAlternateNames() {
             return language_alternate_names;
         }
     }
