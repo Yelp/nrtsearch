@@ -159,5 +159,7 @@ task buildDocs() {
 test {
     if (!project.hasProperty('includePerfTests')) {
         exclude '**/YelpReviewsTest.class'
+        exclude '**/YelpSuggestTest.class'
     }
+    systemProperties System.properties
 }

@@ -131,10 +131,18 @@ The build uses protoc-gen-doc program to generate the documentation needed in ht
 
 This should create a src/main/docs/index.html file that can be seen in your local browser. A [sample snapshot](https://gist.github.com/umeshdangat/468fcf6a8e73f0bd45e197c33a3c2c12#file-platypus_api-png)
 
-# Yelp Reviews Indexing tool
+# Yelp Indexing tool
+
+# Reviews
+
 This tool indexes yelp reviews available at [Yelp dataset challenge](https://www.yelp.com/dataset/challenge). It runs a default version with only 1k reviews of the `reviews.json` or you could download the yelp dataset and place the review.json in the user.home dir and the tool will use that instead. The complete review.json should have close to 7Million reviews. The tool runs multi-threaded indexing and a search thread in parallel reporting the `totalHits`.  Command to run this specific test:
 
 ```
 ./gradlew clean && ./gradlew installDist && ./gradlew test -PincludePerfTests=* --tests "org.apache.platypus.server.YelpReviewsTest.runYelpReviews" --info
 ```
 
+# Suggestions
+
+This test indexes businesses, creates an Infix Suggester and fetches suggestions. It requires a host, a port and a writeable directory in a standalone Platypus server.
+
+```./gradlew test -DsuggestTmp=remoteServerDir -DsuggestHost=yourStandaloneServerHost -DsuggestPort=yourStandaloneServerHost --tests "org.apache.platypus.server.YelpSuggestTest"```
