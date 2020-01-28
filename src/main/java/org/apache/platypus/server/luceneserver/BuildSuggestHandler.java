@@ -29,7 +29,6 @@ import com.google.protobuf.util.JsonFormat;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.IOContext;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.apache.lucene.analysis.Analyzer;
@@ -53,7 +52,6 @@ import org.apache.platypus.server.grpc.OneHighlight;
 import org.apache.platypus.server.grpc.SearchRequest;
 import org.apache.platypus.server.grpc.SuggestLookupHighlight;
 import org.apache.platypus.server.grpc.SuggestNonLocalSource;
-import org.eclipse.jetty.server.Request;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

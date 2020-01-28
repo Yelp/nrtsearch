@@ -28,14 +28,17 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
-import org.apache.lucene.search.*;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.grouping.AllGroupsCollector;
 import org.apache.lucene.search.grouping.FirstPassGroupingCollector;
 import org.apache.lucene.search.grouping.TopGroups;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.platypus.server.grpc.*;
+import org.apache.platypus.server.grpc.SearchResponse.Hit.CompositeFieldValue;
+import org.apache.platypus.server.grpc.SearchResponse.Hit.FieldValue;
+import org.apache.platypus.server.grpc.SearchResponse.SearchState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,8 +82,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         {
             timestampSec = System.currentTimeMillis() / 1000;
         }
-        //TODO: Lazy!!, using JsonObject for returning results for now (replace with protobuff later)
-        JsonObject diagnostics = new JsonObject();
+
+        var diagnostics = SearchResponse.Diagnostics.newBuilder();
 
         final Map<String, FieldDef> dynamicFields = getDynamicFields(shardState, searchRequest);
 
@@ -152,7 +155,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         //TODO: support this. Seems like lucene 8.2 has no PostingsHighlighter anymore?
         //HighlighterConfig highlighter = getHighlighter(indexState, r, highlightFields);
 
-        diagnostics.addProperty("parsedQuery", q.toString());
+        diagnostics.setParsedQuery(q.toString());
 
         TopDocs hits;
         TopGroups<BytesRef> groups;
@@ -160,6 +163,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         int totalGroupCount = -1;
 
         String resultString;
+        SearchResponse.Builder searchResponse = SearchResponse.newBuilder();
 
         final Query queryOrig = q;
         SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
@@ -175,7 +179,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
             q = s.searcher.rewrite(q);
             logger.info(String.format("after rewrite, query: %s", q.toString()));
-            diagnostics.addProperty("rewrittenQuery", q.toString());
+            diagnostics.setRewrittenQuery(q.toString());
 
             // nocommit add test with drill down on OR of fields:
 
@@ -185,7 +189,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
             DrillDownQuery ddq = addDrillDowns(timestampSec, indexState, searchRequest, q, dynamicFields);
 
-            diagnostics.addProperty("drillDownQuery", ddq.toString());
+            diagnostics.setDrillDownQuery(ddq.toString());
 
             Collector c;
             //FIXME? not sure if these two groupCollectors are correct?
@@ -253,7 +257,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
             // Holds the search result JSON object:
             JsonObject result = new JsonObject();
-            result.add("diagnostics", diagnostics);
 
             //TOOD: If "facets" create DrillSideways(ds) and do ds.search(ddq, c2)
             //else if not facets...
@@ -261,11 +264,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 try {
                     s.searcher.search(ddq, c2);
                 } catch (TimeLimitingCollector.TimeExceededException tee) {
-                    result.addProperty("hitTimeout", true);
+                    searchResponse.setHitTimeout(true);
                 }
             }
 
-            diagnostics.addProperty("firstPassSearchMS", ((System.nanoTime() - searchStartTime) / 1000000.0));
+            diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 
             int startHit = searchRequest.getStartHit();
 
@@ -304,61 +307,61 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 //TODO
                 //highlights = highlighter to objects
             }
-            diagnostics.addProperty("highlightTimeMS", (System.nanoTime() - t0) / 1000000.);
+            diagnostics.setHighlightTimeMs((System.nanoTime() - t0) / 1000000.);
 
             t0 = System.nanoTime();
 
             //TODO: deal with fillFields for group!=null and useBlockJoin
             {
-                result.addProperty("totalHits", hits.totalHits.value);
+                searchResponse.setTotalHits(hits.totalHits.value);
                 JsonArray o2 = new JsonArray();
                 result.add("hits", o2);
                 for (int hitIndex = 0; hitIndex < hits.scoreDocs.length; hitIndex++) {
                     ScoreDoc hit = hits.scoreDocs[hitIndex];
-
+                    var hitResponse = SearchResponse.Hit.newBuilder();
                     JsonObject o3 = new JsonObject();
                     o2.add(o3);
-                    o3.addProperty("doc", hit.doc);
+                    hitResponse.setLuceneDocId(hit.doc);
                     if (!Float.isNaN(hit.score)) {
-                        o3.addProperty("score", hit.score);
+                        hitResponse.setScore(hit.score);
                     }
 
                     if (fields != null || highlightFields != null) {
                         JsonObject o4 = new JsonObject();
                         o3.add("fields", o4);
-                        fillFields(indexState, null, s.searcher, o4, hit, fields, highlights, hitIndex, sort, sortFieldNames, dynamicFields);
+                        Map<String, CompositeFieldValue> fieldValueMap = fillFields(indexState, null, s.searcher, o4, hit, fields, highlights, hitIndex, sort, sortFieldNames, dynamicFields);
+                        hitResponse.putAllFields(fieldValueMap);
                     }
+                    searchResponse.addHits(hitResponse);
                 }
             }
 
-            JsonObject o3 = new JsonObject();
-            result.add("searchState", o3);
-            o3.addProperty("timeStamp", timestampSec);
+            SearchState.Builder searchState = SearchState.newBuilder();
+            searchState.setTimestamp(timestampSec);
 
             // Record searcher version that handled this request:
-            o3.addProperty("searcher", ((DirectoryReader) s.searcher.getIndexReader()).getVersion());
+            searchState.setSearcherVersion(((DirectoryReader) s.searcher.getIndexReader()).getVersion());
 
             // Fill in lastDoc for searchAfter:
             if (hits != null && hits.scoreDocs.length != 0) {
                 ScoreDoc lastHit = hits.scoreDocs[hits.scoreDocs.length - 1];
-                o3.addProperty("lastDoc", lastHit.doc);
+                searchState.setLastDocId(lastHit.doc);
                 if (sort != null) {
-                    JsonArray fieldValues = new JsonArray();
-                    o3.add("lastFieldValues", fieldValues);
                     FieldDoc fd = (FieldDoc) lastHit;
                     for (Object fv : fd.fields) {
-                        fieldValues.add(fv.toString());
+                        searchState.addLastFieldValues(fv.toString());
                     }
                 } else {
-                    o3.addProperty("lastScore", lastHit.score);
+                    searchState.setLastScore(lastHit.score);
                 }
             }
 
-            diagnostics.addProperty("getFieldsMS", ((System.nanoTime() - t0) / 1000000));
+            diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000));
 
-            t0 = System.nanoTime();
+            searchResponse.setDiagnostics(diagnostics);
+            searchResponse.setSearchState(searchState);
             resultString = result.toString();
-            //System.out.println("MS: " + ((System.nanoTime()-t0)/1000000.0));
+            searchResponse.setResponse(resultString);
 
         } catch (IOException | InterruptedException e) {
             logger.warn(e.getMessage(), e);
@@ -382,7 +385,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             }
         }
 
-        return SearchResponse.newBuilder().setResponse(resultString).build();
+        return searchResponse.build();
     }
 
 
@@ -455,7 +458,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
      * by indexGen, snapshot, version or just the current
      * (latest) one.
      */
-    public static SearcherTaxonomyManager.SearcherAndTaxonomy getSearcherAndTaxonomy(SearchRequest searchRequest, ShardState state, JsonObject diagnostics) throws InterruptedException, IOException {
+    public static SearcherTaxonomyManager.SearcherAndTaxonomy getSearcherAndTaxonomy(SearchRequest searchRequest, ShardState state, SearchResponse.Diagnostics.Builder diagnostics) throws InterruptedException, IOException {
         Logger logger = LoggerFactory.getLogger(SearcherTaxonomyManager.SearcherAndTaxonomy.class);
         //TODO: Figure out which searcher to use:
         //final long searcherVersion; e.g. searcher.getLong("version")
@@ -573,7 +576,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             }
             state.waitForGeneration(gen);
             if (diagnostics != null) {
-                diagnostics.addProperty("nrtWaitMS", (System.nanoTime() - t0)/1000000);
+                diagnostics.setNrtWaitTimeMs((System.nanoTime() - t0)/1000000);
             }
             s = state.acquire();
             state.slm.record(s.searcher);
@@ -592,7 +595,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     /**
      * Returns a ref.
      */
-    private static SearcherTaxonomyManager.SearcherAndTaxonomy openSnapshotReader(ShardState state, IndexState.Gens snapshot, JsonObject diagnostics) throws IOException {
+    private static SearcherTaxonomyManager.SearcherAndTaxonomy openSnapshotReader(ShardState state, IndexState.Gens snapshot, SearchResponse.Diagnostics.Builder diagnostics) throws IOException {
         // TODO: this "reverse-NRT" is ridiculous: we acquire
         // the latest reader, and from that do a reopen to an
         // older snapshot ... this is inefficient if multiple
@@ -617,7 +620,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             state.slm.record(result.searcher);
             long t1 = System.nanoTime();
             if (diagnostics != null) {
-                diagnostics.addProperty("newSnapshotSearcherOpenMS", ((t1 - t0) / 1000000.0));
+                diagnostics.setNewSnapshotSearcherOpenMs(((t1 - t0) / 1000000.0));
             }
             return result;
         } finally {
@@ -772,16 +775,16 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
     /**
      * Fills in the returned fields (some hilited) for one hit:
+     * @return
      */
-    private void fillFields(IndexState state, Object highlighter, IndexSearcher s,
-                            JsonObject result, ScoreDoc hit, Set<String> fields,
-                            Map<String, Object[]> highlights,
-                            int hiliteHitIndex, Sort sort,
-                            List<String> sortFieldNames,
-                            Map<String, FieldDef> dynamicFields) throws IOException {
-        //System.out.println("fillFields fields=" + fields);
+    private Map<String, CompositeFieldValue> fillFields(IndexState state, Object highlighter, IndexSearcher s,
+                                                        JsonObject result, ScoreDoc hit, Set<String> fields,
+                                                        Map<String, Object[]> highlights,
+                                                        int hiliteHitIndex, Sort sort,
+                                                        List<String> sortFieldNames,
+                                                        Map<String, FieldDef> dynamicFields) throws IOException {
+        Map<String, CompositeFieldValue> fieldValueMap = new HashMap<>();
         if (fields != null) {
-
             // Add requested stored fields (no highlighting):
 
             // even if they were not stored ...
@@ -790,6 +793,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             Map<String, Object> doc = new HashMap<>();
             boolean docIdAdvanced = false;
             for (String name : fields) {
+                var compositeFieldValue = CompositeFieldValue.newBuilder();
                 FieldDef fd = dynamicFields.get(name);
 
                 // We detect invalid field above:
@@ -826,9 +830,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                         }
                     });
                     DoubleValues doubleValues = fd.valueSource.getValues(leaf, null);
-                    result.addProperty(name, doubleValues.doubleValue());
+                    compositeFieldValue.addFieldValue(FieldValue.newBuilder()
+                                    .setDoubleValue(doubleValues.doubleValue()));
                 } else if (fd.fieldType != null && fd.fieldType.docValuesType() != DocValuesType.NONE) {
-                    JsonArray strDocValuesJsonArray = new JsonArray();
                     List<LeafReaderContext> leaves = s.getIndexReader().leaves();
                     //get the current leaf/segment that this doc is in
                     LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.doc, leaves));
@@ -843,10 +847,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             if (advance) {
                                 for (int i = 0; i < sortedNumericDocValues.docValueCount(); i++) {
                                     long val = sortedNumericDocValues.nextValue();
-                                    strDocValuesJsonArray.add(String.valueOf(val));
+                                    compositeFieldValue.addFieldValue(FieldValue.newBuilder()
+                                            .setLongValue(val));
                                 }
                             }
-                            result.add(name, strDocValuesJsonArray);
                             break;
                         case NUMERIC:
                             NumericDocValues numericDocValues = DocValues.getNumeric(leaf.reader(), name);
@@ -855,9 +859,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             advance = numericDocValues.advanceExact(docID);
                             if (advance) {
                                 long val = numericDocValues.longValue();
-                                strDocValuesJsonArray.add(String.valueOf(val));
+                                compositeFieldValue.addFieldValue(FieldValue.newBuilder().setLongValue(val));
                             }
-                            result.add(name, strDocValuesJsonArray);
                             break;
                         case SORTED_SET:
                             SortedSetDocValues sortedSetDocValues = DocValues.getSortedSet(leaf.reader(), name);
@@ -871,10 +874,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                                         break;
                                     }
                                     BytesRef bytesRef = sortedSetDocValues.lookupOrd(ord);
-                                    strDocValuesJsonArray.add(bytesRef.utf8ToString());
+                                    compositeFieldValue.addFieldValue(FieldValue.newBuilder()
+                                            .setTextValue(bytesRef.utf8ToString()));
                                 }
                             }
-                            result.add(name, strDocValuesJsonArray);
                             break;
                         case SORTED:
                             SortedDocValues sortedDocValues = DocValues.getSorted(leaf.reader(), name);
@@ -884,9 +887,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             if (advance) {
                                 int ord = sortedDocValues.ordValue();
                                 BytesRef bytesRef = sortedDocValues.lookupOrd(ord);
-                                strDocValuesJsonArray.add(bytesRef.utf8ToString());
+                                compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(bytesRef.utf8ToString()));
                             }
-                            result.add(name, strDocValuesJsonArray);
                             break;
                         case BINARY:
                             BinaryDocValues binaryDocValues = DocValues.getBinary(leaf.reader(), name);
@@ -895,43 +897,37 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             advance = binaryDocValues.advanceExact(docID);
                             if (advance) {
                                 BytesRef bytesRef = binaryDocValues.binaryValue();
-                                strDocValuesJsonArray.add(bytesRef.utf8ToString());
+                                compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(bytesRef.utf8ToString()));
                             }
-                            result.add(name, strDocValuesJsonArray);
                             break;
                     }
                 }
                 //retrieve stored fields
                 else if (fd.fieldType != null && fd.fieldType.stored()) {
                     String[] values = s.doc(hit.doc).getValues(name);
-                    JsonArray jsonArray = new JsonArray();
                     for (String fieldValue : values) {
-                        jsonArray.add(fieldValue);
+                        compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
                     }
-                    result.add(name, jsonArray);
                 } else {
-                    Object v = doc.get(name);
+                    Object v = doc.get(name); // FIXME: doc is never updated, not sure if this is correct
                     if (v != null) {
-                        // We caught same field name above:
-                        assert null != result.get(name);
-
                         if (fd.multiValued == false) {
-                            result.addProperty(name, convertType(fd, v).toString());
+                            compositeFieldValue.addFieldValue(convertType(fd, v));
                         } else {
-                            JsonArray arr = new JsonArray();
-                            result.add(name, arr);
                             if (!(v instanceof List)) {
                                 //FIXME: not sure this is serializable to string?
-                                arr.add(convertType(fd, v).toString());
+                                compositeFieldValue.addFieldValue(convertType(fd, v));
                             } else {
                                 for (Object o : (List<Object>) v) {
                                     //FIXME: not sure this is serializable to string?
-                                    arr.add(convertType(fd, o).toString());
+                                    compositeFieldValue.addFieldValue(convertType(fd, o));
                                 }
                             }
                         }
                     }
                 }
+
+                fieldValueMap.put(name, compositeFieldValue.build());
             }
         }
 
@@ -966,40 +962,32 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 }
             }
         }
+
+        return fieldValueMap;
     }
 
-    private static Object convertType(FieldDef fd, Object o) {
+    private static FieldValue convertType(FieldDef fd, Object o) {
+        var fieldValue = FieldValue.newBuilder();
         if (fd.valueType == FieldDef.FieldValueType.BOOLEAN) {
             if (((Integer) o).intValue() == 1) {
-                return Boolean.TRUE;
+                fieldValue.setBooleanValue(Boolean.TRUE);
             } else {
                 assert ((Integer) o).intValue() == 0;
-                return Boolean.FALSE;
+                fieldValue.setBooleanValue(Boolean.FALSE);
             }
         } else if (fd.valueType == FieldDef.FieldValueType.DATE_TIME) {
-            return msecToDateString(fd, ((Number) o).longValue());
-            //} else if (fd.valueType == FieldDef.FieldValueType.FLOAT && fd.fieldType.docValueType() == DocValuesType.NUMERIC) {
-            // nocommit not right...
-            //return Float.intBitsToFloat(((Number) o).intValue());
+            fieldValue.setTextValue(msecToDateString(fd, ((Number) o).longValue()));
         } else {
-            return o;
+            throw new IllegalArgumentException("Unable to convert object: " + o);
         }
+
+        return fieldValue.build();
     }
 
-    /**
-     * NOTE: this is a slow method, since it makes many objects just to format one date/time value
-     */
     private static String msecToDateString(FieldDef fd, long value) {
         assert fd.valueType == FieldDef.FieldValueType.DATE_TIME;
         // nocommit use CTL to reuse these?
-        Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        calendar.setLenient(false);
-        SimpleDateFormat dateTimeFormat = new SimpleDateFormat(fd.dateTimeFormat, Locale.ROOT);
-        dateTimeFormat.setCalendar(calendar);
-        Date date = new Date(value);
-        String result = dateTimeFormat.format(date);
-        System.out.println("MSEC TO DATE: value=" + value + " s=" + result);
-        return result;
+        return fd.getDateTimeParser().parser.format(new Date(value));
     }
 
     /**
