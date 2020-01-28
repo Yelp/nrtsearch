@@ -27,69 +27,29 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.apache.platypus.server.config.LuceneServerConfiguration;
-import org.apache.platypus.server.grpc.AddDocumentRequest;
-import org.apache.platypus.server.grpc.AddDocumentResponse;
-import org.apache.platypus.server.grpc.CreateIndexRequest;
-import org.apache.platypus.server.grpc.CreateIndexResponse;
-import org.apache.platypus.server.grpc.FieldDefRequest;
-import org.apache.platypus.server.grpc.FieldDefResponse;
-import org.apache.platypus.server.grpc.GrpcServer;
-import org.apache.platypus.server.grpc.HealthCheckRequest;
-import org.apache.platypus.server.grpc.HealthCheckResponse;
-import org.apache.platypus.server.grpc.IndexName;
-import org.apache.platypus.server.grpc.LiveSettingsRequest;
-import org.apache.platypus.server.grpc.LiveSettingsResponse;
-import org.apache.platypus.server.grpc.LuceneServerClient;
-import org.apache.platypus.server.grpc.Mode;
-import org.apache.platypus.server.grpc.ReplicationServerClient;
-import org.apache.platypus.server.grpc.SearchRequest;
-import org.apache.platypus.server.grpc.SearchResponse;
-import org.apache.platypus.server.grpc.SearcherVersion;
-import org.apache.platypus.server.grpc.SettingsRequest;
-import org.apache.platypus.server.grpc.SettingsResponse;
-import org.apache.platypus.server.grpc.StartIndexRequest;
-import org.apache.platypus.server.grpc.StartIndexResponse;
-import org.apache.platypus.server.grpc.TransferStatusCode;
+import org.apache.platypus.server.grpc.*;
+import org.apache.platypus.server.utils.OneDocBuilder;
+import org.apache.platypus.server.utils.ParallelDocumentIndexer;
 import org.junit.Test;
 import org.yaml.snakeyaml.Yaml;
 import picocli.CommandLine;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static org.junit.Assert.assertEquals;
 
 public class YelpReviewsTest {
     private static final Logger logger = Logger.getLogger(YelpReviewsTest.class.getName());
@@ -313,7 +273,11 @@ public class YelpReviewsTest {
             }
             long t1 = System.nanoTime();
             List<Future<Long>> results = ParallelDocumentIndexer.buildAndIndexDocs(
-                    reviews, indexService, primaryServerClient);
+                    new OneDocBuilderImpl(),
+                    reviews,
+                    indexService,
+                    primaryServerClient
+            );
 
             //wait till all indexing done and notify search thread once done
             for (Future<Long> each : results) {
@@ -359,60 +323,7 @@ public class YelpReviewsTest {
 
     }
 
-    private static class ParallelDocumentIndexer {
-        private static final Logger logger = Logger.getLogger(ParallelDocumentIndexer.class.getName());
-        private static final int DOCS_PER_INDEX_REQUEST = 1000;
-
-        private static List<Future<Long>> buildAndIndexDocs(Path path, ExecutorService executorService, LuceneServerClient luceneServerClient)
-                throws IOException, ExecutionException, InterruptedException {
-            try (BufferedReader br = new BufferedReader(new FileReader(path.toFile()))) {
-                String line;
-                List<String> rawLines = new ArrayList();
-                List<Future<Long>> futures = new ArrayList<>();
-                Gson gson = new Gson();
-                while ((line = br.readLine()) != null) {
-                    if (rawLines.size() < DOCS_PER_INDEX_REQUEST) {
-                        rawLines.add(line);
-                    } else {
-                        //launch indexing task
-                        logger.info(String.format("Launching DocumentGeneratorAndIndexer task for %s docs", DOCS_PER_INDEX_REQUEST));
-                        List<String> copiedRawLines = new ArrayList<>(rawLines);
-                        Future<Long> genIdFuture = submitTask(executorService, luceneServerClient, gson, copiedRawLines);
-                        futures.add(genIdFuture);
-                        rawLines.clear();
-                    }
-                }
-                if (!rawLines.isEmpty()) {
-                    //convert left over docs
-                    logger.info(String.format("Launching DocumentGeneratorAndIndexer task for %s docs", rawLines.size()));
-                    Future<Long> genIdFuture = submitTask(executorService, luceneServerClient, gson, rawLines);
-//                    Future<Long> genIdFuture = executorService.submit(
-//                            new DocumentGeneratorAndIndexer(rawLines.stream(), gson, luceneServerClient));
-                    futures.add(genIdFuture);
-                }
-                return futures;
-            }
-        }
-
-        private static Future<Long> submitTask(ExecutorService executorService, LuceneServerClient luceneServerClient,
-                                               Gson gson, List<String> rawLines) throws InterruptedException {
-            Future<Long> genIdFuture;
-            while (true) {
-                try {
-                    genIdFuture = executorService.submit(
-                            new DocumentGeneratorAndIndexer(rawLines.stream(), gson, luceneServerClient));
-                    return genIdFuture;
-                } catch (RejectedExecutionException e) {
-                    logger.log(Level.WARNING, String.format("Waiting for 1s for LinkedBlockingQueue to have more capacity"), e);
-                    Thread.sleep(1000);
-                }
-            }
-        }
-
-
-    }
-
-    private static void startIndex(LuceneServerClient serverClient, StartIndexRequest startIndexRequest) {
+    public static void startIndex(LuceneServerClient serverClient, StartIndexRequest startIndexRequest) {
         StartIndexResponse startIndexResponse = serverClient
                 .getBlockingStub().startIndex(startIndexRequest);
         logger.info(
@@ -529,7 +440,7 @@ public class YelpReviewsTest {
         }
     }
 
-    private static FieldDefRequest getFieldDefRequest(String jsonStr) {
+    static FieldDefRequest getFieldDefRequest(String jsonStr) {
         logger.fine(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
         FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
         try {
@@ -578,81 +489,10 @@ public class YelpReviewsTest {
 
     }
 
-    public static class IndexerTask {
-        private static final Logger logger = Logger.getLogger(IndexerTask.class.getName());
-        private String genId;
+    private static class OneDocBuilderImpl implements OneDocBuilder {
 
-        public Long index(LuceneServerClient luceneServerClient, Stream<AddDocumentRequest> addDocumentRequestStream) throws Exception {
-            String threadId = Thread.currentThread().getName() + Thread.currentThread().getId();
-
-            final CountDownLatch finishLatch = new CountDownLatch(1);
-
-            StreamObserver<AddDocumentResponse> responseObserver = new StreamObserver<>() {
-
-                @Override
-                public void onNext(AddDocumentResponse value) {
-                    // Note that Server sends back only 1 message (Unary mode i.e. Server calls its onNext only once
-                    // which is when it is done with indexing the entire stream), which means this method should be
-                    // called only once.
-                    logger.fine(String.format("Received response for genId: %s on threadId: %s", value.getGenId(), threadId));
-                    genId = value.getGenId();
-                }
-
-                @Override
-                public void onError(Throwable t) {
-                    logger.log(Level.SEVERE, t.getMessage(), t);
-                    finishLatch.countDown();
-                }
-
-                @Override
-                public void onCompleted() {
-                    logger.fine(String.format("Received final response from server on threadId: %s", threadId));
-                    finishLatch.countDown();
-                }
-            };
-
-            //The responseObserver handles responses from the server (i.e. 1 onNext and 1 completed)
-            //The requestObserver handles the sending of stream of client requests to server (i.e. multiple onNext and 1 completed)
-            StreamObserver<AddDocumentRequest> requestObserver = luceneServerClient.getAsyncStub()
-                    .addDocuments(responseObserver);
-            try {
-                addDocumentRequestStream.forEach(addDocumentRequest -> requestObserver.onNext(addDocumentRequest));
-            } catch (RuntimeException e) {
-                // Cancel RPC
-                requestObserver.onError(e);
-                throw e;
-            }
-            // Mark the end of requests
-            requestObserver.onCompleted();
-
-            logger.fine(String.format("sent async addDocumentsRequest to server on threadId: %s", threadId));
-
-            // Receiving happens asynchronously, so block here for 5 minutes
-            if (!finishLatch.await(5, TimeUnit.MINUTES)) {
-                logger.log(Level.WARNING, String.format("addDocuments can not finish within 5 minutes on threadId: %s", threadId));
-            }
-            return Long.valueOf(genId);
-        }
-    }
-
-    private static class DocumentGeneratorAndIndexer implements Callable<Long> {
-        private final Stream<String> lines;
-        private final Gson gson;
-        private final LuceneServerClient luceneServerClient;
-        private static final Logger logger = Logger.getLogger(DocumentGeneratorAndIndexer.class.getName());
-
-        DocumentGeneratorAndIndexer(Stream<String> lines, Gson gson, LuceneServerClient luceneServerClient) {
-            this.lines = lines;
-            this.gson = gson;
-            this.luceneServerClient = luceneServerClient;
-        }
-
-        private void addField(String fieldName, String value, AddDocumentRequest.Builder addDocumentRequestBuilder) {
-            AddDocumentRequest.MultiValuedField.Builder multiValuedFieldsBuilder = AddDocumentRequest.MultiValuedField.newBuilder();
-            addDocumentRequestBuilder.putFields(fieldName, multiValuedFieldsBuilder.addValue(value).build());
-        }
-
-        private AddDocumentRequest buildOneDoc(String line) {
+        @Override
+        public AddDocumentRequest buildOneDoc(String line, Gson gson) {
             AddDocumentRequest.Builder addDocumentRequestBuilder = AddDocumentRequest.newBuilder();
             addDocumentRequestBuilder.setIndexName(INDEX_NAME);
             YelpReview yelpReview = gson.fromJson(line, YelpReview.class);
@@ -669,34 +509,6 @@ public class YelpReviewsTest {
             return addDocumentRequest;
         }
 
-        private Stream<AddDocumentRequest> buildDocs() {
-            Stream.Builder<AddDocumentRequest> builder = Stream.builder();
-            lines.forEach(line -> builder.add(buildOneDoc(line)));
-            return builder.build();
-        }
-
-        /**
-         * Computes a result, or throws an exception if unable to do so.
-         *
-         * @return computed result
-         * @throws Exception if unable to compute a result
-         */
-        @Override
-        public Long call() throws Exception {
-            long t1 = System.nanoTime();
-            Stream<AddDocumentRequest> addDocumentRequestStream = buildDocs();
-            long t2 = System.nanoTime();
-            long timeMilliSecs = (t2 - t1) / (1000 * 100);
-            String threadId = Thread.currentThread().getName() + Thread.currentThread().getId();
-            logger.info(String.format("threadId: %s took %s milliSecs to buildDocs ", threadId, timeMilliSecs));
-
-            t1 = System.nanoTime();
-            Long genId = new IndexerTask().index(luceneServerClient, addDocumentRequestStream);
-            t2 = System.nanoTime();
-            timeMilliSecs = (t2 - t1) / (1000 * 100);
-            logger.info(String.format("threadId: %s took %s milliSecs to indexDocs ", threadId, timeMilliSecs));
-            return genId;
-        }
     }
 
     private static class SearchTask implements Callable<Double> {
@@ -760,7 +572,7 @@ public class YelpReviewsTest {
         }
     }
 
-    private static ExecutorService createExecutorService(int threadPoolSize, String threadNamePrefix) {
+    public static ExecutorService createExecutorService(int threadPoolSize, String threadNamePrefix) {
         final int MAX_BUFFERED_ITEMS = Math.max(100, 2 * threadPoolSize);
         // Seems to be substantially faster than ArrayBlockingQueue at high throughput:
         final BlockingQueue<Runnable> capacity = new LinkedBlockingQueue<Runnable>(MAX_BUFFERED_ITEMS);
@@ -776,4 +588,5 @@ public class YelpReviewsTest {
     public void runYelpReviews() throws IOException, InterruptedException {
         YelpReviewsTest.main(null);
     }
+
 }
