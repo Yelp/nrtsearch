@@ -23,7 +23,7 @@ import static org.junit.Assert.*;
 
 @RunWith(JUnit4.class)
 public class LuceneServerTest {
-    public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom");
+    public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom", "count");
     /**
      * This rule manages automatic graceful shutdown for the registered servers and channels at the
      * end of test.
@@ -332,6 +332,44 @@ public class LuceneServerTest {
     }
 
     @Test
+    public void testSearchFunctionScoreQuery() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(RETRIEVED_VALUES)
+                .setQuery(Query.newBuilder()
+                        .setQueryType(QueryType.FUNCTION_SCORE_QUERY)
+                        .setFunctionScoreQuery(FunctionScoreQuery.newBuilder()
+                                .setFunction("sqrt(4) * count")
+                                .setQuery(Query.newBuilder()
+                                        .setQueryType(QueryType.PHRASE_QUERY)
+                                        .setPhraseQuery(PhraseQuery.newBuilder()
+                                                .setSlop(0)
+                                                .setField("vendor_name")
+                                                .addTerms("second")
+                                                .addTerms("again")
+                                                .build()))
+                                .build())
+                        .build())
+                .build());
+
+        assertEquals(1, searchResponse.getTotalHits());
+        assertEquals(1, searchResponse.getHitsList().size());
+        SearchResponse.Hit hit = searchResponse.getHits(0);
+        String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+        assertEquals("2", docId);
+        assertEquals(14.0, hit.getScore(), 0.0);
+        checkHits(hit);
+    }
+
+    @Test
     public void testSnapshotRestore() throws IOException, InterruptedException {
         GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
         //2 docs addDocuments
@@ -383,15 +421,18 @@ public class LuceneServerTest {
         List<String> expectedLicenseNo = null;
         List<String> expectedVendorName = null;
         List<String> expectedVendorNameAtom = null;
+        int expectedCount = 0;
 
         if (docId.equals("1")) {
             expectedLicenseNo = Arrays.asList("300", "3100");
             expectedVendorName = Arrays.asList("first vendor", "first again");
             expectedVendorNameAtom = Arrays.asList("first atom vendor", "first atom again");
+            expectedCount = 3;
         } else if (docId.equals("2")) {
             expectedLicenseNo = Arrays.asList("411", "4222");
             expectedVendorName = Arrays.asList("second vendor", "second again");
             expectedVendorNameAtom = Arrays.asList("second atom vendor", "second atom again");
+            expectedCount = 7;
         } else {
             fail(String.format("docId %s not indexed", docId));
         }
@@ -399,7 +440,7 @@ public class LuceneServerTest {
         checkPerFieldValues(expectedLicenseNo, getLongFieldValuesListAsString(fields.get("license_no").getFieldValueList()));
         checkPerFieldValues(expectedVendorName, getStringFieldValuesList(fields.get("vendor_name").getFieldValueList()));
         checkPerFieldValues(expectedVendorNameAtom, getStringFieldValuesList(fields.get("vendor_name_atom").getFieldValueList()));
-
+        assertEquals(expectedCount, fields.get("count").getFieldValueList().get(0).getLongValue());
     }
 
     public static void checkFieldNames(List<String> expectedNames, Map<String, CompositeFieldValue> actualNames) {

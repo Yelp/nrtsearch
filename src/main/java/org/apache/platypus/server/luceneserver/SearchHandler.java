@@ -165,7 +165,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         String resultString;
         SearchResponse.Builder searchResponse = SearchResponse.newBuilder();
 
-        final Query queryOrig = q;
         SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
         // matching finally clause releases this searcher:
         try {
@@ -405,7 +404,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     }
 
     private static Query extractQuery(IndexState state, SearchRequest searchRequest, long timestampSec, Map<String, FieldDef> dynamicFields) throws SearchHandlerException {
-        Query q = null;
+        Query q;
         if (!searchRequest.getQueryText().isEmpty()) {
             QueryBuilder queryParser = createQueryParser(state, searchRequest, null);
 
@@ -421,7 +420,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 q = null;
             }
         } else if (searchRequest.getQuery().getQueryType() != QueryType.NONE) {
-            q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery());
+            q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery(), state);
         } else {
             q = new MatchAllDocsQuery();
         }

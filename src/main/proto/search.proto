@@ -41,11 +41,18 @@ message PhraseQuery {
     repeated string terms = 3; // Terms to match.
 }
 
+// A query that wraps another query and uses custom scoring logic to compute the wrapped query's score.
+message FunctionScoreQuery {
+    Query query = 1; // Input query
+    string function = 2; // Scoring function as Javascript expression. Syntax here: https://lucene.apache.org/core/8_2_0/expressions/org/apache/lucene/expressions/js/package-summary.html
+}
+
 // Defines different types of QueryNodes.
 enum QueryType {
     NONE = 0;
     BOOLEAN_QUERY = 1;
     PHRASE_QUERY = 2;
+    FUNCTION_SCORE_QUERY = 3;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -55,6 +62,7 @@ message Query {
     oneof QueryNode {
         BooleanQuery booleanQuery = 2;
         PhraseQuery phraseQuery = 3;
+        FunctionScoreQuery functionScoreQuery = 4;
     }
 }
 

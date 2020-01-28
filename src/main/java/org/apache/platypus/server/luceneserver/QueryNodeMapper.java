@@ -17,13 +17,14 @@
 
 package org.apache.platypus.server.luceneserver;
 
+import org.apache.lucene.expressions.Expression;
+import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.queries.function.FunctionScoreQuery;
+import org.apache.lucene.search.*;
 import org.apache.platypus.server.grpc.QueryType;
 
+import java.text.ParseException;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.Map;
@@ -36,22 +37,23 @@ class QueryNodeMapper {
     private final Map<org.apache.platypus.server.grpc.BooleanClause.Occur, BooleanClause.Occur> occurMapping
             = initializeOccurMapping();
 
-    Query getQuery(org.apache.platypus.server.grpc.Query query) {
+    Query getQuery(org.apache.platypus.server.grpc.Query query, IndexState state) {
         QueryType queryType = query.getQueryType();
         switch (queryType) {
-            case BOOLEAN_QUERY: return getBooleanQuery(query.getBooleanQuery());
+            case BOOLEAN_QUERY: return getBooleanQuery(query.getBooleanQuery(), state);
             case PHRASE_QUERY: return getPhraseQuery(query.getPhraseQuery());
+            case FUNCTION_SCORE_QUERY: return getFunctionScoreQuery(query.getFunctionScoreQuery(), state);
             default: throw new UnsupportedOperationException("Unsupported query type received: " + queryType);
         }
     }
 
-    private BooleanQuery getBooleanQuery(org.apache.platypus.server.grpc.BooleanQuery booleanQuery) {
+    private BooleanQuery getBooleanQuery(org.apache.platypus.server.grpc.BooleanQuery booleanQuery, IndexState state) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder()
                 .setMinimumNumberShouldMatch(booleanQuery.getMinimumNumberShouldMatch());
 
         booleanQuery.getClausesList()
                 .forEach(clause -> builder
-                        .add(getQuery(clause.getQuery()), occurMapping.get(clause.getOccur()))
+                        .add(getQuery(clause.getQuery(), state), occurMapping.get(clause.getOccur()))
                 );
 
         return builder.build();
@@ -65,6 +67,19 @@ class QueryNodeMapper {
                 .forEach(term -> builder.add(new Term(phraseQuery.getField(), term)));
 
         return builder.build();
+    }
+
+    private FunctionScoreQuery getFunctionScoreQuery(org.apache.platypus.server.grpc.FunctionScoreQuery functionScoreQuery,
+                                                     IndexState state) {
+        Expression expr;
+        String exprString = functionScoreQuery.getFunction();
+        try {
+            expr = JavascriptCompiler.compile(exprString);
+        } catch (ParseException pe) {
+            // Static error (e.g. bad JavaScript syntax):
+            throw new IllegalArgumentException(String.format("could not parse expression: %s", exprString), pe);
+        }
+        return new FunctionScoreQuery(getQuery(functionScoreQuery.getQuery(), state), expr.getDoubleValuesSource(state.exprBindings));
     }
 
     private Map<org.apache.platypus.server.grpc.BooleanClause.Occur, BooleanClause.Occur> initializeOccurMapping() {
