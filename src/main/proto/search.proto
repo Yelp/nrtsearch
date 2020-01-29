@@ -47,12 +47,34 @@ message FunctionScoreQuery {
     string function = 2; // Scoring function as Javascript expression. Syntax here: https://lucene.apache.org/core/8_2_0/expressions/org/apache/lucene/expressions/js/package-summary.html
 }
 
+// A query that matches documents containing a term.
+message TermQuery {
+    string field = 1;
+    string term = 2;
+}
+
+// Specialization for a disjunction over many terms that behaves like a ConstantScoreQuery over a BooleanQuery containing only BooleanClause.Occur.SHOULD clauses.
+message TermInSetQuery {
+    string field = 1;
+    repeated string terms = 2;
+}
+
+// A query that generates the union of documents produced by its subqueries, and that scores each document with the
+// maximum score for that document as produced by any subquery, plus a tie breaking increment for any additional matching subqueries.
+message DisjunctionMaxQuery {
+    repeated Query disjuncts = 1;
+    float tieBreakerMultiplier = 2;
+}
+
 // Defines different types of QueryNodes.
 enum QueryType {
     NONE = 0;
     BOOLEAN_QUERY = 1;
     PHRASE_QUERY = 2;
     FUNCTION_SCORE_QUERY = 3;
+    TERM_QUERY = 4;
+    TERM_IN_SET_QUERY = 5;
+    DISJUNCTION_MAX = 6;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -63,6 +85,9 @@ message Query {
         BooleanQuery booleanQuery = 2;
         PhraseQuery phraseQuery = 3;
         FunctionScoreQuery functionScoreQuery = 4;
+        TermQuery termQuery = 5;
+        TermInSetQuery termInSetQuery = 6;
+        DisjunctionMaxQuery disjunctionMaxQuery = 7;
     }
 }
 

@@ -370,6 +370,105 @@ public class LuceneServerTest {
     }
 
     @Test
+    public void testSearchTermQuery() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(RETRIEVED_VALUES)
+                .setQuery(Query.newBuilder()
+                        .setQueryType(QueryType.TERM_QUERY)
+                        .setTermQuery(TermQuery.newBuilder()
+                                .setField("vendor_name")
+                                .setTerm("second")))
+                .build());
+
+        assertEquals(1, searchResponse.getTotalHits());
+        assertEquals(1, searchResponse.getHitsList().size());
+        SearchResponse.Hit hit = searchResponse.getHits(0);
+        String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+        assertEquals("2", docId);
+        checkHits(hit);
+    }
+
+    @Test
+    public void testSearchTermInSetQuery() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(RETRIEVED_VALUES)
+                .setQuery(Query.newBuilder()
+                        .setQueryType(QueryType.TERM_IN_SET_QUERY)
+                        .setTermInSetQuery(TermInSetQuery.newBuilder()
+                                .setField("vendor_name")
+                                .addTerms("second")
+                                .addTerms("first")))
+                .build());
+
+        assertEquals(2, searchResponse.getTotalHits());
+        assertEquals(2, searchResponse.getHitsList().size());
+        SearchResponse.Hit firstHit = searchResponse.getHits(0);
+        checkHits(firstHit);
+        SearchResponse.Hit secondHit = searchResponse.getHits(1);
+        checkHits(secondHit);
+    }
+
+    @Test
+    public void testSearchDisjunctionMaxQuery() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(RETRIEVED_VALUES)
+                .setQuery(Query.newBuilder()
+                        .setQueryType(QueryType.DISJUNCTION_MAX)
+                        .setDisjunctionMaxQuery(DisjunctionMaxQuery.newBuilder()
+                                .addDisjuncts(Query.newBuilder()
+                                        .setQueryType(QueryType.TERM_QUERY)
+                                        .setTermQuery(TermQuery.newBuilder()
+                                                .setField("vendor_name")
+                                                .setTerm("second")))
+                                .addDisjuncts(Query.newBuilder()
+                                        .setQueryType(QueryType.FUNCTION_SCORE_QUERY)
+                                        .setFunctionScoreQuery(FunctionScoreQuery.newBuilder()
+                                                .setFunction("sqrt(4) * count")
+                                                .setQuery(Query.newBuilder()
+                                                        .setQueryType(QueryType.TERM_QUERY)
+                                                        .setTermQuery(TermQuery.newBuilder()
+                                                                .setField("vendor_name")
+                                                                .setTerm("second")))))
+                                .setTieBreakerMultiplier(0)))
+                .build());
+
+        assertEquals(1, searchResponse.getTotalHits());
+        assertEquals(1, searchResponse.getHitsList().size());
+        SearchResponse.Hit hit = searchResponse.getHits(0);
+        String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+        assertEquals("2", docId);
+        assertEquals(14.0, hit.getScore(), 0.0);
+        checkHits(hit);
+    }
+
+    @Test
     public void testSnapshotRestore() throws IOException, InterruptedException {
         GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
         //2 docs addDocuments
