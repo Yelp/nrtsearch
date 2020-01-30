@@ -42,7 +42,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -304,14 +303,7 @@ public class YelpReviewsTest {
             SearcherVersion searcherVersion = primaryReplicationClient.writeNRTPoint(INDEX_NAME);
             new SearchTask(secondaryServerClient, null, null)
                     .getSearchTotalHits(searcherVersion.getVersion());
-
-            //stop servers
-            primaryServer.cancel(true);
-            replicaServer.cancel(true);
-            primaryServerProcess.destroy();
-            replicaServerProcess.destroy();
             logger.info("done...");
-            System.exit(0);
 
         } catch (StatusRuntimeException e) {
             logger.severe("RPC failed with status " + e.getStatus());
@@ -319,6 +311,13 @@ public class YelpReviewsTest {
         } catch (ExecutionException e) {
             logger.severe("Task launched async failed " + e.getMessage());
             throw new RuntimeException(e);
+        } finally {
+            //stop servers
+            primaryServer.cancel(true);
+            replicaServer.cancel(true);
+            primaryServerProcess.destroy();
+            replicaServerProcess.destroy();
+            logger.info("cleanup done...");
         }
 
     }

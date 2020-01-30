@@ -28,6 +28,12 @@
       "type": "INT",
       "multiValued": true,
       "storeDocValues": true
+    },
+    {
+      "name": "count",
+      "type": "INT",
+      "storeDocValues": true,
+      "sort": true
     }
   ]
 }
