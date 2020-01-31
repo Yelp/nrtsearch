@@ -120,6 +120,19 @@ public class ArchiverTest {
         assertEquals(true, TarImplTest.dirsMatch(actualDownloadDir.resolve(resource).toFile(), sourceDir.toFile()));
     }
 
+    @Test
+    public void testUploadDownload() throws IOException {
+        String service = "testservice";
+        String resource = "testresource";
+        Path sourceDir = createDirWithFiles(service, resource);
+        String versionHash = archiver.upload(service, resource, sourceDir);
+        archiver.blessVersion(service, resource, versionHash);
+        Path downloadPath = archiver.download(service, resource);
+        Path parentPath = downloadPath.getParent();
+        Path path = parentPath.resolve(versionHash);
+        assertEquals(true, path.toFile().exists());
+    }
+
     private Path createDirWithFiles(String service, String resource) throws IOException {
         Path serviceDir = Files.createDirectory(archiverDirectory.resolve(service));
         Path resourceDir = Files.createDirectory(serviceDir.resolve(resource));

@@ -22,7 +22,6 @@
 
 package org.apache.platypus.server.luceneserver;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
@@ -32,6 +31,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.platypus.server.grpc.CreateSnapshotRequest;
 import org.apache.platypus.server.grpc.CreateSnapshotResponse;
+import org.apache.platypus.server.grpc.SnapshotId;
 
 import java.io.IOException;
 
@@ -57,10 +57,16 @@ public class CreateSnapshotHandler implements Handler<CreateSnapshotRequest, Cre
         // nocommit not thread safe vs commitHandler?
         final boolean openSearcher = createSnapshotRequest.getOpenSearcher();
         IndexCommit c = shardState.snapshots.snapshot();
-        IndexCommit tc = shardState.taxoSnapshots.snapshot();
+        IndexCommit tc = null;
+        //TODO: get taxonomy snapshot working for PrimaryMode
+        if (!shardState.isPrimary() && !shardState.isReplica()) {
+            tc = shardState.taxoSnapshots.snapshot();
+        }
         long stateGen = indexState.incRefLastCommitGen();
 
         JsonObject result = new JsonObject();
+        CreateSnapshotResponse.Builder createSnapShotResponseBuilder = CreateSnapshotResponse.newBuilder();
+
 
         SegmentInfos sis = SegmentInfos.readCommit(shardState.origIndexDir, c.getSegmentsFileName());
         shardState.snapshotGenToVersion.put(c.getGeneration(), sis.getVersion());
@@ -83,7 +89,7 @@ public class CreateSnapshotHandler implements Handler<CreateSnapshotRequest, Cre
                     s.getIndexReader().decRef();
                 }
                 long t1 = System.nanoTime();
-                result.addProperty("newSnapshotSearcherOpenMS", ((t1-t0)/1000000.0));
+                result.addProperty("newSnapshotSearcherOpenMS", ((t1 - t0) / 1000000.0));
             } finally {
                 shardState.release(s2);
             }
@@ -93,21 +99,25 @@ public class CreateSnapshotHandler implements Handler<CreateSnapshotRequest, Cre
         // nocommit must also snapshot snapshots state!?
         // hard to think about
 
-        fillFiles(result, "index", c);
-        fillFiles(result, "taxonomy", tc);
-        JsonArray arr = new JsonArray();
-        arr.add("state." + stateGen);
-        result.add("state", arr);
-        result.addProperty("id", c.getGeneration() + ":" + tc.getGeneration() + ":" + stateGen);
-        return CreateSnapshotResponse.newBuilder().setResponse(result.toString()).build();
+        SnapshotId.Builder snapshotIdBuilder = SnapshotId.newBuilder()
+                .setIndexGen(c.getGeneration())
+                .setStateGen(stateGen);
+        if (!shardState.isPrimary() && !shardState.isReplica()) {
+            snapshotIdBuilder.setTaxonomyGen(tc.getGeneration());
+        }
+        CreateSnapshotResponse.Builder builder = createSnapShotResponseBuilder
+                .addAllIndexFiles(c.getFileNames())
+                .addStateFiles(String.valueOf(stateGen))
+                .setSnapshotId(snapshotIdBuilder.build());
+        if (!shardState.isPrimary() && !shardState.isReplica()) {
+            builder.addAllTaxonomyFiles(tc.getFileNames());
+        }
+        return builder.build();
+
     }
 
-    static void fillFiles(JsonObject o, String path, IndexCommit commit) throws IOException {
-        JsonArray arr = new JsonArray();
-        for(String sub : commit.getFileNames()) {
-            arr.add(sub);
-        }
-        o.add(path, arr);
+    public static String getSnapshotIdAsString(SnapshotId snapshotId) {
+        return snapshotId.getIndexGen() + ":" + snapshotId.getTaxonomyGen() + ":" + snapshotId.getStateGen();
     }
 
 }

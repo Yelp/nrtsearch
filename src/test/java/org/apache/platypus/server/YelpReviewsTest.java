@@ -237,7 +237,6 @@ public class YelpReviewsTest {
                     .setIndexName(INDEX_NAME)
                     .setMode(Mode.PRIMARY)
                     .setPrimaryGen(0)
-                    .setRestore(false)
                     .build();
             startIndex(primaryServerClient, startIndexRequest);
             //start replica index
@@ -246,7 +245,6 @@ public class YelpReviewsTest {
                     .setMode(Mode.REPLICA)
                     .setPrimaryAddress(primaryHostPort.hostName)
                     .setPort(primaryHostPort.replicationPort)
-                    .setRestore(false)
                     .build();
             startIndex(secondaryServerClient, startIndexRequest);
 

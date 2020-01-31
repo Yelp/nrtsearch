@@ -23,15 +23,31 @@ import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.IndexReader;
 import org.apache.platypus.server.grpc.Mode;
 import org.apache.platypus.server.grpc.ReplicationServerClient;
+import org.apache.platypus.server.grpc.RestoreIndex;
 import org.apache.platypus.server.grpc.StartIndexRequest;
 import org.apache.platypus.server.grpc.StartIndexResponse;
+import org.apache.platypus.server.utils.Archiver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexResponse> {
+    public enum INDEXED_DATA_TYPE {
+        DATA, STATE
+    }
+
+    private final Archiver archiver;
     Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
+
+    public StartIndexHandler(Archiver archiver) {
+        this.archiver = archiver;
+    }
+
+    public StartIndexHandler() {
+        this(null);
+    }
 
     @Override
     public StartIndexResponse handle(IndexState indexState, StartIndexRequest startIndexRequest) throws StartIndexHandlerException {
@@ -40,12 +56,16 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         final long primaryGen;
         final String primaryAddress;
         final int primaryPort;
-        boolean restore = false;
+        Path dataPath = null;
+        if (startIndexRequest.hasRestore()) {
+            //TODO startReplica should already work by syncing with Primary, but might be quicker to reuse downloaded at startIndex time
+            RestoreIndex restoreIndex = startIndexRequest.getRestore();
+            dataPath = downloadArtifact(restoreIndex.getServiceName(), restoreIndex.getResourceName(), INDEXED_DATA_TYPE.DATA);
+        }
         if (mode.equals(Mode.PRIMARY)) {
             primaryGen = startIndexRequest.getPrimaryGen();
             primaryAddress = null;
             primaryPort = -1;
-            restore = startIndexRequest.getRestore();
         } else if (mode.equals(Mode.REPLICA)) {
             primaryGen = startIndexRequest.getPrimaryGen();
             primaryAddress = startIndexRequest.getPrimaryAddress();
@@ -59,13 +79,13 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         long t0 = System.nanoTime();
         try {
             if (mode.equals(Mode.PRIMARY)) {
-                shardState.startPrimary(primaryGen, restore);
+                shardState.startPrimary(primaryGen, dataPath);
             } else if (mode.equals(Mode.REPLICA)) {
                 // channel for replica to talk to primary on
                 ReplicationServerClient primaryNodeClient = new ReplicationServerClient(primaryAddress, primaryPort);
                 shardState.startReplica(primaryNodeClient, primaryGen);
             } else {
-                indexState.start();
+                indexState.start(dataPath);
             }
         } catch (Exception e) {
             logger.error("Cannot start IndexState/ShardState", e);
@@ -98,10 +118,53 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         return startIndexResponseBuilder.build();
     }
 
+    public RestorePathInfo downloadArtifacts(String serviceName, String resourceName) {
+        String resourceData = String.format("%s_data", resourceName);
+        String resourceMetadata = String.format("%s_metadata", resourceName);
+        Path dataPath;
+        Path metadataPath;
+        try {
+            dataPath = archiver.download(serviceName, resourceData);
+            metadataPath = archiver.download(serviceName, resourceMetadata);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+
+        }
+        return new RestorePathInfo(dataPath, metadataPath);
+    }
+
+    public Path downloadArtifact(String serviceName, String resourceName,
+                                 INDEXED_DATA_TYPE indexDataType) {
+        String resource;
+        if (indexDataType.equals(INDEXED_DATA_TYPE.DATA)) {
+            resource = String.format("%s_data", resourceName);
+        } else if (indexDataType.equals(INDEXED_DATA_TYPE.STATE)) {
+            resource = String.format("%s_metadata", resourceName);
+        } else {
+            throw new RuntimeException("Invalid INDEXED_DATA_TYPE " + indexDataType);
+        }
+        try {
+            return archiver.download(serviceName, resource);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    public static class RestorePathInfo {
+        public final Path dataPath;
+        public final Path metadataPath;
+
+        RestorePathInfo(Path dataPath, Path metadataPath) {
+            this.dataPath = dataPath;
+            this.metadataPath = metadataPath;
+        }
+    }
+
     public static class StartIndexHandlerException extends HandlerException {
 
         public StartIndexHandlerException(Exception e) {
-                super(e);
+            super(e);
         }
     }
 }

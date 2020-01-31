@@ -1,7 +1,15 @@
 package org.apache.platypus.server.grpc;
 
+import com.amazonaws.auth.AnonymousAWSCredentials;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
+import com.google.gson.Gson;
+import io.findify.s3mock.S3Mock;
 import io.grpc.testing.GrpcCleanupRule;
 import org.apache.platypus.server.luceneserver.GlobalState;
+import org.apache.platypus.server.utils.Archiver;
+import org.apache.platypus.server.utils.ArchiverImpl;
+import org.apache.platypus.server.utils.TarImpl;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -42,8 +50,17 @@ public class ReplicationServerTest {
     private GrpcServer luceneServerSecondary;
     private GrpcServer replicationServerSecondary;
 
+    private final String BUCKET_NAME = "archiver-unittest";
+    private Archiver archiver;
+    private S3Mock api;
+    private AmazonS3 s3;
+    private Path s3Directory;
+    private Path archiverDirectory;
+
+
     @After
     public void tearDown() throws IOException {
+        api.shutdown();
         luceneServerPrimary.getGlobalState().close();
         luceneServerSecondary.getGlobalState().close();
         rmDir(Paths.get(luceneServerPrimary.getRootDirName()));
@@ -52,22 +69,32 @@ public class ReplicationServerTest {
 
     @Before
     public void setUp() throws IOException {
+        //setup S3 for backup/restore
+        s3Directory = folder.newFolder("s3").toPath();
+        archiverDirectory = folder.newFolder("archiver").toPath();
+        api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
+        api.start();
+        s3 = new AmazonS3Client(new AnonymousAWSCredentials());
+        s3.setEndpoint("http://127.0.0.1:8011");
+        s3.createBucket(BUCKET_NAME);
+        archiver = new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl());
+
         //set up primary servers
         String nodeNamePrimary = "serverPrimary";
         String rootDirNamePrimary = "serverPrimaryRootDirName";
         Path rootDirPrimary = folder.newFolder(rootDirNamePrimary).toPath();
         String testIndex = "test_index";
         GlobalState globalStatePrimary = new GlobalState(nodeNamePrimary, rootDirPrimary, "localhost", 9900, 9001);
-        luceneServerPrimary = new GrpcServer(grpcCleanup, folder, false, globalStatePrimary, nodeNamePrimary, testIndex, globalStatePrimary.getPort());
-        replicationServerPrimary = new GrpcServer(grpcCleanup, folder, true, globalStatePrimary, nodeNamePrimary, testIndex, 9001);
+        luceneServerPrimary = new GrpcServer(grpcCleanup, folder, false, globalStatePrimary, nodeNamePrimary, testIndex, globalStatePrimary.getPort(), archiver);
+        replicationServerPrimary = new GrpcServer(grpcCleanup, folder, true, globalStatePrimary, nodeNamePrimary, testIndex, 9001, archiver);
 
         //set up secondary servers
         String nodeNameSecondary = "serverSecondary";
         String rootDirNameSecondary = "serverSecondaryRootDirName";
         Path rootDirSecondary = folder.newFolder(rootDirNameSecondary).toPath();
         GlobalState globalStateSecondary = new GlobalState(nodeNameSecondary, rootDirSecondary, "localhost", 9902, 9003);
-        luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary, nodeNameSecondary, testIndex, globalStateSecondary.getPort());
-        replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary, nodeNameSecondary, testIndex, 9003);
+        luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary, nodeNameSecondary, testIndex, globalStateSecondary.getPort(), archiver);
+        replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary, nodeNameSecondary, testIndex, 9003, archiver);
 
     }
 

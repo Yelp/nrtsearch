@@ -22,6 +22,7 @@
 
 package org.apache.platypus.server.utils;
 
+import com.google.inject.Inject;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
@@ -40,6 +41,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class TarImpl implements Tar {
+    @Inject
+    public TarImpl() {
+
+    }
+
     @Override
     public void extractTar(Path sourceFile, Path destDir) throws IOException {
         try (

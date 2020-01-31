@@ -12,6 +12,7 @@ import io.grpc.testing.GrpcCleanupRule;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.platypus.server.luceneserver.GlobalState;
+import org.apache.platypus.server.utils.Archiver;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
@@ -42,13 +43,21 @@ public class GrpcServer {
     private Server replicationServer;
     private ManagedChannel replicationServerManagedChannel;
 
-    public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder, boolean isReplication, GlobalState globalState, String rootDirName, String index, int port) throws IOException {
+    public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
+                      boolean isReplication, GlobalState globalState,
+                      String rootDirName, String index, int port, Archiver archiver) throws IOException {
         this.grpcCleanup = grpcCleanup;
         this.temporaryFolder = temporaryFolder;
         this.globalState = globalState;
         this.rootDirName = rootDirName;
         this.testIndex = index;
-        invoke(isReplication, port);
+        invoke(isReplication, port, archiver);
+    }
+
+    public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
+                      boolean isReplication, GlobalState globalState,
+                      String rootDirName, String index, int port) throws IOException {
+        this(grpcCleanup, temporaryFolder, isReplication, globalState, rootDirName, index, port, null);
     }
 
     public String getRootDirName() {
@@ -98,13 +107,13 @@ public class GrpcServer {
      * To test the server, make calls with a real stub using the in-process channel, and verify
      * behaviors or state changes from the client side.
      */
-    private void invoke(boolean isReplication, int port) throws IOException {
+    private void invoke(boolean isReplication, int port, Archiver archiver) throws IOException {
         // Generate a unique in-process server name.
         String serverName = InProcessServerBuilder.generateName();
         if (!isReplication) {
             // Create a server, add service, start, and register for automatic graceful shutdown.
             Server server = ServerBuilder.forPort(port)
-                    .addService(new LuceneServer.LuceneServerImpl(globalState))
+                    .addService(new LuceneServer.LuceneServerImpl(globalState, archiver))
                     .build()
                     .start();
             grpcCleanup.register(server);
@@ -280,7 +289,12 @@ public class GrpcServer {
             if (mode.equals(Mode.PRIMARY)) {
                 startIndexBuilder.setMode(Mode.PRIMARY);
                 startIndexBuilder.setPrimaryGen(primaryGen);
-                startIndexBuilder.setRestore(startOldIndex);
+                if (startOldIndex) {
+                    startIndexBuilder.setRestore(RestoreIndex.newBuilder()
+                            .setServiceName("testservice")
+                            .setResourceName("testresource")
+                            .build());
+                }
             } else if (mode.equals(Mode.REPLICA)) {
                 startIndexBuilder.setMode(Mode.REPLICA);
                 startIndexBuilder.setPrimaryAddress("localhost");

@@ -24,14 +24,17 @@ package org.apache.platypus.server.luceneserver;
 
 import org.apache.platypus.server.grpc.ReleaseSnapshotRequest;
 import org.apache.platypus.server.grpc.ReleaseSnapshotResponse;
+import org.apache.platypus.server.grpc.SnapshotId;
 
 import java.io.IOException;
+
+import static org.apache.platypus.server.luceneserver.CreateSnapshotHandler.getSnapshotIdAsString;
 
 public class ReleaseSnapshotHandler implements Handler<ReleaseSnapshotRequest, ReleaseSnapshotResponse> {
     @Override
     public ReleaseSnapshotResponse handle(IndexState indexState, ReleaseSnapshotRequest releaseSnapshotRequest) throws HandlerException {
         final ShardState shardState = indexState.getShard(0);
-        final IndexState.Gens gens = new IndexState.Gens(releaseSnapshotRequest.getId(), "id");
+        final IndexState.Gens gens = new IndexState.Gens(getSnapshotIdAsString(releaseSnapshotRequest.getSnapshotId()), "id");
         // SearcherLifetimeManager pruning thread will drop
         // the searcher (if it's old enough) next time it
         // wakes up:
@@ -39,9 +42,10 @@ public class ReleaseSnapshotHandler implements Handler<ReleaseSnapshotRequest, R
             shardState.snapshots.release(gens.indexGen);
             shardState.writer.deleteUnusedFiles();
             shardState.snapshotGenToVersion.remove(gens.indexGen);
-
-            shardState.taxoSnapshots.release(gens.taxoGen);
-            shardState.taxoInternalWriter.deleteUnusedFiles();
+            if (!shardState.isPrimary() && !shardState.isReplica()) {
+                shardState.taxoSnapshots.release(gens.taxoGen);
+                shardState.taxoInternalWriter.deleteUnusedFiles();
+            }
             indexState.decRef(gens.stateGen);
         } catch (IOException e) {
             throw new RuntimeException(e);

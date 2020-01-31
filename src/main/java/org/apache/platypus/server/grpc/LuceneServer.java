@@ -19,6 +19,9 @@
 
 package org.apache.platypus.server.grpc;
 
+import com.google.inject.Guice;
+import com.google.inject.Inject;
+import com.google.inject.Injector;
 import com.google.protobuf.ByteString;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -31,14 +34,14 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherLifetimeManager;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.platypus.LuceneServerModule;
 import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.luceneserver.*;
+import org.apache.platypus.server.utils.Archiver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -49,29 +52,31 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
-import static io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall;
-
 /**
  * Server that manages startup/shutdown of a {@code LuceneServer} server.
  */
 public class LuceneServer {
     private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
+    private final Archiver archiver;
 
     private Server server;
     private Server replicationServer;
     private LuceneServerConfiguration luceneServerConfiguration;
 
-    public LuceneServer(LuceneServerConfiguration luceneServerConfiguration) {
+    @Inject
+    public LuceneServer(LuceneServerConfiguration luceneServerConfiguration, Archiver archiver) {
         this.luceneServerConfiguration = luceneServerConfiguration;
+        this.archiver = archiver;
     }
 
     private void start() throws IOException {
         GlobalState globalState = new GlobalState(luceneServerConfiguration.getNodeName(),
                 Paths.get(luceneServerConfiguration.getStateDir()), luceneServerConfiguration.getHostName(),
                 luceneServerConfiguration.getPort(), luceneServerConfiguration.getReplicationPort());
+
         /* The port on which the server should run */
         server = ServerBuilder.forPort(luceneServerConfiguration.getPort())
-                .addService(new LuceneServerImpl(globalState))
+                .addService(new LuceneServerImpl(globalState, archiver))
                 .build()
                 .start();
         logger.info("Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
@@ -120,25 +125,20 @@ public class LuceneServer {
      */
     public static void main(String[] args) throws IOException, InterruptedException {
         LuceneServerConfiguration luceneServerConfiguration;
-        System.out.println("arguments passed: " + args.length);
-        if (args.length == 0) {
-            Path filePath = Paths.get("src", "main", "resources", "lucene_server_default_configuration.yaml");
-            luceneServerConfiguration = new Yaml().load(new FileInputStream(filePath.toFile()));
-            luceneServerConfiguration.setStateDir(LuceneServerConfiguration.DEFAULT_USER_STATE_DIR.toString());
-        } else {
-            luceneServerConfiguration = new Yaml().load(new FileInputStream(args[0]));
-        }
-        logger.info(luceneServerConfiguration.toString());
-        final LuceneServer server = new LuceneServer(luceneServerConfiguration);
-        server.start();
-        server.blockUntilShutdown();
+        logger.info("arguments passed: " + args.length);
+        Injector injector = Guice.createInjector(new LuceneServerModule(args));
+        LuceneServer luceneServer = injector.getInstance(LuceneServer.class);
+        luceneServer.start();
+        luceneServer.blockUntilShutdown();
     }
 
     static class LuceneServerImpl extends LuceneServerGrpc.LuceneServerImplBase {
         private final GlobalState globalState;
+        private final Archiver archiver;
 
-        LuceneServerImpl(GlobalState globalState) {
+        LuceneServerImpl(GlobalState globalState, Archiver archiver) {
             this.globalState = globalState;
+            this.archiver = archiver;
         }
 
         @Override
@@ -255,10 +255,18 @@ public class LuceneServer {
 
         @Override
         public void startIndex(StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
-            IndexState indexState = null;
             try {
-                indexState = globalState.getIndex(startIndexRequest.getIndexName());
-                StartIndexResponse reply = new StartIndexHandler().handle(indexState, startIndexRequest);
+                IndexState indexState = null;
+                StartIndexHandler startIndexHandler = new StartIndexHandler(archiver);
+                if (startIndexRequest.hasRestore()) {
+                    //download stateDir and reset state
+                    RestoreIndex restoreIndex = startIndexRequest.getRestore();
+                    Path stateDirPath = startIndexHandler.downloadArtifact(restoreIndex.getServiceName(), restoreIndex.getResourceName(),
+                            StartIndexHandler.INDEXED_DATA_TYPE.STATE);
+                    globalState.setStateDir(stateDirPath);
+                }
+                indexState = globalState.getIndex(startIndexRequest.getIndexName(), startIndexRequest.hasRestore());
+                StartIndexResponse reply = startIndexHandler.handle(indexState, startIndexRequest);
                 logger.info("StartIndexHandler returned " + reply.toString());
 //                SettingsResponse reply = StartIndexResponse.newBuilder().setResponse(response).build();
                 responseObserver.onNext(reply);
@@ -702,6 +710,29 @@ public class LuceneServer {
 
         }
 
+        @Override
+        public void backupIndex(BackupIndexRequest backupIndexRequest, StreamObserver<BackupIndexResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(backupIndexRequest.getIndexName());
+                BackupIndexRequestHandler backupIndexRequestHandler = new BackupIndexRequestHandler(archiver);
+                BackupIndexResponse reply = backupIndexRequestHandler.handle(indexState, backupIndexRequest);
+                logger.info(String.format("BackupRequestHandler returned results %s", reply.toString()));
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn(String.format("error while trying to backupIndex for index: %s for service: %s, resource: %s",
+                        backupIndexRequest.getIndexName(), backupIndexRequest.getServiceName(),
+                        backupIndexRequest.getResourceName()), e);
+                responseObserver.onError(Status
+                        .UNKNOWN
+                        .withCause(e)
+                        .withDescription(String.format("error while trying to backupIndex for index %s for service: %s, resource: %s",
+                                backupIndexRequest.getIndexName(), backupIndexRequest.getServiceName(),
+                                backupIndexRequest.getResourceName()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
     }
 
     static class ReplicationServerImpl extends ReplicationServerGrpc.ReplicationServerImplBase {

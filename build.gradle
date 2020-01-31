@@ -37,6 +37,7 @@ def spatial4jVersion = '0.7'
 def s3mockVersion = '0.2.5'
 def commonsCompressVersion = '1.19'
 def awsJavaSdkVersion = '1.11.695'
+def guicedeeVersion = '1.0.1.7-jre13'
 
 dependencies {
     //grpc deps
@@ -53,6 +54,7 @@ dependencies {
     implementation "org.apache.commons:commons-compress:${commonsCompressVersion}"
     implementation "com.amazonaws:aws-java-sdk-core:${awsJavaSdkVersion}"
     implementation "com.amazonaws:aws-java-sdk-s3:${awsJavaSdkVersion}"
+    implementation "com.guicedee.services:guice:${guicedeeVersion}"
 
     //lucene deps
     implementation "org.apache.lucene:lucene-core:${luceneVersion}"
@@ -152,6 +154,7 @@ task buildDocs() {
     dependsOn 'dockerRun'
     tasks.findByName('dockerRun').mustRunAfter 'pullBuildDocsImage'
 }
+
 
 //Dynamic exclude through property defined in the build.gradle file
 //e.g. to include perfTests: ./gradlew test -PincludePerfTests=true

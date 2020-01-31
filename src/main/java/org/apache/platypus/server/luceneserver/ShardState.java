@@ -20,7 +20,6 @@
 package org.apache.platypus.server.luceneserver;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.commons.io.FileUtils;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesReaderState;
 import org.apache.lucene.facet.taxonomy.OrdinalsReader;
@@ -71,8 +70,6 @@ import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.apache.platypus.server.luceneserver.IndexState.BASE_BACKUP_PATH;
 
 public class ShardState implements Closeable {
     Logger logger = LoggerFactory.getLogger(ShardState.class);
@@ -572,7 +569,7 @@ public class ShardState implements Closeable {
      * Start this index as primary, to NRT-replicate to replicas.  primaryGen should be incremented each time a new primary is promoted for
      * a given index.
      */
-    public synchronized void startPrimary(long primaryGen, boolean restore) throws Exception {
+    public synchronized void startPrimary(long primaryGen, Path dataPath) throws Exception {
         if (isStarted()) {
             throw new IllegalStateException("index \"" + name + "\" was already started");
         }
@@ -584,17 +581,16 @@ public class ShardState implements Closeable {
         try {
             //we have backups and are not creating a new index
             //use that to load indexes and other state (registeredFields, settings)
-            if (!doCreate && restore) {
-                File latestBackUpDir = remoteStateExists(BASE_BACKUP_PATH);
-                if (latestBackUpDir == null) {
-                    throw new RuntimeException("No restore state available in remote storage to load indexes from");
-                }
+            if (!doCreate && dataPath != null) {
                 if (indexState.rootDir != null) {
-                    //copy remote state into rootDir
-                    FileUtils.copyDirectory(latestBackUpDir, indexState.rootDir.toAbsolutePath().toFile());
+                    synchronized (this) {
+                        //copy downloaded data into rootDir
+                        indexState.restoreDir(dataPath, indexState.rootDir);
+                    }
                     indexState.initSaveLoadState();
                 }
             }
+
             if (indexState.saveLoadState == null) {
                 indexState.initSaveLoadState();
             }
