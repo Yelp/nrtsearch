@@ -2,6 +2,7 @@
 syntax = "proto3";
 
 import "search.proto";
+import "analysis.proto";
 
 option java_multiple_files = true;
 option java_package = "org.apache.platypus.server.grpc";
@@ -220,9 +221,9 @@ message Field {
     IndexOptions indexOptions = 15; //How the tokens should be indexed.
     string expression = 16; // The JavaScript expression defining a virtual field's value (only used with type=virtual).
     //TODO make analyzers message types i.e. StandardAnalyzer, EnglishAnalyzer, CustomAnalyzer etc
-    string analyzer = 17; // Analyzer to use for this field during indexing and searching.
-    string indexAnalyzer = 18; // Analyzer to use for this field during indexing.
-    string searchAnalyzer = 19; //Analyzer to use for this field during searching.
+    Analyzer analyzer = 17; // Analyzer to use for this field during indexing and searching.
+    Analyzer indexAnalyzer = 18; // Analyzer to use for this field during indexing.
+    Analyzer searchAnalyzer = 19; //Analyzer to use for this field during searching.
     TermVectors termVectors = 20; // Whether/how term vectors should be indexed.
     //TODO make similarity message types i.d. DefaultSimilarity, CustomSimilarity, BM25Similarity;
     string similarity = 21; // Which Similarity implementation to use for this field.

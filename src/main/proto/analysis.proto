@@ -1,0 +1,48 @@
+/* Description of analyzers, predefined and custom */
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "org.apache.platypus.server.grpc";
+option java_outer_classname = "AnalysisProto";
+option objc_class_prefix = "HLW";
+
+package luceneserver;
+
+message NameAndParams {
+    string name = 1;
+    map<string, string> params = 2;
+}
+
+message ConditionalTokenFilter {
+    NameAndParams condition = 1;
+    repeated NameAndParams tokenFilters = 2;
+}
+
+message Version {
+    string version = 1; // Lucene version as LUCENE_X_Y_Z or X.Y.Z
+}
+
+message PositionIncrementGap {
+    int32 positionIncrementGap = 1;
+}
+
+message OffsetGap {
+    int32 offsetGap = 1;
+}
+
+message CustomAnalyzer {
+    repeated NameAndParams charFilters = 1;
+    NameAndParams tokenizer = 2;
+    repeated NameAndParams tokenFilters = 3;
+    repeated ConditionalTokenFilter conditionalTokenFilters = 4;
+    Version defaultMatchVersion = 5; // Lucene version as LUCENE_X_Y_Z or X.Y.Z
+    PositionIncrementGap positionIncrementGap = 6;
+    OffsetGap offsetGap = 7;
+}
+
+message Analyzer {
+    oneof AnalyzerType {
+        string predefined = 1;
+        CustomAnalyzer custom = 2;
+    }
+}

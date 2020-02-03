@@ -43,6 +43,8 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
+import static org.apache.platypus.server.luceneserver.AnalyzerCreator.hasAnalyzer;
+
 public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefResponse> {
 
     Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
@@ -229,7 +231,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                 break;
 
             case ATOM:
-                if (!currentField.getAnalyzer().isEmpty()) {
+                if (hasAnalyzer(currentField)) {
                     throw new RegisterFieldsException("no analyzer allowed with atom (it's hardwired to KeywordAnalyzer internally)");
                 }
                 if (highlighted) {
@@ -341,7 +343,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
             throw new RegisterFieldsException("search must be true when highlight is true");
         }
 
-        if (!currentField.getAnalyzer().isEmpty() && ft.indexOptions() == IndexOptions.NONE) {
+        if (hasAnalyzer(currentField) && ft.indexOptions() == IndexOptions.NONE) {
             throw new RegisterFieldsException("no analyzer allowed when search=false");
         }
 
@@ -361,7 +363,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                         ft.setStoreTermVectors(true);
                         ft.setStoreTermVectorPositions(true);
                         ft.setStoreTermVectorOffsets(true);
-                    } else if (currentField.getTermVectors().equals(TermVectors.TERMS_POSITIONS_OFFSETS)) {
+                    } else if (currentField.getTermVectors().equals(TermVectors.TERMS_POSITIONS_OFFSETS)) { // TODO: should this one be TERMS_POSITIONS_OFFSETS_PAYLOADS ?
                         ft.setStoreTermVectors(true);
                         ft.setStoreTermVectorPositions(true);
                         ft.setStoreTermVectorOffsets(true);
@@ -371,6 +373,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                     }
                 }
 
+                // TODO: equals between objects of different types
                 if (currentField.getIndexOptions().equals(IndexOptions.DOCS)) {
                     ft.setIndexOptions(IndexOptions.DOCS);
                 } else if (currentField.getIndexOptions().equals(IndexOptions.DOCS_AND_FREQS)) {
@@ -420,12 +423,12 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
 
         Analyzer indexAnalyzer;
         Analyzer searchAnalyzer;
-        Analyzer analyzer = getAnalyzer(indexState, currentField, currentField.getAnalyzer());
+        Analyzer analyzer = AnalyzerCreator.getAnalyzer(indexState, currentField.getAnalyzer());
         if (analyzer != null) {
             indexAnalyzer = searchAnalyzer = analyzer;
         } else {
-            indexAnalyzer = getAnalyzer(indexState, currentField, currentField.getIndexAnalyzer());
-            searchAnalyzer = getAnalyzer(indexState, currentField, currentField.getSearchAnalyzer());
+            indexAnalyzer = AnalyzerCreator.getAnalyzer(indexState, currentField.getIndexAnalyzer());
+            searchAnalyzer = AnalyzerCreator.getAnalyzer(indexState, currentField.getSearchAnalyzer());
         }
 
         if (type == FieldDef.FieldValueType.TEXT && ft.indexOptions() != IndexOptions.NONE) {
@@ -528,19 +531,6 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
 
         return new FieldDef(fieldName, null, FieldDef.FieldValueType.VIRTUAL, null, null, null, true, false, null, null, null, false, values, null);
 
-    }
-
-    //TODO: Always return StandardAnalyzer for now, eventually we want to support all analyzers from lucene-analysis. Also support building custom
-    //analyzers
-    static Analyzer getAnalyzer(IndexState state, Field currentField, String name) {
-        Analyzer analyzer;
-        if (!name.isEmpty()) {
-            //TODO: support all analyzers from lucene-analysis, CJK, and  CustomAnalyzers
-            analyzer = new StandardAnalyzer();
-        } else {
-            analyzer = null;
-        }
-        return analyzer;
     }
 
     public static class RegisterFieldsException extends Handler.HandlerException {
