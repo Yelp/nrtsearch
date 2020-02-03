@@ -43,15 +43,15 @@ public class AnalyzerCreator {
         CustomAnalyzer.Builder builder = CustomAnalyzer.builder();
 
         if (analyzer.hasPositionIncrementGap()) {
-            builder.withPositionIncrementGap(analyzer.getPositionIncrementGap().getPositionIncrementGap());
+            builder.withPositionIncrementGap(analyzer.getPositionIncrementGap().getInt());
         }
         if (analyzer.hasOffsetGap()) {
-            builder.withOffsetGap(analyzer.getOffsetGap().getOffsetGap());
+            builder.withOffsetGap(analyzer.getOffsetGap().getInt());
         }
 
         try {
-            if (analyzer.hasDefaultMatchVersion()) {
-                builder.withDefaultMatchVersion(Version.parseLeniently(analyzer.getDefaultMatchVersion().getVersion()));
+            if (!analyzer.getDefaultMatchVersion().isEmpty()) {
+                builder.withDefaultMatchVersion(Version.parseLeniently(analyzer.getDefaultMatchVersion()));
             }
 
             for (NameAndParams charFilter : analyzer.getCharFiltersList()) {

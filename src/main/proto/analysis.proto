@@ -18,16 +18,9 @@ message ConditionalTokenFilter {
     repeated NameAndParams tokenFilters = 2;
 }
 
-message Version {
-    string version = 1; // Lucene version as LUCENE_X_Y_Z or X.Y.Z
-}
-
-message PositionIncrementGap {
-    int32 positionIncrementGap = 1;
-}
-
-message OffsetGap {
-    int32 offsetGap = 1;
+// Used to be able to check if a value was set
+message IntObject {
+    int32 int = 1;
 }
 
 message CustomAnalyzer {
@@ -35,9 +28,9 @@ message CustomAnalyzer {
     NameAndParams tokenizer = 2;
     repeated NameAndParams tokenFilters = 3;
     repeated ConditionalTokenFilter conditionalTokenFilters = 4;
-    Version defaultMatchVersion = 5; // Lucene version as LUCENE_X_Y_Z or X.Y.Z
-    PositionIncrementGap positionIncrementGap = 6;
-    OffsetGap offsetGap = 7;
+    string defaultMatchVersion = 5; // Lucene version as LUCENE_X_Y_Z or X.Y.Z, LATEST by default
+    IntObject positionIncrementGap = 6;
+    IntObject offsetGap = 7;
 }
 
 message Analyzer {
