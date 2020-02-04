@@ -19,20 +19,40 @@ package org.apache.platypus.server.luceneserver;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
+import org.apache.lucene.analysis.standard.ClassicAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.Version;
-import org.apache.platypus.server.grpc.*;
+import org.apache.platypus.server.grpc.ConditionalTokenFilter;
+import org.apache.platypus.server.grpc.Field;
+import org.apache.platypus.server.grpc.NameAndParams;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.text.MessageFormat;
 import java.text.ParseException;
 import java.util.HashMap;
 
 public class AnalyzerCreator {
 
+    private static final String LUCENE_ANALYZER_PATH = "org.apache.lucene.analysis.{0}Analyzer";
+
     static Analyzer getAnalyzer(IndexState state, org.apache.platypus.server.grpc.Analyzer analyzer) {
         if (!analyzer.getPredefined().isEmpty()) {
-            //TODO: support all analyzers from lucene-analysis, CJK, and  CustomAnalyzers
-            return new StandardAnalyzer();
+            String predefinedAnalyzer = analyzer.getPredefined();
+
+            if ("standard".equals(predefinedAnalyzer)) {
+                return new StandardAnalyzer();
+            } else if ("classic".equals(predefinedAnalyzer)) {
+                return new ClassicAnalyzer();
+            } else {
+                // Try to dynamically load the analyzer class
+                try {
+                    String className = MessageFormat.format(LUCENE_ANALYZER_PATH, predefinedAnalyzer);
+                    return (Analyzer) AnalyzerCreator.class.getClassLoader().loadClass(className).getDeclaredConstructor().newInstance();
+                } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | ClassNotFoundException | InvocationTargetException e) {
+                    throw new AnalyzerCreationException("Unable to find predefined analyzer: " + predefinedAnalyzer, e);
+                }
+            }
         } else if (analyzer.hasCustom()) {
             return getCustomAnalyzer(analyzer.getCustom());
         } else {

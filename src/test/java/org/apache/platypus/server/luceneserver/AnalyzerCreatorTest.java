@@ -21,11 +21,19 @@ import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.bn.BengaliAnalyzer;
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilterFactory;
 import org.apache.lucene.analysis.core.LowerCaseFilterFactory;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.eu.BasqueAnalyzer;
+import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilterFactory;
+import org.apache.lucene.analysis.ru.RussianAnalyzer;
+import org.apache.lucene.analysis.standard.ClassicAnalyzer;
 import org.apache.lucene.analysis.standard.ClassicTokenizerFactory;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.util.BytesRef;
@@ -36,6 +44,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
@@ -45,10 +54,46 @@ import static org.junit.Assert.*;
 @RunWith(RandomizedRunner.class)   // Required to call org.apache.lucene.util.LuceneTestCase.random
 public class AnalyzerCreatorTest {
 
-    // Tests for custom analyzers were created using tests in org.apache.lucene.analysis.custom.TestCustomAnalyzer
+    // Tests for predefined analyzers
 
     @Test
-    public void testFactoryHtmlStripClassicFolding() throws IOException {
+    public void testPredefinedStandardAnalyzer() {
+        Analyzer analyzer = AnalyzerCreator.getAnalyzer(null, getPredefinedAnalyzer("standard"));
+
+        assertSame(StandardAnalyzer.class, analyzer.getClass());
+    }
+
+    @Test
+    public void testPredefinedClassicAnalyzer() {
+        Analyzer analyzer = AnalyzerCreator.getAnalyzer(null, getPredefinedAnalyzer("classic"));
+
+        assertSame(ClassicAnalyzer.class, analyzer.getClass());
+    }
+
+    @Test
+    public void testPredefinedDynamicallyInitializedAnalyzer() {
+        List<String> names = Arrays.asList("en.English", "bn.Bengali", "eu.Basque", "hy.Armenian", "ru.Russian", "th.Thai");
+        List<Class> classes = Arrays.asList(EnglishAnalyzer.class, BengaliAnalyzer.class, BasqueAnalyzer.class,
+                ArmenianAnalyzer.class, RussianAnalyzer.class, ThaiAnalyzer.class);
+
+        assertEquals(names.size(), classes.size());
+
+        for (int i = 0; i < names.size(); i++) {
+            Analyzer analyzer = AnalyzerCreator.getAnalyzer(null, getPredefinedAnalyzer(names.get(i)));
+            assertSame(classes.get(i), analyzer.getClass());
+        }
+    }
+
+    private static org.apache.platypus.server.grpc.Analyzer getPredefinedAnalyzer(String name) {
+        return org.apache.platypus.server.grpc.Analyzer.newBuilder()
+                .setPredefined(name)
+                .build();
+    }
+
+    // Tests for custom analyzers - created using tests in org.apache.lucene.analysis.custom.TestCustomAnalyzer
+
+    @Test
+    public void testCustomAnalyzerFactoryHtmlStripClassicFolding() throws IOException {
         org.apache.platypus.server.grpc.Analyzer analyzerGrpc = org.apache.platypus.server.grpc.Analyzer.newBuilder()
                 .setCustom(org.apache.platypus.server.grpc.CustomAnalyzer.newBuilder()
                         .setDefaultMatchVersion("LATEST")
@@ -135,7 +180,7 @@ public class AnalyzerCreatorTest {
     }
 
     @Test
-    public void testNormalizationWithMultipleTokenFilters() {
+    public void testCustomAnalyzerNormalizationWithMultipleTokenFilters() {
         // none of these components are multi-term aware so they should not be applied
         org.apache.platypus.server.grpc.Analyzer analyzerGrpc = org.apache.platypus.server.grpc.Analyzer.newBuilder()
                 .setCustom(org.apache.platypus.server.grpc.CustomAnalyzer.newBuilder()
@@ -153,7 +198,7 @@ public class AnalyzerCreatorTest {
     }
 
     @Test
-    public void testNormalizationWithMultiplCharFilters() {
+    public void testCustomAnalyzerNormalizationWithMultiplCharFilters() {
         // none of these components are multi-term aware so they should not be applied
         org.apache.platypus.server.grpc.Analyzer analyzerGrpc = org.apache.platypus.server.grpc.Analyzer.newBuilder()
                 .setCustom(org.apache.platypus.server.grpc.CustomAnalyzer.newBuilder()
