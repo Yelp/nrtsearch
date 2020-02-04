@@ -36,7 +36,7 @@ public class AnalyzerCreator {
 
     private static final String LUCENE_ANALYZER_PATH = "org.apache.lucene.analysis.{0}Analyzer";
 
-    static Analyzer getAnalyzer(IndexState state, org.apache.platypus.server.grpc.Analyzer analyzer) {
+    static Analyzer getAnalyzer(org.apache.platypus.server.grpc.Analyzer analyzer) {
         if (!analyzer.getPredefined().isEmpty()) {
             String predefinedAnalyzer = analyzer.getPredefined();
 
@@ -108,6 +108,7 @@ public class AnalyzerCreator {
         }
     }
 
+    // TODO: replace all usages of this method with getAnalyzer
     static Analyzer getStandardAnalyzer() {
         return new StandardAnalyzer();
     }

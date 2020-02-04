@@ -423,12 +423,12 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
 
         Analyzer indexAnalyzer;
         Analyzer searchAnalyzer;
-        Analyzer analyzer = AnalyzerCreator.getAnalyzer(indexState, currentField.getAnalyzer());
+        Analyzer analyzer = AnalyzerCreator.getAnalyzer(currentField.getAnalyzer());
         if (analyzer != null) {
             indexAnalyzer = searchAnalyzer = analyzer;
         } else {
-            indexAnalyzer = AnalyzerCreator.getAnalyzer(indexState, currentField.getIndexAnalyzer());
-            searchAnalyzer = AnalyzerCreator.getAnalyzer(indexState, currentField.getSearchAnalyzer());
+            indexAnalyzer = AnalyzerCreator.getAnalyzer(currentField.getIndexAnalyzer());
+            searchAnalyzer = AnalyzerCreator.getAnalyzer(currentField.getSearchAnalyzer());
         }
 
         if (type == FieldDef.FieldValueType.TEXT && ft.indexOptions() != IndexOptions.NONE) {

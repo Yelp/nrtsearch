@@ -58,14 +58,14 @@ public class AnalyzerCreatorTest {
 
     @Test
     public void testPredefinedStandardAnalyzer() {
-        Analyzer analyzer = AnalyzerCreator.getAnalyzer(null, getPredefinedAnalyzer("standard"));
+        Analyzer analyzer = AnalyzerCreator.getAnalyzer(getPredefinedAnalyzer("standard"));
 
         assertSame(StandardAnalyzer.class, analyzer.getClass());
     }
 
     @Test
     public void testPredefinedClassicAnalyzer() {
-        Analyzer analyzer = AnalyzerCreator.getAnalyzer(null, getPredefinedAnalyzer("classic"));
+        Analyzer analyzer = AnalyzerCreator.getAnalyzer(getPredefinedAnalyzer("classic"));
 
         assertSame(ClassicAnalyzer.class, analyzer.getClass());
     }
@@ -79,7 +79,7 @@ public class AnalyzerCreatorTest {
         assertEquals(names.size(), classes.size());
 
         for (int i = 0; i < names.size(); i++) {
-            Analyzer analyzer = AnalyzerCreator.getAnalyzer(null, getPredefinedAnalyzer(names.get(i)));
+            Analyzer analyzer = AnalyzerCreator.getAnalyzer(getPredefinedAnalyzer(names.get(i)));
             assertSame(classes.get(i), analyzer.getClass());
         }
     }
@@ -112,7 +112,7 @@ public class AnalyzerCreatorTest {
                                 .setInt(1000)))
                 .build();
 
-        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getAnalyzer(null, analyzerGrpc);
+        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getAnalyzer(analyzerGrpc);
 
         assertSame(ClassicTokenizerFactory.class, analyzer.getTokenizerFactory().getClass());
         List<CharFilterFactory> charFilters = analyzer.getCharFilterFactories();
@@ -192,7 +192,7 @@ public class AnalyzerCreatorTest {
                                 .setName("lowercase")))
                 .build();
 
-        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getAnalyzer(null, analyzerGrpc);
+        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getAnalyzer(analyzerGrpc);
 
         assertEquals(new BytesRef("a b e"), analyzer.normalize("dummy", "À B é"));
     }
@@ -212,7 +212,7 @@ public class AnalyzerCreatorTest {
                                 .setName("whitespace")))
                 .build();
 
-        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getAnalyzer(null, analyzerGrpc);
+        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getAnalyzer(analyzerGrpc);
 
         assertEquals(new BytesRef("e f c"), analyzer.normalize("dummy", "a b c"));
     }
