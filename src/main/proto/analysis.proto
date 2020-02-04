@@ -35,7 +35,7 @@ message CustomAnalyzer {
 
 message Analyzer {
     oneof AnalyzerType {
-        string predefined = 1;
+        string predefined = 1; // Analyzers predefined in Lucene, apart from standard and classic there are en.English, bn.Bengali, eu.Basque, etc. (names derived from Lucene's analyzer class names)
         CustomAnalyzer custom = 2;
     }
 }
