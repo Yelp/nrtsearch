@@ -25,6 +25,7 @@ import org.apache.platypus.server.grpc.*;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.HashMap;
 
 public class AnalyzerCreator {
 
@@ -39,6 +40,10 @@ public class AnalyzerCreator {
         }
     }
 
+    /**
+     * Create an {@link Analyzer} from user parameters. Note that we create new maps with the param maps because
+     * the Protobuf one may be unmodifiable and Lucene may modify the maps.
+     */
     private static Analyzer getCustomAnalyzer(org.apache.platypus.server.grpc.CustomAnalyzer analyzer) {
         CustomAnalyzer.Builder builder = CustomAnalyzer.builder();
 
@@ -55,15 +60,17 @@ public class AnalyzerCreator {
             }
 
             for (NameAndParams charFilter : analyzer.getCharFiltersList()) {
-                builder.addCharFilter(charFilter.getName(), charFilter.getParamsMap());
+                builder.addCharFilter(charFilter.getName(), new HashMap<>(charFilter.getParamsMap()));
             }
 
-            builder.withTokenizer(analyzer.getTokenizer().getName(), analyzer.getTokenizer().getParamsMap());
+            builder.withTokenizer(analyzer.getTokenizer().getName(), new HashMap<>(analyzer.getTokenizer().getParamsMap()));
 
             for (NameAndParams tokenFilter : analyzer.getTokenFiltersList()) {
-                builder.addTokenFilter(tokenFilter.getName(), tokenFilter.getParamsMap());
+                builder.addTokenFilter(tokenFilter.getName(), new HashMap<>(tokenFilter.getParamsMap()));
             }
 
+            // TODO: The only impl of ConditionalTokenFilter is ProtectedTermFilter (https://lucene.apache.org/core/8_2_0/analyzers-common/org/apache/lucene/analysis/miscellaneous/ProtectedTermFilterFactory.html)
+            // It needs a protected terms file as input which is not supported yet.
             for (ConditionalTokenFilter conditionalTokenFilter : analyzer.getConditionalTokenFiltersList()) {
                 NameAndParams condition = conditionalTokenFilter.getCondition();
                 CustomAnalyzer.ConditionBuilder when = builder.when(condition.getName(), condition.getParamsMap());

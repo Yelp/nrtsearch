@@ -24,10 +24,10 @@ message IntObject {
 }
 
 message CustomAnalyzer {
-    repeated NameAndParams charFilters = 1;
+    repeated NameAndParams charFilters = 1; // Available char filters as of Lucene 8.2.0: htmlstrip, mapping, persian, patternreplace
     NameAndParams tokenizer = 2;
     repeated NameAndParams tokenFilters = 3;
-    repeated ConditionalTokenFilter conditionalTokenFilters = 4;
+    repeated ConditionalTokenFilter conditionalTokenFilters = 4; // TODO: this is not properly supported yet, the only impl requires a protected terms file. Can support this properly later if needed
     string defaultMatchVersion = 5; // Lucene version as LUCENE_X_Y_Z or X.Y.Z, LATEST by default
     IntObject positionIncrementGap = 6;
     IntObject offsetGap = 7;
