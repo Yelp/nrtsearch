@@ -363,7 +363,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                         ft.setStoreTermVectors(true);
                         ft.setStoreTermVectorPositions(true);
                         ft.setStoreTermVectorOffsets(true);
-                    } else if (currentField.getTermVectors().equals(TermVectors.TERMS_POSITIONS_OFFSETS)) { // TODO: should this one be TERMS_POSITIONS_OFFSETS_PAYLOADS ?
+                    } else if (currentField.getTermVectors().equals(TermVectors.TERMS_POSITIONS_OFFSETS_PAYLOADS)) {
                         ft.setStoreTermVectors(true);
                         ft.setStoreTermVectorPositions(true);
                         ft.setStoreTermVectorOffsets(true);
@@ -373,14 +373,13 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                     }
                 }
 
-                // TODO: equals between objects of different types
-                if (currentField.getIndexOptions().equals(IndexOptions.DOCS)) {
+                if (currentField.getIndexOptions().equals(org.apache.platypus.server.grpc.IndexOptions.DOCS)) {
                     ft.setIndexOptions(IndexOptions.DOCS);
-                } else if (currentField.getIndexOptions().equals(IndexOptions.DOCS_AND_FREQS)) {
+                } else if (currentField.getIndexOptions().equals(org.apache.platypus.server.grpc.IndexOptions.DOCS_FREQS)) {
                     ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
-                } else if (currentField.getIndexOptions().equals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS)) {
+                } else if (currentField.getIndexOptions().equals(org.apache.platypus.server.grpc.IndexOptions.DOCS_FREQS_POSITIONS)) {
                     ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-                } else if (currentField.getIndexOptions().equals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS)) {
+                } else if (currentField.getIndexOptions().equals(org.apache.platypus.server.grpc.IndexOptions.DOCS_FREQS_POSITIONS_OFFSETS)) {
                     ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
                 } else { //default option
                     ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
