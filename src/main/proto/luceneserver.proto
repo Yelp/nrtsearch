@@ -94,6 +94,10 @@ service LuceneServer {
     /* releases a snapshot previously created with @createSnapshot. */
     rpc releaseSnapshot (ReleaseSnapshotRequest) returns (ReleaseSnapshotResponse) {
     }
+    /* backs up a resource (index) and it associated metadata e.g. settings, schema to s3 */
+    rpc backupIndex (BackupIndexRequest) returns (BackupIndexResponse) {
+    }
+
 }
 
 //The ReplicationServer service definition.
@@ -270,7 +274,7 @@ message StartIndexRequest {
     int64 primaryGen = 3; //primary, the generation of this primary (should increment each time a new primary starts for this index)
     string primaryAddress = 4; //replica, the IP address or host name of the remote primary
     int32 port = 5; //replica, the TCP port of the remote primary
-    bool restore = 6; //primary, restore index from backup
+    RestoreIndex restore = 6; // restore index from backup
 }
 
 enum Mode {
@@ -517,16 +521,41 @@ message CreateSnapshotRequest {
 }
 
 message CreateSnapshotResponse {
-    string response = 1; //TODO dont use json string
+    repeated string indexFiles = 1;
+    repeated string taxonomyFiles = 2;
+    repeated string stateFiles = 3;
+    SnapshotId snapshotId = 4;
+}
+
+message SnapshotId {
+    int64 indexGen = 1;
+    int64 taxonomyGen = 2;
+    int64 stateGen = 3;
 }
 
 message ReleaseSnapshotRequest {
     string indexName = 1; // name of snapshotted index to be released
-    string id = 2; //The id for this snapshot; this must have been previously created via @createSnapshot.
+    SnapshotId snapshotId = 2; //The id for this snapshot; this must have been previously created via @createSnapshot.
 }
 
 message ReleaseSnapshotResponse {
     bool success = 1; //true if successful
+}
+
+message BackupIndexRequest {
+    string indexName = 1; //name of the index to backup
+    string serviceName = 2; // remote storage namespace qualifier for service
+    string resourceName = 3; //remote storage namespace qualifier for resource e.g. indexName
+}
+
+message BackupIndexResponse {
+    string dataVersionHash = 1; //version identifier for data on s3
+    string metadataVersionHash = 2; //version identifier for metadata on s3
+}
+
+message RestoreIndex {
+    string serviceName = 1; // remote storage namespace qualifier for service
+    string resourceName = 2; //remote storage namespace qualifier for resource e.g. indexName
 }
 
 message AddReplicaRequest {

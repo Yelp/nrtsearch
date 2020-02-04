@@ -19,17 +19,44 @@
 
 package org.apache.platypus.server.config;
 
+import com.google.inject.Inject;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class LuceneServerConfiguration {
     public final static Path DEFAULT_USER_STATE_DIR = Paths.get(System.getProperty("user.home"), "lucene", "server");
+    public final static Path DEFAULT_ARCHIVER_DIR = Paths.get(DEFAULT_USER_STATE_DIR.toString(), "archiver");
+    public final static Path DEFAULT_BOTO_CFG_PATH = Paths.get(DEFAULT_USER_STATE_DIR.toString(), "boto.cfg");
+    private static final String DEFAULT_BUCKET_NAME = "DEFAULT_ARCHIVE_BUCKET";
 
     private int port;
     private int replicationPort;
     private String nodeName;
     private String stateDir;
     private String hostName;
+    private String archiveDirectory = DEFAULT_ARCHIVER_DIR.toString();
+    private String botoCfgPath = DEFAULT_BOTO_CFG_PATH.toString();
+    private String bucketName = DEFAULT_BUCKET_NAME;
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
+        sb.append("port=").append(port);
+        sb.append(", replicationPort=").append(replicationPort);
+        sb.append(", nodeName='").append(nodeName).append('\'');
+        sb.append(", stateDir='").append(stateDir).append('\'');
+        sb.append(", hostName='").append(hostName).append('\'');
+        sb.append(", archiveDirectory='").append(archiveDirectory).append('\'');
+        sb.append(", botoCfgPath='").append(botoCfgPath).append('\'');
+        sb.append(", bucketName='").append(bucketName).append('\'');
+        sb.append('}');
+        return sb.toString();
+    }
+
+    @Inject
+    public LuceneServerConfiguration() {
+    }
 
     public int getPort() {
         return port;
@@ -71,17 +98,31 @@ public class LuceneServerConfiguration {
         this.hostName = hostName;
     }
 
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
-        sb.append("port=").append(port);
-        sb.append(", replicationPort=").append(replicationPort);
-        sb.append(", nodeName='").append(nodeName).append('\'');
-        sb.append(", stateDir=").append(stateDir);
-        sb.append(", hostName='").append(hostName).append('\'');
-        sb.append('}');
-        return sb.toString();
+
+    public String getBotoCfgPath() {
+        return botoCfgPath;
     }
+
+    public void setBotoCfgPath(String botoCfgPath) {
+        this.botoCfgPath = botoCfgPath;
+    }
+
+    public String getBucketName() {
+        return bucketName;
+    }
+
+    public void setBucketName(String bucketName) {
+        this.bucketName = bucketName;
+    }
+
+    public String getArchiveDirectory() {
+        return archiveDirectory;
+    }
+
+    public void setArchiveDirectory(String archiveDirectory) {
+        this.archiveDirectory = archiveDirectory;
+    }
+
 
     public static class Builder {
         private String hostName;
@@ -89,6 +130,9 @@ public class LuceneServerConfiguration {
         private int port;
         private String nodeName;
         private Path stateDir;
+        private String archiveDirectory;
+        private String botoCfgPath;
+        private String bucketName;
 
         public Builder() {
             //set default values
@@ -97,6 +141,9 @@ public class LuceneServerConfiguration {
             this.stateDir = DEFAULT_USER_STATE_DIR;
             this.port = 50051;
             this.replicationPort = 50052;
+            this.archiveDirectory = DEFAULT_ARCHIVER_DIR.toString();
+            this.botoCfgPath = DEFAULT_BOTO_CFG_PATH.toString();
+            this.bucketName = DEFAULT_BUCKET_NAME;
         }
 
         public Builder withStateDir(String tempStateDir) {
@@ -125,6 +172,21 @@ public class LuceneServerConfiguration {
             return this;
         }
 
+        public Builder withArchiveDirectory(String archiveDirectory) {
+            this.archiveDirectory = archiveDirectory;
+            return this;
+        }
+
+        public Builder withBotoCfgPath(String botoCfgPath) {
+            this.botoCfgPath = botoCfgPath;
+            return this;
+        }
+
+        public Builder withBucketName(String bucketName) {
+            this.bucketName = bucketName;
+            return this;
+        }
+
         public LuceneServerConfiguration build() {
             LuceneServerConfiguration luceneServerConfiguration = new LuceneServerConfiguration();
             luceneServerConfiguration.nodeName = this.nodeName;
@@ -132,6 +194,9 @@ public class LuceneServerConfiguration {
             luceneServerConfiguration.port = this.port;
             luceneServerConfiguration.hostName = this.hostName;
             luceneServerConfiguration.replicationPort = this.replicationPort;
+            luceneServerConfiguration.archiveDirectory = this.archiveDirectory;
+            luceneServerConfiguration.botoCfgPath = this.botoCfgPath;
+            luceneServerConfiguration.bucketName = this.bucketName;
             return luceneServerConfiguration;
         }
 

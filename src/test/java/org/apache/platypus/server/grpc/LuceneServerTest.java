@@ -477,14 +477,16 @@ public class LuceneServerTest {
         //1. commit
         grpcServer.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName("test_index").build());
         //2. createSnapshot
-        grpcServer.getBlockingStub().createSnapshot(CreateSnapshotRequest.newBuilder().setIndexName("test_index").build());
+        CreateSnapshotResponse createSnapshotResponse = grpcServer.getBlockingStub().createSnapshot(CreateSnapshotRequest.newBuilder().setIndexName("test_index").build());
         //3. copy file over to remote storage
         Path backUpDir = folder.newFolder("backup_data").toPath();
         Path backUpStateDir = folder.newFolder("backup_state").toPath();
         FileUtils.copyDirectory(Paths.get(grpcServer.getRootDirName()).toFile(), backUpDir.toFile());
         FileUtils.copyDirectory(grpcServer.getGlobalState().getStateDir().toFile(), backUpStateDir.toFile());
         //4. releaseSnapshot
-        grpcServer.getBlockingStub().releaseSnapshot(ReleaseSnapshotRequest.newBuilder().setIndexName("test_index").setId("1:1:0").build());
+        grpcServer.getBlockingStub().releaseSnapshot(ReleaseSnapshotRequest.newBuilder()
+                .setIndexName("test_index")
+                .setSnapshotId(createSnapshotResponse.getSnapshotId()).build());
         //5. stop server and remove data and state files.
         tearDownGrpcServer(grpcServer.getGlobalState().getStateDir());
         //Steps to restore an index

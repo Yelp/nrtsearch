@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 
-public class GlobalState implements Closeable {
+public class GlobalState implements Closeable, Restorable {
     // TODO: make these controllable
     // nocommit allow controlling per CSV/json bulk import max concurrency sent into IW?
     private final static int MAX_INDEXING_THREADS = Runtime.getRuntime().availableProcessors();
@@ -115,7 +115,12 @@ public class GlobalState implements Closeable {
         return stateDir;
     }
 
-    //need to call this first time LuceneServer comes up
+    public synchronized void setStateDir(Path source) throws IOException {
+        restoreDir(source, stateDir);
+        loadIndexNames();
+    }
+
+    //need to call this first time LuceneServer comes up and upon StartIndex with restore
     private void loadIndexNames() throws IOException {
         long gen = IndexState.getLastGen(stateDir, "indices");
         lastIndicesGen = gen;
@@ -203,25 +208,22 @@ public class GlobalState implements Closeable {
                 indexNames.addProperty(name, rootDir.toAbsolutePath().toString());
             }
             saveIndexNames();
-            IndexState state = new IndexState(this, name, rootDir, true);
+            IndexState state = new IndexState(this, name, rootDir, true, false);
             indices.put(name, state);
             return state;
         }
     }
 
-    /**
-     * Get the {@link IndexState} by index name.
-     */
-    public IndexState getIndex(String name) throws IllegalArgumentException, IOException {
+    public IndexState getIndex(String name, boolean hasRestore) throws IOException {
         synchronized (indices) {
             IndexState state = indices.get(name);
             if (state == null) {
                 String rootPath = indexNames.get(name).getAsString();
                 if (rootPath != null) {
                     if (rootPath.equals(NULL)) {
-                        state = new IndexState(this, name, null, false);
+                        state = new IndexState(this, name, null, false, hasRestore);
                     } else {
-                        state = new IndexState(this, name, Paths.get(rootPath), false);
+                        state = new IndexState(this, name, Paths.get(rootPath), false, hasRestore);
                     }
                     // nocommit we need to also persist which shards are here?
                     state.addShard(0, false);
@@ -232,6 +234,14 @@ public class GlobalState implements Closeable {
             }
             return state;
         }
+
+    }
+
+    /**
+     * Get the {@link IndexState} by index name.
+     */
+    public IndexState getIndex(String name) throws IllegalArgumentException, IOException {
+        return getIndex(name, false);
     }
 
     public Future<Long> submitIndexingTask(Callable job) throws InterruptedException {
@@ -250,4 +260,5 @@ public class GlobalState implements Closeable {
     public int getReplicationPort() {
         return replicationPort;
     }
+
 }

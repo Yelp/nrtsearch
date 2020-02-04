@@ -1,7 +1,15 @@
 package org.apache.platypus.server.grpc;
 
+import com.amazonaws.auth.AnonymousAWSCredentials;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
+import com.google.gson.Gson;
+import io.findify.s3mock.S3Mock;
 import io.grpc.testing.GrpcCleanupRule;
 import org.apache.platypus.server.luceneserver.GlobalState;
+import org.apache.platypus.server.utils.Archiver;
+import org.apache.platypus.server.utils.ArchiverImpl;
+import org.apache.platypus.server.utils.TarImpl;
 import org.apache.platypus.server.luceneserver.ShardState;
 import org.junit.After;
 import org.junit.Before;
@@ -19,10 +27,7 @@ import java.nio.file.Paths;
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
 import static org.apache.platypus.server.grpc.LuceneServerTest.RETRIEVED_VALUES;
 import static org.apache.platypus.server.grpc.LuceneServerTest.checkHits;
-import static org.apache.platypus.server.luceneserver.IndexState.BASE_BACKUP_PATH;
-import static org.apache.platypus.server.luceneserver.IndexState.BASE_STATE_BACKUP_PATH;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 
 @RunWith(JUnit4.class)
 public class ReplicationTestFailureScenarios {
@@ -39,26 +44,41 @@ public class ReplicationTestFailureScenarios {
     @Rule
     public final TemporaryFolder folder = new TemporaryFolder();
 
+    private Path primaryStateDir;
     private GrpcServer luceneServerPrimary;
     private GrpcServer replicationServerPrimary;
 
     private GrpcServer luceneServerSecondary;
     private GrpcServer replicationServerSecondary;
 
+    private final String BUCKET_NAME = "archiver-unittest";
+    private Archiver archiver;
+    private S3Mock api;
+    private AmazonS3 s3;
+    private Path s3Directory;
+    private Path archiverDirectory;
+
     @After
     public void tearDown() throws IOException {
+        api.shutdown();
         luceneServerPrimary.getGlobalState().close();
         luceneServerSecondary.getGlobalState().close();
         rmDir(Paths.get(luceneServerPrimary.getRootDirName()));
         rmDir(Paths.get(luceneServerSecondary.getRootDirName()));
-        rmDir(BASE_STATE_BACKUP_PATH);
-        rmDir(BASE_BACKUP_PATH);
     }
 
     @Before
     public void setUp() throws IOException {
-        BASE_BACKUP_PATH.toFile().mkdir();
-        BASE_STATE_BACKUP_PATH.toFile().mkdir();
+        //setup S3 for backup/restore
+        s3Directory = folder.newFolder("s3").toPath();
+        archiverDirectory = folder.newFolder("archiver").toPath();
+        api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
+        api.start();
+        s3 = new AmazonS3Client(new AnonymousAWSCredentials());
+        s3.setEndpoint("http://127.0.0.1:8011");
+        s3.createBucket(BUCKET_NAME);
+        archiver = new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl());
+
         startPrimaryServer(null);
         startSecondaryServer();
     }
@@ -73,11 +93,13 @@ public class ReplicationTestFailureScenarios {
         if (stateDir == null) {
             Path rootDirPrimary = folder.newFolder(rootDirNamePrimary).toPath();
             globalStatePrimary = new GlobalState(nodeNamePrimary, rootDirPrimary, "localhost", 9900, 9001);
+            this.primaryStateDir = rootDirPrimary;
         } else {
             globalStatePrimary = new GlobalState(nodeNamePrimary, stateDir, "localhost", 9900, 9001);
+            this.primaryStateDir = stateDir;
         }
-        luceneServerPrimary = new GrpcServer(grpcCleanup, folder, false, globalStatePrimary, nodeNamePrimary, testIndex, globalStatePrimary.getPort());
-        replicationServerPrimary = new GrpcServer(grpcCleanup, folder, true, globalStatePrimary, nodeNamePrimary, testIndex, 9001);
+        luceneServerPrimary = new GrpcServer(grpcCleanup, folder, false, globalStatePrimary, nodeNamePrimary, testIndex, globalStatePrimary.getPort(), archiver);
+        replicationServerPrimary = new GrpcServer(grpcCleanup, folder, true, globalStatePrimary, nodeNamePrimary, testIndex, 9001, archiver);
 
     }
 
@@ -89,13 +111,14 @@ public class ReplicationTestFailureScenarios {
         Path rootDirSecondary = folder.newFolder(rootDirNameSecondary).toPath();
         String testIndex = TEST_INDEX;
         GlobalState globalStateSecondary = new GlobalState(nodeNameSecondary, rootDirSecondary, "localhost", 9902, 9003);
-        luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary, nodeNameSecondary, testIndex, globalStateSecondary.getPort());
-        replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary, nodeNameSecondary, testIndex, 9003);
+        luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary, nodeNameSecondary, testIndex, globalStateSecondary.getPort(), archiver);
+        replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary, nodeNameSecondary, testIndex, 9003, archiver);
     }
 
     public void shutdownPrimaryServer() throws IOException {
         luceneServerPrimary.getGlobalState().close();
         rmDir(Paths.get(luceneServerPrimary.getRootDirName()));
+        rmDir(primaryStateDir);
         luceneServerPrimary.shutdown();
         replicationServerPrimary.shutdown();
 
@@ -152,9 +175,9 @@ public class ReplicationTestFailureScenarios {
         testServerPrimary.addDocuments();
         //both primary and replica should have 4 docs
         publishNRTAndValidateSearchResults(4);
-        //commit primary
-        luceneServerPrimary.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName(TEST_INDEX).build());
-        //commit secondary
+        //backup primary
+        backupIndex();
+        //commit secondary state
         luceneServerSecondary.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
         //non-graceful primary shutdown (i.e. blow away index directory)
@@ -203,17 +226,14 @@ public class ReplicationTestFailureScenarios {
         GrpcServer.TestServer testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
         //add 2 docs to primary
         testServerPrimary.addDocuments();
-        //commit primary
-        luceneServerPrimary.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName(TEST_INDEX).build());
-
-        //non-graceful primary shutdown (i.e. blow away index directory)
+        //backup index
+        backupIndex();
+        //non-graceful primary shutdown (i.e. blow away index and state directory)
         shutdownPrimaryServer();
         //start primary again with latest commit point
-        Path stateDir = BASE_STATE_BACKUP_PATH.resolve("0").resolve("4");
-        startPrimaryServer(stateDir);
+        startPrimaryServer(null);
         //startIndex Primary with primaryGen = 1
         testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY, 1, true);
-
         //add 2 docs to primary
         testServerPrimary.addDocuments();
 
@@ -234,7 +254,7 @@ public class ReplicationTestFailureScenarios {
     }
 
     @Test
-    public void primaryDurabilitySyncWithReplica() throws  IOException, InterruptedException {
+    public void primaryDurabilitySyncWithReplica() throws IOException, InterruptedException {
         //startIndex primary
         GrpcServer.TestServer testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
         //startIndex replica
@@ -243,29 +263,26 @@ public class ReplicationTestFailureScenarios {
         testServerPrimary.addDocuments();
         //both primary and replica should have 2 docs
         publishNRTAndValidateSearchResults(2);
-        //commit primary (with 2 docs)
-        luceneServerPrimary.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName(TEST_INDEX).build());
-        //commit metadata state for secondary
+
+        //backupIndex (with 2 docs)
+        backupIndex();
+        //commit metadata state for secondary, since we wil reuse this upon startIndex
         luceneServerSecondary.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName(TEST_INDEX).build());
 
-        //add 4 more docs to primary but dont commit, NRT is at 8 docs but commit point at 2 docs
+        //add 6 more docs to primary but dont commit, NRT is at 8 docs but commit point at 2 docs
         testServerPrimary.addDocuments();
         testServerPrimary.addDocuments();
         testServerPrimary.addDocuments();
         publishNRTAndValidateSearchResults(8);
 
-
-        File latestBackup = ShardState.remoteStateExists(BASE_STATE_BACKUP_PATH);
-        assertNotEquals(null, latestBackup);
-
         //non-graceful primary shutdown (i.e. blow away index directory and stateDir)
         shutdownPrimaryServer();
 
         //start primary again, download data from latest commit point
-        startPrimaryServer(latestBackup.toPath());
+        startPrimaryServer(null);
         //startIndex Primary with primaryGen = 1
         testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY, 1, true);
-        //stop and restart secondary to connect to "new" primary
+        //stop and restart secondary to connect to "new" primary,
         gracefullRestartSecondary();
         //add 2 more docs to primary
         testServerPrimary.addDocuments();
@@ -277,22 +294,18 @@ public class ReplicationTestFailureScenarios {
     public void primaryDurabilityWithMultipleCommits() throws IOException, InterruptedException {
         //startIndex primary
         GrpcServer.TestServer testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
-        for (int i = 0; i < 5; i++){
-            //add 2 docs to primary
+        for (int i = 0; i < 5; i++) {
+            //add 4 docs to primary
             testServerPrimary.addDocuments();
             testServerPrimary.addDocuments();
-            //commit primary
-            luceneServerPrimary.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName(TEST_INDEX).build());
+            backupIndex();
         }
 
-        File latestBackup = ShardState.remoteStateExists(BASE_STATE_BACKUP_PATH);
-        assertNotEquals(null, latestBackup);
-
-        //non-graceful primary shutdown (i.e. blow away index directory)
+        //non-graceful primary shutdown (i.e. blow away index directory and stateDir)
         shutdownPrimaryServer();
 
         //start primary again, download data from latest commit point
-        startPrimaryServer(latestBackup.toPath());
+        startPrimaryServer(null);
         //startIndex Primary with primaryGen = 1
         testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY, 1, true);
 
@@ -370,7 +383,14 @@ public class ReplicationTestFailureScenarios {
         checkHits(secondHit);
     }
 
+    private void backupIndex() {
+        luceneServerPrimary.getBlockingStub().backupIndex(BackupIndexRequest.newBuilder()
+                .setIndexName("test_index")
+                .setServiceName("testservice")
+                .setResourceName("testresource")
+                .build()
+        );
 
 
-
+    }
 }

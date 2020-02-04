@@ -64,6 +64,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
@@ -76,12 +77,14 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
@@ -107,18 +110,7 @@ import java.util.regex.Pattern;
  * </ul>
  */
 
-public class IndexState implements Closeable {
-
-    private static final Path BASE_LUCENE_SERVER_PATH;
-    public static final Path BASE_BACKUP_PATH;
-    public static final Path BASE_STATE_BACKUP_PATH;
-
-    static {
-        //TODO: These should be base paths in remote storage e.g. s3 buckets
-        BASE_LUCENE_SERVER_PATH = Paths.get(System.getProperty("user.home"), "lucene", "server");
-        BASE_BACKUP_PATH = Paths.get(BASE_LUCENE_SERVER_PATH.toString(), "backup");
-        BASE_STATE_BACKUP_PATH = Paths.get(BASE_LUCENE_SERVER_PATH.toString(), "backup_state_dir");
-    }
+public class IndexState implements Closeable, Restorable {
 
     Logger logger = LoggerFactory.getLogger(IndexState.class);
     public final GlobalState globalState;
@@ -448,7 +440,7 @@ public class IndexState implements Closeable {
      * existing one if it exists, but does not start the
      * index.
      */
-    public IndexState(GlobalState globalState, String name, Path rootDir, boolean doCreate) throws IOException {
+    public IndexState(GlobalState globalState, String name, Path rootDir, boolean doCreate, boolean hasRestore) throws IOException {
         this.globalState = globalState;
         this.name = name;
         this.rootDir = rootDir;
@@ -465,7 +457,7 @@ public class IndexState implements Closeable {
 
         this.doCreate = doCreate;
 
-        if (doCreate == false) {
+        if (doCreate == false && !hasRestore) {
             initSaveLoadState();
         }
     }
@@ -697,23 +689,9 @@ public class IndexState implements Closeable {
                         shard.release(s);
                     }
                 }
-                copyToRemote(shard, version);
             }
         }
         return gen;
-    }
-
-    /* TODO: should be copying this to remote storage like s3 */
-    private void copyToRemote(ShardState shard, long version) throws IOException {
-        //copy indexes and fieldDef state
-        Path sourcePath = rootDir.toAbsolutePath();
-        Path latestPrimaryGen = BASE_BACKUP_PATH.resolve(String.valueOf(shard.nrtPrimaryNode.getPrimaryGen()));
-        Path latestVersion = latestPrimaryGen.resolve(String.valueOf(version));
-        FileUtils.copyDirectory(sourcePath.toFile(), latestVersion.toFile());
-        //copy stateDir
-        latestPrimaryGen = BASE_STATE_BACKUP_PATH.resolve(String.valueOf(shard.nrtPrimaryNode.getPrimaryGen()));
-        latestVersion = latestPrimaryGen.resolve(String.valueOf(version));
-        FileUtils.copyDirectory(globalState.stateDir.toFile(), latestVersion.toFile());
     }
 
     /**
@@ -935,7 +913,18 @@ public class IndexState implements Closeable {
         settingsSaveState.addProperty("indexMergeSchedulerAutoThrottle", settingsRequest.getIndexMergeSchedulerAutoThrottle());
     }
 
-    public void start() throws Exception {
+    public void start(Path dataPath) throws Exception {
+        //TODO move this one level up to StartIndexHandler so all modes of server get the restore code for free
+        if (!doCreate && dataPath != null) {
+            if (rootDir != null) {
+                synchronized (this) {
+                    //copy downloaded data into rootDir
+                    restoreDir(dataPath, rootDir);
+                }
+                initSaveLoadState();
+            }
+        }
+
         // start all local shards
         for (ShardState shard : shards.values()) {
             shard.start();
@@ -1188,6 +1177,5 @@ public class IndexState implements Closeable {
     public synchronized void addSuggest(String name, JsonObject o) {
         suggestSaveState.add(name, o);
     }
-
 
 }

@@ -23,11 +23,9 @@
 package org.apache.platypus.server.utils;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
-import com.amazonaws.util.Md5Utils;
+import com.google.inject.Inject;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -37,15 +35,12 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
 import java.util.UUID;
 
 public class ArchiverImpl implements Archiver {
@@ -58,12 +53,15 @@ public class ArchiverImpl implements Archiver {
     private final String bucketName;
     private final Path archiverDirectory;
     private final Tar tar;
+    private final VersionManager versionManger;
 
+    @Inject
     public ArchiverImpl(final AmazonS3 s3, final String bucketName, final Path archiverDirectory, final Tar tar) {
         this.s3 = s3;
         this.bucketName = bucketName;
         this.archiverDirectory = archiverDirectory;
         this.tar = tar;
+        this.versionManger = new VersionManager(s3, bucketName);
     }
 
 
@@ -114,8 +112,8 @@ public class ArchiverImpl implements Archiver {
     }
 
     @Override
-    public void blessVersion(String serviceName, String resource, String resourceHash) throws IOException {
-        throw new UnsupportedOperationException("not implemented");
+    public boolean blessVersion(String serviceName, String resource, String resourceHash) throws IOException {
+        return versionManger.blessVersion(serviceName, resource, resourceHash);
     }
 
     private String getVersionString(final String serviceName, final String resource, final String version) throws IOException {

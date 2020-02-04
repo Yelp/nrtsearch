@@ -54,7 +54,6 @@ public class TestIndexManager {
                 .setIndexName(indexName)
                 .setMode(Mode.STANDALONE)
                 .setPrimaryGen(0)
-                .setRestore(false)
                 .build();
         startIndex(standaloneServerClient, startIndexRequest);
         // index docs

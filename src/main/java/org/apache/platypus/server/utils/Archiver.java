@@ -24,12 +24,11 @@ package org.apache.platypus.server.utils;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 
 public interface Archiver {
     Path download(final String serviceName, final String resource) throws IOException;
 
     String upload(final String serviceName, final String resource, Path path) throws IOException;
 
-    void blessVersion(final String serviceName, final String resource, String versionHash) throws IOException;
+    boolean blessVersion(final String serviceName, final String resource, String versionHash) throws IOException;
 }
