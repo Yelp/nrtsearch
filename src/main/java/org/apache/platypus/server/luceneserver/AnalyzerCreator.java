@@ -104,7 +104,7 @@ public class AnalyzerCreator {
 
             return builder.build();
         } catch (ParseException | IOException e) {
-            throw new AnalyzerCreationException("Unable to create custom analyzer", e);
+            throw new AnalyzerCreationException("Unable to create custom analyzer: " + analyzer, e);
         }
     }
 
