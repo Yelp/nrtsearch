@@ -116,7 +116,13 @@ public class AnalyzerCreator {
     }
 
     static boolean hasAnalyzer(Field field) {
-        return !field.getAnalyzer().getPredefined().isEmpty() || field.getAnalyzer().hasCustom();
+        return isAnalyzerDefined(field.getAnalyzer()) || isAnalyzerDefined(field.getIndexAnalyzer())
+                || isAnalyzerDefined(field.getSearchAnalyzer());
+    }
+
+    static boolean isAnalyzerDefined(org.apache.platypus.server.grpc.Analyzer analyzer) {
+        return analyzer != null
+                && (!analyzer.getPredefined().isEmpty() || analyzer.hasCustom());
     }
 
     static class AnalyzerCreationException extends RuntimeException {
