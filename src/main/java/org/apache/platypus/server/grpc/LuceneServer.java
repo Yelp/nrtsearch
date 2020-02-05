@@ -262,13 +262,12 @@ public class LuceneServer {
                     //download stateDir and reset state
                     RestoreIndex restoreIndex = startIndexRequest.getRestore();
                     Path stateDirPath = startIndexHandler.downloadArtifact(restoreIndex.getServiceName(), restoreIndex.getResourceName(),
-                            StartIndexHandler.INDEXED_DATA_TYPE.STATE);
+                            StartIndexHandler.INDEXED_DATA_TYPE.STATE, startIndexRequest.getMode());
                     globalState.setStateDir(stateDirPath);
                 }
                 indexState = globalState.getIndex(startIndexRequest.getIndexName(), startIndexRequest.hasRestore());
                 StartIndexResponse reply = startIndexHandler.handle(indexState, startIndexRequest);
                 logger.info("StartIndexHandler returned " + reply.toString());
-//                SettingsResponse reply = StartIndexResponse.newBuilder().setResponse(response).build();
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
 

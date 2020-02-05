@@ -286,19 +286,20 @@ public class GrpcServer {
             }
             //start the index
             StartIndexRequest.Builder startIndexBuilder = StartIndexRequest.newBuilder().setIndexName(testIndex);
+            RestoreIndex restoreIndex = RestoreIndex.newBuilder().setServiceName("testservice").setResourceName("testresource").build();
             if (mode.equals(Mode.PRIMARY)) {
                 startIndexBuilder.setMode(Mode.PRIMARY);
                 startIndexBuilder.setPrimaryGen(primaryGen);
                 if (startOldIndex) {
-                    startIndexBuilder.setRestore(RestoreIndex.newBuilder()
-                            .setServiceName("testservice")
-                            .setResourceName("testresource")
-                            .build());
+                    startIndexBuilder.setRestore(restoreIndex);
                 }
             } else if (mode.equals(Mode.REPLICA)) {
                 startIndexBuilder.setMode(Mode.REPLICA);
                 startIndexBuilder.setPrimaryAddress("localhost");
                 startIndexBuilder.setPort(9001); //primary port for replication server
+                if (startOldIndex) {
+                    startIndexBuilder.setRestore(restoreIndex);
+                }
             }
             blockingStub.startIndex(startIndexBuilder.build());
 

@@ -45,6 +45,7 @@ public class ReplicationTestFailureScenarios {
     public final TemporaryFolder folder = new TemporaryFolder();
 
     private Path primaryStateDir;
+    private Path secondaryStateDir;
     private GrpcServer luceneServerPrimary;
     private GrpcServer replicationServerPrimary;
 
@@ -111,6 +112,7 @@ public class ReplicationTestFailureScenarios {
         Path rootDirSecondary = folder.newFolder(rootDirNameSecondary).toPath();
         String testIndex = TEST_INDEX;
         GlobalState globalStateSecondary = new GlobalState(nodeNameSecondary, rootDirSecondary, "localhost", 9902, 9003);
+        this.secondaryStateDir = rootDirSecondary;
         luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary, nodeNameSecondary, testIndex, globalStateSecondary.getPort(), archiver);
         replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary, nodeNameSecondary, testIndex, 9003, archiver);
     }
@@ -127,6 +129,7 @@ public class ReplicationTestFailureScenarios {
     public void shutdownSecondaryServer() throws IOException {
         luceneServerSecondary.getGlobalState().close();
         rmDir(Paths.get(luceneServerSecondary.getRootDirName()));
+        rmDir(secondaryStateDir);
         luceneServerSecondary.shutdown();
         replicationServerSecondary.shutdown();
     }
@@ -154,6 +157,42 @@ public class ReplicationTestFailureScenarios {
         startSecondaryServer();
         //startIndex replica
         testServerReplica = new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
+
+        //add 2 more docs (6 total now), annoying, sendNRTPoint gets called from primary only upon a flush i.e. an index operation
+        testServerPrimary.addDocuments();
+
+        // publish new NRT point (retrieve the current searcher version on primary)
+        publishNRTAndValidateSearchResults(6);
+
+    }
+
+    @Test
+    public void replicaDownedWhenPrimaryIndexing() throws IOException, InterruptedException {
+        //startIndex Primary
+        GrpcServer.TestServer testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
+        //startIndex replica
+        GrpcServer.TestServer testServerReplica = new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
+
+        //add 2 docs to primary
+        testServerPrimary.addDocuments();
+
+        //backup index
+        backupIndex();
+        backupReplicaState();
+
+        //refresh (also sends NRTPoint to replicas)
+        luceneServerPrimary.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
+
+        //stop replica instance
+        shutdownSecondaryServer();
+
+        //add 2 docs to primary
+        testServerPrimary.addDocuments();
+
+        //re-start replica instance from a fresh index state i.e. empty index dir
+        startSecondaryServer();
+        //startIndex replica
+        testServerReplica = new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA, 0, true);
 
         //add 2 more docs (6 total now), annoying, sendNRTPoint gets called from primary only upon a flush i.e. an index operation
         testServerPrimary.addDocuments();
@@ -390,7 +429,14 @@ public class ReplicationTestFailureScenarios {
                 .setResourceName("testresource")
                 .build()
         );
+    }
 
-
+    private void backupReplicaState() {
+        luceneServerSecondary.getBlockingStub().backupIndex(BackupIndexRequest.newBuilder()
+                .setIndexName("test_index")
+                .setServiceName("testservice")
+                .setResourceName("testresource")
+                .build()
+        );
     }
 }

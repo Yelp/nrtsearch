@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public interface Restorable {
     String TMP_SUFFIX = ".tmp";
@@ -38,7 +39,8 @@ public interface Restorable {
     default void restoreDir(Path source, Path target) throws IOException {
         Path baseSource = source.getParent();
         Path tempCurrentLink = baseSource.resolve(getTmpName());
-        Path downloadedData = source.resolve(target.getFileName());
+        Path downloadedFileName = Files.list(source).collect(Collectors.toList()).get(0).getFileName();
+        Path downloadedData = source.resolve(downloadedFileName);
         logger.info("Point new symlink %s to new data %s".format(target.toString(), downloadedData.toString()));
         Files.createSymbolicLink(tempCurrentLink, downloadedData);
         Files.move(tempCurrentLink, target, StandardCopyOption.REPLACE_EXISTING);
