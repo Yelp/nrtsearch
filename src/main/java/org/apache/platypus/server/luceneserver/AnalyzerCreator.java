@@ -35,14 +35,16 @@ import java.util.HashMap;
 public class AnalyzerCreator {
 
     private static final String LUCENE_ANALYZER_PATH = "org.apache.lucene.analysis.{0}Analyzer";
+    private static final String STANDARD = "standard";
+    private static final String CLASSIC = "classic";
 
     static Analyzer getAnalyzer(org.apache.platypus.server.grpc.Analyzer analyzer) {
         if (!analyzer.getPredefined().isEmpty()) {
             String predefinedAnalyzer = analyzer.getPredefined();
 
-            if ("standard".equals(predefinedAnalyzer)) {
+            if (STANDARD.equals(predefinedAnalyzer)) {
                 return new StandardAnalyzer();
-            } else if ("classic".equals(predefinedAnalyzer)) {
+            } else if (CLASSIC.equals(predefinedAnalyzer)) {
                 return new ClassicAnalyzer();
             } else {
                 // Try to dynamically load the analyzer class
@@ -56,7 +58,7 @@ public class AnalyzerCreator {
         } else if (analyzer.hasCustom()) {
             return getCustomAnalyzer(analyzer.getCustom());
         } else {
-            return null;
+            throw new AnalyzerCreationException("Unable to find or create analyzer: " + analyzer);
         }
     }
 
@@ -118,6 +120,10 @@ public class AnalyzerCreator {
     }
 
     static class AnalyzerCreationException extends RuntimeException {
+
+        AnalyzerCreationException(String message) {
+            super(message);
+        }
 
         AnalyzerCreationException(String message, Throwable cause) {
             super(message, cause);
