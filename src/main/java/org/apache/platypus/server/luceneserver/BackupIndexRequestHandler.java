@@ -54,12 +54,11 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
                 uploadMetadata(backupIndexRequest.getServiceName(),
                         backupIndexRequest.getResourceName(), indexState, backupIndexResponseBuilder);
             } else {
+                indexState.commit();
+
                 CreateSnapshotRequest createSnapshotRequest = CreateSnapshotRequest.newBuilder()
                         .setIndexName(indexName)
                         .build();
-                ReleaseSnapshotResponse releaseSnapshotResponse;
-
-                indexState.commit();
 
                 CreateSnapshotResponse createSnapshotResponse = new CreateSnapshotHandler().createSnapshot(indexState, createSnapshotRequest);
 
@@ -69,7 +68,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
                 ReleaseSnapshotRequest releaseSnapshotRequest = ReleaseSnapshotRequest.newBuilder()
                         .setIndexName(indexName)
                         .setSnapshotId(createSnapshotResponse.getSnapshotId()).build();
-                releaseSnapshotResponse = new ReleaseSnapshotHandler().handle(indexState, releaseSnapshotRequest);
+                ReleaseSnapshotResponse releaseSnapshotResponse = new ReleaseSnapshotHandler().handle(indexState, releaseSnapshotRequest);
             }
 
         } catch (IOException e) {
