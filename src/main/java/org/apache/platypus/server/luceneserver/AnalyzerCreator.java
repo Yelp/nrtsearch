@@ -116,8 +116,8 @@ public class AnalyzerCreator {
     }
 
     static boolean hasAnalyzer(Field field) {
-        return isAnalyzerDefined(field.getAnalyzer()) || isAnalyzerDefined(field.getIndexAnalyzer())
-                || isAnalyzerDefined(field.getSearchAnalyzer());
+        return field != null && (isAnalyzerDefined(field.getAnalyzer()) || isAnalyzerDefined(field.getIndexAnalyzer())
+                || isAnalyzerDefined(field.getSearchAnalyzer()));
     }
 
     static boolean isAnalyzerDefined(org.apache.platypus.server.grpc.Analyzer analyzer) {

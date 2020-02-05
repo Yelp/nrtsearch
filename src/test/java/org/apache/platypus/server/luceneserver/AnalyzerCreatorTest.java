@@ -38,6 +38,7 @@ import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.apache.platypus.server.grpc.Field;
 import org.apache.platypus.server.grpc.IntObject;
 import org.apache.platypus.server.grpc.NameAndParams;
 import org.junit.Test;
@@ -49,6 +50,7 @@ import java.util.List;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.apache.platypus.server.luceneserver.AnalyzerCreator.*;
 import static org.junit.Assert.*;
 
 @RunWith(RandomizedRunner.class)   // Required to call org.apache.lucene.util.LuceneTestCase.random
@@ -58,14 +60,14 @@ public class AnalyzerCreatorTest {
 
     @Test
     public void testPredefinedStandardAnalyzer() {
-        Analyzer analyzer = AnalyzerCreator.getAnalyzer(getPredefinedAnalyzer("standard"));
+        Analyzer analyzer = getAnalyzer(getPredefinedAnalyzer("standard"));
 
         assertSame(StandardAnalyzer.class, analyzer.getClass());
     }
 
     @Test
     public void testPredefinedClassicAnalyzer() {
-        Analyzer analyzer = AnalyzerCreator.getAnalyzer(getPredefinedAnalyzer("classic"));
+        Analyzer analyzer = getAnalyzer(getPredefinedAnalyzer("classic"));
 
         assertSame(ClassicAnalyzer.class, analyzer.getClass());
     }
@@ -79,7 +81,7 @@ public class AnalyzerCreatorTest {
         assertEquals(names.size(), classes.size());
 
         for (int i = 0; i < names.size(); i++) {
-            Analyzer analyzer = AnalyzerCreator.getAnalyzer(getPredefinedAnalyzer(names.get(i)));
+            Analyzer analyzer = getAnalyzer(getPredefinedAnalyzer(names.get(i)));
             assertSame(classes.get(i), analyzer.getClass());
         }
     }
@@ -112,7 +114,7 @@ public class AnalyzerCreatorTest {
                                 .setInt(1000)))
                 .build();
 
-        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getAnalyzer(analyzerGrpc);
+        CustomAnalyzer analyzer = (CustomAnalyzer) getAnalyzer(analyzerGrpc);
 
         assertSame(ClassicTokenizerFactory.class, analyzer.getTokenizerFactory().getClass());
         List<CharFilterFactory> charFilters = analyzer.getCharFilterFactories();
@@ -192,13 +194,13 @@ public class AnalyzerCreatorTest {
                                 .setName("lowercase")))
                 .build();
 
-        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getAnalyzer(analyzerGrpc);
+        CustomAnalyzer analyzer = (CustomAnalyzer) getAnalyzer(analyzerGrpc);
 
         assertEquals(new BytesRef("a b e"), analyzer.normalize("dummy", "À B é"));
     }
 
     @Test
-    public void testCustomAnalyzerNormalizationWithMultiplCharFilters() {
+    public void testCustomAnalyzerNormalizationWithMultipleCharFilters() {
         // none of these components are multi-term aware so they should not be applied
         org.apache.platypus.server.grpc.Analyzer analyzerGrpc = org.apache.platypus.server.grpc.Analyzer.newBuilder()
                 .setCustom(org.apache.platypus.server.grpc.CustomAnalyzer.newBuilder()
@@ -212,8 +214,93 @@ public class AnalyzerCreatorTest {
                                 .setName("whitespace")))
                 .build();
 
-        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getAnalyzer(analyzerGrpc);
+        CustomAnalyzer analyzer = (CustomAnalyzer) getAnalyzer(analyzerGrpc);
 
         assertEquals(new BytesRef("e f c"), analyzer.normalize("dummy", "a b c"));
+    }
+
+    // Test for getStandardAnalyzer method
+
+    @Test
+    public void testGetStandardAnalyzer() {
+        assertSame(StandardAnalyzer.class, getStandardAnalyzer().getClass());
+    }
+
+    // Tests for hasAnalyzer method
+
+    @Test
+    public void testHasAnalyzerNoField() {
+        assertFalse(hasAnalyzer(null));
+    }
+
+    @Test
+    public void testHasAnalyzerNoAnalyzer() {
+        Field field = Field.newBuilder().build();
+        assertFalse(hasAnalyzer(field));
+    }
+
+    @Test
+    public void testHasAnalyzerAnalyzerPresent() {
+        Field field = Field.newBuilder().setAnalyzer(getPredefinedAnalyzer()).build();
+
+        assertTrue(hasAnalyzer(field));
+    }
+
+    @Test
+    public void testHasAnalyzerIndexAnalyzerPresent() {
+        Field field = Field.newBuilder().setIndexAnalyzer(getPredefinedAnalyzer()).build();
+
+        assertTrue(hasAnalyzer(field));
+    }
+
+    @Test
+    public void testHasAnalyzerSearchAnalyzerPresent() {
+        Field field = Field.newBuilder().setIndexAnalyzer(getPredefinedAnalyzer()).build();
+
+        assertTrue(hasAnalyzer(field));
+    }
+
+    private static org.apache.platypus.server.grpc.Analyzer getPredefinedAnalyzer() {
+        return org.apache.platypus.server.grpc.Analyzer.newBuilder()
+                .setPredefined("dummy")
+                .build();
+    }
+
+
+    // Tests for isAnalyzerDefined
+
+    @Test
+    public void testIsAnalyzerDefinedNoAnalyzer() {
+        assertFalse(isAnalyzerDefined(null));
+    }
+
+    @Test
+    public void testIsAnalyzerDefinedAnalyzerPresentPredefinedAndCustomAbsent() {
+        boolean analyzerDefined = isAnalyzerDefined(org.apache.platypus.server.grpc.Analyzer.newBuilder()
+                .build());
+        assertFalse(analyzerDefined);
+    }
+
+    @Test
+    public void testIsAnalyzerDefinedPredefinedPresentCustomAbsent() {
+        boolean analyzerDefined = isAnalyzerDefined(getPredefinedAnalyzer());
+        assertTrue(analyzerDefined);
+    }
+
+    @Test
+    public void testIsAnalyzerDefinedCustomPresentPredefinedAbsent() {
+        boolean analyzerDefined = isAnalyzerDefined(org.apache.platypus.server.grpc.Analyzer.newBuilder()
+                .setCustom(org.apache.platypus.server.grpc.CustomAnalyzer.newBuilder().build())
+                .build());
+        assertTrue(analyzerDefined);
+    }
+
+    @Test
+    public void testIsAnalyzerDefinedPredefinedAndCustomPresent() {
+        boolean analyzerDefined = isAnalyzerDefined(org.apache.platypus.server.grpc.Analyzer.newBuilder()
+                .setPredefined("dummy")
+                .setCustom(org.apache.platypus.server.grpc.CustomAnalyzer.newBuilder().build())
+                .build());
+        assertTrue(analyzerDefined);
     }
 }
