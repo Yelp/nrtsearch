@@ -110,7 +110,7 @@ public class AnalyzerCreator {
         }
     }
 
-    // TODO: replace all usages of this method with getAnalyzer
+    // TODO: replace usages of this method in suggest with getAnalyzer
     static Analyzer getStandardAnalyzer() {
         return new StandardAnalyzer();
     }
