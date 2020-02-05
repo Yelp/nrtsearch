@@ -24,7 +24,6 @@ import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.expressions.Expression;
@@ -44,6 +43,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static org.apache.platypus.server.luceneserver.AnalyzerCreator.hasAnalyzer;
+import static org.apache.platypus.server.luceneserver.AnalyzerCreator.isAnalyzerDefined;
 
 public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefResponse> {
 
@@ -424,14 +424,14 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
         Analyzer searchAnalyzer;
         boolean isIndexedTextField = type == FieldDef.FieldValueType.TEXT && ft.indexOptions() != IndexOptions.NONE;
 
-        if (currentField.getAnalyzer() != null) {
+        if (isAnalyzerDefined(currentField.getAnalyzer())) {
             // If the analyzer field is provided, use it to get an analyzer to use for both indexing and search
             Analyzer analyzer = AnalyzerCreator.getAnalyzer(currentField.getAnalyzer());
             indexAnalyzer = searchAnalyzer = analyzer;
         } else {
             // Analyzer field is absent in request - set index and search analyzers individually
 
-            if (currentField.getIndexAnalyzer() != null) {
+            if (isAnalyzerDefined(currentField.getIndexAnalyzer())) {
                 // Index analyzer was provided, use it to create an analyzer.
                 indexAnalyzer = AnalyzerCreator.getAnalyzer(currentField.getIndexAnalyzer());
             } else if (isIndexedTextField) {
@@ -443,7 +443,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                 indexAnalyzer = dummyAnalyzer;
             }
 
-            if (currentField.getSearchAnalyzer() != null) {
+            if (isAnalyzerDefined(currentField.getSearchAnalyzer())) {
                 // Search analyzer was provided, use it to create an analyzer.
                 searchAnalyzer = AnalyzerCreator.getAnalyzer(currentField.getSearchAnalyzer());
             } else if (isIndexedTextField) {
