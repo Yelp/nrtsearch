@@ -24,7 +24,6 @@ import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.expressions.Expression;
@@ -42,6 +41,9 @@ import org.slf4j.LoggerFactory;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+
+import static org.apache.platypus.server.luceneserver.AnalyzerCreator.hasAnalyzer;
+import static org.apache.platypus.server.luceneserver.AnalyzerCreator.isAnalyzerDefined;
 
 public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefResponse> {
 
@@ -229,7 +231,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                 break;
 
             case ATOM:
-                if (!currentField.getAnalyzer().isEmpty()) {
+                if (hasAnalyzer(currentField)) {
                     throw new RegisterFieldsException("no analyzer allowed with atom (it's hardwired to KeywordAnalyzer internally)");
                 }
                 if (highlighted) {
@@ -341,7 +343,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
             throw new RegisterFieldsException("search must be true when highlight is true");
         }
 
-        if (!currentField.getAnalyzer().isEmpty() && ft.indexOptions() == IndexOptions.NONE) {
+        if (hasAnalyzer(currentField) && ft.indexOptions() == IndexOptions.NONE) {
             throw new RegisterFieldsException("no analyzer allowed when search=false");
         }
 
@@ -361,7 +363,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                         ft.setStoreTermVectors(true);
                         ft.setStoreTermVectorPositions(true);
                         ft.setStoreTermVectorOffsets(true);
-                    } else if (currentField.getTermVectors().equals(TermVectors.TERMS_POSITIONS_OFFSETS)) {
+                    } else if (currentField.getTermVectors().equals(TermVectors.TERMS_POSITIONS_OFFSETS_PAYLOADS)) {
                         ft.setStoreTermVectors(true);
                         ft.setStoreTermVectorPositions(true);
                         ft.setStoreTermVectorOffsets(true);
@@ -371,13 +373,13 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                     }
                 }
 
-                if (currentField.getIndexOptions().equals(IndexOptions.DOCS)) {
+                if (currentField.getIndexOptions().equals(org.apache.platypus.server.grpc.IndexOptions.DOCS)) {
                     ft.setIndexOptions(IndexOptions.DOCS);
-                } else if (currentField.getIndexOptions().equals(IndexOptions.DOCS_AND_FREQS)) {
+                } else if (currentField.getIndexOptions().equals(org.apache.platypus.server.grpc.IndexOptions.DOCS_FREQS)) {
                     ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
-                } else if (currentField.getIndexOptions().equals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS)) {
+                } else if (currentField.getIndexOptions().equals(org.apache.platypus.server.grpc.IndexOptions.DOCS_FREQS_POSITIONS)) {
                     ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-                } else if (currentField.getIndexOptions().equals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS)) {
+                } else if (currentField.getIndexOptions().equals(org.apache.platypus.server.grpc.IndexOptions.DOCS_FREQS_POSITIONS_OFFSETS)) {
                     ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
                 } else { //default option
                     ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
@@ -420,31 +422,39 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
 
         Analyzer indexAnalyzer;
         Analyzer searchAnalyzer;
-        Analyzer analyzer = getAnalyzer(indexState, currentField, currentField.getAnalyzer());
-        if (analyzer != null) {
+        boolean isIndexedTextField = type == FieldDef.FieldValueType.TEXT && ft.indexOptions() != IndexOptions.NONE;
+
+        if (isAnalyzerDefined(currentField.getAnalyzer())) {
+            // If the analyzer field is provided, use it to get an analyzer to use for both indexing and search
+            Analyzer analyzer = AnalyzerCreator.getAnalyzer(currentField.getAnalyzer());
             indexAnalyzer = searchAnalyzer = analyzer;
         } else {
-            indexAnalyzer = getAnalyzer(indexState, currentField, currentField.getIndexAnalyzer());
-            searchAnalyzer = getAnalyzer(indexState, currentField, currentField.getSearchAnalyzer());
-        }
+            // Analyzer field is absent in request - set index and search analyzers individually
 
-        if (type == FieldDef.FieldValueType.TEXT && ft.indexOptions() != IndexOptions.NONE) {
-            if (indexAnalyzer == null) {
-                indexAnalyzer = new StandardAnalyzer();
-                if (searchAnalyzer == null) {
-                    searchAnalyzer = new StandardAnalyzer();
-                }
-            } else if (searchAnalyzer == null) {
-                searchAnalyzer = new StandardAnalyzer();
+            if (isAnalyzerDefined(currentField.getIndexAnalyzer())) {
+                // Index analyzer was provided, use it to create an analyzer.
+                indexAnalyzer = AnalyzerCreator.getAnalyzer(currentField.getIndexAnalyzer());
+            } else if (isIndexedTextField) {
+                // If no index analyzer is provided for a text field that will be indexed (have doc values), use the
+                // StandardAnalyzer.
+                indexAnalyzer = AnalyzerCreator.getStandardAnalyzer();
+            } else {
+                // No index analyzer was found or needed. Use the dummy analyzer.
+                indexAnalyzer = dummyAnalyzer;
             }
-        }
 
-        if (indexAnalyzer == null) {
-            indexAnalyzer = dummyAnalyzer;
-        }
-
-        if (searchAnalyzer == null) {
-            searchAnalyzer = indexAnalyzer;
+            if (isAnalyzerDefined(currentField.getSearchAnalyzer())) {
+                // Search analyzer was provided, use it to create an analyzer.
+                searchAnalyzer = AnalyzerCreator.getAnalyzer(currentField.getSearchAnalyzer());
+            } else if (isIndexedTextField) {
+                // If no search analyzer is provided for a text field that will be indexed (have doc values), use the
+                // StandardAnalyzer.
+                searchAnalyzer = AnalyzerCreator.getStandardAnalyzer();
+            } else {
+                // No search analyzer was found or needed. Use the index analyzer which may be a valid analyzer or
+                // the dummyAnalyzer.
+                searchAnalyzer = indexAnalyzer;
+            }
         }
 
         // TODO: facets w/ dates
@@ -528,19 +538,6 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
 
         return new FieldDef(fieldName, null, FieldDef.FieldValueType.VIRTUAL, null, null, null, true, false, null, null, null, false, values, null);
 
-    }
-
-    //TODO: Always return StandardAnalyzer for now, eventually we want to support all analyzers from lucene-analysis. Also support building custom
-    //analyzers
-    static Analyzer getAnalyzer(IndexState state, Field currentField, String name) {
-        Analyzer analyzer;
-        if (!name.isEmpty()) {
-            //TODO: support all analyzers from lucene-analysis, CJK, and  CustomAnalyzers
-            analyzer = new StandardAnalyzer();
-        } else {
-            analyzer = null;
-        }
-        return analyzer;
     }
 
     public static class RegisterFieldsException extends Handler.HandlerException {

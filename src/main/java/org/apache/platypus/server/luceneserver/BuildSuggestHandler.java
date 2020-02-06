@@ -117,10 +117,10 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
             int options = 0;
             FuzzySuggester fuzzySuggester = buildSuggestRequest.getFuzzySuggester();
             if (fuzzySuggester.getAnalyzer() != null) {
-                indexAnalyzer = queryAnalyzer = RegisterFieldsHandler.getAnalyzer(indexState, null, "analyzer");
+                indexAnalyzer = queryAnalyzer = AnalyzerCreator.getStandardAnalyzer();
             } else {
-                indexAnalyzer = RegisterFieldsHandler.getAnalyzer(indexState, null, "indexAnalyzer");
-                queryAnalyzer = RegisterFieldsHandler.getAnalyzer(indexState, null, "queryAnalyzer");
+                indexAnalyzer = AnalyzerCreator.getStandardAnalyzer();
+                queryAnalyzer = AnalyzerCreator.getStandardAnalyzer();
             }
             if (indexAnalyzer == null) {
                 throw new RuntimeException("analyzer analyzer or indexAnalyzer must be specified");
@@ -157,10 +157,10 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
             int options = 0;
             org.apache.platypus.server.grpc.AnalyzingSuggester analyzingSuggester = buildSuggestRequest.getAnalyzingSuggester();
             if (analyzingSuggester.getAnalyzer() != null) {
-                indexAnalyzer = queryAnalyzer = RegisterFieldsHandler.getAnalyzer(indexState, null, "analyzer");
+                indexAnalyzer = queryAnalyzer = AnalyzerCreator.getStandardAnalyzer();
             } else {
-                indexAnalyzer = RegisterFieldsHandler.getAnalyzer(indexState, null, "indexAnalyzer");
-                queryAnalyzer = RegisterFieldsHandler.getAnalyzer(indexState, null, "queryAnalyzer");
+                indexAnalyzer = AnalyzerCreator.getStandardAnalyzer();
+                queryAnalyzer = AnalyzerCreator.getStandardAnalyzer();
             }
             if (indexAnalyzer == null) {
                 throw new RuntimeException("analyzer analyzer or indexAnalyzer must be specified");
@@ -184,10 +184,10 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
                     maxGraphExpansions, true);
         } else if (buildSuggestRequest.hasInfixSuggester()) {
             if (buildSuggestRequest.getInfixSuggester().getAnalyzer() != null) {
-                indexAnalyzer = queryAnalyzer = RegisterFieldsHandler.getAnalyzer(indexState, null, "analyzer");
+                indexAnalyzer = queryAnalyzer = AnalyzerCreator.getStandardAnalyzer();
             } else {
-                indexAnalyzer = RegisterFieldsHandler.getAnalyzer(indexState, null, "indexAnalyzer");
-                queryAnalyzer = RegisterFieldsHandler.getAnalyzer(indexState, null, "queryAnalyzer");
+                indexAnalyzer = AnalyzerCreator.getStandardAnalyzer();
+                queryAnalyzer = AnalyzerCreator.getStandardAnalyzer();
             }
             if (indexAnalyzer == null) {
                 throw new RuntimeException("analyzer analyzer or indexAnalyzer must be specified");
