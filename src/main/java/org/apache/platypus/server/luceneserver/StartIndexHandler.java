@@ -58,7 +58,6 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         final int primaryPort;
         Path dataPath = null;
         if (startIndexRequest.hasRestore()) {
-            //TODO startReplica should already work by syncing with Primary, but might be quicker to reuse downloaded at startIndex time
             RestoreIndex restoreIndex = startIndexRequest.getRestore();
             dataPath = downloadArtifact(restoreIndex.getServiceName(), restoreIndex.getResourceName(), INDEXED_DATA_TYPE.DATA);
         }
@@ -83,7 +82,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
             } else if (mode.equals(Mode.REPLICA)) {
                 // channel for replica to talk to primary on
                 ReplicationServerClient primaryNodeClient = new ReplicationServerClient(primaryAddress, primaryPort);
-                shardState.startReplica(primaryNodeClient, primaryGen);
+                shardState.startReplica(primaryNodeClient, primaryGen, dataPath);
             } else {
                 indexState.start(dataPath);
             }
@@ -118,28 +117,13 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         return startIndexResponseBuilder.build();
     }
 
-    public RestorePathInfo downloadArtifacts(String serviceName, String resourceName) {
-        String resourceData = String.format("%s_data", resourceName);
-        String resourceMetadata = String.format("%s_metadata", resourceName);
-        Path dataPath;
-        Path metadataPath;
-        try {
-            dataPath = archiver.download(serviceName, resourceData);
-            metadataPath = archiver.download(serviceName, resourceMetadata);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-
-        }
-        return new RestorePathInfo(dataPath, metadataPath);
-    }
-
     public Path downloadArtifact(String serviceName, String resourceName,
                                  INDEXED_DATA_TYPE indexDataType) {
         String resource;
         if (indexDataType.equals(INDEXED_DATA_TYPE.DATA)) {
-            resource = String.format("%s_data", resourceName);
+            resource = BackupIndexRequestHandler.getResourceData(resourceName);
         } else if (indexDataType.equals(INDEXED_DATA_TYPE.STATE)) {
-            resource = String.format("%s_metadata", resourceName);
+            resource = BackupIndexRequestHandler.getResourceMetadata(resourceName);
         } else {
             throw new RuntimeException("Invalid INDEXED_DATA_TYPE " + indexDataType);
         }

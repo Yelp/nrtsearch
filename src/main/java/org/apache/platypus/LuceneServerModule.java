@@ -95,7 +95,6 @@ public class LuceneServerModule extends AbstractModule {
         if (args.length == 0) {
             Path filePath = Paths.get("src", "main", "resources", "lucene_server_default_configuration.yaml");
             luceneServerConfiguration = new Yaml().load(new FileInputStream(filePath.toFile()));
-            luceneServerConfiguration.setStateDir(LuceneServerConfiguration.DEFAULT_USER_STATE_DIR.toString());
         } else {
             luceneServerConfiguration = new Yaml().load(new FileInputStream(args[0]));
         }

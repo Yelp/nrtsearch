@@ -24,7 +24,8 @@ package org.apache.platypus.server.grpc;
 
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
-import org.apache.platypus.server.luceneserver.AddDocumentHandler;
+import org.apache.platypus.server.LuceneServerTestConfigurationFactory;
+import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.junit.After;
 import org.junit.Before;
@@ -47,7 +48,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
@@ -79,18 +79,16 @@ public class SuggestTest {
     @After
     public void tearDown() throws IOException {
         grpcServer.getGlobalState().close();
-        rmDir(Paths.get(grpcServer.getRootDirName()));
+        rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
         tempFile = null;
     }
 
     @Before
     public void setUp() throws IOException {
-        String nodeName = "server1";
-        String rootDirName = "server1RootDirName1";
-        Path rootDir = folder.newFolder(rootDirName).toPath();
-        String testIndex = "test_index";
-        GlobalState globalState = new GlobalState(nodeName, rootDir, null, 9000, 9000);
-        grpcServer = new GrpcServer(grpcCleanup, folder, false, globalState, rootDirName, testIndex, globalState.getPort());
+        LuceneServerConfiguration luceneServerConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
+        GlobalState globalState = new GlobalState(luceneServerConfiguration);
+        grpcServer = new GrpcServer(grpcCleanup, folder, false, globalState,
+                luceneServerConfiguration.getIndexDir(), "test_index", globalState.getPort());
         Path tempDir = folder.newFolder("TestSuggest").toPath();
         tempFile = tempDir.resolve("suggest.in");
     }

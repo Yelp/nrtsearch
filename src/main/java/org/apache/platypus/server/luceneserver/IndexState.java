@@ -913,8 +913,7 @@ public class IndexState implements Closeable, Restorable {
         settingsSaveState.addProperty("indexMergeSchedulerAutoThrottle", settingsRequest.getIndexMergeSchedulerAutoThrottle());
     }
 
-    public void start(Path dataPath) throws Exception {
-        //TODO move this one level up to StartIndexHandler so all modes of server get the restore code for free
+    public synchronized void start(Path dataPath) throws Exception {
         if (!doCreate && dataPath != null) {
             if (rootDir != null) {
                 synchronized (this) {

@@ -70,9 +70,7 @@ public class LuceneServer {
     }
 
     private void start() throws IOException {
-        GlobalState globalState = new GlobalState(luceneServerConfiguration.getNodeName(),
-                Paths.get(luceneServerConfiguration.getStateDir()), luceneServerConfiguration.getHostName(),
-                luceneServerConfiguration.getPort(), luceneServerConfiguration.getReplicationPort());
+        GlobalState globalState = new GlobalState(luceneServerConfiguration);
 
         /* The port on which the server should run */
         server = ServerBuilder.forPort(luceneServerConfiguration.getPort())
@@ -268,7 +266,6 @@ public class LuceneServer {
                 indexState = globalState.getIndex(startIndexRequest.getIndexName(), startIndexRequest.hasRestore());
                 StartIndexResponse reply = startIndexHandler.handle(indexState, startIndexRequest);
                 logger.info("StartIndexHandler returned " + reply.toString());
-//                SettingsResponse reply = StartIndexResponse.newBuilder().setResponse(response).build();
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
 

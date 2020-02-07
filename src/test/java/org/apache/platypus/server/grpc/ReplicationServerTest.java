@@ -3,9 +3,10 @@ package org.apache.platypus.server.grpc;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.google.gson.Gson;
 import io.findify.s3mock.S3Mock;
 import io.grpc.testing.GrpcCleanupRule;
+import org.apache.platypus.server.LuceneServerTestConfigurationFactory;
+import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.apache.platypus.server.utils.Archiver;
 import org.apache.platypus.server.utils.ArchiverImpl;
@@ -63,8 +64,8 @@ public class ReplicationServerTest {
         api.shutdown();
         luceneServerPrimary.getGlobalState().close();
         luceneServerSecondary.getGlobalState().close();
-        rmDir(Paths.get(luceneServerPrimary.getRootDirName()));
-        rmDir(Paths.get(luceneServerSecondary.getRootDirName()));
+        rmDir(Paths.get(luceneServerPrimary.getIndexDir()).getParent());
+        rmDir(Paths.get(luceneServerSecondary.getIndexDir()).getParent());
     }
 
     @Before
@@ -80,21 +81,21 @@ public class ReplicationServerTest {
         archiver = new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl());
 
         //set up primary servers
-        String nodeNamePrimary = "serverPrimary";
-        String rootDirNamePrimary = "serverPrimaryRootDirName";
-        Path rootDirPrimary = folder.newFolder(rootDirNamePrimary).toPath();
         String testIndex = "test_index";
-        GlobalState globalStatePrimary = new GlobalState(nodeNamePrimary, rootDirPrimary, "localhost", 9900, 9001);
-        luceneServerPrimary = new GrpcServer(grpcCleanup, folder, false, globalStatePrimary, nodeNamePrimary, testIndex, globalStatePrimary.getPort(), archiver);
-        replicationServerPrimary = new GrpcServer(grpcCleanup, folder, true, globalStatePrimary, nodeNamePrimary, testIndex, 9001, archiver);
-
+        LuceneServerConfiguration luceneServerPrimaryConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY);
+        GlobalState globalStatePrimary = new GlobalState(luceneServerPrimaryConfiguration);
+        luceneServerPrimary = new GrpcServer(grpcCleanup, folder, false, globalStatePrimary,
+                luceneServerPrimaryConfiguration.getIndexDir(), testIndex, globalStatePrimary.getPort(), archiver);
+        replicationServerPrimary = new GrpcServer(grpcCleanup, folder, true, globalStatePrimary,
+                luceneServerPrimaryConfiguration.getIndexDir(), testIndex, luceneServerPrimaryConfiguration.getReplicationPort(), archiver);
         //set up secondary servers
-        String nodeNameSecondary = "serverSecondary";
-        String rootDirNameSecondary = "serverSecondaryRootDirName";
-        Path rootDirSecondary = folder.newFolder(rootDirNameSecondary).toPath();
-        GlobalState globalStateSecondary = new GlobalState(nodeNameSecondary, rootDirSecondary, "localhost", 9902, 9003);
-        luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary, nodeNameSecondary, testIndex, globalStateSecondary.getPort(), archiver);
-        replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary, nodeNameSecondary, testIndex, 9003, archiver);
+        LuceneServerConfiguration luceneServerSecondaryConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA);
+        GlobalState globalStateSecondary = new GlobalState(luceneServerSecondaryConfiguration);
+
+        luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary,
+                luceneServerSecondaryConfiguration.getIndexDir(), testIndex, globalStateSecondary.getPort(), archiver);
+        replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary,
+                luceneServerSecondaryConfiguration.getIndexDir(), testIndex, globalStateSecondary.getReplicationPort(), archiver);
 
     }
 
@@ -161,11 +162,6 @@ public class ReplicationServerTest {
         assertEquals(1, done);
         assertTrue(0 < ongoing);
         assertEquals(0, failed);
-    }
-
-    @Test
-    public void addReplica() {
-
     }
 
     @Test

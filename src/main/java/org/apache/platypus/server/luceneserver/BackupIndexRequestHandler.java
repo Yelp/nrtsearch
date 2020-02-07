@@ -26,6 +26,7 @@ import org.apache.platypus.server.grpc.BackupIndexRequest;
 import org.apache.platypus.server.grpc.BackupIndexResponse;
 import org.apache.platypus.server.grpc.CreateSnapshotRequest;
 import org.apache.platypus.server.grpc.CreateSnapshotResponse;
+import org.apache.platypus.server.grpc.Mode;
 import org.apache.platypus.server.grpc.ReleaseSnapshotRequest;
 import org.apache.platypus.server.grpc.ReleaseSnapshotResponse;
 import org.apache.platypus.server.utils.Archiver;
@@ -47,19 +48,29 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     public BackupIndexResponse handle(IndexState indexState, BackupIndexRequest backupIndexRequest) throws HandlerException {
         BackupIndexResponse.Builder backupIndexResponseBuilder = BackupIndexResponse.newBuilder();
         String indexName = backupIndexRequest.getIndexName();
-        CreateSnapshotRequest createSnapshotRequest = CreateSnapshotRequest.newBuilder()
-                .setIndexName(indexName)
-                .build();
-        ReleaseSnapshotResponse releaseSnapshotResponse;
         try {
-            indexState.commit();
-            CreateSnapshotResponse createSnapshotResponse = new CreateSnapshotHandler().createSnapshot(indexState, createSnapshotRequest);
-            uploadArtifacts(backupIndexRequest.getServiceName(),
-                    backupIndexRequest.getResourceName(), indexState, backupIndexResponseBuilder);
-            ReleaseSnapshotRequest releaseSnapshotRequest = ReleaseSnapshotRequest.newBuilder()
-                    .setIndexName(indexName)
-                    .setSnapshotId(createSnapshotResponse.getSnapshotId()).build();
-            releaseSnapshotResponse = new ReleaseSnapshotHandler().handle(indexState, releaseSnapshotRequest);
+            //only upload metadata in case we are replica
+            if (indexState.getShard(0).isReplica()) {
+                uploadMetadata(backupIndexRequest.getServiceName(),
+                        backupIndexRequest.getResourceName(), indexState, backupIndexResponseBuilder);
+            } else {
+                indexState.commit();
+
+                CreateSnapshotRequest createSnapshotRequest = CreateSnapshotRequest.newBuilder()
+                        .setIndexName(indexName)
+                        .build();
+
+                CreateSnapshotResponse createSnapshotResponse = new CreateSnapshotHandler().createSnapshot(indexState, createSnapshotRequest);
+
+                uploadArtifacts(backupIndexRequest.getServiceName(),
+                        backupIndexRequest.getResourceName(), indexState, backupIndexResponseBuilder);
+
+                ReleaseSnapshotRequest releaseSnapshotRequest = ReleaseSnapshotRequest.newBuilder()
+                        .setIndexName(indexName)
+                        .setSnapshotId(createSnapshotResponse.getSnapshotId()).build();
+                ReleaseSnapshotResponse releaseSnapshotResponse = new ReleaseSnapshotHandler().handle(indexState, releaseSnapshotRequest);
+            }
+
         } catch (IOException e) {
             logger.error(String.format("Error while trying to backup index %s with serviceName %s, resourceName %s",
                     indexName, backupIndexRequest.getServiceName(), backupIndexRequest.getResourceName()), e);
@@ -70,14 +81,26 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
                 .build();
     }
 
+    public static String getResourceMetadata(String resourceName) {
+        return  String.format("%s_metadata", resourceName);
+    }
+
+    public static String getResourceData(String resourceName) {
+        return String.format("%s_data", resourceName);
+    }
+
     public void uploadArtifacts(String serviceName, String resourceName, IndexState indexState, BackupIndexResponse.Builder backupIndexResponseBuilder) throws IOException {
-        String resourceData = String.format("%s_data", resourceName);
-        String resourceMetadata = String.format("%s_metadata", resourceName);
+        String resourceData = getResourceData(resourceName);
         String versionHash = archiver.upload(serviceName, resourceData, indexState.rootDir);
         archiver.blessVersion(serviceName, resourceData, versionHash);
         backupIndexResponseBuilder.setDataVersionHash(versionHash);
 
-        versionHash = archiver.upload(serviceName, resourceMetadata, indexState.globalState.stateDir);
+        uploadMetadata(serviceName, resourceName, indexState, backupIndexResponseBuilder);
+    }
+
+    public void uploadMetadata(String serviceName, String resourceName, IndexState indexState, BackupIndexResponse.Builder backupIndexResponseBuilder) throws IOException {
+        String resourceMetadata = getResourceMetadata(resourceName);
+        String versionHash = archiver.upload(serviceName, resourceMetadata, indexState.globalState.stateDir);
         archiver.blessVersion(serviceName, resourceMetadata, versionHash);
         backupIndexResponseBuilder.setMetadataVersionHash(versionHash);
 

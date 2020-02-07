@@ -43,6 +43,7 @@ import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 import static org.apache.platypus.server.cli.AddDocumentsCommand.ADD_DOCUMENTS;
+import static org.apache.platypus.server.cli.BackupIndexCommand.BACKUP_INDEX;
 import static org.apache.platypus.server.cli.CommitCommand.COMMIT;
 import static org.apache.platypus.server.cli.CreateIndexCommand.CREATE_INDEX;
 import static org.apache.platypus.server.cli.DeleteAllDocumentsCommand.DELETE_ALL_DOCS;
@@ -294,6 +295,13 @@ public class LuceneServerClient {
         blockingStub.stopIndex(StopIndexRequest.newBuilder().setIndexName(indexName).build());
     }
 
+    public void backupIndex(String indexName, String serviceName, String resourceName) {
+        blockingStub.backupIndex(BackupIndexRequest.newBuilder()
+                .setServiceName(serviceName)
+                .setResourceName(resourceName)
+                .setIndexName(indexName).build());
+    }
+
 
     private FieldDefRequest getFieldDefRequest(String jsonStr) {
         logger.info(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
@@ -431,6 +439,9 @@ public class LuceneServerClient {
                     searcherVersion = replServerClient.getCurrentSearcherVersion(getCurrentSearcherVersion.getIndexName());
                     logger.info("searcherVersion: " + searcherVersion.getVersion());
                     break;
+                case BACKUP_INDEX:
+                    BackupIndexCommand backupIndexCommand = (BackupIndexCommand) subCommand;
+                    client.backupIndex(backupIndexCommand.getIndexName(), backupIndexCommand.getServiceName(), backupIndexCommand.getResourceName());
                 default:
                     logger.warning(String.format("%s is not a valid server command", subCommandStr));
             }

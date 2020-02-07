@@ -3,14 +3,14 @@ package org.apache.platypus.server.grpc;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.google.gson.Gson;
 import io.findify.s3mock.S3Mock;
 import io.grpc.testing.GrpcCleanupRule;
+import org.apache.platypus.server.LuceneServerTestConfigurationFactory;
+import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.apache.platypus.server.utils.Archiver;
 import org.apache.platypus.server.utils.ArchiverImpl;
 import org.apache.platypus.server.utils.TarImpl;
-import org.apache.platypus.server.luceneserver.ShardState;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -19,7 +19,6 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -44,7 +43,6 @@ public class ReplicationTestFailureScenarios {
     @Rule
     public final TemporaryFolder folder = new TemporaryFolder();
 
-    private Path primaryStateDir;
     private GrpcServer luceneServerPrimary;
     private GrpcServer replicationServerPrimary;
 
@@ -63,8 +61,8 @@ public class ReplicationTestFailureScenarios {
         api.shutdown();
         luceneServerPrimary.getGlobalState().close();
         luceneServerSecondary.getGlobalState().close();
-        rmDir(Paths.get(luceneServerPrimary.getRootDirName()));
-        rmDir(Paths.get(luceneServerSecondary.getRootDirName()));
+        rmDir(Paths.get(luceneServerPrimary.getIndexDir()).getParent());
+        rmDir(Paths.get(luceneServerSecondary.getIndexDir()).getParent());
     }
 
     @Before
@@ -79,46 +77,33 @@ public class ReplicationTestFailureScenarios {
         s3.createBucket(BUCKET_NAME);
         archiver = new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl());
 
-        startPrimaryServer(null);
+        startPrimaryServer();
         startSecondaryServer();
     }
 
-    public void startPrimaryServer(Path stateDir) throws IOException {
-        //set up primary servers
-        String nodeNamePrimary = "serverPrimary";
-        String rootDirNamePrimary = "serverPrimaryRootDirName";
-        rmDir(Paths.get(folder.getRoot().toString(), rootDirNamePrimary));
-        String testIndex = TEST_INDEX;
-        GlobalState globalStatePrimary;
-        if (stateDir == null) {
-            Path rootDirPrimary = folder.newFolder(rootDirNamePrimary).toPath();
-            globalStatePrimary = new GlobalState(nodeNamePrimary, rootDirPrimary, "localhost", 9900, 9001);
-            this.primaryStateDir = rootDirPrimary;
-        } else {
-            globalStatePrimary = new GlobalState(nodeNamePrimary, stateDir, "localhost", 9900, 9001);
-            this.primaryStateDir = stateDir;
-        }
-        luceneServerPrimary = new GrpcServer(grpcCleanup, folder, false, globalStatePrimary, nodeNamePrimary, testIndex, globalStatePrimary.getPort(), archiver);
-        replicationServerPrimary = new GrpcServer(grpcCleanup, folder, true, globalStatePrimary, nodeNamePrimary, testIndex, 9001, archiver);
+    public void startPrimaryServer() throws IOException {
+        LuceneServerConfiguration luceneServerPrimaryConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY);
+        GlobalState globalStatePrimary = new GlobalState(luceneServerPrimaryConfiguration);
+        luceneServerPrimary = new GrpcServer(grpcCleanup, folder, false, globalStatePrimary,
+                luceneServerPrimaryConfiguration.getIndexDir(), TEST_INDEX, globalStatePrimary.getPort(), archiver);
+        replicationServerPrimary = new GrpcServer(grpcCleanup, folder, true, globalStatePrimary,
+                luceneServerPrimaryConfiguration.getIndexDir(), TEST_INDEX, 9001, archiver);
 
     }
 
     public void startSecondaryServer() throws IOException {
-        //set up secondary servers
-        String nodeNameSecondary = "serverSecondary";
-        String rootDirNameSecondary = "serverSecondaryRootDirName";
-        rmDir(Paths.get(folder.getRoot().toString(), rootDirNameSecondary));
-        Path rootDirSecondary = folder.newFolder(rootDirNameSecondary).toPath();
-        String testIndex = TEST_INDEX;
-        GlobalState globalStateSecondary = new GlobalState(nodeNameSecondary, rootDirSecondary, "localhost", 9902, 9003);
-        luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary, nodeNameSecondary, testIndex, globalStateSecondary.getPort(), archiver);
-        replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary, nodeNameSecondary, testIndex, 9003, archiver);
+        LuceneServerConfiguration luceneSecondaryConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA);
+        GlobalState globalStateSecondary = new GlobalState(luceneSecondaryConfiguration);
+
+        luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary,
+                luceneSecondaryConfiguration.getIndexDir(), TEST_INDEX, globalStateSecondary.getPort(), archiver);
+        replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary,
+                luceneSecondaryConfiguration.getIndexDir(), TEST_INDEX, 9003, archiver);
     }
 
     public void shutdownPrimaryServer() throws IOException {
         luceneServerPrimary.getGlobalState().close();
-        rmDir(Paths.get(luceneServerPrimary.getRootDirName()));
-        rmDir(primaryStateDir);
+        rmDir(Paths.get(luceneServerPrimary.getIndexDir()).getParent());
         luceneServerPrimary.shutdown();
         replicationServerPrimary.shutdown();
 
@@ -126,13 +111,13 @@ public class ReplicationTestFailureScenarios {
 
     public void shutdownSecondaryServer() throws IOException {
         luceneServerSecondary.getGlobalState().close();
-        rmDir(Paths.get(luceneServerSecondary.getRootDirName()));
+        rmDir(Paths.get(luceneServerSecondary.getIndexDir()).getParent());
         luceneServerSecondary.shutdown();
         replicationServerSecondary.shutdown();
     }
 
     @Test
-    public void replicaStoppedWhenPrimaryIndexing() throws IOException, InterruptedException {
+    public void replicaDownedWhenPrimaryIndexing() throws IOException, InterruptedException {
         //startIndex Primary
         GrpcServer.TestServer testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
         //startIndex replica
@@ -140,6 +125,9 @@ public class ReplicationTestFailureScenarios {
 
         //add 2 docs to primary
         testServerPrimary.addDocuments();
+
+        //backup index
+        backupIndex();
 
         //refresh (also sends NRTPoint to replicas)
         luceneServerPrimary.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(TEST_INDEX).build());
@@ -153,7 +141,7 @@ public class ReplicationTestFailureScenarios {
         //re-start replica instance from a fresh index state i.e. empty index dir
         startSecondaryServer();
         //startIndex replica
-        testServerReplica = new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
+        testServerReplica = new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA, 0, true);
 
         //add 2 more docs (6 total now), annoying, sendNRTPoint gets called from primary only upon a flush i.e. an index operation
         testServerPrimary.addDocuments();
@@ -183,7 +171,7 @@ public class ReplicationTestFailureScenarios {
         //non-graceful primary shutdown (i.e. blow away index directory)
         shutdownPrimaryServer();
         //start primary again with new empty index directory
-        startPrimaryServer(null);
+        startPrimaryServer();
         //startIndex Primary with primaryGen = 1
         testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY, 1);
         //stop and restart secondary to connect to "new" primary
@@ -231,7 +219,7 @@ public class ReplicationTestFailureScenarios {
         //non-graceful primary shutdown (i.e. blow away index and state directory)
         shutdownPrimaryServer();
         //start primary again with latest commit point
-        startPrimaryServer(null);
+        startPrimaryServer();
         //startIndex Primary with primaryGen = 1
         testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY, 1, true);
         //add 2 docs to primary
@@ -279,7 +267,7 @@ public class ReplicationTestFailureScenarios {
         shutdownPrimaryServer();
 
         //start primary again, download data from latest commit point
-        startPrimaryServer(null);
+        startPrimaryServer();
         //startIndex Primary with primaryGen = 1
         testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY, 1, true);
         //stop and restart secondary to connect to "new" primary,
@@ -294,7 +282,7 @@ public class ReplicationTestFailureScenarios {
     public void primaryDurabilityWithMultipleCommits() throws IOException, InterruptedException {
         //startIndex primary
         GrpcServer.TestServer testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 2; i++) {
             //add 4 docs to primary
             testServerPrimary.addDocuments();
             testServerPrimary.addDocuments();
@@ -305,7 +293,7 @@ public class ReplicationTestFailureScenarios {
         shutdownPrimaryServer();
 
         //start primary again, download data from latest commit point
-        startPrimaryServer(null);
+        startPrimaryServer();
         //startIndex Primary with primaryGen = 1
         testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY, 1, true);
 
@@ -320,12 +308,12 @@ public class ReplicationTestFailureScenarios {
         SearchResponse searchResponsePrimary = luceneServerPrimary.getBlockingStub().search(SearchRequest.newBuilder()
                 .setIndexName(luceneServerPrimary.getTestIndex())
                 .setStartHit(0)
-                .setTopHits(22)
+                .setTopHits(10)
                 .setVersion(searcherVersionPrimary.getVersion())
                 .addAllRetrieveFields(RETRIEVED_VALUES)
                 .build());
 
-        validateSearchResults(22, searchResponsePrimary);
+        validateSearchResults(10, searchResponsePrimary);
     }
 
     private void gracefullRestartSecondary() {
@@ -390,7 +378,6 @@ public class ReplicationTestFailureScenarios {
                 .setResourceName("testresource")
                 .build()
         );
-
-
     }
+
 }

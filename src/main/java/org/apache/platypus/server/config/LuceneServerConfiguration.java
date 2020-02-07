@@ -25,34 +25,27 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class LuceneServerConfiguration {
-    public final static Path DEFAULT_USER_STATE_DIR = Paths.get(System.getProperty("user.home"), "lucene", "server");
-    public final static Path DEFAULT_ARCHIVER_DIR = Paths.get(DEFAULT_USER_STATE_DIR.toString(), "archiver");
-    public final static Path DEFAULT_BOTO_CFG_PATH = Paths.get(DEFAULT_USER_STATE_DIR.toString(), "boto.cfg");
+    public final static Path DEFAULT_USER_DIR = Paths.get(System.getProperty("user.home"), "lucene", "server");
+    public final static Path DEFAULT_ARCHIVER_DIR = Paths.get(DEFAULT_USER_DIR.toString(), "archiver");
+    public final static Path DEFAULT_BOTO_CFG_PATH = Paths.get(DEFAULT_USER_DIR.toString(), "boto.cfg");
+    public final static Path DEFAULT_STATE_DIR = Paths.get(DEFAULT_USER_DIR.toString(), "default_state");
+    public final static Path DEFAULT_INDEX_DIR = Paths.get(DEFAULT_USER_DIR.toString(), "default_index");
     private static final String DEFAULT_BUCKET_NAME = "DEFAULT_ARCHIVE_BUCKET";
+    private static final String DEFAULT_HOSTNAME = "localhost";
+    private static final int DEFAULT_PORT = 50051;
+    private static final int DEFAULT_REPLICATION_PORT = 50052;
+    private static final String DEFAULT_NODE_NAME = "main";
 
-    private int port;
-    private int replicationPort;
-    private String nodeName;
-    private String stateDir;
-    private String hostName;
+    private int port = DEFAULT_PORT;
+    private int replicationPort = DEFAULT_REPLICATION_PORT;
+    private String nodeName = DEFAULT_NODE_NAME;
+    private String hostName = DEFAULT_HOSTNAME;
+    private String stateDir = DEFAULT_STATE_DIR.toString();
+    private String indexDir = DEFAULT_INDEX_DIR.toString();
     private String archiveDirectory = DEFAULT_ARCHIVER_DIR.toString();
     private String botoCfgPath = DEFAULT_BOTO_CFG_PATH.toString();
     private String bucketName = DEFAULT_BUCKET_NAME;
 
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
-        sb.append("port=").append(port);
-        sb.append(", replicationPort=").append(replicationPort);
-        sb.append(", nodeName='").append(nodeName).append('\'');
-        sb.append(", stateDir='").append(stateDir).append('\'');
-        sb.append(", hostName='").append(hostName).append('\'');
-        sb.append(", archiveDirectory='").append(archiveDirectory).append('\'');
-        sb.append(", botoCfgPath='").append(botoCfgPath).append('\'');
-        sb.append(", bucketName='").append(bucketName).append('\'');
-        sb.append('}');
-        return sb.toString();
-    }
 
     @Inject
     public LuceneServerConfiguration() {
@@ -74,6 +67,10 @@ public class LuceneServerConfiguration {
         return stateDir;
     }
 
+    public String getIndexDir() {
+        return indexDir;
+    }
+
     public String getHostName() {
         return hostName;
     }
@@ -92,6 +89,10 @@ public class LuceneServerConfiguration {
 
     public void setStateDir(String stateDir) {
         this.stateDir = stateDir;
+    }
+
+    public void setIndexDir(String indexDir) {
+        this.indexDir = indexDir;
     }
 
     public void setHostName(String hostName) {
@@ -123,6 +124,22 @@ public class LuceneServerConfiguration {
         this.archiveDirectory = archiveDirectory;
     }
 
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
+        sb.append("port=").append(port);
+        sb.append(", replicationPort=").append(replicationPort);
+        sb.append(", nodeName='").append(nodeName).append('\'');
+        sb.append(", hostName='").append(hostName).append('\'');
+        sb.append(", stateDir='").append(stateDir).append('\'');
+        sb.append(", indexDir='").append(indexDir).append('\'');
+        sb.append(", archiveDirectory='").append(archiveDirectory).append('\'');
+        sb.append(", botoCfgPath='").append(botoCfgPath).append('\'');
+        sb.append(", bucketName='").append(bucketName).append('\'');
+        sb.append('}');
+        return sb.toString();
+    }
+
 
     public static class Builder {
         private String hostName;
@@ -130,24 +147,31 @@ public class LuceneServerConfiguration {
         private int port;
         private String nodeName;
         private Path stateDir;
+        private Path indexDir;
         private String archiveDirectory;
         private String botoCfgPath;
         private String bucketName;
 
         public Builder() {
             //set default values
-            this.nodeName = "main";
-            this.hostName = "localhost";
-            this.stateDir = DEFAULT_USER_STATE_DIR;
-            this.port = 50051;
-            this.replicationPort = 50052;
+            this.nodeName = DEFAULT_NODE_NAME;
+            this.hostName = DEFAULT_HOSTNAME;
+            this.stateDir = DEFAULT_STATE_DIR;
+            this.indexDir = DEFAULT_INDEX_DIR;
+            this.port = DEFAULT_PORT;
+            this.replicationPort = DEFAULT_REPLICATION_PORT;
             this.archiveDirectory = DEFAULT_ARCHIVER_DIR.toString();
             this.botoCfgPath = DEFAULT_BOTO_CFG_PATH.toString();
             this.bucketName = DEFAULT_BUCKET_NAME;
         }
 
         public Builder withStateDir(String tempStateDir) {
-            this.stateDir = Paths.get(stateDir.toString(), tempStateDir);
+            this.stateDir = Paths.get(tempStateDir);
+            return this;
+        }
+
+        public Builder withIndexDir(String tempIndexDir) {
+            this.indexDir = Paths.get(tempIndexDir);
             return this;
         }
 
@@ -191,6 +215,7 @@ public class LuceneServerConfiguration {
             LuceneServerConfiguration luceneServerConfiguration = new LuceneServerConfiguration();
             luceneServerConfiguration.nodeName = this.nodeName;
             luceneServerConfiguration.stateDir = this.stateDir.toString();
+            luceneServerConfiguration.indexDir = this.indexDir.toString();
             luceneServerConfiguration.port = this.port;
             luceneServerConfiguration.hostName = this.hostName;
             luceneServerConfiguration.replicationPort = this.replicationPort;

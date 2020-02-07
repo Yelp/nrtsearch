@@ -723,9 +723,20 @@ public class ShardState implements Closeable {
     /**
      * Start this index as replica, pulling NRT changes from the specified primary
      */
-    public synchronized void startReplica(ReplicationServerClient primaryAddress, long primaryGen) throws Exception {
+    public synchronized void startReplica(ReplicationServerClient primaryAddress, long primaryGen, Path dataPath) throws Exception {
         if (isStarted()) {
             throw new IllegalStateException("index \"" + name + "\" was already started");
+        }
+        //we have backups and are not creating a new index
+        //use that to load indexes and other state (registeredFields, settings)
+        if (!doCreate && dataPath != null) {
+            if (indexState.rootDir != null) {
+                synchronized (this) {
+                    //copy downloaded data into rootDir
+                    indexState.restoreDir(dataPath, indexState.rootDir);
+                }
+                indexState.initSaveLoadState();
+            }
         }
 
         // nocommit share code better w/ start and startPrimary!
