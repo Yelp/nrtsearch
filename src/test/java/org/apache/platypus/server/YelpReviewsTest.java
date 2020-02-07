@@ -193,6 +193,8 @@ public class YelpReviewsTest {
         GrpcServer.rmDir(yelp_reviews_test_base_path);
         GrpcServer.rmDir(Paths.get("primary_state"));
         GrpcServer.rmDir(Paths.get("replica_state"));
+        GrpcServer.rmDir(Paths.get("primary_index_base"));
+        GrpcServer.rmDir(Paths.get("replica_index_base"));
 
         //create empty primary and secondary dirs
         Path primaryDir = yelp_reviews_test_base_path.resolve("primary");
