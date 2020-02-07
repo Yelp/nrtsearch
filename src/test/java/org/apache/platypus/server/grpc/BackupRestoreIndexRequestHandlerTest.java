@@ -26,9 +26,10 @@ import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
 import io.findify.s3mock.S3Mock;
 import io.grpc.testing.GrpcCleanupRule;
+import org.apache.platypus.server.LuceneServerTestConfigurationFactory;
+import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.apache.platypus.server.utils.Archiver;
 import org.apache.platypus.server.utils.ArchiverImpl;
@@ -48,7 +49,6 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
@@ -63,7 +63,6 @@ public class BackupRestoreIndexRequestHandlerTest {
     private AmazonS3 s3;
     private Path s3Directory;
     private Path archiverDirectory;
-    private Path stateDir;
 
     @Rule
     public final TemporaryFolder folder = new TemporaryFolder();
@@ -87,14 +86,14 @@ public class BackupRestoreIndexRequestHandlerTest {
         s3.setEndpoint("http://127.0.0.1:8011");
         s3.createBucket(BUCKET_NAME);
         archiver = new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl());
-        stateDir = folder.newFolder("stateDir").toPath();
         grpcServer = setUpGrpcServer();
     }
 
     private GrpcServer setUpGrpcServer() throws IOException {
-        GlobalState globalState = new GlobalState("server", stateDir, null, 9000, 9000);
+        LuceneServerConfiguration luceneServerConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
+        GlobalState globalState = new GlobalState(luceneServerConfiguration);
         return new GrpcServer(grpcCleanup, folder, false, globalState,
-                "serverRootDir", "test_index", globalState.getPort(), archiver);
+                luceneServerConfiguration.getIndexDir(), "test_index", globalState.getPort(), archiver);
     }
 
     @After
@@ -106,8 +105,7 @@ public class BackupRestoreIndexRequestHandlerTest {
     private void tearDownGrpcServer() throws IOException {
         grpcServer.getGlobalState().close();
         grpcServer.shutdown();
-        rmDir(Paths.get(grpcServer.getRootDirName()));
-        rmDir(stateDir); //stateDir (mapping of index_name: path index dir on disk)
+        rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
     }
 
     @Test
@@ -118,7 +116,7 @@ public class BackupRestoreIndexRequestHandlerTest {
         backupIndex();
         Path downloadPath = archiver.download("testservice", "testresource_data");
         List<String> actual = getFiles(downloadPath);
-        List<String> expected = getFiles(Paths.get("serverRootDir"));
+        List<String> expected = getFiles(Paths.get(grpcServer.getIndexDir()));
         assertEquals(expected, actual);
     }
 
@@ -162,8 +160,36 @@ public class BackupRestoreIndexRequestHandlerTest {
 
     }
 
+    @Test
+    public void testSnapshotRestore() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+        //Backup Index
+        backupIndex();
+        //stop server and remove data and state files.
+        tearDownGrpcServer();
+        //restart server and Index
+        grpcServer = setUpGrpcServer();
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE, 0, true);
+        //search
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(RETRIEVED_VALUES)
+                .build());
+        assertEquals(2, searchResponse.getTotalHits());
+        assertEquals(2, searchResponse.getHitsList().size());
+        SearchResponse.Hit firstHit = searchResponse.getHits(0);
+        checkHits(firstHit);
+        SearchResponse.Hit secondHit = searchResponse.getHits(1);
+        checkHits(secondHit);
+
+    }
+
     private void deleteIndexAndMetadata() throws IOException {
-        for (Path path : Arrays.asList(stateDir, Paths.get("serverRootDir"))) {
+        for (Path path : Arrays.asList(grpcServer.getGlobalState().getStateDir(), Paths.get(grpcServer.getIndexDir()))) {
             rmDir(path);
         }
     }

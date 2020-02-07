@@ -81,14 +81,8 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
                 .build();
     }
 
-    public static String getResourceMetadata(String resourceName, Mode mode) {
-        String resourceMetadata = String.format("%s_metadata", resourceName);
-        if (mode.equals(Mode.PRIMARY)) {
-            return String.format("%s_primary", resourceMetadata);
-        } else if (mode.equals(Mode.REPLICA)) {
-            return String.format("%s_replica", resourceMetadata);
-        }
-        return resourceMetadata;
+    public static String getResourceMetadata(String resourceName) {
+        return  String.format("%s_metadata", resourceName);
     }
 
     public static String getResourceData(String resourceName) {
@@ -105,13 +99,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     }
 
     public void uploadMetadata(String serviceName, String resourceName, IndexState indexState, BackupIndexResponse.Builder backupIndexResponseBuilder) throws IOException {
-        Mode mode = Mode.STANDALONE;
-        if (indexState.getShard(0).isPrimary()) {
-            mode = Mode.PRIMARY;
-        } else if (indexState.getShard(0).isReplica()) {
-            mode = Mode.REPLICA;
-        }
-        String resourceMetadata = getResourceMetadata(resourceName, mode);
+        String resourceMetadata = getResourceMetadata(resourceName);
         String versionHash = archiver.upload(serviceName, resourceMetadata, indexState.globalState.stateDir);
         archiver.blessVersion(serviceName, resourceMetadata, versionHash);
         backupIndexResponseBuilder.setMetadataVersionHash(versionHash);

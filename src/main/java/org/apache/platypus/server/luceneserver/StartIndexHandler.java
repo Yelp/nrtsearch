@@ -59,8 +59,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         Path dataPath = null;
         if (startIndexRequest.hasRestore()) {
             RestoreIndex restoreIndex = startIndexRequest.getRestore();
-            dataPath = downloadArtifact(restoreIndex.getServiceName(), restoreIndex.getResourceName(),
-                    INDEXED_DATA_TYPE.DATA, startIndexRequest.getMode());
+            dataPath = downloadArtifact(restoreIndex.getServiceName(), restoreIndex.getResourceName(), INDEXED_DATA_TYPE.DATA);
         }
         if (mode.equals(Mode.PRIMARY)) {
             primaryGen = startIndexRequest.getPrimaryGen();
@@ -119,12 +118,12 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
     }
 
     public Path downloadArtifact(String serviceName, String resourceName,
-                                 INDEXED_DATA_TYPE indexDataType, Mode mode) {
+                                 INDEXED_DATA_TYPE indexDataType) {
         String resource;
         if (indexDataType.equals(INDEXED_DATA_TYPE.DATA)) {
             resource = BackupIndexRequestHandler.getResourceData(resourceName);
         } else if (indexDataType.equals(INDEXED_DATA_TYPE.STATE)) {
-            resource = BackupIndexRequestHandler.getResourceMetadata(resourceName, mode);
+            resource = BackupIndexRequestHandler.getResourceMetadata(resourceName);
         } else {
             throw new RuntimeException("Invalid INDEXED_DATA_TYPE " + indexDataType);
         }

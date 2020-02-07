@@ -2,6 +2,8 @@ package org.apache.platypus.server.grpc;
 
 import io.grpc.testing.GrpcCleanupRule;
 import org.apache.commons.io.FileUtils;
+import org.apache.platypus.server.LuceneServerTestConfigurationFactory;
+import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.junit.After;
@@ -40,16 +42,13 @@ public class LuceneServerTest {
 
     @After
     public void tearDown() throws IOException {
-        tearDownGrpcServer(null);
+        tearDownGrpcServer();
     }
 
-    private void tearDownGrpcServer(Path stateRootDir) throws IOException {
+    private void tearDownGrpcServer() throws IOException {
         grpcServer.getGlobalState().close();
         grpcServer.shutdown();
-        rmDir(Paths.get(grpcServer.getRootDirName()));
-        if (stateRootDir != null) {
-            rmDir(stateRootDir); //stateDir (mapping of index_name: path index dir on disk)
-        }
+        rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
     }
 
     @Before
@@ -58,26 +57,25 @@ public class LuceneServerTest {
     }
 
     private GrpcServer setUpGrpcServer(Path rootDir) throws IOException {
-        String nodeName = "server1";
-        String rootDirName = "server1RootDirName1";
-        Path rootDir1 = rootDir == null ? folder.newFolder(rootDirName).toPath() : rootDir;
         String testIndex = "test_index";
-        GlobalState globalState = new GlobalState(nodeName, rootDir1, null, 9000, 9000);
-        return new GrpcServer(grpcCleanup, folder, false, globalState, rootDirName, testIndex, globalState.getPort());
+        LuceneServerConfiguration luceneServerConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
+        GlobalState globalState = new GlobalState(luceneServerConfiguration);
+        return new GrpcServer(grpcCleanup, folder, false, globalState, luceneServerConfiguration.getIndexDir(), testIndex, globalState.getPort());
     }
 
     @Test
     public void testCreateIndex() throws Exception {
-        String rootDirName = grpcServer.getRootDirName();
-        String testIndex = grpcServer.getTestIndex();
         LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
-        CreateIndexResponse reply = blockingStub.createIndex(CreateIndexRequest.newBuilder().build().newBuilder().setIndexName(testIndex).setRootDir(rootDirName).build());
-        assertEquals(reply.getResponse(), String.format("Created Index name: %s, at rootDir: %s", testIndex, rootDirName));
+        CreateIndexResponse reply = blockingStub.createIndex(CreateIndexRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setRootDir(grpcServer.getIndexDir())
+                .build());
+        assertEquals(reply.getResponse(), String.format("Created Index name: %s, at rootDir: %s", grpcServer.getTestIndex(), grpcServer.getIndexDir()));
     }
 
     @Test
     public void testStartShard() throws IOException {
-        String rootDirName = grpcServer.getRootDirName();
+        String rootDirName = grpcServer.getIndexDir();
         String testIndex = grpcServer.getTestIndex();
         LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
         //create the index
@@ -466,50 +464,6 @@ public class LuceneServerTest {
         assertEquals("2", docId);
         assertEquals(14.0, hit.getScore(), 0.0);
         checkHits(hit);
-    }
-
-    @Test
-    public void testSnapshotRestore() throws IOException, InterruptedException {
-        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-        //2 docs addDocuments
-        testAddDocs.addDocuments();
-        //Steps to backup an index
-        //1. commit
-        grpcServer.getBlockingStub().commit(CommitRequest.newBuilder().setIndexName("test_index").build());
-        //2. createSnapshot
-        CreateSnapshotResponse createSnapshotResponse = grpcServer.getBlockingStub().createSnapshot(CreateSnapshotRequest.newBuilder().setIndexName("test_index").build());
-        //3. copy file over to remote storage
-        Path backUpDir = folder.newFolder("backup_data").toPath();
-        Path backUpStateDir = folder.newFolder("backup_state").toPath();
-        FileUtils.copyDirectory(Paths.get(grpcServer.getRootDirName()).toFile(), backUpDir.toFile());
-        FileUtils.copyDirectory(grpcServer.getGlobalState().getStateDir().toFile(), backUpStateDir.toFile());
-        //4. releaseSnapshot
-        grpcServer.getBlockingStub().releaseSnapshot(ReleaseSnapshotRequest.newBuilder()
-                .setIndexName("test_index")
-                .setSnapshotId(createSnapshotResponse.getSnapshotId()).build());
-        //5. stop server and remove data and state files.
-        tearDownGrpcServer(grpcServer.getGlobalState().getStateDir());
-        //Steps to restore an index
-        //1. restore files to originalDir
-        FileUtils.copyDirectory(backUpDir.toFile(), Paths.get(grpcServer.getRootDirName()).toFile());
-        FileUtils.copyDirectory(backUpStateDir.toFile(), grpcServer.getGlobalState().getStateDir().toFile());
-        //2. restart server and Index
-        grpcServer = setUpGrpcServer(grpcServer.getGlobalState().getStateDir());
-        new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(Mode.STANDALONE, 1, true);
-        //search
-        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
-                .setIndexName(grpcServer.getTestIndex())
-                .setStartHit(0)
-                .setTopHits(10)
-                .addAllRetrieveFields(RETRIEVED_VALUES)
-                .build());
-        assertEquals(2, searchResponse.getTotalHits());
-        assertEquals(2, searchResponse.getHitsList().size());
-        SearchResponse.Hit firstHit = searchResponse.getHits(0);
-        checkHits(firstHit);
-        SearchResponse.Hit secondHit = searchResponse.getHits(1);
-        checkHits(secondHit);
-
     }
 
     public static void checkHits(SearchResponse.Hit hit) {

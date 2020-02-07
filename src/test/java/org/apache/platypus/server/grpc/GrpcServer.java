@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 public class GrpcServer {
     private final GrpcCleanupRule grpcCleanup;
     private final TemporaryFolder temporaryFolder;
-    private String rootDirName;
+    private String indexDir;
     private String testIndex;
     private LuceneServerGrpc.LuceneServerBlockingStub blockingStub;
     private LuceneServerGrpc.LuceneServerStub stub;
@@ -45,23 +45,23 @@ public class GrpcServer {
 
     public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
                       boolean isReplication, GlobalState globalState,
-                      String rootDirName, String index, int port, Archiver archiver) throws IOException {
+                      String indexDir, String index, int port, Archiver archiver) throws IOException {
         this.grpcCleanup = grpcCleanup;
         this.temporaryFolder = temporaryFolder;
         this.globalState = globalState;
-        this.rootDirName = rootDirName;
+        this.indexDir = indexDir;
         this.testIndex = index;
         invoke(isReplication, port, archiver);
     }
 
     public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
                       boolean isReplication, GlobalState globalState,
-                      String rootDirName, String index, int port) throws IOException {
-        this(grpcCleanup, temporaryFolder, isReplication, globalState, rootDirName, index, port, null);
+                      String indexDir, String index, int port) throws IOException {
+        this(grpcCleanup, temporaryFolder, isReplication, globalState, indexDir, index, port, null);
     }
 
-    public String getRootDirName() {
-        return rootDirName;
+    public String getIndexDir() {
+        return indexDir;
     }
 
     public String getTestIndex() {
@@ -175,6 +175,7 @@ public class GrpcServer {
         }
     }
 
+
     public static class TestServer {
         private final GrpcServer grpcServer;
         public AddDocumentResponse addDocumentResponse;
@@ -276,7 +277,7 @@ public class GrpcServer {
 
         public FieldDefResponse createStartIndexAndRegisterFields(Mode mode, int primaryGen, boolean startOldIndex, String registerFieldsFileName) throws IOException {
             String registerFields = registerFieldsFileName == null ? "registerFieldsBasic.json" : registerFieldsFileName;
-            String rootDirName = grpcServer.getRootDirName();
+            String rootDirName = grpcServer.getIndexDir();
             String testIndex = grpcServer.getTestIndex();
             LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
             if (!startOldIndex) {
@@ -290,16 +291,13 @@ public class GrpcServer {
             if (mode.equals(Mode.PRIMARY)) {
                 startIndexBuilder.setMode(Mode.PRIMARY);
                 startIndexBuilder.setPrimaryGen(primaryGen);
-                if (startOldIndex) {
-                    startIndexBuilder.setRestore(restoreIndex);
-                }
             } else if (mode.equals(Mode.REPLICA)) {
                 startIndexBuilder.setMode(Mode.REPLICA);
                 startIndexBuilder.setPrimaryAddress("localhost");
                 startIndexBuilder.setPort(9001); //primary port for replication server
-                if (startOldIndex) {
-                    startIndexBuilder.setRestore(restoreIndex);
-                }
+            }
+            if(startOldIndex) {
+                startIndexBuilder.setRestore(restoreIndex);
             }
             blockingStub.startIndex(startIndexBuilder.build());
 

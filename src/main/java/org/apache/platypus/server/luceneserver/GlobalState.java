@@ -23,6 +23,7 @@ import com.google.gson.*;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.NamedThreadFactory;
+import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,22 +80,21 @@ public class GlobalState implements Closeable, Restorable {
     public final CountDownLatch shutdownNow = new CountDownLatch(1);
 
     final Path stateDir;
+    final Path indexDirBase;
 
     /**
      * This is persisted so on restart we know about all previously created indices.
      */
     private final JsonObject indexNames = new JsonObject();
 
-    /**
-     * Sole constructor.
-     */
-    public GlobalState(String nodeName, Path stateDir, String hostName, int port, int replicationPort) throws IOException {
+    public GlobalState(LuceneServerConfiguration luceneServerConfiguration) throws IOException {
         logger.info("MAX INDEXING THREADS " + MAX_INDEXING_THREADS);
-        this.nodeName = nodeName;
-        this.stateDir = stateDir;
-        this.hostName = hostName;
-        this.port = port;
-        this.replicationPort = replicationPort;
+        this.nodeName = luceneServerConfiguration.getNodeName();
+        this.stateDir = Paths.get(luceneServerConfiguration.getStateDir());
+        this.indexDirBase = Paths.get(luceneServerConfiguration.getIndexDir());
+        this.hostName = luceneServerConfiguration.getHostName();
+        this.port = luceneServerConfiguration.getPort();
+        this.replicationPort = luceneServerConfiguration.getReplicationPort();
         if (Files.exists(stateDir) == false) {
             Files.createDirectories(stateDir);
         }
@@ -191,11 +191,16 @@ public class GlobalState implements Closeable, Restorable {
         }
     }
 
+    private Path getIndexDir(String indexName) {
+        return Paths.get(indexDirBase.toString(), indexName);
+    }
+
     /**
      * Create a new index.
      */
-    public IndexState createIndex(String name, Path rootDir) throws IllegalArgumentException, IOException {
+    public IndexState createIndex(String name, Path rootDirDeprecated) throws IllegalArgumentException, IOException {
         synchronized (indices) {
+            Path rootDir = getIndexDir(name);
             if (indexNames.get(name) != null) {
                 throw new IllegalArgumentException("index \"" + name + "\" already exists");
             }
@@ -205,7 +210,7 @@ public class GlobalState implements Closeable, Restorable {
                 if (Files.exists(rootDir)) {
                     throw new IllegalArgumentException("rootDir \"" + rootDir + "\" already exists");
                 }
-                indexNames.addProperty(name, rootDir.toAbsolutePath().toString());
+                indexNames.addProperty(name, name);
             }
             saveIndexNames();
             IndexState state = new IndexState(this, name, rootDir, true, false);
@@ -218,7 +223,11 @@ public class GlobalState implements Closeable, Restorable {
         synchronized (indices) {
             IndexState state = indices.get(name);
             if (state == null) {
-                String rootPath = indexNames.get(name).getAsString();
+                String rootPath = null;
+                String indexName = indexNames.get(name).getAsString();
+                if (indexName != null) {
+                    rootPath = getIndexDir(name).toString();
+                }
                 if (rootPath != null) {
                     if (rootPath.equals(NULL)) {
                         state = new IndexState(this, name, null, false, hasRestore);

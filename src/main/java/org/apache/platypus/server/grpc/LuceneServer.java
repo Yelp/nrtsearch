@@ -70,9 +70,7 @@ public class LuceneServer {
     }
 
     private void start() throws IOException {
-        GlobalState globalState = new GlobalState(luceneServerConfiguration.getNodeName(),
-                Paths.get(luceneServerConfiguration.getStateDir()), luceneServerConfiguration.getHostName(),
-                luceneServerConfiguration.getPort(), luceneServerConfiguration.getReplicationPort());
+        GlobalState globalState = new GlobalState(luceneServerConfiguration);
 
         /* The port on which the server should run */
         server = ServerBuilder.forPort(luceneServerConfiguration.getPort())
@@ -262,7 +260,7 @@ public class LuceneServer {
                     //download stateDir and reset state
                     RestoreIndex restoreIndex = startIndexRequest.getRestore();
                     Path stateDirPath = startIndexHandler.downloadArtifact(restoreIndex.getServiceName(), restoreIndex.getResourceName(),
-                            StartIndexHandler.INDEXED_DATA_TYPE.STATE, startIndexRequest.getMode());
+                            StartIndexHandler.INDEXED_DATA_TYPE.STATE);
                     globalState.setStateDir(stateDirPath);
                 }
                 indexState = globalState.getIndex(startIndexRequest.getIndexName(), startIndexRequest.hasRestore());
