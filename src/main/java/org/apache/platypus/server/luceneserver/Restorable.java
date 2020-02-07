@@ -39,7 +39,7 @@ public interface Restorable {
     default void restoreDir(Path source, Path target) throws IOException {
         Path baseSource = source.getParent();
         Path tempCurrentLink = baseSource.resolve(getTmpName());
-        Path downloadedFileName = Files.list(source).collect(Collectors.toList()).get(0).getFileName();
+        Path downloadedFileName = Files.list(source).findFirst().get().getFileName();
         Path downloadedData = source.resolve(downloadedFileName);
         logger.info("Point new symlink %s to new data %s".format(target.toString(), downloadedData.toString()));
         Files.createSymbolicLink(tempCurrentLink, downloadedData);
