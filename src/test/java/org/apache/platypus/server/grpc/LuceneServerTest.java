@@ -258,6 +258,30 @@ public class LuceneServerTest {
     }
 
     @Test
+    public void testSearchQueryText() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(RETRIEVED_VALUES)
+                .setQueryText("SECOND")
+                .build());
+
+        assertEquals(1, searchResponse.getTotalHits());
+        assertEquals(1, searchResponse.getHitsList().size());
+        SearchResponse.Hit hit = searchResponse.getHits(0);
+        String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+        assertEquals("2", docId);
+        checkHits(hit);
+    }
+
+    @Test
     public void testSearchBooleanQuery() throws IOException, InterruptedException {
         GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
         //2 docs addDocuments
@@ -463,6 +487,66 @@ public class LuceneServerTest {
         String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
         assertEquals("2", docId);
         assertEquals(14.0, hit.getScore(), 0.0);
+        checkHits(hit);
+    }
+
+    @Test
+    public void testSearchMatchQuery() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub()
+                .search(SearchRequest.newBuilder()
+                        .setIndexName(grpcServer.getTestIndex())
+                        .setStartHit(0)
+                        .setTopHits(10)
+                        .addAllRetrieveFields(RETRIEVED_VALUES)
+                        .setQuery(Query.newBuilder()
+                                .setQueryType(QueryType.MATCH)
+                                .setMatchQuery(MatchQuery.newBuilder()
+                                        .setField("vendor_name")
+                                        .setQuery("SECOND again")
+                                        .setOperator(BooleanClause.Occur.MUST)))
+                        .build());
+
+        assertEquals(1, searchResponse.getTotalHits());
+        assertEquals(1, searchResponse.getHitsList().size());
+        SearchResponse.Hit hit = searchResponse.getHits(0);
+        String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+        assertEquals("2", docId);
+        checkHits(hit);
+    }
+
+    @Test
+    public void testSearchMatchPhraseQuery() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub()
+                .search(SearchRequest.newBuilder()
+                        .setIndexName(grpcServer.getTestIndex())
+                        .setStartHit(0)
+                        .setTopHits(10)
+                        .addAllRetrieveFields(RETRIEVED_VALUES)
+                        .setQuery(Query.newBuilder()
+                                .setQueryType(QueryType.MATCH_PHRASE)
+                                .setMatchPhraseQuery(MatchPhraseQuery.newBuilder()
+                                        .setField("vendor_name")
+                                        .setQuery("SECOND second")
+                                        .setSlop(1)))
+                        .build());
+
+        assertEquals(1, searchResponse.getTotalHits());
+        assertEquals(1, searchResponse.getHitsList().size());
+        SearchResponse.Hit hit = searchResponse.getHits(0);
+        String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+        assertEquals("2", docId);
         checkHits(hit);
     }
 
