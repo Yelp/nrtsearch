@@ -160,7 +160,7 @@ public class ReplicationServerTest {
             }
         }
         assertEquals(1, done);
-        assertTrue(0 < ongoing);
+        assertTrue(0 <= ongoing);
         assertEquals(0, failed);
     }
 
