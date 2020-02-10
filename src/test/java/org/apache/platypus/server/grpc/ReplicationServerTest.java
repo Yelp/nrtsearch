@@ -160,7 +160,7 @@ public class ReplicationServerTest {
             }
         }
         assertEquals(1, done);
-        assertTrue(0 <= ongoing); // ongoing will be zero if the Ongoing status was never received and only Done was received
+        assertTrue(0 <= ongoing);
         assertEquals(0, failed);
     }
 
