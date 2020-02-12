@@ -19,7 +19,6 @@
 
 package org.apache.platypus.server.grpc;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import io.grpc.ManagedChannel;
@@ -28,7 +27,24 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
-import org.apache.platypus.server.cli.*;
+import org.apache.platypus.server.cli.AddDocumentsCommand;
+import org.apache.platypus.server.cli.BackupIndexCommand;
+import org.apache.platypus.server.cli.Cmd;
+import org.apache.platypus.server.cli.CommitCommand;
+import org.apache.platypus.server.cli.CreateIndexCommand;
+import org.apache.platypus.server.cli.DeleteAllDocumentsCommand;
+import org.apache.platypus.server.cli.DeleteDocumentsCommand;
+import org.apache.platypus.server.cli.DeleteIndexCommand;
+import org.apache.platypus.server.cli.GetCurrentSearcherVersion;
+import org.apache.platypus.server.cli.LiveSettingsCommand;
+import org.apache.platypus.server.cli.RefreshCommand;
+import org.apache.platypus.server.cli.RegisterFieldsCommand;
+import org.apache.platypus.server.cli.SearchCommand;
+import org.apache.platypus.server.cli.SettingsCommand;
+import org.apache.platypus.server.cli.StartIndexCommand;
+import org.apache.platypus.server.cli.StatsCommand;
+import org.apache.platypus.server.cli.StopIndexCommand;
+import org.apache.platypus.server.cli.WriteNRTPointCommand;
 import picocli.CommandLine;
 
 import java.io.IOException;
@@ -353,7 +369,7 @@ public class LuceneServerClient {
         String subCommandStr = cmdResult.subcommand().commandSpec().name();
         Object subCommand = cmdResult.subcommand().commandSpec().userObject();
         Cmd baseComand = (Cmd) cmdResult.commandSpec().userObject();
-        LuceneServerClient client = new LuceneServerClient("localhost", baseComand.getPort());
+        LuceneServerClient client = new LuceneServerClient(baseComand.getHostname(), baseComand.getPort());
         try {
             String jsonStr = "";
             Path filePath;
@@ -442,6 +458,7 @@ public class LuceneServerClient {
                 case BACKUP_INDEX:
                     BackupIndexCommand backupIndexCommand = (BackupIndexCommand) subCommand;
                     client.backupIndex(backupIndexCommand.getIndexName(), backupIndexCommand.getServiceName(), backupIndexCommand.getResourceName());
+                    break;
                 default:
                     logger.warning(String.format("%s is not a valid server command", subCommandStr));
             }
