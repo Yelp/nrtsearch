@@ -49,4 +49,11 @@ public class Cmd {
         return Integer.parseInt(port);
     }
 
+    @CommandLine.Option(names = {"-h", "--hostname"}, description = "host name of server to connect to", required = true)
+    private String hostname;
+
+    public String getHostname() {
+        return hostname;
+    }
+
 }

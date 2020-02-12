@@ -49,7 +49,6 @@ import java.nio.file.Paths;
 import static org.apache.platypus.server.config.LuceneServerConfiguration.DEFAULT_BOTO_CFG_PATH;
 
 public class LuceneServerModule extends AbstractModule {
-
     private final String[] args;
 
     public LuceneServerModule(String[] args) {
@@ -74,8 +73,14 @@ public class LuceneServerModule extends AbstractModule {
             Path botoCfgPath = Paths.get(luceneServerConfiguration.getBotoCfgPath());
             final ProfilesConfigFile profilesConfigFile = new ProfilesConfigFile(botoCfgPath.toFile());
             final AWSCredentialsProvider awsCredentialsProvider = new ProfileCredentialsProvider(profilesConfigFile, "default");
-            return AmazonS3ClientBuilder.standard()
+            AmazonS3 s3ClientInterim = AmazonS3ClientBuilder.standard()
                     .withCredentials(awsCredentialsProvider).build();
+            String region = s3ClientInterim.getBucketLocation(luceneServerConfiguration.getBucketName());
+            String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
+            return AmazonS3ClientBuilder.standard()
+                    .withCredentials(awsCredentialsProvider)
+                    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(serviceEndpoint, region))
+                    .build();
         }
     }
 
