@@ -1,5 +1,6 @@
 package org.apache.platypus.server.grpc;
 
+import com.amazonaws.services.s3.AmazonS3;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import io.grpc.ManagedChannel;
@@ -13,6 +14,8 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.apache.platypus.server.utils.Archiver;
+import org.apache.platypus.server.utils.ArchiverImpl;
+import org.apache.platypus.server.utils.TarImpl;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
@@ -174,7 +177,6 @@ public class GrpcServer {
             }
         }
     }
-
 
     public static class TestServer {
         private final GrpcServer grpcServer;

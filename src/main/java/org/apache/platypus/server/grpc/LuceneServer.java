@@ -298,11 +298,11 @@ public class LuceneServer {
 
                 @Override
                 public void onNext(AddDocumentRequest addDocumentRequest) {
-                    logger.info(String.format("onNext, addDocumentRequestQueue size: %s", addDocumentRequestQueue.size()));
+                    logger.debug(String.format("onNext, addDocumentRequestQueue size: %s", addDocumentRequestQueue.size()));
                     count++;
                     addDocumentRequestQueue.add(addDocumentRequest);
                     if (addDocumentRequestQueue.size() == MAX_BUFFER_LEN) {
-                        logger.info(String.format("indexing addDocumentRequestQueue of size: %s", addDocumentRequestQueue.size()));
+                        logger.info(String.format("indexing addDocumentRequestQueue size: %s, total: %s", addDocumentRequestQueue.size(), count));
                         try {
                             List<AddDocumentRequest> addDocRequestList = addDocumentRequestQueue.stream().collect(Collectors.toList());
                             Future<Long> future = globalState.submitIndexingTask(new AddDocumentHandler.DocumentIndexer(globalState, addDocRequestList));
@@ -869,7 +869,7 @@ public class LuceneServer {
             try {
                 IndexState indexState = globalState.getIndex(request.getIndexName());
                 CopyState reply = new RecvCopyStateHandler().handle(indexState, request);
-                logger.info("AddReplicaHandler returned " + reply.toString());
+                logger.debug("RecvCopyStateHandler returned, completedMergeFiles count: " + reply.getCompletedMergeFilesCount());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {

@@ -19,16 +19,19 @@
 
 package org.apache.platypus.server.grpc;
 
+import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
@@ -118,6 +121,82 @@ public interface LuceneServerClientBuilder<T> {
             }
             return builder.build();
         }
+    }
+
+    class AddJsonDocumentsClientBuilder implements LuceneServerClientBuilder<Stream<AddDocumentRequest>> {
+        private static final Logger logger = Logger.getLogger(AddJsonDocumentsClientBuilder.class.getName());
+        private final String indexName;
+        private final Gson gson;
+        private final Path filePath;
+        private final BufferedReader reader;
+        private final int maxBufferLen;
+        private boolean finished;
+
+
+        public AddJsonDocumentsClientBuilder(String indexName, Gson gson, Path filePath, int maxBufferLen) throws IOException {
+            this.indexName = indexName;
+            this.gson = gson;
+            this.filePath = filePath;
+            this.reader = Files.newBufferedReader(filePath);
+            this.maxBufferLen = maxBufferLen;
+        }
+
+        private void updateMultiValuedFielduilder(AddDocumentRequest.MultiValuedField.Builder builder, Object value) {
+            if (value instanceof List) {
+                for (Object eachValue : (List) value) {
+                    updateMultiValuedFielduilder(builder, eachValue);
+                }
+            } else if (value instanceof Double) {
+                Double doubleValue = (Double) value;
+                if (doubleValue % 1 == 0) {
+                    //gson converts all numbers to doubles, but we want to preserve Long
+                    //e.g. long a=14 becomes 14.0 and Long.of("14.0") fails with NumberFormatException
+                    builder.addValue(String.valueOf(doubleValue.longValue()));
+                } else {
+                    builder.addValue(String.valueOf(doubleValue));
+                }
+            } else {
+                builder.addValue(String.valueOf(value));
+            }
+        }
+
+        AddDocumentRequest buildAddDocumentRequest(String lineStr) {
+            Map<String, Object> line = gson.fromJson(lineStr, Map.class);
+            AddDocumentRequest.Builder addDocumentRequestBuilder = AddDocumentRequest.newBuilder();
+            addDocumentRequestBuilder.setIndexName(indexName);
+            for (String key : line.keySet()) {
+                AddDocumentRequest.MultiValuedField.Builder multiValuedFieldsBuilder = AddDocumentRequest.MultiValuedField.newBuilder();
+                Object value = line.get(key);
+                if (value != null) {
+                    updateMultiValuedFielduilder(multiValuedFieldsBuilder, value);
+                    addDocumentRequestBuilder.putFields(key, multiValuedFieldsBuilder.build());
+                }
+            }
+            return addDocumentRequestBuilder.build();
+        }
+
+        @Override
+        public Stream<AddDocumentRequest> buildRequest(Path filePath) throws IOException {
+            return buildRequest();
+        }
+
+        public Stream<AddDocumentRequest> buildRequest() throws IOException {
+            Stream.Builder<AddDocumentRequest> builder = Stream.builder();
+            for (int i = 0; i < maxBufferLen; i++) {
+                String line = reader.readLine();
+                if (line == null) {
+                    finished = true;
+                    break;
+                }
+                builder.add(buildAddDocumentRequest(line));
+            }
+            return builder.build();
+        }
+
+        public boolean isFinished() {
+            return finished;
+        }
+
     }
 
     class SearchClientBuilder implements LuceneServerClientBuilder<SearchRequest> {

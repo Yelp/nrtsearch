@@ -23,12 +23,11 @@
 package org.apache.platypus.server.utils;
 
 import com.amazonaws.util.IOUtils;
+import net.jpountz.lz4.LZ4FrameInputStream;
+import net.jpountz.lz4.LZ4FrameOutputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -43,7 +42,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
@@ -67,7 +66,7 @@ public class TarImplTest {
 
     @Test
     public void extractTar() throws IOException {
-        Path sourceTarFile = tarTestBaseDirectory.resolve("test_tar.tar.gz");
+        Path sourceTarFile = tarTestBaseDirectory.resolve("test_tar.tar.lz4");
         Path destDir = tarTestBaseDirectory.resolve("extractedDir");
         try (
                 final FileOutputStream fileOutputStream = new FileOutputStream(sourceTarFile.toFile());
@@ -75,7 +74,7 @@ public class TarImplTest {
             byte[] tarContent = getTarFile(Arrays.asList(tarEntry1, tarEntry2));
             fileOutputStream.write(tarContent);
         }
-        new TarImpl().extractTar(sourceTarFile, destDir);
+        new TarImpl(TarImpl.CompressionMode.LZ4).extractTar(sourceTarFile, destDir);
 
         assertEquals(Files.readAllLines(destDir.resolve("foo")).get(0), tarEntry1.content);
         assertEquals(Files.readAllLines(destDir.resolve("bar").resolve("baz")).get(0), tarEntry2.content);
@@ -95,15 +94,15 @@ public class TarImplTest {
             IOUtils.copy(test2content, fileOutputStream2);
         }
         Path destTarFile = tarTestBaseDirectory.resolve("result.tar.gz");
-        new TarImpl().buildTar(sourceDir, destTarFile);
+        new TarImpl(TarImpl.CompressionMode.LZ4).buildTar(sourceDir, destTarFile);
 
         try (
                 final FileInputStream fileInputStream = new FileInputStream(destTarFile.toFile());
-                final GzipCompressorInputStream gzipCompressorInputStream = new GzipCompressorInputStream(fileInputStream, true);
-                final TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(gzipCompressorInputStream);
+                final LZ4FrameInputStream compressorInputStream = new LZ4FrameInputStream(fileInputStream);
+                final TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(compressorInputStream);
         ) {
             Path destDir = tarTestBaseDirectory.resolve("test_extract");
-            new TarImpl().extractTar(tarArchiveInputStream, destDir);
+            new TarImpl(TarImpl.CompressionMode.LZ4).extractTar(tarArchiveInputStream, destDir);
             assertEquals(true, dirsMatch(sourceDir.toFile(), destDir.resolve("dirToTar").toFile()));
 
         }
@@ -133,8 +132,8 @@ public class TarImplTest {
     byte[] getTarFile(List<TarEntry> tarEntries) throws IOException {
         try (
                 final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-                final GzipCompressorOutputStream gzipCompressorOutputStream = new GzipCompressorOutputStream(byteArrayOutputStream);
-                final TarArchiveOutputStream tarArchiveOutputStream = new TarArchiveOutputStream(gzipCompressorOutputStream);
+                final LZ4FrameOutputStream compressorOutputStream = new LZ4FrameOutputStream(byteArrayOutputStream);
+                final TarArchiveOutputStream tarArchiveOutputStream = new TarArchiveOutputStream(compressorOutputStream);
         ) {
             for (final TarEntry tarEntry : tarEntries) {
                 final byte[] data = tarEntry.content.getBytes(StandardCharsets.UTF_8);

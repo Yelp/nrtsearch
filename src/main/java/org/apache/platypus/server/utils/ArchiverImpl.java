@@ -22,10 +22,20 @@
 
 package org.apache.platypus.server.utils;
 
+import com.amazonaws.event.ProgressEvent;
+import com.amazonaws.event.ProgressListener;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
+import com.amazonaws.services.s3.transfer.Download;
+import com.amazonaws.services.s3.transfer.PersistableTransfer;
+import com.amazonaws.services.s3.transfer.TransferManager;
+import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
+import com.amazonaws.services.s3.transfer.Upload;
+import com.amazonaws.services.s3.transfer.internal.S3ProgressListener;
 import com.google.inject.Inject;
+import net.jpountz.lz4.LZ4FrameInputStream;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -35,15 +45,20 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ArchiverImpl implements Archiver {
+    private static final int NUM_S3_THREADS = 20;
     private static Logger logger = LoggerFactory.getLogger(ArchiverImpl.class);
     private static final String CURRENT_VERSION_NAME = "current";
     private static final String TMP_SUFFIX = ".tmp";
@@ -54,10 +69,16 @@ public class ArchiverImpl implements Archiver {
     private final Path archiverDirectory;
     private final Tar tar;
     private final VersionManager versionManger;
+    private final TransferManager transferManager;
+
 
     @Inject
     public ArchiverImpl(final AmazonS3 s3, final String bucketName, final Path archiverDirectory, final Tar tar) {
         this.s3 = s3;
+        this.transferManager = TransferManagerBuilder.standard()
+                .withS3Client(s3)
+                .withExecutorFactory(() -> Executors.newFixedThreadPool(NUM_S3_THREADS))
+                .build();
         this.bucketName = bucketName;
         this.archiverDirectory = archiverDirectory;
         this.tar = tar;
@@ -106,9 +127,17 @@ public class ArchiverImpl implements Archiver {
         return versionHash;
     }
 
-    private void uploadTarWithMetadata(String serviceName, String resource, String versionHash, Path path) {
+    private void uploadTarWithMetadata(String serviceName, String resource, String versionHash, Path path) throws IOException {
         final String absoluteResourcePath = String.format("%s/%s/%s", serviceName, resource, versionHash);
-        s3.putObject(bucketName, absoluteResourcePath, path.toFile());
+        PutObjectRequest request = new PutObjectRequest(bucketName, absoluteResourcePath, path.toFile());
+        request.setGeneralProgressListener(new ProgressListenerImpl(serviceName, resource));
+        Upload upload = transferManager.upload(request);
+        try {
+            upload.waitForUploadResult();
+            logger.info("Upload completed ");
+        } catch (InterruptedException e) {
+            throw new IOException("Error while uploading to s3. ", e);
+        }
     }
 
     @Override
@@ -128,17 +157,32 @@ public class ArchiverImpl implements Archiver {
 
     private void getVersionContent(final String serviceName, final String resource, final String hash, final Path destDirectory) throws IOException {
         final String absoluteResourcePath = String.format("%s/%s/%s", serviceName, resource, hash);
+        final Path parentDirectory = destDirectory.getParent();
+        final Path tmpFile = parentDirectory.resolve(getTmpName());
+
+        Download download = transferManager.download(new GetObjectRequest(bucketName, absoluteResourcePath),
+                tmpFile.toFile(), new S3ProgressListenerImpl(serviceName, resource));
+        try {
+            download.waitForCompletion();
+            logger.info("S3 Download complete");
+        } catch (InterruptedException e) {
+            throw new IOException("S3 Download failed", e);
+        }
+
+        final InputStream s3InputStreem = new FileInputStream(tmpFile.toFile());
+        final InputStream compressorInputStream;
+        if (tar.getCompressionMode().equals(Tar.CompressionMode.LZ4)) {
+            compressorInputStream = new LZ4FrameInputStream(s3InputStreem);
+        } else {
+            compressorInputStream = new GzipCompressorInputStream(s3InputStreem, true);
+        }
         try (
-                final S3Object s3Object = s3.getObject(bucketName, absoluteResourcePath);
-                final S3ObjectInputStream s3ObjectInputStream = s3Object.getObjectContent();
-                final GzipCompressorInputStream gzipCompressorInputStream = new GzipCompressorInputStream(s3ObjectInputStream, true);
-                final TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(gzipCompressorInputStream);
+                final TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(compressorInputStream);
         ) {
             if (Files.exists(destDirectory)) {
                 logger.info("Directory {} already exists, not re-downloading from Archiver", destDirectory);
                 return;
             }
-            final Path parentDirectory = destDirectory.getParent();
             final Path tmpDirectory = parentDirectory.resolve(getTmpName());
             try {
                 tar.extractTar(tarArchiveInputStream, tmpDirectory);
@@ -146,6 +190,9 @@ public class ArchiverImpl implements Archiver {
             } finally {
                 if (Files.exists(tmpDirectory)) {
                     FileUtils.deleteDirectory(tmpDirectory.toFile());
+                }
+                if (Files.exists(tmpFile)) {
+                    Files.delete(tmpFile);
                 }
             }
         }
@@ -187,5 +234,48 @@ public class ArchiverImpl implements Archiver {
                 FileUtils.deleteDirectory(entry.toFile());
             }
         }
+    }
+
+    private static class ProgressListenerImpl implements ProgressListener {
+
+        private static Logger logger = LoggerFactory.getLogger(ProgressListenerImpl.class);
+        private final String serviceName;
+        private final String resource;
+        private AtomicLong totalBytesTransferred = new AtomicLong();
+
+        public ProgressListenerImpl(String serviceName, String resource) {
+            this.serviceName = serviceName;
+            this.resource = resource;
+        }
+
+        @Override
+        public void progressChanged(ProgressEvent progressEvent) {
+            long totalBytes = totalBytesTransferred.addAndGet(progressEvent.getBytesTransferred());
+            logger.info(String.format("service: %s, resource: %s, upload transferred bytes: %s", serviceName, resource, totalBytes));
+        }
+    }
+
+    private static class S3ProgressListenerImpl implements S3ProgressListener {
+        private static Logger logger = LoggerFactory.getLogger(S3ProgressListenerImpl.class);
+        private final String serviceName;
+        private final String resource;
+        private AtomicLong totalBytesTransferred = new AtomicLong();
+
+
+        public S3ProgressListenerImpl(String serviceName, String resource) {
+            this.serviceName = serviceName;
+            this.resource = resource;
+        }
+
+        @Override
+        public void onPersistableTransfer(PersistableTransfer persistableTransfer) {
+        }
+
+        @Override
+        public void progressChanged(ProgressEvent progressEvent) {
+            long totalBytes = totalBytesTransferred.addAndGet(progressEvent.getBytesTransferred());
+            logger.info(String.format("service: %s, resource: %s, download transferred bytes: %s", serviceName, resource, totalBytes));
+        }
+
     }
 }

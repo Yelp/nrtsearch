@@ -23,6 +23,8 @@
 package org.apache.platypus.server.utils;
 
 import com.google.inject.Inject;
+import net.jpountz.lz4.LZ4FrameInputStream;
+import net.jpountz.lz4.LZ4FrameOutputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
@@ -31,28 +33,35 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
 import org.apache.commons.io.IOUtils;
 
 import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class TarImpl implements Tar {
-    @Inject
-    public TarImpl() {
+    private final CompressionMode compressionMode;
 
+    @Inject
+    public TarImpl(CompressionMode compressionMode) {
+        this.compressionMode = compressionMode;
     }
 
     @Override
     public void extractTar(Path sourceFile, Path destDir) throws IOException {
+        final FileInputStream fileInputStream = new FileInputStream(sourceFile.toFile());
+        final InputStream compressorInputStream;
+        if (compressionMode.equals(CompressionMode.LZ4)) {
+            compressorInputStream = new LZ4FrameInputStream(fileInputStream);
+        } else {
+            compressorInputStream = new GzipCompressorInputStream(fileInputStream, true);
+        }
         try (
-                final FileInputStream fileInputStream = new FileInputStream(sourceFile.toFile());
-                final GzipCompressorInputStream gzipCompressorInputStream = new GzipCompressorInputStream(fileInputStream, true);
-                final TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(gzipCompressorInputStream);
-
+                final TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(compressorInputStream);
         ) {
             extractTar(tarArchiveInputStream, destDir);
         }
@@ -91,10 +100,15 @@ public class TarImpl implements Tar {
 
     @Override
     public void buildTar(Path sourceDir, Path destinationFile) throws IOException {
+        final FileOutputStream fileOutputStream = new FileOutputStream(destinationFile.toFile());
+        final OutputStream compressorOutputStream;
+        if (compressionMode.equals(CompressionMode.LZ4)) {
+            compressorOutputStream = new LZ4FrameOutputStream(fileOutputStream);
+        } else {
+            compressorOutputStream = new GzipCompressorOutputStream(fileOutputStream);
+        }
         try (
-                final FileOutputStream fileOutputStream = new FileOutputStream(destinationFile.toFile());
-                final GzipCompressorOutputStream gzipCompressorOutputStream = new GzipCompressorOutputStream(fileOutputStream);
-                final TarArchiveOutputStream tarArchiveOutputStream = new TarArchiveOutputStream(gzipCompressorOutputStream)) {
+                final TarArchiveOutputStream tarArchiveOutputStream = new TarArchiveOutputStream(compressorOutputStream)) {
             buildTar(tarArchiveOutputStream, sourceDir);
         }
     }
@@ -105,6 +119,11 @@ public class TarImpl implements Tar {
             throw new IOException("source directory doesn't exist: " + sourceDir);
         }
         addFilestoTarGz(sourceDir.toString(), "", tarArchiveOutputStream);
+    }
+
+    @Override
+    public CompressionMode getCompressionMode() {
+        return compressionMode;
     }
 
     private static void addFilestoTarGz(String filePath, String parent, TarArchiveOutputStream tarArchiveOutputStream) throws IOException {
@@ -126,4 +145,30 @@ public class TarImpl implements Tar {
             }
         }
     }
+
+    public static void main(String[] args) throws IOException {
+        //lz4
+        TarImpl lz4Tar = new TarImpl(Tar.CompressionMode.LZ4);
+        long t1 = System.nanoTime();
+        lz4Tar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".lz4"));
+        long t2 = System.nanoTime();
+        System.out.println("buildTar with lz4 took " + (t2 - t1) / (1000 * 1000 * 1000) + " seconds");
+
+        lz4Tar.extractTar(Paths.get(args[1] + ".lz4"), Paths.get(args[0], "lz4"));
+        long t3 = System.nanoTime();
+        System.out.println("extractTar with lz4 took " + (t3 - t2) / (1000 * 1000 * 1000) + " seconds");
+
+        //gzip
+        TarImpl gzipTar = new TarImpl(Tar.CompressionMode.GZIP);
+        t1 = System.nanoTime();
+        gzipTar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".gzip"));
+        t2 = System.nanoTime();
+        System.out.println("buildTar with with gzip took " + (t2 - t1) / (1000 * 1000 * 1000) + " seconds");
+
+        gzipTar.extractTar(Paths.get(args[1] + ".gzip"), Paths.get(args[0], "gzip"));
+        t3 = System.nanoTime();
+        System.out.println("extractTar with gzip took " + (t3 - t2) / (1000 * 1000 * 1000) + " seconds");
+
+    }
+
 }

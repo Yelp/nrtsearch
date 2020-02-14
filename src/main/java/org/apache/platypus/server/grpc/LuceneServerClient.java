@@ -19,6 +19,7 @@
 
 package org.apache.platypus.server.grpc;
 
+import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import io.grpc.ManagedChannel;
@@ -188,7 +189,7 @@ public class LuceneServerClient {
         logger.info("Server returned : " + response.toString());
     }
 
-    public void addDocuments(Stream<AddDocumentRequest> addDocumentRequestStream) throws InterruptedException, IOException {
+    public void addDocuments(Stream<AddDocumentRequest> addDocumentRequestStream) throws InterruptedException {
         final CountDownLatch finishLatch = new CountDownLatch(1);
 
         StreamObserver<AddDocumentResponse> responseObserver = new StreamObserver<>() {
@@ -402,11 +403,24 @@ public class LuceneServerClient {
                 case ADD_DOCUMENTS:
                     AddDocumentsCommand addDocumentsCommand = (AddDocumentsCommand) subCommand;
                     String indexName = addDocumentsCommand.getIndexName();
+                    String fileType = addDocumentsCommand.getFileType();
+                    Stream<AddDocumentRequest> addDocumentRequestStream;
                     filePath = Paths.get(addDocumentsCommand.getFileName());
-                    Reader reader = Files.newBufferedReader(filePath);
-                    CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
-                    Stream<AddDocumentRequest> addDocumentRequestStream = new LuceneServerClientBuilder.AddDcoumentsClientBuilder(indexName, csvParser).buildRequest(filePath);
-                    client.addDocuments(addDocumentRequestStream);
+                    if (fileType.equalsIgnoreCase("csv")) {
+                        Reader reader = Files.newBufferedReader(filePath);
+                        CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
+                        addDocumentRequestStream = new LuceneServerClientBuilder.AddDcoumentsClientBuilder(indexName, csvParser).buildRequest(filePath);
+                        client.addDocuments(addDocumentRequestStream);
+                    } else if (fileType.equalsIgnoreCase("json")) {
+                        LuceneServerClientBuilder.AddJsonDocumentsClientBuilder addJsonDocumentsClientBuilder = new LuceneServerClientBuilder.AddJsonDocumentsClientBuilder(
+                                indexName, new Gson(), filePath, addDocumentsCommand.getMaxBufferLen());
+                        while (!addJsonDocumentsClientBuilder.isFinished()) {
+                            addDocumentRequestStream = addJsonDocumentsClientBuilder.buildRequest(filePath);
+                            client.addDocuments(addDocumentRequestStream);
+                        }
+                    } else {
+                        throw new RuntimeException(String.format("%s  is not a  valid fileType", fileType));
+                    }
                     break;
                 case REFRESH:
                     RefreshCommand refreshCommand = (RefreshCommand) subCommand;
