@@ -73,6 +73,7 @@ import static org.apache.platypus.server.cli.SearchCommand.SEARCH;
 import static org.apache.platypus.server.cli.SettingsCommand.SETTINGS;
 import static org.apache.platypus.server.cli.StartIndexCommand.START_INDEX;
 import static org.apache.platypus.server.cli.StatsCommand.STATS;
+import static org.apache.platypus.server.cli.StatusCommand.STATUS;
 import static org.apache.platypus.server.cli.StopIndexCommand.STOP_INDEX;
 import static org.apache.platypus.server.cli.WriteNRTPointCommand.WRITE_NRT_POINT;
 
@@ -318,6 +319,22 @@ public class LuceneServerClient {
                 .setIndexName(indexName).build());
     }
 
+    private void status() throws InterruptedException {
+        try {
+            HealthCheckResponse status = blockingStub.status(HealthCheckRequest.newBuilder()
+                    .setCheck(true)
+                    .build());
+            if (status.getHealth() == TransferStatusCode.Done) {
+                logger.info("Host is up");
+                return;
+            }
+        } catch (StatusRuntimeException e) {
+            logger.info(e.getMessage());
+        }
+        this.shutdown();
+        System.exit(1);
+    }
+
 
     private FieldDefRequest getFieldDefRequest(String jsonStr) {
         logger.info(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
@@ -458,6 +475,9 @@ public class LuceneServerClient {
                 case BACKUP_INDEX:
                     BackupIndexCommand backupIndexCommand = (BackupIndexCommand) subCommand;
                     client.backupIndex(backupIndexCommand.getIndexName(), backupIndexCommand.getServiceName(), backupIndexCommand.getResourceName());
+                    break;
+                case STATUS:
+                    client.status();
                     break;
                 default:
                     logger.warning(String.format("%s is not a valid server command", subCommandStr));
