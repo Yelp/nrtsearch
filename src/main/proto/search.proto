@@ -26,6 +26,18 @@ message BooleanClause {
     Occur occur = 2; // Specifies how this clause must occur in a matching document. SHOULD by default.
 }
 
+enum MatchOperator {
+    SHOULD = 0;
+    MUST = 1;
+}
+
+message FuzzyParams {
+    int32 maxEdits = 1; // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2.
+    int32 prefixLength = 2;
+    int32 maxExpansions = 3;
+    bool transpositions = 4;
+}
+
 // A query that matches documents using boolean combinations of other queries.
 message BooleanQuery {
     repeated BooleanClause clauses = 1; // Clauses for a boolean query.
@@ -71,9 +83,10 @@ message DisjunctionMaxQuery {
 message MatchQuery {
     string field = 1; // Field in the document to query.
     string query = 2; // The text to query with.
-    BooleanClause.Occur operator = 3; // Boolean logic used to interpret text in the query. The possible values are Occur.SHOULD (default) and Occur.MUST.
+    MatchOperator operator = 3; // Boolean logic used to interpret text in the query. The possible values are SHOULD (default) and MUST.
     int32 minimumNumberShouldMatch = 4; // Minimum number of optional clauses that must match.
     Analyzer analyzer = 5; // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
+    FuzzyParams fuzzyParams = 6;
 }
 
 // A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined into a PhraseQuery.
