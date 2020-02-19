@@ -13,7 +13,19 @@
       "store": true,
       "tokenize": true,
       "multiValued": true,
-      "storeDocValues": true
+      "storeDocValues": true,
+      "analyzer": {
+        "custom": {
+          "tokenizer": {
+            "name": "standard"
+          },
+          "tokenFilters": [
+            {
+              "name": "lowercase"
+            }
+          ]
+        }
+      }
     },
     {
       "name": "vendor_name_atom",

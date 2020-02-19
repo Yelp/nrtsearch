@@ -410,14 +410,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
             String queryText = searchRequest.getQueryText();
 
-            if (queryText != null) {
-                try {
-                    q = parseQuery(queryParser, queryText);
-                } catch (Exception e) {
-                    throw new SearchHandlerException(String.format("could not parse queryText: %s", queryText));
-                }
-            } else {
-                q = null;
+            try {
+                q = parseQuery(queryParser, queryText);
+            } catch (Exception e) {
+                throw new SearchHandlerException(String.format("could not parse queryText: %s", queryText));
             }
         } else if (searchRequest.getQuery().getQueryType() != QueryType.NONE) {
             q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery(), state);
