@@ -598,7 +598,7 @@ public class LuceneServer {
         public void status(HealthCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
             try {
                 HealthCheckResponse reply = HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
-                logger.info("StopIndexHandler returned " + reply.toString());
+                logger.info("HealthCheckResponse returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {
