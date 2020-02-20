@@ -29,18 +29,16 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
+import static org.apache.platypus.server.grpc.LuceneServerTest.RETRIEVED_VALUES;
 import static org.apache.platypus.server.grpc.LuceneServerTest.checkHits;
 import static org.junit.Assert.assertEquals;
 
 public class QueryTest {
 
-    public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom", "count");
     /**
      * This rule manages automatic graceful shutdown for the registered servers and channels at the
      * end of test.
