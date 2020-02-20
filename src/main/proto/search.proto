@@ -113,16 +113,17 @@ enum QueryType {
 // Defines a full query consisting of a QueryNode which may be one of several types.
 message Query {
     QueryType queryType = 1; // Type of the QueryNode
+    float boost = 2; // Boost values that are less than one will give less importance to this query compared to other ones while values that are greater than one will give more importance to the scores returned by this query.
 
     oneof QueryNode {
-        BooleanQuery booleanQuery = 2;
-        PhraseQuery phraseQuery = 3;
-        FunctionScoreQuery functionScoreQuery = 4;
-        TermQuery termQuery = 5;
-        TermInSetQuery termInSetQuery = 6;
-        DisjunctionMaxQuery disjunctionMaxQuery = 7;
-        MatchQuery matchQuery = 8;
-        MatchPhraseQuery matchPhraseQuery = 9;
+        BooleanQuery booleanQuery = 3;
+        PhraseQuery phraseQuery = 4;
+        FunctionScoreQuery functionScoreQuery = 5;
+        TermQuery termQuery = 6;
+        TermInSetQuery termInSetQuery = 7;
+        DisjunctionMaxQuery disjunctionMaxQuery = 8;
+        MatchQuery matchQuery = 9;
+        MatchPhraseQuery matchPhraseQuery = 10;
     }
 }
 

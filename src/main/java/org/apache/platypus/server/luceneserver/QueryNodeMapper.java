@@ -47,13 +47,21 @@ class QueryNodeMapper {
 
     private final Map<org.apache.platypus.server.grpc.BooleanClause.Occur, BooleanClause.Occur> occurMapping
             = initializeOccurMapping();
-    private final Map<MatchOperator, BooleanClause.Occur> matchOperatorOccurMapping = Map.of(
+    private final Map<MatchOperator, BooleanClause.Occur> matchOperatorOccurMapping = new EnumMap<>(Map.of(
             MatchOperator.SHOULD, BooleanClause.Occur.SHOULD,
             MatchOperator.MUST, BooleanClause.Occur.MUST
-    );
+    ));
 
     Query getQuery(org.apache.platypus.server.grpc.Query query, IndexState state) {
         QueryType queryType = query.getQueryType();
+        Query queryNode = getQueryNode(query, state, queryType);
+        if (query.getBoost() > 0) {
+            return new BoostQuery(queryNode, query.getBoost());
+        }
+        return queryNode;
+    }
+
+    private Query getQueryNode(org.apache.platypus.server.grpc.Query query, IndexState state, QueryType queryType) {
         switch (queryType) {
             case BOOLEAN_QUERY: return getBooleanQuery(query.getBooleanQuery(), state);
             case PHRASE_QUERY: return getPhraseQuery(query.getPhraseQuery());
