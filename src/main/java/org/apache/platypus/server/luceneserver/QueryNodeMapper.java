@@ -55,6 +55,11 @@ class QueryNodeMapper {
     Query getQuery(org.apache.platypus.server.grpc.Query query, IndexState state) {
         QueryType queryType = query.getQueryType();
         Query queryNode = getQueryNode(query, state, queryType);
+
+        if (query.getBoost() < 0) {
+            throw new IllegalArgumentException("Boost must be a positive number, query: " + query);
+        }
+
         if (query.getBoost() > 0) {
             return new BoostQuery(queryNode, query.getBoost());
         }
