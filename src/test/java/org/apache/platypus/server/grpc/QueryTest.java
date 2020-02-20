@@ -397,11 +397,19 @@ public class QueryTest {
                 .build();
         SearchResponse searchResponseBoosted = grpcServer.getBlockingStub()
                 .search(buildSearchRequest(boostedQuery));
+
+        assertEquals(searchResponse.getTotalHits(), searchResponseBoosted.getTotalHits());
+        assertEquals(searchResponse.getHitsList().size(), searchResponseBoosted.getHitsList().size());
+
         for (int i = 0; i < searchResponse.getHitsCount(); i++) {
             SearchResponse.Hit hit = searchResponse.getHits(i);
             SearchResponse.Hit boostedHit = searchResponseBoosted.getHits(i);
 
             assertEquals(boost * hit.getScore(), boostedHit.getScore(), 0.0);
+
+            SearchResponse.Hit hitWithoutScore = SearchResponse.Hit.newBuilder(hit).setScore(0).build();
+            SearchResponse.Hit boostedHitWithoutScore = SearchResponse.Hit.newBuilder(boostedHit).setScore(0).build();
+            assertEquals(hitWithoutScore, boostedHitWithoutScore);
         }
     }
 
