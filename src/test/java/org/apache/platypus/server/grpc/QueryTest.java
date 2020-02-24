@@ -30,7 +30,6 @@ import org.junit.rules.TemporaryFolder;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
 import static org.apache.platypus.server.grpc.LuceneServerTest.RETRIEVED_VALUES;
@@ -101,7 +100,7 @@ public class QueryTest {
 
     @Test
     public void testSearchBooleanQuery() {
-        Supplier<Query> querySupplier = () -> Query.newBuilder()
+        Query query = Query.newBuilder()
                 .setQueryType(QueryType.BOOLEAN_QUERY)
                 .setBooleanQuery(BooleanQuery.newBuilder()
                         .addClauses(BooleanClause.newBuilder()
@@ -128,12 +127,12 @@ public class QueryTest {
             checkHits(hit);
         };
 
-        testQuery(querySupplier, responseTester);
+        testQuery(query, responseTester);
     }
 
     @Test
     public void testSearchPhraseQuery() {
-        Supplier<Query> querySupplier = () -> Query.newBuilder()
+        Query query = Query.newBuilder()
                 .setQueryType(QueryType.PHRASE_QUERY)
                 .setPhraseQuery(PhraseQuery.newBuilder()
                         .setSlop(0)
@@ -152,12 +151,12 @@ public class QueryTest {
             checkHits(hit);
         };
 
-        testQuery(querySupplier, responseTester);
+        testQuery(query, responseTester);
     }
 
     @Test
     public void testSearchFunctionScoreQuery() {
-        Supplier<Query> querySupplier = () -> Query.newBuilder()
+        Query query = Query.newBuilder()
                 .setQueryType(QueryType.FUNCTION_SCORE_QUERY)
                 .setFunctionScoreQuery(FunctionScoreQuery.newBuilder()
                         .setFunction("sqrt(4) * count")
@@ -182,12 +181,12 @@ public class QueryTest {
             checkHits(hit);
         };
 
-        testQuery(querySupplier, responseTester);
+        testQuery(query, responseTester);
     }
 
     @Test
     public void testSearchTermQuery() {
-        Supplier<Query> querySupplier = () -> Query.newBuilder()
+        Query query = Query.newBuilder()
                 .setQueryType(QueryType.TERM_QUERY)
                 .setTermQuery(TermQuery.newBuilder()
                         .setField("vendor_name")
@@ -203,12 +202,12 @@ public class QueryTest {
             checkHits(hit);
         };
 
-        testQuery(querySupplier, responseTester);
+        testQuery(query, responseTester);
     }
 
     @Test
     public void testSearchTermInSetQuery() {
-        Supplier<Query> querySupplier = () -> Query.newBuilder()
+        Query query = Query.newBuilder()
                 .setQueryType(QueryType.TERM_IN_SET_QUERY)
                 .setTermInSetQuery(TermInSetQuery.newBuilder()
                         .setField("vendor_name")
@@ -225,12 +224,12 @@ public class QueryTest {
             checkHits(secondHit);
         };
 
-        testQuery(querySupplier, responseTester);
+        testQuery(query, responseTester);
     }
 
     @Test
     public void testSearchDisjunctionMaxQuery() {
-        Supplier<Query> querySupplier = () -> Query.newBuilder()
+        Query query = Query.newBuilder()
                 .setQueryType(QueryType.DISJUNCTION_MAX)
                 .setDisjunctionMaxQuery(DisjunctionMaxQuery.newBuilder()
                         .addDisjuncts(Query.newBuilder()
@@ -260,12 +259,12 @@ public class QueryTest {
             checkHits(hit);
         };
 
-        testQuery(querySupplier, responseTester);
+        testQuery(query, responseTester);
     }
 
     @Test
     public void testSearchMatchQuery() {
-        Supplier<Query> querySupplier = () -> Query.newBuilder()
+        Query query = Query.newBuilder()
                 .setQueryType(QueryType.MATCH)
                 .setMatchQuery(MatchQuery.newBuilder()
                         .setField("vendor_name")
@@ -282,12 +281,12 @@ public class QueryTest {
             checkHits(hit);
         };
 
-        testQuery(querySupplier, responseTester);
+        testQuery(query, responseTester);
     }
 
     @Test
     public void testSearchMatchQueryFuzzyCustomAnalyzer() {
-        Supplier<Query> querySupplier = () -> Query.newBuilder()
+        Query query = Query.newBuilder()
                 .setQueryType(QueryType.MATCH)
                 .setMatchQuery(MatchQuery.newBuilder()
                         .setField("vendor_name")
@@ -309,12 +308,12 @@ public class QueryTest {
             checkHits(hit);
         };
 
-        testQuery(querySupplier, responseTester);
+        testQuery(query, responseTester);
     }
 
     @Test
     public void testSearchMatchPhraseQuery() {
-        Supplier<Query> querySupplier = () -> Query.newBuilder()
+        Query query = Query.newBuilder()
                 .setQueryType(QueryType.MATCH_PHRASE)
                 .setMatchPhraseQuery(MatchPhraseQuery.newBuilder()
                         .setField("vendor_name")
@@ -330,12 +329,12 @@ public class QueryTest {
             checkHits(hit);
         };
 
-        testQuery(querySupplier, responseTester);
+        testQuery(query, responseTester);
     }
 
     @Test
     public void testSearchMatchPhraseQueryCustomAnalyzer() {
-        Supplier<Query> querySupplier = () -> Query.newBuilder()
+        Query query = Query.newBuilder()
                 .setQueryType(QueryType.MATCH_PHRASE)
                 .setMatchPhraseQuery(MatchPhraseQuery.newBuilder()
                         .setField("vendor_name")
@@ -352,20 +351,20 @@ public class QueryTest {
             checkHits(hit);
         };
 
-        testQuery(querySupplier, responseTester);
+        testQuery(query, responseTester);
     }
 
     /**
      * Search with the query and then test the response. Additional test with boost will also be performed on the query.
      *
-     * @param querySupplier {@link Supplier} that provides the query to test with
+     * @param query Query to test with
      * @param responseTester {@link Consumer} that tests a {@link SearchResponse}
      */
-    private void testQuery(Supplier<Query> querySupplier, Consumer<SearchResponse> responseTester) {
+    private void testQuery(Query query, Consumer<SearchResponse> responseTester) {
         SearchResponse searchResponse = grpcServer.getBlockingStub()
-                .search(buildSearchRequest(querySupplier.get()));
+                .search(buildSearchRequest(query));
         responseTester.accept(searchResponse);
-        testWithBoost(querySupplier, searchResponse);
+        testWithBoost(query, searchResponse);
     }
 
     private Analyzer getTestAnalyzer() {
@@ -388,9 +387,9 @@ public class QueryTest {
                 .build();
     }
 
-    private void testWithBoost(Supplier<Query> querySupplier, SearchResponse searchResponse) {
+    private void testWithBoost(Query originalQuery, SearchResponse searchResponse) {
         int boost = 2;
-        Query boostedQuery = Query.newBuilder(querySupplier.get())
+        Query boostedQuery = Query.newBuilder(originalQuery)
                 .setBoost(boost)
                 .build();
         SearchResponse searchResponseBoosted = grpcServer.getBlockingStub()
