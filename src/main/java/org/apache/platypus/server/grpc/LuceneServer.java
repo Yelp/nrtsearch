@@ -342,7 +342,7 @@ public class LuceneServer {
                             pq.offer(gen);
                         }
                         long t1 = System.nanoTime();
-
+                        finishIndexingJob();
                         responseObserver.onNext(AddDocumentResponse.newBuilder().setGenId(String.valueOf(pq.peek())).build());
                         responseObserver.onCompleted();
                         logger.info(String.format("Indexing job completed for %s docs, in %s chunks, with latest sequence number: %s, took: %s micro seconds",
@@ -361,6 +361,12 @@ public class LuceneServer {
                         count = 0;
                     }
 
+                }
+
+                private void finishIndexingJob() throws IOException {
+                    for (String indexName : globalState.getIndexNames()) {
+                        globalState.getIndex(indexName).getShard(0).maybeRefreshBlocking();
+                    }
                 }
             };
         }

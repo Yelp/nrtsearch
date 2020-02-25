@@ -540,6 +540,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                                 state.release(current);
                                 cond.await();
                                 current = state.acquire();
+                                logger.info("SearchHandler: await released,  current version " + ((DirectoryReader) current.searcher.getIndexReader()).getVersion() + " required minimum version "+ version);
                                 assert ((DirectoryReader) current.searcher.getIndexReader()).getVersion() >= version;
                             }
                             s = current;

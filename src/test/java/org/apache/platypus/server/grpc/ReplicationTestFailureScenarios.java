@@ -99,7 +99,7 @@ public class ReplicationTestFailureScenarios {
         luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary,
                 luceneSecondaryConfiguration.getIndexDir(), TEST_INDEX, globalStateSecondary.getPort(), archiver);
         replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary,
-                luceneSecondaryConfiguration.getIndexDir(), TEST_INDEX, 9003, archiver);
+                luceneSecondaryConfiguration.getIndexDir(), TEST_INDEX, globalStateSecondary.getReplicationPort(), archiver);
     }
 
     public void shutdownPrimaryServer() throws IOException {
