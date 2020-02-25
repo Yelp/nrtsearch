@@ -159,4 +159,28 @@ public class TarImplTest {
         }
     }
 
+    public static void main(String[] args) throws IOException {
+        //lz4
+        TarImpl lz4Tar = new TarImpl(Tar.CompressionMode.LZ4);
+        long t1 = System.nanoTime();
+        lz4Tar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".lz4"));
+        long t2 = System.nanoTime();
+        System.out.println("buildTar with lz4 took " + (t2 - t1) / (1000 * 1000 * 1000) + " seconds");
+
+        lz4Tar.extractTar(Paths.get(args[1] + ".lz4"), Paths.get(args[0], "lz4"));
+        long t3 = System.nanoTime();
+        System.out.println("extractTar with lz4 took " + (t3 - t2) / (1000 * 1000 * 1000) + " seconds");
+
+        //gzip
+        TarImpl gzipTar = new TarImpl(Tar.CompressionMode.GZIP);
+        t1 = System.nanoTime();
+        gzipTar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".gzip"));
+        t2 = System.nanoTime();
+        System.out.println("buildTar with with gzip took " + (t2 - t1) / (1000 * 1000 * 1000) + " seconds");
+
+        gzipTar.extractTar(Paths.get(args[1] + ".gzip"), Paths.get(args[0], "gzip"));
+        t3 = System.nanoTime();
+        System.out.println("extractTar with gzip took " + (t3 - t2) / (1000 * 1000 * 1000) + " seconds");
+
+    }
 }
