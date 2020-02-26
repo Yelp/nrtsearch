@@ -70,7 +70,7 @@ public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
                 responseObserver.onNext(TransferStatus.newBuilder().setMessage("replica is copying files..." + files.keySet()).setCode(TransferStatusCode.Ongoing).build());
             } catch (InterruptedException e) {
                 responseObserver.onNext(TransferStatus.newBuilder().setMessage(String.format("replica failed to copy files..." + files.keySet())).setCode(TransferStatusCode.Failed).build());
-                //called must set; //responseObserver.onError(e);
+                //caller must set; //responseObserver.onError(e);
                 throw new RuntimeException(e);
             }
         }

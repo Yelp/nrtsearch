@@ -30,11 +30,11 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.util.IOUtils;
 import io.findify.s3mock.S3Mock;
+import net.jpountz.lz4.LZ4FrameInputStream;
+import net.jpountz.lz4.LZ4FrameOutputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -49,7 +49,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
 
@@ -80,7 +79,7 @@ public class ArchiverTest {
         s3.putObject(BUCKET_NAME, "testservice/_version/testresource/_latest_version", "1");
         s3.putObject(BUCKET_NAME, "testservice/_version/testresource/1", "abcdef");
 
-        archiver = new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl());
+        archiver = new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4));
 
     }
 
@@ -112,10 +111,10 @@ public class ArchiverTest {
         try (
                 S3Object s3Object = s3.getObject(BUCKET_NAME, String.format("%s/%s/%s", service, resource, versionHash));
                 final S3ObjectInputStream s3ObjectInputStream = s3Object.getObjectContent();
-                final GzipCompressorInputStream gzipCompressorInputStream = new GzipCompressorInputStream(s3ObjectInputStream, true);
-                final TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(gzipCompressorInputStream);
+                final LZ4FrameInputStream lz4CompressorInputStream = new LZ4FrameInputStream(s3ObjectInputStream);
+                final TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(lz4CompressorInputStream);
         ) {
-            new TarImpl().extractTar(tarArchiveInputStream, actualDownloadDir);
+            new TarImpl(TarImpl.CompressionMode.LZ4).extractTar(tarArchiveInputStream, actualDownloadDir);
         }
         assertEquals(true, TarImplTest.dirsMatch(actualDownloadDir.resolve(resource).toFile(), sourceDir.toFile()));
     }
@@ -182,8 +181,8 @@ public class ArchiverTest {
     private byte[] getTarFile(List<TarEntry> tarEntries) throws IOException {
         try (
                 final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-                final GzipCompressorOutputStream gzipCompressorOutputStream = new GzipCompressorOutputStream(byteArrayOutputStream);
-                final TarArchiveOutputStream tarArchiveOutputStream = new TarArchiveOutputStream(gzipCompressorOutputStream);
+                final LZ4FrameOutputStream lz4CompressorOutputStream = new LZ4FrameOutputStream(byteArrayOutputStream);
+                final TarArchiveOutputStream tarArchiveOutputStream = new TarArchiveOutputStream(lz4CompressorOutputStream);
         ) {
             for (final TarEntry tarEntry : tarEntries) {
                 final byte[] data = tarEntry.content.getBytes(StandardCharsets.UTF_8);

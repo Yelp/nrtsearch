@@ -28,11 +28,18 @@ import static org.apache.platypus.server.cli.AddDocumentsCommand.ADD_DOCUMENTS;
 public class AddDocumentsCommand {
     public static final String ADD_DOCUMENTS = "addDocuments";
 
-    @CommandLine.Option(names = {"-f", "--fileName"}, description = "documents to be added in a csv format. First row has names of fields and rows after are values", required = true)
+    @CommandLine.Option(names = {"-f", "--fileName"}, description = "documents to be added in a csv or json format. For csv first row has names of fields and rows after are values", required = true)
     private String fileName;
 
     public String getFileName() {
         return fileName;
+    }
+
+    @CommandLine.Option(names = {"-t", "--fileType"}, description = "type of input file", required = true)
+    private String fileType;
+
+    public String getFileType() {
+        return fileType;
     }
 
     @CommandLine.Option(names = {"-i", "--indexName"}, description = "name of the index to add documents to", required = true)
@@ -40,6 +47,13 @@ public class AddDocumentsCommand {
 
     public String getIndexName() {
         return indexName;
+    }
+
+    @CommandLine.Option(names = {"-l", "--maxBufferLen"}, description = "num Docs to batch up as one stream sent to the  server", defaultValue = "100")
+    private String maxBufferLen;
+
+    public int getMaxBufferLen() {
+        return Integer.parseInt(maxBufferLen);
     }
 
 }

@@ -10,6 +10,7 @@ import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.luceneserver.GlobalState;
 import org.apache.platypus.server.utils.Archiver;
 import org.apache.platypus.server.utils.ArchiverImpl;
+import org.apache.platypus.server.utils.Tar;
 import org.apache.platypus.server.utils.TarImpl;
 import org.junit.After;
 import org.junit.Before;
@@ -78,7 +79,7 @@ public class ReplicationServerTest {
         s3 = new AmazonS3Client(new AnonymousAWSCredentials());
         s3.setEndpoint("http://127.0.0.1:8011");
         s3.createBucket(BUCKET_NAME);
-        archiver = new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl());
+        archiver = new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl(Tar.CompressionMode.LZ4));
 
         //set up primary servers
         String testIndex = "test_index";

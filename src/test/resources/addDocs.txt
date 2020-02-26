@@ -1,0 +1,2 @@
+{"doc_id": 1, "vendor_name": ["first vendor", "first again"], "vendor_name_atom":["first atom vendor", "first atom again" ], "license_no": [300, 3100], "count": 3 }
+{"doc_id": 2, "vendor_name": ["second vendor", "second again"], "vendor_name_atom":["second atom vendor", "second atom again" ], "license_no": [411, 4222], "count": 7 }

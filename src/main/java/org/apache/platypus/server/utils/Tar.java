@@ -30,9 +30,19 @@ import java.nio.file.Path;
 
 public interface Tar {
     void extractTar(Path sourceFile, Path destDir) throws IOException;
+
     void extractTar(final TarArchiveInputStream tarArchiveInputStream, final Path destDirectory) throws IOException;
 
     void buildTar(Path sourceDir, Path destinationFile) throws IOException;
+
     void buildTar(TarArchiveOutputStream tarArchiveOutputStream, Path sourceDir) throws IOException;
+
+    CompressionMode getCompressionMode();
+
+    enum CompressionMode {
+        GZIP,
+        LZ4
+    }
+
 
 }

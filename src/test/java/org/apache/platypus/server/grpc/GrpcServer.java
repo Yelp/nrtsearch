@@ -175,7 +175,6 @@ public class GrpcServer {
         }
     }
 
-
     public static class TestServer {
         private final GrpcServer grpcServer;
         public AddDocumentResponse addDocumentResponse;

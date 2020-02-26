@@ -142,9 +142,7 @@ public class LuceneServerTest {
         assertEquals(2, statsResponse.getNumDocs());
         assertEquals(2, statsResponse.getMaxDoc());
         assertEquals(0, statsResponse.getOrd());
-        //searcher is not refreshed so searcher returns zeroDocs
-        //Note: (does refresh in background thread eventually every indexState.indexMaxRefreshSec)
-        assertEquals(0, statsResponse.getCurrentSearcher().getNumDocs());
+        assertEquals(2, statsResponse.getCurrentSearcher().getNumDocs());
         assertEquals("started", statsResponse.getState());
     }
 
@@ -155,11 +153,7 @@ public class LuceneServerTest {
         assertEquals(2, statsResponse.getNumDocs());
         assertEquals(2, statsResponse.getMaxDoc());
         assertEquals(0, statsResponse.getOrd());
-        //searcher is not refreshed so searcher returns zeroDocs
-        //Note: (does refresh in background thread eventually every indexState.indexMaxRefreshSec)
-        assertEquals(0, statsResponse.getCurrentSearcher().getNumDocs());
-        //manual refresh
-        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+        assertEquals(2, statsResponse.getCurrentSearcher().getNumDocs());
         //check status on currentSearchAgain
         statsResponse = grpcServer.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
         assertEquals(2, statsResponse.getCurrentSearcher().getNumDocs());

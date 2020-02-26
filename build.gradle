@@ -26,7 +26,7 @@ targetCompatibility = 1.12
 
 // Feel free to delete the comment at the next line. It is just for safely
 // updating the version in our release process.
-def grpcVersion = '1.23.0' // CURRENT_GRPC_VERSION
+def grpcVersion = '1.26.0' // CURRENT_GRPC_VERSION
 def protobufVersion = '3.9.0'
 def protocVersion = protobufVersion
 def luceneVersion = '8.2.0'
@@ -38,6 +38,7 @@ def s3mockVersion = '0.2.5'
 def commonsCompressVersion = '1.19'
 def awsJavaSdkVersion = '1.11.695'
 def guicedeeVersion = '1.0.1.7-jre13'
+def lz4Version = '1.7.0'
 
 dependencies {
     //grpc deps
@@ -55,6 +56,7 @@ dependencies {
     implementation "com.amazonaws:aws-java-sdk-core:${awsJavaSdkVersion}"
     implementation "com.amazonaws:aws-java-sdk-s3:${awsJavaSdkVersion}"
     implementation "com.guicedee.services:guice:${guicedeeVersion}"
+    implementation "org.lz4:lz4-java:${lz4Version}"
 
     //lucene deps
     implementation "org.apache.lucene:lucene-core:${luceneVersion}"

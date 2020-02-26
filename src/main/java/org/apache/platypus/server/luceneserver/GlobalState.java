@@ -28,6 +28,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -268,6 +270,10 @@ public class GlobalState implements Closeable, Restorable {
 
     public int getReplicationPort() {
         return replicationPort;
+    }
+
+    public Set<String> getIndexNames() {
+        return Collections.unmodifiableSet(indices.keySet());
     }
 
 }

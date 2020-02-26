@@ -55,9 +55,11 @@ public class LuceneServerModule extends AbstractModule {
         this.args = args;
     }
 
-    @Override
-    public void configure() {
-        bind(Tar.class).to(TarImpl.class);
+    @Inject
+    @Singleton
+    @Provides
+    public Tar providesTar() {
+        return new TarImpl(Tar.CompressionMode.LZ4);
     }
 
     @Inject
@@ -87,9 +89,9 @@ public class LuceneServerModule extends AbstractModule {
     @Inject
     @Singleton
     @Provides
-    protected Archiver providesArchiver(LuceneServerConfiguration luceneServerConfiguration, AmazonS3 amazonS3) {
+    protected Archiver providesArchiver(LuceneServerConfiguration luceneServerConfiguration, AmazonS3 amazonS3, Tar tar) {
         Path archiveDir = Paths.get(luceneServerConfiguration.getArchiveDirectory());
-        return new ArchiverImpl(amazonS3, luceneServerConfiguration.getBucketName(), archiveDir, new TarImpl());
+        return new ArchiverImpl(amazonS3, luceneServerConfiguration.getBucketName(), archiveDir, tar);
     }
 
     @Inject
