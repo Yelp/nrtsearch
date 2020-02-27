@@ -5,10 +5,6 @@ plugins {
     id 'com.google.protobuf' version '0.8.8'
     // Generate IntelliJ IDEA's .idea & .iml project files
     id 'idea'
-    //Provides custom tasks for interacting with Docker via its remote API.
-    id 'com.bmuschko.docker-remote-api' version '5.1.0'
-    //Provides docker run command
-    id "com.palantir.docker-run" version "0.22.1"
 }
 
 repositories {
@@ -134,29 +130,10 @@ applicationDistribution.into('bin') {
     fileMode = 0755
 }
 
-// Import task types
-import com.bmuschko.gradle.docker.tasks.image.*
-
-// Use task types
-task pullBuildDocsImage(type: DockerPullImage) {
-    repository = "pseudomuto/protoc-gen-doc"
+task buildGrpcGateway(type: Exec) {
+    workingDir = '.'
+    commandLine = './build_grpc_gateway.sh'
 }
-
-configurations {
-    dockerRun {
-        name 'build-docs-container'
-        image 'pseudomuto/protoc-gen-doc'
-        volumes "src/main/docs": "/out", "src/main/proto": "/protos"
-        clean true
-    }
-}
-
-task buildDocs() {
-    dependsOn 'pullBuildDocsImage'
-    dependsOn 'dockerRun'
-    tasks.findByName('dockerRun').mustRunAfter 'pullBuildDocsImage'
-}
-
 
 //Dynamic exclude through property defined in the build.gradle file
 //e.g. to include perfTests: ./gradlew test -PincludePerfTests=true

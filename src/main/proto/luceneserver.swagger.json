@@ -1,0 +1,2466 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "luceneserver.proto",
+    "version": "version not set"
+  },
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/v1/add_documents": {
+      "post": {
+        "summary": "Adds a stream of Documents",
+        "operationId": "addDocuments",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverAddDocumentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": " (streaming inputs)",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverAddDocumentRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/backup_index": {
+      "post": {
+        "summary": "backs up a resource (index) and it associated metadata e.g. settings, schema to s3",
+        "operationId": "backupIndex",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverBackupIndexResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverBackupIndexRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/commit": {
+      "post": {
+        "summary": "Commits all pending changes to durable storage",
+        "operationId": "commit",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverCommitResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverCommitRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/create_index": {
+      "post": {
+        "summary": "Create an Index",
+        "operationId": "createIndex",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverCreateIndexResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverCreateIndexRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/create_snapshot": {
+      "post": {
+        "summary": "Creates a snapshot in the index, which is saved point-in-time view of the last commit\nin the index such that no files referenced by that snapshot will be deleted by ongoing\nindexing until the snapshot is released with @releaseSnapshot.  Note that this will\nreference the last commit, so be sure to call commit first if you have pending changes\nthat you'd like to be included in the snapshot.\nThis can be used for backup purposes, i.e. after creating the snapshot you can copy\nall referenced files to backup storage, and then release the snapshot once complete.\nTo restore the backup, just copy all the files back and restart the server.\nIt can also be used for transactional purposes, i.e. if you sometimes need to search a\nspecific snapshot instead of the current live index. Creating a snapshot is very fast\n(does not require any file copying), but over time it will consume extra disk space as\nold segments are merged in the index.  Be sure to release the snapshot once you're done.\nSnapshots survive shutdown and restart of the server.  Returns all protected filenames\nreferenced by this snapshot: these files will not change and will not be deleted until\nthe snapshot is released.  This returns the directories and files referenced by the snapshot.",
+        "operationId": "createSnapshot",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverCreateSnapshotResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverCreateSnapshotRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/delete": {
+      "post": {
+        "summary": "Delete documents",
+        "operationId": "delete",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverAddDocumentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverAddDocumentRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/delete_all": {
+      "post": {
+        "summary": "Delete all documents for index",
+        "operationId": "deleteAll",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverDeleteAllDocumentsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverDeleteAllDocumentsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/delete_index": {
+      "post": {
+        "summary": "Delete index",
+        "operationId": "deleteIndex",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverDeleteIndexResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverDeleteIndexRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/live_settings": {
+      "post": {
+        "summary": "Change global offline or online settings for this index.",
+        "operationId": "liveSettings",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverLiveSettingsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverLiveSettingsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/refresh": {
+      "post": {
+        "summary": "Refresh the latest searcher for an index",
+        "operationId": "refresh",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverRefreshResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverRefreshRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/register_fields": {
+      "post": {
+        "summary": "Registers one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).\nPass a list of Fields and an indexName. Any number of fields may be registered in a single request,\nand once a field is registered it cannot be changed (write-once).\nThis returns the full set of fields currently registered.",
+        "operationId": "registerFields",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverFieldDefResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverFieldDefRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/release_snapshot": {
+      "post": {
+        "summary": "releases a snapshot previously created with @createSnapshot.",
+        "operationId": "releaseSnapshot",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverReleaseSnapshotResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverReleaseSnapshotRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/search": {
+      "post": {
+        "summary": "Search",
+        "operationId": "search",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverSearchResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverSearchRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/settings": {
+      "post": {
+        "summary": "Change global offline settings for this index.\nThis returns the currently set settings; pass no settings changes to retrieve current settings.",
+        "operationId": "settings",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverSettingsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverSettingsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/start_index": {
+      "post": {
+        "summary": "Starts an index",
+        "operationId": "startIndex",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverStartIndexResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverStartIndexRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/stats": {
+      "post": {
+        "summary": "Retrieve index statistics",
+        "operationId": "stats",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverStatsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverStatsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/status": {
+      "post": {
+        "summary": "healthcheck",
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverHealthCheckResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverHealthCheckRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/stop_index": {
+      "post": {
+        "summary": "Stops an index",
+        "operationId": "stopIndex",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverDummyResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverStopIndexRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/suggest_build": {
+      "post": {
+        "summary": "Builds a new auto-suggester, loading suggestions via the provided local file path.",
+        "operationId": "buildSuggest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverBuildSuggestResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverBuildSuggestRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/suggest_lookup": {
+      "post": {
+        "summary": "Perform an auto-suggest lookup.",
+        "operationId": "suggestLookup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverSuggestLookupResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverSuggestLookupRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/suggest_update": {
+      "post": {
+        "summary": "Updates existing suggestions, if the suggester supports near-real-time changes.",
+        "operationId": "updateSuggest",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverBuildSuggestResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverBuildSuggestRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "AddDocumentRequestMultiValuedField": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "we use this wrapper object to represent each field as a multivalued field."
+    },
+    "BooleanClauseOccur": {
+      "type": "string",
+      "enum": [
+        "SHOULD",
+        "MUST",
+        "FILTER",
+        "MUST_NOT"
+      ],
+      "default": "SHOULD",
+      "description": "Defines how clauses may occur in matching documents. This will always be SHOULD by default."
+    },
+    "HitCompositeFieldValue": {
+      "type": "object",
+      "properties": {
+        "fieldValue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/HitFieldValue"
+          }
+        }
+      }
+    },
+    "HitFieldValue": {
+      "type": "object",
+      "properties": {
+        "textValue": {
+          "type": "string"
+        },
+        "booleanValue": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "intValue": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "longValue": {
+          "type": "string",
+          "format": "int64"
+        },
+        "floatValue": {
+          "type": "number",
+          "format": "float"
+        },
+        "doubleValue": {
+          "type": "number",
+          "format": "double"
+        },
+        "latLngValue": {
+          "$ref": "#/definitions/typeLatLng"
+        }
+      }
+    },
+    "SearchResponseDiagnostics": {
+      "type": "object",
+      "properties": {
+        "parsedQuery": {
+          "type": "string"
+        },
+        "rewrittenQuery": {
+          "type": "string"
+        },
+        "drillDownQuery": {
+          "type": "string"
+        },
+        "firstPassSearchTimeMs": {
+          "type": "number",
+          "format": "double"
+        },
+        "highlightTimeMs": {
+          "type": "number",
+          "format": "double"
+        },
+        "getFieldsTimeMs": {
+          "type": "number",
+          "format": "double"
+        },
+        "newSnapshotSearcherOpenMs": {
+          "type": "number",
+          "format": "double"
+        },
+        "nrtWaitTimeMs": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "SearchResponseHit": {
+      "type": "object",
+      "properties": {
+        "luceneDocId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "score": {
+          "type": "number",
+          "format": "double"
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/HitCompositeFieldValue"
+          }
+        }
+      }
+    },
+    "SearchResponseSearchState": {
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "int64"
+        },
+        "searcherVersion": {
+          "type": "string",
+          "format": "int64"
+        },
+        "lastDocId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "lastFieldValues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lastScore": {
+          "type": "number",
+          "format": "float"
+        }
+      }
+    },
+    "luceneserverAddDocumentRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/AddDocumentRequestMultiValuedField"
+          }
+        }
+      }
+    },
+    "luceneserverAddDocumentResponse": {
+      "type": "object",
+      "properties": {
+        "genId": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverAddReplicaResponse": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverAnalyzer": {
+      "type": "object",
+      "properties": {
+        "predefined": {
+          "type": "string"
+        },
+        "custom": {
+          "$ref": "#/definitions/luceneserverCustomAnalyzer"
+        }
+      }
+    },
+    "luceneserverAnalyzingSuggester": {
+      "type": "object",
+      "properties": {
+        "analyzer": {
+          "type": "string"
+        },
+        "indexAnalyzer": {
+          "type": "string"
+        },
+        "queryAnalyzer": {
+          "type": "string"
+        },
+        "maxSurfaceFormsPerAnalyzedForm": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxGraphExpansions": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "preserveSep": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "exactFirst": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      },
+      "title": "Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and\nthen does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester"
+    },
+    "luceneserverBackupIndexRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        },
+        "resourceName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverBackupIndexResponse": {
+      "type": "object",
+      "properties": {
+        "dataVersionHash": {
+          "type": "string"
+        },
+        "metadataVersionHash": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverBooleanClause": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery"
+        },
+        "occur": {
+          "$ref": "#/definitions/BooleanClauseOccur"
+        }
+      },
+      "description": "A clause in a BooleanQuery."
+    },
+    "luceneserverBooleanQuery": {
+      "type": "object",
+      "properties": {
+        "clauses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverBooleanClause"
+          }
+        },
+        "minimumNumberShouldMatch": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "A query that matches documents using boolean combinations of other queries."
+    },
+    "luceneserverBuildSuggestRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "infixSuggester": {
+          "$ref": "#/definitions/luceneserverInfixSuggester",
+          "title": "A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)"
+        },
+        "analyzingSuggester": {
+          "$ref": "#/definitions/luceneserverAnalyzingSuggester",
+          "title": "Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and\nthen does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester"
+        },
+        "fuzzySuggester": {
+          "$ref": "#/definitions/luceneserverFuzzySuggester",
+          "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
+        },
+        "localSource": {
+          "$ref": "#/definitions/luceneserverSuggestLocalSource"
+        },
+        "nonLocalSource": {
+          "$ref": "#/definitions/luceneserverSuggestNonLocalSource"
+        },
+        "suggestName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverBuildSuggestResponse": {
+      "type": "object",
+      "properties": {
+        "sizeInBytes": {
+          "type": "string",
+          "format": "int64"
+        },
+        "count": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "luceneserverCommitRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverCommitResponse": {
+      "type": "object",
+      "properties": {
+        "gen": {
+          "type": "string",
+          "format": "int64",
+          "description": "sequence number of the last operation in the commit.  All sequence numbers less than this value\nwill be reflected in the commit, and all others will not."
+        }
+      }
+    },
+    "luceneserverConditionalTokenFilter": {
+      "type": "object",
+      "properties": {
+        "condition": {
+          "$ref": "#/definitions/luceneserverNameAndParams"
+        },
+        "tokenFilters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverNameAndParams"
+          }
+        }
+      }
+    },
+    "luceneserverCopyState": {
+      "type": "object",
+      "properties": {
+        "infoBytesLength": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "infoBytes": {
+          "type": "string",
+          "format": "byte"
+        },
+        "gen": {
+          "type": "string",
+          "format": "int64"
+        },
+        "version": {
+          "type": "string",
+          "format": "int64"
+        },
+        "filesMetadata": {
+          "$ref": "#/definitions/luceneserverFilesMetadata"
+        },
+        "completedMergeFilesSize": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "completedMergeFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "primaryGen": {
+          "type": "string",
+          "format": "int64"
+        }
+      },
+      "description": "Holds incRef'd file level details for one point-in-time segment infos on the primary node."
+    },
+    "luceneserverCreateIndexRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "rootDir": {
+          "type": "string"
+        }
+      },
+      "title": "Input to createIndex"
+    },
+    "luceneserverCreateIndexResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string"
+        }
+      },
+      "title": "Response from Server to createIndex"
+    },
+    "luceneserverCreateSnapshotRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "openSearcher": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      },
+      "description": "Creates a snapshot in the index, which is saved point-in-time view of the last commit in the\nindex such that no files referenced by that snapshot will be deleted by ongoing indexing until\nthe snapshot is released with @releaseSnapshot.  Note that this will reference the last commit,\nso be sure to call commit first if you have pending changes that you'd like to be included in\nthe snapshot.\u003cp\u003eThis can be used for backup purposes, i.e. after creating the snapshot you can\ncopy all referenced files to backup storage, and then release the snapshot once complete.\nTo restore the backup, just copy all the files back and restart the server.  It can also\nbe used for transactional purposes, i.e. if you sometimes need to search a specific snapshot\ninstead of the current live index.\u003cp\u003eCreating a snapshot is very fast (does not require any\nfile copying), but over time it will consume extra disk space as old segments are merged in\nthe index.  Be sure to release the snapshot once you're done.  Snapshots survive shutdown\nand restart of the server.  Returns all protected filenames referenced by this snapshot:\nthese files will not change and will not be deleted until the snapshot is released.\nThis returns the directories and files referenced by the snapshot."
+    },
+    "luceneserverCreateSnapshotResponse": {
+      "type": "object",
+      "properties": {
+        "indexFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "taxonomyFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stateFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "snapshotId": {
+          "$ref": "#/definitions/luceneserverSnapshotId"
+        }
+      }
+    },
+    "luceneserverCustomAnalyzer": {
+      "type": "object",
+      "properties": {
+        "charFilters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverNameAndParams"
+          }
+        },
+        "tokenizer": {
+          "$ref": "#/definitions/luceneserverNameAndParams"
+        },
+        "tokenFilters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverNameAndParams"
+          }
+        },
+        "conditionalTokenFilters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverConditionalTokenFilter"
+          }
+        },
+        "defaultMatchVersion": {
+          "type": "string"
+        },
+        "positionIncrementGap": {
+          "$ref": "#/definitions/luceneserverIntObject"
+        },
+        "offsetGap": {
+          "$ref": "#/definitions/luceneserverIntObject"
+        }
+      }
+    },
+    "luceneserverDeleteAllDocumentsRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverDeleteAllDocumentsResponse": {
+      "type": "object",
+      "properties": {
+        "genId": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverDeleteIndexRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverDeleteIndexResponse": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverDisjunctionMaxQuery": {
+      "type": "object",
+      "properties": {
+        "disjuncts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverQuery"
+          }
+        },
+        "tieBreakerMultiplier": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "description": "A query that generates the union of documents produced by its subqueries, and that scores each document with the\nmaximum score for that document as produced by any subquery, plus a tie breaking increment for any additional matching subqueries."
+    },
+    "luceneserverDummyResponse": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverFacetType": {
+      "type": "string",
+      "enum": [
+        "NO_FACETS",
+        "FLAT",
+        "HIERARCHY",
+        "NUMERIC_RANGE",
+        "SORTED_SET_DOC_VALUES"
+      ],
+      "default": "NO_FACETS",
+      "description": "Whether/How this field should index facets, and how."
+    },
+    "luceneserverField": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/luceneserverFieldType"
+        },
+        "search": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "store": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "storeDocValues": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "sort": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "tokenize": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "group": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "multiValued": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "highlight": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "omitNorms": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "dateTimeFormat": {
+          "type": "string"
+        },
+        "postingsFormat": {
+          "type": "string"
+        },
+        "docValuesFormat": {
+          "type": "string"
+        },
+        "indexOptions": {
+          "$ref": "#/definitions/luceneserverIndexOptions"
+        },
+        "expression": {
+          "type": "string"
+        },
+        "analyzer": {
+          "$ref": "#/definitions/luceneserverAnalyzer",
+          "title": "TODO make analyzers message types i.e. StandardAnalyzer, EnglishAnalyzer, CustomAnalyzer etc"
+        },
+        "indexAnalyzer": {
+          "$ref": "#/definitions/luceneserverAnalyzer"
+        },
+        "searchAnalyzer": {
+          "$ref": "#/definitions/luceneserverAnalyzer"
+        },
+        "termVectors": {
+          "$ref": "#/definitions/luceneserverTermVectors"
+        },
+        "similarity": {
+          "type": "string",
+          "title": "TODO make similarity message types i.d. DefaultSimilarity, CustomSimilarity, BM25Similarity;"
+        },
+        "facet": {
+          "$ref": "#/definitions/luceneserverFacetType"
+        },
+        "facetIndexFieldName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverFieldDefRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "field": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverField"
+          }
+        }
+      },
+      "title": "Input to registerFields"
+    },
+    "luceneserverFieldDefResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string"
+        }
+      },
+      "title": "Response from Server for registerFields"
+    },
+    "luceneserverFieldType": {
+      "type": "string",
+      "enum": [
+        "ATOM",
+        "TEXT",
+        "BOOLEAN",
+        "LONG",
+        "INT",
+        "DOUBLE",
+        "FLOAT",
+        "LAT_LON",
+        "DATE_TIME",
+        "VIRTUAL",
+        "INTERNAL"
+      ],
+      "default": "ATOM",
+      "description": "- VIRTUAL: TODO name this \"dynamic\" instead of \"virtual\"?\n - INTERNAL: TODO need tests for internal:",
+      "title": "Type of the field"
+    },
+    "luceneserverFileMetadata": {
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "type": "string"
+        },
+        "len": {
+          "type": "string",
+          "format": "int64"
+        },
+        "checksum": {
+          "type": "string",
+          "format": "int64"
+        },
+        "headerLength": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "header": {
+          "type": "string",
+          "format": "byte"
+        },
+        "footerLength": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "footer": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "luceneserverFilesMetadata": {
+      "type": "object",
+      "properties": {
+        "numFiles": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "fileMetadata": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverFileMetadata"
+          }
+        }
+      }
+    },
+    "luceneserverFunctionScoreQuery": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery"
+        },
+        "function": {
+          "type": "string"
+        }
+      },
+      "description": "A query that wraps another query and uses custom scoring logic to compute the wrapped query's score."
+    },
+    "luceneserverFuzzyParams": {
+      "type": "object",
+      "properties": {
+        "maxEdits": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "prefixLength": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxExpansions": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "transpositions": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      }
+    },
+    "luceneserverFuzzySuggester": {
+      "type": "object",
+      "properties": {
+        "analyzer": {
+          "type": "string"
+        },
+        "indexAnalyzer": {
+          "type": "string"
+        },
+        "queryAnalyzer": {
+          "type": "string"
+        },
+        "maxSurfaceFormsPerAnalyzedForm": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxGraphExpansions": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "preserveSep": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "exactFirst": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "minFuzzyLength": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "nonFuzzyPrefix": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxEdits": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "transpositions": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "unicodeAware": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      },
+      "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
+    },
+    "luceneserverHealthCheckRequest": {
+      "type": "object",
+      "properties": {
+        "check": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      }
+    },
+    "luceneserverHealthCheckResponse": {
+      "type": "object",
+      "properties": {
+        "health": {
+          "$ref": "#/definitions/luceneserverTransferStatusCode"
+        }
+      }
+    },
+    "luceneserverIndexOptions": {
+      "type": "string",
+      "enum": [
+        "DOCS_FREQS_POSITIONS",
+        "DOCS",
+        "DOCS_FREQS",
+        "DOCS_FREQS_POSITIONS_OFFSETS"
+      ],
+      "default": "DOCS_FREQS_POSITIONS",
+      "description": "How the tokens should be indexed."
+    },
+    "luceneserverInfixSuggester": {
+      "type": "object",
+      "properties": {
+        "analyzer": {
+          "type": "string"
+        },
+        "indexAnalyzer": {
+          "type": "string"
+        },
+        "queryAnalyzer": {
+          "type": "string"
+        }
+      },
+      "title": "A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)"
+    },
+    "luceneserverIntObject": {
+      "type": "object",
+      "properties": {
+        "int": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "title": "Used to be able to check if a value was set"
+    },
+    "luceneserverLiveSettingsRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "maxRefreshSec": {
+          "type": "number",
+          "format": "double",
+          "description": "Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen)."
+        },
+        "minRefreshSec": {
+          "type": "number",
+          "format": "double",
+          "description": "Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen)."
+        },
+        "maxSearcherAgeSec": {
+          "type": "number",
+          "format": "double",
+          "description": "Non-current searchers older than this are pruned."
+        },
+        "indexRamBufferSizeMB": {
+          "type": "number",
+          "format": "double",
+          "description": "Size (in MB) of IndexWriter's RAM buffer."
+        }
+      },
+      "title": "Input to liveSettings"
+    },
+    "luceneserverLiveSettingsResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string"
+        }
+      },
+      "title": "Response from Server to liveSettings"
+    },
+    "luceneserverMatchOperator": {
+      "type": "string",
+      "enum": [
+        "SHOULD",
+        "MUST"
+      ],
+      "default": "SHOULD"
+    },
+    "luceneserverMatchPhraseQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "slop": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "analyzer": {
+          "$ref": "#/definitions/luceneserverAnalyzer"
+        }
+      },
+      "description": "A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined into a PhraseQuery."
+    },
+    "luceneserverMatchQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "operator": {
+          "$ref": "#/definitions/luceneserverMatchOperator"
+        },
+        "minimumNumberShouldMatch": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "analyzer": {
+          "$ref": "#/definitions/luceneserverAnalyzer"
+        },
+        "fuzzyParams": {
+          "$ref": "#/definitions/luceneserverFuzzyParams"
+        }
+      },
+      "description": "A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined using term queries in boolean clauses."
+    },
+    "luceneserverMode": {
+      "type": "string",
+      "enum": [
+        "STANDALONE",
+        "PRIMARY",
+        "REPLICA"
+      ],
+      "default": "STANDALONE"
+    },
+    "luceneserverNameAndParams": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "luceneserverOneHighlight": {
+      "type": "object",
+      "properties": {
+        "isHit": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverOneSuggestLookupResponse": {
+      "type": "object",
+      "properties": {
+        "suggestLookupHighlight": {
+          "$ref": "#/definitions/luceneserverSuggestLookupHighlight",
+          "title": "Expert: custom Object to hold the result of a highlighted suggestion (currently only works with AnalyzingInfixSuggester)"
+        },
+        "key": {
+          "type": "string",
+          "title": "the key's text"
+        },
+        "weight": {
+          "type": "string",
+          "format": "int64"
+        },
+        "payload": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverPhraseQuery": {
+      "type": "object",
+      "properties": {
+        "slop": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Edit distance between respective positions of terms as defined in this PhraseQuery and the positions\nof terms in a document."
+        },
+        "field": {
+          "type": "string"
+        },
+        "terms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "A Query that matches documents containing a particular sequence of terms."
+    },
+    "luceneserverPoint": {
+      "type": "object",
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "format": "double"
+        },
+        "longitude": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "title": "Point representation"
+    },
+    "luceneserverQuery": {
+      "type": "object",
+      "properties": {
+        "queryType": {
+          "$ref": "#/definitions/luceneserverQueryType"
+        },
+        "boost": {
+          "type": "number",
+          "format": "float"
+        },
+        "booleanQuery": {
+          "$ref": "#/definitions/luceneserverBooleanQuery"
+        },
+        "phraseQuery": {
+          "$ref": "#/definitions/luceneserverPhraseQuery"
+        },
+        "functionScoreQuery": {
+          "$ref": "#/definitions/luceneserverFunctionScoreQuery"
+        },
+        "termQuery": {
+          "$ref": "#/definitions/luceneserverTermQuery"
+        },
+        "termInSetQuery": {
+          "$ref": "#/definitions/luceneserverTermInSetQuery"
+        },
+        "disjunctionMaxQuery": {
+          "$ref": "#/definitions/luceneserverDisjunctionMaxQuery"
+        },
+        "matchQuery": {
+          "$ref": "#/definitions/luceneserverMatchQuery"
+        },
+        "matchPhraseQuery": {
+          "$ref": "#/definitions/luceneserverMatchPhraseQuery"
+        }
+      },
+      "description": "Defines a full query consisting of a QueryNode which may be one of several types."
+    },
+    "luceneserverQuerySortField": {
+      "type": "object",
+      "properties": {
+        "doDocScores": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "doMaxScore": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "fields": {
+          "$ref": "#/definitions/luceneserverSortFields"
+        }
+      }
+    },
+    "luceneserverQueryType": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "BOOLEAN_QUERY",
+        "PHRASE_QUERY",
+        "FUNCTION_SCORE_QUERY",
+        "TERM_QUERY",
+        "TERM_IN_SET_QUERY",
+        "DISJUNCTION_MAX",
+        "MATCH",
+        "MATCH_PHRASE"
+      ],
+      "default": "NONE",
+      "description": "Defines different types of QueryNodes."
+    },
+    "luceneserverRawFileChunk": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "luceneserverRefreshRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverRefreshResponse": {
+      "type": "object",
+      "properties": {
+        "refreshTimeMS": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "luceneserverReleaseSnapshotRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "snapshotId": {
+          "$ref": "#/definitions/luceneserverSnapshotId"
+        }
+      }
+    },
+    "luceneserverReleaseSnapshotResponse": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      }
+    },
+    "luceneserverRestoreIndex": {
+      "type": "object",
+      "properties": {
+        "serviceName": {
+          "type": "string"
+        },
+        "resourceName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverSearchRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "startHit": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "topHits": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "timeoutSec": {
+          "type": "number",
+          "format": "double",
+          "description": "Maximum number of seconds spent on each collection phase; note that for\nmulti-pass searches (e.g. query-time grouping), this timeout applies to each phase."
+        },
+        "retrieveFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "queryText": {
+          "type": "string"
+        },
+        "virtualFielsd": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverVirtualField"
+          }
+        },
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery"
+        },
+        "querySort": {
+          "$ref": "#/definitions/luceneserverQuerySortField"
+        },
+        "indexGen": {
+          "type": "string",
+          "format": "int64"
+        },
+        "version": {
+          "type": "string",
+          "format": "int64"
+        },
+        "snapshot": {
+          "type": "string"
+        },
+        "totalHitsThreshold": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "luceneserverSearchResponse": {
+      "type": "object",
+      "properties": {
+        "diagnostics": {
+          "$ref": "#/definitions/SearchResponseDiagnostics"
+        },
+        "hitTimeout": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "totalHits": {
+          "type": "string",
+          "format": "int64"
+        },
+        "hits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SearchResponseHit"
+          }
+        },
+        "searchState": {
+          "$ref": "#/definitions/SearchResponseSearchState"
+        },
+        "response": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverSearcher": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "format": "int64",
+          "description": "the version recorded in the commit that the reader opened.\nThis version is advanced every time a change is made with IndexWriter."
+        },
+        "numDocs": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "segments": {
+          "type": "string"
+        },
+        "staleAgeSeconds": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "luceneserverSearcherVersion": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "format": "int64"
+        },
+        "didRefresh": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      }
+    },
+    "luceneserverSelector": {
+      "type": "string",
+      "enum": [
+        "MIN",
+        "MAX",
+        "MIDDLE_MIN",
+        "MIDDLE_MAX"
+      ],
+      "default": "MIN",
+      "title": "For multi valued fields, how to select which value is used for sorting"
+    },
+    "luceneserverSettingsRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "mergeMaxMBPerSec": {
+          "type": "number",
+          "format": "double"
+        },
+        "nrtCachingDirectoryMaxMergeSizeMB": {
+          "type": "number",
+          "format": "double"
+        },
+        "nrtCachingDirectoryMaxSizeMB": {
+          "type": "number",
+          "format": "double"
+        },
+        "concurrentMergeSchedulerMaxThreadCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "concurrentMergeSchedulerMaxMergeCount": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "indexSort": {
+          "$ref": "#/definitions/luceneserverSortFields"
+        },
+        "indexVerbose": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "indexMergeSchedulerAutoThrottle": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "normsFormat": {
+          "type": "string"
+        },
+        "directory": {
+          "type": "string",
+          "title": "Base Directory implementation to use (NRTCachingDirectory will wrap this);\neither one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory,\nRAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a\npublic constructor taking a single File argument default: FSDirectory"
+        }
+      },
+      "title": "Input to settings"
+    },
+    "luceneserverSettingsResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string"
+        }
+      },
+      "title": "Settings Response returned from Server"
+    },
+    "luceneserverSnapshotId": {
+      "type": "object",
+      "properties": {
+        "indexGen": {
+          "type": "string",
+          "format": "int64"
+        },
+        "taxonomyGen": {
+          "type": "string",
+          "format": "int64"
+        },
+        "stateGen": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "luceneserverSortFields": {
+      "type": "object",
+      "properties": {
+        "sortedFields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverSortType"
+          }
+        }
+      },
+      "title": "Fields to sort on either during index time or search time"
+    },
+    "luceneserverSortType": {
+      "type": "object",
+      "properties": {
+        "fieldName": {
+          "type": "string"
+        },
+        "selector": {
+          "$ref": "#/definitions/luceneserverSelector"
+        },
+        "origin": {
+          "$ref": "#/definitions/luceneserverPoint"
+        },
+        "missingLat": {
+          "type": "boolean",
+          "format": "boolean",
+          "description": "Whether missing values should sort last instead of first.\nNote that this runs \\\"before\\\" reverse, so if you sort missing first and reverse=true then missing values will\nbe at the end."
+        },
+        "reverse": {
+          "type": "boolean",
+          "format": "boolean",
+          "title": "Sort in reverse of the field's natural order"
+        }
+      },
+      "description": "\"The field to sort on. Pass \u003ccode\u003edocid\u003c/code\u003e for index order and \u003ccode\u003escore\u003c/code\u003e for relevance sort."
+    },
+    "luceneserverStartIndexRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/definitions/luceneserverMode"
+        },
+        "primaryGen": {
+          "type": "string",
+          "format": "int64"
+        },
+        "primaryAddress": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "restore": {
+          "$ref": "#/definitions/luceneserverRestoreIndex"
+        }
+      },
+      "title": "Start the index"
+    },
+    "luceneserverStartIndexResponse": {
+      "type": "object",
+      "properties": {
+        "maxDoc": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "numDocs": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "segments": {
+          "type": "string"
+        },
+        "startTimeMS": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "luceneserverStatsRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverStatsResponse": {
+      "type": "object",
+      "properties": {
+        "ord": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxDoc": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The total number of docs in this index, including docs not yet flushed (still in the RAM buffer),\nnot counting deletions."
+        },
+        "numDocs": {
+          "type": "integer",
+          "format": "int32",
+          "description": "*\nThe total number of docs in this index, including\ndocs not yet flushed (still in the RAM buffer), and\nincluding deletions. NOTE: buffered deletions\nare not counted.  If you really need these to be\ncounted you should call {@link IndexWriter#commit()} first."
+        },
+        "state": {
+          "type": "string"
+        },
+        "taxonomy": {
+          "$ref": "#/definitions/luceneserverTaxonomy"
+        },
+        "searchers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverSearcher"
+          }
+        },
+        "currentSearcher": {
+          "$ref": "#/definitions/luceneserverSearcher"
+        }
+      }
+    },
+    "luceneserverStopIndexRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverSuggestLocalSource": {
+      "type": "object",
+      "properties": {
+        "localFile": {
+          "type": "string",
+          "description": "Local file (to the server) to read suggestions + weights from; format is weight U+001F suggestion U+001F payload,\none per line, with suggestion UTF-8 encoded. If this option is used then searcher, suggestField,\nweightField/Expression, payloadField should not be specified."
+        },
+        "hasContexts": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      }
+    },
+    "luceneserverSuggestLookupHighlight": {
+      "type": "object",
+      "properties": {
+        "oneHighlight": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverOneHighlight"
+          }
+        }
+      }
+    },
+    "luceneserverSuggestLookupRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "suggestName": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "highlight": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "allTermsRequired": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "contexts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "count": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "luceneserverSuggestLookupResponse": {
+      "type": "object",
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverOneSuggestLookupResponse"
+          }
+        }
+      }
+    },
+    "luceneserverSuggestNonLocalSource": {
+      "type": "object",
+      "properties": {
+        "indexGen": {
+          "type": "string",
+          "format": "int64"
+        },
+        "version": {
+          "type": "string",
+          "format": "int64"
+        },
+        "snapshot": {
+          "type": "string"
+        },
+        "suggestField": {
+          "type": "string"
+        },
+        "weightField": {
+          "type": "string"
+        },
+        "weightExpression": {
+          "type": "string"
+        },
+        "payloadField": {
+          "type": "string"
+        },
+        "contextField": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverTaxonomy": {
+      "type": "object",
+      "properties": {
+        "numOrds": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "segments": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverTermInSetQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "terms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Specialization for a disjunction over many terms that behaves like a ConstantScoreQuery over a BooleanQuery containing only BooleanClause.Occur.SHOULD clauses."
+    },
+    "luceneserverTermQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "term": {
+          "type": "string"
+        }
+      },
+      "description": "A query that matches documents containing a term."
+    },
+    "luceneserverTermVectors": {
+      "type": "string",
+      "enum": [
+        "NO_TERMVECTORS",
+        "TERMS",
+        "TERMS_POSITIONS",
+        "TERMS_POSITIONS_OFFSETS",
+        "TERMS_POSITIONS_OFFSETS_PAYLOADS"
+      ],
+      "default": "NO_TERMVECTORS",
+      "description": "Whether/how term vectors should be indexed."
+    },
+    "luceneserverTransferStatus": {
+      "type": "object",
+      "properties": {
+        "Message": {
+          "type": "string"
+        },
+        "Code": {
+          "$ref": "#/definitions/luceneserverTransferStatusCode"
+        }
+      }
+    },
+    "luceneserverTransferStatusCode": {
+      "type": "string",
+      "enum": [
+        "Unknown",
+        "Done",
+        "Failed",
+        "Ongoing"
+      ],
+      "default": "Unknown"
+    },
+    "luceneserverVirtualField": {
+      "type": "object",
+      "properties": {
+        "expression": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "title": "Virtual field used during search"
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "type_url": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "runtimeError": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "runtimeStreamError": {
+      "type": "object",
+      "properties": {
+        "grpc_code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "http_code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "http_status": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "typeLatLng": {
+      "type": "object",
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "format": "double",
+          "description": "The latitude in degrees. It must be in the range [-90.0, +90.0]."
+        },
+        "longitude": {
+          "type": "number",
+          "format": "double",
+          "description": "The longitude in degrees. It must be in the range [-180.0, +180.0]."
+        }
+      },
+      "description": "An object representing a latitude/longitude pair. This is expressed as a pair\nof doubles representing degrees latitude and degrees longitude. Unless\nspecified otherwise, this must conform to the\n\u003ca href=\"http://www.unoosa.org/pdf/icg/2012/template/WGS_84.pdf\"\u003eWGS84\nstandard\u003c/a\u003e. Values must be within normalized ranges.\n\nExample of normalization code in Python:\n\n    def NormalizeLongitude(longitude):\n      \"\"\"Wraps decimal degrees longitude to [-180.0, 180.0].\"\"\"\n      q, r = divmod(longitude, 360.0)\n      if r \u003e 180.0 or (r == 180.0 and q \u003c= -1.0):\n        return r - 360.0\n      return r\n\n    def NormalizeLatLng(latitude, longitude):\n      \"\"\"Wraps decimal degrees latitude and longitude to\n      [-90.0, 90.0] and [-180.0, 180.0], respectively.\"\"\"\n      r = latitude % 360.0\n      if r \u003c= 90.0:\n        return r, NormalizeLongitude(longitude)\n      elif r \u003e= 270.0:\n        return r - 360, NormalizeLongitude(longitude)\n      else:\n        return 180 - r, NormalizeLongitude(longitude + 180.0)\n\n    assert 180.0 == NormalizeLongitude(180.0)\n    assert -180.0 == NormalizeLongitude(-180.0)\n    assert -179.0 == NormalizeLongitude(181.0)\n    assert (0.0, 0.0) == NormalizeLatLng(360.0, 0.0)\n    assert (0.0, 0.0) == NormalizeLatLng(-360.0, 0.0)\n    assert (85.0, 180.0) == NormalizeLatLng(95.0, 0.0)\n    assert (-85.0, -170.0) == NormalizeLatLng(-95.0, 10.0)\n    assert (90.0, 10.0) == NormalizeLatLng(90.0, 10.0)\n    assert (-90.0, -10.0) == NormalizeLatLng(-90.0, -10.0)\n    assert (0.0, -170.0) == NormalizeLatLng(-180.0, 10.0)\n    assert (0.0, -170.0) == NormalizeLatLng(180.0, 10.0)\n    assert (-90.0, 10.0) == NormalizeLatLng(270.0, 10.0)\n    assert (90.0, 10.0) == NormalizeLatLng(-270.0, 10.0)"
+    }
+  }
+}
