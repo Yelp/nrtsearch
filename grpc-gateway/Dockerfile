@@ -1,6 +1,5 @@
 FROM ubuntu:19.10
 
-#RUN add-apt-repository ppa:longsleep/golang-backports
 RUN apt-get update && \
     apt-get install -y wget unzip htop \
     openjdk-13-jdk \
