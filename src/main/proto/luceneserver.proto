@@ -3,6 +3,8 @@ syntax = "proto3";
 
 import "search.proto";
 import "analysis.proto";
+import "google/api/annotations.proto";
+
 
 option java_multiple_files = true;
 option java_package = "org.apache.platypus.server.grpc";
@@ -15,61 +17,150 @@ package luceneserver;
 service LuceneServer {
     /* Create an Index */
     rpc createIndex (CreateIndexRequest) returns (CreateIndexResponse) {
+        option (google.api.http) = {
+      post: "/v1/create_index"
+      body: "*"
+    };
+
     }
     /* Change global offline or online settings for this index. */
     rpc liveSettings (LiveSettingsRequest) returns (LiveSettingsResponse) {
+        option (google.api.http) = {
+      post: "/v1/live_settings"
+      body: "*"
+    };
+
     }
     /* Registers one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).
       Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
       and once a field is registered it cannot be changed (write-once).
       This returns the full set of fields currently registered. */
     rpc registerFields (FieldDefRequest) returns (FieldDefResponse) {
+        option (google.api.http) = {
+      post: "/v1/register_fields"
+      body: "*"
+    };
+
     }
     /* Change global offline settings for this index.
     This returns the currently set settings; pass no settings changes to retrieve current settings.*/
     rpc settings (SettingsRequest) returns (SettingsResponse) {
+        option (google.api.http) = {
+      post: "/v1/settings"
+      body: "*"
+    };
+
     }
     /* Starts an index */
     rpc startIndex (StartIndexRequest) returns (StartIndexResponse) {
+        option (google.api.http) = {
+      post: "/v1/start_index"
+      body: "*"
+    };
+
     }
     /* Stops an index */
     rpc stopIndex (StopIndexRequest) returns (DummyResponse) {
+        option (google.api.http) = {
+      post: "/v1/stop_index"
+      body: "*"
+    };
+
     }
     /* Adds a stream of Documents */
     rpc addDocuments (stream AddDocumentRequest) returns (AddDocumentResponse) {
+        option (google.api.http) = {
+      post: "/v1/add_documents"
+      body: "*"
+    };
+
     }
     /* Refresh the latest searcher for an index */
     rpc refresh (RefreshRequest) returns (RefreshResponse) {
+        option (google.api.http) = {
+      post: "/v1/refresh"
+      body: "*"
+    };
+
     }
     /* Commits all pending changes to durable storage*/
     rpc commit (CommitRequest) returns (CommitResponse) {
+        option (google.api.http) = {
+      post: "/v1/commit"
+      body: "*"
+    };
+
     }
     /* Retrieve index statistics*/
     rpc stats (StatsRequest) returns (StatsResponse) {
+        option (google.api.http) = {
+      post: "/v1/stats"
+      body: "*"
+    };
+
     }
     /* Search */
     rpc search (SearchRequest) returns (SearchResponse) {
+        option (google.api.http) = {
+      post: "/v1/search"
+      body: "*"
+    };
     }
     /* Delete documents */
     rpc delete (AddDocumentRequest) returns (AddDocumentResponse) {
+        option (google.api.http) = {
+      post: "/v1/delete"
+      body: "*"
+    };
+
     }
     /* Delete all documents for index */
     rpc deleteAll (DeleteAllDocumentsRequest) returns (DeleteAllDocumentsResponse) {
+        option (google.api.http) = {
+      post: "/v1/delete_all"
+      body: "*"
+    };
+
     }
     /* Delete index */
     rpc deleteIndex (DeleteIndexRequest) returns (DeleteIndexResponse) {
+        option (google.api.http) = {
+      post: "/v1/delete_index"
+      body: "*"
+    };
+
     }
     /* healthcheck */
     rpc status (HealthCheckRequest) returns (HealthCheckResponse) {
+        option (google.api.http) = {
+      post: "/v1/status"
+      body: "*"
+    };
+
     }
     /* Builds a new auto-suggester, loading suggestions via the provided local file path.*/
     rpc buildSuggest (BuildSuggestRequest) returns (BuildSuggestResponse) {
+        option (google.api.http) = {
+      post: "/v1/suggest_build"
+      body: "*"
+    };
+
     }
     /* Perform an auto-suggest lookup.*/
     rpc suggestLookup (SuggestLookupRequest) returns (SuggestLookupResponse) {
+        option (google.api.http) = {
+      post: "/v1/suggest_lookup"
+      body: "*"
+    };
+
     }
     /* Updates existing suggestions, if the suggester supports near-real-time changes. */
     rpc updateSuggest (BuildSuggestRequest) returns (BuildSuggestResponse) {
+        option (google.api.http) = {
+      post: "/v1/suggest_update"
+      body: "*"
+    };
+
     }
 
     /*
@@ -90,13 +181,28 @@ service LuceneServer {
     the snapshot is released.  This returns the directories and files referenced by the snapshot.
     */
     rpc createSnapshot (CreateSnapshotRequest) returns (CreateSnapshotResponse) {
+        option (google.api.http) = {
+      post: "/v1/create_snapshot"
+      body: "*"
+    };
+
     }
 
     /* releases a snapshot previously created with @createSnapshot. */
     rpc releaseSnapshot (ReleaseSnapshotRequest) returns (ReleaseSnapshotResponse) {
+        option (google.api.http) = {
+      post: "/v1/release_snapshot"
+      body: "*"
+    };
+
     }
     /* backs up a resource (index) and it associated metadata e.g. settings, schema to s3 */
     rpc backupIndex (BackupIndexRequest) returns (BackupIndexResponse) {
+        option (google.api.http) = {
+      post: "/v1/backup_index"
+      body: "*"
+    };
+
     }
 
 }
@@ -255,10 +361,7 @@ message SettingsRequest {
     bool indexVerbose = 8; // Turn on IndexWriter's infoStream (to stdout)
     bool indexMergeSchedulerAutoThrottle = 9; // Turn on/off the merge scheduler's auto throttling
     string normsFormat = 10; // Which NormsFormat should be used for all indexed fields. default: Lucene80NormsFormat
-    /* Base Directory implementation to use (NRTCachingDirectory will wrap this);
-    either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory,
-    RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a
-    public constructor taking a single File argument default: FSDirectory */
+    // Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
     string directory = 11;
 
 }
@@ -388,10 +491,9 @@ message BuildSuggestRequest {
     oneof Suggester {
         //A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)
         InfixSuggester infixSuggester = 2;
-        /* Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and
-        then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester*/
+        // Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester
         AnalyzingSuggester analyzingSuggester = 3;
-        /* Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester*/
+        // Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester
         FuzzySuggester fuzzySuggester = 4;
     }
     oneof Source {
@@ -472,8 +574,7 @@ message InfixSuggester {
     string queryAnalyzer = 3; // Query Analyzer
 }
 
-/* Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and
-then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester*/
+/* Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester*/
 message AnalyzingSuggester {
     string analyzer = 1; //Index and query analyzer
     string indexAnalyzer = 2; // Index Analyzer
