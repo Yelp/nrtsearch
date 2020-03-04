@@ -354,6 +354,40 @@ public class QueryTest {
         testQuery(query, responseTester);
     }
 
+    @Test
+    public void testSearchMultiMatchQuery() {
+        Query query = Query.newBuilder()
+                .setQueryType(QueryType.MULTI_MATCH)
+                .setMultiMatchQuery(MultiMatchQuery.newBuilder()
+                        .addFields("vendor_name")
+                        .addFields("description")
+                        .setQuery("SEnD")
+                        .setOperator(MatchOperator.MUST)
+                        .setFuzzyParams(FuzzyParams.newBuilder()
+                                .setPrefixLength(2)
+                                .setMaxEdits(2)
+                                .setMaxExpansions(3)))
+                .build();
+
+        Query queryWithAnalyzer = Query.newBuilder(query)
+                    .setMultiMatchQuery(MultiMatchQuery.newBuilder(query.getMultiMatchQuery())
+                            .setQuery("<body> SEnD </body>")
+                            .setAnalyzer(getTestAnalyzer()))
+                    .build();
+
+        Consumer<SearchResponse> responseTester = searchResponse -> {
+            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getHitsList().size());
+            SearchResponse.Hit hit = searchResponse.getHits(0);
+            String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+            assertEquals("2", docId);
+            checkHits(hit);
+        };
+
+        testQuery(query, responseTester);
+        testQuery(queryWithAnalyzer, responseTester);
+    }
+
     /**
      * Search with the query and then test the response. Additional test with boost will also be performed on the query.
      *

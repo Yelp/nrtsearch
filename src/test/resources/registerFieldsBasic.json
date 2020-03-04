@@ -46,6 +46,15 @@
       "type": "INT",
       "storeDocValues": true,
       "sort": true
+    },
+    {
+      "name": "description",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true
     }
   ]
 }

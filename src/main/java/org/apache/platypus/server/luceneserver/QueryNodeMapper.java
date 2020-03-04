@@ -28,10 +28,12 @@ import org.apache.lucene.util.QueryBuilder;
 import org.apache.platypus.server.grpc.MatchOperator;
 import org.apache.platypus.server.grpc.MatchPhraseQuery;
 import org.apache.platypus.server.grpc.MatchQuery;
+import org.apache.platypus.server.grpc.MultiMatchQuery;
 import org.apache.platypus.server.grpc.QueryType;
 
 import java.text.ParseException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +78,7 @@ class QueryNodeMapper {
             case DISJUNCTION_MAX: return getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), state);
             case MATCH: return getMatchQuery(query.getMatchQuery(), state);
             case MATCH_PHRASE: return getMatchPhraseQuery(query.getMatchPhraseQuery(), state);
+            case MULTI_MATCH: return getMultiMatchQuery(query.getMultiMatchQuery(), state);
             default: throw new UnsupportedOperationException("Unsupported query type received: " + queryType);
         }
     }
@@ -169,6 +172,43 @@ class QueryNodeMapper {
         QueryBuilder queryBuilder = new QueryBuilder(analyzer);
         // This created query will be TermQuery if only one token is found after analysis, otherwise PhraseQuery
         return queryBuilder.createPhraseQuery(matchPhraseQuery.getField(), matchPhraseQuery.getQuery(), matchPhraseQuery.getSlop());
+    }
+
+    private Query getMultiMatchQuery(MultiMatchQuery multiMatchQuery, IndexState state) {
+        Map<String, Float> fieldBoosts = multiMatchQuery.getFieldBoostsMap();
+        Collection<String> fields;
+
+        // Take all fields if none are provided
+        if (multiMatchQuery.getFieldsList().isEmpty()) {
+            fields = state.getAllFields().keySet();
+        } else {
+            fields = multiMatchQuery.getFieldsList();
+        }
+
+        List<Query> matchQueries = fields
+                .stream()
+                .map(field -> {
+                    MatchQuery matchQuery = MatchQuery.newBuilder()
+                            .setField(field)
+                            .setQuery(multiMatchQuery.getQuery())
+                            .setOperator(multiMatchQuery.getOperator())
+                            .setMinimumNumberShouldMatch(multiMatchQuery.getMinimumNumberShouldMatch())
+                            .setAnalyzer(multiMatchQuery.getAnalyzer()) // TODO: making the analyzer once and using it for all match queries would be more efficient
+                            .setFuzzyParams(multiMatchQuery.getFuzzyParams())
+                            .build();
+                    Query query = getMatchQuery(matchQuery, state);
+                    Float boost = fieldBoosts.get(field);
+                    if (boost != null) {
+                        if (boost < 0) {
+                            throw new IllegalArgumentException(String.format("Invalid boost %f for field: %s, query: %s", boost, field, multiMatchQuery));
+                        }
+                        return new BoostQuery(query, boost);
+                    } else {
+                        return query;
+                    }
+                })
+                .collect(Collectors.toList());
+        return new DisjunctionMaxQuery(matchQueries, 0);
     }
 
     private Map<org.apache.platypus.server.grpc.BooleanClause.Occur, BooleanClause.Occur> initializeOccurMapping() {

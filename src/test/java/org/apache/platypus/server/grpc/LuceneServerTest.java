@@ -24,7 +24,7 @@ import static org.junit.Assert.*;
 
 @RunWith(JUnit4.class)
 public class LuceneServerTest {
-    public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom", "count");
+    public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom", "count", "description");
     /**
      * This rule manages automatic graceful shutdown for the registered servers and channels at the
      * end of test.
@@ -260,6 +260,7 @@ public class LuceneServerTest {
         List<String> expectedLicenseNo = null;
         List<String> expectedVendorName = null;
         List<String> expectedVendorNameAtom = null;
+        List<String> expectedDescription = null;
         int expectedCount = 0;
 
         if (docId.equals("1")) {
@@ -267,11 +268,13 @@ public class LuceneServerTest {
             expectedVendorName = Arrays.asList("first vendor", "first again");
             expectedVendorNameAtom = Arrays.asList("first atom vendor", "first atom again");
             expectedCount = 3;
+            expectedDescription = Collections.singletonList("FIRST food");
         } else if (docId.equals("2")) {
             expectedLicenseNo = Arrays.asList("411", "4222");
             expectedVendorName = Arrays.asList("second vendor", "second again");
             expectedVendorNameAtom = Arrays.asList("second atom vendor", "second atom again");
             expectedCount = 7;
+            expectedDescription = Collections.singletonList("SECOND gas");
         } else {
             fail(String.format("docId %s not indexed", docId));
         }
@@ -280,6 +283,7 @@ public class LuceneServerTest {
         checkPerFieldValues(expectedVendorName, getStringFieldValuesList(fields.get("vendor_name").getFieldValueList()));
         checkPerFieldValues(expectedVendorNameAtom, getStringFieldValuesList(fields.get("vendor_name_atom").getFieldValueList()));
         assertEquals(expectedCount, fields.get("count").getFieldValueList().get(0).getLongValue());
+        checkPerFieldValues(expectedDescription, getStringFieldValuesList(fields.get("description").getFieldValueList()));
     }
 
     public static void checkFieldNames(List<String> expectedNames, Map<String, CompositeFieldValue> actualNames) {

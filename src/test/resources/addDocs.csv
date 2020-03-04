@@ -1,3 +1,3 @@
-doc_id,vendor_name,vendor_name_atom,license_no,count
-1,first vendor;first again,first atom vendor;first atom again,300;3100,3
-2,second vendor;second again,second atom vendor;second atom again,411;4222,7
+doc_id,vendor_name,vendor_name_atom,license_no,count,description
+1,first vendor;first again,first atom vendor;first atom again,300;3100,3,FIRST food
+2,second vendor;second again,second atom vendor;second atom again,411;4222,7,SECOND gas
