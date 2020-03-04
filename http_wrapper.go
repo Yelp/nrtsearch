@@ -11,7 +11,7 @@ import (
   "github.com/grpc-ecosystem/grpc-gateway/runtime"
   "google.golang.org/grpc"
 
-  gw "./src/main/proto"
+  gw "./grpc-gateway"
 )
 
 var (
