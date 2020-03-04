@@ -762,10 +762,7 @@ type SettingsRequest struct {
 	IndexVerbose                           bool        `protobuf:"varint,8,opt,name=indexVerbose,proto3" json:"indexVerbose,omitempty"`
 	IndexMergeSchedulerAutoThrottle        bool        `protobuf:"varint,9,opt,name=indexMergeSchedulerAutoThrottle,proto3" json:"indexMergeSchedulerAutoThrottle,omitempty"`
 	NormsFormat                            string      `protobuf:"bytes,10,opt,name=normsFormat,proto3" json:"normsFormat,omitempty"`
-	// Base Directory implementation to use (NRTCachingDirectory will wrap this);
-	//either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory,
-	//RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a
-	//public constructor taking a single File argument default: FSDirectory
+	// Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
 	Directory            string   `protobuf:"bytes,11,opt,name=directory,proto3" json:"directory,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -2600,8 +2597,7 @@ func (m *InfixSuggester) GetQueryAnalyzer() string {
 	return ""
 }
 
-// Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and
-//then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester
+// Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester
 type AnalyzingSuggester struct {
 	Analyzer                       string   `protobuf:"bytes,1,opt,name=analyzer,proto3" json:"analyzer,omitempty"`
 	IndexAnalyzer                  string   `protobuf:"bytes,2,opt,name=indexAnalyzer,proto3" json:"indexAnalyzer,omitempty"`

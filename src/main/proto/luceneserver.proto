@@ -361,10 +361,7 @@ message SettingsRequest {
     bool indexVerbose = 8; // Turn on IndexWriter's infoStream (to stdout)
     bool indexMergeSchedulerAutoThrottle = 9; // Turn on/off the merge scheduler's auto throttling
     string normsFormat = 10; // Which NormsFormat should be used for all indexed fields. default: Lucene80NormsFormat
-    /* Base Directory implementation to use (NRTCachingDirectory will wrap this);
-    either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory,
-    RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a
-    public constructor taking a single File argument default: FSDirectory */
+    // Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
     string directory = 11;
 
 }
@@ -494,10 +491,9 @@ message BuildSuggestRequest {
     oneof Suggester {
         //A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)
         InfixSuggester infixSuggester = 2;
-        /* Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and
-        then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester*/
+        // Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester
         AnalyzingSuggester analyzingSuggester = 3;
-        /* Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester*/
+        // Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester
         FuzzySuggester fuzzySuggester = 4;
     }
     oneof Source {
@@ -578,8 +574,7 @@ message InfixSuggester {
     string queryAnalyzer = 3; // Query Analyzer
 }
 
-/* Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and
-then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester*/
+/* Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester*/
 message AnalyzingSuggester {
     string analyzer = 1; //Index and query analyzer
     string indexAnalyzer = 2; // Index Analyzer

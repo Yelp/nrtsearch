@@ -922,7 +922,7 @@
           "format": "boolean"
         }
       },
-      "title": "Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and\nthen does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester"
+      "title": "Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester"
     },
     "luceneserverBackupIndexRequest": {
       "type": "object",
@@ -989,7 +989,7 @@
         },
         "analyzingSuggester": {
           "$ref": "#/definitions/luceneserverAnalyzingSuggester",
-          "title": "Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and\nthen does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester"
+          "title": "Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester"
         },
         "fuzzySuggester": {
           "$ref": "#/definitions/luceneserverFuzzySuggester",
@@ -2042,7 +2042,7 @@
         },
         "directory": {
           "type": "string",
-          "title": "Base Directory implementation to use (NRTCachingDirectory will wrap this);\neither one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory,\nRAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a\npublic constructor taking a single File argument default: FSDirectory"
+          "title": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory"
         }
       },
       "title": "Input to settings"
