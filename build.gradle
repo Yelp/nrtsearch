@@ -130,7 +130,7 @@ applicationDistribution.into('bin') {
     fileMode = 0755
 }
 
-task buildGrpcGateway(type: Exec) {
+task buildGrpcGateway(dependsOn:installDist, type: Exec) {
     workingDir = '.'
     commandLine = './build_grpc_gateway.sh'
 }

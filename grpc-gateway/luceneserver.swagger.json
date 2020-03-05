@@ -1664,6 +1664,45 @@
       ],
       "default": "STANDALONE"
     },
+    "luceneserverMultiMatchQuery": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "query": {
+          "type": "string"
+        },
+        "fieldBoosts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "operator": {
+          "$ref": "#/definitions/luceneserverMatchOperator"
+        },
+        "minimumNumberShouldMatch": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "analyzer": {
+          "$ref": "#/definitions/luceneserverAnalyzer"
+        },
+        "fuzzyParams": {
+          "$ref": "#/definitions/luceneserverFuzzyParams"
+        },
+        "tieBreakerMultiplier": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "description": "A query that creates a match query for each field provided and wraps all the match queries in a disjunction max query."
+    },
     "luceneserverNameAndParams": {
       "type": "object",
       "properties": {
@@ -1777,6 +1816,9 @@
         },
         "matchPhraseQuery": {
           "$ref": "#/definitions/luceneserverMatchPhraseQuery"
+        },
+        "multiMatchQuery": {
+          "$ref": "#/definitions/luceneserverMultiMatchQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -1808,7 +1850,8 @@
         "TERM_IN_SET_QUERY",
         "DISJUNCTION_MAX",
         "MATCH",
-        "MATCH_PHRASE"
+        "MATCH_PHRASE",
+        "MULTI_MATCH"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."
