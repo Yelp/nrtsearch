@@ -14,8 +14,10 @@ RUN wget https://github.com/google/protobuf/releases/download/v${PROTOC_VERSION}
     rm -f /protoc-${PROTOC_VERSION}-linux-x86_64.zip
 
 RUN mkdir -p /code/output/
+RUN mkdir -p /code/bin
 ENV BASEPATH /code
 ENV OUTPATH /code/output
+ENV BINPATH /code/bin
 
 COPY / ${BASEPATH}/
 WORKDIR  $BASEPATH
@@ -32,10 +34,13 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 RUN go get -u \
     github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
     github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger \
-    github.com/golang/protobuf/protoc-gen-go
+    github.com/golang/protobuf/protoc-gen-go \
+    google.golang.org/grpc
 
 #run protoc plugin for protoc-gen-go
 RUN protoc -I/code/src/main/proto -I/code/build/extracted-protos/main -I/code/build/extracted-include-protos/main --plugin=protoc-gen-go=$GOPATH/bin/protoc-gen-go --go_out=plugins=grpc:$OUTPATH /code/src/main/proto/analysis.proto /code/src/main/proto/luceneserver.proto /code/src/main/proto/search.proto
 RUN protoc -I/code/src/main/proto -I/code/build/extracted-protos/main -I/code/build/extracted-include-protos/main --plugin=protoc-gen-grpc-gateway=$GOPATH/bin/protoc-gen-grpc-gateway --grpc-gateway_out=logtostderr=true:$OUTPATH /code/src/main/proto/analysis.proto /code/src/main/proto/luceneserver.proto /code/src/main/proto/search.proto
 RUN protoc -I/code/src/main/proto -I/code/build/extracted-protos/main -I/code/build/extracted-include-protos/main --plugin=protoc-gen-swagger=$GOPATH/bin/protoc-gen-swagger --swagger_out=logtostderr=true:$OUTPATH /code/src/main/proto/analysis.proto /code/src/main/proto/luceneserver.proto /code/src/main/proto/search.proto
+# build go executables for various platforms
+RUN for GOOS in darwin linux windows; do for GOARCH in 386 amd64; do echo "Building $GOOS-$GOARCH"; export GOOS=$GOOS; export GOARCH=$GOARCH; go build -o bin/http_wrapper-$GOOS-$GOARCH http_wrapper.go; done; done
 CMD /bin/sh
