@@ -16,6 +16,9 @@ import org.junit.runners.JUnit4;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -24,7 +27,7 @@ import static org.junit.Assert.*;
 
 @RunWith(JUnit4.class)
 public class LuceneServerTest {
-    public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom", "count", "description");
+    public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom", "count", "more_count", "score", "double_score", "description", "date");
     /**
      * This rule manages automatic graceful shutdown for the registered servers and channels at the
      * end of test.
@@ -252,8 +255,7 @@ public class LuceneServerTest {
 
     public static void checkHits(SearchResponse.Hit hit) {
         Map<String, CompositeFieldValue> fields = hit.getFieldsMap();
-        List<String> expectedRetrieveFields = RETRIEVED_VALUES;
-        checkFieldNames(expectedRetrieveFields, fields);
+        checkFieldNames(RETRIEVED_VALUES, fields);
 
         String docId = fields.get("doc_id").getFieldValue(0).getTextValue();
 
@@ -262,6 +264,11 @@ public class LuceneServerTest {
         List<String> expectedVendorNameAtom = null;
         List<String> expectedDescription = null;
         int expectedCount = 0;
+        long expectedMoreCount = 0;
+        float expectedScore = 0;
+        double expectedDoubleScore = 0;
+        long expectedDate = 0;
+
 
         if (docId.equals("1")) {
             expectedLicenseNo = Arrays.asList("300", "3100");
@@ -269,12 +276,20 @@ public class LuceneServerTest {
             expectedVendorNameAtom = Arrays.asList("first atom vendor", "first atom again");
             expectedCount = 3;
             expectedDescription = Collections.singletonList("FIRST food");
+            expectedMoreCount = 14;
+            expectedScore = 25.36f;
+            expectedDoubleScore = 47.58;
+            expectedDate = getStringDateTimeAsListOfStringMillis("2019-10-12 15:30:41");
         } else if (docId.equals("2")) {
             expectedLicenseNo = Arrays.asList("411", "4222");
             expectedVendorName = Arrays.asList("second vendor", "second again");
             expectedVendorNameAtom = Arrays.asList("second atom vendor", "second atom again");
             expectedCount = 7;
+            expectedMoreCount = 18;
+            expectedScore = 27.38f;
+            expectedDoubleScore = 49.505;
             expectedDescription = Collections.singletonList("SECOND gas");
+            expectedDate = getStringDateTimeAsListOfStringMillis("2020-03-05 01:03:05");
         } else {
             fail(String.format("docId %s not indexed", docId));
         }
@@ -283,7 +298,12 @@ public class LuceneServerTest {
         checkPerFieldValues(expectedVendorName, getStringFieldValuesList(fields.get("vendor_name").getFieldValueList()));
         checkPerFieldValues(expectedVendorNameAtom, getStringFieldValuesList(fields.get("vendor_name_atom").getFieldValueList()));
         assertEquals(expectedCount, fields.get("count").getFieldValueList().get(0).getLongValue());
+        assertEquals(expectedMoreCount, fields.get("more_count").getFieldValueList().get(0).getLongValue());
+        // TODO: uncomment after retrieval for float and double works
+//        assertEquals(expectedScore, fields.get("score").getFieldValueList().get(0).getDoubleValue(), 0);
+//        assertEquals(expectedDoubleScore, fields.get("double_score").getFieldValueList().get(0).getDoubleValue(), 0);
         checkPerFieldValues(expectedDescription, getStringFieldValuesList(fields.get("description").getFieldValueList()));
+        assertEquals(expectedDate, fields.get("date").getFieldValueList().get(0).getLongValue());
     }
 
     public static void checkFieldNames(List<String> expectedNames, Map<String, CompositeFieldValue> actualNames) {
@@ -309,6 +329,11 @@ public class LuceneServerTest {
         return fieldValues.stream()
                 .map(SearchResponse.Hit.FieldValue::getTextValue)
                 .collect(Collectors.toList());
+    }
+
+    private static long getStringDateTimeAsListOfStringMillis(String dateTime) {
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        return LocalDateTime.parse(dateTime, dateTimeFormatter).toInstant(ZoneOffset.UTC).toEpochMilli();
     }
 
 }
