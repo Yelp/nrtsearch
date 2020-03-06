@@ -1819,6 +1819,9 @@
         },
         "multiMatchQuery": {
           "$ref": "#/definitions/luceneserverMultiMatchQuery"
+        },
+        "rangeQuery": {
+          "$ref": "#/definitions/luceneserverRangeQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -1851,10 +1854,26 @@
         "DISJUNCTION_MAX",
         "MATCH",
         "MATCH_PHRASE",
-        "MULTI_MATCH"
+        "MULTI_MATCH",
+        "RANGE"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."
+    },
+    "luceneserverRangeQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "lower": {
+          "type": "string"
+        },
+        "upper": {
+          "type": "string"
+        }
+      },
+      "description": "A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types."
     },
     "luceneserverRawFileChunk": {
       "type": "object",
