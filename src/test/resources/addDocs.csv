@@ -1,3 +1,3 @@
-doc_id,vendor_name,vendor_name_atom,license_no,count,description
-1,first vendor;first again,first atom vendor;first atom again,300;3100,3,FIRST food
-2,second vendor;second again,second atom vendor;second atom again,411;4222,7,SECOND gas
+doc_id,vendor_name,vendor_name_atom,license_no,count,more_count,score,double_score,description,date
+1,first vendor;first again,first atom vendor;first atom again,300;3100,3,14,25.36,47.58,FIRST food,2019-10-12 15:30:41
+2,second vendor;second again,second atom vendor;second atom again,411;4222,7,18,27.38,49.505,SECOND gas,2020-03-05 01:03:05

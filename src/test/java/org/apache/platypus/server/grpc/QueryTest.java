@@ -29,6 +29,7 @@ import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.function.Consumer;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
@@ -386,6 +387,57 @@ public class QueryTest {
 
         testQuery(query, responseTester);
         testQuery(queryWithAnalyzer, responseTester);
+    }
+
+    @Test
+    public void testSearchRangeQuery() {
+        RangeQuery intQuery = RangeQuery.newBuilder()
+                .setField("count")
+                .setLower("5")
+                .setUpper("10")
+                .build();
+
+        RangeQuery longQuery = RangeQuery.newBuilder()
+                .setField("more_count")
+                .setLower("15")
+                .setUpper("19")
+                .build();
+
+        RangeQuery floatQuery = RangeQuery.newBuilder()
+                .setField("score")
+                .setLower("27.3")
+                .setUpper("27.4")
+                .build();
+
+        RangeQuery doubleQuery = RangeQuery.newBuilder()
+                .setField("double_score")
+                .setLower("49.501")
+                .setUpper("49.51")
+                .build();
+
+        RangeQuery dateQuery = RangeQuery.newBuilder()
+                .setField("date")
+                .setLower("2019-12-11 05:40:31")
+                .setUpper("2020-05-05 10:31:56")
+                .build();
+
+        Consumer<SearchResponse> responseTester = searchResponse -> {
+            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getHitsList().size());
+            SearchResponse.Hit hit = searchResponse.getHits(0);
+            String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+            assertEquals("2", docId);
+            checkHits(hit);
+        };
+
+        for (RangeQuery rangeQuery : List.of(intQuery, longQuery, floatQuery, doubleQuery, dateQuery)) {
+            Query query = Query.newBuilder()
+                    .setQueryType(QueryType.RANGE)
+                    .setRangeQuery(rangeQuery)
+                    .build();
+
+            testQuery(query, responseTester);
+        }
     }
 
     /**

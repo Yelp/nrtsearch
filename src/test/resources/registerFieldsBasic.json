@@ -44,8 +44,27 @@
     {
       "name": "count",
       "type": "INT",
+      "search": true,
       "storeDocValues": true,
       "sort": true
+    },
+    {
+      "name": "more_count",
+      "type": "LONG",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "score",
+      "type": "FLOAT",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "double_score",
+      "type": "DOUBLE",
+      "search": true,
+      "storeDocValues": true
     },
     {
       "name": "description",
@@ -53,8 +72,14 @@
       "search": true,
       "store": true,
       "tokenize": true,
-      "multiValued": true,
       "storeDocValues": true
+    },
+    {
+      "name": "date",
+      "type": "DATE_TIME",
+      "search": true,
+      "storeDocValues": true,
+      "dateTimeFormat": "yyyy-MM-dd HH:mm:ss"
     }
   ]
 }
