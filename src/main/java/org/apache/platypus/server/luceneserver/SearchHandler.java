@@ -45,8 +45,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.text.ParseException;
-import java.text.ParsePosition;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -128,11 +126,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 if (perField != null) {
                     perField.multiValued = fd.multiValued;
                     if (fd.multiValued == false && perField.mode.equals("joinedSnippets")) {
-                        throw new SearchHandlerException(String.format("highlight: joinedSnippets can only be used with multi-valued fields"));
+                        throw new SearchHandlerException("highlight: joinedSnippets can only be used with multi-valued fields");
                     }
                 }
                 if (!highlight.equals("no") && !fd.highlighted) {
-                    throw new SearchHandlerException(String.format("retrieveFields: field: %s was not indexed with highlight=true".format(field)));
+                    throw new SearchHandlerException(String.format("retrieveFields: field: %s was not indexed with highlight=true", field));
                 }
 
                 // nocommit allow pulling from DV?  need separate
@@ -140,10 +138,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
                 if (fd.fieldType == null) {
                     if (fd.valueSource == null) {
-                        throw new SearchHandlerException("retrieveFields, field: %s was not registered with store=true".format(field));
+                        throw new SearchHandlerException(String.format("retrieveFields, field: %s was not registered with store=true", field));
                     }
                 } else if (!fd.fieldType.stored() && DocValuesType.NONE == fd.fieldType.docValuesType()) {
-                    throw new SearchHandlerException("retrieveFields, field: %s was not registered with store=true or docValues=True".format(field));
+                    throw new SearchHandlerException(String.format("retrieveFields, field: %s was not registered with store=true or docValues=True", field));
                 }
             }
 
@@ -396,7 +394,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         IndexState indexState = shardState.indexState;
         Map<String, FieldDef> dynamicFields = null;
         if (!searchRequest.getVirtualFielsdList().isEmpty()) {
-            throw new UnsupportedOperationException("VirtualFields not currently supported in searchRequest: %s".format(searchRequest.toString()));
+            throw new UnsupportedOperationException(String.format("VirtualFields not currently supported in searchRequest: %s", searchRequest.toString()));
         } else {
             dynamicFields = indexState.getAllFields();
         }
@@ -985,30 +983,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         // nocommit use CTL to reuse these?
         return fd.getDateTimeParser().parser.format(new Date(value));
     }
-
-    /**
-     * NOTE: this is a slow method, since it makes many objects just to parse one date/time value
-     */
-    private static long dateStringToMSec(FieldDef fd, String s) throws ParseException {
-        assert fd.valueType == FieldDef.FieldValueType.DATE_TIME;
-        // nocommit use CTL to reuse these?
-        Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        calendar.setLenient(false);
-        SimpleDateFormat dateTimeFormat = new SimpleDateFormat(fd.dateTimeFormat, Locale.ROOT);
-        dateTimeFormat.setCalendar(calendar);
-        ParsePosition pos = new ParsePosition(0);
-        Date date = dateTimeFormat.parse(s, pos);
-        if (pos.getErrorIndex() != -1) {
-            // nocommit more details about why?
-            throw new ParseException("could not parse field \"" + fd.name + "\", value \"" + s + "\" as date with format \"" + fd.dateTimeFormat + "\"", pos.getErrorIndex());
-        }
-        if (pos.getIndex() != s.length()) {
-            // nocommit more details about why?
-            throw new ParseException("could not parse field \"" + fd.name + "\", value \"" + s + "\" as date with format \"" + fd.dateTimeFormat + "\"", pos.getIndex());
-        }
-        return date.getTime();
-    }
-
 
     /**
      * Highlight configuration.
