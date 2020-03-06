@@ -269,7 +269,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
             if (fd.usePoints) {
                 if (fd.valueType == FieldDef.FieldValueType.INT) {
                     doc.add(new IntPoint(fd.name, ((Number) o).intValue()));
-                } else if (fd.valueType == FieldDef.FieldValueType.LONG || fd.valueType == FieldDef.FieldValueType.LONG) {
+                } else if (fd.valueType == FieldDef.FieldValueType.LONG || fd.valueType == FieldDef.FieldValueType.DATE_TIME) {
                     doc.add(new LongPoint(fd.name, ((Number) o).longValue()));
                 } else if (fd.valueType == FieldDef.FieldValueType.FLOAT) {
                     doc.add(new FloatPoint(fd.name, ((Number) o).floatValue()));
@@ -278,9 +278,6 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 } else if (fd.valueType == FieldDef.FieldValueType.LAT_LON) {
                     double[] latLon = (double[]) o;
                     doc.add(new LatLonPoint(fd.name, latLon[0], latLon[1]));
-                } else if (fd.valueType == FieldDef.FieldValueType.DATE_TIME) {
-                    //TODO: should we add a separate point field?
-                    logger.warning("add point field not supported for DATE_TIME type");
                 } else {
                     throw new AssertionError(String.format("fd.usePoints=true, invalid Type specified: %s", fd.valueType));
                 }
