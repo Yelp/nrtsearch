@@ -28,7 +28,11 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
-
+/**
+ * Builds a range query for INT, LONG, FLOAT, DOUBLE and DATE_TIME types. Point based queries are always created, and
+ * if docvalues are available for the field a docvalue query is also created and both point and docvalue queries are
+ * wrapped in an {@link IndexOrDocValuesQuery} so that Lucene runs whichever query is more efficient.
+ */
 public class RangeQueryBuilder {
     private static final long MIN_DATE_TIME = 0;
 
