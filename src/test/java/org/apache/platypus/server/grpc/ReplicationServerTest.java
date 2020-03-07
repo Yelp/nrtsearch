@@ -198,8 +198,6 @@ public class ReplicationServerTest {
                 .addAllRetrieveFields(RETRIEVED_VALUES)
                 .build());
 
-        searchResponseSecondary.getResponse();
-
         validateSearchResults(searchResponsePrimary);
         validateSearchResults(searchResponseSecondary);
 
