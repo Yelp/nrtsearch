@@ -24,21 +24,57 @@ import com.google.gson.JsonObject;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSelector;
+import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.search.TimeLimitingCollector;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.grouping.AllGroupsCollector;
 import org.apache.lucene.search.grouping.FirstPassGroupingCollector;
 import org.apache.lucene.search.grouping.TopGroups;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.QueryBuilder;
-import org.apache.platypus.server.grpc.*;
+import org.apache.platypus.server.grpc.Point;
+import org.apache.platypus.server.grpc.QuerySortField;
+import org.apache.platypus.server.grpc.QueryType;
+import org.apache.platypus.server.grpc.SearchRequest;
+import org.apache.platypus.server.grpc.SearchResponse;
 import org.apache.platypus.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import org.apache.platypus.server.grpc.SearchResponse.Hit.FieldValue;
 import org.apache.platypus.server.grpc.SearchResponse.SearchState;
+import org.apache.platypus.server.grpc.Selector;
+import org.apache.platypus.server.grpc.SortType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +83,18 @@ import java.text.BreakIterator;
 import java.text.ParseException;
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -536,7 +583,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                                 state.release(current);
                                 cond.await();
                                 current = state.acquire();
-                                logger.info("SearchHandler: await released,  current version " + ((DirectoryReader) current.searcher.getIndexReader()).getVersion() + " required minimum version "+ version);
+                                logger.info("SearchHandler: await released,  current version " + ((DirectoryReader) current.searcher.getIndexReader()).getVersion() + " required minimum version " + version);
                                 assert ((DirectoryReader) current.searcher.getIndexReader()).getVersion() >= version;
                             }
                             s = current;
@@ -572,7 +619,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             }
             state.waitForGeneration(gen);
             if (diagnostics != null) {
-                diagnostics.setNrtWaitTimeMs((System.nanoTime() - t0)/1000000);
+                diagnostics.setNrtWaitTimeMs((System.nanoTime() - t0) / 1000000);
             }
             s = state.acquire();
             state.slm.record(s.searcher);
@@ -771,6 +818,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
     /**
      * Fills in the returned fields (some hilited) for one hit:
+     *
      * @return
      */
     private Map<String, CompositeFieldValue> fillFields(IndexState state, Object highlighter, IndexSearcher s,
@@ -789,7 +837,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             Map<String, Object> doc = new HashMap<>();
             boolean docIdAdvanced = false;
             for (String name : fields) {
-                var compositeFieldValue = CompositeFieldValue.newBuilder();
+                CompositeFieldValue.Builder compositeFieldValue = CompositeFieldValue.newBuilder();
                 FieldDef fd = dynamicFields.get(name);
 
                 // We detect invalid field above:
@@ -827,7 +875,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                     });
                     DoubleValues doubleValues = fd.valueSource.getValues(leaf, null);
                     compositeFieldValue.addFieldValue(FieldValue.newBuilder()
-                                    .setDoubleValue(doubleValues.doubleValue()));
+                            .setDoubleValue(doubleValues.doubleValue()));
                 } else if (fd.fieldType != null && fd.fieldType.docValuesType() != DocValuesType.NONE) {
                     List<LeafReaderContext> leaves = s.getIndexReader().leaves();
                     //get the current leaf/segment that this doc is in
@@ -842,9 +890,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             advance = sortedNumericDocValues.advanceExact(docID);
                             if (advance) {
                                 for (int i = 0; i < sortedNumericDocValues.docValueCount(); i++) {
-                                    long val = sortedNumericDocValues.nextValue();
-                                    compositeFieldValue.addFieldValue(FieldValue.newBuilder()
-                                            .setLongValue(val));
+                                    Long val = sortedNumericDocValues.nextValue();
+                                    setCompositeFieldValue(compositeFieldValue, fd.valueType, val, true);
                                 }
                             }
                             break;
@@ -854,8 +901,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             docID = hit.doc - leaf.docBase;
                             advance = numericDocValues.advanceExact(docID);
                             if (advance) {
-                                long val = numericDocValues.longValue();
-                                compositeFieldValue.addFieldValue(FieldValue.newBuilder().setLongValue(val));
+                                Long val = numericDocValues.longValue();
+                                setCompositeFieldValue(compositeFieldValue, fd.valueType, val, false);
                             }
                             break;
                         case SORTED_SET:
@@ -960,6 +1007,34 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         }
 
         return fieldValueMap;
+    }
+
+    private void setCompositeFieldValue(CompositeFieldValue.Builder compositeFieldValue, FieldDef.FieldValueType fieldValueType, Long val, boolean isSortedNumeric) {
+        if (fieldValueType.equals(FieldDef.FieldValueType.DOUBLE)) {
+            double value;
+            if (isSortedNumeric) {
+                value = NumericUtils.sortableLongToDouble(val);
+            } else {
+                value = Double.longBitsToDouble(val);
+            }
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setDoubleValue(value));
+        } else if (fieldValueType.equals(FieldDef.FieldValueType.FLOAT)) {
+            float value;
+            if (isSortedNumeric) {
+                value = NumericUtils.sortableIntToFloat(val.intValue());
+            } else {
+                value = Float.intBitsToFloat(val.intValue());
+            }
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setFloatValue(value));
+        } else if (fieldValueType.equals(FieldDef.FieldValueType.BOOLEAN)) {
+            boolean value = val.intValue() == 1 ? true : false;
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setBooleanValue(value));
+        } else if (fieldValueType.equals(FieldDef.FieldValueType.INT)) {
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setIntValue(val.intValue()));
+        } else { //LONG
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setLongValue(val));
+        }
+
     }
 
     private static FieldValue convertType(FieldDef fd, Object o) {

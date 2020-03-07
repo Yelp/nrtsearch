@@ -48,6 +48,45 @@
       "sort": true
     },
     {
+      "name": "double_field_multi",
+      "type": "DOUBLE",
+      "storeDocValues": true,
+      "multiValued": true,
+      "sort": true
+    },
+    {
+      "name": "double_field",
+      "type": "DOUBLE",
+      "storeDocValues": true,
+      "sort": true
+    },
+    {
+      "name": "float_field_multi",
+      "type": "FLOAT",
+      "storeDocValues": true,
+      "multiValued": true,
+      "sort": true
+    },
+    {
+      "name": "float_field",
+      "type": "FLOAT",
+      "storeDocValues": true,
+      "sort": true
+    },
+    {
+      "name": "boolean_field_multi",
+      "type": "BOOLEAN",
+      "storeDocValues": true,
+      "multiValued": true,
+      "sort": true
+    },
+    {
+      "name": "boolean_field",
+      "type": "BOOLEAN",
+      "storeDocValues": true,
+      "sort": true
+    },
+    {
       "name": "description",
       "type": "TEXT",
       "search": true,

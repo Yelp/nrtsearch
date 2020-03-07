@@ -365,7 +365,10 @@ public class LuceneServer {
 
                 private void finishIndexingJob() throws IOException {
                     for (String indexName : globalState.getIndexNames()) {
-                        globalState.getIndex(indexName).getShard(0).maybeRefreshBlocking();
+                        ShardState shard = globalState.getIndex(indexName).getShard(0);
+                        if (shard.isStarted()) {
+                            shard.maybeRefreshBlocking();
+                        }
                     }
                 }
             };
