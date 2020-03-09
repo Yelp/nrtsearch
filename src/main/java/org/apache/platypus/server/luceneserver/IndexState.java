@@ -1110,7 +1110,7 @@ public class IndexState implements Closeable, Restorable {
         List<String> result = new ArrayList<String>();
         for (FieldDef fd : fields.values()) {
             // TODO: should we default to include numeric fields too...?
-            if (fd.fieldType != null && fd.fieldType.indexOptions() != IndexOptions.NONE && fd.searchAnalyzer != null) {
+            if (fd.fieldType != null && fd.fieldType.indexOptions() != IndexOptions.NONE && fd.searchAnalyzer != null && !fd.valueType.equals(FieldDef.FieldValueType.BOOLEAN)) {
                 result.add(fd.name);
             }
         }
