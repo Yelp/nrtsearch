@@ -34,7 +34,7 @@ import static org.junit.Assert.fail;
 @RunWith(JUnit4.class)
 public class LuceneServerTest {
     public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom",
-            "count", "double_field_multi", "double_field", "float_field_multi", "float_field", "boolean_field_multi", "boolean_field",
+            "count", "long_field", "double_field_multi", "double_field", "float_field_multi", "float_field", "boolean_field_multi", "boolean_field",
              "description", "date");
     /**
      * This rule manages automatic graceful shutdown for the registered servers and channels at the
@@ -280,12 +280,14 @@ public class LuceneServerTest {
         long expectedDate = 0;
 
         int expectedCount = 0;
+        long expectedLongField = 0;
 
         if (docId.equals("1")) {
             expectedLicenseNo = Arrays.asList("300", "3100");
             expectedVendorName = Arrays.asList("first vendor", "first again");
             expectedVendorNameAtom = Arrays.asList("first atom vendor", "first atom again");
             expectedCount = 3;
+            expectedLongField = 12;
             expectedDoubleFieldMulti = Arrays.asList("1.1", "1.11");
             expectedDoubleField = Arrays.asList("1.01");
             expectedFloatFieldMulti = Arrays.asList("100.1", "100.11");
@@ -297,6 +299,7 @@ public class LuceneServerTest {
             expectedVendorName = Arrays.asList("second vendor", "second again");
             expectedVendorNameAtom = Arrays.asList("second atom vendor", "second atom again");
             expectedCount = 7;
+            expectedLongField = 16;
             expectedDoubleFieldMulti = Arrays.asList("2.2", "2.22");
             expectedDoubleField = Arrays.asList("2.01");
             expectedFloatFieldMulti = Arrays.asList("200.2", "200.22");
@@ -311,6 +314,7 @@ public class LuceneServerTest {
         checkPerFieldValues(expectedVendorName, getStringFieldValuesList(fields.get("vendor_name").getFieldValueList()));
         checkPerFieldValues(expectedVendorNameAtom, getStringFieldValuesList(fields.get("vendor_name_atom").getFieldValueList()));
         assertEquals(expectedCount, fields.get("count").getFieldValueList().get(0).getIntValue());
+        assertEquals(expectedLongField, fields.get("long_field").getFieldValueList().get(0).getLongValue());
         checkPerFieldValues(expectedDoubleFieldMulti, getDoubleFieldValuesListAsString(fields.get("double_field_multi").getFieldValueList()));
         checkPerFieldValues(expectedDoubleField, getDoubleFieldValuesListAsString(fields.get("double_field").getFieldValueList()));
         checkPerFieldValues(expectedFloatFieldMulti, getFloatFieldValuesListAsString(fields.get("float_field_multi").getFieldValueList()));

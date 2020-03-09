@@ -49,6 +49,13 @@
       "sort": true
     },
     {
+      "name": "long_field",
+      "type": "LONG",
+      "search": true,
+      "storeDocValues": true,
+      "sort": true
+    },
+    {
       "name": "double_field_multi",
       "type": "DOUBLE",
       "storeDocValues": true,

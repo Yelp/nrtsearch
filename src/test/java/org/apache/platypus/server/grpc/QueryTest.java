@@ -398,21 +398,21 @@ public class QueryTest {
                 .build();
 
         RangeQuery longQuery = RangeQuery.newBuilder()
-                .setField("more_count")
+                .setField("long_field")
                 .setLower("15")
                 .setUpper("19")
                 .build();
 
         RangeQuery floatQuery = RangeQuery.newBuilder()
-                .setField("score")
-                .setLower("27.3")
-                .setUpper("27.4")
+                .setField("float_field")
+                .setLower("200.01")
+                .setUpper("200.03")
                 .build();
 
         RangeQuery doubleQuery = RangeQuery.newBuilder()
-                .setField("double_score")
-                .setLower("49.501")
-                .setUpper("49.51")
+                .setField("double_field")
+                .setLower("2.001")
+                .setUpper("2.012")
                 .build();
 
         RangeQuery dateQuery = RangeQuery.newBuilder()

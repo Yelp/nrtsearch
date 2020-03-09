@@ -81,20 +81,14 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.text.ParseException;
-import java.text.ParsePosition;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
-import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -1027,7 +1021,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             }
             compositeFieldValue.addFieldValue(FieldValue.newBuilder().setFloatValue(value));
         } else if (fieldValueType.equals(FieldDef.FieldValueType.BOOLEAN)) {
-            boolean value = (int)val == 1;
+            boolean value = val == 1;
             compositeFieldValue.addFieldValue(FieldValue.newBuilder().setBooleanValue(value));
         } else if (fieldValueType.equals(FieldDef.FieldValueType.INT)) {
             compositeFieldValue.addFieldValue(FieldValue.newBuilder().setIntValue((int)val));
