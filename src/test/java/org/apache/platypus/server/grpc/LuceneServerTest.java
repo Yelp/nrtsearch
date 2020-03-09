@@ -16,15 +16,23 @@ import org.junit.runners.JUnit4;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @RunWith(JUnit4.class)
 public class LuceneServerTest {
-    public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom", "count", "description");
+    public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom",
+            "count", "double_field_multi", "double_field", "float_field_multi", "float_field", "boolean_field_multi", "boolean_field",
+             "description");
     /**
      * This rule manages automatic graceful shutdown for the registered servers and channels at the
      * end of test.
@@ -261,6 +269,13 @@ public class LuceneServerTest {
         List<String> expectedVendorName = null;
         List<String> expectedVendorNameAtom = null;
         List<String> expectedDescription = null;
+        List<String> expectedDoubleFieldMulti = null;
+        List<String> expectedDoubleField = null;
+        List<String> expectedFloatFieldMulti = null;
+        List<String> expectedFloatField = null;
+        List<String> expectedBooleanFieldMulti = Arrays.asList("true", "false");
+        List<String> expectedBooleanField = Arrays.asList("false");
+
         int expectedCount = 0;
 
         if (docId.equals("1")) {
@@ -268,21 +283,35 @@ public class LuceneServerTest {
             expectedVendorName = Arrays.asList("first vendor", "first again");
             expectedVendorNameAtom = Arrays.asList("first atom vendor", "first atom again");
             expectedCount = 3;
+            expectedDoubleFieldMulti = Arrays.asList("1.1", "1.11");
+            expectedDoubleField = Arrays.asList("1.01");
+            expectedFloatFieldMulti = Arrays.asList("100.1", "100.11");
+            expectedFloatField = Arrays.asList("100.01");
             expectedDescription = Collections.singletonList("FIRST food");
         } else if (docId.equals("2")) {
             expectedLicenseNo = Arrays.asList("411", "4222");
             expectedVendorName = Arrays.asList("second vendor", "second again");
             expectedVendorNameAtom = Arrays.asList("second atom vendor", "second atom again");
             expectedCount = 7;
+            expectedDoubleFieldMulti = Arrays.asList("2.2", "2.22");
+            expectedDoubleField = Arrays.asList("2.01");
+            expectedFloatFieldMulti = Arrays.asList("200.2", "200.22");
+            expectedFloatField = Arrays.asList("200.02");
             expectedDescription = Collections.singletonList("SECOND gas");
         } else {
             fail(String.format("docId %s not indexed", docId));
         }
 
-        checkPerFieldValues(expectedLicenseNo, getLongFieldValuesListAsString(fields.get("license_no").getFieldValueList()));
+        checkPerFieldValues(expectedLicenseNo, getIntFieldValuesListAsString(fields.get("license_no").getFieldValueList()));
         checkPerFieldValues(expectedVendorName, getStringFieldValuesList(fields.get("vendor_name").getFieldValueList()));
         checkPerFieldValues(expectedVendorNameAtom, getStringFieldValuesList(fields.get("vendor_name_atom").getFieldValueList()));
-        assertEquals(expectedCount, fields.get("count").getFieldValueList().get(0).getLongValue());
+        assertEquals(expectedCount, fields.get("count").getFieldValueList().get(0).getIntValue());
+        checkPerFieldValues(expectedDoubleFieldMulti, getDoubleFieldValuesListAsString(fields.get("double_field_multi").getFieldValueList()));
+        checkPerFieldValues(expectedDoubleField, getDoubleFieldValuesListAsString(fields.get("double_field").getFieldValueList()));
+        checkPerFieldValues(expectedFloatFieldMulti, getFloatFieldValuesListAsString(fields.get("float_field_multi").getFieldValueList()));
+        checkPerFieldValues(expectedFloatField, getFloatFieldValuesListAsString(fields.get("float_field").getFieldValueList()));
+        checkPerFieldValues(expectedBooleanFieldMulti, getBooleanFieldValuesListAsString(fields.get("boolean_field_multi").getFieldValueList()));
+        checkPerFieldValues(expectedBooleanField, getBooleanFieldValuesListAsString(fields.get("boolean_field").getFieldValueList()));
         checkPerFieldValues(expectedDescription, getStringFieldValuesList(fields.get("description").getFieldValueList()));
     }
 
@@ -299,9 +328,27 @@ public class LuceneServerTest {
         assertEquals(expectedValues, actualValues);
     }
 
-    private static List<String> getLongFieldValuesListAsString(List<SearchResponse.Hit.FieldValue> fieldValues) {
+    private static List<String> getIntFieldValuesListAsString(List<SearchResponse.Hit.FieldValue> fieldValues) {
         return fieldValues.stream()
-                .map(fieldValue -> String.valueOf(fieldValue.getLongValue()))
+                .map(fieldValue -> String.valueOf(fieldValue.getIntValue()))
+                .collect(Collectors.toList());
+    }
+
+    private static List<String> getDoubleFieldValuesListAsString(List<SearchResponse.Hit.FieldValue> fieldValues) {
+        return fieldValues.stream()
+                .map(fieldValue -> String.valueOf(fieldValue.getDoubleValue()))
+                .collect(Collectors.toList());
+    }
+
+    private static List<String> getFloatFieldValuesListAsString(List<SearchResponse.Hit.FieldValue> fieldValues) {
+        return fieldValues.stream()
+                .map(fieldValue -> String.valueOf(fieldValue.getFloatValue()))
+                .collect(Collectors.toList());
+    }
+
+    private static List<String> getBooleanFieldValuesListAsString(List<SearchResponse.Hit.FieldValue> fieldValues) {
+        return fieldValues.stream()
+                .map(fieldValue -> String.valueOf(fieldValue.getBooleanValue()))
                 .collect(Collectors.toList());
     }
 
