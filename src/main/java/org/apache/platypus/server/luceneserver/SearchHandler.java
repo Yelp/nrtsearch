@@ -890,7 +890,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             advance = sortedNumericDocValues.advanceExact(docID);
                             if (advance) {
                                 for (int i = 0; i < sortedNumericDocValues.docValueCount(); i++) {
-                                    Long val = sortedNumericDocValues.nextValue();
+                                    long val = sortedNumericDocValues.nextValue();
                                     setCompositeFieldValue(compositeFieldValue, fd.valueType, val, true);
                                 }
                             }
@@ -901,7 +901,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                             docID = hit.doc - leaf.docBase;
                             advance = numericDocValues.advanceExact(docID);
                             if (advance) {
-                                Long val = numericDocValues.longValue();
+                                long val = numericDocValues.longValue();
                                 setCompositeFieldValue(compositeFieldValue, fd.valueType, val, false);
                             }
                             break;
@@ -1009,7 +1009,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         return fieldValueMap;
     }
 
-    private void setCompositeFieldValue(CompositeFieldValue.Builder compositeFieldValue, FieldDef.FieldValueType fieldValueType, Long val, boolean isSortedNumeric) {
+    private void setCompositeFieldValue(CompositeFieldValue.Builder compositeFieldValue, FieldDef.FieldValueType fieldValueType, long val, boolean isSortedNumeric) {
         if (fieldValueType.equals(FieldDef.FieldValueType.DOUBLE)) {
             double value;
             if (isSortedNumeric) {
@@ -1021,16 +1021,16 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         } else if (fieldValueType.equals(FieldDef.FieldValueType.FLOAT)) {
             float value;
             if (isSortedNumeric) {
-                value = NumericUtils.sortableIntToFloat(val.intValue());
+                value = NumericUtils.sortableIntToFloat((int)val);
             } else {
-                value = Float.intBitsToFloat(val.intValue());
+                value = Float.intBitsToFloat((int)val);
             }
             compositeFieldValue.addFieldValue(FieldValue.newBuilder().setFloatValue(value));
         } else if (fieldValueType.equals(FieldDef.FieldValueType.BOOLEAN)) {
-            boolean value = val.intValue() == 1 ? true : false;
+            boolean value = (int)val == 1;
             compositeFieldValue.addFieldValue(FieldValue.newBuilder().setBooleanValue(value));
         } else if (fieldValueType.equals(FieldDef.FieldValueType.INT)) {
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setIntValue(val.intValue()));
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setIntValue((int)val));
         } else { //LONG
             compositeFieldValue.addFieldValue(FieldValue.newBuilder().setLongValue(val));
         }
