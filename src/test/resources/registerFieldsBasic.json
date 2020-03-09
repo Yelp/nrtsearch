@@ -65,6 +65,7 @@
     {
       "name": "double_field",
       "type": "DOUBLE",
+      "search": true,
       "storeDocValues": true,
       "sort": true
     },
@@ -78,6 +79,7 @@
     {
       "name": "float_field",
       "type": "FLOAT",
+      "search": true,
       "storeDocValues": true,
       "sort": true
     },
@@ -91,6 +93,7 @@
     {
       "name": "boolean_field",
       "type": "BOOLEAN",
+      "search": true,
       "storeDocValues": true,
       "sort": true
     },
