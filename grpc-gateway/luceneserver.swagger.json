@@ -845,6 +845,12 @@
           "additionalProperties": {
             "$ref": "#/definitions/HitCompositeFieldValue"
           }
+        },
+        "sortedFields": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/HitCompositeFieldValue"
+          }
         }
       }
     },
@@ -2104,9 +2110,6 @@
         },
         "searchState": {
           "$ref": "#/definitions/SearchResponseSearchState"
-        },
-        "response": {
-          "type": "string"
         }
       }
     },

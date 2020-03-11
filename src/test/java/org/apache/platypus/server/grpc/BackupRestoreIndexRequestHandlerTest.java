@@ -151,7 +151,6 @@ public class BackupRestoreIndexRequestHandlerTest {
                 .addAllRetrieveFields(RETRIEVED_VALUES)
                 .build());
 
-        String response = searchResponse.getResponse();
         assertEquals(2, searchResponse.getTotalHits());
         assertEquals(2, searchResponse.getHitsList().size());
         SearchResponse.Hit firstHit = searchResponse.getHits(0);

@@ -19,8 +19,6 @@
 
 package org.apache.platypus.server.luceneserver;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -295,10 +293,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
             long searchStartTime = System.nanoTime();
 
-            // Holds the search result JSON object:
-            JsonObject result = new JsonObject();
-
-            //TOOD: If "facets" create DrillSideways(ds) and do ds.search(ddq, c2)
+            //TODO: If "facets" create DrillSideways(ds) and do ds.search(ddq, c2)
             //else if not facets...
             {
                 try {
@@ -354,23 +349,19 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             //TODO: deal with fillFields for group!=null and useBlockJoin
             {
                 searchResponse.setTotalHits(hits.totalHits.value);
-                JsonArray o2 = new JsonArray();
-                result.add("hits", o2);
                 for (int hitIndex = 0; hitIndex < hits.scoreDocs.length; hitIndex++) {
                     ScoreDoc hit = hits.scoreDocs[hitIndex];
                     var hitResponse = SearchResponse.Hit.newBuilder();
-                    JsonObject o3 = new JsonObject();
-                    o2.add(o3);
                     hitResponse.setLuceneDocId(hit.doc);
                     if (!Float.isNaN(hit.score)) {
                         hitResponse.setScore(hit.score);
                     }
 
                     if (fields != null || highlightFields != null) {
-                        JsonObject o4 = new JsonObject();
-                        o3.add("fields", o4);
-                        Map<String, CompositeFieldValue> fieldValueMap = fillFields(indexState, null, s.searcher, o4, hit, fields, highlights, hitIndex, sort, sortFieldNames, dynamicFields);
+                        var fieldValueMap = fillFields(indexState, null, s.searcher, hit, fields, highlights, hitIndex, dynamicFields);
+                        var sortedFields = getSortedFieldsForHit(hit, sort, sortFieldNames);
                         hitResponse.putAllFields(fieldValueMap);
+                        hitResponse.putAllSortedFields(sortedFields);
                     }
                     searchResponse.addHits(hitResponse);
                 }
@@ -400,9 +391,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
             searchResponse.setDiagnostics(diagnostics);
             searchResponse.setSearchState(searchState);
-            resultString = result.toString();
-            searchResponse.setResponse(resultString);
-
         } catch (IOException | InterruptedException e) {
             logger.warn(e.getMessage(), e);
             throw new SearchHandlerException(e);
@@ -816,10 +804,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
      * @return
      */
     private Map<String, CompositeFieldValue> fillFields(IndexState state, Object highlighter, IndexSearcher s,
-                                                        JsonObject result, ScoreDoc hit, Set<String> fields,
+                                                        ScoreDoc hit, Set<String> fields,
                                                         Map<String, Object[]> highlights,
-                                                        int hiliteHitIndex, Sort sort,
-                                                        List<String> sortFieldNames,
+                                                        int hiliteHitIndex,
                                                         Map<String, FieldDef> dynamicFields) throws IOException {
         Map<String, CompositeFieldValue> fieldValueMap = new HashMap<>();
         if (fields != null) {
@@ -973,34 +960,49 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 Object v = ent.getValue()[hiliteHitIndex];
                 if (v != null) {
                     //FIXME: not sure this is serializable to string?
-                    result.addProperty(ent.getKey(), v.toString());
+                    CompositeFieldValue value = CompositeFieldValue.newBuilder()
+                            .addFieldValue(FieldValue.newBuilder()
+                                    .setTextValue(v.toString())
+                                    .build())
+                            .build();
+                    fieldValueMap.put(ent.getKey(), value);
                 }
             }
         }
 
+        return fieldValueMap;
+    }
+
+    private Map<String, CompositeFieldValue> getSortedFieldsForHit(ScoreDoc hit, Sort sort, List<String> sortFieldNames) {
+        var sortedFields = new HashMap<String, CompositeFieldValue>();
         if (hit instanceof FieldDoc) {
             FieldDoc fd = (FieldDoc) hit;
             if (fd.fields != null) {
-                JsonObject o4 = new JsonObject();
-                result.add("sortFields", o4);
                 SortField[] sortFields = sort.getSort();
+
                 for (int i = 0; i < sortFields.length; i++) {
                     // We must use a separate list because an expr's
                     // SortField doesn't know the virtual field name
                     // (it returns the expression string from
                     // .getField):
                     String fieldName = sortFieldNames.get(i);
+                    String value;
+
                     if (fd.fields[i] instanceof BytesRef) {
-                        o4.addProperty(fieldName, ((BytesRef) fd.fields[i]).utf8ToString());
+                        value = ((BytesRef) fd.fields[i]).utf8ToString();
                     } else {
                         //FIXME: not sure this is serializable to string?
-                        o4.addProperty(fieldName, fd.fields[i].toString());
+                        value = fd.fields[i].toString();
                     }
+                    var compositeFieldValue = CompositeFieldValue.newBuilder()
+                            .addFieldValue(FieldValue.newBuilder().setTextValue(value))
+                            .build();
+                    sortedFields.put(fieldName, compositeFieldValue);
                 }
             }
         }
 
-        return fieldValueMap;
+        return sortedFields;
     }
 
     private void setCompositeFieldValue(CompositeFieldValue.Builder compositeFieldValue, FieldDef.FieldValueType fieldValueType, long val, boolean isSortedNumeric) {

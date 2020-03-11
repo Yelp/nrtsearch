@@ -250,7 +250,8 @@ message SearchResponse {
 
         int32 luceneDocId = 1;
         double score = 2;
-        map<string, CompositeFieldValue> fields = 3;
+        map<string, CompositeFieldValue> fields = 3; // Field name to value
+        map<string, CompositeFieldValue> sortedFields = 4; // Sorted field name to value
     }
 
     message SearchState {
@@ -266,5 +267,4 @@ message SearchResponse {
     int64 totalHits = 3;
     repeated Hit hits = 4;
     SearchState searchState = 5;
-    string response = 10; //search response; TODO: remove this completely (highlight and sort fields)
 }
