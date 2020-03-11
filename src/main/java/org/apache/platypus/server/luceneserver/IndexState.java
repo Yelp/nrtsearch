@@ -129,7 +129,7 @@ public class IndexState implements Closeable, Restorable {
     /**
      * Creates directories
      */
-    public DirectoryFactory df = DirectoryFactory.get("FSDirectory");
+    public DirectoryFactory df = DirectoryFactory.get("MMapDirectory");
 
     public final Path rootDir;
 

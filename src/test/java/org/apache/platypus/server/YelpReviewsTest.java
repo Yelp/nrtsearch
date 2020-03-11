@@ -467,7 +467,7 @@ public class YelpReviewsTest {
 
     private static void ensureServersUp(LuceneServerClient serverClient) throws InterruptedException {
         int retry = 0;
-        final int RETRY_LIMIT = 5;
+        final int RETRY_LIMIT = 10;
         while (retry < RETRY_LIMIT) {
             try {
                 HealthCheckResponse health = serverClient.getBlockingStub().status(HealthCheckRequest.newBuilder().build());
