@@ -11,6 +11,29 @@
     "application/json"
   ],
   "paths": {
+    "/status/metrics": {
+      "get": {
+        "summary": "metrics",
+        "operationId": "metrics",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverMetricsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/add_documents": {
       "post": {
         "summary": "Adds a stream of Documents",
@@ -1655,6 +1678,37 @@
       },
       "description": "A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined using term queries in boolean clauses."
     },
+    "luceneserverMetricFamilySamples": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/luceneserverSampleType"
+        },
+        "help": {
+          "type": "string"
+        },
+        "samples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverSample"
+          }
+        }
+      }
+    },
+    "luceneserverMetricsResponse": {
+      "type": "object",
+      "properties": {
+        "metricFamilySample": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverMetricFamilySamples"
+          }
+        }
+      }
+    },
     "luceneserverMode": {
       "type": "string",
       "enum": [
@@ -1931,6 +1985,45 @@
           "type": "string"
         }
       }
+    },
+    "luceneserverSample": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "labelValues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labelNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "value": {
+          "type": "number",
+          "format": "double"
+        },
+        "timestampMs": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "luceneserverSampleType": {
+      "type": "string",
+      "enum": [
+        "COUNTER",
+        "GAUGE",
+        "SUMMARY",
+        "HISTOGRAM",
+        "UNTYPED"
+      ],
+      "default": "COUNTER"
     },
     "luceneserverSearchRequest": {
       "type": "object",

@@ -1,6 +1,7 @@
 package org.apache.platypus.server.grpc;
 
 import io.grpc.testing.GrpcCleanupRule;
+import io.prometheus.client.CollectorRegistry;
 import org.apache.platypus.server.LuceneServerTestConfigurationFactory;
 import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.grpc.SearchResponse.Hit.CompositeFieldValue;
@@ -14,11 +15,11 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.time.LocalDateTime;
@@ -49,6 +50,7 @@ public class LuceneServerTest {
     public final TemporaryFolder folder = new TemporaryFolder();
 
     private GrpcServer grpcServer;
+    private CollectorRegistry collectorRegistry;
 
     @After
     public void tearDown() throws IOException {
@@ -63,14 +65,15 @@ public class LuceneServerTest {
 
     @Before
     public void setUp() throws IOException {
-        grpcServer = setUpGrpcServer(null);
+        collectorRegistry = new CollectorRegistry();
+        grpcServer = setUpGrpcServer(collectorRegistry);
     }
 
-    private GrpcServer setUpGrpcServer(Path rootDir) throws IOException {
+    private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
         String testIndex = "test_index";
         LuceneServerConfiguration luceneServerConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
         GlobalState globalState = new GlobalState(luceneServerConfiguration);
-        return new GrpcServer(grpcCleanup, folder, false, globalState, luceneServerConfiguration.getIndexDir(), testIndex, globalState.getPort());
+        return new GrpcServer(collectorRegistry, grpcCleanup, folder, false, globalState, luceneServerConfiguration.getIndexDir(), testIndex, globalState.getPort(), null);
     }
 
     @Test
@@ -259,6 +262,22 @@ public class LuceneServerTest {
         checkHits(firstHit);
         SearchResponse.Hit secondHit = searchResponse.getHits(1);
         checkHits(secondHit);
+    }
+
+    @Test
+    public void testMetrics() {
+        MetricsResponse response = grpcServer.getBlockingStub().metrics(MetricsRequest.newBuilder().build());
+        HashSet expectedSampleNames = new HashSet(Arrays.asList("grpc_server_started_total", "grpc_server_handled_total", "grpc_server_msg_received_total",
+                "grpc_server_msg_sent_total", "grpc_server_handled_latency_seconds"));
+        HashSet<String> actualSampleNames = new HashSet(response.getMetricFamilySampleList().stream().map(sample -> sample.getName()).collect(Collectors.toList()));
+        assertEquals(true, actualSampleNames.containsAll(expectedSampleNames));
+        for (MetricFamilySamples sample : response.getMetricFamilySampleList()) {
+            if (sample.getName().equals("grpc_server_handled_latency_seconds")) {
+                for (Sample each : sample.getSamplesList()) {
+                    assertEquals("metrics", each.getLabelValues(2));
+                }
+            }
+        }
     }
 
     public static void checkHits(SearchResponse.Hit hit) {

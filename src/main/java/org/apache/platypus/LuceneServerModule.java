@@ -34,6 +34,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
+import io.prometheus.client.CollectorRegistry;
 import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.utils.Archiver;
 import org.apache.platypus.server.utils.ArchiverImpl;
@@ -60,6 +61,13 @@ public class LuceneServerModule extends AbstractModule {
     @Provides
     public Tar providesTar() {
         return new TarImpl(Tar.CompressionMode.LZ4);
+    }
+
+    @Inject
+    @Singleton
+    @Provides
+    public CollectorRegistry providesCollectorRegistry() {
+        return new CollectorRegistry();
     }
 
     @Inject
