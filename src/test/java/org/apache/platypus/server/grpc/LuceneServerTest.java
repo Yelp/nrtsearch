@@ -21,6 +21,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
@@ -31,8 +34,8 @@ import static org.junit.Assert.fail;
 @RunWith(JUnit4.class)
 public class LuceneServerTest {
     public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom",
-            "count", "double_field_multi", "double_field", "float_field_multi", "float_field", "boolean_field_multi", "boolean_field",
-             "description");
+            "count", "long_field", "double_field_multi", "double_field", "float_field_multi", "float_field", "boolean_field_multi", "boolean_field",
+             "description", "date");
     /**
      * This rule manages automatic graceful shutdown for the registered servers and channels at the
      * end of test.
@@ -260,8 +263,7 @@ public class LuceneServerTest {
 
     public static void checkHits(SearchResponse.Hit hit) {
         Map<String, CompositeFieldValue> fields = hit.getFieldsMap();
-        List<String> expectedRetrieveFields = RETRIEVED_VALUES;
-        checkFieldNames(expectedRetrieveFields, fields);
+        checkFieldNames(RETRIEVED_VALUES, fields);
 
         String docId = fields.get("doc_id").getFieldValue(0).getTextValue();
 
@@ -275,29 +277,35 @@ public class LuceneServerTest {
         List<String> expectedFloatField = null;
         List<String> expectedBooleanFieldMulti = Arrays.asList("true", "false");
         List<String> expectedBooleanField = Arrays.asList("false");
+        long expectedDate = 0;
 
         int expectedCount = 0;
+        long expectedLongField = 0;
 
         if (docId.equals("1")) {
             expectedLicenseNo = Arrays.asList("300", "3100");
             expectedVendorName = Arrays.asList("first vendor", "first again");
             expectedVendorNameAtom = Arrays.asList("first atom vendor", "first atom again");
             expectedCount = 3;
+            expectedLongField = 12;
             expectedDoubleFieldMulti = Arrays.asList("1.1", "1.11");
             expectedDoubleField = Arrays.asList("1.01");
             expectedFloatFieldMulti = Arrays.asList("100.1", "100.11");
             expectedFloatField = Arrays.asList("100.01");
             expectedDescription = Collections.singletonList("FIRST food");
+            expectedDate = getStringDateTimeAsListOfStringMillis("2019-10-12 15:30:41");
         } else if (docId.equals("2")) {
             expectedLicenseNo = Arrays.asList("411", "4222");
             expectedVendorName = Arrays.asList("second vendor", "second again");
             expectedVendorNameAtom = Arrays.asList("second atom vendor", "second atom again");
             expectedCount = 7;
+            expectedLongField = 16;
             expectedDoubleFieldMulti = Arrays.asList("2.2", "2.22");
             expectedDoubleField = Arrays.asList("2.01");
             expectedFloatFieldMulti = Arrays.asList("200.2", "200.22");
             expectedFloatField = Arrays.asList("200.02");
             expectedDescription = Collections.singletonList("SECOND gas");
+            expectedDate = getStringDateTimeAsListOfStringMillis("2020-03-05 01:03:05");
         } else {
             fail(String.format("docId %s not indexed", docId));
         }
@@ -306,6 +314,7 @@ public class LuceneServerTest {
         checkPerFieldValues(expectedVendorName, getStringFieldValuesList(fields.get("vendor_name").getFieldValueList()));
         checkPerFieldValues(expectedVendorNameAtom, getStringFieldValuesList(fields.get("vendor_name_atom").getFieldValueList()));
         assertEquals(expectedCount, fields.get("count").getFieldValueList().get(0).getIntValue());
+        assertEquals(expectedLongField, fields.get("long_field").getFieldValueList().get(0).getLongValue());
         checkPerFieldValues(expectedDoubleFieldMulti, getDoubleFieldValuesListAsString(fields.get("double_field_multi").getFieldValueList()));
         checkPerFieldValues(expectedDoubleField, getDoubleFieldValuesListAsString(fields.get("double_field").getFieldValueList()));
         checkPerFieldValues(expectedFloatFieldMulti, getFloatFieldValuesListAsString(fields.get("float_field_multi").getFieldValueList()));
@@ -313,6 +322,7 @@ public class LuceneServerTest {
         checkPerFieldValues(expectedBooleanFieldMulti, getBooleanFieldValuesListAsString(fields.get("boolean_field_multi").getFieldValueList()));
         checkPerFieldValues(expectedBooleanField, getBooleanFieldValuesListAsString(fields.get("boolean_field").getFieldValueList()));
         checkPerFieldValues(expectedDescription, getStringFieldValuesList(fields.get("description").getFieldValueList()));
+        assertEquals(expectedDate, fields.get("date").getFieldValueList().get(0).getLongValue());
     }
 
     public static void checkFieldNames(List<String> expectedNames, Map<String, CompositeFieldValue> actualNames) {
@@ -356,6 +366,11 @@ public class LuceneServerTest {
         return fieldValues.stream()
                 .map(SearchResponse.Hit.FieldValue::getTextValue)
                 .collect(Collectors.toList());
+    }
+
+    private static long getStringDateTimeAsListOfStringMillis(String dateTime) {
+        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        return LocalDateTime.parse(dateTime, dateTimeFormatter).toInstant(ZoneOffset.UTC).toEpochMilli();
     }
 
 }

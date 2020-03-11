@@ -398,7 +398,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
         if (PostingsFormat.forName(pf) == null) {
             throw new RegisterFieldsException("unrecognized postingsFormat \"" + pf + "\"");
         }
-        String dvf = currentField.getPostingsFormat().isEmpty() ? ServerCodec.DEFAULT_DOC_VALUES_FORMAT : currentField.getDocValuesFormat();
+        String dvf = currentField.getDocValuesFormat().isEmpty() ? ServerCodec.DEFAULT_DOC_VALUES_FORMAT : currentField.getDocValuesFormat();
         if (DocValuesFormat.forName(dvf) == null) {
             throw new RegisterFieldsException("unrecognized docValuesFormat \"" + dvf + "\"");
         }

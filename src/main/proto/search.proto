@@ -109,6 +109,13 @@ message MultiMatchQuery {
     float tieBreakerMultiplier = 8; // The score of each non-maximum match query disjunct for a document will be multiplied by this weight and added into the final score.
 }
 
+// A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types.
+message RangeQuery {
+    string field = 1; // Field in the document to query
+    string lower = 2; // Lower bound, inclusive
+    string upper = 3; // Upper bound, inclusive
+}
+
 // Defines different types of QueryNodes.
 enum QueryType {
     NONE = 0;
@@ -121,6 +128,7 @@ enum QueryType {
     MATCH = 7;
     MATCH_PHRASE = 8;
     MULTI_MATCH = 9;
+    RANGE = 10;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -138,6 +146,7 @@ message Query {
         MatchQuery matchQuery = 9;
         MatchPhraseQuery matchPhraseQuery = 10;
         MultiMatchQuery multiMatchQuery = 11;
+        RangeQuery rangeQuery = 12;
     }
 }
 
@@ -225,10 +234,10 @@ message SearchResponse {
     message Hit {
         message FieldValue {
             oneof FieldValues {
-                string textValue = 1; // Value for ATOM, TEXT and DATE_TIME FieldType
+                string textValue = 1; // Value for ATOM and TEXT  FieldType
                 bool booleanValue = 2; // Value for BOOLEAN FieldType
                 int32 intValue = 3; // Value for INT FieldType
-                int64 longValue = 4; // Value for LONG FieldType
+                int64 longValue = 4; // Value for LONG and DATE_TIME (as milliseconds since epoch in UTC zone) FieldType
                 float floatValue = 5; // Value for FLOAT FieldType
                 double doubleValue = 6; // Value for DOUBLE FieldType
                 google.type.LatLng latLngValue = 7; // Value for LAT_LON FieldType

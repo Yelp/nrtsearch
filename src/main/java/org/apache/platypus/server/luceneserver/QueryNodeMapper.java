@@ -22,21 +22,20 @@ import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
-import org.apache.platypus.server.grpc.MatchOperator;
-import org.apache.platypus.server.grpc.MatchPhraseQuery;
-import org.apache.platypus.server.grpc.MatchQuery;
-import org.apache.platypus.server.grpc.MultiMatchQuery;
-import org.apache.platypus.server.grpc.QueryType;
+import org.apache.platypus.server.grpc.*;
 
 import java.text.ParseException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.apache.platypus.server.luceneserver.AnalyzerCreator.getAnalyzer;
@@ -53,6 +52,7 @@ class QueryNodeMapper {
             MatchOperator.SHOULD, BooleanClause.Occur.SHOULD,
             MatchOperator.MUST, BooleanClause.Occur.MUST
     ));
+    private final RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder();
 
     Query getQuery(org.apache.platypus.server.grpc.Query query, IndexState state) {
         QueryType queryType = query.getQueryType();
@@ -79,6 +79,7 @@ class QueryNodeMapper {
             case MATCH: return getMatchQuery(query.getMatchQuery(), state);
             case MATCH_PHRASE: return getMatchPhraseQuery(query.getMatchPhraseQuery(), state);
             case MULTI_MATCH: return getMultiMatchQuery(query.getMultiMatchQuery(), state);
+            case RANGE: return getRangeQuery(query.getRangeQuery(), state);
             default: throw new UnsupportedOperationException("Unsupported query type received: " + queryType);
         }
     }
@@ -209,6 +210,10 @@ class QueryNodeMapper {
                 })
                 .collect(Collectors.toList());
         return new DisjunctionMaxQuery(matchQueries, 0);
+    }
+
+    private Query getRangeQuery(RangeQuery rangeQuery, IndexState state) {
+        return rangeQueryBuilder.buildRangeQuery(rangeQuery, state);
     }
 
     private Map<org.apache.platypus.server.grpc.BooleanClause.Occur, BooleanClause.Occur> initializeOccurMapping() {
