@@ -202,7 +202,12 @@ service LuceneServer {
       post: "/v1/backup_index"
       body: "*"
     };
-
+    }
+    /* metrics  */
+    rpc metrics (MetricsRequest) returns (MetricsResponse) {
+        option (google.api.http) = {
+      get: "/status/metrics"
+    };
     }
 
 }
@@ -653,6 +658,36 @@ message BackupIndexRequest {
 message BackupIndexResponse {
     string dataVersionHash = 1; //version identifier for data on s3
     string metadataVersionHash = 2; //version identifier for metadata on s3
+}
+
+message MetricsRequest {
+}
+
+message MetricsResponse {
+    repeated MetricFamilySamples metricFamilySample = 1;
+}
+
+message MetricFamilySamples {
+    string name = 1;
+    SampleType type = 2;
+    string help = 3;
+    repeated Sample samples = 4;
+}
+
+message Sample {
+    string name = 1;
+    repeated string labelValues = 2;
+    repeated string labelNames = 3;
+    double value = 4;
+    int64 timestampMs = 5;
+}
+
+enum SampleType {
+    COUNTER = 0;
+    GAUGE = 1;
+    SUMMARY = 2;
+    HISTOGRAM = 3;
+    UNTYPED = 4;
 }
 
 message RestoreIndex {

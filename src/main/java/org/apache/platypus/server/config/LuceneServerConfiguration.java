@@ -23,6 +23,7 @@ import com.google.inject.Inject;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 
 public class LuceneServerConfiguration {
     public final static Path DEFAULT_USER_DIR = Paths.get(System.getProperty("user.home"), "lucene", "server");
@@ -35,6 +36,8 @@ public class LuceneServerConfiguration {
     private static final int DEFAULT_PORT = 50051;
     private static final int DEFAULT_REPLICATION_PORT = 50052;
     private static final String DEFAULT_NODE_NAME = "main";
+    //buckets represent number of requests completed in "less than" seconds
+    private static final double[] DEFAULT_METRICS_BUCKETS = new double[]{.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10};
 
     private int port = DEFAULT_PORT;
     private int replicationPort = DEFAULT_REPLICATION_PORT;
@@ -45,7 +48,7 @@ public class LuceneServerConfiguration {
     private String archiveDirectory = DEFAULT_ARCHIVER_DIR.toString();
     private String botoCfgPath = DEFAULT_BOTO_CFG_PATH.toString();
     private String bucketName = DEFAULT_BUCKET_NAME;
-
+    private double[] metricsBuckets = DEFAULT_METRICS_BUCKETS;
 
     @Inject
     public LuceneServerConfiguration() {
@@ -124,6 +127,10 @@ public class LuceneServerConfiguration {
         this.archiveDirectory = archiveDirectory;
     }
 
+    public double[] getMetricsBuckets() {
+        return metricsBuckets;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
@@ -136,12 +143,14 @@ public class LuceneServerConfiguration {
         sb.append(", archiveDirectory='").append(archiveDirectory).append('\'');
         sb.append(", botoCfgPath='").append(botoCfgPath).append('\'');
         sb.append(", bucketName='").append(bucketName).append('\'');
+        sb.append(", metricsBuckets=").append(Arrays.toString(metricsBuckets));
         sb.append('}');
         return sb.toString();
     }
 
 
     public static class Builder {
+        private final double[] metricsBuckets;
         private String hostName;
         private int replicationPort;
         private int port;
@@ -163,6 +172,7 @@ public class LuceneServerConfiguration {
             this.archiveDirectory = DEFAULT_ARCHIVER_DIR.toString();
             this.botoCfgPath = DEFAULT_BOTO_CFG_PATH.toString();
             this.bucketName = DEFAULT_BUCKET_NAME;
+            this.metricsBuckets = DEFAULT_METRICS_BUCKETS;
         }
 
         public Builder withStateDir(String tempStateDir) {
@@ -222,6 +232,7 @@ public class LuceneServerConfiguration {
             luceneServerConfiguration.archiveDirectory = this.archiveDirectory;
             luceneServerConfiguration.botoCfgPath = this.botoCfgPath;
             luceneServerConfiguration.bucketName = this.bucketName;
+            luceneServerConfiguration.metricsBuckets = this.metricsBuckets;
             return luceneServerConfiguration;
         }
 

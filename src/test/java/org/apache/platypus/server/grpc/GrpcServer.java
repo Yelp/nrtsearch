@@ -6,9 +6,13 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
+import io.prometheus.client.CollectorRegistry;
+import me.dinowernli.grpc.prometheus.Configuration;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.platypus.server.luceneserver.GlobalState;
@@ -43,7 +47,8 @@ public class GrpcServer {
     private Server replicationServer;
     private ManagedChannel replicationServerManagedChannel;
 
-    public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
+
+    public GrpcServer(CollectorRegistry collectorRegistry, GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
                       boolean isReplication, GlobalState globalState,
                       String indexDir, String index, int port, Archiver archiver) throws IOException {
         this.grpcCleanup = grpcCleanup;
@@ -51,7 +56,14 @@ public class GrpcServer {
         this.globalState = globalState;
         this.indexDir = indexDir;
         this.testIndex = index;
-        invoke(isReplication, port, archiver);
+        invoke(collectorRegistry, isReplication, port, archiver);
+    }
+
+
+    public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
+                      boolean isReplication, GlobalState globalState,
+                      String indexDir, String index, int port, Archiver archiver) throws IOException {
+        this(null, grpcCleanup, temporaryFolder, isReplication, globalState, indexDir, index, port, archiver);
     }
 
     public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
@@ -107,15 +119,28 @@ public class GrpcServer {
      * To test the server, make calls with a real stub using the in-process channel, and verify
      * behaviors or state changes from the client side.
      */
-    private void invoke(boolean isReplication, int port, Archiver archiver) throws IOException {
+    private void invoke(CollectorRegistry collectorRegistry, boolean isReplication, int port, Archiver archiver) throws IOException {
         // Generate a unique in-process server name.
         String serverName = InProcessServerBuilder.generateName();
         if (!isReplication) {
-            // Create a server, add service, start, and register for automatic graceful shutdown.
-            Server server = ServerBuilder.forPort(port)
-                    .addService(new LuceneServer.LuceneServerImpl(globalState, archiver))
-                    .build()
-                    .start();
+            Server server;
+            if (collectorRegistry == null) {
+                // Create a server, add service, start, and register for automatic graceful shutdown.
+                server = ServerBuilder.forPort(port)
+                        .addService(new LuceneServer.LuceneServerImpl(globalState, archiver, collectorRegistry).bindService())
+                        .build()
+                        .start();
+            } else {
+                MonitoringServerInterceptor monitoringInterceptor =
+                        MonitoringServerInterceptor.create(Configuration
+                                .allMetrics()
+                                .withCollectorRegistry(collectorRegistry));
+                // Create a server, add service, start, and register for automatic graceful shutdown.
+                server = ServerBuilder.forPort(port)
+                        .addService(ServerInterceptors.intercept(new LuceneServer.LuceneServerImpl(globalState, archiver, collectorRegistry), monitoringInterceptor))
+                        .build()
+                        .start();
+            }
             grpcCleanup.register(server);
 
             // Create a client channel and register for automatic graceful shutdown.
@@ -295,7 +320,7 @@ public class GrpcServer {
                 startIndexBuilder.setPrimaryAddress("localhost");
                 startIndexBuilder.setPort(9001); //primary port for replication server
             }
-            if(startOldIndex) {
+            if (startOldIndex) {
                 startIndexBuilder.setRestore(restoreIndex);
             }
             blockingStub.startIndex(startIndexBuilder.build());

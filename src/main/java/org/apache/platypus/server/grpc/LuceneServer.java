@@ -25,8 +25,12 @@ import com.google.inject.Injector;
 import com.google.protobuf.ByteString;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import io.prometheus.client.CollectorRegistry;
+import me.dinowernli.grpc.prometheus.Configuration;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -35,6 +39,7 @@ import org.apache.lucene.search.SearcherLifetimeManager;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.platypus.LuceneServerModule;
+import org.apache.platypus.server.MetricsRequestHandler;
 import org.apache.platypus.server.config.LuceneServerConfiguration;
 import org.apache.platypus.server.luceneserver.*;
 import org.apache.platypus.server.utils.Archiver;
@@ -58,23 +63,30 @@ import java.util.stream.Collectors;
 public class LuceneServer {
     private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
     private final Archiver archiver;
+    private final CollectorRegistry collectorRegistry;
 
     private Server server;
     private Server replicationServer;
     private LuceneServerConfiguration luceneServerConfiguration;
 
     @Inject
-    public LuceneServer(LuceneServerConfiguration luceneServerConfiguration, Archiver archiver) {
+    public LuceneServer(LuceneServerConfiguration luceneServerConfiguration, Archiver archiver, CollectorRegistry collectorRegistry) {
         this.luceneServerConfiguration = luceneServerConfiguration;
         this.archiver = archiver;
+        this.collectorRegistry = collectorRegistry;
     }
 
     private void start() throws IOException {
         GlobalState globalState = new GlobalState(luceneServerConfiguration);
 
+        MonitoringServerInterceptor monitoringInterceptor =
+                MonitoringServerInterceptor.create(Configuration
+                        .allMetrics()
+                        .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
+                        .withCollectorRegistry(collectorRegistry));
         /* The port on which the server should run */
         server = ServerBuilder.forPort(luceneServerConfiguration.getPort())
-                .addService(new LuceneServerImpl(globalState, archiver))
+                .addService(ServerInterceptors.intercept(new LuceneServerImpl(globalState, archiver, collectorRegistry), monitoringInterceptor))
                 .build()
                 .start();
         logger.info("Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
@@ -133,10 +145,12 @@ public class LuceneServer {
     static class LuceneServerImpl extends LuceneServerGrpc.LuceneServerImplBase {
         private final GlobalState globalState;
         private final Archiver archiver;
+        private final CollectorRegistry collectorRegistry;
 
-        LuceneServerImpl(GlobalState globalState, Archiver archiver) {
+        LuceneServerImpl(GlobalState globalState, Archiver archiver, CollectorRegistry collectorRegistry) {
             this.globalState = globalState;
             this.archiver = archiver;
+            this.collectorRegistry = collectorRegistry;
         }
 
         @Override
@@ -739,6 +753,24 @@ public class LuceneServer {
                         .asRuntimeException());
             }
         }
+
+        @Override
+        public void metrics(MetricsRequest request, StreamObserver<MetricsResponse> responseObserver) {
+            try {
+                MetricsResponse reply = new MetricsRequestHandler(collectorRegistry).process();
+                logger.info("MetricsResponse returned " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn("error while trying to get metrics", e);
+                responseObserver.onError(Status
+                        .INVALID_ARGUMENT
+                        .withDescription("error while trying to get metrics")
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
     }
 
     static class ReplicationServerImpl extends ReplicationServerGrpc.ReplicationServerImplBase {
