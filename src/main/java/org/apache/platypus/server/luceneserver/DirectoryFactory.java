@@ -18,7 +18,13 @@
  */
 
 package org.apache.platypus.server.luceneserver;
-import org.apache.lucene.store.*;
+
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.store.SimpleFSDirectory;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -61,7 +67,9 @@ public abstract class DirectoryFactory {
             return new DirectoryFactory() {
                 @Override
                 public Directory open(Path path) throws IOException {
-                    return new MMapDirectory(path);
+                    MMapDirectory mMapDirectory = new MMapDirectory(path);
+                    mMapDirectory.setPreload(true);
+                    return mMapDirectory;
                 }
             };
         } else if (dirImpl.equals("NIOFSDirectory")) {
