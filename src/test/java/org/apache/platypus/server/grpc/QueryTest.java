@@ -187,12 +187,27 @@ public class QueryTest {
 
     @Test
     public void testSearchTermQuery() {
-        Query query = Query.newBuilder()
-                .setQueryType(QueryType.TERM_QUERY)
-                .setTermQuery(TermQuery.newBuilder()
-                        .setField("vendor_name")
-                        .setTerm("second"))
+        TermQuery textQuery = TermQuery.newBuilder()
+                .setField("vendor_name")
+                .setTextValue("second")
                 .build();
+        TermQuery intQuery = TermQuery.newBuilder()
+                .setField("count")
+                .setIntValue(7)
+                .build();
+        TermQuery longQuery = TermQuery.newBuilder()
+                .setField("long_field")
+                .setLongValue(16)
+                .build();
+        TermQuery floatQuery = TermQuery.newBuilder()
+                .setField("float_field")
+                .setFloatValue(200.02f)
+                .build();
+        TermQuery doubleQuery = TermQuery.newBuilder()
+                .setField("double_field")
+                .setDoubleValue(2.01)
+                .build();
+
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
             assertEquals(1, searchResponse.getTotalHits());
@@ -203,17 +218,41 @@ public class QueryTest {
             checkHits(hit);
         };
 
-        testQuery(query, responseTester);
+        for (TermQuery termQuery : new TermQuery[] {textQuery, intQuery, longQuery, floatQuery, doubleQuery}) {
+            Query query = Query.newBuilder()
+                    .setQueryType(QueryType.TERM_QUERY)
+                    .setTermQuery(termQuery)
+                    .build();
+            testQuery(query, responseTester);
+        }
     }
 
     @Test
     public void testSearchTermInSetQuery() {
-        Query query = Query.newBuilder()
-                .setQueryType(QueryType.TERM_IN_SET_QUERY)
-                .setTermInSetQuery(TermInSetQuery.newBuilder()
-                        .setField("vendor_name")
-                        .addTerms("second")
-                        .addTerms("first"))
+        TermInSetQuery textQuery = TermInSetQuery.newBuilder()
+                .setField("vendor_name")
+                .setTextTerms(TermInSetQuery.TextTerms.newBuilder()
+                        .addAllTerms(List.of("first", "second")))
+                .build();
+        TermInSetQuery intQuery = TermInSetQuery.newBuilder()
+                .setField("count")
+                .setIntTerms(TermInSetQuery.IntTerms.newBuilder()
+                        .addAllTerms(List.of(3, 7)))
+                .build();
+        TermInSetQuery longQuery = TermInSetQuery.newBuilder()
+                .setField("long_field")
+                .setLongTerms(TermInSetQuery.LongTerms.newBuilder()
+                        .addAllTerms(List.of(12L, 16L)))
+                .build();
+        TermInSetQuery floatQuery = TermInSetQuery.newBuilder()
+                .setField("float_field")
+                .setFloatTerms(TermInSetQuery.FloatTerms.newBuilder()
+                        .addAllTerms(List.of(100.01f, 200.02f)))
+                .build();
+        TermInSetQuery doubleQuery = TermInSetQuery.newBuilder()
+                .setField("double_field")
+                .setDoubleTerms(TermInSetQuery.DoubleTerms.newBuilder()
+                        .addAllTerms(List.of(1.01, 2.01)))
                 .build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
@@ -225,7 +264,13 @@ public class QueryTest {
             checkHits(secondHit);
         };
 
-        testQuery(query, responseTester);
+        for (TermInSetQuery termInSetQuery : new TermInSetQuery[] {textQuery, intQuery, longQuery, floatQuery, doubleQuery}) {
+            Query query = Query.newBuilder()
+                    .setQueryType(QueryType.TERM_IN_SET_QUERY)
+                    .setTermInSetQuery(termInSetQuery)
+                    .build();
+            testQuery(query, responseTester);
+        }
     }
 
     @Test
@@ -237,7 +282,7 @@ public class QueryTest {
                                 .setQueryType(QueryType.TERM_QUERY)
                                 .setTermQuery(TermQuery.newBuilder()
                                         .setField("vendor_name")
-                                        .setTerm("second")))
+                                        .setTextValue("second")))
                         .addDisjuncts(Query.newBuilder()
                                 .setQueryType(QueryType.FUNCTION_SCORE_QUERY)
                                 .setFunctionScoreQuery(FunctionScoreQuery.newBuilder()
@@ -246,7 +291,7 @@ public class QueryTest {
                                                 .setQueryType(QueryType.TERM_QUERY)
                                                 .setTermQuery(TermQuery.newBuilder()
                                                         .setField("vendor_name")
-                                                        .setTerm("second")))))
+                                                        .setTextValue("second")))))
                         .setTieBreakerMultiplier(0))
                 .build();
 
