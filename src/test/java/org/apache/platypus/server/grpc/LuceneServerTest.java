@@ -158,7 +158,7 @@ public class LuceneServerTest {
                 .setQueryType(QueryType.TERM_QUERY)
                 .setTermQuery(TermQuery.newBuilder()
                         .setField("new_text_field")
-                        .setTerm("updated"))
+                        .setTextValue("updated"))
                 .build();
 
         SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
