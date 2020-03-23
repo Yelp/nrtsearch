@@ -62,14 +62,56 @@ message FunctionScoreQuery {
 
 // A query that matches documents containing a term.
 message TermQuery {
-    string field = 1; // Field in the document to query.
-    string term = 2; // Term to search for.
+    // Field in the document to query.
+    string field = 1;
+
+    oneof TermTypes {
+        // TEXT FieldType term to search for.
+        string textValue = 2;
+        // INT FieldType term to search for.
+        int32 intValue = 3;
+        // LONG FieldType term to search for.
+        int64 longValue = 4;
+        // FLOAT FieldType term to search for.
+        float floatValue = 5;
+        // DOUBLE FieldType term to search for.
+        double doubleValue = 6;
+    }
 }
 
-// Specialization for a disjunction over many terms that behaves like a ConstantScoreQuery over a BooleanQuery containing only BooleanClause.Occur.SHOULD clauses.
+// Specialization for a disjunction over many terms that behaves like a ConstantScoreQuery over a BooleanQuery containing only BooleanClause.Occur.SHOULD clauses. Only ONE of the types of terms needs to be provided - the one that matches the type of the field.
 message TermInSetQuery {
-    string field = 1; // Field in the document to query.
-    repeated string terms = 2; // Terms to search for.
+    // Field in the document to query.
+    string field = 1;
+
+    message TextTerms {
+        repeated string terms = 1;
+    }
+    message IntTerms {
+        repeated int32 terms = 1;
+    }
+    message LongTerms {
+        repeated int64 terms = 1;
+    }
+    message FloatTerms {
+        repeated float terms = 1;
+    }
+    message DoubleTerms {
+        repeated double terms = 1;
+    }
+
+    oneof TermTypes {
+        // Text terms to search for.
+        TextTerms textTerms = 2;
+        // Int terms to search for.
+        IntTerms intTerms = 3;
+        // Long terms to search for.
+        LongTerms longTerms = 4;
+        // Float terms to search for.
+        FloatTerms floatTerms = 5;
+        // Double terms to search for.
+        DoubleTerms doubleTerms = 6;
+    }
 }
 
 // A query that generates the union of documents produced by its subqueries, and that scores each document with the

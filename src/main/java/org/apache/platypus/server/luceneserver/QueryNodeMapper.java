@@ -18,6 +18,10 @@
 package org.apache.platypus.server.luceneserver;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.index.Term;
@@ -73,8 +77,8 @@ class QueryNodeMapper {
             case BOOLEAN_QUERY: return getBooleanQuery(query.getBooleanQuery(), state);
             case PHRASE_QUERY: return getPhraseQuery(query.getPhraseQuery());
             case FUNCTION_SCORE_QUERY: return getFunctionScoreQuery(query.getFunctionScoreQuery(), state);
-            case TERM_QUERY: return getTermQuery(query.getTermQuery());
-            case TERM_IN_SET_QUERY: return getTermInSetQuery(query.getTermInSetQuery());
+            case TERM_QUERY: return getTermQuery(query.getTermQuery(), state);
+            case TERM_IN_SET_QUERY: return getTermInSetQuery(query.getTermInSetQuery(), state);
             case DISJUNCTION_MAX: return getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), state);
             case MATCH: return getMatchQuery(query.getMatchQuery(), state);
             case MATCH_PHRASE: return getMatchPhraseQuery(query.getMatchPhraseQuery(), state);
@@ -119,16 +123,41 @@ class QueryNodeMapper {
         return new FunctionScoreQuery(getQuery(functionScoreQuery.getQuery(), state), expr.getDoubleValuesSource(state.exprBindings));
     }
 
-    private TermQuery getTermQuery(org.apache.platypus.server.grpc.TermQuery termQuery) {
-        return new TermQuery(new Term(termQuery.getField(), termQuery.getTerm()));
+    private Query getTermQuery(org.apache.platypus.server.grpc.TermQuery termQuery, IndexState state) {
+        String fieldName = termQuery.getField();
+        FieldDef.FieldValueType fieldValueType = state.getField(fieldName).valueType;
+
+        switch (fieldValueType) {
+            case TEXT: return new TermQuery(new Term(fieldName, termQuery.getTextValue()));
+            case INT: return IntPoint.newExactQuery(fieldName, termQuery.getIntValue());
+            case LONG: return LongPoint.newExactQuery(fieldName, termQuery.getLongValue());
+            case FLOAT: return FloatPoint.newExactQuery(fieldName, termQuery.getFloatValue());
+            case DOUBLE: return DoublePoint.newExactQuery(fieldName, termQuery.getDoubleValue());
+        }
+
+        String message = "Unable to create TermQuery: %s, field type: %s is not supported for TermQuery";
+        throw new IllegalArgumentException(String.format(message, termQuery, fieldValueType));
     }
 
-    private TermInSetQuery getTermInSetQuery(org.apache.platypus.server.grpc.TermInSetQuery termInSetQuery) {
-        List<BytesRef> terms = termInSetQuery.getTermsList()
-                .stream()
-                .map(BytesRef::new)
-                .collect(Collectors.toList());
-        return new TermInSetQuery(termInSetQuery.getField(), terms);
+    private Query getTermInSetQuery(org.apache.platypus.server.grpc.TermInSetQuery termInSetQuery, IndexState state) {
+        String fieldName = termInSetQuery.getField();
+        FieldDef.FieldValueType fieldValueType = state.getField(fieldName).valueType;
+
+        switch (fieldValueType) {
+            case TEXT:
+                List<BytesRef> textTerms = termInSetQuery.getTextTerms().getTermsList()
+                        .stream()
+                        .map(BytesRef::new)
+                        .collect(Collectors.toList());
+                return new TermInSetQuery(termInSetQuery.getField(), textTerms);
+            case INT: return IntPoint.newSetQuery(fieldName, termInSetQuery.getIntTerms().getTermsList());
+            case LONG: return LongPoint.newSetQuery(fieldName, termInSetQuery.getLongTerms().getTermsList());
+            case FLOAT: return FloatPoint.newSetQuery(fieldName, termInSetQuery.getFloatTerms().getTermsList());
+            case DOUBLE: return DoublePoint.newSetQuery(fieldName, termInSetQuery.getDoubleTerms().getTermsList());
+        }
+
+        String message = "Unable to create TermInSetQuery: %s, field type: %s is not supported for TermInSetQuery";
+        throw new IllegalArgumentException(String.format(message, termInSetQuery, fieldValueType));
     }
 
     private DisjunctionMaxQuery getDisjunctionMaxQuery(org.apache.platypus.server.grpc.DisjunctionMaxQuery disjunctionMaxQuery,
