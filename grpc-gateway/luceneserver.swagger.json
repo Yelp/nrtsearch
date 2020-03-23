@@ -727,6 +727,39 @@
           "LuceneServer"
         ]
       }
+    },
+    "/v1/update_fields": {
+      "post": {
+        "summary": "Adds one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).\nPass a list of Fields and an indexName. Any number of fields may be registered in a single request,\nand once a field is registered it cannot be changed (write-once).\nThis returns the full set of fields currently registered.",
+        "operationId": "updateFields",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverFieldDefResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverFieldDefRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
     }
   },
   "definitions": {
