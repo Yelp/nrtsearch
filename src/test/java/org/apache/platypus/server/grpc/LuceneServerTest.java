@@ -1,5 +1,6 @@
 package org.apache.platypus.server.grpc;
 
+import com.google.protobuf.Descriptors;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
 import org.apache.platypus.server.LuceneServerTestConfigurationFactory;
@@ -16,15 +17,15 @@ import org.junit.runners.JUnit4;
 
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.stream.Collectors;
 
 import static org.apache.platypus.server.grpc.GrpcServer.rmDir;
@@ -36,7 +37,7 @@ import static org.junit.Assert.fail;
 public class LuceneServerTest {
     public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom",
             "count", "long_field", "double_field_multi", "double_field", "float_field_multi", "float_field", "boolean_field_multi", "boolean_field",
-             "description", "date");
+            "description", "date");
     /**
      * This rule manages automatic graceful shutdown for the registered servers and channels at the
      * end of test.
@@ -106,6 +107,85 @@ public class LuceneServerTest {
         assertTrue(reply.getResponse().contains("vendor_name"));
         assertTrue(reply.getResponse().contains("vendor_name_atom"));
         assertTrue(reply.getResponse().contains("license_no"));
+    }
+
+    @Test
+    public void testUpdateFieldsBasic() throws Exception {
+        FieldDefResponse reply = new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(Mode.STANDALONE);
+        assertTrue(reply.getResponse().contains("vendor_name"));
+        assertTrue(reply.getResponse().contains("vendor_name_atom"));
+        assertTrue(reply.getResponse().contains("license_no"));
+        reply = grpcServer.getBlockingStub().updateFields(FieldDefRequest.newBuilder()
+                .setIndexName("test_index")
+                .addField(Field.newBuilder()
+                        .setName("new_text_field")
+                        .setType(FieldType.TEXT)
+                        .setStoreDocValues(true)
+                        .setSearch(true)
+                        .setMultiValued(true)
+                        .setTokenize(true)
+                        .build())
+                .build());
+        assertTrue(reply.getResponse().contains("new_text_field"));
+    }
+
+    @Test
+    public void testSearchPostUpdate() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //2 docs addDocuments
+        testAddDocs.addDocuments();
+
+        //update schema: add a new field
+        grpcServer.getBlockingStub().updateFields(FieldDefRequest.newBuilder()
+                .setIndexName("test_index")
+                .addField(Field.newBuilder()
+                        .setName("new_text_field")
+                        .setType(FieldType.TEXT)
+                        .setStoreDocValues(true)
+                        .setSearch(true)
+                        .setMultiValued(true)
+                        .setTokenize(true)
+                        .build())
+                .build());
+
+        //2 docs addDocuments
+        AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocsUpdated.csv");
+        assertEquals(false, testAddDocs.error);
+        assertEquals(true, testAddDocs.completed);
+        List<String> RETRIEVE = Arrays.asList("doc_id", "new_text_field");
+
+        Query query = Query.newBuilder()
+                .setQueryType(QueryType.TERM_QUERY)
+                .setTermQuery(TermQuery.newBuilder()
+                        .setField("new_text_field")
+                        .setTerm("updated"))
+                .build();
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .setQuery(query)
+                .addAllRetrieveFields(RETRIEVE)
+                .build());
+
+        assertEquals(2, searchResponse.getTotalHits());
+        assertEquals(2, searchResponse.getHitsList().size());
+        SearchResponse.Hit firstHit = searchResponse.getHits(0);
+
+        Map<String, CompositeFieldValue> fields = firstHit.getFieldsMap();
+        String docId = fields.get("doc_id").getFieldValue(0).getTextValue();
+        String newTextField = fields.get("new_text_field").getFieldValue(0).getTextValue();
+        assertEquals("3", docId);
+        assertEquals("new updated first", newTextField);
+
+        SearchResponse.Hit secondHit = searchResponse.getHits(1);
+        fields = secondHit.getFieldsMap();
+        docId = fields.get("doc_id").getFieldValue(0).getTextValue();
+        newTextField = fields.get("new_text_field").getFieldValue(0).getTextValue();
+        assertEquals("4", docId);
+        assertEquals("new updated second", newTextField);
+
     }
 
     @Test

@@ -240,6 +240,32 @@ public class LuceneServer {
         }
 
         @Override
+        public void updateFields(FieldDefRequest fieldDefRequest, StreamObserver<FieldDefResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(fieldDefRequest.getIndexName());
+                FieldDefResponse reply = new UpdateFieldsHandler().handle(indexState, fieldDefRequest);
+                logger.info("UpdateFieldsHandler registered fields " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (IOException e) {
+                logger.warn("error while trying to read index state dir for indexName: " + fieldDefRequest.getIndexName(), e);
+                responseObserver.onError(Status
+                        .INTERNAL
+                        .withDescription("error while trying to read index state dir for indexName: " + fieldDefRequest.getIndexName())
+                        .augmentDescription("IOException()")
+                        .withCause(e)
+                        .asRuntimeException());
+            } catch (Exception e) {
+                logger.warn("error while trying to UpdateFieldsHandler for index " + fieldDefRequest.getIndexName(), e);
+                responseObserver.onError(Status
+                        .INVALID_ARGUMENT
+                        .withDescription("error while trying to UpdateFieldsHandler for index: " + fieldDefRequest.getIndexName())
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+        @Override
         public void settings(SettingsRequest settingsRequest, StreamObserver<SettingsResponse> responseObserver) {
             try {
                 IndexState indexState = globalState.getIndex(settingsRequest.getIndexName());
