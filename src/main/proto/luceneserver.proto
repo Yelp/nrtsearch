@@ -42,6 +42,19 @@ service LuceneServer {
     };
 
     }
+
+    /* Adds one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).
+  Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
+  and once a field is registered it cannot be changed (write-once).
+  This returns the full set of fields currently registered. */
+    rpc updateFields (FieldDefRequest) returns (FieldDefResponse) {
+        option (google.api.http) = {
+      post: "/v1/update_fields"
+      body: "*"
+    };
+
+    }
+
     /* Change global offline settings for this index.
     This returns the currently set settings; pass no settings changes to retrieve current settings.*/
     rpc settings (SettingsRequest) returns (SettingsResponse) {
