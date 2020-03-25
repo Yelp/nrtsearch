@@ -914,6 +914,65 @@
         }
       }
     },
+    "TermInSetQueryDoubleTerms": {
+      "type": "object",
+      "properties": {
+        "terms": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      }
+    },
+    "TermInSetQueryFloatTerms": {
+      "type": "object",
+      "properties": {
+        "terms": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      }
+    },
+    "TermInSetQueryIntTerms": {
+      "type": "object",
+      "properties": {
+        "terms": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      }
+    },
+    "TermInSetQueryLongTerms": {
+      "type": "object",
+      "properties": {
+        "terms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "int64"
+          }
+        }
+      }
+    },
+    "TermInSetQueryTextTerms": {
+      "type": "object",
+      "properties": {
+        "terms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "luceneserverAddDocumentRequest": {
       "type": "object",
       "properties": {
@@ -2511,25 +2570,62 @@
       "type": "object",
       "properties": {
         "field": {
-          "type": "string"
+          "type": "string",
+          "description": "Field in the document to query."
         },
-        "terms": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+        "textTerms": {
+          "$ref": "#/definitions/TermInSetQueryTextTerms",
+          "description": "Text terms to search for."
+        },
+        "intTerms": {
+          "$ref": "#/definitions/TermInSetQueryIntTerms",
+          "description": "Int terms to search for."
+        },
+        "longTerms": {
+          "$ref": "#/definitions/TermInSetQueryLongTerms",
+          "description": "Long terms to search for."
+        },
+        "floatTerms": {
+          "$ref": "#/definitions/TermInSetQueryFloatTerms",
+          "description": "Float terms to search for."
+        },
+        "doubleTerms": {
+          "$ref": "#/definitions/TermInSetQueryDoubleTerms",
+          "description": "Double terms to search for."
         }
       },
-      "description": "Specialization for a disjunction over many terms that behaves like a ConstantScoreQuery over a BooleanQuery containing only BooleanClause.Occur.SHOULD clauses."
+      "description": "Specialization for a disjunction over many terms that behaves like a ConstantScoreQuery over a BooleanQuery containing only BooleanClause.Occur.SHOULD clauses. Only ONE of the types of terms needs to be provided - the one that matches the type of the field."
     },
     "luceneserverTermQuery": {
       "type": "object",
       "properties": {
         "field": {
-          "type": "string"
+          "type": "string",
+          "description": "Field in the document to query."
         },
-        "term": {
-          "type": "string"
+        "textValue": {
+          "type": "string",
+          "description": "TEXT FieldType term to search for."
+        },
+        "intValue": {
+          "type": "integer",
+          "format": "int32",
+          "description": "INT FieldType term to search for."
+        },
+        "longValue": {
+          "type": "string",
+          "format": "int64",
+          "description": "LONG FieldType term to search for."
+        },
+        "floatValue": {
+          "type": "number",
+          "format": "float",
+          "description": "FLOAT FieldType term to search for."
+        },
+        "doubleValue": {
+          "type": "number",
+          "format": "double",
+          "description": "DOUBLE FieldType term to search for."
         }
       },
       "description": "A query that matches documents containing a term."
