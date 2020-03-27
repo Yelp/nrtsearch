@@ -57,3 +57,5 @@ protobuf {
         all()*.plugins { grpc {} }
     }
 }
+
+startScripts.enabled = false
