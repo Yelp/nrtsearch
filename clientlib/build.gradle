@@ -18,22 +18,23 @@ sourceCompatibility = 1.12
 targetCompatibility = 1.12
 
 def grpcVersion = '1.26.0' // CURRENT_GRPC_VERSION
-def protobufVersion = '3.9.0'
+def protobufVersion = '3.11.1'
 def protocVersion = protobufVersion
 
 dependencies {
     //grpc deps
-    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
+    compile "io.grpc:grpc-protobuf:${grpcVersion}"
     implementation "io.grpc:grpc-stub:${grpcVersion}"
     implementation "io.grpc:grpc-okhttp:${grpcVersion}"
+    implementation "javax.annotation:javax.annotation-api:1.2"
 
     // examples/advanced need this for JsonFormat
-    implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+    compile "com.google.protobuf:protobuf-java-util:${protobufVersion}"
 
     runtimeOnly "io.grpc:grpc-netty-shaded:${grpcVersion}"
 
     //test deps
-    testImplementation "io.grpc:grpc-testing:${grpcVersion}"
+    compile "io.grpc:grpc-testing:${grpcVersion}"
 }
 
 sourceSets {

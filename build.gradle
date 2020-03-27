@@ -40,7 +40,6 @@ dependencies {
     implementation "io.prometheus:simpleclient_servlet:${prometheusClientVersion}"
 
     //
-    implementation "javax.annotation:javax.annotation-api:1.2"
     implementation "org.slf4j:slf4j-api:${slf4jVersion}"
     implementation "org.slf4j:slf4j-jdk14:2.0.0-alpha1"
     implementation "com.google.code.gson:gson:${gsonVersion}"
@@ -85,8 +84,8 @@ dependencies {
 sourceSets {
     main {
         java {
-            srcDirs 'build/generated/source/proto/main/grpc'
-            srcDirs 'build/generated/source/proto/main/java'
+            srcDirs 'clientlib/build/generated/source/proto/main/grpc'
+            srcDirs 'clientlib/build/generated/source/proto/main/java'
         }
     }
 }
