@@ -5,6 +5,8 @@ plugins {
     id 'com.google.protobuf' version '0.8.8'
     // Generate IntelliJ IDEA's .idea & .iml project files
     id 'idea'
+    // Publish clientlib to maven central
+    id 'maven-publish'
 }
 
 repositories {
@@ -16,6 +18,7 @@ repositories {
 
 sourceCompatibility = 1.12
 targetCompatibility = 1.12
+startScripts.enabled = false
 
 def grpcVersion = '1.26.0' // CURRENT_GRPC_VERSION
 def protobufVersion = '3.11.1'
@@ -58,4 +61,12 @@ protobuf {
     }
 }
 
-startScripts.enabled = false
+publishing {
+    publications {
+        maven(MavenPublication) {
+            groupId = 'org.apache.platypus'
+            artifactId = 'clientlib'
+            version = '0.1'
+        }
+    }
+}
