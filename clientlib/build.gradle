@@ -67,7 +67,7 @@ test {
 publishing {
     publications {
         maven(MavenPublication) {
-            groupId = 'org.apache.platypus'
+            groupId = 'com.yelp.platypus'
             artifactId = 'clientlib'
             version = '0.1'
         }
