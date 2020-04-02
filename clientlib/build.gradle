@@ -60,9 +60,6 @@ protobuf {
         all()*.plugins { grpc {} }
     }
 }
-test {
-
-}
 
 publishing {
     publications {
