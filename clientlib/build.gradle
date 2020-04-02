@@ -64,7 +64,7 @@ protobuf {
 publishing {
     publications {
         maven(MavenPublication) {
-            groupId = 'com.yelp.platypus'
+            groupId = 'com.yelp.nrtsearch'
             artifactId = 'clientlib'
             version = '0.1'
         }
