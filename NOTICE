@@ -22,4 +22,4 @@ at:
     * HOMEPAGE:
       * https://github.com/mikemccand/luceneserver
     * LOCATION_IN_PLATYPUS:
-      * org.apache.platypus.server.luceneserver
+      * com.yelp.nrtsearch.server.luceneserver

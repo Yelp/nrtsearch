@@ -93,14 +93,14 @@ sourceSets {
 startScripts.enabled = false
 
 task luceneServer(type: CreateStartScripts) {
-    mainClassName = 'org.apache.platypus.server.grpc.LuceneServer'
+    mainClassName = 'com.yelp.nrtsearch.server.grpc.LuceneServer'
     applicationName = 'lucene-server'
     outputDir = new File(project.buildDir, 'tmp')
     classpath = startScripts.classpath
 }
 
 task luceneServerClient(type: CreateStartScripts) {
-    mainClassName = 'org.apache.platypus.server.grpc.LuceneServerClient'
+    mainClassName = 'com.yelp.nrtsearch.server.grpc.LuceneServerClient'
     applicationName = 'lucene-client'
     outputDir = new File(project.buildDir, 'tmp')
     classpath = startScripts.classpath

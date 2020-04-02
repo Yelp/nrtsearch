@@ -1,0 +1,312 @@
+/* Description of message types for search request and response */
+syntax = "proto3";
+
+import "google/type/latlng.proto";
+import "yelp/nrtsearch/analysis.proto";
+
+option java_multiple_files = true;
+option java_package = "com.yelp.nrtsearch.server.grpc";
+option java_outer_classname = "SearchResponseProto";
+option objc_class_prefix = "HLW";
+
+package luceneserver;
+
+
+// A clause in a BooleanQuery.
+message BooleanClause {
+    // Defines how clauses may occur in matching documents. This will always be SHOULD by default.
+    enum Occur {
+        SHOULD = 0;
+        MUST = 1;
+        FILTER = 2;
+        MUST_NOT = 3;
+    }
+
+    Query query = 1; // The Query for the clause.
+    Occur occur = 2; // Specifies how this clause must occur in a matching document. SHOULD by default.
+}
+
+enum MatchOperator {
+    SHOULD = 0;
+    MUST = 1;
+}
+
+message FuzzyParams {
+    int32 maxEdits = 1; // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2.
+    int32 prefixLength = 2; // Length of common (non-fuzzy) prefix
+    int32 maxExpansions = 3; // The maximum number of terms to match.
+    bool transpositions = 4; // True if transpositions should be treated as a primitive edit operation. If this is false (default), comparisons will implement the classic Levenshtein algorithm.
+}
+
+// A query that matches documents using boolean combinations of other queries.
+message BooleanQuery {
+    repeated BooleanClause clauses = 1; // Clauses for a boolean query.
+    int32 minimumNumberShouldMatch = 2; // Minimum number of optional clauses that must match.
+}
+
+// A Query that matches documents containing a particular sequence of terms.
+message PhraseQuery {
+    /* Edit distance between respective positions of terms as defined in this PhraseQuery and the positions
+       of terms in a document.
+    */
+    int32 slop = 1;
+    string field = 2; // The field in the index that this query applies to.
+    repeated string terms = 3; // Terms to match.
+}
+
+// A query that wraps another query and uses custom scoring logic to compute the wrapped query's score.
+message FunctionScoreQuery {
+    Query query = 1; // Input query
+    string function = 2; // Scoring function as Javascript expression. Syntax here: https://lucene.apache.org/core/8_2_0/expressions/org/apache/lucene/expressions/js/package-summary.html
+}
+
+// A query that matches documents containing a term.
+message TermQuery {
+    // Field in the document to query.
+    string field = 1;
+
+    oneof TermTypes {
+        // TEXT FieldType term to search for.
+        string textValue = 2;
+        // INT FieldType term to search for.
+        int32 intValue = 3;
+        // LONG FieldType term to search for.
+        int64 longValue = 4;
+        // FLOAT FieldType term to search for.
+        float floatValue = 5;
+        // DOUBLE FieldType term to search for.
+        double doubleValue = 6;
+    }
+}
+
+// Specialization for a disjunction over many terms that behaves like a ConstantScoreQuery over a BooleanQuery containing only BooleanClause.Occur.SHOULD clauses. Only ONE of the types of terms needs to be provided - the one that matches the type of the field.
+message TermInSetQuery {
+    // Field in the document to query.
+    string field = 1;
+
+    message TextTerms {
+        repeated string terms = 1;
+    }
+    message IntTerms {
+        repeated int32 terms = 1;
+    }
+    message LongTerms {
+        repeated int64 terms = 1;
+    }
+    message FloatTerms {
+        repeated float terms = 1;
+    }
+    message DoubleTerms {
+        repeated double terms = 1;
+    }
+
+    oneof TermTypes {
+        // Text terms to search for.
+        TextTerms textTerms = 2;
+        // Int terms to search for.
+        IntTerms intTerms = 3;
+        // Long terms to search for.
+        LongTerms longTerms = 4;
+        // Float terms to search for.
+        FloatTerms floatTerms = 5;
+        // Double terms to search for.
+        DoubleTerms doubleTerms = 6;
+    }
+}
+
+// A query that generates the union of documents produced by its subqueries, and that scores each document with the
+// maximum score for that document as produced by any subquery, plus a tie breaking increment for any additional matching subqueries.
+message DisjunctionMaxQuery {
+    repeated Query disjuncts = 1; // A list of all the disjuncts to add
+    float tieBreakerMultiplier = 2; // The score of each non-maximum disjunct for a document is multiplied by this weight and added into the final score.
+}
+
+// A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined using term queries in boolean clauses.
+message MatchQuery {
+    string field = 1; // Field in the document to query.
+    string query = 2; // The text to query with.
+    MatchOperator operator = 3; // Boolean logic used to interpret text in the query. The possible values are SHOULD (default) and MUST.
+    int32 minimumNumberShouldMatch = 4; // Minimum number of optional clauses that must match.
+    Analyzer analyzer = 5; // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
+    FuzzyParams fuzzyParams = 6; // Parameters to set the fuzziness of the query
+}
+
+// A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined into a PhraseQuery.
+message MatchPhraseQuery {
+    string field = 1; // Field in the document to query.
+    string query = 2; // The text to query with.
+    int32 slop = 3; // Edit distance between respective positions of tokens generated by analyzing this query and the positions of terms in a document.
+    Analyzer analyzer = 4; // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
+}
+
+// A query that creates a match query for each field provided and wraps all the match queries in a disjunction max query.
+message MultiMatchQuery {
+    repeated string fields = 1; // Fields in the document to query.
+    string query = 2; // The text to query with.
+    map<string, float> fieldBoosts = 3; // Boosts for each field, if any.
+    MatchOperator operator = 4; // Boolean logic used to interpret text in the query. The possible values are SHOULD (default) and MUST.
+    int32 minimumNumberShouldMatch = 5; // Minimum number of optional clauses that must match.
+    Analyzer analyzer = 6; // Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead.
+    FuzzyParams fuzzyParams = 7; // Parameters to set the fuzziness of the query
+    float tieBreakerMultiplier = 8; // The score of each non-maximum match query disjunct for a document will be multiplied by this weight and added into the final score.
+}
+
+// A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types.
+message RangeQuery {
+    string field = 1; // Field in the document to query
+    string lower = 2; // Lower bound, inclusive
+    string upper = 3; // Upper bound, inclusive
+}
+
+// Defines different types of QueryNodes.
+enum QueryType {
+    NONE = 0;
+    BOOLEAN_QUERY = 1;
+    PHRASE_QUERY = 2;
+    FUNCTION_SCORE_QUERY = 3;
+    TERM_QUERY = 4;
+    TERM_IN_SET_QUERY = 5;
+    DISJUNCTION_MAX = 6;
+    MATCH = 7;
+    MATCH_PHRASE = 8;
+    MULTI_MATCH = 9;
+    RANGE = 10;
+}
+
+// Defines a full query consisting of a QueryNode which may be one of several types.
+message Query {
+    QueryType queryType = 1; // Type of the QueryNode
+    float boost = 2; // Boost values that are less than one will give less importance to this query compared to other ones while values that are greater than one will give more importance to the scores returned by this query. Boost value of zero will do nothing (default). Boost less than 0 is invalid.
+
+    oneof QueryNode {
+        BooleanQuery booleanQuery = 3;
+        PhraseQuery phraseQuery = 4;
+        FunctionScoreQuery functionScoreQuery = 5;
+        TermQuery termQuery = 6;
+        TermInSetQuery termInSetQuery = 7;
+        DisjunctionMaxQuery disjunctionMaxQuery = 8;
+        MatchQuery matchQuery = 9;
+        MatchPhraseQuery matchPhraseQuery = 10;
+        MultiMatchQuery multiMatchQuery = 11;
+        RangeQuery rangeQuery = 12;
+    }
+}
+
+message SearchRequest {
+    string indexName = 1; //index to search against
+    int32 startHit = 2; // Which hit to start from (for pagination); default: 0
+    int32 topHits = 3; // How many top hits to retrieve; default: 10
+    /* Maximum number of seconds spent on each collection phase; note that for
+     * multi-pass searches (e.g. query-time grouping), this timeout applies to each phase. */
+    double timeoutSec = 4;
+    repeated string retrieveFields = 5; //Which fields to highlight or retrieve.
+    string queryText = 6; //Query text to parse using the specified QueryParser.
+    repeated VirtualField virtualFielsd = 7; //Defines virtual fields (name'd dynamic expressions) for this query.
+    Query query = 8; // Full query to execute using QueryNodes
+    QuerySortField querySort = 9; //Sort hits by field (default is by relevance).
+    oneof Searcher {
+        int64 indexGen = 10; //Search a generation previously returned by an indexing operation such as #addDocument.  Use this to search a non-committed (near-real-time) view of the index.
+        int64 version = 11; //Search a specific searcher version.  This is typically used by follow-on searches (e.g., user clicks next page, drills down, or changes sort, etc.) to get the same searcher used by the original search.
+        string snapshot = 12; //Search a snapshot previously created with #createSnapshot
+    }
+    int32 totalHitsThreshold = 13; //By default we count hits accurately up to 1000. This makes sure that we don't spend most time on computing hit counts
+
+}
+
+/* Virtual field used during search */
+message VirtualField {
+    string expression = 1; // JavaScript expression defining this field's values.
+    string name = 2; // Virtual field's name. Must be different from registered fields and any other virtual fields.
+}
+
+message QuerySortField {
+    bool doDocScores = 1; //Compute the doc score for each collected (costs added CPU); default:false
+    bool doMaxScore = 2; //Compute the max score across all hits (costs added CPU); default: false
+    SortFields fields = 3; //List of Fields to sort on.
+}
+
+
+/* Fields to sort on either during index time or search time*/
+message SortFields {
+    repeated SortType sortedFields = 1;
+}
+
+
+/* "The field to sort on. Pass <code>docid</code> for index order and <code>score</code> for relevance sort. */
+message SortType {
+    string fieldName = 1; // name of field to sort
+    Selector selector = 2; // For multi valued fields, how to select which value is used for sorting
+    Point origin = 3; // For distance sort, the point that we measure distance from
+    /* Whether missing values should sort last instead of first.
+    Note that this runs \"before\" reverse, so if you sort missing first and reverse=true then missing values will
+    be at the end.*/
+    bool missingLat = 4;
+    // Sort in reverse of the field's natural order
+    bool reverse = 5;
+}
+
+
+
+/* For multi valued fields, how to select which value is used for sorting */
+enum Selector {
+    MIN = 0; // Minimum value
+    MAX = 1; // Maximum value
+    MIDDLE_MIN = 2; // Middle value of the set; if there are an even number of values, the lower of the middle two is chosen
+    MIDDLE_MAX = 3; // Middle value of the set; if there are an even number of values, the upper of the middle two is chosen
+}
+
+/* Point representation */
+message Point {
+    double latitude = 1; // Latitude of the point
+    double longitude = 2; // Longitude of the point
+}
+
+message SearchResponse {
+    message Diagnostics {
+        string parsedQuery = 1;
+        string rewrittenQuery = 2;
+        string drillDownQuery = 3;
+        double firstPassSearchTimeMs = 4;
+        double highlightTimeMs = 5;
+        double getFieldsTimeMs = 6;
+        double newSnapshotSearcherOpenMs = 7;
+        double nrtWaitTimeMs = 8;
+    }
+
+    message Hit {
+        message FieldValue {
+            oneof FieldValues {
+                string textValue = 1; // Value for ATOM and TEXT  FieldType
+                bool booleanValue = 2; // Value for BOOLEAN FieldType
+                int32 intValue = 3; // Value for INT FieldType
+                int64 longValue = 4; // Value for LONG and DATE_TIME (as milliseconds since epoch in UTC zone) FieldType
+                float floatValue = 5; // Value for FLOAT FieldType
+                double doubleValue = 6; // Value for DOUBLE FieldType
+                google.type.LatLng latLngValue = 7; // Value for LAT_LON FieldType
+            }
+        }
+
+        message CompositeFieldValue {
+            repeated FieldValue fieldValue = 3;
+        }
+
+        int32 luceneDocId = 1;
+        double score = 2;
+        map<string, CompositeFieldValue> fields = 3; // Field name to value
+        map<string, CompositeFieldValue> sortedFields = 4; // Sorted field name to value
+    }
+
+    message SearchState {
+        int64 timestamp = 1;
+        int64 searcherVersion = 2;
+        int32 lastDocId = 3;
+        repeated string lastFieldValues = 4;
+        float lastScore = 5;
+    }
+
+    Diagnostics diagnostics = 1;
+    bool hitTimeout = 2;
+    int64 totalHits = 3;
+    repeated Hit hits = 4;
+    SearchState searchState = 5;
+}

@@ -44,3 +44,5 @@ replica_state/
 serverPrimary/
 serverSecondary/
 server1RootDirName1/
+primary_index_base/
+replica_index_base/

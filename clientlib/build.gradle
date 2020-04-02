@@ -70,3 +70,10 @@ publishing {
         }
     }
 }
+
+test {
+    // Add tests when there's java code in this module
+    // Until then, exclude everything to allow
+    // build to run
+    exclude '**/*'
+}
