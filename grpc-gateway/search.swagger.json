@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "search.proto",
+    "title": "yelp/nrtsearch/search.proto",
     "version": "version not set"
   },
   "consumes": [

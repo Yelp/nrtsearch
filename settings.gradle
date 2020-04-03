@@ -6,5 +6,5 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
-
-rootProject.name = 'platypus'
+include('clientlib')
+rootProject.name = 'nrtsearch'

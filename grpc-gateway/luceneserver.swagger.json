@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "luceneserver.proto",
+    "title": "yelp/nrtsearch/luceneserver.proto",
     "version": "version not set"
   },
   "consumes": [
@@ -14,7 +14,7 @@
     "/status/metrics": {
       "get": {
         "summary": "metrics",
-        "operationId": "metrics",
+        "operationId": "LuceneServer_metrics",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -37,7 +37,7 @@
     "/v1/add_documents": {
       "post": {
         "summary": "Adds a stream of Documents",
-        "operationId": "addDocuments",
+        "operationId": "LuceneServer_addDocuments",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -71,7 +71,7 @@
     "/v1/backup_index": {
       "post": {
         "summary": "backs up a resource (index) and it associated metadata e.g. settings, schema to s3",
-        "operationId": "backupIndex",
+        "operationId": "LuceneServer_backupIndex",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -104,7 +104,7 @@
     "/v1/commit": {
       "post": {
         "summary": "Commits all pending changes to durable storage",
-        "operationId": "commit",
+        "operationId": "LuceneServer_commit",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -137,7 +137,7 @@
     "/v1/create_index": {
       "post": {
         "summary": "Create an Index",
-        "operationId": "createIndex",
+        "operationId": "LuceneServer_createIndex",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -170,7 +170,7 @@
     "/v1/create_snapshot": {
       "post": {
         "summary": "Creates a snapshot in the index, which is saved point-in-time view of the last commit\nin the index such that no files referenced by that snapshot will be deleted by ongoing\nindexing until the snapshot is released with @releaseSnapshot.  Note that this will\nreference the last commit, so be sure to call commit first if you have pending changes\nthat you'd like to be included in the snapshot.\nThis can be used for backup purposes, i.e. after creating the snapshot you can copy\nall referenced files to backup storage, and then release the snapshot once complete.\nTo restore the backup, just copy all the files back and restart the server.\nIt can also be used for transactional purposes, i.e. if you sometimes need to search a\nspecific snapshot instead of the current live index. Creating a snapshot is very fast\n(does not require any file copying), but over time it will consume extra disk space as\nold segments are merged in the index.  Be sure to release the snapshot once you're done.\nSnapshots survive shutdown and restart of the server.  Returns all protected filenames\nreferenced by this snapshot: these files will not change and will not be deleted until\nthe snapshot is released.  This returns the directories and files referenced by the snapshot.",
-        "operationId": "createSnapshot",
+        "operationId": "LuceneServer_createSnapshot",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -203,7 +203,7 @@
     "/v1/delete": {
       "post": {
         "summary": "Delete documents",
-        "operationId": "delete",
+        "operationId": "LuceneServer_delete",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -236,7 +236,7 @@
     "/v1/delete_all": {
       "post": {
         "summary": "Delete all documents for index",
-        "operationId": "deleteAll",
+        "operationId": "LuceneServer_deleteAll",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -269,7 +269,7 @@
     "/v1/delete_index": {
       "post": {
         "summary": "Delete index",
-        "operationId": "deleteIndex",
+        "operationId": "LuceneServer_deleteIndex",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -302,7 +302,7 @@
     "/v1/live_settings": {
       "post": {
         "summary": "Change global offline or online settings for this index.",
-        "operationId": "liveSettings",
+        "operationId": "LuceneServer_liveSettings",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -335,7 +335,7 @@
     "/v1/refresh": {
       "post": {
         "summary": "Refresh the latest searcher for an index",
-        "operationId": "refresh",
+        "operationId": "LuceneServer_refresh",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -368,7 +368,7 @@
     "/v1/register_fields": {
       "post": {
         "summary": "Registers one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).\nPass a list of Fields and an indexName. Any number of fields may be registered in a single request,\nand once a field is registered it cannot be changed (write-once).\nThis returns the full set of fields currently registered.",
-        "operationId": "registerFields",
+        "operationId": "LuceneServer_registerFields",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -401,7 +401,7 @@
     "/v1/release_snapshot": {
       "post": {
         "summary": "releases a snapshot previously created with @createSnapshot.",
-        "operationId": "releaseSnapshot",
+        "operationId": "LuceneServer_releaseSnapshot",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -434,7 +434,7 @@
     "/v1/search": {
       "post": {
         "summary": "Search",
-        "operationId": "search",
+        "operationId": "LuceneServer_search",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -467,7 +467,7 @@
     "/v1/settings": {
       "post": {
         "summary": "Change global offline settings for this index.\nThis returns the currently set settings; pass no settings changes to retrieve current settings.",
-        "operationId": "settings",
+        "operationId": "LuceneServer_settings",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -500,7 +500,7 @@
     "/v1/start_index": {
       "post": {
         "summary": "Starts an index",
-        "operationId": "startIndex",
+        "operationId": "LuceneServer_startIndex",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -533,7 +533,7 @@
     "/v1/stats": {
       "post": {
         "summary": "Retrieve index statistics",
-        "operationId": "stats",
+        "operationId": "LuceneServer_stats",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -566,7 +566,7 @@
     "/v1/status": {
       "post": {
         "summary": "healthcheck",
-        "operationId": "status",
+        "operationId": "LuceneServer_status",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -599,7 +599,7 @@
     "/v1/stop_index": {
       "post": {
         "summary": "Stops an index",
-        "operationId": "stopIndex",
+        "operationId": "LuceneServer_stopIndex",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -632,7 +632,7 @@
     "/v1/suggest_build": {
       "post": {
         "summary": "Builds a new auto-suggester, loading suggestions via the provided local file path.",
-        "operationId": "buildSuggest",
+        "operationId": "LuceneServer_buildSuggest",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -665,7 +665,7 @@
     "/v1/suggest_lookup": {
       "post": {
         "summary": "Perform an auto-suggest lookup.",
-        "operationId": "suggestLookup",
+        "operationId": "LuceneServer_suggestLookup",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -698,7 +698,7 @@
     "/v1/suggest_update": {
       "post": {
         "summary": "Updates existing suggestions, if the suggester supports near-real-time changes.",
-        "operationId": "updateSuggest",
+        "operationId": "LuceneServer_updateSuggest",
         "responses": {
           "200": {
             "description": "A successful response.",
@@ -731,7 +731,7 @@
     "/v1/update_fields": {
       "post": {
         "summary": "Adds one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).\nPass a list of Fields and an indexName. Any number of fields may be registered in a single request,\nand once a field is registered it cannot be changed (write-once).\nThis returns the full set of fields currently registered.",
-        "operationId": "updateFields",
+        "operationId": "LuceneServer_updateFields",
         "responses": {
           "200": {
             "description": "A successful response.",

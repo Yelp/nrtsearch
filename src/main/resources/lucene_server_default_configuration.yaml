@@ -1,4 +1,4 @@
-!!org.apache.platypus.server.config.LuceneServerConfiguration
+!!com.yelp.nrtsearch.server.config.LuceneServerConfiguration
 nodeName: "lucene_server"
 hostName: "localhost"
 port: "6000"

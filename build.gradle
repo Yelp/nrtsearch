@@ -1,8 +1,6 @@
 plugins {
     // Provide convenience executables for trying out the examples.
     id 'application'
-    // ASSUMES GRADLE 2.12 OR HIGHER. Use plugin version 0.7.5 with earlier gradle versions
-    id 'com.google.protobuf' version '0.8.8'
     // Generate IntelliJ IDEA's .idea & .iml project files
     id 'idea'
 }
@@ -22,9 +20,6 @@ targetCompatibility = 1.12
 
 // Feel free to delete the comment at the next line. It is just for safely
 // updating the version in our release process.
-def grpcVersion = '1.26.0' // CURRENT_GRPC_VERSION
-def protobufVersion = '3.9.0'
-def protocVersion = protobufVersion
 def luceneVersion = '8.2.0'
 def slf4jVersion = '2.0.0-alpha0'
 def gsonVersion = '2.8.5'
@@ -39,17 +34,12 @@ def prometheusVersion = '0.3.0'
 def prometheusClientVersion = '0.8.0'
 
 dependencies {
-    //grpc deps
-    implementation "io.grpc:grpc-protobuf:${grpcVersion}"
-    implementation "io.grpc:grpc-stub:${grpcVersion}"
 
     //prometheus (metrics) deps
     implementation "me.dinowernli:java-grpc-prometheus:${prometheusVersion}"
-    implementation "io.grpc:grpc-okhttp:${grpcVersion}"
     implementation "io.prometheus:simpleclient_servlet:${prometheusClientVersion}"
 
     //
-    implementation "javax.annotation:javax.annotation-api:1.2"
     implementation "org.slf4j:slf4j-api:${slf4jVersion}"
     implementation "org.slf4j:slf4j-jdk14:2.0.0-alpha1"
     implementation "com.google.code.gson:gson:${gsonVersion}"
@@ -75,42 +65,27 @@ dependencies {
     implementation "org.apache.lucene:lucene-grouping:${luceneVersion}"
     implementation "org.apache.lucene:lucene-queries:${luceneVersion}"
 
-    // examples/advanced need this for JsonFormat
-    implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
-
     //cli deps
     implementation 'info.picocli:picocli:4.0.4'
     implementation 'org.apache.commons:commons-csv:1.7'
 
-    runtimeOnly "io.grpc:grpc-netty-shaded:${grpcVersion}"
-
-    //test deps
-    testImplementation "io.grpc:grpc-testing:${grpcVersion}"
     testImplementation "junit:junit:4.12"
     testImplementation "org.mockito:mockito-core:2.25.1"
     testImplementation "org.apache.lucene:lucene-test-framework:${luceneVersion}"
     testImplementation "org.locationtech.spatial4j:spatial4j:${spatial4jVersion}"
     testImplementation "io.findify:s3mock_2.12:${s3mockVersion}"
 
-
+    compile project(':clientlib')
 }
 
-protobuf {
-    protoc { artifact = "com.google.protobuf:protoc:${protocVersion}" }
-    plugins {
-        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" }
-    }
-    generateProtoTasks {
-        all()*.plugins { grpc {} }
-    }
-}
+
 
 // Inform IDEs like IntelliJ IDEA, Eclipse or NetBeans about the generated code.
 sourceSets {
     main {
         java {
-            srcDirs 'build/generated/source/proto/main/grpc'
-            srcDirs 'build/generated/source/proto/main/java'
+            srcDirs 'clientlib/build/generated/source/proto/main/grpc'
+            srcDirs 'clientlib/build/generated/source/proto/main/java'
         }
     }
 }
@@ -118,14 +93,14 @@ sourceSets {
 startScripts.enabled = false
 
 task luceneServer(type: CreateStartScripts) {
-    mainClassName = 'org.apache.platypus.server.grpc.LuceneServer'
+    mainClassName = 'com.yelp.nrtsearch.server.grpc.LuceneServer'
     applicationName = 'lucene-server'
     outputDir = new File(project.buildDir, 'tmp')
     classpath = startScripts.classpath
 }
 
 task luceneServerClient(type: CreateStartScripts) {
-    mainClassName = 'org.apache.platypus.server.grpc.LuceneServerClient'
+    mainClassName = 'com.yelp.nrtsearch.server.grpc.LuceneServerClient'
     applicationName = 'lucene-client'
     outputDir = new File(project.buildDir, 'tmp')
     classpath = startScripts.classpath

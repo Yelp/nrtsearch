@@ -22,10 +22,12 @@
 
 package org.apache.lucene.replicator.nrt;
 
+import com.yelp.nrtsearch.server.grpc.RawFileChunk;
+
 import com.google.protobuf.ByteString;
+
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.platypus.server.grpc.RawFileChunk;
 
 import java.io.Closeable;
 import java.io.IOException;
