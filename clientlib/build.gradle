@@ -45,9 +45,6 @@ sourceSets {
         proto {
             srcDirs 'proto'
         }
-        java {
-            srcDirs 'java'
-        }
     }
 }
 
