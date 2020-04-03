@@ -71,7 +71,7 @@ $PROTO_PATH/yelp/nrtsearch/analysis.proto \
 $PROTO_PATH/yelp/nrtsearch/luceneserver.proto \
 $PROTO_PATH/yelp/nrtsearch/search.proto
 
-RUN cp /code/output/yelp/nrtsearch/* /code/grpc-gateway/
+RUN cp $OUTPATH/yelp/nrtsearch/* grpc-gateway/
 
 # build go executables for various platforms
 RUN for GOOS in darwin linux windows; do \
