@@ -21,5 +21,5 @@ at:
       * https://github.com/mikemccand/luceneserver/blob/master/src/java/org/apache/lucene/server/Connection.java#L3 (Apache License 2.0)
     * HOMEPAGE:
       * https://github.com/mikemccand/luceneserver
-    * LOCATION_IN_PLATYPUS:
+    * LOCATION_IN_NRTSEARCH:
       * com.yelp.nrtsearch.server.luceneserver

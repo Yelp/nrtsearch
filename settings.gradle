@@ -7,4 +7,4 @@ pluginManagement {
     }
 }
 include('clientlib')
-rootProject.name = 'platypus'
+rootProject.name = 'nrtsearch'

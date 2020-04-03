@@ -403,7 +403,8 @@ public class YelpReviewsTest {
     }
 
     private static Process startServer(String logFilename, String configFileName) throws IOException {
-        String command = String.format("%s/build/install/platypus/bin/lucene-server %s", System.getProperty("user.dir"), configFileName);
+        String command = String.format("%s/build/install/nrtsearch/bin/lucene-server %s",
+            System.getProperty("user.dir"), configFileName);
         return issueCommand(logFilename, command);
     }
 

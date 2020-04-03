@@ -37,10 +37,40 @@ RUN go get -u \
     github.com/golang/protobuf/protoc-gen-go \
     google.golang.org/grpc
 
+ENV PROTO_PATH=/code/clientlib/proto
+ENV PROTO_BUILD_PATH=/code/clientlib/build
+
 #run protoc plugin for protoc-gen-go
-RUN protoc -I/code/src/main/proto -I/code/build/extracted-protos/main -I/code/build/extracted-include-protos/main --plugin=protoc-gen-go=$GOPATH/bin/protoc-gen-go --go_out=plugins=grpc:$OUTPATH /code/src/main/proto/analysis.proto /code/src/main/proto/luceneserver.proto /code/src/main/proto/search.proto
-RUN protoc -I/code/src/main/proto -I/code/build/extracted-protos/main -I/code/build/extracted-include-protos/main --plugin=protoc-gen-grpc-gateway=$GOPATH/bin/protoc-gen-grpc-gateway --grpc-gateway_out=logtostderr=true:$OUTPATH /code/src/main/proto/analysis.proto /code/src/main/proto/luceneserver.proto /code/src/main/proto/search.proto
-RUN protoc -I/code/src/main/proto -I/code/build/extracted-protos/main -I/code/build/extracted-include-protos/main --plugin=protoc-gen-swagger=$GOPATH/bin/protoc-gen-swagger --swagger_out=logtostderr=true:$OUTPATH /code/src/main/proto/analysis.proto /code/src/main/proto/luceneserver.proto /code/src/main/proto/search.proto
+RUN protoc \
+-I $PROTO_PATH \
+-I  $PROTO_BUILD_PATH/extracted-protos/main \
+-I $PROTO_BUILD_PATH/extracted-include-protos/main \
+--plugin=protoc-gen-go=$GOPATH/bin/protoc-gen-go \
+--go_out=plugins=grpc:$OUTPATH \
+$PROTO_PATH/yelp/nrtsearch/analysis.proto \
+$PROTO_PATH/yelp/nrtsearch/luceneserver.proto \
+$PROTO_PATH/yelp/nrtsearch/search.proto
+
+RUN protoc \
+-I $PROTO_PATH \
+-I $PROTO_BUILD_PATH/extracted-protos/main \
+-I $PROTO_BUILD_PATH/extracted-include-protos/main \
+--plugin=protoc-gen-grpc-gateway=$GOPATH/bin/protoc-gen-grpc-gateway \
+--grpc-gateway_out=logtostderr=true:$OUTPATH \
+$PROTO_PATH/yelp/nrtsearch/analysis.proto \
+$PROTO_PATH/yelp/nrtsearch/luceneserver.proto \
+$PROTO_PATH/yelp/nrtsearch/search.proto
+
+RUN protoc \
+-I $PROTO_PATH \
+-I $PROTO_BUILD_PATH/extracted-protos/main \
+-I $PROTO_BUILD_PATH/extracted-include-protos/main \
+--plugin=protoc-gen-swagger=$GOPATH/bin/protoc-gen-swagger \
+--swagger_out=logtostderr=true:$OUTPATH \
+$PROTO_PATH/yelp/nrtsearch/analysis.proto \
+$PROTO_PATH/yelp/nrtsearch/luceneserver.proto \
+$PROTO_PATH/yelp/nrtsearch/search.proto
+
 # build go executables for various platforms
 RUN for GOOS in darwin linux windows; do for GOARCH in 386 amd64; do echo "Building $GOOS-$GOARCH"; export GOOS=$GOOS; export GOARCH=$GOARCH; go build -o bin/http_wrapper-$GOOS-$GOARCH http_wrapper.go; done; done
 CMD /bin/sh

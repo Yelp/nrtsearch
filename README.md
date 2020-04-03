@@ -1,4 +1,4 @@
-# Platypus
+# nrtSearch
 A high performance gRPC server on top of [Apache Lucene](http://lucene.apache.org/) version 8.x source, exposing lucene's
 core functionality over a simple gRPC based API.
 
@@ -17,8 +17,8 @@ Fields must first be registered with the *registerFields* command, where you exp
 There is no transaction log, so you must call *commit* yourself periodically to make recent changes durable on disk. This means that if a node crashes, all indexed documents since the last commit are lost.
 
 # Indexing a stream of documents
-platypus supports client side gRPC streaming for its *addDocuments* endpoint. This means that the server API accepts a stream of documents . The client can choose to stream the documents however it wishes.
-The example platypus client implemented here reads a CSV file and streams documents from it over to the server. The server can index chunks of documents the size of which is configurable as the client
+nrtSearch supports client side gRPC streaming for its *addDocuments* endpoint. This means that the server API accepts a stream of documents . The client can choose to stream the documents however it wishes.
+The example nrtSearch client implemented here reads a CSV file and streams documents from it over to the server. The server can index chunks of documents the size of which is configurable as the client
 continues to send more documents over its stream. gRPC enables this with minimal application code and yields higher performance compared to JSON. TODO[citation needed]: Add performance numbers of stream based indexing for some datasets.
 
 # Near-real-time-replication
@@ -48,20 +48,20 @@ Note: This code has been tested on *Java13*
 # Run Server
 
 ```
-./build/install/platypus/bin/lucene-server
+./build/install/nrtsearch/bin/lucene-server
 ```
 
 # Example to run some basic client commands
 ## Create Index
 
 ```
-./build/install/platypus/bin/lucene-client createIndex --indexName  testIdx --rootDir testIdx
+./build/install/nrtsearch/bin/lucene-client createIndex --indexName  testIdx --rootDir testIdx
 ```
 
 ## Update Settings
 
 ```
-./build/install/platypus/bin/lucene-client settings -f settings.json
+./build/install/nrtsearch/bin/lucene-client settings -f settings.json
 cat settings.json
 {             "indexName": "testIdx",
               "indexVerbose": false,
@@ -76,7 +76,7 @@ cat settings.json
 ## Start Index
 
 ```
-./build/install/platypus/bin/lucene-client startIndex -f startIndex.json
+./build/install/nrtsearch/bin/lucene-client startIndex -f startIndex.json
 cat startIndex.json
 {
   "indexName" : "testIdx"
@@ -86,7 +86,7 @@ cat startIndex.json
 ## RegisterFields
 
 ```
-./build/install/platypus/bin/lucene-client registerFields -f registerFields.json
+./build/install/nrtsearch/bin/lucene-client registerFields -f registerFields.json
 cat registerFields.json
 {             "indexName": "testIdx",
               "field":
@@ -100,7 +100,7 @@ cat registerFields.json
 ## Add Documents
 
 ```
-./build/install/platypus/bin/lucene-client addDocuments -i testIdx -f docs.csv
+./build/install/nrtsearch/bin/lucene-client addDocuments -i testIdx -f docs.csv
 cat docs.csv
 doc_id,vendor_name,license_no
 0,first vendor,100;200
@@ -110,7 +110,7 @@ doc_id,vendor_name,license_no
 ## Search
 
 ```
-./build/install/platypus/bin/lucene-client search -f search.json
+./build/install/nrtsearch/bin/lucene-client search -f search.json
 cat search.json
 {
         "indexName": "testIdx",
@@ -143,6 +143,6 @@ This tool indexes yelp reviews available at [Yelp dataset challenge](https://www
 
 # Suggestions
 
-This test indexes businesses, creates an Infix Suggester and fetches suggestions. It requires a host, a port and a writeable directory in a standalone Platypus server.
+This test indexes businesses, creates an Infix Suggester and fetches suggestions. It requires a host, a port and a writeable directory in a standalone nrtSearch server.
 
 ```./gradlew test -DsuggestTmp=remoteServerDir -DsuggestHost=yourStandaloneServerHost -DsuggestPort=yourStandaloneServerHost --tests "com.yelp.nrtsearch.server.YelpSuggestTest"```

@@ -1,4 +1,4 @@
-/* Description of Platypus Service APIs and message types */
+/* Description of NRTSearch Service APIs and message types */
 syntax = "proto3";
 
 import "yelp/nrtsearch/search.proto";
