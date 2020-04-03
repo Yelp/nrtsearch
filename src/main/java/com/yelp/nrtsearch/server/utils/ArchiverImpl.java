@@ -89,7 +89,8 @@ public class ArchiverImpl implements Archiver {
     @Override
     public Path download(String serviceName, String resource) throws IOException {
         if (!Files.exists(archiverDirectory)) {
-            throw new IOException("Archiver directory doesn't exist: " + archiverDirectory);
+            logger.info("Archiver directory doesn't exist: " + archiverDirectory +  " creating new ");
+            Files.createDirectory(archiverDirectory);
         }
 
         final String latestVersion = getVersionString(serviceName, resource, "_latest_version");
