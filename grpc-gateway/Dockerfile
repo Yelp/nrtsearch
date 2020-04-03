@@ -71,6 +71,16 @@ $PROTO_PATH/yelp/nrtsearch/analysis.proto \
 $PROTO_PATH/yelp/nrtsearch/luceneserver.proto \
 $PROTO_PATH/yelp/nrtsearch/search.proto
 
+RUN cp /code/output/yelp/nrtsearch/* /code/grpc-gateway/
+
 # build go executables for various platforms
-RUN for GOOS in darwin linux windows; do for GOARCH in 386 amd64; do echo "Building $GOOS-$GOARCH"; export GOOS=$GOOS; export GOARCH=$GOARCH; go build -o bin/http_wrapper-$GOOS-$GOARCH http_wrapper.go; done; done
+RUN for GOOS in darwin linux windows; do \
+    for GOARCH in 386 amd64; do \
+        echo "Building $GOOS-$GOARCH"; \
+        export GOOS=$GOOS; \
+        export GOARCH=$GOARCH; \
+        go build -o bin/http_wrapper-$GOOS-$GOARCH http_wrapper.go; \
+    done; \
+done
+
 CMD /bin/sh
