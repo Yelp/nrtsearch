@@ -90,7 +90,7 @@ public class ArchiverImpl implements Archiver {
     public Path download(String serviceName, String resource) throws IOException {
         if (!Files.exists(archiverDirectory)) {
             logger.info("Archiver directory doesn't exist: " + archiverDirectory +  " creating new ");
-            Files.createDirectory(archiverDirectory);
+            Files.createDirectories(archiverDirectory);
         }
 
         final String latestVersion = getVersionString(serviceName, resource, "_latest_version");
