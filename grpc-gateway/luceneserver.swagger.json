@@ -973,6 +973,15 @@
         }
       }
     },
+    "TotalHitsRelation": {
+      "type": "string",
+      "enum": [
+        "EQUAL_TO",
+        "GREATER_THAN_OR_EQUAL_TO"
+      ],
+      "default": "EQUAL_TO",
+      "description": "* How the {TotalHits#value} should be interpreted.\n\n - EQUAL_TO: The total hit count is equal to {@link TotalHits#value}.\n - GREATER_THAN_OR_EQUAL_TO: The total hit count is greater than or equal to {@link TotalHits#value}."
+    },
     "luceneserverAddDocumentRequest": {
       "type": "object",
       "properties": {
@@ -2191,8 +2200,7 @@
           "format": "boolean"
         },
         "totalHits": {
-          "type": "string",
-          "format": "int64"
+          "$ref": "#/definitions/luceneserverTotalHits"
         },
         "hits": {
           "type": "array",
@@ -2641,6 +2649,19 @@
       ],
       "default": "NO_TERMVECTORS",
       "description": "Whether/how term vectors should be indexed."
+    },
+    "luceneserverTotalHits": {
+      "type": "object",
+      "properties": {
+        "relation": {
+          "$ref": "#/definitions/TotalHitsRelation"
+        },
+        "value": {
+          "type": "string",
+          "format": "int64",
+          "description": "* The value of the total hit count. Must be interpreted in the context of * {#relation}."
+        }
+      }
     },
     "luceneserverTransferStatus": {
       "type": "object",

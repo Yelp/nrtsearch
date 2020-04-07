@@ -30,6 +30,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
 import com.yelp.nrtsearch.server.grpc.Selector;
 import com.yelp.nrtsearch.server.grpc.SortType;
 
+import com.yelp.nrtsearch.server.grpc.TotalHits;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -349,7 +350,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
             //TODO: deal with fillFields for group!=null and useBlockJoin
             {
-                searchResponse.setTotalHits(hits.totalHits.value);
+                TotalHits totalHits = TotalHits.newBuilder()
+                        .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation.name()))
+                        .setValue(hits.totalHits.value)
+                        .build();
+                searchResponse.setTotalHits(totalHits);
                 for (int hitIndex = 0; hitIndex < hits.scoreDocs.length; hitIndex++) {
                     ScoreDoc hit = hits.scoreDocs[hitIndex];
                     var hitResponse = SearchResponse.Hit.newBuilder();
