@@ -364,7 +364,7 @@ public class ReplicationTestFailureScenarios {
     }
 
     public static void validateSearchResults(int numHitsExpected, SearchResponse searchResponse) {
-        assertEquals(numHitsExpected, searchResponse.getTotalHits());
+        assertEquals(numHitsExpected, searchResponse.getTotalHits().getValue());
         assertEquals(numHitsExpected, searchResponse.getHitsList().size());
         SearchResponse.Hit firstHit = searchResponse.getHits(0);
         checkHits(firstHit);

@@ -202,7 +202,7 @@ public class ReplicationServerTest {
     }
 
     public static void validateSearchResults(SearchResponse searchResponse) {
-        assertEquals(4, searchResponse.getTotalHits());
+        assertEquals(4, searchResponse.getTotalHits().getValue());
         assertEquals(4, searchResponse.getHitsList().size());
         SearchResponse.Hit firstHit = searchResponse.getHits(0);
         LuceneServerTest.checkHits(firstHit);

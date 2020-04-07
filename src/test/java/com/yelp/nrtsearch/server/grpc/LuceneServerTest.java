@@ -170,7 +170,7 @@ public class LuceneServerTest {
                 .addAllRetrieveFields(RETRIEVE)
                 .build());
 
-        assertEquals(2, searchResponse.getTotalHits());
+        assertEquals(2, searchResponse.getTotalHits().getValue());
         assertEquals(2, searchResponse.getHitsList().size());
         SearchResponse.Hit firstHit = searchResponse.getHits(0);
 
@@ -337,7 +337,7 @@ public class LuceneServerTest {
                 .addAllRetrieveFields(RETRIEVED_VALUES)
                 .build());
 
-        assertEquals(2, searchResponse.getTotalHits());
+        assertEquals(2, searchResponse.getTotalHits().getValue());
         assertEquals(2, searchResponse.getHitsList().size());
         SearchResponse.Hit firstHit = searchResponse.getHits(0);
         checkHits(firstHit);
