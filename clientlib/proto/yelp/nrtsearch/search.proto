@@ -11,7 +11,6 @@ option objc_class_prefix = "HLW";
 
 package luceneserver;
 
-
 // A clause in a BooleanQuery.
 message BooleanClause {
     // Defines how clauses may occur in matching documents. This will always be SHOULD by default.
@@ -225,12 +224,10 @@ message QuerySortField {
     SortFields fields = 3; //List of Fields to sort on.
 }
 
-
 /* Fields to sort on either during index time or search time*/
 message SortFields {
     repeated SortType sortedFields = 1;
 }
-
 
 /* "The field to sort on. Pass <code>docid</code> for index order and <code>score</code> for relevance sort. */
 message SortType {
@@ -245,14 +242,25 @@ message SortType {
     bool reverse = 5;
 }
 
-
-
 /* For multi valued fields, how to select which value is used for sorting */
 enum Selector {
     MIN = 0; // Minimum value
     MAX = 1; // Maximum value
     MIDDLE_MIN = 2; // Middle value of the set; if there are an even number of values, the lower of the middle two is chosen
     MIDDLE_MAX = 3; // Middle value of the set; if there are an even number of values, the upper of the middle two is chosen
+}
+
+message TotalHits {
+    /** How the {TotalHits#value} should be interpreted. */
+    enum Relation {
+        /* The total hit count is equal to {@link TotalHits#value}. */
+        EQUAL_TO = 0;
+        /* The total hit count is greater than or equal to {@link TotalHits#value}. */
+        GREATER_THAN_OR_EQUAL_TO = 1;
+    }
+    Relation relation = 1;
+    /** The value of the total hit count. Must be interpreted in the context of * {#relation}.*/
+    int64 value = 2;
 }
 
 /* Point representation */
@@ -306,7 +314,7 @@ message SearchResponse {
 
     Diagnostics diagnostics = 1;
     bool hitTimeout = 2;
-    int64 totalHits = 3;
+    TotalHits totalHits = 3;
     repeated Hit hits = 4;
     SearchState searchState = 5;
 }

@@ -600,7 +600,7 @@ public class YelpReviewsTest {
             long t1 = System.nanoTime();
             SearchResponse searchResponse = this.luceneServerClient.getBlockingStub().search(searchRequest);
             long timeMs = (System.nanoTime() - t1) / (1000 * 1000);
-            long totalHits = searchResponse.getTotalHits();
+            long totalHits = searchResponse.getTotalHits().getValue();
             String threadId = Thread.currentThread().getName() + Thread.currentThread().getId();
             logger.info(String.format("Search returned totalHits: %s on threadId: %s in %s milliSecs", totalHits, threadId, timeMs));
             return totalHits;

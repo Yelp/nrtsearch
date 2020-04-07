@@ -88,7 +88,7 @@ public class QueryTest {
                 .setQueryText("SECOND")
                 .build());
 
-        assertEquals(1, searchResponse.getTotalHits());
+        assertEquals(1, searchResponse.getTotalHits().getValue());
         assertEquals(1, searchResponse.getHitsList().size());
         SearchResponse.Hit hit = searchResponse.getHits(0);
         String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -117,7 +117,7 @@ public class QueryTest {
                 .build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getTotalHits().getValue());
             assertEquals(1, searchResponse.getHitsList().size());
             SearchResponse.Hit hit = searchResponse.getHits(0);
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -141,7 +141,7 @@ public class QueryTest {
                 .build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getTotalHits().getValue());
             assertEquals(1, searchResponse.getHitsList().size());
             SearchResponse.Hit hit = searchResponse.getHits(0);
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -170,7 +170,7 @@ public class QueryTest {
                 .build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getTotalHits().getValue());
             assertEquals(1, searchResponse.getHitsList().size());
             SearchResponse.Hit hit = searchResponse.getHits(0);
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -207,7 +207,7 @@ public class QueryTest {
 
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getTotalHits().getValue());
             assertEquals(1, searchResponse.getHitsList().size());
             SearchResponse.Hit hit = searchResponse.getHits(0);
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -253,7 +253,7 @@ public class QueryTest {
                 .build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(2, searchResponse.getTotalHits());
+            assertEquals(2, searchResponse.getTotalHits().getValue());
             assertEquals(2, searchResponse.getHitsList().size());
             SearchResponse.Hit firstHit = searchResponse.getHits(0);
             LuceneServerTest.checkHits(firstHit);
@@ -293,7 +293,7 @@ public class QueryTest {
                 .build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getTotalHits().getValue());
             assertEquals(1, searchResponse.getHitsList().size());
             SearchResponse.Hit hit = searchResponse.getHits(0);
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -316,7 +316,7 @@ public class QueryTest {
                 .build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getTotalHits().getValue());
             assertEquals(1, searchResponse.getHitsList().size());
             SearchResponse.Hit hit = searchResponse.getHits(0);
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -343,7 +343,7 @@ public class QueryTest {
                 .build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getTotalHits().getValue());
             assertEquals(1, searchResponse.getHitsList().size());
             SearchResponse.Hit hit = searchResponse.getHits(0);
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -364,7 +364,7 @@ public class QueryTest {
                         .setSlop(1)).build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getTotalHits().getValue());
             assertEquals(1, searchResponse.getHitsList().size());
             SearchResponse.Hit hit = searchResponse.getHits(0);
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -386,7 +386,7 @@ public class QueryTest {
                         .setSlop(1)).build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getTotalHits().getValue());
             assertEquals(1, searchResponse.getHitsList().size());
             SearchResponse.Hit hit = searchResponse.getHits(0);
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -419,7 +419,7 @@ public class QueryTest {
                     .build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getTotalHits().getValue());
             assertEquals(1, searchResponse.getHitsList().size());
             SearchResponse.Hit hit = searchResponse.getHits(0);
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -464,7 +464,7 @@ public class QueryTest {
                 .build();
 
         Consumer<SearchResponse> responseTester = searchResponse -> {
-            assertEquals(1, searchResponse.getTotalHits());
+            assertEquals(1, searchResponse.getTotalHits().getValue());
             assertEquals(1, searchResponse.getHitsList().size());
             SearchResponse.Hit hit = searchResponse.getHits(0);
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
@@ -523,7 +523,7 @@ public class QueryTest {
         SearchResponse searchResponseBoosted = grpcServer.getBlockingStub()
                 .search(buildSearchRequest(boostedQuery));
 
-        assertEquals(searchResponse.getTotalHits(), searchResponseBoosted.getTotalHits());
+        assertEquals(searchResponse.getTotalHits().getValue(), searchResponseBoosted.getTotalHits().getValue());
         assertEquals(searchResponse.getHitsList().size(), searchResponseBoosted.getHitsList().size());
 
         for (int i = 0; i < searchResponse.getHitsCount(); i++) {
