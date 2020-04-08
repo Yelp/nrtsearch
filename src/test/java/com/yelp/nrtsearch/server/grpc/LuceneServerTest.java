@@ -230,6 +230,7 @@ public class LuceneServerTest {
         assertEquals(0, statsResponse.getMaxDoc());
         assertEquals(0, statsResponse.getOrd());
         assertEquals(0, statsResponse.getCurrentSearcher().getNumDocs());
+        assertEquals(0, statsResponse.getDirSize());
         assertEquals("started", statsResponse.getState());
         GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
         testAddDocs.addDocuments();
@@ -238,6 +239,7 @@ public class LuceneServerTest {
         assertEquals(2, statsResponse.getMaxDoc());
         assertEquals(0, statsResponse.getOrd());
         assertEquals(2, statsResponse.getCurrentSearcher().getNumDocs());
+        assertEquals(6610, statsResponse.getDirSize(), 1000);
         assertEquals("started", statsResponse.getState());
     }
 
