@@ -78,7 +78,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Queue;
-import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
@@ -781,7 +780,7 @@ public class LuceneServer {
         @Override
         public void indices(IndicesRequest request, StreamObserver<IndicesResponse> responseObserver) {
             try {
-                IndicesResponse reply = StatsRequestHandler.getStatsResponse(globalState);
+                IndicesResponse reply = StatsRequestHandler.getIndicesResponse(globalState);
                 logger.info("IndicesRequestHandler returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();

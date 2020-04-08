@@ -114,7 +114,7 @@ public class StatsRequestHandler implements Handler<StatsRequest, StatsResponse>
 
     }
 
-    public static IndicesResponse getStatsResponse(GlobalState globalState) throws IOException, HandlerException {
+    public static IndicesResponse getIndicesResponse(GlobalState globalState) throws IOException, HandlerException {
         Set<String> indexNames = globalState.getIndexNames();
         IndicesResponse.Builder builder = IndicesResponse.newBuilder();
         for (String indexName : indexNames) {
