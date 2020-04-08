@@ -19,6 +19,12 @@
 
 package com.yelp.nrtsearch.server.grpc;
 
+import com.google.inject.Guice;
+import com.google.inject.Inject;
+import com.google.inject.Injector;
+import com.google.protobuf.ByteString;
+import com.yelp.nrtsearch.LuceneServerModule;
+import com.yelp.nrtsearch.server.MetricsRequestHandler;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler.DocumentIndexer;
 import com.yelp.nrtsearch.server.luceneserver.AddReplicaHandler;
@@ -41,17 +47,13 @@ import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.SettingsHandler;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.StartIndexHandler;
+import com.yelp.nrtsearch.server.luceneserver.StatsRequestHandler;
 import com.yelp.nrtsearch.server.luceneserver.StopIndexHandler;
 import com.yelp.nrtsearch.server.luceneserver.SuggestLookupHandler;
 import com.yelp.nrtsearch.server.luceneserver.UpdateFieldsHandler;
 import com.yelp.nrtsearch.server.luceneserver.UpdateSuggestHandler;
 import com.yelp.nrtsearch.server.luceneserver.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.utils.Archiver;
-
-import com.google.inject.Guice;
-import com.google.inject.Inject;
-import com.google.inject.Injector;
-import com.google.protobuf.ByteString;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
@@ -60,17 +62,8 @@ import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
 import me.dinowernli.grpc.prometheus.Configuration;
 import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
-import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.SearcherLifetimeManager;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import com.yelp.nrtsearch.LuceneServerModule;
-import com.yelp.nrtsearch.server.MetricsRequestHandler;
-
-import com.yelp.nrtsearch.server.luceneserver.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +73,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.PriorityQueue;
+import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
@@ -505,52 +503,7 @@ public class LuceneServer {
             try {
                 IndexState indexState = globalState.getIndex(statsRequest.getIndexName());
                 indexState.verifyStarted();
-                StatsResponse.Builder statsResponseBuilder = StatsResponse.newBuilder();
-                for (Map.Entry<Integer, ShardState> entry : indexState.shards.entrySet()) {
-                    ShardState shardState = entry.getValue();
-                    statsResponseBuilder.setOrd(entry.getKey());
-                    IndexWriter.DocStats docStats = shardState.writer.getDocStats();
-                    statsResponseBuilder.setMaxDoc(docStats.maxDoc);
-                    statsResponseBuilder.setNumDocs(docStats.numDocs);
-                    // TODO: snapshots
-
-                    // TODO: go per segment and print more details, and
-                    // only print segment for a given searcher if it's
-                    // "new"
-
-                    // Doesn't actually prune; just gathers stats
-                    List<Searcher> tmpSearchers = new ArrayList<>();
-                    shardState.slm.prune(new SearcherLifetimeManager.Pruner() {
-                        @Override
-                        public boolean doPrune(double ageSec, IndexSearcher indexSearcher) {
-                            Searcher.Builder searcher = Searcher.newBuilder();
-                            searcher.setVersion(((DirectoryReader) indexSearcher.getIndexReader()).getVersion());
-                            searcher.setStaleAgeSeconds(ageSec);
-                            searcher.setSegments(indexSearcher.getIndexReader().toString());
-                            searcher.setNumDocs(indexSearcher.getIndexReader().maxDoc());
-                            tmpSearchers.add(searcher.build());
-                            return false;
-                        }
-                    });
-                    statsResponseBuilder.addAllSearchers(tmpSearchers);
-                    statsResponseBuilder.setState(shardState.getState());
-
-                    SearcherTaxonomyManager.SearcherAndTaxonomy s = shardState.acquire();
-                    try {
-                        Taxonomy.Builder taxonomy = Taxonomy.newBuilder();
-                        taxonomy.setNumOrds(s.taxonomyReader.getSize());
-                        taxonomy.setSegments(s.taxonomyReader.toString());
-                        statsResponseBuilder.setTaxonomy(taxonomy.build());
-
-                        Searcher.Builder searcher = Searcher.newBuilder();
-                        searcher.setSegments(s.searcher.toString());
-                        searcher.setNumDocs(s.searcher.getIndexReader().numDocs());
-                        statsResponseBuilder.setCurrentSearcher(searcher.build());
-                    } finally {
-                        shardState.release(s);
-                    }
-                }
-                StatsResponse reply = statsResponseBuilder.build();
+                StatsResponse reply = new StatsRequestHandler().handle(indexState, statsRequest);
                 logger.info(String.format("StatsHandler retrieved stats for index: %s ", reply));
                 statsResponseStreamObserver.onNext(reply);
                 statsResponseStreamObserver.onCompleted();
@@ -820,6 +773,23 @@ public class LuceneServer {
                 responseObserver.onError(Status
                         .INVALID_ARGUMENT
                         .withDescription("error while trying to get metrics")
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+        @Override
+        public void indices(IndicesRequest request, StreamObserver<IndicesResponse> responseObserver) {
+            try {
+                IndicesResponse reply = StatsRequestHandler.getStatsResponse(globalState);
+                logger.info("IndicesRequestHandler returned " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn("error while trying to get indices stats", e);
+                responseObserver.onError(Status
+                        .INVALID_ARGUMENT
+                        .withDescription("error while trying to get indices stats")
                         .augmentDescription(e.getMessage())
                         .asRuntimeException());
             }

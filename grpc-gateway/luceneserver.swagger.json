@@ -299,6 +299,29 @@
         ]
       }
     },
+    "/v1/indices": {
+      "get": {
+        "summary": "indices",
+        "operationId": "LuceneServer_indices",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverIndicesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/live_settings": {
       "post": {
         "summary": "Change global offline or online settings for this index.",
@@ -1670,6 +1693,28 @@
       "default": "DOCS_FREQS_POSITIONS",
       "description": "How the tokens should be indexed."
     },
+    "luceneserverIndexStatsResponse": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "statsResponse": {
+          "$ref": "#/definitions/luceneserverStatsResponse"
+        }
+      }
+    },
+    "luceneserverIndicesResponse": {
+      "type": "object",
+      "properties": {
+        "indicesResponse": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverIndexStatsResponse"
+          }
+        }
+      }
+    },
     "luceneserverInfixSuggester": {
       "type": "object",
       "properties": {
@@ -2438,6 +2483,10 @@
           "type": "integer",
           "format": "int32",
           "description": "*\nThe total number of docs in this index, including\ndocs not yet flushed (still in the RAM buffer), and\nincluding deletions. NOTE: buffered deletions\nare not counted.  If you really need these to be\ncounted you should call {@link IndexWriter#commit()} first."
+        },
+        "dirSize": {
+          "type": "string",
+          "format": "int64"
         },
         "state": {
           "type": "string"
