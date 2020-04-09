@@ -223,6 +223,13 @@ service LuceneServer {
     };
     }
 
+    /* indices  */
+    rpc indices (IndicesRequest) returns (IndicesResponse) {
+        option (google.api.http) = {
+      get: "/v1/indices"
+    };
+    }
+
 }
 
 //The ReplicationServer service definition.
@@ -460,10 +467,11 @@ message StatsResponse {
      * counted you should call {@link IndexWriter#commit()} first.
      */
     int32 numDocs = 3;
-    string state = 4; //state of the index
-    Taxonomy taxonomy = 5; //Taxonomy(facets) stats
-    repeated Searcher searchers = 6; //Searcher stats
-    Searcher currentSearcher = 7; //Current Searcher stats
+    int64 dirSize = 4; //size of the this indexDir
+    string state = 5; //state of the index
+    Taxonomy taxonomy = 6; //Taxonomy(facets) stats
+    repeated Searcher searchers = 7; //Searcher stats
+    Searcher currentSearcher = 8; //Current Searcher stats
 }
 
 message Taxonomy {
@@ -701,6 +709,18 @@ enum SampleType {
     SUMMARY = 2;
     HISTOGRAM = 3;
     UNTYPED = 4;
+}
+
+message IndicesRequest {
+}
+
+message IndicesResponse {
+    repeated IndexStatsResponse indicesResponse = 1; //list of IndexStatsResponse
+}
+
+message IndexStatsResponse {
+    string indexName = 1; //index name
+    StatsResponse statsResponse = 2; //stats for an index
 }
 
 message RestoreIndex {

@@ -226,7 +226,11 @@ public class GlobalState implements Closeable, Restorable {
             IndexState state = indices.get(name);
             if (state == null) {
                 String rootPath = null;
-                String indexName = indexNames.get(name).getAsString();
+                JsonElement indexJsonName = indexNames.get(name);
+                if(indexJsonName == null) {
+                    throw new IllegalArgumentException("index " + name + " was not saved/commited");
+                }
+                String indexName = indexJsonName.getAsString();
                 if (indexName != null) {
                     rootPath = getIndexDir(name).toString();
                 }
