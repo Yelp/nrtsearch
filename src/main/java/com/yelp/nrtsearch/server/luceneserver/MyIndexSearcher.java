@@ -23,9 +23,19 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.NamedThreadFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This is sadly necessary because for ToParentBlockJoinQuery we must invoke .scorer not .bulkScorer, yet for DrillSideways we must do
@@ -33,9 +43,93 @@ import java.util.List;
  */
 
 public class MyIndexSearcher extends IndexSearcher {
-    public MyIndexSearcher(IndexReader reader) {
-        super(reader);
+    /**
+     * Thresholds for index slice allocation logic. To change the default, extend
+     * <code> IndexSearcher</code> and use custom values
+     * TODO: convert these to configs?
+     */
+    private static final int MAX_DOCS_PER_SLICE = 250_000;
+    private static final int MAX_SEGMENTS_PER_SLICE = 5;
+
+    private static Executor getSearchExecutor() {
+        int MAX_SEARCHING_THREADS = Runtime.getRuntime().availableProcessors();
+        int MAX_BUFFERED_ITEMS = Math.max(100, 2 * MAX_SEARCHING_THREADS);
+        // Seems to be substantially faster than ArrayBlockingQueue at high throughput:
+        final BlockingQueue<Runnable> docsToIndex = new LinkedBlockingQueue<Runnable>(MAX_BUFFERED_ITEMS);
+        //same as Executors.newFixedThreadPool except we want a NamedThreadFactory instead of defaultFactory
+        return new ThreadPoolExecutor(MAX_SEARCHING_THREADS,
+                MAX_SEARCHING_THREADS,
+                0, TimeUnit.SECONDS,
+                docsToIndex,
+                new NamedThreadFactory("LuceneSearchExecutor"));
     }
+
+    public MyIndexSearcher(IndexReader reader) {
+        super(reader, getSearchExecutor());
+    }
+
+    /*** start segment to thread mapping **/
+    protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+        return slices(leaves, MAX_DOCS_PER_SLICE, MAX_SEGMENTS_PER_SLICE);
+    }
+
+     /* Better Segment To Thread Mapping Algorithm: https://issues.apache.org/jira/browse/LUCENE-8757
+     This change is available in 9.0 (master) which is not released yet
+     https://github.com/apache/lucene-solr/blob/master/lucene/core/src/java/org/apache/lucene/search/IndexSearcher.java#L316
+     We can remove this method once luceneVersion is updated to 9.x
+     * */
+
+    /**
+     * Static method to segregate LeafReaderContexts amongst multiple slices
+     */
+    public static LeafSlice[] slices(List<LeafReaderContext> leaves, int maxDocsPerSlice,
+                                     int maxSegmentsPerSlice) {
+        // Make a copy so we can sort:
+        List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
+
+        // Sort by maxDoc, descending:
+        Collections.sort(sortedLeaves,
+                Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().maxDoc())));
+
+        final List<List<LeafReaderContext>> groupedLeaves = new ArrayList<>();
+        long docSum = 0;
+        List<LeafReaderContext> group = null;
+        for (LeafReaderContext ctx : sortedLeaves) {
+            if (ctx.reader().maxDoc() > maxDocsPerSlice) {
+                assert group == null;
+                groupedLeaves.add(Collections.singletonList(ctx));
+            } else {
+                if (group == null) {
+                    group = new ArrayList<>();
+                    group.add(ctx);
+
+                    groupedLeaves.add(group);
+                } else {
+                    group.add(ctx);
+                }
+
+                docSum += ctx.reader().maxDoc();
+                if (group.size() >= maxSegmentsPerSlice || docSum > maxDocsPerSlice) {
+                    group = null;
+                    docSum = 0;
+                }
+            }
+        }
+
+        LeafSlice[] slices = new LeafSlice[groupedLeaves.size()];
+        int upto = 0;
+        for (List<LeafReaderContext> currentLeaf : groupedLeaves) {
+            //LeafSlice constructor has changed in 9.x. This allows to use old constructor.
+            Collections.sort(currentLeaf, Comparator.comparingInt(l -> l.docBase));
+            LeafReaderContext[] leavesArr = currentLeaf.toArray(new LeafReaderContext[0]);
+            slices[upto] = new LeafSlice(leavesArr);
+            ++upto;
+        }
+
+        return slices;
+    }
+
+    /*** end segment to thread mapping **/
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {

@@ -29,7 +29,6 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
 import com.yelp.nrtsearch.server.grpc.Selector;
 import com.yelp.nrtsearch.server.grpc.SortType;
-
 import com.yelp.nrtsearch.server.grpc.TotalHits;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.facet.DrillDownQuery;
@@ -49,6 +48,7 @@ import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.FieldDoc;
@@ -68,6 +68,7 @@ import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.grouping.AllGroupsCollector;
 import org.apache.lucene.search.grouping.FirstPassGroupingCollector;
@@ -231,7 +232,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
             diagnostics.setDrillDownQuery(ddq.toString());
 
-            Collector c;
+            Collector collector;
             //FIXME? not sure if these two groupCollectors are correct?
             FirstPassGroupingCollector groupCollector = null;
             AllGroupsCollector allGroupsCollector = null;
@@ -257,11 +258,15 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 totalHitsThreshold = searchRequest.getTotalHitsThreshold();
             }
 
+            CollectorManager<TopScoreDocCollector, TopDocs> topDocsCollectorManager = null;
+            CollectorManager<TopFieldCollector, TopFieldDocs> topFieldDocsCollectorManager = null;
+
             //TODO: support "grouping" and "useBlockJoinCollector"
             if (sort == null) {
                 //TODO: support "searchAfter" when supplied by user
-                ScoreDoc searchAfter = null;
-                c = TopScoreDocCollector.create(topHits, searchAfter, totalHitsThreshold);
+                FieldDoc searchAfter = null;
+                collector = TopScoreDocCollector.create(topHits, searchAfter, totalHitsThreshold);
+                topDocsCollectorManager = TopScoreDocCollector.createSharedManager(topHits, searchAfter, totalHitsThreshold);
             } else {
 
                 // If any of the sort fields require score, than
@@ -274,19 +279,24 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 //TODO: support "searchAfter" when supplied by user
                 FieldDoc searchAfter;
                 searchAfter = null;
-                c = TopFieldCollector.create(sort, topHits, searchAfter, totalHitsThreshold);
+                collector = TopFieldCollector.create(sort, topHits, searchAfter, totalHitsThreshold);
+                topFieldDocsCollectorManager = TopFieldCollector.createSharedManager(sort, topHits, searchAfter, totalHitsThreshold);
             }
 
             long timeoutMS;
+            /* TODO: fixme; we dont use timeOut as of now
+                would need new CollectorManager impl that returns TimeLimitingCollector on newCollector() call
+                e.g. new impls similar to TopFieldCollector.createSharedManager and TopScoreDocCollector.createSharedManager
+            */
             Collector c2;
             if (searchRequest.getTimeoutSec() != 0.0) {
                 timeoutMS = (long) (searchRequest.getTimeoutSec() * 1000);
                 if (timeoutMS <= 0) {
                     throw new SearchHandlerException("timeoutSec must be > 0 msec");
                 }
-                c2 = new TimeLimitingCollector(c, TimeLimitingCollector.getGlobalCounter(), timeoutMS);
+                c2 = new TimeLimitingCollector(collector, TimeLimitingCollector.getGlobalCounter(), timeoutMS);
             } else {
-                c2 = c;
+                c2 = collector;
                 timeoutMS = -1;
             }
 
@@ -297,9 +307,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
             //TODO: If "facets" create DrillSideways(ds) and do ds.search(ddq, c2)
             //else if not facets...
+            TopDocs topDocs= null;
             {
                 try {
-                    s.searcher.search(ddq, c2);
+                    if (topDocsCollectorManager != null) {
+                        topDocs = s.searcher.search(ddq, topDocsCollectorManager);
+                    } else {  //topFieldDocsCollectorManager != null
+                        topDocs = s.searcher.search(ddq, topFieldDocsCollectorManager);
+                    }
                 } catch (TimeLimitingCollector.TimeExceededException tee) {
                     searchResponse.setHitTimeout(true);
                 }
@@ -314,8 +329,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             {
                 groups = null;
                 joinGroups = null;
-                //FIXME: should this be c2 instead?
-                hits = ((TopDocsCollector) c).topDocs();
+                hits = topDocs;
 
                 if (startHit != 0) {
                     // Slice:
@@ -1023,16 +1037,16 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         } else if (fieldValueType.equals(FieldDef.FieldValueType.FLOAT)) {
             float value;
             if (isSortedNumeric) {
-                value = NumericUtils.sortableIntToFloat((int)val);
+                value = NumericUtils.sortableIntToFloat((int) val);
             } else {
-                value = Float.intBitsToFloat((int)val);
+                value = Float.intBitsToFloat((int) val);
             }
             compositeFieldValue.addFieldValue(FieldValue.newBuilder().setFloatValue(value));
         } else if (fieldValueType.equals(FieldDef.FieldValueType.BOOLEAN)) {
             boolean value = val == 1;
             compositeFieldValue.addFieldValue(FieldValue.newBuilder().setBooleanValue(value));
         } else if (fieldValueType.equals(FieldDef.FieldValueType.INT)) {
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setIntValue((int)val));
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setIntValue((int) val));
         } else { //LONG
             compositeFieldValue.addFieldValue(FieldValue.newBuilder().setLongValue(val));
         }

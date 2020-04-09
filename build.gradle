@@ -20,7 +20,7 @@ targetCompatibility = 1.12
 
 // Feel free to delete the comment at the next line. It is just for safely
 // updating the version in our release process.
-def luceneVersion = '8.2.0'
+def luceneVersion = '8.4.0'
 def slf4jVersion = '2.0.0-alpha0'
 def gsonVersion = '2.8.5'
 def snakeYamlVersion = '1.25'

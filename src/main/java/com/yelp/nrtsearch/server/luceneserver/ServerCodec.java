@@ -22,16 +22,16 @@ package com.yelp.nrtsearch.server.luceneserver;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene80.Lucene80Codec;
+import org.apache.lucene.codecs.lucene84.Lucene84Codec;
 
 
 /**
  * Implements per-index {@link Codec}.
  */
 
-public class ServerCodec extends Lucene80Codec {
+public class ServerCodec extends Lucene84Codec {
 
-    public final static String DEFAULT_POSTINGS_FORMAT = "Lucene50";
+    public final static String DEFAULT_POSTINGS_FORMAT = "Lucene84";
     public final static String DEFAULT_DOC_VALUES_FORMAT = "Lucene80";
 
     private final IndexState state;
