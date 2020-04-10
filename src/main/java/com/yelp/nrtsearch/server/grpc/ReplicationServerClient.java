@@ -96,7 +96,7 @@ public class ReplicationServerClient implements Closeable {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }
 
-    public AddReplicaResponse addReplicas(String indexName, int replicaId, String hostName, int port) {
+    public void addReplicas(String indexName, int replicaId, String hostName, int port) {
         AddReplicaRequest addDocumentRequest = AddReplicaRequest.newBuilder()
                 .setMagicNumber(BINARY_MAGIC)
                 .setIndexName(indexName)
@@ -104,7 +104,13 @@ public class ReplicationServerClient implements Closeable {
                 .setHostName(hostName)
                 .setPort(port)
                 .build();
-        return this.blockingStub.addReplicas(addDocumentRequest);
+        try {
+            this.blockingStub.addReplicas(addDocumentRequest);
+        } catch (Exception e) {
+            /* Note this should allow the replica to start, but it means it will not be able to get new index updates
+             * from Primary: https://github.com/Yelp/nrtsearch/issues/86 */
+            logger.warn("Replica could NOT register itself with Primary ", e);
+        }
     }
 
     public Iterator<RawFileChunk> recvRawFile(String fileName, long fpOffset, String indexName) {

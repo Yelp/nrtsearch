@@ -20,7 +20,7 @@ targetCompatibility = 1.12
 
 // Feel free to delete the comment at the next line. It is just for safely
 // updating the version in our release process.
-def luceneVersion = '8.2.0'
+def luceneVersion = '8.4.0'
 def slf4jVersion = '2.0.0-alpha0'
 def gsonVersion = '2.8.5'
 def snakeYamlVersion = '1.25'
@@ -53,6 +53,8 @@ dependencies {
 
     //lucene deps
     implementation "org.apache.lucene:lucene-core:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-codecs:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-backward-codecs:${luceneVersion}"
     implementation "org.apache.lucene:lucene-queries:${luceneVersion}"
     implementation "org.apache.lucene:lucene-facet:${luceneVersion}"
     implementation "org.apache.lucene:lucene-replicator:${luceneVersion}"
