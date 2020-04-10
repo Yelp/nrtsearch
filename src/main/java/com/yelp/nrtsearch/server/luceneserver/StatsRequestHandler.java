@@ -60,7 +60,7 @@ public class StatsRequestHandler implements Handler<StatsRequest, StatsResponse>
         for (Map.Entry<Integer, ShardState> entry : indexState.shards.entrySet()) {
             ShardState shardState = entry.getValue();
             statsResponseBuilder.setOrd(entry.getKey());
-            if (shardState.writer != null) { //replica
+            if (shardState.writer != null) { // primary and standalone mode
                 IndexWriter.DocStats docStats = shardState.writer.getDocStats();
                 statsResponseBuilder.setMaxDoc(docStats.maxDoc);
                 statsResponseBuilder.setNumDocs(docStats.numDocs);
