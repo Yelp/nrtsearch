@@ -60,14 +60,16 @@ public class StatsRequestHandler implements Handler<StatsRequest, StatsResponse>
         for (Map.Entry<Integer, ShardState> entry : indexState.shards.entrySet()) {
             ShardState shardState = entry.getValue();
             statsResponseBuilder.setOrd(entry.getKey());
-            IndexWriter.DocStats docStats = shardState.writer.getDocStats();
+            if (shardState.writer != null) { //replica
+                IndexWriter.DocStats docStats = shardState.writer.getDocStats();
+                statsResponseBuilder.setMaxDoc(docStats.maxDoc);
+                statsResponseBuilder.setNumDocs(docStats.numDocs);
+            }
             String[] fNames = shardState.indexDir.listAll();
             long dirSize = 0;
             for (int i = 0; i < fNames.length; i++) {
                 dirSize += shardState.indexDir.fileLength(fNames[i]);
             }
-            statsResponseBuilder.setMaxDoc(docStats.maxDoc);
-            statsResponseBuilder.setNumDocs(docStats.numDocs);
             statsResponseBuilder.setDirSize(dirSize);
             // TODO: snapshots
 
