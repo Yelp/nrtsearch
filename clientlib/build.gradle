@@ -21,6 +21,12 @@ sourceCompatibility = 1.12
 targetCompatibility = 1.12
 startScripts.enabled = false
 
+// groupId, artifactId and version for the generated pom
+def _groupId = 'com.yelp.nrtsearch'
+def _artifactId = 'clientlib'
+def _version = '0.1-SNAPSHOT'
+
+// Dependency versions
 def grpcVersion = '1.26.0' // CURRENT_GRPC_VERSION
 def protobufVersion = '3.11.1'
 def protocVersion = protobufVersion
@@ -61,14 +67,73 @@ protobuf {
     }
 }
 
+test {}
+
+signing {
+    sign publishing.publications
+}
+
 publishing {
     publications {
-        maven(MavenPublication) {
-            groupId = 'com.yelp.nrtsearch'
-            artifactId = 'clientlib'
-            version = '0.1'
+        mavenJava(MavenPublication) {
+            groupId = _groupId
+            artifactId = _artifactId
+            version = _version
+            from components.java
+            pom {
+                name = 'nrtSearch Clientlib'
+                description = 'GRPC Clientlib for nrtSearch'
+                url = 'https://github.com/Yelp/nrtsearch'
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+                developers {
+                    // Adding all developers in alphabetical order
+                    developer {
+                        id = 'alok'
+                        name = 'Alok Mysore'
+                        email = 'alok@yelp.com'
+                    }
+                    developer {
+                        id = 'karthik'
+                        name = 'Karthik Alle'
+                        email = 'karthik@yelp.com'
+                    }
+                    developer {
+                        id = 'sarthakn'
+                        name = 'Sarthak Nandi'
+                        email = 'sarthakn@yelp.com'
+                    }
+                    developer {
+                        id = 'umesh'
+                        name = 'Umesh Dangat'
+                        email = 'umesh@yelp.com'
+                    }
+                }
+
+                // Links to nrtSearch github
+                scm {
+                    connection = 'scm:git:git://github.com/Yelp/nrtsearch.git'
+                    developerConnection = 'scm:git:ssh://github.com/Yelp/nrtsearch.git'
+                    url = 'https://github.com/Yelp/nrtsearch'
+                }
+            }
+        }
+    }
+    repositories {
+        mavenCentral {
+            credentials {
+                // The credentials are picked up from your gradle.properties file
+                username ossrhUsername
+                password ossrhPassword
+            }
+
+            def releasesRepoUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+            def snapshotsRepoUrl = 'https://oss.sonatype.org/content/repositories/snapshots/'
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
         }
     }
 }
-
-test {}
