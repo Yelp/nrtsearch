@@ -37,7 +37,7 @@ RUN go get -u \
     github.com/golang/protobuf/protoc-gen-go \
     google.golang.org/grpc
 
-ENV PROTO_PATH=/code/clientlib/proto
+ENV PROTO_PATH=/code/clientlib/src/main/proto
 ENV PROTO_BUILD_PATH=/code/clientlib/build
 
 #run protoc plugin for protoc-gen-go

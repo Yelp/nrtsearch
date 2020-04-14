@@ -1,22 +1,13 @@
 package com.yelp.nrtsearch.server.grpc;
 
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.util.JsonFormat;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-import io.grpc.inprocess.InProcessServerBuilder;
-import io.grpc.stub.StreamObserver;
-import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.client.CollectorRegistry;
-import me.dinowernli.grpc.prometheus.Configuration;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.utils.Archiver;
+
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
+
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
@@ -28,6 +19,18 @@ import java.nio.file.Paths;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
+import io.grpc.inprocess.InProcessServerBuilder;
+import io.grpc.stub.StreamObserver;
+import io.grpc.testing.GrpcCleanupRule;
+import io.prometheus.client.CollectorRegistry;
+import me.dinowernli.grpc.prometheus.Configuration;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 
 public class GrpcServer {
@@ -144,12 +147,12 @@ public class GrpcServer {
             grpcCleanup.register(server);
 
             // Create a client channel and register for automatic graceful shutdown.
-            ManagedChannel managedChannel = ManagedChannelBuilder.forAddress("localhost", port).usePlaintext().build();
-            grpcCleanup.register(managedChannel);
+            LuceneServerStubBuilder stubBuilder = new LuceneServerStubBuilder("localhost", port);
+            grpcCleanup.register(stubBuilder.channel);
             luceneServer = server;
-            luceneServerManagedChannel = managedChannel;
-            blockingStub = LuceneServerGrpc.newBlockingStub(managedChannel);
-            stub = LuceneServerGrpc.newStub(managedChannel);
+            luceneServerManagedChannel = stubBuilder.channel;
+            blockingStub = stubBuilder.createBlockingStub();
+            stub = stubBuilder.createAsyncStub();
 
             replicationServerBlockingStub = null;
             replicationServerStub = null;

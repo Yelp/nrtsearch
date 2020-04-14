@@ -7,6 +7,7 @@ plugins {
     id 'idea'
     // Publish clientlib to maven central
     id 'maven-publish'
+    id 'signing'
 }
 
 repositories {
@@ -40,10 +41,12 @@ dependencies {
     compile "io.grpc:grpc-testing:${grpcVersion}"
 }
 
+// Inform IDEs like IntelliJ IDEA, Eclipse or NetBeans about the generated code.
 sourceSets {
-    all {
-        proto {
-            srcDirs 'proto'
+    main {
+        java {
+            srcDirs 'clientlib/build/generated/source/proto/main/grpc'
+            srcDirs 'clientlib/build/generated/source/proto/main/java'
         }
     }
 }
@@ -68,9 +71,4 @@ publishing {
     }
 }
 
-test {
-    // Add tests when there's java code in this module
-    // Until then, exclude everything to allow
-    // build to run
-    exclude '**/*'
-}
+test {}
