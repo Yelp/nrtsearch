@@ -24,7 +24,7 @@ startScripts.enabled = false
 // groupId, artifactId and version for the generated pom
 def _groupId = 'com.yelp.nrtsearch'
 def _artifactId = 'clientlib'
-def _version = '0.1-SNAPSHOT'
+def _version = '0.1'
 
 // Dependency versions
 def grpcVersion = '1.26.0' // CURRENT_GRPC_VERSION
@@ -125,10 +125,12 @@ publishing {
     }
     repositories {
         mavenCentral {
-            credentials {
-                // The credentials are picked up from your gradle.properties file
-                username ossrhUsername
-                password ossrhPassword
+            if (project.hasProperty("signing.keyId")) {
+                credentials {
+                    // The credentials are picked up from your gradle.properties file
+                    username ossrhUsername
+                    password ossrhPassword
+                }
             }
 
             def releasesRepoUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
