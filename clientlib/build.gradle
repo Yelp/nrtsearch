@@ -24,7 +24,7 @@ startScripts.enabled = false
 // groupId, artifactId and version for the generated pom
 def _groupId = 'com.yelp.nrtsearch'
 def _artifactId = 'clientlib'
-def _version = '0.1'
+def _version = '0.1.5'
 
 // Dependency versions
 def grpcVersion = '1.26.0' // CURRENT_GRPC_VERSION
@@ -69,6 +69,20 @@ protobuf {
 
 test {}
 
+task javadocs(type: Javadoc) {
+    source = sourceSets.main.java.srcDirs
+}
+
+task javadocsJar(type: Jar) {
+    classifier('javadoc')
+    from javadocs.destinationDir
+}
+
+task sourcesJar(type: Jar) {
+    classifier('sources')
+    from sourceSets.main.java.srcDirs
+}
+
 signing {
     sign publishing.publications
 }
@@ -79,7 +93,9 @@ publishing {
             groupId = _groupId
             artifactId = _artifactId
             version = _version
-            from components.java
+            artifact tasks.jar
+            artifact tasks.javadocsJar
+            artifact tasks.sourcesJar
             pom {
                 name = 'nrtSearch Clientlib'
                 description = 'GRPC Clientlib for nrtSearch'
