@@ -3,7 +3,7 @@ install: true
 dist: bionic
 
 jdk:
-  - oraclejdk13
+  - oraclejdk14
 
 services:
   - docker

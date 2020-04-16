@@ -43,7 +43,7 @@ In the home directory.
 ./gradlew clean && ./gradlew installDist && ./gradlew test
 ```
 
-Note: This code has been tested on *Java13*
+Note: This code has been tested on *Java14*
 
 
 # Run gRPC Server
