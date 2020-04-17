@@ -2,7 +2,7 @@ FROM ubuntu:19.10
 
 RUN apt-get update && \
     apt-get install -y wget unzip htop \
-    openjdk-13-jdk \
+    openjdk-14-jdk \
     golang-go \
     git
 
