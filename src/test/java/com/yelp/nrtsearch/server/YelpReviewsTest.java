@@ -285,9 +285,9 @@ public class YelpReviewsTest {
                     .build();
             startIndex(secondaryServerClient, startIndexRequest);
 
-
-            int MAX_INDEXING_THREADS = (Runtime.getRuntime().availableProcessors()) / 4;
-            int MAX_SEARCH_THREADS = (Runtime.getRuntime().availableProcessors()) / 4;
+            int availableProcessors = Runtime.getRuntime().availableProcessors();
+            int MAX_INDEXING_THREADS = availableProcessors > 8 ? availableProcessors/4: availableProcessors;
+            int MAX_SEARCH_THREADS = availableProcessors > 8 ? availableProcessors/4: availableProcessors;
             Lock lock = new ReentrantLock();
             Condition cond = lock.newCondition();
 
