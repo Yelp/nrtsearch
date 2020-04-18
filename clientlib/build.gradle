@@ -7,6 +7,7 @@ plugins {
     id 'idea'
     // Publish clientlib to maven central
     id 'maven-publish'
+    id 'signing'
 }
 
 repositories {
@@ -20,6 +21,12 @@ sourceCompatibility = 1.12
 targetCompatibility = 1.12
 startScripts.enabled = false
 
+// groupId, artifactId and version for the generated pom
+def _groupId = 'com.yelp.nrtsearch'
+def _artifactId = 'clientlib'
+def _version = '0.1.5'
+
+// Dependency versions
 def grpcVersion = '1.26.0' // CURRENT_GRPC_VERSION
 def protobufVersion = '3.11.1'
 def protocVersion = protobufVersion
@@ -40,10 +47,12 @@ dependencies {
     compile "io.grpc:grpc-testing:${grpcVersion}"
 }
 
+// Inform IDEs like IntelliJ IDEA, Eclipse or NetBeans about the generated code.
 sourceSets {
-    all {
-        proto {
-            srcDirs 'proto'
+    main {
+        java {
+            srcDirs 'clientlib/build/generated/source/proto/main/grpc'
+            srcDirs 'clientlib/build/generated/source/proto/main/java'
         }
     }
 }
@@ -58,19 +67,91 @@ protobuf {
     }
 }
 
-publishing {
-    publications {
-        maven(MavenPublication) {
-            groupId = 'com.yelp.nrtsearch'
-            artifactId = 'clientlib'
-            version = '0.1'
-        }
-    }
+test {}
+
+task javadocs(type: Javadoc) {
+    source = sourceSets.main.java.srcDirs
 }
 
-test {
-    // Add tests when there's java code in this module
-    // Until then, exclude everything to allow
-    // build to run
-    exclude '**/*'
+task javadocsJar(type: Jar) {
+    classifier('javadoc')
+    from javadocs.destinationDir
+}
+
+task sourcesJar(type: Jar) {
+    classifier('sources')
+    from sourceSets.main.java.srcDirs
+}
+
+signing {
+    sign publishing.publications
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = _groupId
+            artifactId = _artifactId
+            version = _version
+            artifact tasks.jar
+            artifact tasks.javadocsJar
+            artifact tasks.sourcesJar
+            pom {
+                name = 'nrtSearch Clientlib'
+                description = 'GRPC Clientlib for nrtSearch'
+                url = 'https://github.com/Yelp/nrtsearch'
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+                developers {
+                    // Adding all developers in alphabetical order
+                    developer {
+                        id = 'alok'
+                        name = 'Alok Mysore'
+                        email = 'alok@yelp.com'
+                    }
+                    developer {
+                        id = 'karthik'
+                        name = 'Karthik Alle'
+                        email = 'karthik@yelp.com'
+                    }
+                    developer {
+                        id = 'sarthakn'
+                        name = 'Sarthak Nandi'
+                        email = 'sarthakn@yelp.com'
+                    }
+                    developer {
+                        id = 'umesh'
+                        name = 'Umesh Dangat'
+                        email = 'umesh@yelp.com'
+                    }
+                }
+
+                // Links to nrtSearch github
+                scm {
+                    connection = 'scm:git:git://github.com/Yelp/nrtsearch.git'
+                    developerConnection = 'scm:git:ssh://github.com/Yelp/nrtsearch.git'
+                    url = 'https://github.com/Yelp/nrtsearch'
+                }
+            }
+        }
+    }
+    repositories {
+        mavenCentral {
+            if (project.hasProperty("signing.keyId")) {
+                credentials {
+                    // The credentials are picked up from your gradle.properties file
+                    username ossrhUsername
+                    password ossrhPassword
+                }
+            }
+
+            def releasesRepoUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+            def snapshotsRepoUrl = 'https://oss.sonatype.org/content/repositories/snapshots/'
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+        }
+    }
 }

@@ -15,6 +15,9 @@ repositories {
 sourceCompatibility = 1.12
 targetCompatibility = 1.12
 
+//This is for https://github.com/gradle/gradle/issues/11308
+System.setProperty("org.gradle.internal.publish.checksums.insecure", "True")
+
 // IMPORTANT: You probably want the non-SNAPSHOT version of gRPC. Make sure you
 // are looking at a tagged version of the example and not "master"!
 
@@ -78,18 +81,6 @@ dependencies {
     testImplementation "io.findify:s3mock_2.12:${s3mockVersion}"
 
     compile project(':clientlib')
-}
-
-
-
-// Inform IDEs like IntelliJ IDEA, Eclipse or NetBeans about the generated code.
-sourceSets {
-    main {
-        java {
-            srcDirs 'clientlib/build/generated/source/proto/main/grpc'
-            srcDirs 'clientlib/build/generated/source/proto/main/java'
-        }
-    }
 }
 
 startScripts.enabled = false
