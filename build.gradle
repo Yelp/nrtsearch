@@ -12,8 +12,8 @@ repositories {
     mavenLocal()
 }
 
-sourceCompatibility = 1.12
-targetCompatibility = 1.12
+sourceCompatibility = 1.14
+targetCompatibility = 1.14
 
 //This is for https://github.com/gradle/gradle/issues/11308
 System.setProperty("org.gradle.internal.publish.checksums.insecure", "True")

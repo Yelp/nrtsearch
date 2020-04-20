@@ -3,7 +3,7 @@ install: true
 dist: bionic
 
 jdk:
-  - oraclejdk13
+  - oraclejdk14
 
 services:
   - docker
@@ -11,3 +11,4 @@ services:
 script:
   - ./gradlew clean check test --info
   - ./gradlew clean buildGrpcGateway
+  - ./gradlew clean installDist test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
