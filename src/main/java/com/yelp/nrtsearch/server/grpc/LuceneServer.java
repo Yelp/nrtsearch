@@ -54,6 +54,7 @@ import com.yelp.nrtsearch.server.luceneserver.SuggestLookupHandler;
 import com.yelp.nrtsearch.server.luceneserver.UpdateFieldsHandler;
 import com.yelp.nrtsearch.server.luceneserver.UpdateSuggestHandler;
 import com.yelp.nrtsearch.server.luceneserver.WriteNRTPointHandler;
+import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.utils.Archiver;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -90,20 +91,25 @@ public class LuceneServer {
     private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
     private final Archiver archiver;
     private final CollectorRegistry collectorRegistry;
+    private final PluginsService pluginsService;
 
     private Server server;
     private Server replicationServer;
     private LuceneServerConfiguration luceneServerConfiguration;
 
     @Inject
-    public LuceneServer(LuceneServerConfiguration luceneServerConfiguration, Archiver archiver, CollectorRegistry collectorRegistry) {
+    public LuceneServer(LuceneServerConfiguration luceneServerConfiguration, Archiver archiver,
+                        CollectorRegistry collectorRegistry, PluginsService pluginsService) {
         this.luceneServerConfiguration = luceneServerConfiguration;
         this.archiver = archiver;
         this.collectorRegistry = collectorRegistry;
+        this.pluginsService = pluginsService;
     }
 
     private void start() throws IOException {
         GlobalState globalState = new GlobalState(luceneServerConfiguration);
+
+        pluginsService.loadPlugins();
 
         MonitoringServerInterceptor monitoringInterceptor =
                 MonitoringServerInterceptor.create(Configuration
@@ -142,6 +148,9 @@ public class LuceneServer {
         if (replicationServer != null) {
             replicationServer.shutdown();
         }
+        if (pluginsService != null) {
+            pluginsService.shutdown();
+        }
     }
 
     /**
@@ -160,7 +169,6 @@ public class LuceneServer {
      * Main launches the server from the command line.
      */
     public static void main(String[] args) throws IOException, InterruptedException {
-        LuceneServerConfiguration luceneServerConfiguration;
         logger.info("arguments passed: " + args.length);
         Injector injector = Guice.createInjector(new LuceneServerModule(args));
         LuceneServer luceneServer = injector.getInstance(LuceneServer.class);

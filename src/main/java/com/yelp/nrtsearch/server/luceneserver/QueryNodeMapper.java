@@ -42,8 +42,8 @@ import java.text.ParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.yelp.nrtsearch.server.luceneserver.AnalyzerCreator.getAnalyzer;
-import static com.yelp.nrtsearch.server.luceneserver.AnalyzerCreator.isAnalyzerDefined;
+import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.getAnalyzer;
+import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
 
 /**
  * This class maps our GRPC Query object to a Lucene Query object.

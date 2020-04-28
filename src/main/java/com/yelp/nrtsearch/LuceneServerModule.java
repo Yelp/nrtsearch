@@ -23,6 +23,7 @@
 package com.yelp.nrtsearch;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.utils.Archiver;
 import com.yelp.nrtsearch.server.utils.ArchiverImpl;
 import com.yelp.nrtsearch.server.utils.Tar;
@@ -56,6 +57,11 @@ public class LuceneServerModule extends AbstractModule {
 
     public LuceneServerModule(String[] args) {
         this.args = args;
+    }
+
+    @Override
+    protected void configure() {
+        bind(PluginsService.class).asEagerSingleton();
     }
 
     @Inject

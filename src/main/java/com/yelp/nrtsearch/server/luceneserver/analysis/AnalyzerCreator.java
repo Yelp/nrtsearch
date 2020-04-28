@@ -15,7 +15,7 @@
  *
  */
 
-package com.yelp.nrtsearch.server.luceneserver;
+package com.yelp.nrtsearch.server.luceneserver.analysis;
 
 import com.yelp.nrtsearch.server.grpc.ConditionalTokenFilter;
 import com.yelp.nrtsearch.server.grpc.Field;
@@ -32,6 +32,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.text.MessageFormat;
 import java.text.ParseException;
 import java.util.HashMap;
+import java.util.Map;
 
 public class AnalyzerCreator {
 
@@ -39,14 +40,32 @@ public class AnalyzerCreator {
     private static final String STANDARD = "standard";
     private static final String CLASSIC = "classic";
 
-    static Analyzer getAnalyzer(com.yelp.nrtsearch.server.grpc.Analyzer analyzer) {
+    private static final Map<String, AnalysisProvider<? extends Analyzer>> analyzerMap =
+        new HashMap<>();
+
+    public static void register(Map<String, AnalysisProvider<? extends Analyzer>> analyzers) {
+        analyzers.forEach(AnalyzerCreator::register);
+    }
+
+    public static void register(String name,
+                                AnalysisProvider<? extends Analyzer> provider) {
+        if (analyzerMap.containsKey(name)) {
+            throw new IllegalArgumentException("Analyzer " + name + " already exists");
+        }
+        analyzerMap.put(name, provider);
+    }
+
+    static {
+        register(STANDARD, name -> new StandardAnalyzer());
+        register(CLASSIC, name -> new ClassicAnalyzer());
+    }
+
+    public static Analyzer getAnalyzer(com.yelp.nrtsearch.server.grpc.Analyzer analyzer) {
         if (!analyzer.getPredefined().isEmpty()) {
             String predefinedAnalyzer = analyzer.getPredefined();
 
-            if (STANDARD.equals(predefinedAnalyzer)) {
-                return new StandardAnalyzer();
-            } else if (CLASSIC.equals(predefinedAnalyzer)) {
-                return new ClassicAnalyzer();
+            if (analyzerMap.containsKey(predefinedAnalyzer)) {
+                return analyzerMap.get(predefinedAnalyzer).get(predefinedAnalyzer);
             } else {
                 // Try to dynamically load the analyzer class
                 try {
@@ -112,16 +131,16 @@ public class AnalyzerCreator {
     }
 
     // TODO: replace usages of this method in suggest with getAnalyzer
-    static Analyzer getStandardAnalyzer() {
+    public static Analyzer getStandardAnalyzer() {
         return new StandardAnalyzer();
     }
 
-    static boolean hasAnalyzer(Field field) {
+    public static boolean hasAnalyzer(Field field) {
         return field != null && (isAnalyzerDefined(field.getAnalyzer()) || isAnalyzerDefined(field.getIndexAnalyzer())
                 || isAnalyzerDefined(field.getSearchAnalyzer()));
     }
 
-    static boolean isAnalyzerDefined(com.yelp.nrtsearch.server.grpc.Analyzer analyzer) {
+    public static boolean isAnalyzerDefined(com.yelp.nrtsearch.server.grpc.Analyzer analyzer) {
         return analyzer != null
                 && (!analyzer.getPredefined().isEmpty() || analyzer.hasCustom());
     }

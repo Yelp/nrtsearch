@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefResponse;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.TermVectors;
+import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -53,8 +54,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.yelp.nrtsearch.server.luceneserver.AnalyzerCreator.hasAnalyzer;
-import static com.yelp.nrtsearch.server.luceneserver.AnalyzerCreator.isAnalyzerDefined;
+import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.hasAnalyzer;
+import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
 
 public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefResponse> {
 

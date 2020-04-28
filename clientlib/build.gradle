@@ -22,9 +22,7 @@ targetCompatibility = 1.12
 startScripts.enabled = false
 
 // groupId, artifactId and version for the generated pom
-def _groupId = 'com.yelp.nrtsearch'
 def _artifactId = 'clientlib'
-def _version = '0.1.5'
 
 // Dependency versions
 def grpcVersion = '1.26.0' // CURRENT_GRPC_VERSION
@@ -84,15 +82,17 @@ task sourcesJar(type: Jar) {
 }
 
 signing {
-    sign publishing.publications
+    if (project.hasProperty("signing.keyId")) {
+        sign publishing.publications
+    }
 }
 
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            groupId = _groupId
+            groupId = project.group
             artifactId = _artifactId
-            version = _version
+            version = project.version
             artifact tasks.jar
             artifact tasks.javadocsJar
             artifact tasks.sourcesJar

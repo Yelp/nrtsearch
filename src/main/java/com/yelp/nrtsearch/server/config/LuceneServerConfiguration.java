@@ -39,6 +39,8 @@ public class LuceneServerConfiguration {
     //buckets represent number of requests completed in "less than" seconds
     private static final double[] DEFAULT_METRICS_BUCKETS = new double[]{.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10};
     private static final int DEFAULT_INTERVAL_MS = 1000 * 10;
+    private static final String[] DEFAULT_PLUGINS = new String[]{};
+    private static final String DEFAULT_PLUGIN_SEARCH_PATH = "/usr/share/nrtsearch/plugins";
 
     private int port = DEFAULT_PORT;
     private int replicationPort = DEFAULT_REPLICATION_PORT;
@@ -51,6 +53,8 @@ public class LuceneServerConfiguration {
     private String botoCfgPath = DEFAULT_BOTO_CFG_PATH.toString();
     private String bucketName = DEFAULT_BUCKET_NAME;
     private double[] metricsBuckets = DEFAULT_METRICS_BUCKETS;
+    private String[] plugins = DEFAULT_PLUGINS;
+    private String pluginSearchPath = DEFAULT_PLUGIN_SEARCH_PATH;
 
     @Inject
     public LuceneServerConfiguration() {
@@ -141,6 +145,22 @@ public class LuceneServerConfiguration {
         this.replicaReplicationPortPingInterval = replicaReplicationPortPingInterval;
     }
 
+    public String[] getPlugins() {
+        return this.plugins;
+    }
+
+    public void setPlugins(String[] plugins) {
+        this.plugins = plugins;
+    }
+
+    public String getPluginSearchPath() {
+        return this.pluginSearchPath;
+    }
+
+    public void setPluginSearchPath(String pluginSearchPath) {
+        this.pluginSearchPath = pluginSearchPath;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
@@ -155,6 +175,8 @@ public class LuceneServerConfiguration {
         sb.append(", botoCfgPath='").append(botoCfgPath).append('\'');
         sb.append(", bucketName='").append(bucketName).append('\'');
         sb.append(", metricsBuckets=").append(Arrays.toString(metricsBuckets));
+        sb.append(", plugins=").append(Arrays.toString(plugins));
+        sb.append(", pluginSearchPath='").append(pluginSearchPath).append('\'');
         sb.append('}');
         return sb.toString();
     }
@@ -171,6 +193,8 @@ public class LuceneServerConfiguration {
         private String archiveDirectory;
         private String botoCfgPath;
         private String bucketName;
+        private String[] plugins;
+        private String pluginSearchPath;
 
         public Builder() {
             //set default values
@@ -185,6 +209,8 @@ public class LuceneServerConfiguration {
             this.bucketName = DEFAULT_BUCKET_NAME;
             this.metricsBuckets = DEFAULT_METRICS_BUCKETS;
             this.replicaReplicationPortPingInterval= DEFAULT_INTERVAL_MS;
+            this.plugins = DEFAULT_PLUGINS;
+            this.pluginSearchPath = DEFAULT_PLUGIN_SEARCH_PATH;
         }
 
         public Builder withStateDir(String tempStateDir) {
@@ -237,6 +263,16 @@ public class LuceneServerConfiguration {
             return this;
         }
 
+        public Builder withPlugins(String[] plugins) {
+            this.plugins = plugins;
+            return this;
+        }
+
+        public Builder withPluginSearchPath(String pluginSearchPath) {
+            this.pluginSearchPath = pluginSearchPath;
+            return this;
+        }
+
         public LuceneServerConfiguration build() {
             LuceneServerConfiguration luceneServerConfiguration = new LuceneServerConfiguration();
             luceneServerConfiguration.nodeName = this.nodeName;
@@ -250,6 +286,8 @@ public class LuceneServerConfiguration {
             luceneServerConfiguration.bucketName = this.bucketName;
             luceneServerConfiguration.metricsBuckets = this.metricsBuckets;
             luceneServerConfiguration.replicaReplicationPortPingInterval = this.replicaReplicationPortPingInterval;
+            luceneServerConfiguration.plugins = this.plugins;
+            luceneServerConfiguration.pluginSearchPath = this.pluginSearchPath;
             return luceneServerConfiguration;
         }
 

@@ -3,6 +3,8 @@ plugins {
     id 'application'
     // Generate IntelliJ IDEA's .idea & .iml project files
     id 'idea'
+    id 'maven-publish'
+    id 'signing'
 }
 
 repositories {
@@ -14,6 +16,13 @@ repositories {
 
 sourceCompatibility = 1.14
 targetCompatibility = 1.14
+
+allprojects {
+    version = '0.1.5'
+    group = 'com.yelp.nrtsearch'
+}
+
+def _artifactId = 'server'
 
 //This is for https://github.com/gradle/gradle/issues/11308
 System.setProperty("org.gradle.internal.publish.checksums.insecure", "True")
@@ -119,4 +128,93 @@ test {
         exclude '**/YelpSuggestTest.class'
     }
     systemProperties System.properties
+}
+
+task javadocs(type: Javadoc) {
+    source = sourceSets.main.java.srcDirs
+}
+
+task javadocsJar(type: Jar) {
+    classifier('javadoc')
+    from javadocs.destinationDir
+}
+
+task sourcesJar(type: Jar) {
+    classifier('sources')
+    from sourceSets.main.java.srcDirs
+}
+
+signing {
+    if (project.hasProperty("signing.keyId")) {
+        sign publishing.publications
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            groupId = project.group
+            artifactId = _artifactId
+            version = project.version
+            artifact tasks.jar
+            artifact tasks.javadocsJar
+            artifact tasks.sourcesJar
+            pom {
+                name = 'nrtSearch Server'
+                description = 'GRPC lucene server using near-real-time replication'
+                url = 'https://github.com/Yelp/nrtsearch'
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+                developers {
+                    // Adding all developers in alphabetical order
+                    developer {
+                        id = 'alok'
+                        name = 'Alok Mysore'
+                        email = 'alok@yelp.com'
+                    }
+                    developer {
+                        id = 'karthik'
+                        name = 'Karthik Alle'
+                        email = 'karthik@yelp.com'
+                    }
+                    developer {
+                        id = 'sarthakn'
+                        name = 'Sarthak Nandi'
+                        email = 'sarthakn@yelp.com'
+                    }
+                    developer {
+                        id = 'umesh'
+                        name = 'Umesh Dangat'
+                        email = 'umesh@yelp.com'
+                    }
+                }
+
+                // Links to nrtSearch github
+                scm {
+                    connection = 'scm:git:git://github.com/Yelp/nrtsearch.git'
+                    developerConnection = 'scm:git:ssh://github.com/Yelp/nrtsearch.git'
+                    url = 'https://github.com/Yelp/nrtsearch'
+                }
+            }
+        }
+    }
+    repositories {
+        mavenCentral {
+            if (project.hasProperty("signing.keyId")) {
+                credentials {
+                    // The credentials are picked up from your gradle.properties file
+                    username ossrhUsername
+                    password ossrhPassword
+                }
+            }
+
+            def releasesRepoUrl = 'https://oss.sonatype.org/service/local/staging/deploy/maven2/'
+            def snapshotsRepoUrl = 'https://oss.sonatype.org/content/repositories/snapshots/'
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+        }
+    }
 }

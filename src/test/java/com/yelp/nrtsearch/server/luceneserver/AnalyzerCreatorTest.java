@@ -50,10 +50,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.yelp.nrtsearch.server.luceneserver.AnalyzerCreator.getAnalyzer;
-import static com.yelp.nrtsearch.server.luceneserver.AnalyzerCreator.getStandardAnalyzer;
-import static com.yelp.nrtsearch.server.luceneserver.AnalyzerCreator.hasAnalyzer;
-import static com.yelp.nrtsearch.server.luceneserver.AnalyzerCreator.isAnalyzerDefined;
+import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.getAnalyzer;
+import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.getStandardAnalyzer;
+import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.hasAnalyzer;
+import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.junit.Assert.assertEquals;
