@@ -53,8 +53,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ArchiverImpl implements Archiver {
@@ -131,7 +134,7 @@ public class ArchiverImpl implements Archiver {
     private void uploadTarWithMetadata(String serviceName, String resource, String versionHash, Path path) throws IOException {
         final String absoluteResourcePath = String.format("%s/%s/%s", serviceName, resource, versionHash);
         PutObjectRequest request = new PutObjectRequest(bucketName, absoluteResourcePath, path.toFile());
-        request.setGeneralProgressListener(new ProgressListenerImpl(serviceName, resource));
+        request.setGeneralProgressListener(new S3ProgressListenerImpl(serviceName, resource, "upload"));
         Upload upload = transferManager.upload(request);
         try {
             upload.waitForUploadResult();
@@ -162,7 +165,7 @@ public class ArchiverImpl implements Archiver {
         final Path tmpFile = parentDirectory.resolve(getTmpName());
 
         Download download = transferManager.download(new GetObjectRequest(bucketName, absoluteResourcePath),
-                tmpFile.toFile(), new S3ProgressListenerImpl(serviceName, resource));
+                tmpFile.toFile(), new S3ProgressListenerImpl(serviceName, resource, "download"));
         try {
             download.waitForCompletion();
             logger.info("S3 Download complete");
@@ -237,35 +240,26 @@ public class ArchiverImpl implements Archiver {
         }
     }
 
-    private static class ProgressListenerImpl implements ProgressListener {
-
-        private static Logger logger = LoggerFactory.getLogger(ProgressListenerImpl.class);
-        private final String serviceName;
-        private final String resource;
-        private AtomicLong totalBytesTransferred = new AtomicLong();
-
-        public ProgressListenerImpl(String serviceName, String resource) {
-            this.serviceName = serviceName;
-            this.resource = resource;
-        }
-
-        @Override
-        public void progressChanged(ProgressEvent progressEvent) {
-            long totalBytes = totalBytesTransferred.addAndGet(progressEvent.getBytesTransferred());
-            logger.info(String.format("service: %s, resource: %s, upload transferred bytes: %s", serviceName, resource, totalBytes));
-        }
-    }
-
     private static class S3ProgressListenerImpl implements S3ProgressListener {
         private static Logger logger = LoggerFactory.getLogger(S3ProgressListenerImpl.class);
+
+        private static final long LOG_THRESHOLD_BYTES = 1024 * 1024 * 500; // 500 MB
+        private static final long LOG_THRESHOLD_SECONDS = 30;
+
         private final String serviceName;
         private final String resource;
-        private AtomicLong totalBytesTransferred = new AtomicLong();
+        private final String operation;
+
+        private final Semaphore lock = new Semaphore(1);
+        private final AtomicLong totalBytesTransferred = new AtomicLong();
+        private long bytesTransferredSinceLastLog = 0;
+        private LocalDateTime lastLoggedTime = LocalDateTime.now();
 
 
-        public S3ProgressListenerImpl(String serviceName, String resource) {
+        public S3ProgressListenerImpl(String serviceName, String resource, String operation) {
             this.serviceName = serviceName;
             this.resource = resource;
+            this.operation = operation;
         }
 
         @Override
@@ -275,7 +269,24 @@ public class ArchiverImpl implements Archiver {
         @Override
         public void progressChanged(ProgressEvent progressEvent) {
             long totalBytes = totalBytesTransferred.addAndGet(progressEvent.getBytesTransferred());
-            logger.info(String.format("service: %s, resource: %s, download transferred bytes: %s", serviceName, resource, totalBytes));
+
+            boolean acquired = lock.tryAcquire();
+
+            if (acquired) {
+                try {
+                    bytesTransferredSinceLastLog += progressEvent.getBytesTransferred();
+                    long secondsSinceLastLog = Duration.between(lastLoggedTime, LocalDateTime.now()).getSeconds();
+
+                    if (bytesTransferredSinceLastLog > LOG_THRESHOLD_BYTES || secondsSinceLastLog > LOG_THRESHOLD_SECONDS) {
+                        logger.info(String.format("service: %s, resource: %s, %s transferred bytes: %s", serviceName, resource, operation, totalBytes));
+                        bytesTransferredSinceLastLog = 0;
+                        lastLoggedTime = LocalDateTime.now();
+                    }
+                }
+                finally {
+                    lock.release();
+                }
+            }
         }
 
     }
