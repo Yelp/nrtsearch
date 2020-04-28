@@ -3,8 +3,6 @@ package com.yelp.nrtsearch.server.grpc;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import io.findify.s3mock.S3Mock;
-import io.grpc.testing.GrpcCleanupRule;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
@@ -12,6 +10,8 @@ import com.yelp.nrtsearch.server.utils.Archiver;
 import com.yelp.nrtsearch.server.utils.ArchiverImpl;
 import com.yelp.nrtsearch.server.utils.Tar;
 import com.yelp.nrtsearch.server.utils.TarImpl;
+import io.findify.s3mock.S3Mock;
+import io.grpc.testing.GrpcCleanupRule;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -24,9 +24,11 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
+import java.util.concurrent.TimeUnit;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.BINARY_MAGIC;
+import static com.yelp.nrtsearch.server.luceneserver.ShardState.KeepAlive.PING_INTERVAL_SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -199,6 +201,56 @@ public class ReplicationServerTest {
         validateSearchResults(searchResponsePrimary);
         validateSearchResults(searchResponseSecondary);
 
+    }
+
+    @Test
+    public void getConnectedNodes() throws IOException, InterruptedException {
+        //startIndex primary
+        GrpcServer.TestServer testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
+        //startIndex replica
+        GrpcServer.TestServer testServerReplica = new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
+        //primary should have registered replica in its connected nodes list
+        GetNodeResponse getNodeResponse = replicationServerPrimary
+                .getReplicationServerBlockingStub()
+                .getConnectedNodes(GetNodesRequest.newBuilder()
+                        .setIndexName("test_index")
+                        .build());
+        assertEquals(1, getNodeResponse.getNodesCount());
+        assertEquals("localhost", getNodeResponse.getNodesList().get(0).getHostname());
+        assertEquals(9003, getNodeResponse.getNodesList().get(0).getPort());
+    }
+
+    @Test
+    public void replicaConnectivity() throws IOException, InterruptedException {
+        //startIndex replica
+        System.setProperty(PING_INTERVAL_SECONDS, "1");
+        GrpcServer.TestServer testServerReplica = new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
+        // search on replica: no documents!
+        SearchResponse searchResponseSecondary = luceneServerSecondary.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(luceneServerSecondary.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                .build());
+        assertEquals(0, searchResponseSecondary.getHitsCount());
+
+        //index 2 documents to primary
+        GrpcServer.TestServer testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
+        TimeUnit.SECONDS.sleep(5);
+        testServerPrimary.addDocuments();
+        testServerPrimary.addDocuments();
+        // publish new NRT point (retrieve the current searcher version on primary)
+        SearcherVersion searcherVersionPrimary = replicationServerPrimary.getReplicationServerBlockingStub().writeNRTPoint(IndexName.newBuilder().setIndexName("test_index").build());
+
+        // search on replica: 4 documents!
+        searchResponseSecondary = luceneServerSecondary.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(luceneServerSecondary.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .setVersion(searcherVersionPrimary.getVersion())
+                .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                .build());
+        validateSearchResults(searchResponseSecondary);
     }
 
     public static void validateSearchResults(SearchResponse searchResponse) {

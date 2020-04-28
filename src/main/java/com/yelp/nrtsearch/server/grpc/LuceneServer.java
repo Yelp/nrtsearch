@@ -35,9 +35,11 @@ import com.yelp.nrtsearch.server.luceneserver.CreateSnapshotHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteAllDocumentsHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteDocumentsHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteIndexHandler;
+import com.yelp.nrtsearch.server.luceneserver.GetNodesInfoHandler;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.LiveSettingsHandler;
+import com.yelp.nrtsearch.server.luceneserver.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.luceneserver.NewNRTPointHandler;
 import com.yelp.nrtsearch.server.luceneserver.RecvCopyStateHandler;
 import com.yelp.nrtsearch.server.luceneserver.RegisterFieldsHandler;
@@ -74,10 +76,12 @@ import java.io.OutputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
@@ -1021,6 +1025,23 @@ public class LuceneServer {
             }
         }
 
+        @Override
+        public void getConnectedNodes(GetNodesRequest getNodesRequest, StreamObserver<GetNodeResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(getNodesRequest.getIndexName());
+                GetNodeResponse reply = new GetNodesInfoHandler().handle(indexState, getNodesRequest);
+                logger.info("GetNodesInfoHandler returned GetNodeResponse of size " + reply.getNodesCount());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn("error on GetNodesInfoHandler", e);
+                responseObserver.onError(Status
+                        .INTERNAL
+                        .withDescription(String.format("error on GetNodesInfoHandler"))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
 
     }
 }

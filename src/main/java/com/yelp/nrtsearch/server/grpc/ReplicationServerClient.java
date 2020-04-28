@@ -163,6 +163,13 @@ public class ReplicationServerClient implements Closeable {
                 .setIndexName(indexName).build());
     }
 
+    public GetNodeResponse getConnectedNodes(String indexName) {
+        return blockingStub.getConnectedNodes(
+                GetNodesRequest.newBuilder()
+                        .setIndexName(indexName)
+                        .build());
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

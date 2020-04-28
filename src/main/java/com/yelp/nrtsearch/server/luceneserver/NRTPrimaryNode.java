@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -65,7 +66,7 @@ public class NRTPrimaryNode extends PrimaryNode {
         this.indexName = indexName;
     }
 
-    static class ReplicaDetails {
+    public static class ReplicaDetails {
         private final int replicaId;
 
         public int getReplicaId() {
@@ -330,6 +331,10 @@ public class NRTPrimaryNode extends PrimaryNode {
                 message("successfully started warming");
             }
         }
+    }
+
+    public Collection<ReplicaDetails> getNodesInfo() {
+        return Collections.unmodifiableCollection(replicasInfos);
     }
 
 }

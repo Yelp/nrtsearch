@@ -299,6 +299,39 @@
         ]
       }
     },
+    "/v1/get_nodes_info": {
+      "post": {
+        "summary": "* Invoked externally on primary to find the list of replica nodes this node is connected to for binary replication per index",
+        "operationId": "LuceneServer_getConnectedNodes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverGetNodesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverGetNodesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/indices": {
       "get": {
         "summary": "indices",
@@ -1665,6 +1698,34 @@
       },
       "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
     },
+    "luceneserverGetNodeResponse": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverNodeInfo"
+          }
+        }
+      }
+    },
+    "luceneserverGetNodesRequest": {
+      "type": "object"
+    },
+    "luceneserverGetNodesResponse": {
+      "type": "object",
+      "properties": {
+        "nodesResponse": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverGetNodeResponse"
+          }
+        }
+      }
+    },
     "luceneserverHealthCheckRequest": {
       "type": "object",
       "properties": {
@@ -1920,6 +1981,18 @@
           "additionalProperties": {
             "type": "string"
           }
+        }
+      }
+    },
+    "luceneserverNodeInfo": {
+      "type": "object",
+      "properties": {
+        "hostname": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
