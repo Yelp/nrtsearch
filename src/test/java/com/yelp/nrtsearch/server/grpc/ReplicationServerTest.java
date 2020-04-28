@@ -24,11 +24,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
-import java.util.concurrent.TimeUnit;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.BINARY_MAGIC;
-import static com.yelp.nrtsearch.server.luceneserver.ShardState.KeepAlive.PING_INTERVAL_SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -222,8 +220,9 @@ public class ReplicationServerTest {
 
     @Test
     public void replicaConnectivity() throws IOException, InterruptedException {
+        //set ping interval to 10 ms
+        luceneServerSecondary.getGlobalState().setReplicaReplicationPortPingInterval(10);
         //startIndex replica
-        System.setProperty(PING_INTERVAL_SECONDS, "1");
         GrpcServer.TestServer testServerReplica = new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
         // search on replica: no documents!
         SearchResponse searchResponseSecondary = luceneServerSecondary.getBlockingStub().search(SearchRequest.newBuilder()
@@ -234,9 +233,8 @@ public class ReplicationServerTest {
                 .build());
         assertEquals(0, searchResponseSecondary.getHitsCount());
 
-        //index 2 documents to primary
+        //index 4 documents to primary
         GrpcServer.TestServer testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
-        TimeUnit.SECONDS.sleep(5);
         testServerPrimary.addDocuments();
         testServerPrimary.addDocuments();
         // publish new NRT point (retrieve the current searcher version on primary)

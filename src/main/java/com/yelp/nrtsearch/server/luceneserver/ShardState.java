@@ -961,13 +961,13 @@ public class ShardState implements Closeable {
 
     public static class KeepAlive implements Runnable, Closeable {
         Logger logger = LoggerFactory.getLogger(KeepAlive.class);
-        public static final String PING_INTERVAL_SECONDS = "PING_INTERVAL_SECONDS";
-        private static final int PING_INTERVAL = System.getProperty(PING_INTERVAL_SECONDS) == null ? 30 : Integer.parseInt(System.getProperty(PING_INTERVAL_SECONDS));
         private volatile boolean exit = false;
+        private final int pingIntervalMs;
         private final ShardState shardState;
 
         KeepAlive(ShardState shardState) {
             this.shardState = shardState;
+            this.pingIntervalMs = shardState.indexState.globalState.getReplicaReplicationPortPingInterval();
         }
 
         @Override
@@ -975,8 +975,8 @@ public class ShardState implements Closeable {
             while (!exit) {
                 NRTReplicaNode nrtReplicaNode = shardState.nrtReplicaNode;
                 try {
-                    TimeUnit.SECONDS.sleep(PING_INTERVAL);
-                    if (shardState.isReplica() && shardState.isStarted() && !shardState.nrtReplicaNode.isKnownToPrimary()) {
+                    TimeUnit.MILLISECONDS.sleep(pingIntervalMs);
+                    if (shardState.isReplica() && shardState.isStarted() && !shardState.nrtReplicaNode.isKnownToPrimary() && !exit) {
                         nrtReplicaNode.getPrimaryAddress().addReplicas(
                                 shardState.indexState.name, REPLICA_ID,
                                 nrtReplicaNode.getLocalSocketAddress().getHostName(),
@@ -985,7 +985,7 @@ public class ShardState implements Closeable {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (StatusRuntimeException e) {
-                    logger.warn(String.format("Replica host: %s, binary port: %s is cannot reach primary host: %s replication port: %s",
+                    logger.warn(String.format("Replica host: %s, binary port: %s cannot reach primary host: %s replication port: %s",
                             nrtReplicaNode.getLocalSocketAddress().getHostName(), nrtReplicaNode.getLocalSocketAddress().getPort(),
                             nrtReplicaNode.getPrimaryAddress().getHost(), nrtReplicaNode.getPrimaryAddress().getPort()));
                 }
@@ -996,5 +996,6 @@ public class ShardState implements Closeable {
         public void close() {
             exit = true;
         }
+
     }
 }

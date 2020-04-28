@@ -48,6 +48,7 @@ public class GlobalState implements Closeable, Restorable {
     private final String hostName;
     private final int port;
     private final int replicationPort;
+    private int replicaReplicationPortPingInterval;
 
     Logger logger = LoggerFactory.getLogger(GlobalState.class);
     Gson gson = new Gson();
@@ -97,6 +98,7 @@ public class GlobalState implements Closeable, Restorable {
         this.hostName = luceneServerConfiguration.getHostName();
         this.port = luceneServerConfiguration.getPort();
         this.replicationPort = luceneServerConfiguration.getReplicationPort();
+        this.replicaReplicationPortPingInterval = luceneServerConfiguration.getReplicaReplicationPortPingInterval();
         if (Files.exists(stateDir) == false) {
             Files.createDirectories(stateDir);
         }
@@ -111,6 +113,14 @@ public class GlobalState implements Closeable, Restorable {
 
     public int getPort() {
         return port;
+    }
+
+    public int getReplicaReplicationPortPingInterval() {
+        return replicaReplicationPortPingInterval;
+    }
+
+    public void setReplicaReplicationPortPingInterval(int replicaReplicationPortPingInterval) {
+         this.replicaReplicationPortPingInterval = replicaReplicationPortPingInterval;
     }
 
     public Path getStateDir() {
