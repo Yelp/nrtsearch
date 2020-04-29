@@ -22,6 +22,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,10 +38,19 @@ public class PluginsServiceTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
+    private LuceneServerConfiguration getEmptyConfig() {
+        String config = "nodeName: \"lucene_server_foo\"";
+        return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    }
+
+    private LuceneServerConfiguration getConfigWithSearchPath(String path) {
+        String config = "pluginSearchPath: \"" + path + "\"";
+        return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    }
+
     @Test
     public void testGetSinglePluginSearchPath() {
-        LuceneServerConfiguration config = new LuceneServerConfiguration();
-        config.setPluginSearchPath("some/plugin/path");
+        LuceneServerConfiguration config = getConfigWithSearchPath("some/plugin/path");
         PluginsService pluginsService = new PluginsService(config);
         List<File> expectedPaths = new ArrayList<>();
         expectedPaths.add(new File("some/plugin/path"));
@@ -49,11 +59,10 @@ public class PluginsServiceTest {
 
     @Test
     public void testGetMultiPluginSearchPath() {
-        LuceneServerConfiguration config = new LuceneServerConfiguration();
-        config.setPluginSearchPath(
-                "some1/plugin1/path1" + File.pathSeparator +
+        String searchPath = "some1/plugin1/path1" + File.pathSeparator +
                 "some2/plugin2/path2" + File.pathSeparator +
-                "some3/plugin3/path3" + File.pathSeparator);
+                "some3/plugin3/path3" + File.pathSeparator;
+        LuceneServerConfiguration config = getConfigWithSearchPath(searchPath);
         PluginsService pluginsService = new PluginsService(config);
         List<File> expectedPaths = new ArrayList<>();
         expectedPaths.add(new File("some1/plugin1/path1"));
@@ -67,7 +76,7 @@ public class PluginsServiceTest {
         File plugin1 = folder.newFolder("plugin1");
         File plugin2 = folder.newFolder("plugin2");
         File plugin3 = folder.newFolder("plugin3");
-        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        PluginsService pluginsService = new PluginsService(getEmptyConfig());
         assertEquals(
                 plugin1,
                 pluginsService.findPluginInstallDir("plugin1", Collections.singletonList(folder.getRoot()))
@@ -85,7 +94,7 @@ public class PluginsServiceTest {
     @Test(expected = IllegalArgumentException.class)
     public void testFindPluginInstallDirNotFound() throws IOException {
         folder.newFolder("plugin1");
-        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        PluginsService pluginsService = new PluginsService(getEmptyConfig());
         pluginsService.findPluginInstallDir("invalid", Collections.singletonList(folder.getRoot()));
     }
 
@@ -100,7 +109,7 @@ public class PluginsServiceTest {
         File installDir = folder.newFolder("dir2", "plugin3");
         folder.newFolder("dir3", "plugin3");
         folder.newFolder("dir3", "plugin4");
-        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        PluginsService pluginsService = new PluginsService(getEmptyConfig());
         assertEquals(
                 installDir,
                 pluginsService.findPluginInstallDir("plugin3", searchPath)
@@ -116,7 +125,7 @@ public class PluginsServiceTest {
         folder.newFile("not_jar");
         folder.newFile("some_file.txt");
         folder.newFolder("some_folder.jar");
-        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        PluginsService pluginsService = new PluginsService(getEmptyConfig());
         assertEquals(
                 new HashSet<>(jars),
                 new HashSet<>(pluginsService.getPluginJars(folder.getRoot()))
@@ -132,7 +141,7 @@ public class PluginsServiceTest {
 
     @Test
     public void testGetPluginClass() {
-        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        PluginsService pluginsService = new PluginsService(getEmptyConfig());
         Class<? extends Plugin> clazz = pluginsService.getPluginClass(Collections.emptyList(),
                 "com.yelp.nrtsearch.server.plugins.PluginsServiceTest$LoadTestPlugin");
         assertEquals(LoadTestPlugin.class, clazz);
@@ -140,29 +149,28 @@ public class PluginsServiceTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testGetPluginClassNotFound() {
-        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
-        Class<? extends Plugin> clazz = pluginsService.getPluginClass(Collections.emptyList(),
+        PluginsService pluginsService = new PluginsService(getEmptyConfig());
+        pluginsService.getPluginClass(Collections.emptyList(),
                 "com.yelp.nrtsearch.server.plugins.NotClass");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testGetPluginClassNotPlugin() {
-        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
-        Class<? extends Plugin> clazz = pluginsService.getPluginClass(Collections.emptyList(),
+        PluginsService pluginsService = new PluginsService(getEmptyConfig());
+        pluginsService.getPluginClass(Collections.emptyList(),
                 "com.yelp.nrtsearch.server.plugins.PluginServiceTest");
     }
 
     @Test
     public void testGetPluginInstance() {
-        LuceneServerConfiguration config = new LuceneServerConfiguration();
-        PluginsService pluginsService = new PluginsService(config);
+        PluginsService pluginsService = new PluginsService(getEmptyConfig());
         Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPlugin.class);
         assertEquals(LoadTestPlugin.class, loadedPlugin.getClass());
     }
 
     @Test
     public void testGetPluginInstanceHasConfig() {
-        LuceneServerConfiguration config = new LuceneServerConfiguration();
+        LuceneServerConfiguration config = getEmptyConfig();
         PluginsService pluginsService = new PluginsService(config);
         Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPlugin.class);
         LoadTestPlugin loadTestPlugin = (LoadTestPlugin) loadedPlugin;

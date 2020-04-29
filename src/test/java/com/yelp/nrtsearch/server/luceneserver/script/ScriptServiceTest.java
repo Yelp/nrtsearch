@@ -18,12 +18,14 @@
 package com.yelp.nrtsearch.server.luceneserver.script;
 
 import com.google.common.util.concurrent.UncheckedExecutionException;
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,7 +44,12 @@ public class ScriptServiceTest {
     }
 
     private void init(List<Plugin> plugins) {
-        ScriptService.initialize(plugins);
+        ScriptService.initialize(getEmptyConfig(), plugins);
+    }
+
+    private LuceneServerConfiguration getEmptyConfig() {
+        String config = "nodeName: \"lucene_server_foo\"";
+        return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     }
 
     static class TestScriptPlugin extends Plugin implements ScriptPlugin {

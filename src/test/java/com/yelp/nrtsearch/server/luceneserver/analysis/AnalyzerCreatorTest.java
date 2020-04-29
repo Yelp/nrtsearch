@@ -17,6 +17,7 @@
 
 package com.yelp.nrtsearch.server.luceneserver.analysis;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IntObject;
 import com.yelp.nrtsearch.server.grpc.NameAndParams;
@@ -49,6 +50,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -76,7 +78,12 @@ public class AnalyzerCreatorTest {
     }
 
     private void init(List<Plugin> plugins) {
-        AnalyzerCreator.initialize(plugins);
+        AnalyzerCreator.initialize(getEmptyConfig(), plugins);
+    }
+
+    private LuceneServerConfiguration getEmptyConfig() {
+        String config = "nodeName: \"lucene_server_foo\"";
+        return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     }
 
     // Tests for predefined analyzers

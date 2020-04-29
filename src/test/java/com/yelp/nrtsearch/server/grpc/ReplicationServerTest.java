@@ -83,17 +83,17 @@ public class ReplicationServerTest {
         String testIndex = "test_index";
         LuceneServerConfiguration luceneServerPrimaryConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY);
         GlobalState globalStatePrimary = new GlobalState(luceneServerPrimaryConfiguration);
-        luceneServerPrimary = new GrpcServer(grpcCleanup, folder, false, globalStatePrimary,
+        luceneServerPrimary = new GrpcServer(grpcCleanup, luceneServerPrimaryConfiguration, folder, false, globalStatePrimary,
                 luceneServerPrimaryConfiguration.getIndexDir(), testIndex, globalStatePrimary.getPort(), archiver);
-        replicationServerPrimary = new GrpcServer(grpcCleanup, folder, true, globalStatePrimary,
+        replicationServerPrimary = new GrpcServer(grpcCleanup, luceneServerPrimaryConfiguration, folder, true, globalStatePrimary,
                 luceneServerPrimaryConfiguration.getIndexDir(), testIndex, luceneServerPrimaryConfiguration.getReplicationPort(), archiver);
         //set up secondary servers
         LuceneServerConfiguration luceneServerSecondaryConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA);
         GlobalState globalStateSecondary = new GlobalState(luceneServerSecondaryConfiguration);
 
-        luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary,
+        luceneServerSecondary = new GrpcServer(grpcCleanup, luceneServerSecondaryConfiguration, folder, false, globalStateSecondary,
                 luceneServerSecondaryConfiguration.getIndexDir(), testIndex, globalStateSecondary.getPort(), archiver);
-        replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary,
+        replicationServerSecondary = new GrpcServer(grpcCleanup, luceneServerSecondaryConfiguration, folder, true, globalStateSecondary,
                 luceneServerSecondaryConfiguration.getIndexDir(), testIndex, globalStateSecondary.getReplicationPort(), archiver);
 
     }

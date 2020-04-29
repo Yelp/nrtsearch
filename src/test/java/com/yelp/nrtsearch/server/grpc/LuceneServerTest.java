@@ -81,7 +81,7 @@ public class LuceneServerTest {
         LuceneServerConfiguration luceneServerConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
         GlobalState globalState = new GlobalState(luceneServerConfiguration);
         return new GrpcServer(
-                collectorRegistry, grpcCleanup, folder, false, globalState, luceneServerConfiguration.getIndexDir(), testIndex, globalState.getPort(), null, Collections.emptyList()
+                collectorRegistry, grpcCleanup, luceneServerConfiguration, folder, false, globalState, luceneServerConfiguration.getIndexDir(), testIndex, globalState.getPort(), null, Collections.emptyList()
         );
     }
 

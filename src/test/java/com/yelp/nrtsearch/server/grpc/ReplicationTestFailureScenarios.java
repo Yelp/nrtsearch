@@ -85,9 +85,9 @@ public class ReplicationTestFailureScenarios {
     public void startPrimaryServer() throws IOException {
         LuceneServerConfiguration luceneServerPrimaryConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY);
         GlobalState globalStatePrimary = new GlobalState(luceneServerPrimaryConfiguration);
-        luceneServerPrimary = new GrpcServer(grpcCleanup, folder, false, globalStatePrimary,
+        luceneServerPrimary = new GrpcServer(grpcCleanup, luceneServerPrimaryConfiguration, folder, false, globalStatePrimary,
                 luceneServerPrimaryConfiguration.getIndexDir(), TEST_INDEX, globalStatePrimary.getPort(), archiver);
-        replicationServerPrimary = new GrpcServer(grpcCleanup, folder, true, globalStatePrimary,
+        replicationServerPrimary = new GrpcServer(grpcCleanup, luceneServerPrimaryConfiguration, folder, true, globalStatePrimary,
                 luceneServerPrimaryConfiguration.getIndexDir(), TEST_INDEX, 9001, archiver);
 
     }
@@ -96,9 +96,9 @@ public class ReplicationTestFailureScenarios {
         LuceneServerConfiguration luceneSecondaryConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA);
         GlobalState globalStateSecondary = new GlobalState(luceneSecondaryConfiguration);
 
-        luceneServerSecondary = new GrpcServer(grpcCleanup, folder, false, globalStateSecondary,
+        luceneServerSecondary = new GrpcServer(grpcCleanup, luceneSecondaryConfiguration, folder, false, globalStateSecondary,
                 luceneSecondaryConfiguration.getIndexDir(), TEST_INDEX, globalStateSecondary.getPort(), archiver);
-        replicationServerSecondary = new GrpcServer(grpcCleanup, folder, true, globalStateSecondary,
+        replicationServerSecondary = new GrpcServer(grpcCleanup, luceneSecondaryConfiguration, folder, true, globalStateSecondary,
                 luceneSecondaryConfiguration.getIndexDir(), TEST_INDEX, globalStateSecondary.getReplicationPort(), archiver);
     }
 

@@ -17,6 +17,7 @@
 
 package com.yelp.nrtsearch.server.luceneserver.analysis;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.ConditionalTokenFilter;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.NameAndParams;
@@ -46,7 +47,7 @@ public class AnalyzerCreator {
 
     private final Map<String, AnalysisProvider<? extends Analyzer>> analyzerMap = new HashMap<>();
 
-    public AnalyzerCreator() {
+    public AnalyzerCreator(LuceneServerConfiguration configuration) {
         register(STANDARD, name -> new StandardAnalyzer());
         register(CLASSIC, name -> new ClassicAnalyzer());
     }
@@ -85,8 +86,8 @@ public class AnalyzerCreator {
         analyzerMap.put(name, provider);
     }
 
-    public static void initialize(Iterable<Plugin> plugins) {
-        instance = new AnalyzerCreator();
+    public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
+        instance = new AnalyzerCreator(configuration);
         for (Plugin plugin : plugins) {
             if (plugin instanceof AnalysisPlugin) {
                 AnalysisPlugin analysisPlugin = (AnalysisPlugin) plugin;
