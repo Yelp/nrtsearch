@@ -960,7 +960,7 @@ public class ShardState implements Closeable {
 
 
     public static class KeepAlive implements Runnable, Closeable {
-        Logger logger = LoggerFactory.getLogger(KeepAlive.class);
+        private static final Logger logger = LoggerFactory.getLogger(KeepAlive.class);
         private volatile boolean exit = false;
         private final int pingIntervalMs;
         private final ShardState shardState;

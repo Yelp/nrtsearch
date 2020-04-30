@@ -21,10 +21,9 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.FileMetadata;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
-import com.yelp.nrtsearch.server.grpc.GetNodeResponse;
+import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
 import com.yelp.nrtsearch.server.grpc.NodeInfo;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
-import io.grpc.StatusRuntimeException;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -181,8 +180,8 @@ public class NRTReplicaNode extends ReplicaNode {
     /* returns true if present in primary's current list of known replicas else false.
     Throws StatusRuntimeException if cannot reach Primary */
     public boolean isKnownToPrimary() {
-        GetNodeResponse getNodeResponse = primaryAddress.getConnectedNodes(indexName);
-        for (NodeInfo nodeInfo : getNodeResponse.getNodesList()) {
+        GetNodesResponse getNodesResponse = primaryAddress.getConnectedNodes(indexName);
+        for (NodeInfo nodeInfo : getNodesResponse.getNodesList()) {
             if (localSocketAddress.equals(new InetSocketAddress(nodeInfo.getHostname(), nodeInfo.getPort()))) {
                 return true;
             }

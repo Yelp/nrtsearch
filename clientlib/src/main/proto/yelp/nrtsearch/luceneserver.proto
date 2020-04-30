@@ -260,7 +260,7 @@ service ReplicationServer {
     rpc getCurrentSearcherVersion (IndexName) returns (SearcherVersion) {
     }
     /** Invoked externally on primary to find the list of replica nodes this node is connected to for binary replication per index */
-    rpc getConnectedNodes (GetNodesRequest) returns (GetNodeResponse) {
+    rpc getConnectedNodes (GetNodesRequest) returns (GetNodesResponse) {
     }
 
 }
@@ -843,7 +843,7 @@ message GetNodesRequest {
     string indexName = 1; //name of the started index whose binary connections we wish to see
 }
 
-message GetNodeResponse {
+message GetNodesResponse {
     repeated NodeInfo nodes = 2; //list of NodeInfo
 }
 

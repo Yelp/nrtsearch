@@ -1665,7 +1665,7 @@
       },
       "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
     },
-    "luceneserverGetNodeResponse": {
+    "luceneserverGetNodesResponse": {
       "type": "object",
       "properties": {
         "nodes": {

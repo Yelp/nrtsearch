@@ -208,14 +208,14 @@ public class ReplicationServerTest {
         //startIndex replica
         GrpcServer.TestServer testServerReplica = new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
         //primary should have registered replica in its connected nodes list
-        GetNodeResponse getNodeResponse = replicationServerPrimary
+        GetNodesResponse getNodesResponse = replicationServerPrimary
                 .getReplicationServerBlockingStub()
                 .getConnectedNodes(GetNodesRequest.newBuilder()
                         .setIndexName("test_index")
                         .build());
-        assertEquals(1, getNodeResponse.getNodesCount());
-        assertEquals("localhost", getNodeResponse.getNodesList().get(0).getHostname());
-        assertEquals(9003, getNodeResponse.getNodesList().get(0).getPort());
+        assertEquals(1, getNodesResponse.getNodesCount());
+        assertEquals("localhost", getNodesResponse.getNodesList().get(0).getHostname());
+        assertEquals(9003, getNodesResponse.getNodesList().get(0).getPort());
     }
 
     @Test

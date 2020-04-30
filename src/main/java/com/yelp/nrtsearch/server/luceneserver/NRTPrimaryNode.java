@@ -79,6 +79,10 @@ public class NRTPrimaryNode extends PrimaryNode {
             return replicationServerClient;
         }
 
+        public InetSocketAddress getInetSocketAddress() {
+            return inetSocketAddress;
+        }
+
         ReplicaDetails(int replicaId, ReplicationServerClient replicationServerClient) {
             this.replicaId = replicaId;
             this.replicationServerClient = replicationServerClient;

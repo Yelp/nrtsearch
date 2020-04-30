@@ -22,32 +22,31 @@
 
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.yelp.nrtsearch.server.grpc.GetNodeResponse;
 import com.yelp.nrtsearch.server.grpc.GetNodesRequest;
+import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
 import com.yelp.nrtsearch.server.grpc.NodeInfo;
-import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.Collection;
 
-public class GetNodesInfoHandler implements Handler<GetNodesRequest, GetNodeResponse> {
-    Logger logger = LoggerFactory.getLogger(GetNodesInfoHandler.class);
+public class GetNodesInfoHandler implements Handler<GetNodesRequest, GetNodesResponse> {
+    private static final Logger logger = LoggerFactory.getLogger(GetNodesInfoHandler.class);
 
     @Override
-    public GetNodeResponse handle(IndexState indexState, GetNodesRequest getNodesRequest) throws HandlerException {
-        GetNodeResponse.Builder builder = GetNodeResponse.newBuilder();
+    public GetNodesResponse handle(IndexState indexState, GetNodesRequest getNodesRequest) throws HandlerException {
+        GetNodesResponse.Builder builder = GetNodesResponse.newBuilder();
         ShardState shardState = indexState.getShard(0);
         if (!shardState.isPrimary() || !shardState.isStarted()) {
             logger.warn("index \"" + indexState.name + "\" is not a primary or was not started yet");
         } else { //shard is a primary and started
             Collection<NRTPrimaryNode.ReplicaDetails> replicasInfo = shardState.nrtPrimaryNode.getNodesInfo();
             for (NRTPrimaryNode.ReplicaDetails replica : replicasInfo) {
-                ReplicationServerClient replicationServerClient = replica.getReplicationServerClient();
+                InetSocketAddress inetSocketAddress = replica.getInetSocketAddress();
                 builder.addNodes(NodeInfo.newBuilder()
-                        .setHostname(replicationServerClient.getHost())
-                        .setPort(replicationServerClient.getPort())
+                        .setHostname(inetSocketAddress.getHostName())
+                        .setPort(inetSocketAddress.getPort())
                         .build());
             }
         }
