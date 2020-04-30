@@ -326,7 +326,7 @@ public class YelpReviewsTest {
             lock.lock();
             try {
                 logger.info(String.format("Signal SearchTask to end"));
-                cond.signal();
+                cond.signalAll();
             } finally {
                 lock.unlock();
             }
@@ -574,7 +574,7 @@ public class YelpReviewsTest {
                         logger.info("Indexing completed..");
                         return getSearchTotalHits(0);
                     } else {
-                        Thread.sleep(200);
+                        Thread.sleep(1000);
                         getSearchTotalHits(0);
                     }
                 } finally {
