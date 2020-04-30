@@ -22,6 +22,9 @@
 
 package com.yelp.nrtsearch.server;
 
+import com.google.gson.Gson;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
@@ -46,14 +49,12 @@ import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
 import com.yelp.nrtsearch.server.utils.OneDocBuilder;
 import com.yelp.nrtsearch.server.utils.ParallelDocumentIndexer;
-
-import com.google.gson.Gson;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.util.JsonFormat;
-
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.junit.Test;
 import org.yaml.snakeyaml.Yaml;
+import picocli.CommandLine;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -73,16 +74,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-import picocli.CommandLine;
 
 public class YelpReviewsTest {
     private static final Logger logger = Logger.getLogger(YelpReviewsTest.class.getName());
@@ -247,7 +242,7 @@ public class YelpReviewsTest {
         HostPort primaryHostPort = new HostPort(getLuceneServerPrimaryConfigurationYaml());
         HostPort secondaryHostPort = new HostPort(getLuceneServerReplicaConfigurationYaml());
         LuceneServerClient
-            primaryServerClient = new LuceneServerClient(primaryHostPort.hostName, primaryHostPort.port);
+                primaryServerClient = new LuceneServerClient(primaryHostPort.hostName, primaryHostPort.port);
         LuceneServerClient secondaryServerClient = new LuceneServerClient(secondaryHostPort.hostName, secondaryHostPort.port);
 
         //healthcheck, make sure servers are up
@@ -286,14 +281,13 @@ public class YelpReviewsTest {
             startIndex(secondaryServerClient, startIndexRequest);
 
             int availableProcessors = Runtime.getRuntime().availableProcessors();
-            int MAX_INDEXING_THREADS = availableProcessors > 8 ? availableProcessors/4: availableProcessors;
-            int MAX_SEARCH_THREADS = availableProcessors > 8 ? availableProcessors/4: availableProcessors;
-            Lock lock = new ReentrantLock();
-            Condition cond = lock.newCondition();
+            int MAX_INDEXING_THREADS = availableProcessors > 8 ? availableProcessors / 4 : availableProcessors;
+            int MAX_SEARCH_THREADS = availableProcessors > 8 ? availableProcessors / 4 : availableProcessors;
+            AtomicBoolean indexingDone = new AtomicBoolean(false);
 
             //check search hits on replica - in a separate threadpool
             final ExecutorService searchService = createExecutorService(MAX_SEARCH_THREADS, "LuceneSearch");
-            Future<Double> searchFuture = searchService.submit(new SearchTask(secondaryServerClient, lock, cond));
+            Future<Double> searchFuture = searchService.submit(new SearchTask(secondaryServerClient, indexingDone));
 
             //index to primary - in a separate threadpool
             final ExecutorService indexService = createExecutorService(MAX_INDEXING_THREADS, "LuceneIndexing");
@@ -323,20 +317,15 @@ public class YelpReviewsTest {
             logger.info(String.format("ParallelDocumentIndexer.buildAndIndexDocs took %s milliSecs", timeMilliSecs));
 
             //stop search now
-            lock.lock();
-            try {
-                logger.info(String.format("Signal SearchTask to end"));
-                cond.signalAll();
-            } finally {
-                lock.unlock();
-            }
+            logger.info(String.format("Signal SearchTask to end"));
+            indexingDone.set(true);
             logger.info(String.format("Search result totalHits: %s", searchFuture.get()));
 
             //publishNRT, get latest searcher version and search over replica again with searcherVersion
             ReplicationServerClient primaryReplicationClient = new ReplicationServerClient(
                     primaryHostPort.hostName, primaryHostPort.replicationPort);
             SearcherVersion searcherVersion = primaryReplicationClient.writeNRTPoint(INDEX_NAME);
-            new SearchTask(secondaryServerClient, null, null)
+            new SearchTask(secondaryServerClient, indexingDone)
                     .getSearchTotalHits(searcherVersion.getVersion());
             logger.info("done...");
 
@@ -404,7 +393,7 @@ public class YelpReviewsTest {
 
     private static Process startServer(String logFilename, String configFileName) throws IOException {
         String command = String.format("%s/build/install/nrtsearch/bin/lucene-server %s",
-            System.getProperty("user.dir"), configFileName);
+                System.getProperty("user.dir"), configFileName);
         return issueCommand(logFilename, command);
     }
 
@@ -549,13 +538,11 @@ public class YelpReviewsTest {
     private static class SearchTask implements Callable<Double> {
 
         private final LuceneServerClient luceneServerClient;
-        private final Lock lock;
-        private final Condition cond;
+        private final AtomicBoolean indexingDone;
 
-        SearchTask(LuceneServerClient luceneServerClient, Lock lock, Condition cond) {
+        SearchTask(LuceneServerClient luceneServerClient, AtomicBoolean indexingDone) {
             this.luceneServerClient = luceneServerClient;
-            this.lock = lock;
-            this.cond = cond;
+            this.indexingDone = indexingDone;
         }
 
         /**
@@ -567,18 +554,12 @@ public class YelpReviewsTest {
         @Override
         public Double call() throws Exception {
             while (true) {
-                lock.lock();
-                try {
-                    boolean indexingDone = cond.await(500, TimeUnit.MILLISECONDS);
-                    if (indexingDone) {
-                        logger.info("Indexing completed..");
-                        return getSearchTotalHits(0);
-                    } else {
-                        Thread.sleep(1000);
-                        getSearchTotalHits(0);
-                    }
-                } finally {
-                    lock.unlock();
+                if (indexingDone.get()) {
+                    logger.info("Indexing completed..");
+                    return getSearchTotalHits(0);
+                } else {
+                    Thread.sleep(1000);
+                    getSearchTotalHits(0);
                 }
             }
         }
