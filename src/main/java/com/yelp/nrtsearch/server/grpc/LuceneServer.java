@@ -35,6 +35,7 @@ import com.yelp.nrtsearch.server.luceneserver.CreateSnapshotHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteAllDocumentsHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteDocumentsHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteIndexHandler;
+import com.yelp.nrtsearch.server.luceneserver.GetNodesInfoHandler;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.LiveSettingsHandler;
@@ -1021,6 +1022,23 @@ public class LuceneServer {
             }
         }
 
+        @Override
+        public void getConnectedNodes(GetNodesRequest getNodesRequest, StreamObserver<GetNodesResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(getNodesRequest.getIndexName());
+                GetNodesResponse reply = new GetNodesInfoHandler().handle(indexState, getNodesRequest);
+                logger.info("GetNodesInfoHandler returned GetNodeResponse of size " + reply.getNodesCount());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn("error on GetNodesInfoHandler", e);
+                responseObserver.onError(Status
+                        .INTERNAL
+                        .withDescription(String.format("error on GetNodesInfoHandler"))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
 
     }
 }

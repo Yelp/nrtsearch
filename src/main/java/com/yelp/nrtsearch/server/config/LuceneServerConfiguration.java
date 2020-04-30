@@ -38,9 +38,11 @@ public class LuceneServerConfiguration {
     private static final String DEFAULT_NODE_NAME = "main";
     //buckets represent number of requests completed in "less than" seconds
     private static final double[] DEFAULT_METRICS_BUCKETS = new double[]{.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10};
+    private static final int DEFAULT_INTERVAL_MS = 1000 * 10;
 
     private int port = DEFAULT_PORT;
     private int replicationPort = DEFAULT_REPLICATION_PORT;
+    private int replicaReplicationPortPingInterval = DEFAULT_INTERVAL_MS;
     private String nodeName = DEFAULT_NODE_NAME;
     private String hostName = DEFAULT_HOSTNAME;
     private String stateDir = DEFAULT_STATE_DIR.toString();
@@ -131,11 +133,20 @@ public class LuceneServerConfiguration {
         return metricsBuckets;
     }
 
+    public int getReplicaReplicationPortPingInterval() {
+        return replicaReplicationPortPingInterval;
+    }
+
+    public void setReplicaReplicationPortPingInterval(int replicaReplicationPortPingInterval) {
+        this.replicaReplicationPortPingInterval = replicaReplicationPortPingInterval;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
         sb.append("port=").append(port);
         sb.append(", replicationPort=").append(replicationPort);
+        sb.append(", replicaReplicationPortPingInterval=").append(replicaReplicationPortPingInterval);
         sb.append(", nodeName='").append(nodeName).append('\'');
         sb.append(", hostName='").append(hostName).append('\'');
         sb.append(", stateDir='").append(stateDir).append('\'');
@@ -148,12 +159,12 @@ public class LuceneServerConfiguration {
         return sb.toString();
     }
 
-
     public static class Builder {
         private final double[] metricsBuckets;
         private String hostName;
         private int replicationPort;
         private int port;
+        private int replicaReplicationPortPingInterval;
         private String nodeName;
         private Path stateDir;
         private Path indexDir;
@@ -173,6 +184,7 @@ public class LuceneServerConfiguration {
             this.botoCfgPath = DEFAULT_BOTO_CFG_PATH.toString();
             this.bucketName = DEFAULT_BUCKET_NAME;
             this.metricsBuckets = DEFAULT_METRICS_BUCKETS;
+            this.replicaReplicationPortPingInterval= DEFAULT_INTERVAL_MS;
         }
 
         public Builder withStateDir(String tempStateDir) {
@@ -190,7 +202,6 @@ public class LuceneServerConfiguration {
             return this;
         }
 
-
         public Builder withPort(int port) {
             this.port = port;
             return this;
@@ -198,6 +209,11 @@ public class LuceneServerConfiguration {
 
         public Builder withReplicationPort(int replicationPort) {
             this.replicationPort = replicationPort;
+            return this;
+        }
+
+        public Builder withReplicaReplicationPortPingInterval(int replicaReplicationPortPingInterval) {
+            this.replicaReplicationPortPingInterval = replicaReplicationPortPingInterval;
             return this;
         }
 
@@ -233,6 +249,7 @@ public class LuceneServerConfiguration {
             luceneServerConfiguration.botoCfgPath = this.botoCfgPath;
             luceneServerConfiguration.bucketName = this.bucketName;
             luceneServerConfiguration.metricsBuckets = this.metricsBuckets;
+            luceneServerConfiguration.replicaReplicationPortPingInterval = this.replicaReplicationPortPingInterval;
             return luceneServerConfiguration;
         }
 

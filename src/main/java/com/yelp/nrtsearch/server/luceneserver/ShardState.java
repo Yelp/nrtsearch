@@ -20,6 +20,8 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import io.grpc.StatusRuntimeException;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesReaderState;
 import org.apache.lucene.facet.taxonomy.OrdinalsReader;
@@ -44,7 +46,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NRTCachingDirectory;
 import org.apache.lucene.util.IOUtils;
-import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,6 +73,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ShardState implements Closeable {
+    public static final int REPLICA_ID = 0;
     Logger logger = LoggerFactory.getLogger(ShardState.class);
 
     /**
@@ -193,6 +195,7 @@ public class ShardState implements Closeable {
     public final Map<IndexReader, Map<String, SortedSetDocValuesReaderState>> ssdvStates = new HashMap<>();
 
     public final String name;
+    private KeepAlive keepAlive;
 
     /**
      * Restarts the reopen thread (called when the live settings have changed).
@@ -320,6 +323,7 @@ public class ShardState implements Closeable {
             closeables.add(taxoDir);
             nrtPrimaryNode = null;
         } else if (nrtReplicaNode != null) {
+            closeables.add(keepAlive);
             closeables.add(reopenThreadPrimary);
             closeables.add(searcherManager);
             closeables.add(nrtReplicaNode);
@@ -772,7 +776,7 @@ public class ShardState implements Closeable {
             boolean verbose = indexState.getBooleanSetting("indexVerbose", false);
 
             InetSocketAddress localSocketAddress = new InetSocketAddress(indexState.globalState.getHostName(), indexState.globalState.getReplicationPort());
-            nrtReplicaNode = new NRTReplicaNode(indexState.name, primaryAddress, localSocketAddress, 0, indexDir,
+            nrtReplicaNode = new NRTReplicaNode(indexState.name, primaryAddress, localSocketAddress, REPLICA_ID, indexDir,
                     new SearcherFactory() {
                         @Override
                         public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) throws IOException {
@@ -801,6 +805,8 @@ public class ShardState implements Closeable {
                     }
                 }
             });
+            keepAlive = new KeepAlive(this);
+            new Thread(keepAlive, "KeepAlive").start();
             success = true;
         } finally {
             if (!success) {
@@ -953,4 +959,43 @@ public class ShardState implements Closeable {
     }
 
 
+    public static class KeepAlive implements Runnable, Closeable {
+        private static final Logger logger = LoggerFactory.getLogger(KeepAlive.class);
+        private volatile boolean exit = false;
+        private final int pingIntervalMs;
+        private final ShardState shardState;
+
+        KeepAlive(ShardState shardState) {
+            this.shardState = shardState;
+            this.pingIntervalMs = shardState.indexState.globalState.getReplicaReplicationPortPingInterval();
+        }
+
+        @Override
+        public void run() {
+            while (!exit) {
+                NRTReplicaNode nrtReplicaNode = shardState.nrtReplicaNode;
+                try {
+                    TimeUnit.MILLISECONDS.sleep(pingIntervalMs);
+                    if (shardState.isReplica() && shardState.isStarted() && !shardState.nrtReplicaNode.isKnownToPrimary() && !exit) {
+                        nrtReplicaNode.getPrimaryAddress().addReplicas(
+                                shardState.indexState.name, REPLICA_ID,
+                                nrtReplicaNode.getLocalSocketAddress().getHostName(),
+                                nrtReplicaNode.getLocalSocketAddress().getPort());
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (StatusRuntimeException e) {
+                    logger.warn(String.format("Replica host: %s, binary port: %s cannot reach primary host: %s replication port: %s",
+                            nrtReplicaNode.getLocalSocketAddress().getHostName(), nrtReplicaNode.getLocalSocketAddress().getPort(),
+                            nrtReplicaNode.getPrimaryAddress().getHost(), nrtReplicaNode.getPrimaryAddress().getPort()));
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            exit = true;
+        }
+
+    }
 }

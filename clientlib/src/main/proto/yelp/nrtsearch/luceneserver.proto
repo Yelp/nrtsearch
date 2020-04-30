@@ -230,6 +230,7 @@ service LuceneServer {
     };
     }
 
+
 }
 
 //The ReplicationServer service definition.
@@ -255,10 +256,12 @@ service ReplicationServer {
     /** Invoked externally to primary, to make all recent index operations searchable on the primary and, once copying is done, on the replicas */
     rpc writeNRTPoint (IndexName) returns (SearcherVersion) {
     }
-    /** Invoked externally to replica, to get the current Searcher version on replica. Typically used to check i */
+    /** Invoked externally to replica, to get the current Searcher version on replica.*/
     rpc getCurrentSearcherVersion (IndexName) returns (SearcherVersion) {
     }
-
+    /** Invoked externally on primary to find the list of replica nodes this node is connected to for binary replication per index */
+    rpc getConnectedNodes (GetNodesRequest) returns (GetNodesResponse) {
+    }
 
 }
 
@@ -834,4 +837,17 @@ message IndexName {
 message SearcherVersion {
     int64 version = 1; //returns the version recorded in the commit that the reader opened.  This version is advanced every time a change is made with IndexWriter
     bool didRefresh = 2; //true if refresh happened
+}
+
+message GetNodesRequest {
+    string indexName = 1; //name of the started index whose binary connections we wish to see
+}
+
+message GetNodesResponse {
+    repeated NodeInfo nodes = 2; //list of NodeInfo
+}
+
+message NodeInfo {
+    string hostname = 1; //name or ip address of the remote host that this node is connected to for binary replication
+    int32 port = 2; //port number of the remote host that this node is connected to for binary replication
 }

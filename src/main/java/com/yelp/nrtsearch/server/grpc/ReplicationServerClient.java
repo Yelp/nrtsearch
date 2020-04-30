@@ -26,7 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -83,17 +82,21 @@ public class ReplicationServerClient implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         try {
             shutdown();
         } catch (InterruptedException e) {
             logger.warn("channel shutdown interrupted.", e);
-            new RuntimeException(e);
+            Thread.currentThread().interrupt();
         }
     }
 
     private void shutdown() throws InterruptedException {
-        channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
+        channel.shutdown();
+        boolean res = channel.awaitTermination(10, TimeUnit.SECONDS);
+        if (!res) {
+            logger.warn(String.format("channel on host:%s, port:%s shutdown was not shutdown cleanly", getHost(), getPort()));
+        }
     }
 
     public void addReplicas(String indexName, int replicaId, String hostName, int port) {
@@ -161,6 +164,13 @@ public class ReplicationServerClient implements Closeable {
         return blockingStub.getCurrentSearcherVersion(IndexName.newBuilder()
                 .setMagicNumber(BINARY_MAGIC)
                 .setIndexName(indexName).build());
+    }
+
+    public GetNodesResponse getConnectedNodes(String indexName) {
+        return blockingStub.getConnectedNodes(
+                GetNodesRequest.newBuilder()
+                        .setIndexName(indexName)
+                        .build());
     }
 
     @Override

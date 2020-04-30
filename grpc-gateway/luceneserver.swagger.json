@@ -1665,6 +1665,17 @@
       },
       "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
     },
+    "luceneserverGetNodesResponse": {
+      "type": "object",
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverNodeInfo"
+          }
+        }
+      }
+    },
     "luceneserverHealthCheckRequest": {
       "type": "object",
       "properties": {
@@ -1920,6 +1931,18 @@
           "additionalProperties": {
             "type": "string"
           }
+        }
+      }
+    },
+    "luceneserverNodeInfo": {
+      "type": "object",
+      "properties": {
+        "hostname": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },

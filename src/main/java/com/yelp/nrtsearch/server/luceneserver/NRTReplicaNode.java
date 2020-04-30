@@ -21,8 +21,9 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.FileMetadata;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
+import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
+import com.yelp.nrtsearch.server.grpc.NodeInfo;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
-
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -47,6 +48,7 @@ public class NRTReplicaNode extends ReplicaNode {
     private final ReplicationServerClient primaryAddress;
     private final String indexName;
     final Jobs jobs;
+
     /* Just a wrapper class to hold our <hostName, port> pair so that we can send them to the Primary
      * on sendReplicas and it can build its channel over this pair */
     private final InetSocketAddress localSocketAddress;
@@ -135,7 +137,6 @@ public class NRTReplicaNode extends ReplicaNode {
         return files;
     }
 
-
     @Override
     protected void launch(CopyJob job) {
         jobs.launch(job);
@@ -168,4 +169,23 @@ public class NRTReplicaNode extends ReplicaNode {
         super.close();
     }
 
+    public ReplicationServerClient getPrimaryAddress() {
+        return primaryAddress;
+    }
+
+    public InetSocketAddress getLocalSocketAddress() {
+        return localSocketAddress;
+    }
+
+    /* returns true if present in primary's current list of known replicas else false.
+    Throws StatusRuntimeException if cannot reach Primary */
+    public boolean isKnownToPrimary() {
+        GetNodesResponse getNodesResponse = primaryAddress.getConnectedNodes(indexName);
+        for (NodeInfo nodeInfo : getNodesResponse.getNodesList()) {
+            if (localSocketAddress.equals(new InetSocketAddress(nodeInfo.getHostname(), nodeInfo.getPort()))) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

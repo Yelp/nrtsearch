@@ -3,8 +3,6 @@ package com.yelp.nrtsearch.server.grpc;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import io.findify.s3mock.S3Mock;
-import io.grpc.testing.GrpcCleanupRule;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
@@ -12,6 +10,8 @@ import com.yelp.nrtsearch.server.utils.Archiver;
 import com.yelp.nrtsearch.server.utils.ArchiverImpl;
 import com.yelp.nrtsearch.server.utils.Tar;
 import com.yelp.nrtsearch.server.utils.TarImpl;
+import io.findify.s3mock.S3Mock;
+import io.grpc.testing.GrpcCleanupRule;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -199,6 +199,56 @@ public class ReplicationServerTest {
         validateSearchResults(searchResponsePrimary);
         validateSearchResults(searchResponseSecondary);
 
+    }
+
+    @Test
+    public void getConnectedNodes() throws IOException, InterruptedException {
+        //startIndex primary
+        GrpcServer.TestServer testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
+        //startIndex replica
+        GrpcServer.TestServer testServerReplica = new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
+        //primary should have registered replica in its connected nodes list
+        GetNodesResponse getNodesResponse = replicationServerPrimary
+                .getReplicationServerBlockingStub()
+                .getConnectedNodes(GetNodesRequest.newBuilder()
+                        .setIndexName("test_index")
+                        .build());
+        assertEquals(1, getNodesResponse.getNodesCount());
+        assertEquals("localhost", getNodesResponse.getNodesList().get(0).getHostname());
+        assertEquals(9003, getNodesResponse.getNodesList().get(0).getPort());
+    }
+
+    @Test
+    public void replicaConnectivity() throws IOException, InterruptedException {
+        //set ping interval to 10 ms
+        luceneServerSecondary.getGlobalState().setReplicaReplicationPortPingInterval(10);
+        //startIndex replica
+        GrpcServer.TestServer testServerReplica = new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
+        // search on replica: no documents!
+        SearchResponse searchResponseSecondary = luceneServerSecondary.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(luceneServerSecondary.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                .build());
+        assertEquals(0, searchResponseSecondary.getHitsCount());
+
+        //index 4 documents to primary
+        GrpcServer.TestServer testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
+        testServerPrimary.addDocuments();
+        testServerPrimary.addDocuments();
+        // publish new NRT point (retrieve the current searcher version on primary)
+        SearcherVersion searcherVersionPrimary = replicationServerPrimary.getReplicationServerBlockingStub().writeNRTPoint(IndexName.newBuilder().setIndexName("test_index").build());
+
+        // search on replica: 4 documents!
+        searchResponseSecondary = luceneServerSecondary.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(luceneServerSecondary.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .setVersion(searcherVersionPrimary.getVersion())
+                .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                .build());
+        validateSearchResults(searchResponseSecondary);
     }
 
     public static void validateSearchResults(SearchResponse searchResponse) {

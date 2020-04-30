@@ -69,8 +69,7 @@ public class WriteNRTPointHandler implements Handler<IndexName, SearcherVersion>
                         currentReplicaServerClient.newNRTPoint(indexState.name, shardState.nrtPrimaryNode.getPrimaryGen(), version);
                     } catch (StatusRuntimeException e) {
                         Status status = e.getStatus();
-                        if (status.equals(Status.UNAVAILABLE)) {
-                            //TODO: what is its just temporarily down? We should add retries
+                        if (status.getCode().equals(Status.UNAVAILABLE.getCode())) {
                             logger.info("NRTPRimaryNode: sendNRTPoint, lost connection to replicaId: " + replicaDetails.getReplicaId()
                                     + " host: " + replicaDetails.getReplicationServerClient().getHost() + " port: " + replicaDetails.getReplicationServerClient().getPort());
                             it.remove();
