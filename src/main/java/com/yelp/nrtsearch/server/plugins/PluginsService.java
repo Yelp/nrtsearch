@@ -17,11 +17,7 @@
 
 package com.yelp.nrtsearch.server.plugins;
 
-import com.google.inject.Inject;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
-
-import com.google.inject.Injector;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,7 +25,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,36 +38,37 @@ import java.util.stream.Stream;
  * Loads the plugins specified by the {@link LuceneServerConfiguration}. Plugins are located
  * by searching the config provided plugin search path for a folder matching the plugin name.
  * A classloader is created with the jars provided in the plugin directory. The plugin provides a
- * config file containing the {@link Plugin} classname that should be loaded. Injection is used to give
- * the loaded plugin access to lucene server resources (such as config).
- *
- * After the plugin is loaded, the provided functionality is registered with the appropriate server components.
+ * config file containing the {@link Plugin} classname that should be loaded. Reflection is used to give
+ * the loaded plugin access to the lucene server config.
  */
 public class PluginsService {
     private static final Logger logger = LoggerFactory.getLogger(Plugin.class.getName());
 
-    @Inject
-    private LuceneServerConfiguration config;
-    @Inject
-    private Injector injector;
-
+    private final LuceneServerConfiguration config;
     private final List<PluginDescriptor> loadedPluginDescriptors = new ArrayList<>();
+
+    public PluginsService(LuceneServerConfiguration config) {
+        this.config = config;
+    }
 
     /**
      * Load the list of plugins specified in the {@link LuceneServerConfiguration}.
-     * This handles both the loading of the plugin class from provided jars and the registration
-     * of plugin functionality with other lucene server components.
+     * This handles both the loading of the plugin class from provided jars and
+     * creation of a new instance.
+     * @return list of loaded plugin instances
      */
-    public void loadPlugins() {
+    public List<Plugin> loadPlugins() {
         logger.info("Loading plugins: " + Arrays.toString(config.getPlugins()));
         List<File> pluginSearchPath = getPluginSearchPath();
         logger.debug("Plugin search path: " + pluginSearchPath);
+        List<Plugin> loadedPlugins = new ArrayList<>();
         for (String plugin : config.getPlugins()) {
             logger.info("Loading plugin: " + plugin);
             PluginDescriptor descriptor = loadPlugin(plugin, pluginSearchPath);
-            registerPlugin(descriptor.getPlugin());
             loadedPluginDescriptors.add(descriptor);
+            loadedPlugins.add(descriptor.getPlugin());
         }
+        return loadedPlugins;
     }
 
     /**
@@ -123,7 +119,7 @@ public class PluginsService {
         List<File> jarList = getPluginJars(pluginInstallDir);
         logger.debug("Plugin jars: " + jarList);
 
-        Class<?> pluginClass = getPluginClass(jarList, metadata.getClassname());
+        Class<? extends Plugin> pluginClass = getPluginClass(jarList, metadata.getClassname());
         Plugin pluginInstance = getPluginInstance(pluginClass);
         return new PluginDescriptor(pluginInstance, metadata);
     }
@@ -157,8 +153,8 @@ public class PluginsService {
      * Load the plugin class out of the provided jars by creating a new class loader.
      * @return loaded plugin Class
      */
-    Class<?> getPluginClass(List<File> jarList, String pluginClassName) {
-        URLClassLoader pluginClassLoader = new URLClassLoader(
+    Class<? extends Plugin> getPluginClass(List<File> jarList, String pluginClassName) {
+        PluginClassLoader pluginClassLoader = new PluginClassLoader(
                 jarList.stream().map(jar -> {
                     try {
                         return jar.getAbsoluteFile().toURI().toURL();
@@ -169,31 +165,20 @@ public class PluginsService {
         );
 
         try {
-            return pluginClassLoader.loadClass(pluginClassName);
-        } catch (ClassNotFoundException e) {
-            throw new IllegalArgumentException("Cannot find plugin class: " + pluginClassName, e);
+            return Class.forName(pluginClassName, true, pluginClassLoader).asSubclass(Plugin.class);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Cannot load plugin class: " + pluginClassName, e);
         }
     }
 
     /**
-     * Get an instance of the loaded plugin class using guice injection.
+     * Get an instance of the loaded plugin class using reflection.
      */
-    Plugin getPluginInstance(Class<?> pluginClass) {
-        Object pluginObject = injector.getInstance(pluginClass);
-        if (!(pluginObject instanceof Plugin)) {
-            throw new IllegalArgumentException("Class: " + pluginClass.getName() + " is not a Plugin");
-        }
-        return (Plugin) pluginObject;
-    }
-
-    /**
-     * Determine what resources this plugin class provides and register them for use with lucene server components.
-     * @param plugin loaded plugin instance
-     */
-    private void registerPlugin(Plugin plugin) {
-        if (plugin instanceof AnalysisPlugin) {
-            AnalysisPlugin analysisPlugin = (AnalysisPlugin) plugin;
-            AnalyzerCreator.register(analysisPlugin.getAnalyzers());
+    Plugin getPluginInstance(Class<? extends Plugin> pluginClass) {
+        try {
+            return pluginClass.getDeclaredConstructor(new Class[]{LuceneServerConfiguration.class}).newInstance(config);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Failed to load plugin class instance via reflection", e);
         }
     }
 }

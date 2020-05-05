@@ -40,7 +40,7 @@ public class LuceneServerConfiguration {
     private static final double[] DEFAULT_METRICS_BUCKETS = new double[]{.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10};
     private static final int DEFAULT_INTERVAL_MS = 1000 * 10;
     private static final String[] DEFAULT_PLUGINS = new String[]{};
-    private static final String DEFAULT_PLUGIN_SEARCH_PATH = "/usr/share/nrtsearch/plugins";
+    private static final Path DEFAULT_PLUGIN_SEARCH_PATH = Paths.get(DEFAULT_USER_DIR.toString(), "plugins");
 
     private int port = DEFAULT_PORT;
     private int replicationPort = DEFAULT_REPLICATION_PORT;
@@ -54,7 +54,7 @@ public class LuceneServerConfiguration {
     private String bucketName = DEFAULT_BUCKET_NAME;
     private double[] metricsBuckets = DEFAULT_METRICS_BUCKETS;
     private String[] plugins = DEFAULT_PLUGINS;
-    private String pluginSearchPath = DEFAULT_PLUGIN_SEARCH_PATH;
+    private String pluginSearchPath = DEFAULT_PLUGIN_SEARCH_PATH.toString();
 
     @Inject
     public LuceneServerConfiguration() {
@@ -210,7 +210,7 @@ public class LuceneServerConfiguration {
             this.metricsBuckets = DEFAULT_METRICS_BUCKETS;
             this.replicaReplicationPortPingInterval= DEFAULT_INTERVAL_MS;
             this.plugins = DEFAULT_PLUGINS;
-            this.pluginSearchPath = DEFAULT_PLUGIN_SEARCH_PATH;
+            this.pluginSearchPath = DEFAULT_PLUGIN_SEARCH_PATH.toString();
         }
 
         public Builder withStateDir(String tempStateDir) {

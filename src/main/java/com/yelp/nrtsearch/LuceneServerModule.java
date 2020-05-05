@@ -59,11 +59,6 @@ public class LuceneServerModule extends AbstractModule {
         this.args = args;
     }
 
-    @Override
-    protected void configure() {
-        bind(PluginsService.class).asEagerSingleton();
-    }
-
     @Inject
     @Singleton
     @Provides

@@ -17,6 +17,7 @@
 
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
@@ -42,7 +43,6 @@ import java.text.ParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.getAnalyzer;
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
 
 /**
@@ -171,7 +171,7 @@ class QueryNodeMapper {
 
     private Query getMatchQuery(MatchQuery matchQuery, IndexState state) {
         Analyzer analyzer = isAnalyzerDefined(matchQuery.getAnalyzer())
-                ? getAnalyzer(matchQuery.getAnalyzer())
+                ? AnalyzerCreator.getInstance().getAnalyzer(matchQuery.getAnalyzer())
                 : state.searchAnalyzer;
 
         QueryBuilder queryBuilder = new MatchQueryBuilder(analyzer, matchQuery.getFuzzyParams());
@@ -196,7 +196,7 @@ class QueryNodeMapper {
 
     private Query getMatchPhraseQuery(MatchPhraseQuery matchPhraseQuery, IndexState state) {
         Analyzer analyzer = isAnalyzerDefined(matchPhraseQuery.getAnalyzer())
-                ? getAnalyzer(matchPhraseQuery.getAnalyzer())
+                ? AnalyzerCreator.getInstance().getAnalyzer(matchPhraseQuery.getAnalyzer())
                 : state.searchAnalyzer;
 
         QueryBuilder queryBuilder = new QueryBuilder(analyzer);

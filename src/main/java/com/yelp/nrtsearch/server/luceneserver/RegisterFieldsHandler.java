@@ -438,14 +438,14 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
 
         if (isAnalyzerDefined(currentField.getAnalyzer())) {
             // If the analyzer field is provided, use it to get an analyzer to use for both indexing and search
-            Analyzer analyzer = AnalyzerCreator.getAnalyzer(currentField.getAnalyzer());
+            Analyzer analyzer = AnalyzerCreator.getInstance().getAnalyzer(currentField.getAnalyzer());
             indexAnalyzer = searchAnalyzer = analyzer;
         } else {
             // Analyzer field is absent in request - set index and search analyzers individually
 
             if (isAnalyzerDefined(currentField.getIndexAnalyzer())) {
                 // Index analyzer was provided, use it to create an analyzer.
-                indexAnalyzer = AnalyzerCreator.getAnalyzer(currentField.getIndexAnalyzer());
+                indexAnalyzer = AnalyzerCreator.getInstance().getAnalyzer(currentField.getIndexAnalyzer());
             } else if (isIndexedTextField) {
                 // If no index analyzer is provided for a text field that will be indexed (have doc values), use the
                 // StandardAnalyzer.
@@ -457,7 +457,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
 
             if (isAnalyzerDefined(currentField.getSearchAnalyzer())) {
                 // Search analyzer was provided, use it to create an analyzer.
-                searchAnalyzer = AnalyzerCreator.getAnalyzer(currentField.getSearchAnalyzer());
+                searchAnalyzer = AnalyzerCreator.getInstance().getAnalyzer(currentField.getSearchAnalyzer());
             } else if (isIndexedTextField) {
                 // If no search analyzer is provided for a text field that will be indexed (have doc values), use the
                 // StandardAnalyzer.

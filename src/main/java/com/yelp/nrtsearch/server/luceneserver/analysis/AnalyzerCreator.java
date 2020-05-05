@@ -21,6 +21,8 @@ import com.yelp.nrtsearch.server.grpc.ConditionalTokenFilter;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.NameAndParams;
 
+import com.yelp.nrtsearch.server.plugins.AnalysisPlugin;
+import com.yelp.nrtsearch.server.plugins.Plugin;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.standard.ClassicAnalyzer;
@@ -40,27 +42,16 @@ public class AnalyzerCreator {
     private static final String STANDARD = "standard";
     private static final String CLASSIC = "classic";
 
-    private static final Map<String, AnalysisProvider<? extends Analyzer>> analyzerMap =
-        new HashMap<>();
+    private static AnalyzerCreator instance;
 
-    public static void register(Map<String, AnalysisProvider<? extends Analyzer>> analyzers) {
-        analyzers.forEach(AnalyzerCreator::register);
-    }
+    private final Map<String, AnalysisProvider<? extends Analyzer>> analyzerMap = new HashMap<>();
 
-    public static void register(String name,
-                                AnalysisProvider<? extends Analyzer> provider) {
-        if (analyzerMap.containsKey(name)) {
-            throw new IllegalArgumentException("Analyzer " + name + " already exists");
-        }
-        analyzerMap.put(name, provider);
-    }
-
-    static {
+    public AnalyzerCreator() {
         register(STANDARD, name -> new StandardAnalyzer());
         register(CLASSIC, name -> new ClassicAnalyzer());
     }
 
-    public static Analyzer getAnalyzer(com.yelp.nrtsearch.server.grpc.Analyzer analyzer) {
+    public Analyzer getAnalyzer(com.yelp.nrtsearch.server.grpc.Analyzer analyzer) {
         if (!analyzer.getPredefined().isEmpty()) {
             String predefinedAnalyzer = analyzer.getPredefined();
 
@@ -80,6 +71,32 @@ public class AnalyzerCreator {
         } else {
             throw new AnalyzerCreationException("Unable to find or create analyzer: " + analyzer);
         }
+    }
+
+    private void register(Map<String, AnalysisProvider<? extends Analyzer>> analyzers) {
+        analyzers.forEach(this::register);
+    }
+
+    private void register(String name,
+                          AnalysisProvider<? extends Analyzer> provider) {
+        if (analyzerMap.containsKey(name)) {
+            throw new IllegalArgumentException("Analyzer " + name + " already exists");
+        }
+        analyzerMap.put(name, provider);
+    }
+
+    public static void initialize(Iterable<Plugin> plugins) {
+        instance = new AnalyzerCreator();
+        for (Plugin plugin : plugins) {
+            if (plugin instanceof AnalysisPlugin) {
+                AnalysisPlugin analysisPlugin = (AnalysisPlugin) plugin;
+                instance.register(analysisPlugin.getAnalyzers());
+            }
+        }
+    }
+
+    public static AnalyzerCreator getInstance() {
+        return instance;
     }
 
     /**
