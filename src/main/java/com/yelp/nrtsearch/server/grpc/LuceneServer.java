@@ -44,6 +44,7 @@ import com.yelp.nrtsearch.server.luceneserver.RecvCopyStateHandler;
 import com.yelp.nrtsearch.server.luceneserver.RegisterFieldsHandler;
 import com.yelp.nrtsearch.server.luceneserver.ReleaseSnapshotHandler;
 import com.yelp.nrtsearch.server.luceneserver.ReplicaCurrentSearchingVersionHandler;
+import com.yelp.nrtsearch.server.luceneserver.RestoreStateHandler;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.SettingsHandler;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
@@ -72,7 +73,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -104,7 +104,6 @@ public class LuceneServer {
 
     private void start() throws IOException {
         GlobalState globalState = new GlobalState(luceneServerConfiguration);
-
         MonitoringServerInterceptor monitoringInterceptor =
                 MonitoringServerInterceptor.create(Configuration
                         .allMetrics()
@@ -133,6 +132,14 @@ public class LuceneServer {
                 logger.error("*** server shut down");
             }
         });
+
+        if (luceneServerConfiguration.getRestoreState()) {
+            logger.info("Loading state for any previously backed up indexes");
+            List<String> indexes = RestoreStateHandler.restore(archiver, globalState, luceneServerConfiguration.getServiceName());
+            for (String index : indexes) {
+                logger.info("Loading state for index " + index);
+            }
+        }
     }
 
     private void stop() {
@@ -322,13 +329,6 @@ public class LuceneServer {
             try {
                 IndexState indexState = null;
                 StartIndexHandler startIndexHandler = new StartIndexHandler(archiver);
-                if (startIndexRequest.hasRestore()) {
-                    //download stateDir and reset state
-                    RestoreIndex restoreIndex = startIndexRequest.getRestore();
-                    Path stateDirPath = startIndexHandler.downloadArtifact(restoreIndex.getServiceName(), restoreIndex.getResourceName(),
-                            StartIndexHandler.INDEXED_DATA_TYPE.STATE);
-                    globalState.setStateDir(stateDirPath);
-                }
                 indexState = globalState.getIndex(startIndexRequest.getIndexName(), startIndexRequest.hasRestore());
                 StartIndexResponse reply = startIndexHandler.handle(indexState, startIndexRequest);
                 logger.info("StartIndexHandler returned " + reply.toString());

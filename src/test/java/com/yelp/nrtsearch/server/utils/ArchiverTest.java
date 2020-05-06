@@ -25,16 +25,12 @@ package com.yelp.nrtsearch.server.utils;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.util.IOUtils;
 import io.findify.s3mock.S3Mock;
 import net.jpountz.lz4.LZ4FrameInputStream;
-import net.jpountz.lz4.LZ4FrameOutputStream;
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -43,10 +39,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -91,7 +85,7 @@ public class ArchiverTest {
     @Test
     public void testDownload() throws IOException {
         final TarEntry tarEntry = new TarEntry("foo", "testcontent");
-        uploadToS3(Arrays.asList(tarEntry), "testservice/testresource/abcdef");
+        TarEntry.uploadToS3(s3, BUCKET_NAME, Arrays.asList(tarEntry), "testservice/testresource/abcdef");
 
         final Path location = archiver.download("testservice", "testresource");
         final List<String> allLines = Files.readAllLines(location.resolve("foo"));
@@ -153,8 +147,8 @@ public class ArchiverTest {
         final Path dontDeleteThisDirectory = Files.createDirectory(archiverDirectory.resolve("somerandomsubdirectory"));
 
         final TarEntry tarEntry = new TarEntry("testresource/foo", "testcontent");
-        uploadToS3(Arrays.asList(tarEntry), "testservice/testresource/abcdef");
-        uploadToS3(Arrays.asList(tarEntry), "testservice/testresource/cafe");
+        TarEntry.uploadToS3(s3, BUCKET_NAME, Arrays.asList(tarEntry), "testservice/testresource/abcdef");
+        TarEntry.uploadToS3(s3, BUCKET_NAME, Arrays.asList(tarEntry), "testservice/testresource/cafe");
 
         final Path firstLocation = archiver.download("testservice", "testresource").toRealPath();
         Assert.assertTrue(Files.exists(firstLocation.resolve("testresource/foo")));
@@ -168,45 +162,16 @@ public class ArchiverTest {
         Assert.assertTrue(Files.exists(dontDeleteThisDirectory));
     }
 
-    private void uploadToS3(List<TarEntry> tarEntries, String location) throws IOException {
-        byte[] tarContent = getTarFile(tarEntries);
-        final ObjectMetadata objectMetadata = new ObjectMetadata();
-
-        try (final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(tarContent)) {
-            s3.putObject(BUCKET_NAME, location, byteArrayInputStream, objectMetadata);
-        }
+    @Test
+    public void testGetResources() throws IOException {
+        String service = "testservice";
+        String[] resources = new String[]{"testresource"};
+        Path sourceDir = createDirWithFiles(service, resources[0]);
+        String versionHash = archiver.upload(service, resources[0], sourceDir);
+        archiver.blessVersion(service, resources[0], versionHash);
+        List<String> actualResources = archiver.getResources(service);
+        String[] actual = actualResources.toArray(new String[0]);
+        Assert.assertArrayEquals(resources, actual);
     }
-
-
-    private byte[] getTarFile(List<TarEntry> tarEntries) throws IOException {
-        try (
-                final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-                final LZ4FrameOutputStream lz4CompressorOutputStream = new LZ4FrameOutputStream(byteArrayOutputStream);
-                final TarArchiveOutputStream tarArchiveOutputStream = new TarArchiveOutputStream(lz4CompressorOutputStream);
-        ) {
-            for (final TarEntry tarEntry : tarEntries) {
-                final byte[] data = tarEntry.content.getBytes(StandardCharsets.UTF_8);
-                final TarArchiveEntry archiveEntry = new TarArchiveEntry(tarEntry.path);
-                archiveEntry.setSize(data.length);
-                tarArchiveOutputStream.putArchiveEntry(archiveEntry);
-                tarArchiveOutputStream.write(data);
-                tarArchiveOutputStream.closeArchiveEntry();
-            }
-
-            tarArchiveOutputStream.close();
-            return byteArrayOutputStream.toByteArray();
-        }
-    }
-
-    class TarEntry {
-        final public String path;
-        final public String content;
-
-        public TarEntry(String path, String content) {
-            this.path = path;
-            this.content = content;
-        }
-    }
-
 
 }

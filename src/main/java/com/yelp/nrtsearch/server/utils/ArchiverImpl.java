@@ -23,9 +23,10 @@
 package com.yelp.nrtsearch.server.utils;
 
 import com.amazonaws.event.ProgressEvent;
-import com.amazonaws.event.ProgressListener;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.transfer.Download;
@@ -55,6 +56,8 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -62,6 +65,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class ArchiverImpl implements Archiver {
     private static final int NUM_S3_THREADS = 20;
+    public static final String DELIMITER = "/";
     private static Logger logger = LoggerFactory.getLogger(ArchiverImpl.class);
     private static final String CURRENT_VERSION_NAME = "current";
     private static final String TMP_SUFFIX = ".tmp";
@@ -92,7 +96,7 @@ public class ArchiverImpl implements Archiver {
     @Override
     public Path download(String serviceName, String resource) throws IOException {
         if (!Files.exists(archiverDirectory)) {
-            logger.info("Archiver directory doesn't exist: " + archiverDirectory +  " creating new ");
+            logger.info("Archiver directory doesn't exist: " + archiverDirectory + " creating new ");
             Files.createDirectories(archiverDirectory);
         }
 
@@ -116,6 +120,24 @@ public class ArchiverImpl implements Archiver {
         }
         cleanupFiles(versionHash, resourceDestDirectory);
         return currentDirectory;
+    }
+
+    @Override
+    public List<String> getResources(String serviceName) {
+        List<String> resources = new ArrayList<>();
+        ListObjectsRequest listObjectsRequest = new ListObjectsRequest()
+                .withBucketName(bucketName)
+                .withPrefix(serviceName + DELIMITER)
+                .withDelimiter(DELIMITER);
+        List<String> resourcePrefixes = s3.listObjects(listObjectsRequest).getCommonPrefixes();
+        for (String resource : resourcePrefixes) {
+            String[] prefix = resource.split(DELIMITER);
+            String potentialResourceName = prefix[prefix.length - 1];
+            if (!potentialResourceName.equals("_version")) {
+                resources.add(potentialResourceName);
+            }
+        }
+        return resources;
     }
 
     @Override
@@ -282,8 +304,7 @@ public class ArchiverImpl implements Archiver {
                         bytesTransferredSinceLastLog = 0;
                         lastLoggedTime = LocalDateTime.now();
                     }
-                }
-                finally {
+                } finally {
                     lock.release();
                 }
             }

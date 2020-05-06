@@ -1,6 +1,7 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.RestoreStateHandler;
 import com.yelp.nrtsearch.server.utils.Archiver;
 
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -16,6 +17,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -36,6 +38,7 @@ import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 public class GrpcServer {
     private final GrpcCleanupRule grpcCleanup;
     private final TemporaryFolder temporaryFolder;
+    private final Archiver archiver;
     private String indexDir;
     private String testIndex;
     private LuceneServerGrpc.LuceneServerBlockingStub blockingStub;
@@ -59,6 +62,7 @@ public class GrpcServer {
         this.globalState = globalState;
         this.indexDir = indexDir;
         this.testIndex = index;
+        this.archiver = archiver;
         invoke(collectorRegistry, isReplication, port, archiver);
     }
 
@@ -101,6 +105,10 @@ public class GrpcServer {
 
     public GlobalState getGlobalState() {
         return globalState;
+    }
+
+    private Archiver getArchiver() {
+        return archiver;
     }
 
     public void shutdown() {
@@ -325,6 +333,7 @@ public class GrpcServer {
             }
             if (startOldIndex) {
                 startIndexBuilder.setRestore(restoreIndex);
+                RestoreStateHandler.restore(grpcServer.getArchiver(), grpcServer.getGlobalState(), "testservice");
             }
             blockingStub.startIndex(startIndexBuilder.build());
 
@@ -353,5 +362,6 @@ public class GrpcServer {
         }
 
     }
+
 
 }
