@@ -4,7 +4,8 @@ import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-
+import io.grpc.testing.GrpcCleanupRule;
+import io.prometheus.client.CollectorRegistry;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -25,9 +26,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.client.CollectorRegistry;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
@@ -476,5 +474,4 @@ public class LuceneServerTest {
         DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         return LocalDateTime.parse(dateTime, dateTimeFormatter).toInstant(ZoneOffset.UTC).toEpochMilli();
     }
-
 }

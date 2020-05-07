@@ -41,6 +41,7 @@ public class LuceneServerConfiguration {
     private static final int DEFAULT_INTERVAL_MS = 1000 * 10;
     private static final String[] DEFAULT_PLUGINS = new String[]{};
     private static final Path DEFAULT_PLUGIN_SEARCH_PATH = Paths.get(DEFAULT_USER_DIR.toString(), "plugins");
+    private static final String DEFAULT_SERVICE_NAME = "nrtsearch-generic";
 
     private int port = DEFAULT_PORT;
     private int replicationPort = DEFAULT_REPLICATION_PORT;
@@ -55,6 +56,30 @@ public class LuceneServerConfiguration {
     private double[] metricsBuckets = DEFAULT_METRICS_BUCKETS;
     private String[] plugins = DEFAULT_PLUGINS;
     private String pluginSearchPath = DEFAULT_PLUGIN_SEARCH_PATH.toString();
+    private String serviceName = DEFAULT_SERVICE_NAME;
+    private boolean restoreState = false;
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
+        sb.append("port=").append(port);
+        sb.append(", replicationPort=").append(replicationPort);
+        sb.append(", replicaReplicationPortPingInterval=").append(replicaReplicationPortPingInterval);
+        sb.append(", nodeName='").append(nodeName).append('\'');
+        sb.append(", hostName='").append(hostName).append('\'');
+        sb.append(", stateDir='").append(stateDir).append('\'');
+        sb.append(", indexDir='").append(indexDir).append('\'');
+        sb.append(", archiveDirectory='").append(archiveDirectory).append('\'');
+        sb.append(", botoCfgPath='").append(botoCfgPath).append('\'');
+        sb.append(", bucketName='").append(bucketName).append('\'');
+        sb.append(", metricsBuckets=").append(Arrays.toString(metricsBuckets));
+        sb.append(", plugins=").append(Arrays.toString(plugins));
+        sb.append(", pluginSearchPath='").append(pluginSearchPath).append('\'');
+        sb.append(", serviceName='").append(serviceName).append('\'');
+        sb.append(", restoreState=").append(restoreState);
+        sb.append('}');
+        return sb.toString();
+    }
 
     @Inject
     public LuceneServerConfiguration() {
@@ -62,6 +87,10 @@ public class LuceneServerConfiguration {
 
     public int getPort() {
         return port;
+    }
+
+    public String getServiceName() {
+        return serviceName;
     }
 
     public int getReplicationPort() {
@@ -86,6 +115,10 @@ public class LuceneServerConfiguration {
 
     public void setPort(int port) {
         this.port = port;
+    }
+
+    public void setServiceName(String serviceName) {
+        this.serviceName = serviceName;
     }
 
     public void setReplicationPort(int replicationPort) {
@@ -161,25 +194,14 @@ public class LuceneServerConfiguration {
         this.pluginSearchPath = pluginSearchPath;
     }
 
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
-        sb.append("port=").append(port);
-        sb.append(", replicationPort=").append(replicationPort);
-        sb.append(", replicaReplicationPortPingInterval=").append(replicaReplicationPortPingInterval);
-        sb.append(", nodeName='").append(nodeName).append('\'');
-        sb.append(", hostName='").append(hostName).append('\'');
-        sb.append(", stateDir='").append(stateDir).append('\'');
-        sb.append(", indexDir='").append(indexDir).append('\'');
-        sb.append(", archiveDirectory='").append(archiveDirectory).append('\'');
-        sb.append(", botoCfgPath='").append(botoCfgPath).append('\'');
-        sb.append(", bucketName='").append(bucketName).append('\'');
-        sb.append(", metricsBuckets=").append(Arrays.toString(metricsBuckets));
-        sb.append(", plugins=").append(Arrays.toString(plugins));
-        sb.append(", pluginSearchPath='").append(pluginSearchPath).append('\'');
-        sb.append('}');
-        return sb.toString();
+    public boolean getRestoreState() {
+        return restoreState;
     }
+
+    public void setRestoreState(boolean restoreState) {
+        this.restoreState = restoreState;
+    }
+
 
     public static class Builder {
         private final double[] metricsBuckets;
@@ -195,6 +217,8 @@ public class LuceneServerConfiguration {
         private String bucketName;
         private String[] plugins;
         private String pluginSearchPath;
+        private String serviceName;
+        private boolean restoreState;
 
         public Builder() {
             //set default values
@@ -203,14 +227,16 @@ public class LuceneServerConfiguration {
             this.stateDir = DEFAULT_STATE_DIR;
             this.indexDir = DEFAULT_INDEX_DIR;
             this.port = DEFAULT_PORT;
+            this.serviceName = DEFAULT_SERVICE_NAME;
             this.replicationPort = DEFAULT_REPLICATION_PORT;
             this.archiveDirectory = DEFAULT_ARCHIVER_DIR.toString();
             this.botoCfgPath = DEFAULT_BOTO_CFG_PATH.toString();
             this.bucketName = DEFAULT_BUCKET_NAME;
             this.metricsBuckets = DEFAULT_METRICS_BUCKETS;
-            this.replicaReplicationPortPingInterval= DEFAULT_INTERVAL_MS;
+            this.replicaReplicationPortPingInterval = DEFAULT_INTERVAL_MS;
             this.plugins = DEFAULT_PLUGINS;
             this.pluginSearchPath = DEFAULT_PLUGIN_SEARCH_PATH.toString();
+            this.restoreState = false;
         }
 
         public Builder withStateDir(String tempStateDir) {
@@ -230,6 +256,16 @@ public class LuceneServerConfiguration {
 
         public Builder withPort(int port) {
             this.port = port;
+            return this;
+        }
+
+        public Builder withServiceName(String serviceName) {
+            this.serviceName = serviceName;
+            return this;
+        }
+
+        public Builder withRestoreState(boolean restoreState) {
+            this.restoreState = restoreState;
             return this;
         }
 
@@ -288,6 +324,8 @@ public class LuceneServerConfiguration {
             luceneServerConfiguration.replicaReplicationPortPingInterval = this.replicaReplicationPortPingInterval;
             luceneServerConfiguration.plugins = this.plugins;
             luceneServerConfiguration.pluginSearchPath = this.pluginSearchPath;
+            luceneServerConfiguration.serviceName = this.serviceName;
+            luceneServerConfiguration.restoreState = this.restoreState;
             return luceneServerConfiguration;
         }
 

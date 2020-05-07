@@ -24,6 +24,7 @@ package com.yelp.nrtsearch.server.utils;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 
 public interface Archiver {
     Path download(final String serviceName, final String resource) throws IOException;
@@ -31,4 +32,6 @@ public interface Archiver {
     String upload(final String serviceName, final String resource, Path path) throws IOException;
 
     boolean blessVersion(final String serviceName, final String resource, String versionHash) throws IOException;
+
+    List<String> getResources(final String serviceName);
 }
