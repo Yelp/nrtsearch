@@ -30,10 +30,12 @@ public class RestoreStateHandler {
         List<String> indexNames = new ArrayList<>();
         List<String> resources = archiver.getResources(serviceName);
         for (String resource : resources) {
-            Path path = archiver.download(serviceName, resource);
-            logger.info(String.format("Downloaded state dir at: %s for service: %s, resource: %s", path.toString(), serviceName, resource));
-            globalState.setStateDir(path);
-            indexNames.add(resource);
+            if (resource.contains("_metadata")) {
+                Path path = archiver.download(serviceName, resource);
+                logger.info(String.format("Downloaded state dir at: %s for service: %s, resource: %s", path.toString(), serviceName, resource));
+                globalState.setStateDir(path);
+                indexNames.add(resource);
+            }
         }
         return indexNames;
     }

@@ -40,9 +40,22 @@ public interface Restorable {
         Path tempCurrentLink = baseSource.resolve(getTmpName());
         Path downloadedFileName = Files.list(source).findFirst().get().getFileName();
         Path downloadedData = source.resolve(downloadedFileName);
-        logger.info("Point new symlink %s to new data %s".format(target.toString(), downloadedData.toString()));
+        logger.info("Point symlink " + target.toString() + " to " + downloadedData.toString());
         Files.createSymbolicLink(tempCurrentLink, downloadedData);
+        cleanupEmptyStateIfExists(target);
         Files.move(tempCurrentLink, target, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    /**
+     * @param target Path to a directory
+     * @throws IOException, DirectoryNotEmptyException
+     */
+    private void cleanupEmptyStateIfExists(Path target) throws IOException {
+        //in case this is an index dir it might have empty state dir created while initializing IndexState object
+        Path stateDir = target.resolve("state");
+        if (Files.exists(stateDir)) {
+            Files.delete(stateDir);
+        }
     }
 
     default String getTmpName() {

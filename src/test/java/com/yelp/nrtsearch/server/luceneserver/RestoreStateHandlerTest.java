@@ -76,13 +76,13 @@ public class RestoreStateHandlerTest {
 
     @Test
     public void handleOneResource() throws IOException {
-        s3.putObject(BUCKET_NAME, "testservice/_version/testresource/_latest_version", "1");
-        s3.putObject(BUCKET_NAME, "testservice/_version/testresource/1", "abcdef");
+        s3.putObject(BUCKET_NAME, "testservice/_version/testresource_metadata/_latest_version", "1");
+        s3.putObject(BUCKET_NAME, "testservice/_version/testresource_metadata/1", "abcdef");
         final TarEntry tarEntry = new TarEntry("foo", "testcontent");
-        TarEntry.uploadToS3(s3, BUCKET_NAME, Arrays.asList(tarEntry), "testservice/testresource/abcdef");
+        TarEntry.uploadToS3(s3, BUCKET_NAME, Arrays.asList(tarEntry), "testservice/testresource_metadata/abcdef");
         List<String> indexes = RestoreStateHandler.restore(archiver, globalState, "testservice");
         Assert.assertEquals(1, indexes.size());
-        Assert.assertEquals("testresource", indexes.get(0));
+        Assert.assertEquals("testresource_metadata", indexes.get(0));
     }
 
 }

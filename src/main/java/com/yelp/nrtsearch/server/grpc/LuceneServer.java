@@ -137,7 +137,7 @@ public class LuceneServer {
             logger.info("Loading state for any previously backed up indexes");
             List<String> indexes = RestoreStateHandler.restore(archiver, globalState, luceneServerConfiguration.getServiceName());
             for (String index : indexes) {
-                logger.info("Loading state for index " + index);
+                logger.info("Loaded state for index " + index);
             }
         }
     }
