@@ -39,7 +39,7 @@ public class LuceneServerConfiguration {
     //buckets represent number of requests completed in "less than" seconds
     private static final double[] DEFAULT_METRICS_BUCKETS = new double[]{.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10};
     private static final int DEFAULT_INTERVAL_MS = 1000 * 10;
-
+    private static final String DEFAULT_SERVICE_NAME = "nrtsearch-generic";
     private int port = DEFAULT_PORT;
     private int replicationPort = DEFAULT_REPLICATION_PORT;
     private int replicaReplicationPortPingInterval = DEFAULT_INTERVAL_MS;
@@ -51,6 +51,28 @@ public class LuceneServerConfiguration {
     private String botoCfgPath = DEFAULT_BOTO_CFG_PATH.toString();
     private String bucketName = DEFAULT_BUCKET_NAME;
     private double[] metricsBuckets = DEFAULT_METRICS_BUCKETS;
+    private String serviceName = DEFAULT_SERVICE_NAME;
+    private boolean restoreState = false;
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
+        sb.append("port=").append(port);
+        sb.append(", replicationPort=").append(replicationPort);
+        sb.append(", replicaReplicationPortPingInterval=").append(replicaReplicationPortPingInterval);
+        sb.append(", nodeName='").append(nodeName).append('\'');
+        sb.append(", hostName='").append(hostName).append('\'');
+        sb.append(", stateDir='").append(stateDir).append('\'');
+        sb.append(", indexDir='").append(indexDir).append('\'');
+        sb.append(", archiveDirectory='").append(archiveDirectory).append('\'');
+        sb.append(", botoCfgPath='").append(botoCfgPath).append('\'');
+        sb.append(", bucketName='").append(bucketName).append('\'');
+        sb.append(", metricsBuckets=").append(Arrays.toString(metricsBuckets));
+        sb.append(", serviceName='").append(serviceName).append('\'');
+        sb.append(", restoreState=").append(restoreState);
+        sb.append('}');
+        return sb.toString();
+    }
 
     @Inject
     public LuceneServerConfiguration() {
@@ -58,6 +80,10 @@ public class LuceneServerConfiguration {
 
     public int getPort() {
         return port;
+    }
+
+    public String getServiceName() {
+        return serviceName;
     }
 
     public int getReplicationPort() {
@@ -82,6 +108,10 @@ public class LuceneServerConfiguration {
 
     public void setPort(int port) {
         this.port = port;
+    }
+
+    public void setServiceName(String serviceName) {
+        this.serviceName = serviceName;
     }
 
     public void setReplicationPort(int replicationPort) {
@@ -141,23 +171,14 @@ public class LuceneServerConfiguration {
         this.replicaReplicationPortPingInterval = replicaReplicationPortPingInterval;
     }
 
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
-        sb.append("port=").append(port);
-        sb.append(", replicationPort=").append(replicationPort);
-        sb.append(", replicaReplicationPortPingInterval=").append(replicaReplicationPortPingInterval);
-        sb.append(", nodeName='").append(nodeName).append('\'');
-        sb.append(", hostName='").append(hostName).append('\'');
-        sb.append(", stateDir='").append(stateDir).append('\'');
-        sb.append(", indexDir='").append(indexDir).append('\'');
-        sb.append(", archiveDirectory='").append(archiveDirectory).append('\'');
-        sb.append(", botoCfgPath='").append(botoCfgPath).append('\'');
-        sb.append(", bucketName='").append(bucketName).append('\'');
-        sb.append(", metricsBuckets=").append(Arrays.toString(metricsBuckets));
-        sb.append('}');
-        return sb.toString();
+    public boolean getRestoreState() {
+        return restoreState;
     }
+
+    public void setRestoreState(boolean restoreState) {
+        this.restoreState = restoreState;
+    }
+
 
     public static class Builder {
         private final double[] metricsBuckets;
@@ -171,6 +192,8 @@ public class LuceneServerConfiguration {
         private String archiveDirectory;
         private String botoCfgPath;
         private String bucketName;
+        private String serviceName;
+        private boolean restoreState;
 
         public Builder() {
             //set default values
@@ -179,12 +202,14 @@ public class LuceneServerConfiguration {
             this.stateDir = DEFAULT_STATE_DIR;
             this.indexDir = DEFAULT_INDEX_DIR;
             this.port = DEFAULT_PORT;
+            this.serviceName = DEFAULT_SERVICE_NAME;
             this.replicationPort = DEFAULT_REPLICATION_PORT;
             this.archiveDirectory = DEFAULT_ARCHIVER_DIR.toString();
             this.botoCfgPath = DEFAULT_BOTO_CFG_PATH.toString();
             this.bucketName = DEFAULT_BUCKET_NAME;
             this.metricsBuckets = DEFAULT_METRICS_BUCKETS;
-            this.replicaReplicationPortPingInterval= DEFAULT_INTERVAL_MS;
+            this.replicaReplicationPortPingInterval = DEFAULT_INTERVAL_MS;
+            this.restoreState = false;
         }
 
         public Builder withStateDir(String tempStateDir) {
@@ -204,6 +229,16 @@ public class LuceneServerConfiguration {
 
         public Builder withPort(int port) {
             this.port = port;
+            return this;
+        }
+
+        public Builder withServiceName(String serviceName) {
+            this.serviceName = serviceName;
+            return this;
+        }
+
+        public Builder withRestoreState(boolean restoreState) {
+            this.restoreState = restoreState;
             return this;
         }
 
@@ -250,6 +285,8 @@ public class LuceneServerConfiguration {
             luceneServerConfiguration.bucketName = this.bucketName;
             luceneServerConfiguration.metricsBuckets = this.metricsBuckets;
             luceneServerConfiguration.replicaReplicationPortPingInterval = this.replicaReplicationPortPingInterval;
+            luceneServerConfiguration.serviceName = this.serviceName;
+            luceneServerConfiguration.restoreState = this.restoreState;
             return luceneServerConfiguration;
         }
 

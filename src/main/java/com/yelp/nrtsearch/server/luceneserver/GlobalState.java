@@ -19,26 +19,42 @@
 
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.NamedThreadFactory;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.util.Collections;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SeekableByteChannel;
-import java.nio.file.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class GlobalState implements Closeable, Restorable {
     // TODO: make these controllable
@@ -120,7 +136,7 @@ public class GlobalState implements Closeable, Restorable {
     }
 
     public void setReplicaReplicationPortPingInterval(int replicaReplicationPortPingInterval) {
-         this.replicaReplicationPortPingInterval = replicaReplicationPortPingInterval;
+        this.replicaReplicationPortPingInterval = replicaReplicationPortPingInterval;
     }
 
     public Path getStateDir() {
@@ -237,7 +253,7 @@ public class GlobalState implements Closeable, Restorable {
             if (state == null) {
                 String rootPath = null;
                 JsonElement indexJsonName = indexNames.get(name);
-                if(indexJsonName == null) {
+                if (indexJsonName == null) {
                     throw new IllegalArgumentException("index " + name + " was not saved/commited");
                 }
                 String indexName = indexJsonName.getAsString();
@@ -287,7 +303,7 @@ public class GlobalState implements Closeable, Restorable {
     }
 
     public Set<String> getIndexNames() {
-        return Collections.unmodifiableSet(indices.keySet());
+        return Collections.unmodifiableSet(indexNames.keySet());
     }
 
 }

@@ -28,7 +28,9 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-
+import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
+import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
@@ -57,9 +59,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.apache.lucene.util.packed.PackedInts;
-import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
-import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -724,7 +723,7 @@ public class IndexState implements Closeable, Restorable {
         assert isSimpleName(prefix);
         prefix += '.';
         long lastGen = -1;
-        if (Files.exists(dir)) {
+        if (Files.exists(dir) && Files.isDirectory(dir)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
                 for (Path subFile : stream) {
                     String name = subFile.getFileName().toString();
