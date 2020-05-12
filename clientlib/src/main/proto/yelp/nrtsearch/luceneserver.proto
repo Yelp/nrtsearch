@@ -146,8 +146,7 @@ service LuceneServer {
     /* healthcheck */
     rpc status (HealthCheckRequest) returns (HealthCheckResponse) {
         option (google.api.http) = {
-      post: "/v1/status"
-      body: "*"
+      get: "/v1/status"
     };
 
     }
@@ -230,6 +229,11 @@ service LuceneServer {
     };
     }
 
+    rpc state(StateRequest) returns (StateResponse) {
+        option (google.api.http) = {
+        get: "/v1/state"
+        };
+    }
 
 }
 
@@ -729,6 +733,14 @@ message IndexStatsResponse {
 message RestoreIndex {
     string serviceName = 1; // remote storage namespace qualifier for service
     string resourceName = 2; //remote storage namespace qualifier for resource e.g. indexName
+}
+
+message StateRequest {
+    string indexName = 1; //index name
+}
+
+message StateResponse {
+    string response = 1; //json string of the current index state
 }
 
 message AddReplicaRequest {

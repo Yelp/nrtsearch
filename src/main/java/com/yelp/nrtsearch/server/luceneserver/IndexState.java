@@ -669,23 +669,6 @@ public class IndexState implements Closeable, Restorable {
         saveState.add("state", getSaveState());
         saveLoadState.save(saveState);
 
-        //commit state to remote storage
-        for (ShardState shard : shards.values()) {
-            //commit to remote storage if primary node
-            if (shard.nrtPrimaryNode != null) {
-                long version;
-                if (shard.nrtPrimaryNode.flushAndRefresh()) {
-                    version = shard.nrtPrimaryNode.getCopyStateVersion();
-                } else {
-                    SearcherTaxonomyManager.SearcherAndTaxonomy s = shard.acquire();
-                    try {
-                        version = ((DirectoryReader) s.searcher.getIndexReader()).getVersion();
-                    } finally {
-                        shard.release(s);
-                    }
-                }
-            }
-        }
         return gen;
     }
 

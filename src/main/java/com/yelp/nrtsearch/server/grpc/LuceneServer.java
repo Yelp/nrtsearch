@@ -36,6 +36,7 @@ import com.yelp.nrtsearch.server.luceneserver.DeleteAllDocumentsHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteDocumentsHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteIndexHandler;
 import com.yelp.nrtsearch.server.luceneserver.GetNodesInfoHandler;
+import com.yelp.nrtsearch.server.luceneserver.GetStateHandler;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.LiveSettingsHandler;
@@ -782,6 +783,24 @@ public class LuceneServer {
         public void indices(IndicesRequest request, StreamObserver<IndicesResponse> responseObserver) {
             try {
                 IndicesResponse reply = StatsRequestHandler.getIndicesResponse(globalState);
+                logger.info("IndicesRequestHandler returned " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn("error while trying to get indices stats", e);
+                responseObserver.onError(Status
+                        .INVALID_ARGUMENT
+                        .withDescription("error while trying to get indices stats")
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+        @Override
+        public void state(StateRequest request, StreamObserver<StateResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(request.getIndexName());
+                StateResponse reply = new GetStateHandler().handle(indexState, request);
                 logger.info("IndicesRequestHandler returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();

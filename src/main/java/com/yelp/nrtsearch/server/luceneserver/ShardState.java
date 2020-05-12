@@ -196,6 +196,8 @@ public class ShardState implements Closeable {
 
     public final String name;
     private KeepAlive keepAlive;
+    //is this shard restored
+    private boolean restored;
 
     /**
      * Restarts the reopen thread (called when the live settings have changed).
@@ -231,6 +233,14 @@ public class ShardState implements Closeable {
      */
     public boolean isStarted() {
         return writer != null || nrtReplicaNode != null || nrtPrimaryNode != null;
+    }
+
+    public boolean isRestored() {
+        return restored;
+    }
+
+    public void setRestored(boolean restored) {
+        this.restored = restored;
     }
 
     public String getState() {

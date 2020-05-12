@@ -553,6 +553,36 @@
         ]
       }
     },
+    "/v1/state": {
+      "get": {
+        "operationId": "LuceneServer_state",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverStateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "indexName",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/stats": {
       "post": {
         "summary": "Retrieve index statistics",
@@ -587,7 +617,7 @@
       }
     },
     "/v1/status": {
-      "post": {
+      "get": {
         "summary": "healthcheck",
         "operationId": "LuceneServer_status",
         "responses": {
@@ -606,12 +636,11 @@
         },
         "parameters": [
           {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/luceneserverHealthCheckRequest"
-            }
+            "name": "check",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
@@ -1676,15 +1705,6 @@
         }
       }
     },
-    "luceneserverHealthCheckRequest": {
-      "type": "object",
-      "properties": {
-        "check": {
-          "type": "boolean",
-          "format": "boolean"
-        }
-      }
-    },
     "luceneserverHealthCheckResponse": {
       "type": "object",
       "properties": {
@@ -2479,6 +2499,14 @@
         "startTimeMS": {
           "type": "number",
           "format": "double"
+        }
+      }
+    },
+    "luceneserverStateResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string"
         }
       }
     },
