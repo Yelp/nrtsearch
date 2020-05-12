@@ -254,7 +254,7 @@ public class GlobalState implements Closeable, Restorable {
                 String rootPath = null;
                 JsonElement indexJsonName = indexNames.get(name);
                 if (indexJsonName == null) {
-                    throw new IllegalArgumentException("index " + name + " was not saved/commited");
+                    throw new IllegalArgumentException("index " + name + " was not saved or commited");
                 }
                 String indexName = indexJsonName.getAsString();
                 if (indexName != null) {

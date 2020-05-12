@@ -14,17 +14,14 @@ public class GetStateHandler implements Handler<StateRequest, StateResponse> {
     @Override
     public StateResponse handle(IndexState indexState, StateRequest stateRequest) throws HandlerException {
         StateResponse.Builder builder = StateResponse.newBuilder();
-        if (!indexState.isStarted()) {
-            throw new IllegalStateException("Index not started yet. Index needs to be started to get its state");
-        }
-        JsonObject savedState;
+        JsonObject savedState = new JsonObject();
         try {
-            savedState = indexState.getSaveState();
+            savedState.add("state", indexState.getSaveState());
         } catch (IOException e) {
             logger.error("Could not load state for index " + indexState.name, e);
             throw new GetStateHandlerException(e);
         }
-        builder.setResponse(savedState.getAsString());
+        builder.setResponse(savedState.toString());
         return builder.build();
     }
 

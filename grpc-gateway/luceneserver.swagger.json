@@ -554,7 +554,8 @@
       }
     },
     "/v1/state": {
-      "get": {
+      "post": {
+        "summary": "Gets the state of a started index, includes settings, live_settings, search schema, suggest schema",
         "operationId": "LuceneServer_state",
         "responses": {
           "200": {
@@ -572,10 +573,12 @@
         },
         "parameters": [
           {
-            "name": "indexName",
-            "in": "query",
-            "required": false,
-            "type": "string"
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverStateRequest"
+            }
           }
         ],
         "tags": [
@@ -2499,6 +2502,14 @@
         "startTimeMS": {
           "type": "number",
           "format": "double"
+        }
+      }
+    },
+    "luceneserverStateRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
         }
       }
     },

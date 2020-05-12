@@ -805,10 +805,10 @@ public class LuceneServer {
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {
-                logger.warn("error while trying to get indices stats", e);
+                logger.warn("error while trying to get state for index " + request.getIndexName(), e);
                 responseObserver.onError(Status
                         .INVALID_ARGUMENT
-                        .withDescription("error while trying to get indices stats")
+                        .withDescription("error while trying to get state for index " + request.getIndexName())
                         .augmentDescription(e.getMessage())
                         .asRuntimeException());
             }
