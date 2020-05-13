@@ -25,7 +25,6 @@ import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.utils.Archiver;
-
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.IndexReader;
 import org.slf4j.Logger;
@@ -58,9 +57,19 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         final String primaryAddress;
         final int primaryPort;
         Path dataPath = null;
-        if (startIndexRequest.hasRestore()) {
-            RestoreIndex restoreIndex = startIndexRequest.getRestore();
-            dataPath = downloadArtifact(restoreIndex.getServiceName(), restoreIndex.getResourceName(), INDEXED_DATA_TYPE.DATA);
+        if (startIndexRequest.hasRestore() && !shardState.isStarted()) {
+            synchronized (shardState) {
+                try {
+                    if (!shardState.isRestored()) {
+                        RestoreIndex restoreIndex = startIndexRequest.getRestore();
+                        dataPath = downloadArtifact(restoreIndex.getServiceName(), restoreIndex.getResourceName(), INDEXED_DATA_TYPE.DATA);
+                    } else {
+                        throw new IllegalStateException("Index " + indexState.name + " already restored");
+                    }
+                } finally {
+                    shardState.setRestored(true);
+                }
+            }
         }
         if (mode.equals(Mode.PRIMARY)) {
             primaryGen = startIndexRequest.getPrimaryGen();
