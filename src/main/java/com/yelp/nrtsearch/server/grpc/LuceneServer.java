@@ -368,7 +368,7 @@ public class LuceneServer {
                     count++;
                     addDocumentRequestQueue.add(addDocumentRequest);
                     if (addDocumentRequestQueue.size() == MAX_BUFFER_LEN) {
-                        logger.info(String.format("indexing addDocumentRequestQueue size: %s, total: %s", addDocumentRequestQueue.size(), count));
+                        logger.debug(String.format("indexing addDocumentRequestQueue size: %s, total: %s", addDocumentRequestQueue.size(), count));
                         try {
                             List<AddDocumentRequest> addDocRequestList = addDocumentRequestQueue.stream().collect(Collectors.toList());
                             Future<Long> future = globalState.submitIndexingTask(new DocumentIndexer(globalState, addDocRequestList));
@@ -389,11 +389,11 @@ public class LuceneServer {
 
                 @Override
                 public void onCompleted() {
-                    logger.info(String.format("onCompleted, addDocumentRequestQueue: %s", addDocumentRequestQueue.size()));
+                    logger.debug(String.format("onCompleted, addDocumentRequestQueue: %s", addDocumentRequestQueue.size()));
                     try {
                         //index the left over docs
                         if (!addDocumentRequestQueue.isEmpty()) {
-                            logger.info(String.format("indexing left over addDocumentRequestQueue of size: %s", addDocumentRequestQueue.size()));
+                            logger.debug(String.format("indexing left over addDocumentRequestQueue of size: %s", addDocumentRequestQueue.size()));
                             List<AddDocumentRequest> addDocRequestList = addDocumentRequestQueue.stream().collect(Collectors.toList());
                             Future<Long> future = globalState.submitIndexingTask(new DocumentIndexer(globalState, addDocRequestList));
                             futures.add(future);
@@ -404,14 +404,14 @@ public class LuceneServer {
                         long t0 = System.nanoTime();
                         for (Future<Long> result : futures) {
                             Long gen = result.get();
-                            logger.info(String.format("Indexing returned sequence-number %s", gen));
+                            logger.debug(String.format("Indexing returned sequence-number %s", gen));
                             pq.offer(gen);
                         }
                         long t1 = System.nanoTime();
                         finishIndexingJob();
                         responseObserver.onNext(AddDocumentResponse.newBuilder().setGenId(String.valueOf(pq.peek())).build());
                         responseObserver.onCompleted();
-                        logger.info(String.format("Indexing job completed for %s docs, in %s chunks, with latest sequence number: %s, took: %s micro seconds",
+                        logger.debug(String.format("Indexing job completed for %s docs, in %s chunks, with latest sequence number: %s, took: %s micro seconds",
                                 count, numIndexingChunks, pq.peek(), ((t1 - t0) / 1000)));
                     } catch (Exception e) {
                         logger.warn("error while trying to addDocuments", e);
@@ -477,7 +477,7 @@ public class LuceneServer {
                 IndexState indexState = globalState.getIndex(commitRequest.getIndexName());
                 long gen = indexState.commit();
                 CommitResponse reply = CommitResponse.newBuilder().setGen(gen).build();
-                logger.info(String.format("CommitHandler committed to index: %s for sequenceId: %s", commitRequest.getIndexName(), gen));
+                logger.debug(String.format("CommitHandler committed to index: %s for sequenceId: %s", commitRequest.getIndexName(), gen));
                 commitResponseStreamObserver.onNext(reply);
                 commitResponseStreamObserver.onCompleted();
             } catch (IOException e) {
@@ -531,7 +531,7 @@ public class LuceneServer {
                 IndexState indexState = globalState.getIndex(searchRequest.getIndexName());
                 SearchHandler searchHandler = new SearchHandler();
                 SearchResponse reply = searchHandler.handle(indexState, searchRequest);
-                logger.info(String.format("SearchHandler returned results %s", reply.toString()));
+                logger.debug(String.format("SearchHandler returned results %s", reply.toString()));
                 searchResponseStreamObserver.onNext(reply);
                 searchResponseStreamObserver.onCompleted();
             } catch (IOException e) {
@@ -628,7 +628,7 @@ public class LuceneServer {
         public void status(HealthCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
             try {
                 HealthCheckResponse reply = HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
-                logger.info("HealthCheckResponse returned " + reply.toString());
+                logger.debug("HealthCheckResponse returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {
@@ -765,7 +765,7 @@ public class LuceneServer {
         public void metrics(MetricsRequest request, StreamObserver<MetricsResponse> responseObserver) {
             try {
                 MetricsResponse reply = new MetricsRequestHandler(collectorRegistry).process();
-                logger.info("MetricsResponse returned " + reply.toString());
+                logger.debug("MetricsResponse returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {
@@ -782,7 +782,7 @@ public class LuceneServer {
         public void indices(IndicesRequest request, StreamObserver<IndicesResponse> responseObserver) {
             try {
                 IndicesResponse reply = StatsRequestHandler.getIndicesResponse(globalState);
-                logger.info("IndicesRequestHandler returned " + reply.toString());
+                logger.debug("IndicesRequestHandler returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {
@@ -971,7 +971,7 @@ public class LuceneServer {
                 IndexState indexState = globalState.getIndex(request.getIndexName());
                 NewNRTPointHandler newNRTPointHander = new NewNRTPointHandler();
                 TransferStatus reply = newNRTPointHander.handle(indexState, request);
-                logger.info("NewNRTPointHandler returned status " + reply.getCode() + " message: " + reply.getMessage());
+                logger.debug("NewNRTPointHandler returned status " + reply.getCode() + " message: " + reply.getMessage());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {
@@ -990,7 +990,7 @@ public class LuceneServer {
                 IndexState indexState = globalState.getIndex(indexNameRequest.getIndexName());
                 WriteNRTPointHandler writeNRTPointHander = new WriteNRTPointHandler();
                 SearcherVersion reply = writeNRTPointHander.handle(indexState, indexNameRequest);
-                logger.info("WriteNRTPointHandler returned version " + reply.getVersion());
+                logger.debug("WriteNRTPointHandler returned version " + reply.getVersion());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {
@@ -1027,7 +1027,7 @@ public class LuceneServer {
             try {
                 IndexState indexState = globalState.getIndex(getNodesRequest.getIndexName());
                 GetNodesResponse reply = new GetNodesInfoHandler().handle(indexState, getNodesRequest);
-                logger.info("GetNodesInfoHandler returned GetNodeResponse of size " + reply.getNodesCount());
+                logger.debug("GetNodesInfoHandler returned GetNodeResponse of size " + reply.getNodesCount());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {

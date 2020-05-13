@@ -55,11 +55,11 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
-    private static final Logger logger = Logger.getLogger(AddDocumentHandler.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(AddDocumentHandler.class);
 
     @Override
     public Any handle(IndexState indexState, AddDocumentRequest addDocumentRequest) throws AddDocumentHandlerException {
@@ -338,7 +338,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
         }
 
         public long runIndexingJob() throws Exception {
-            logger.info(String.format("running indexing job on threadId: %s", Thread.currentThread().getName() + Thread.currentThread().getId()));
+            logger.debug(String.format("running indexing job on threadId: %s", Thread.currentThread().getName() + Thread.currentThread().getId()));
             Queue<Document> documents = new LinkedBlockingDeque<>();
             IndexState indexState = null;
             for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {
@@ -347,7 +347,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                     Document document = AddDocumentHandler.LuceneDocumentBuilder.getDocument(addDocumentRequest, indexState);
                     documents.add(document);
                 } catch (Exception e) {
-                    logger.log(Level.WARNING, "addDocuments Cancelled", e);
+                    logger.warn("addDocuments Cancelled", e);
                     throw new Exception(e); //parent thread should catch and send error back to client
                 }
             }
@@ -388,10 +388,10 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                     }
                 });
             } catch (IOException e) { //This exception should be caught in parent to and set responseObserver.onError(e) so client knows the job failed
-                logger.log(Level.WARNING, String.format("ThreadId: %s, IndexWriter.addDocuments failed", Thread.currentThread().getName() + Thread.currentThread().getId()));
+                logger.warn(String.format("ThreadId: %s, IndexWriter.addDocuments failed", Thread.currentThread().getName() + Thread.currentThread().getId()));
                 throw new IOException(e);
             }
-            logger.info(String.format("indexing job on threadId: %s done with SequenceId: %s",
+            logger.debug(String.format("indexing job on threadId: %s done with SequenceId: %s",
                     Thread.currentThread().getName() + Thread.currentThread().getId(),
                     shardState.writer.getMaxCompletedSequenceNumber()));
             return shardState.writer.getMaxCompletedSequenceNumber();
