@@ -22,15 +22,16 @@
 
 package com.yelp.nrtsearch.server;
 
-import com.yelp.nrtsearch.server.grpc.MetricFamilySamples;
-import com.yelp.nrtsearch.server.grpc.MetricsResponse;
-import com.yelp.nrtsearch.server.grpc.Sample;
-import com.yelp.nrtsearch.server.grpc.SampleType;
-
-import java.util.Enumeration;
-
-import io.prometheus.client.Collector;
+import com.google.api.HttpBody;
+import com.google.protobuf.ByteString;
 import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.exporter.common.TextFormat;
+
+import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 
 public class MetricsRequestHandler {
     private final CollectorRegistry collectorRegistry;
@@ -39,35 +40,17 @@ public class MetricsRequestHandler {
         this.collectorRegistry = collectorRegistry;
     }
 
-    public MetricsResponse process() {
-        MetricsResponse.Builder metricsResponseBuilder = MetricsResponse.newBuilder();
-        Enumeration<Collector.MetricFamilySamples> samples = collectorRegistry.metricFamilySamples();
-        while (samples.hasMoreElements()) {
-            metricsResponseBuilder.addMetricFamilySample(buildMetricFamilySamples(samples.nextElement()));
+    public HttpBody process() throws IOException {
+        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+             OutputStreamWriter outputStreamWriter = new OutputStreamWriter(byteArrayOutputStream);
+             Writer writer = new BufferedWriter(outputStreamWriter)) {
+            TextFormat.write004(writer, collectorRegistry.metricFamilySamples());
+            writer.flush();
+            return HttpBody.newBuilder()
+                    .setContentType("text/plain")
+                    .setData(ByteString.copyFrom(byteArrayOutputStream.toByteArray()))
+                    .build();
         }
-        return metricsResponseBuilder.build();
-    }
-
-    private MetricFamilySamples buildMetricFamilySamples(Collector.MetricFamilySamples metricFamilySamples) {
-        var metricFamilySamplesBuilder = MetricFamilySamples.newBuilder();
-        for (Collector.MetricFamilySamples.Sample sample : metricFamilySamples.samples) {
-            metricFamilySamplesBuilder.addSamples(buildSample(sample));
-        }
-        return metricFamilySamplesBuilder
-                .setName(metricFamilySamples.name)
-                .setHelp(metricFamilySamples.help)
-                .setType(SampleType.valueOf(metricFamilySamples.type.name()))
-                .build();
-    }
-
-    private Sample buildSample(Collector.MetricFamilySamples.Sample metricsSample) {
-        return Sample.newBuilder()
-                .setName(metricsSample.name)
-                .addAllLabelNames(metricsSample.labelNames)
-                .addAllLabelValues(metricsSample.labelValues)
-                .setValue(metricsSample.value)
-                .setTimestampMs(metricsSample.timestampMs!=null? metricsSample.timestampMs: 0)
-                .build();
     }
 
 }

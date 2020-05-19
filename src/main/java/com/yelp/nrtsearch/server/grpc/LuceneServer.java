@@ -19,10 +19,12 @@
 
 package com.yelp.nrtsearch.server.grpc;
 
+import com.google.api.HttpBody;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.LuceneServerModule;
 import com.yelp.nrtsearch.server.MetricsRequestHandler;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
@@ -762,10 +764,10 @@ public class LuceneServer {
         }
 
         @Override
-        public void metrics(MetricsRequest request, StreamObserver<MetricsResponse> responseObserver) {
+        public void metrics(Empty request, StreamObserver<HttpBody> responseObserver) {
             try {
-                MetricsResponse reply = new MetricsRequestHandler(collectorRegistry).process();
-                logger.info("MetricsResponse returned " + reply.toString());
+                HttpBody reply = new MetricsRequestHandler(collectorRegistry).process();
+                logger.debug("MetricsRequestHandler returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {
