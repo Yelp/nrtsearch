@@ -35,6 +35,7 @@ import com.yelp.nrtsearch.server.luceneserver.BuildSuggestHandler;
 import com.yelp.nrtsearch.server.luceneserver.CopyFilesHandler;
 import com.yelp.nrtsearch.server.luceneserver.CreateSnapshotHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteAllDocumentsHandler;
+import com.yelp.nrtsearch.server.luceneserver.DeleteByQueryHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteDocumentsHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteIndexHandler;
 import com.yelp.nrtsearch.server.luceneserver.GetNodesInfoHandler;
@@ -560,7 +561,7 @@ public class LuceneServer {
             try {
                 IndexState indexState = globalState.getIndex(addDocumentRequest.getIndexName());
                 AddDocumentResponse reply = new DeleteDocumentsHandler().handle(indexState, addDocumentRequest);
-                logger.info("DeleteDocumentsHandler returned " + reply.toString());
+                logger.debug("DeleteDocumentsHandler returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {
@@ -568,6 +569,24 @@ public class LuceneServer {
                 responseObserver.onError(Status
                         .INVALID_ARGUMENT
                         .withDescription("error while trying to delete documents for index: " + addDocumentRequest.getIndexName())
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+            }
+        }
+
+        @Override
+        public void deleteByQuery(DeleteByQueryRequest deleteByQueryRequest, StreamObserver<AddDocumentResponse> responseObserver) {
+            try {
+                IndexState indexState = globalState.getIndex(deleteByQueryRequest.getIndexName());
+                AddDocumentResponse reply = new DeleteByQueryHandler().handle(indexState, deleteByQueryRequest);
+                logger.debug("DeleteDocumentsHandler returned " + reply.toString());
+                responseObserver.onNext(reply);
+                responseObserver.onCompleted();
+            } catch (Exception e) {
+                logger.warn("Error while trying to delete documents from index: {}", deleteByQueryRequest.getIndexName(), e);
+                responseObserver.onError(Status
+                        .INVALID_ARGUMENT
+                        .withDescription("Error while trying to delete documents from index: " + deleteByQueryRequest.getIndexName())
                         .augmentDescription(e.getMessage())
                         .asRuntimeException());
             }

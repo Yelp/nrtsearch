@@ -129,6 +129,14 @@ service LuceneServer {
     };
 
     }
+    /* Delete documents matching a query */
+    rpc deleteByQuery (DeleteByQueryRequest) returns (AddDocumentResponse) {
+        option (google.api.http) = {
+      post: "/v1/delete_by_query"
+      body: "*"
+    };
+
+    }
     /* Delete all documents for index */
     rpc deleteAll (DeleteAllDocumentsRequest) returns (DeleteAllDocumentsResponse) {
         option (google.api.http) = {
@@ -837,4 +845,9 @@ message GetNodesResponse {
 message NodeInfo {
     string hostname = 1; //name or ip address of the remote host that this node is connected to for binary replication
     int32 port = 2; //port number of the remote host that this node is connected to for binary replication
+}
+
+message DeleteByQueryRequest {
+    string indexName = 1; // Index to delete documents from
+    repeated Query query = 2; // Queries to match documents to be deleted
 }

@@ -275,13 +275,63 @@ public class LuceneServerTest {
         AddDocumentResponse addDocumentResponse = grpcServer.getBlockingStub().delete(addDocumentRequestBuilder.build());
 
         //manual refresh needed to depict changes in buffered deletes (i.e. not committed yet)
-        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().build().newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
 
         //check stats numDocs for 1 docs
         statsResponse = grpcServer.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
         assertEquals(1, statsResponse.getNumDocs());
         //note maxDoc stays 2 since it does not include delete documents
         assertEquals(2, statsResponse.getMaxDoc());
+
+    }
+
+    @Test
+    public void testDeleteByQuery() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        //add 2 docs
+        testAddDocs.addDocuments();
+        //check stats numDocs for 2 docs
+        StatsResponse statsResponse = grpcServer.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+        assertEquals(2, statsResponse.getNumDocs());
+        assertEquals(2, statsResponse.getMaxDoc());
+
+        Query query = Query.newBuilder()
+                .setQueryType(QueryType.TERM_QUERY)
+                .setTermQuery(TermQuery.newBuilder()
+                        .setField("count")
+                        .setIntValue(7))
+                .build();
+        SearchRequest searchRequest = SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(RETRIEVED_VALUES)
+                .setQuery(query)
+                .build();
+        SearchResponse searchResponse = grpcServer.getBlockingStub()
+                .search(searchRequest);
+        assertEquals(searchResponse.getHitsCount(), 1);
+
+        //delete 1 doc
+
+        DeleteByQueryRequest deleteByQueryRequest = DeleteByQueryRequest.newBuilder()
+                .setIndexName("test_index")
+                .addQuery(query)
+                .build();
+        AddDocumentResponse addDocumentResponse = grpcServer.getBlockingStub().deleteByQuery(deleteByQueryRequest);
+
+        //manual refresh needed to depict changes in buffered deletes (i.e. not committed yet)
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        //check stats numDocs for 1 docs
+        statsResponse = grpcServer.getBlockingStub().stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+        assertEquals(1, statsResponse.getNumDocs());
+        //note maxDoc stays 2 since it does not include delete documents
+        assertEquals(2, statsResponse.getMaxDoc());
+        //deleted document does not show up in search response now
+        searchResponse = grpcServer.getBlockingStub()
+                .search(searchRequest);
+        assertEquals(searchResponse.getHitsCount(), 0);
 
     }
 

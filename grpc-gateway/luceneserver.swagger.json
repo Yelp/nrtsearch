@@ -266,6 +266,39 @@
         ]
       }
     },
+    "/v1/delete_by_query": {
+      "post": {
+        "summary": "Delete documents matching a query",
+        "operationId": "LuceneServer_deleteByQuery",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverAddDocumentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverDeleteByQueryRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/delete_index": {
       "post": {
         "summary": "Delete index",
@@ -1405,6 +1438,20 @@
       "properties": {
         "genId": {
           "type": "string"
+        }
+      }
+    },
+    "luceneserverDeleteByQueryRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "query": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverQuery"
+          }
         }
       }
     },
