@@ -1,7 +1,7 @@
 package main
 
 import (
-  "context"  // Use "golang.org/x/net/context" for Golang version <= 1.6
+  "context" // Use "golang.org/x/net/context" for Golang version <= 1.6
   "flag"
   "fmt"
   "net/http"
@@ -30,6 +30,8 @@ func run() error {
   // Register gRPC server endpoint
   // Note: Make sure the gRPC server is running properly and accessible
   mux := runtime.NewServeMux()
+  runtime.SetHTTPBodyMarshaler(mux)
+
   opts := []grpc.DialOption{grpc.WithInsecure()}
   err := gw.RegisterLuceneServerHandlerFromEndpoint(ctx, mux,  *grpcServerEndpoint, opts)
   if err != nil {
