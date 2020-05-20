@@ -145,14 +145,7 @@ service LuceneServer {
     };
 
     }
-    /* healthcheck */
-    rpc status (HealthCheckRequest) returns (HealthCheckResponse) {
-        option (google.api.http) = {
-      post: "/v1/status"
-      body: "*"
-    };
 
-    }
     /* Builds a new auto-suggester, loading suggestions via the provided local file path.*/
     rpc buildSuggest (BuildSuggestRequest) returns (BuildSuggestResponse) {
         option (google.api.http) = {
@@ -218,20 +211,34 @@ service LuceneServer {
       body: "*"
     };
     }
+    /* Gets the state of a started index, includes settings, live_settings, search schema, suggest schema */
+    rpc state (StateRequest) returns (StateResponse) {
+        option (google.api.http) = {
+        post: "/v1/state"
+        body: "*"
+        };
+    }
+
+    //GET methods
+    /* healthcheck */
+    rpc status (HealthCheckRequest) returns (HealthCheckResponse) {
+        option (google.api.http) = {
+      get: "/v1/status"
+    };
+
+    }
     /* metrics  */
     rpc metrics (google.protobuf.Empty) returns (google.api.HttpBody) {
         option (google.api.http) = {
       get: "/status/metrics"
     };
     }
-
     /* indices  */
     rpc indices (IndicesRequest) returns (IndicesResponse) {
         option (google.api.http) = {
       get: "/v1/indices"
     };
     }
-
 
 }
 
@@ -701,6 +708,14 @@ message IndexStatsResponse {
 message RestoreIndex {
     string serviceName = 1; // remote storage namespace qualifier for service
     string resourceName = 2; //remote storage namespace qualifier for resource e.g. indexName
+}
+
+message StateRequest {
+    string indexName = 1; //index name
+}
+
+message StateResponse {
+    string response = 1; //json string of the current index state
 }
 
 message AddReplicaRequest {

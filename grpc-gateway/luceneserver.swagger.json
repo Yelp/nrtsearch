@@ -553,6 +553,39 @@
         ]
       }
     },
+    "/v1/state": {
+      "post": {
+        "summary": "Gets the state of a started index, includes settings, live_settings, search schema, suggest schema",
+        "operationId": "LuceneServer_state",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverStateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverStateRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/stats": {
       "post": {
         "summary": "Retrieve index statistics",
@@ -587,7 +620,7 @@
       }
     },
     "/v1/status": {
-      "post": {
+      "get": {
         "summary": "healthcheck",
         "operationId": "LuceneServer_status",
         "responses": {
@@ -606,12 +639,11 @@
         },
         "parameters": [
           {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/luceneserverHealthCheckRequest"
-            }
+            "name": "check",
+            "in": "query",
+            "required": false,
+            "type": "boolean",
+            "format": "boolean"
           }
         ],
         "tags": [
@@ -1698,15 +1730,6 @@
         }
       }
     },
-    "luceneserverHealthCheckRequest": {
-      "type": "object",
-      "properties": {
-        "check": {
-          "type": "boolean",
-          "format": "boolean"
-        }
-      }
-    },
     "luceneserverHealthCheckResponse": {
       "type": "object",
       "properties": {
@@ -2431,6 +2454,22 @@
         "startTimeMS": {
           "type": "number",
           "format": "double"
+        }
+      }
+    },
+    "luceneserverStateRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverStateResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "string"
         }
       }
     },
