@@ -1,5 +1,7 @@
 package com.yelp.nrtsearch.server.grpc;
 
+import com.google.api.HttpBody;
+import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
@@ -25,6 +27,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
@@ -397,18 +400,23 @@ public class LuceneServerTest {
 
     @Test
     public void testMetrics() {
-        MetricsResponse response = grpcServer.getBlockingStub().metrics(MetricsRequest.newBuilder().build());
+        HttpBody response = grpcServer.getBlockingStub().metrics(Empty.newBuilder().build());
         HashSet expectedSampleNames = new HashSet(Arrays.asList("grpc_server_started_total", "grpc_server_handled_total", "grpc_server_msg_received_total",
                 "grpc_server_msg_sent_total", "grpc_server_handled_latency_seconds"));
-        HashSet<String> actualSampleNames = new HashSet(response.getMetricFamilySampleList().stream().map(sample -> sample.getName()).collect(Collectors.toList()));
-        assertEquals(true, actualSampleNames.containsAll(expectedSampleNames));
-        for (MetricFamilySamples sample : response.getMetricFamilySampleList()) {
-            if (sample.getName().equals("grpc_server_handled_latency_seconds")) {
-                for (Sample each : sample.getSamplesList()) {
-                    assertEquals("metrics", each.getLabelValues(2));
-                }
+        assertEquals("text/plain", response.getContentType());
+        String data = new String(response.getData().toByteArray());
+        String[] arr = data.split("\n");
+        Set<String> labelsHelp = new HashSet<>();
+        Set<String> labelsType = new HashSet<>();
+        for (int i = 0; i < arr.length; i++) {
+            if (arr[i].startsWith("# HELP")) {
+                labelsHelp.add(arr[i].split(" ")[2]);
+            } else if (arr[i].startsWith("# TYPE")) {
+                labelsType.add(arr[i].split(" ")[2]);
             }
         }
+        assertEquals(true, labelsHelp.equals(labelsType));
+        assertEquals(true, labelsHelp.equals(expectedSampleNames));
     }
 
     public static void checkHits(SearchResponse.Hit hit) {
