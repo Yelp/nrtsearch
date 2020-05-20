@@ -219,7 +219,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             // ...
 
             q = s.searcher.rewrite(q);
-            logger.info(String.format("after rewrite, query: %s", q.toString()));
+            logger.debug(String.format("after rewrite, query: %s", q.toString()));
             diagnostics.setRewrittenQuery(q.toString());
 
             // nocommit add test with drill down on OR of fields:

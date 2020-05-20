@@ -508,7 +508,7 @@ public class LuceneServer {
                 IndexState indexState = globalState.getIndex(statsRequest.getIndexName());
                 indexState.verifyStarted();
                 StatsResponse reply = new StatsRequestHandler().handle(indexState, statsRequest);
-                logger.info(String.format("StatsHandler retrieved stats for index: %s ", reply));
+                logger.debug(String.format("StatsHandler retrieved stats for index: %s ", reply));
                 statsResponseStreamObserver.onNext(reply);
                 statsResponseStreamObserver.onCompleted();
             } catch (IOException e) {
@@ -822,7 +822,7 @@ public class LuceneServer {
             try {
                 IndexState indexState = globalState.getIndex(request.getIndexName());
                 StateResponse reply = new GetStateHandler().handle(indexState, request);
-                logger.info("IndicesRequestHandler returned " + reply.toString());
+                logger.debug("GetStateHandler returned " + reply.toString());
                 responseObserver.onNext(reply);
                 responseObserver.onCompleted();
             } catch (Exception e) {
