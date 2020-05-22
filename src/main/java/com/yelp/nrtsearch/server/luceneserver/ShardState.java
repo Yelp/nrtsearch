@@ -21,6 +21,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.StatusRuntimeException;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesReaderState;
@@ -53,7 +54,6 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -658,8 +658,8 @@ public class ShardState implements Closeable {
                 snapshotGenToVersion.put(c.getGeneration(), sis.getVersion());
             }
 
-            InetSocketAddress localSocketAddress = new InetSocketAddress(indexState.globalState.getHostName(), indexState.globalState.getReplicationPort());
-            nrtPrimaryNode = new NRTPrimaryNode(indexState.name, localSocketAddress, writer, 0, primaryGen, -1,
+            HostPort hostPort = new HostPort(indexState.globalState.getHostName(), indexState.globalState.getReplicationPort());
+            nrtPrimaryNode = new NRTPrimaryNode(indexState.name, hostPort, writer, 0, primaryGen, -1,
                     new SearcherFactory() {
                         @Override
                         public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) throws IOException {
@@ -785,8 +785,8 @@ public class ShardState implements Closeable {
 
             boolean verbose = indexState.getBooleanSetting("indexVerbose", false);
 
-            InetSocketAddress localSocketAddress = new InetSocketAddress(indexState.globalState.getHostName(), indexState.globalState.getReplicationPort());
-            nrtReplicaNode = new NRTReplicaNode(indexState.name, primaryAddress, localSocketAddress, REPLICA_ID, indexDir,
+            HostPort hostPort = new HostPort(indexState.globalState.getHostName(), indexState.globalState.getReplicationPort());
+            nrtReplicaNode = new NRTReplicaNode(indexState.name, primaryAddress, hostPort, REPLICA_ID, indexDir,
                     new SearcherFactory() {
                         @Override
                         public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) throws IOException {
@@ -989,14 +989,14 @@ public class ShardState implements Closeable {
                     if (shardState.isReplica() && shardState.isStarted() && !shardState.nrtReplicaNode.isKnownToPrimary() && !exit) {
                         nrtReplicaNode.getPrimaryAddress().addReplicas(
                                 shardState.indexState.name, REPLICA_ID,
-                                nrtReplicaNode.getLocalSocketAddress().getHostName(),
-                                nrtReplicaNode.getLocalSocketAddress().getPort());
+                                nrtReplicaNode.getHostPort().getHostName(),
+                                nrtReplicaNode.getHostPort().getPort());
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (StatusRuntimeException e) {
                     logger.warn(String.format("Replica host: %s, binary port: %s cannot reach primary host: %s replication port: %s",
-                            nrtReplicaNode.getLocalSocketAddress().getHostName(), nrtReplicaNode.getLocalSocketAddress().getPort(),
+                            nrtReplicaNode.getHostPort().getHostName(), nrtReplicaNode.getHostPort().getPort(),
                             nrtReplicaNode.getPrimaryAddress().getHost(), nrtReplicaNode.getPrimaryAddress().getPort()));
                 }
             }

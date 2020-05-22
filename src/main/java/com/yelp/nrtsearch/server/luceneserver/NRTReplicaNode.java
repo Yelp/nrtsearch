@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
 import com.yelp.nrtsearch.server.grpc.NodeInfo;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.utils.HostPort;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -36,7 +37,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintStream;
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,16 +51,16 @@ public class NRTReplicaNode extends ReplicaNode {
 
     /* Just a wrapper class to hold our <hostName, port> pair so that we can send them to the Primary
      * on sendReplicas and it can build its channel over this pair */
-    private final InetSocketAddress localSocketAddress;
+    private final HostPort hostPort;
     Logger logger = LoggerFactory.getLogger(NRTPrimaryNode.class);
 
-    public NRTReplicaNode(String indexName, ReplicationServerClient primaryAddress, InetSocketAddress localSocketAddress,
+    public NRTReplicaNode(String indexName, ReplicationServerClient primaryAddress, HostPort hostPort,
                           int replicaId, Directory indexDir, SearcherFactory searcherFactory, PrintStream printStream,
                           long primaryGen) throws IOException {
         super(replicaId, indexDir, searcherFactory, printStream);
         this.primaryAddress = primaryAddress;
         this.indexName = indexName;
-        this.localSocketAddress = localSocketAddress;
+        this.hostPort = hostPort;
         // Handles fetching files from primary, on a new thread which receives files from primary
         jobs = new Jobs(this);
         jobs.setName("R" + id + ".copyJobs");
@@ -147,7 +147,7 @@ public class NRTReplicaNode extends ReplicaNode {
     protected void sendNewReplica() throws IOException {
         logger.info(String.format("send new_replica to primary host=%s, tcpPort=%s",
                 primaryAddress.getHost(), primaryAddress.getPort()));
-        primaryAddress.addReplicas(indexName, this.id, localSocketAddress.getHostName(), localSocketAddress.getPort());
+        primaryAddress.addReplicas(indexName, this.id, hostPort.getHostName(), hostPort.getPort());
     }
 
     public CopyJob launchPreCopyFiles(AtomicBoolean finished, long curPrimaryGen, Map<String, FileMetaData> files) throws IOException {
@@ -173,8 +173,8 @@ public class NRTReplicaNode extends ReplicaNode {
         return primaryAddress;
     }
 
-    public InetSocketAddress getLocalSocketAddress() {
-        return localSocketAddress;
+    public HostPort getHostPort() {
+        return hostPort;
     }
 
     /* returns true if present in primary's current list of known replicas else false.
@@ -182,7 +182,7 @@ public class NRTReplicaNode extends ReplicaNode {
     public boolean isKnownToPrimary() {
         GetNodesResponse getNodesResponse = primaryAddress.getConnectedNodes(indexName);
         for (NodeInfo nodeInfo : getNodesResponse.getNodesList()) {
-            if (localSocketAddress.equals(new InetSocketAddress(nodeInfo.getHostname(), nodeInfo.getPort()))) {
+            if (hostPort.equals(new HostPort(nodeInfo.getHostname(), nodeInfo.getPort()))) {
                 return true;
             }
         }
