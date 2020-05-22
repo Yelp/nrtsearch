@@ -25,10 +25,10 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.GetNodesRequest;
 import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
 import com.yelp.nrtsearch.server.grpc.NodeInfo;
+import com.yelp.nrtsearch.server.utils.HostPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetSocketAddress;
 import java.util.Collection;
 
 public class GetNodesInfoHandler implements Handler<GetNodesRequest, GetNodesResponse> {
@@ -43,10 +43,10 @@ public class GetNodesInfoHandler implements Handler<GetNodesRequest, GetNodesRes
         } else { //shard is a primary and started
             Collection<NRTPrimaryNode.ReplicaDetails> replicasInfo = shardState.nrtPrimaryNode.getNodesInfo();
             for (NRTPrimaryNode.ReplicaDetails replica : replicasInfo) {
-                InetSocketAddress inetSocketAddress = replica.getInetSocketAddress();
+                HostPort hostPort = replica.getHostPort();
                 builder.addNodes(NodeInfo.newBuilder()
-                        .setHostname(inetSocketAddress.getHostName())
-                        .setPort(inetSocketAddress.getPort())
+                        .setHostname(hostPort.getHostName())
+                        .setPort(hostPort.getPort())
                         .build());
             }
         }

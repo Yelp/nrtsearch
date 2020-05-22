@@ -71,7 +71,7 @@ public class WriteNRTPointHandler implements Handler<IndexName, SearcherVersion>
                         Status status = e.getStatus();
                         if (status.getCode().equals(Status.UNAVAILABLE.getCode())) {
                             logger.info("NRTPRimaryNode: sendNRTPoint, lost connection to replicaId: " + replicaDetails.getReplicaId()
-                                    + " host: " + replicaDetails.getReplicationServerClient().getHost() + " port: " + replicaDetails.getReplicationServerClient().getPort());
+                                    + " host: " + replicaDetails.getHostPort().getHostName() + " port: " + replicaDetails.getHostPort().getPort());
                             it.remove();
                         }
                     } catch (Exception e) {
