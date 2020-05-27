@@ -180,6 +180,11 @@ class QueryNodeMapper {
         // BooleanQuery may include clauses with TermQuery or FuzzyQuery.
         Query query = queryBuilder.createBooleanQuery(matchQuery.getField(), matchQuery.getQuery(), matchOperatorOccurMapping.get(matchQuery.getOperator()));
 
+        // This can happen if there are no tokens found after analyzing the query text
+        if (query == null) {
+            return new MatchNoDocsQuery();
+        }
+
         // TODO: investigate using createMinShouldMatchQuery instead
         if (matchQuery.getMinimumNumberShouldMatch() == 0 || query instanceof TermQuery) {
             return query;
@@ -201,7 +206,13 @@ class QueryNodeMapper {
 
         QueryBuilder queryBuilder = new QueryBuilder(analyzer);
         // This created query will be TermQuery if only one token is found after analysis, otherwise PhraseQuery
-        return queryBuilder.createPhraseQuery(matchPhraseQuery.getField(), matchPhraseQuery.getQuery(), matchPhraseQuery.getSlop());
+        Query phraseQuery = queryBuilder.createPhraseQuery(matchPhraseQuery.getField(), matchPhraseQuery.getQuery(), matchPhraseQuery.getSlop());
+
+        // This can happen if there are no tokens found after analyzing the query text
+        if (phraseQuery == null) {
+            return new MatchNoDocsQuery();
+        }
+        return phraseQuery;
     }
 
     private Query getMultiMatchQuery(MultiMatchQuery multiMatchQuery, IndexState state) {

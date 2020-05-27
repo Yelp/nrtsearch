@@ -328,6 +328,24 @@ public class QueryTest {
     }
 
     @Test
+    public void testSearchMatchQueryEmptyAfterAnalysis() {
+        Query query = Query.newBuilder()
+                .setQueryType(QueryType.MATCH)
+                .setMatchQuery(MatchQuery.newBuilder()
+                        .setField("vendor_name")
+                        .setQuery("////????")
+                        .setOperator(MatchOperator.MUST))
+                .build();
+
+        Consumer<SearchResponse> responseTester = searchResponse -> {
+            assertEquals(0, searchResponse.getTotalHits().getValue());
+            assertEquals(0, searchResponse.getHitsList().size());
+        };
+
+        testQuery(query, responseTester);
+    }
+
+    @Test
     public void testSearchMatchQueryFuzzyCustomAnalyzer() {
         Query query = Query.newBuilder()
                 .setQueryType(QueryType.MATCH)
@@ -370,6 +388,23 @@ public class QueryTest {
             String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
             assertEquals("2", docId);
             LuceneServerTest.checkHits(hit);
+        };
+
+        testQuery(query, responseTester);
+    }
+
+    @Test
+    public void testSearchMatchPhraseQueryEmptyAfterAnalysis() {
+        Query query = Query.newBuilder()
+                .setQueryType(QueryType.MATCH_PHRASE)
+                .setMatchPhraseQuery(MatchPhraseQuery.newBuilder()
+                        .setField("vendor_name")
+                        .setQuery("/?/ ?//?")
+                        .setSlop(1)).build();
+
+        Consumer<SearchResponse> responseTester = searchResponse -> {
+            assertEquals(0, searchResponse.getTotalHits().getValue());
+            assertEquals(0, searchResponse.getHitsList().size());
         };
 
         testQuery(query, responseTester);
