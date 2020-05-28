@@ -220,18 +220,18 @@ public class GrpcServer {
         public boolean error = false;
 
 
-        TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode, int primaryGen, boolean startOldIndex) throws IOException {
+        public TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode, int primaryGen, boolean startOldIndex) throws IOException {
             this.grpcServer = grpcServer;
             if (startIndex) {
                 new IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(mode, primaryGen, startOldIndex);
             }
         }
 
-        TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode, int primaryGen) throws IOException {
+        public TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode, int primaryGen) throws IOException {
             this(grpcServer, startIndex, mode, primaryGen, false);
         }
 
-        TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode) throws IOException {
+        public TestServer(GrpcServer grpcServer, boolean startIndex, Mode mode) throws IOException {
             this(grpcServer, startIndex, mode, 0);
         }
 

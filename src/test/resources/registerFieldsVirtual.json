@@ -2,6 +2,22 @@
   "indexName": "test_index",
   "field": [
     {
+      "name": "virtual_field",
+      "type": "VIRTUAL",
+      "script": {
+        "lang": "js",
+        "source": "float_field*2.0+long_field*3.0"
+      }
+    },
+    {
+      "name": "virtual_field_w_score",
+      "type": "VIRTUAL",
+      "script": {
+        "lang": "js",
+        "source": "_score*3.0"
+      }
+    },
+    {
       "name": "doc_id",
       "type": "ATOM",
       "storeDocValues": true

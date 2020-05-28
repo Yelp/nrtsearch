@@ -31,6 +31,7 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
+import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
@@ -1154,5 +1155,11 @@ public class IndexState implements Closeable, Restorable {
     public synchronized void addSuggest(String name, JsonObject o) {
         suggestSaveState.add(name, o);
     }
+
+    /**
+     * Index level doc values lookup. Generates {@link com.yelp.nrtsearch.server.luceneserver.doc.SegmentDocLookup}
+     * for a given lucene segment.
+     */
+    public final DocLookup docLookup = new DocLookup(this);
 
 }

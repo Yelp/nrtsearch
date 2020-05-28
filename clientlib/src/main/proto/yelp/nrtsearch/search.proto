@@ -56,7 +56,7 @@ message PhraseQuery {
 // A query that wraps another query and uses custom scoring logic to compute the wrapped query's score.
 message FunctionScoreQuery {
     Query query = 1; // Input query
-    string function = 2; // Scoring function as Javascript expression. Syntax here: https://lucene.apache.org/core/8_2_0/expressions/org/apache/lucene/expressions/js/package-summary.html
+    Script script = 2; // script definition to compute a custom document score
 }
 
 // A query that matches documents containing a term.
@@ -200,7 +200,7 @@ message SearchRequest {
     double timeoutSec = 4;
     repeated string retrieveFields = 5; //Which fields to highlight or retrieve.
     string queryText = 6; //Query text to parse using the specified QueryParser.
-    repeated VirtualField virtualFielsd = 7; //Defines virtual fields (name'd dynamic expressions) for this query.
+    repeated VirtualField virtualFields = 7; //Defines virtual fields (name'd dynamic expressions) for this query.
     Query query = 8; // Full query to execute using QueryNodes
     QuerySortField querySort = 9; //Sort hits by field (default is by relevance).
     oneof Searcher {
@@ -214,8 +214,27 @@ message SearchRequest {
 
 /* Virtual field used during search */
 message VirtualField {
-    string expression = 1; // JavaScript expression defining this field's values.
+    Script script = 1; // Script defining this field's values.
     string name = 2; // Virtual field's name. Must be different from registered fields and any other virtual fields.
+}
+
+message Script {
+    string lang = 1; // script language
+    string source = 2; // script source
+
+    // script parameter entry
+    message ParamValue {
+        oneof ParamValues {
+            string textValue = 1;
+            bool booleanValue = 2;
+            int32 intValue = 3;
+            int64 longValue = 4;
+            float floatValue = 5;
+            double doubleValue = 6;
+        }
+    }
+
+    map<string, ParamValue> params = 7; // parameters passed into script execution
 }
 
 message QuerySortField {

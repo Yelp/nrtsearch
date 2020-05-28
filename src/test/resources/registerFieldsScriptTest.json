@@ -2,6 +2,22 @@
   "indexName": "test_index",
   "field": [
     {
+      "name": "test_doc_values",
+      "type": "VIRTUAL",
+      "script": {
+        "lang": "test_lang",
+        "source": "verify_doc_values"
+      }
+    },
+    {
+      "name": "test_score",
+      "type": "VIRTUAL",
+      "script": {
+        "lang": "test_lang",
+        "source": "verify_score"
+      }
+    },
+    {
       "name": "doc_id",
       "type": "ATOM",
       "storeDocValues": true
