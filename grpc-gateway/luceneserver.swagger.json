@@ -619,6 +619,37 @@
         ]
       }
     },
+    "/v1/state/{indexName}": {
+      "get": {
+        "summary": "Gets the state of a started index, includes settings, live_settings, search schema, suggest schema",
+        "operationId": "LuceneServer_state2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverStateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "indexName",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/stats": {
       "post": {
         "summary": "Retrieve index statistics",
@@ -645,6 +676,37 @@
             "schema": {
               "$ref": "#/definitions/luceneserverStatsRequest"
             }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/stats/{indexName}": {
+      "get": {
+        "summary": "Retrieve index statistics",
+        "operationId": "LuceneServer_stats2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverStatsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "indexName",
+            "in": "path",
+            "required": true,
+            "type": "string"
           }
         ],
         "tags": [
