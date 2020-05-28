@@ -111,6 +111,9 @@ service LuceneServer {
         option (google.api.http) = {
       post: "/v1/stats"
       body: "*"
+      additional_bindings {
+        get: "/v1/stats/{indexName}"
+      }
     };
 
     }
@@ -224,7 +227,10 @@ service LuceneServer {
         option (google.api.http) = {
         post: "/v1/state"
         body: "*"
-        };
+        additional_bindings {
+            get: "/v1/state/{indexName}"
+        }
+    };
     }
 
     //GET methods
