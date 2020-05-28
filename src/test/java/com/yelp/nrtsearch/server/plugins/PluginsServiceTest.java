@@ -1,0 +1,171 @@
+/*
+ * Copyright 2020 Yelp Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+ * either express or implied.
+ * See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
+ */
+
+package com.yelp.nrtsearch.server.plugins;
+
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+
+public class PluginsServiceTest {
+
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
+
+    @Test
+    public void testGetSinglePluginSearchPath() {
+        LuceneServerConfiguration config = new LuceneServerConfiguration();
+        config.setPluginSearchPath("some/plugin/path");
+        PluginsService pluginsService = new PluginsService(config);
+        List<File> expectedPaths = new ArrayList<>();
+        expectedPaths.add(new File("some/plugin/path"));
+        assertEquals(expectedPaths, pluginsService.getPluginSearchPath());
+    }
+
+    @Test
+    public void testGetMultiPluginSearchPath() {
+        LuceneServerConfiguration config = new LuceneServerConfiguration();
+        config.setPluginSearchPath(
+                "some1/plugin1/path1" + File.pathSeparator +
+                "some2/plugin2/path2" + File.pathSeparator +
+                "some3/plugin3/path3" + File.pathSeparator);
+        PluginsService pluginsService = new PluginsService(config);
+        List<File> expectedPaths = new ArrayList<>();
+        expectedPaths.add(new File("some1/plugin1/path1"));
+        expectedPaths.add(new File("some2/plugin2/path2"));
+        expectedPaths.add(new File("some3/plugin3/path3"));
+        assertEquals(expectedPaths, pluginsService.getPluginSearchPath());
+    }
+
+    @Test
+    public void testFindPluginInstallDir() throws IOException {
+        File plugin1 = folder.newFolder("plugin1");
+        File plugin2 = folder.newFolder("plugin2");
+        File plugin3 = folder.newFolder("plugin3");
+        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        assertEquals(
+                plugin1,
+                pluginsService.findPluginInstallDir("plugin1", Collections.singletonList(folder.getRoot()))
+        );
+        assertEquals(
+                plugin2,
+                pluginsService.findPluginInstallDir("plugin2", Collections.singletonList(folder.getRoot()))
+        );
+        assertEquals(
+                plugin3,
+                pluginsService.findPluginInstallDir("plugin3", Collections.singletonList(folder.getRoot()))
+        );
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testFindPluginInstallDirNotFound() throws IOException {
+        folder.newFolder("plugin1");
+        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        pluginsService.findPluginInstallDir("invalid", Collections.singletonList(folder.getRoot()));
+    }
+
+    @Test
+    public void testFindFirstPluginInstallDir() throws IOException {
+        List<File> searchPath = new ArrayList<>();
+        searchPath.add(folder.newFolder("dir1"));
+        searchPath.add(folder.newFolder("dir2"));
+        searchPath.add(folder.newFolder("dir3"));
+        folder.newFolder("dir1", "plugin1");
+        folder.newFolder("dir1", "plugin2");
+        File installDir = folder.newFolder("dir2", "plugin3");
+        folder.newFolder("dir3", "plugin3");
+        folder.newFolder("dir3", "plugin4");
+        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        assertEquals(
+                installDir,
+                pluginsService.findPluginInstallDir("plugin3", searchPath)
+        );
+    }
+
+    @Test
+    public void testGetPluginJars() throws IOException {
+        List<File> jars = new ArrayList<>();
+        jars.add(folder.newFile("some1.jar"));
+        jars.add(folder.newFile("some2.jar"));
+        jars.add(folder.newFile("some3.jar"));
+        folder.newFile("not_jar");
+        folder.newFile("some_file.txt");
+        folder.newFolder("some_folder.jar");
+        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        assertEquals(
+                new HashSet<>(jars),
+                new HashSet<>(pluginsService.getPluginJars(folder.getRoot()))
+        );
+    }
+
+    public static class LoadTestPlugin extends Plugin {
+        public LuceneServerConfiguration config;
+        public LoadTestPlugin(LuceneServerConfiguration config) {
+            this.config = config;
+        }
+    }
+
+    @Test
+    public void testGetPluginClass() {
+        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        Class<? extends Plugin> clazz = pluginsService.getPluginClass(Collections.emptyList(),
+                "com.yelp.nrtsearch.server.plugins.PluginsServiceTest$LoadTestPlugin");
+        assertEquals(LoadTestPlugin.class, clazz);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetPluginClassNotFound() {
+        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        Class<? extends Plugin> clazz = pluginsService.getPluginClass(Collections.emptyList(),
+                "com.yelp.nrtsearch.server.plugins.NotClass");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetPluginClassNotPlugin() {
+        PluginsService pluginsService = new PluginsService(new LuceneServerConfiguration());
+        Class<? extends Plugin> clazz = pluginsService.getPluginClass(Collections.emptyList(),
+                "com.yelp.nrtsearch.server.plugins.PluginServiceTest");
+    }
+
+    @Test
+    public void testGetPluginInstance() {
+        LuceneServerConfiguration config = new LuceneServerConfiguration();
+        PluginsService pluginsService = new PluginsService(config);
+        Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPlugin.class);
+        assertEquals(LoadTestPlugin.class, loadedPlugin.getClass());
+    }
+
+    @Test
+    public void testGetPluginInstanceHasConfig() {
+        LuceneServerConfiguration config = new LuceneServerConfiguration();
+        PluginsService pluginsService = new PluginsService(config);
+        Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPlugin.class);
+        LoadTestPlugin loadTestPlugin = (LoadTestPlugin) loadedPlugin;
+        assertSame(config, loadTestPlugin.config);
+    }
+}

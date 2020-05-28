@@ -1,6 +1,7 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.luceneserver.RestoreStateHandler;
 import com.yelp.nrtsearch.server.utils.Archiver;
 
@@ -17,6 +18,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -56,21 +58,21 @@ public class GrpcServer {
 
     public GrpcServer(CollectorRegistry collectorRegistry, GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
                       boolean isReplication, GlobalState globalState,
-                      String indexDir, String index, int port, Archiver archiver) throws IOException {
+                      String indexDir, String index, int port, Archiver archiver, List<Plugin> plugins) throws IOException {
         this.grpcCleanup = grpcCleanup;
         this.temporaryFolder = temporaryFolder;
         this.globalState = globalState;
         this.indexDir = indexDir;
         this.testIndex = index;
         this.archiver = archiver;
-        invoke(collectorRegistry, isReplication, port, archiver);
+        invoke(collectorRegistry, isReplication, port, archiver, plugins);
     }
 
 
     public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
                       boolean isReplication, GlobalState globalState,
                       String indexDir, String index, int port, Archiver archiver) throws IOException {
-        this(null, grpcCleanup, temporaryFolder, isReplication, globalState, indexDir, index, port, archiver);
+        this(null, grpcCleanup, temporaryFolder, isReplication, globalState, indexDir, index, port, archiver, Collections.emptyList());
     }
 
     public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
@@ -130,7 +132,7 @@ public class GrpcServer {
      * To test the server, make calls with a real stub using the in-process channel, and verify
      * behaviors or state changes from the client side.
      */
-    private void invoke(CollectorRegistry collectorRegistry, boolean isReplication, int port, Archiver archiver) throws IOException {
+    private void invoke(CollectorRegistry collectorRegistry, boolean isReplication, int port, Archiver archiver, List<Plugin> plugins) throws IOException {
         // Generate a unique in-process server name.
         String serverName = InProcessServerBuilder.generateName();
         if (!isReplication) {
@@ -138,7 +140,7 @@ public class GrpcServer {
             if (collectorRegistry == null) {
                 // Create a server, add service, start, and register for automatic graceful shutdown.
                 server = ServerBuilder.forPort(port)
-                        .addService(new LuceneServer.LuceneServerImpl(globalState, archiver, collectorRegistry).bindService())
+                        .addService(new LuceneServer.LuceneServerImpl(globalState, archiver, collectorRegistry, plugins).bindService())
                         .build()
                         .start();
             } else {
@@ -148,7 +150,7 @@ public class GrpcServer {
                                 .withCollectorRegistry(collectorRegistry));
                 // Create a server, add service, start, and register for automatic graceful shutdown.
                 server = ServerBuilder.forPort(port)
-                        .addService(ServerInterceptors.intercept(new LuceneServer.LuceneServerImpl(globalState, archiver, collectorRegistry), monitoringInterceptor))
+                        .addService(ServerInterceptors.intercept(new LuceneServer.LuceneServerImpl(globalState, archiver, collectorRegistry, plugins), monitoringInterceptor))
                         .build()
                         .start();
             }

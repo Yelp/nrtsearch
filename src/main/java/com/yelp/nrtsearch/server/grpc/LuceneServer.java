@@ -59,6 +59,9 @@ import com.yelp.nrtsearch.server.luceneserver.SuggestLookupHandler;
 import com.yelp.nrtsearch.server.luceneserver.UpdateFieldsHandler;
 import com.yelp.nrtsearch.server.luceneserver.UpdateSuggestHandler;
 import com.yelp.nrtsearch.server.luceneserver.WriteNRTPointHandler;
+import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
+import com.yelp.nrtsearch.server.plugins.Plugin;
+import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.utils.Archiver;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -94,20 +97,26 @@ public class LuceneServer {
     private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
     private final Archiver archiver;
     private final CollectorRegistry collectorRegistry;
+    private final PluginsService pluginsService;
 
     private Server server;
     private Server replicationServer;
     private LuceneServerConfiguration luceneServerConfiguration;
 
     @Inject
-    public LuceneServer(LuceneServerConfiguration luceneServerConfiguration, Archiver archiver, CollectorRegistry collectorRegistry) {
+    public LuceneServer(LuceneServerConfiguration luceneServerConfiguration, Archiver archiver,
+                        CollectorRegistry collectorRegistry) {
         this.luceneServerConfiguration = luceneServerConfiguration;
         this.archiver = archiver;
         this.collectorRegistry = collectorRegistry;
+        this.pluginsService = new PluginsService(luceneServerConfiguration);
     }
 
     private void start() throws IOException {
         GlobalState globalState = new GlobalState(luceneServerConfiguration);
+
+        List<Plugin> plugins = pluginsService.loadPlugins();
+
         MonitoringServerInterceptor monitoringInterceptor =
                 MonitoringServerInterceptor.create(Configuration
                         .allMetrics()
@@ -115,7 +124,7 @@ public class LuceneServer {
                         .withCollectorRegistry(collectorRegistry));
         /* The port on which the server should run */
         server = ServerBuilder.forPort(luceneServerConfiguration.getPort())
-                .addService(ServerInterceptors.intercept(new LuceneServerImpl(globalState, archiver, collectorRegistry), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(new LuceneServerImpl(globalState, archiver, collectorRegistry, plugins), monitoringInterceptor))
                 .build()
                 .start();
         logger.info("Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
@@ -153,6 +162,7 @@ public class LuceneServer {
         if (replicationServer != null) {
             replicationServer.shutdown();
         }
+        pluginsService.shutdown();
     }
 
     /**
@@ -171,7 +181,6 @@ public class LuceneServer {
      * Main launches the server from the command line.
      */
     public static void main(String[] args) throws IOException, InterruptedException {
-        LuceneServerConfiguration luceneServerConfiguration;
         logger.info("arguments passed: " + args.length);
         Injector injector = Guice.createInjector(new LuceneServerModule(args));
         LuceneServer luceneServer = injector.getInstance(LuceneServer.class);
@@ -184,10 +193,15 @@ public class LuceneServer {
         private final Archiver archiver;
         private final CollectorRegistry collectorRegistry;
 
-        LuceneServerImpl(GlobalState globalState, Archiver archiver, CollectorRegistry collectorRegistry) {
+        LuceneServerImpl(GlobalState globalState, Archiver archiver, CollectorRegistry collectorRegistry, List<Plugin> plugins) {
             this.globalState = globalState;
             this.archiver = archiver;
             this.collectorRegistry = collectorRegistry;
+            registerPlugins(plugins);
+        }
+
+        private void registerPlugins(List<Plugin> plugins) {
+            AnalyzerCreator.initialize(plugins);
         }
 
         @Override

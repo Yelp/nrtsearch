@@ -29,6 +29,7 @@ import com.yelp.nrtsearch.server.grpc.OneHighlight;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SuggestLookupHighlight;
 import com.yelp.nrtsearch.server.grpc.SuggestNonLocalSource;
+import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
