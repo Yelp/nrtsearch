@@ -63,6 +63,7 @@ import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.utils.Archiver;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
@@ -125,6 +126,7 @@ public class LuceneServer {
         /* The port on which the server should run */
         server = ServerBuilder.forPort(luceneServerConfiguration.getPort())
                 .addService(ServerInterceptors.intercept(new LuceneServerImpl(globalState, archiver, collectorRegistry, plugins), monitoringInterceptor))
+                .executor(ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER))
                 .build()
                 .start();
         logger.info("Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
@@ -132,6 +134,7 @@ public class LuceneServer {
         /* The port on which the replication server should run */
         replicationServer = ServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
                 .addService(new ReplicationServerImpl(globalState))
+                .executor(ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER))
                 .build()
                 .start();
         logger.info("Server started, listening on " + luceneServerConfiguration.getReplicationPort() + " for replication messages");
@@ -1095,4 +1098,8 @@ public class LuceneServer {
         }
 
     }
+
+
+
+
 }
