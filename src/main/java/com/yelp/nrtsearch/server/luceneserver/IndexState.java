@@ -462,8 +462,7 @@ public class IndexState implements Closeable, Restorable {
         if (doCreate == false && !hasRestore) {
             initSaveLoadState();
         }
-         searchThreadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH,
-                globalState.getThreadPoolConfiguration());
+        searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
     }
 
     void initSaveLoadState() throws IOException {

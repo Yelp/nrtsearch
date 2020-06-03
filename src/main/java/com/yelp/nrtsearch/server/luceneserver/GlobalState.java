@@ -52,6 +52,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public class GlobalState implements Closeable, Restorable {
     public static final String NULL = "NULL";
@@ -89,6 +90,7 @@ public class GlobalState implements Closeable, Restorable {
      */
     private final JsonObject indexNames = new JsonObject();
     private final ExecutorService indexService;
+    private final ThreadPoolExecutor searchThreadPoolExecutor;
 
     public GlobalState(LuceneServerConfiguration luceneServerConfiguration) throws IOException {
         this.nodeName = luceneServerConfiguration.getNodeName();
@@ -104,8 +106,8 @@ public class GlobalState implements Closeable, Restorable {
         }
         this.indexService = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.INDEX,
                 luceneServerConfiguration.getThreadPoolConfiguration());
-        //TODO: figure if we need SearchQueue when we get searching
-        //searchQueue = new SearchQueue(this);
+        this.searchThreadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH,
+                luceneServerConfiguration.getThreadPoolConfiguration());
         loadIndexNames();
     }
 
@@ -295,4 +297,9 @@ public class GlobalState implements Closeable, Restorable {
     public ThreadPoolConfiguration getThreadPoolConfiguration() {
         return threadPoolConfiguration;
     }
+
+    public ThreadPoolExecutor getSearchThreadPoolExecutor() {
+        return searchThreadPoolExecutor;
+    }
+
 }
