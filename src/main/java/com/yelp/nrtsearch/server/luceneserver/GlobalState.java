@@ -25,6 +25,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.util.IOUtils;
@@ -57,6 +58,7 @@ public class GlobalState implements Closeable, Restorable {
     private final String hostName;
     private final int port;
     private final int replicationPort;
+    private final ThreadPoolConfiguration threadPoolConfiguration;
     private int replicaReplicationPortPingInterval;
 
     Logger logger = LoggerFactory.getLogger(GlobalState.class);
@@ -96,10 +98,12 @@ public class GlobalState implements Closeable, Restorable {
         this.port = luceneServerConfiguration.getPort();
         this.replicationPort = luceneServerConfiguration.getReplicationPort();
         this.replicaReplicationPortPingInterval = luceneServerConfiguration.getReplicaReplicationPortPingInterval();
+        this.threadPoolConfiguration = luceneServerConfiguration.getThreadPoolConfiguration();
         if (Files.exists(stateDir) == false) {
             Files.createDirectories(stateDir);
         }
-        this.indexService = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.INDEX);
+        this.indexService = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.INDEX,
+                luceneServerConfiguration.getThreadPoolConfiguration());
         //TODO: figure if we need SearchQueue when we get searching
         //searchQueue = new SearchQueue(this);
         loadIndexNames();
@@ -288,4 +292,7 @@ public class GlobalState implements Closeable, Restorable {
         return Collections.unmodifiableSet(indexNames.keySet());
     }
 
+    public ThreadPoolConfiguration getThreadPoolConfiguration() {
+        return threadPoolConfiguration;
+    }
 }

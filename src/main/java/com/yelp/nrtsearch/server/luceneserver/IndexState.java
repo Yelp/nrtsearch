@@ -31,6 +31,7 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
@@ -81,6 +82,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Pattern;
 
 /**
@@ -455,6 +457,7 @@ public class IndexState implements Closeable, Restorable {
         if (doCreate == false && !hasRestore) {
             initSaveLoadState();
         }
+
     }
 
     void initSaveLoadState() throws IOException {
@@ -912,7 +915,8 @@ public class IndexState implements Closeable, Restorable {
 
         if (suggesterSettings != null) {
             // load suggesters:
-            new BuildSuggestHandler().load(this, suggesterSettings);
+            ThreadPoolExecutor threadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH, globalState.getThreadPoolConfiguration());
+            new BuildSuggestHandler(threadPoolExecutor).load(this, suggesterSettings);
             suggesterSettings = null;
         }
     }

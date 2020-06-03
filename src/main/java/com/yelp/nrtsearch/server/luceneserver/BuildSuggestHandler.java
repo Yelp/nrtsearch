@@ -64,11 +64,13 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * Handles {@code buildSuggest}.
  */
 public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSuggestResponse> {
+    private final ThreadPoolExecutor threadPoolExecutor;
     Logger logger = LoggerFactory.getLogger(BuildSuggestHandler.class);
     private final JsonParser jsonParser = new JsonParser();
     private final Gson gson = new Gson();
@@ -359,6 +361,9 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
         }
     }
 
+    public BuildSuggestHandler(ThreadPoolExecutor threadPoolExecutor) {
+        this.threadPoolExecutor = threadPoolExecutor;
+    }
     @Override
     public BuildSuggestResponse handle(IndexState indexState, BuildSuggestRequest buildSuggestRequest) throws HandlerException {
 
@@ -423,7 +428,7 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
             try {
                 if (!searcherCase.equals(SuggestNonLocalSource.SearcherCase.SEARCHER_NOT_SET)) {
                     // Specific searcher version:
-                    searcher = SearchHandler.getSearcherAndTaxonomy(searchRequestBuilder.build(), shardState, null);
+                    searcher = SearchHandler.getSearcherAndTaxonomy(searchRequestBuilder.build(), shardState, null, threadPoolExecutor);
                 } else {
                     searcher = shardState.acquire();
                 }

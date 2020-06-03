@@ -1,0 +1,10 @@
+nodeName: "lucene_server_foo"
+hostName: "foohost"
+port: "9998"
+replicationPort: "9999"
+stateDir: "state_dir"
+indexDir: "index_dir"
+threadPoolConfiguration:
+  maxSearchingThreads: 16
+  maxIndexingThreads: 4
+  maxSearchBufferedItems: 100
