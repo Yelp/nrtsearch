@@ -149,6 +149,7 @@ public class IndexState implements Closeable, Restorable {
     final JsonObject suggestSaveState = new JsonObject();
 
     private final static Pattern reSimpleName = Pattern.compile("^[a-zA-Z_][a-zA-Z_0-9]*$");
+    private ThreadPoolExecutor searchThreadPoolExecutor;
 
     public ShardState addShard(int shardOrd, boolean doCreate) {
         if (shards.containsKey(shardOrd)) {
@@ -239,6 +240,10 @@ public class IndexState implements Closeable, Restorable {
             genRefCounts.put(stateGen, rc.intValue() - 1);
         }
         saveLoadGenRefCounts.save(genRefCounts);
+    }
+
+    public ThreadPoolExecutor getSearchThreadPoolExecutor() {
+        return searchThreadPoolExecutor;
     }
 
     /**
@@ -457,7 +462,8 @@ public class IndexState implements Closeable, Restorable {
         if (doCreate == false && !hasRestore) {
             initSaveLoadState();
         }
-
+         searchThreadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH,
+                globalState.getThreadPoolConfiguration());
     }
 
     void initSaveLoadState() throws IOException {
@@ -915,8 +921,7 @@ public class IndexState implements Closeable, Restorable {
 
         if (suggesterSettings != null) {
             // load suggesters:
-            ThreadPoolExecutor threadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH, globalState.getThreadPoolConfiguration());
-            new BuildSuggestHandler(threadPoolExecutor).load(this, suggesterSettings);
+            new BuildSuggestHandler(searchThreadPoolExecutor).load(this, suggesterSettings);
             suggesterSettings = null;
         }
     }

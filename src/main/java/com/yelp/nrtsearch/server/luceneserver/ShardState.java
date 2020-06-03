@@ -316,8 +316,7 @@ public class ShardState implements Closeable {
         }
         this.name = indexState.name + ":" + shardOrd;
         this.doCreate = doCreate;
-        this.searchExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH,
-                indexState.globalState.getThreadPoolConfiguration());
+        this.searchExecutor = indexState.getSearchThreadPoolExecutor();
     }
 
     @Override

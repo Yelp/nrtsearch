@@ -198,11 +198,15 @@ public class LuceneServer {
         private final GlobalState globalState;
         private final Archiver archiver;
         private final CollectorRegistry collectorRegistry;
+        private final ThreadPoolExecutor searchThreadPoolExecutor;
 
         LuceneServerImpl(GlobalState globalState, Archiver archiver, CollectorRegistry collectorRegistry, List<Plugin> plugins) {
             this.globalState = globalState;
             this.archiver = archiver;
             this.collectorRegistry = collectorRegistry;
+            this.searchThreadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH,
+                    globalState.getThreadPoolConfiguration());
+
             registerPlugins(plugins);
         }
 
@@ -553,9 +557,7 @@ public class LuceneServer {
         public void search(SearchRequest searchRequest, StreamObserver<SearchResponse> searchResponseStreamObserver) {
             try {
                 IndexState indexState = globalState.getIndex(searchRequest.getIndexName());
-                ThreadPoolExecutor threadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH,
-                        globalState.getThreadPoolConfiguration());
-                SearchHandler searchHandler = new SearchHandler(threadPoolExecutor);
+                SearchHandler searchHandler = new SearchHandler(searchThreadPoolExecutor);
                 SearchResponse reply = searchHandler.handle(indexState, searchRequest);
                 logger.debug(String.format("SearchHandler returned results %s", reply.toString()));
                 searchResponseStreamObserver.onNext(reply);
@@ -689,8 +691,7 @@ public class LuceneServer {
         public void buildSuggest(BuildSuggestRequest buildSuggestRequest, StreamObserver<BuildSuggestResponse> responseObserver) {
             try {
                 IndexState indexState = globalState.getIndex(buildSuggestRequest.getIndexName());
-                ThreadPoolExecutor threadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH, globalState.getThreadPoolConfiguration());
-                BuildSuggestHandler buildSuggestHandler = new BuildSuggestHandler(threadPoolExecutor);
+                BuildSuggestHandler buildSuggestHandler = new BuildSuggestHandler(searchThreadPoolExecutor);
                 BuildSuggestResponse reply = buildSuggestHandler.handle(indexState, buildSuggestRequest);
                 logger.info(String.format("BuildSuggestHandler returned results %s", reply.toString()));
                 responseObserver.onNext(reply);
