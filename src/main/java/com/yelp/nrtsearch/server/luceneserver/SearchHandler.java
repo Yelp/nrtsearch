@@ -66,7 +66,6 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
@@ -90,6 +89,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -97,6 +97,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
 public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
+    private final ThreadPoolExecutor threadPoolExecutor;
     Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
     /**
      * By default we count hits accurately up to 1000. This makes sure that we
@@ -105,6 +106,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     private static final int TOTAL_HITS_THRESHOLD = 1000;
 
     private static final QueryNodeMapper QUERY_NODE_MAPPER = new QueryNodeMapper();
+
+    public SearchHandler(ThreadPoolExecutor threadPoolExecutor) {
+        this.threadPoolExecutor = threadPoolExecutor;
+    }
 
     @Override
     public SearchResponse handle(IndexState indexState, SearchRequest searchRequest) throws SearchHandlerException {
@@ -211,7 +216,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         // matching finally clause releases this searcher:
         try {
             // Pull the searcher we will use
-            s = getSearcherAndTaxonomy(searchRequest, shardState, diagnostics);
+            s = getSearcherAndTaxonomy(searchRequest, shardState, diagnostics, threadPoolExecutor);
             // nocommit can we ... not do this?  it's awkward that
             // we have to ... but, the 2-pass (query time
             // join/grouping) is slower for MTQs if we don't
@@ -307,7 +312,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
             //TODO: If "facets" create DrillSideways(ds) and do ds.search(ddq, c2)
             //else if not facets...
-            TopDocs topDocs= null;
+            TopDocs topDocs = null;
             {
                 try {
                     if (topDocsCollectorManager != null) {
@@ -502,7 +507,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
      * by indexGen, snapshot, version or just the current
      * (latest) one.
      */
-    public static SearcherTaxonomyManager.SearcherAndTaxonomy getSearcherAndTaxonomy(SearchRequest searchRequest, ShardState state, SearchResponse.Diagnostics.Builder diagnostics) throws InterruptedException, IOException {
+    public static SearcherTaxonomyManager.SearcherAndTaxonomy getSearcherAndTaxonomy(SearchRequest searchRequest, ShardState state,
+                                                                                     SearchResponse.Diagnostics.Builder diagnostics,
+                                                                                     ThreadPoolExecutor threadPoolExecutor) throws InterruptedException, IOException {
         Logger logger = LoggerFactory.getLogger(SearcherTaxonomyManager.SearcherAndTaxonomy.class);
         //TODO: Figure out which searcher to use:
         //final long searcherVersion; e.g. searcher.getLong("version")
@@ -531,7 +538,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                     // against since this server started, or the call
                     // to createSnapshot didn't specify
                     // openSearcher=true; now open the reader:
-                    s = openSnapshotReader(state, snapshot, diagnostics);
+                    s = openSnapshotReader(state, snapshot, diagnostics, threadPoolExecutor);
                 } else {
                     SearcherTaxonomyManager.SearcherAndTaxonomy current = state.acquire();
                     long currentVersion = ((DirectoryReader) current.searcher.getIndexReader()).getVersion();
@@ -640,7 +647,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     /**
      * Returns a ref.
      */
-    private static SearcherTaxonomyManager.SearcherAndTaxonomy openSnapshotReader(ShardState state, IndexState.Gens snapshot, SearchResponse.Diagnostics.Builder diagnostics) throws IOException {
+    private static SearcherTaxonomyManager.SearcherAndTaxonomy openSnapshotReader(ShardState state, IndexState.Gens snapshot, SearchResponse.Diagnostics.Builder diagnostics, ThreadPoolExecutor threadPoolExecutor) throws IOException {
         // TODO: this "reverse-NRT" is ridiculous: we acquire
         // the latest reader, and from that do a reopen to an
         // older snapshot ... this is inefficient if multiple
@@ -661,7 +668,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             // Ref that we return to caller
             s.taxonomyReader.incRef();
 
-            SearcherTaxonomyManager.SearcherAndTaxonomy result = new SearcherTaxonomyManager.SearcherAndTaxonomy(new MyIndexSearcher(r), s.taxonomyReader);
+            SearcherTaxonomyManager.SearcherAndTaxonomy result = new SearcherTaxonomyManager.SearcherAndTaxonomy(
+                    new MyIndexSearcher(r, threadPoolExecutor), s.taxonomyReader);
             state.slm.record(result.searcher);
             long t1 = System.nanoTime();
             if (diagnostics != null) {

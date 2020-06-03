@@ -25,6 +25,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.util.IOUtils;
@@ -51,12 +52,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public class GlobalState implements Closeable, Restorable {
     public static final String NULL = "NULL";
     private final String hostName;
     private final int port;
     private final int replicationPort;
+    private final ThreadPoolConfiguration threadPoolConfiguration;
     private int replicaReplicationPortPingInterval;
 
     Logger logger = LoggerFactory.getLogger(GlobalState.class);
@@ -87,6 +90,7 @@ public class GlobalState implements Closeable, Restorable {
      */
     private final JsonObject indexNames = new JsonObject();
     private final ExecutorService indexService;
+    private final ThreadPoolExecutor searchThreadPoolExecutor;
 
     public GlobalState(LuceneServerConfiguration luceneServerConfiguration) throws IOException {
         this.nodeName = luceneServerConfiguration.getNodeName();
@@ -96,12 +100,14 @@ public class GlobalState implements Closeable, Restorable {
         this.port = luceneServerConfiguration.getPort();
         this.replicationPort = luceneServerConfiguration.getReplicationPort();
         this.replicaReplicationPortPingInterval = luceneServerConfiguration.getReplicaReplicationPortPingInterval();
+        this.threadPoolConfiguration = luceneServerConfiguration.getThreadPoolConfiguration();
         if (Files.exists(stateDir) == false) {
             Files.createDirectories(stateDir);
         }
-        this.indexService = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.INDEX);
-        //TODO: figure if we need SearchQueue when we get searching
-        //searchQueue = new SearchQueue(this);
+        this.indexService = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.INDEX,
+                luceneServerConfiguration.getThreadPoolConfiguration());
+        this.searchThreadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH,
+                luceneServerConfiguration.getThreadPoolConfiguration());
         loadIndexNames();
     }
 
@@ -286,6 +292,14 @@ public class GlobalState implements Closeable, Restorable {
 
     public Set<String> getIndexNames() {
         return Collections.unmodifiableSet(indexNames.keySet());
+    }
+
+    public ThreadPoolConfiguration getThreadPoolConfiguration() {
+        return threadPoolConfiguration;
+    }
+
+    public ThreadPoolExecutor getSearchThreadPoolExecutor() {
+        return searchThreadPoolExecutor;
     }
 
 }

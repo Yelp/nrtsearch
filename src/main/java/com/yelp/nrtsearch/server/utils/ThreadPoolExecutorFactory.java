@@ -1,16 +1,18 @@
 package com.yelp.nrtsearch.server.utils;
 
-import com.yelp.nrtsearch.server.grpc.LuceneServer;
+import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Static Factory to generate {@link ThreadPoolExecutor} as per the {@link ExecutorType} provided
+ */
 public class ThreadPoolExecutorFactory {
     public enum ExecutorType {
         SEARCH,
@@ -20,42 +22,44 @@ public class ThreadPoolExecutorFactory {
     }
 
     private static final Logger logger = LoggerFactory.getLogger(ThreadPoolExecutorFactory.class.getName());
-    private static final int MAX_SEARCHING_THREADS = Runtime.getRuntime().availableProcessors();
-    private static final int MAX_BUFFERED_ITEMS = Math.max(100, 2 * MAX_SEARCHING_THREADS);
-    // Seems to be substantially faster than ArrayBlockingQueue at high throughput:
-    private static final BlockingQueue<Runnable> docsToIndex = new LinkedBlockingQueue<Runnable>(MAX_BUFFERED_ITEMS);
-    private final static int MAX_INDEXING_THREADS = MAX_SEARCHING_THREADS;
-    private final static int MAX_GRPC_LUCENESERVER_THREADS = MAX_SEARCHING_THREADS;
-    private final static int MAX_GRPC_REPLICATIONSERVER_THREADS = MAX_SEARCHING_THREADS;
 
-    public static ThreadPoolExecutor getThreadPoolExecutor(ExecutorType executorType) {
+    /**
+     * @param executorType            {@link ExecutorType}
+     * @param threadPoolConfiguration {@link ThreadPoolConfiguration}
+     * @return {@link ThreadPoolExecutor}
+     */
+    public static ThreadPoolExecutor getThreadPoolExecutor(ExecutorType executorType, ThreadPoolConfiguration threadPoolConfiguration) {
         if (executorType.equals(ExecutorType.SEARCH)) {
-            logger.info("Creating LuceneSearchExecutor of size " + MAX_SEARCHING_THREADS);
+            logger.info("Creating LuceneSearchExecutor of size " + threadPoolConfiguration.getMaxSearchingThreads());
+            BlockingQueue<Runnable> docsToIndex = new LinkedBlockingQueue<Runnable>(threadPoolConfiguration.getMaxSearchBufferedItems());
             //same as Executors.newFixedThreadPool except we want a NamedThreadFactory instead of defaultFactory
-            return new ThreadPoolExecutor(MAX_SEARCHING_THREADS,
-                    MAX_SEARCHING_THREADS,
+            return new ThreadPoolExecutor(threadPoolConfiguration.getMaxSearchingThreads(),
+                    threadPoolConfiguration.getMaxSearchingThreads(),
                     0, TimeUnit.SECONDS,
                     docsToIndex,
                     new NamedThreadFactory("LuceneSearchExecutor"));
 
         } else if (executorType.equals(ExecutorType.INDEX)) {
-            logger.info("Creating LuceneIndexingExecutor of size " + MAX_INDEXING_THREADS);
-            return new ThreadPoolExecutor(MAX_INDEXING_THREADS,
-                    MAX_INDEXING_THREADS,
+            logger.info("Creating LuceneIndexingExecutor of size " + threadPoolConfiguration.getMaxIndexingThreads());
+            BlockingQueue<Runnable> docsToIndex = new LinkedBlockingQueue<Runnable>(threadPoolConfiguration.getMaxIndexingBufferedItems());
+            return new ThreadPoolExecutor(threadPoolConfiguration.getMaxIndexingThreads(),
+                    threadPoolConfiguration.getMaxIndexingThreads(),
                     0, TimeUnit.SECONDS,
                     docsToIndex,
                     new NamedThreadFactory("LuceneIndexingExecutor"));
         } else if (executorType.equals(ExecutorType.LUCENESERVER)) {
-            logger.info("Creating GrpcLuceneServerExecutor of size " + MAX_GRPC_LUCENESERVER_THREADS);
-            return new ThreadPoolExecutor(MAX_GRPC_LUCENESERVER_THREADS,
-                    MAX_GRPC_LUCENESERVER_THREADS,
+            logger.info("Creating GrpcLuceneServerExecutor of size " + threadPoolConfiguration.getMaxGrpcLuceneserverThreads());
+            BlockingQueue<Runnable> docsToIndex = new LinkedBlockingQueue<Runnable>(threadPoolConfiguration.getMaxGrpcLuceneserverBufferedItems());
+            return new ThreadPoolExecutor(threadPoolConfiguration.getMaxGrpcLuceneserverThreads(),
+                    threadPoolConfiguration.getMaxGrpcLuceneserverThreads(),
                     0, TimeUnit.SECONDS,
                     docsToIndex,
                     new NamedThreadFactory("GrpcLuceneServerExecutor"));
         } else if (executorType.equals(ExecutorType.REPLICATIONSERVER)) {
-            logger.info("Creating GrpcReplicationServerExecutor of size " + MAX_GRPC_REPLICATIONSERVER_THREADS);
-            return new ThreadPoolExecutor(MAX_GRPC_REPLICATIONSERVER_THREADS,
-                    MAX_GRPC_REPLICATIONSERVER_THREADS,
+            logger.info("Creating GrpcReplicationServerExecutor of size " + threadPoolConfiguration.getMaxGrpcReplicationserverThreads());
+            BlockingQueue<Runnable> docsToIndex = new LinkedBlockingQueue<Runnable>(threadPoolConfiguration.getMaxGrpcReplicationserverBufferedItems());
+            return new ThreadPoolExecutor(threadPoolConfiguration.getMaxGrpcReplicationserverThreads(),
+                    threadPoolConfiguration.getMaxGrpcReplicationserverThreads(),
                     0, TimeUnit.SECONDS,
                     docsToIndex,
                     new NamedThreadFactory("GrpcReplicationServerExecutor"));

@@ -58,31 +58,18 @@ public class LuceneServerConfiguration {
     private String pluginSearchPath = DEFAULT_PLUGIN_SEARCH_PATH.toString();
     private String serviceName = DEFAULT_SERVICE_NAME;
     private boolean restoreState = false;
-
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("LuceneServerConfiguration{");
-        sb.append("port=").append(port);
-        sb.append(", replicationPort=").append(replicationPort);
-        sb.append(", replicaReplicationPortPingInterval=").append(replicaReplicationPortPingInterval);
-        sb.append(", nodeName='").append(nodeName).append('\'');
-        sb.append(", hostName='").append(hostName).append('\'');
-        sb.append(", stateDir='").append(stateDir).append('\'');
-        sb.append(", indexDir='").append(indexDir).append('\'');
-        sb.append(", archiveDirectory='").append(archiveDirectory).append('\'');
-        sb.append(", botoCfgPath='").append(botoCfgPath).append('\'');
-        sb.append(", bucketName='").append(bucketName).append('\'');
-        sb.append(", metricsBuckets=").append(Arrays.toString(metricsBuckets));
-        sb.append(", plugins=").append(Arrays.toString(plugins));
-        sb.append(", pluginSearchPath='").append(pluginSearchPath).append('\'');
-        sb.append(", serviceName='").append(serviceName).append('\'');
-        sb.append(", restoreState=").append(restoreState);
-        sb.append('}');
-        return sb.toString();
-    }
+    private ThreadPoolConfiguration threadPoolConfiguration = new ThreadPoolConfiguration();
 
     @Inject
     public LuceneServerConfiguration() {
+    }
+
+    public ThreadPoolConfiguration getThreadPoolConfiguration() {
+        return threadPoolConfiguration;
+    }
+
+    public void setThreadPoolConfiguration(ThreadPoolConfiguration threadPoolConfiguration) {
+        this.threadPoolConfiguration = threadPoolConfiguration;
     }
 
     public int getPort() {
@@ -201,7 +188,6 @@ public class LuceneServerConfiguration {
     public void setRestoreState(boolean restoreState) {
         this.restoreState = restoreState;
     }
-
 
     public static class Builder {
         private final double[] metricsBuckets;

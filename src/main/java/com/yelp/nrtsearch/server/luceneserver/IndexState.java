@@ -31,6 +31,7 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
@@ -81,6 +82,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Pattern;
 
 /**
@@ -147,6 +149,7 @@ public class IndexState implements Closeable, Restorable {
     final JsonObject suggestSaveState = new JsonObject();
 
     private final static Pattern reSimpleName = Pattern.compile("^[a-zA-Z_][a-zA-Z_0-9]*$");
+    private ThreadPoolExecutor searchThreadPoolExecutor;
 
     public ShardState addShard(int shardOrd, boolean doCreate) {
         if (shards.containsKey(shardOrd)) {
@@ -237,6 +240,10 @@ public class IndexState implements Closeable, Restorable {
             genRefCounts.put(stateGen, rc.intValue() - 1);
         }
         saveLoadGenRefCounts.save(genRefCounts);
+    }
+
+    public ThreadPoolExecutor getSearchThreadPoolExecutor() {
+        return searchThreadPoolExecutor;
     }
 
     /**
@@ -455,6 +462,7 @@ public class IndexState implements Closeable, Restorable {
         if (doCreate == false && !hasRestore) {
             initSaveLoadState();
         }
+        searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
     }
 
     void initSaveLoadState() throws IOException {
@@ -912,7 +920,7 @@ public class IndexState implements Closeable, Restorable {
 
         if (suggesterSettings != null) {
             // load suggesters:
-            new BuildSuggestHandler().load(this, suggesterSettings);
+            new BuildSuggestHandler(searchThreadPoolExecutor).load(this, suggesterSettings);
             suggesterSettings = null;
         }
     }

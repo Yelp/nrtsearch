@@ -22,6 +22,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.utils.HostPort;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import io.grpc.StatusRuntimeException;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesReaderState;
@@ -68,12 +69,14 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class ShardState implements Closeable {
     public static final int REPLICA_ID = 0;
+    private final ThreadPoolExecutor searchExecutor;
     Logger logger = LoggerFactory.getLogger(ShardState.class);
 
     /**
@@ -313,6 +316,7 @@ public class ShardState implements Closeable {
         }
         this.name = indexState.name + ":" + shardOrd;
         this.doCreate = doCreate;
+        this.searchExecutor = indexState.getSearchThreadPoolExecutor();
     }
 
     @Override
@@ -555,7 +559,7 @@ public class ShardState implements Closeable {
             manager = new SearcherTaxonomyManager(writer, true, new SearcherFactory() {
                 @Override
                 public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) throws IOException {
-                    IndexSearcher searcher = new MyIndexSearcher(r);
+                    IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
                     searcher.setSimilarity(indexState.sim);
                     return searcher;
                 }
@@ -663,7 +667,7 @@ public class ShardState implements Closeable {
                     new SearcherFactory() {
                         @Override
                         public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) throws IOException {
-                            IndexSearcher searcher = new MyIndexSearcher(r);
+                            IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
                             searcher.setSimilarity(indexState.sim);
                             return searcher;
                         }
@@ -675,7 +679,7 @@ public class ShardState implements Closeable {
                     new SearcherFactory() {
                         @Override
                         public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) throws IOException {
-                            IndexSearcher searcher = new MyIndexSearcher(r);
+                            IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
                             searcher.setSimilarity(indexState.sim);
                             return searcher;
                         }
@@ -790,7 +794,7 @@ public class ShardState implements Closeable {
                     new SearcherFactory() {
                         @Override
                         public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader) throws IOException {
-                            IndexSearcher searcher = new MyIndexSearcher(r);
+                            IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
                             searcher.setSimilarity(indexState.sim);
                             return searcher;
                         }

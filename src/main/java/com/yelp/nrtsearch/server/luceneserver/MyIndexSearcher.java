@@ -37,6 +37,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * This is sadly necessary because for ToParentBlockJoinQuery we must invoke .scorer not .bulkScorer, yet for DrillSideways we must do
@@ -52,8 +53,8 @@ public class MyIndexSearcher extends IndexSearcher {
     private static final int MAX_DOCS_PER_SLICE = 250_000;
     private static final int MAX_SEGMENTS_PER_SLICE = 5;
 
-    public MyIndexSearcher(IndexReader reader) {
-        super(reader, ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH));
+    public MyIndexSearcher(IndexReader reader, ThreadPoolExecutor executor) {
+        super(reader, executor);
     }
 
     /*** start segment to thread mapping **/

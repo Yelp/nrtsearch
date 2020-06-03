@@ -23,6 +23,7 @@ import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.search.DoubleValuesSource;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -37,7 +38,7 @@ public final class FieldDefBindings extends Bindings {
      * Sole constructor.
      */
     public FieldDefBindings(Map<String, FieldDef> fields) {
-        this.fields = fields;
+            this.fields = fields;
     }
 
     @Override
