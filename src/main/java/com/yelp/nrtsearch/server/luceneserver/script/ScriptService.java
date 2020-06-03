@@ -17,15 +17,19 @@
 
 package com.yelp.nrtsearch.server.luceneserver.script;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
-import com.yelp.nrtsearch.server.utils.LRUCache;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Class to manage to compilation of scripts. Scripting languages can be added through the addition of
@@ -40,15 +44,18 @@ public class ScriptService {
     private static ScriptService instance;
 
     private final Map<String, ScriptEngine> scriptEngineMap = new HashMap<>();
-    private final Object compileLock = new Object();
-    private final LRUCache<ScriptCacheKey, Object> scriptCache;
+    private final LoadingCache<ScriptCacheKey, Object> scriptCache;
 
     private ScriptService() {
         // add provided javascript engine
         scriptEngineMap.put("js", new JsScriptEngine());
 
         // TODO make configurable
-        scriptCache = new LRUCache<>(1000);
+        scriptCache = CacheBuilder.newBuilder()
+                .concurrencyLevel(4)
+                .maximumSize(1000)
+                .expireAfterAccess(1, TimeUnit.DAYS)
+                .build(new ScriptLoader(this));
     }
 
     /**
@@ -57,7 +64,9 @@ public class ScriptService {
      * @param context context for script type to compile, defines the factory class type
      * @param <T> compiled factory type
      * @return compiled factory consistent with script context
-     * @throws NullPointerException if the compiled factory, script, or context are null
+     * @throws NullPointerException if script or context are null
+     * @throws IllegalArgumentException if error getting factory from cache, or there is no {@link ScriptEngine}
+     * registered for the script lang
      */
     public <T> T compile(Script script, ScriptContext<T> context) {
         Objects.requireNonNull(script);
@@ -66,21 +75,14 @@ public class ScriptService {
             throw new IllegalArgumentException("Unable to find ScriptEngine for lang: " + script.getLang());
         }
 
-        ScriptCacheKey cacheKey = new ScriptCacheKey(context.name, script.getLang(), script.getSource());
-        Object factory = scriptCache.get(cacheKey);
-        if (factory == null) {
-            // lock compilation to ensure it only happens once
-            synchronized (compileLock) {
-                // verify the script was not compiled while waiting on the lock
-                factory = scriptCache.get(cacheKey);
-                if (factory == null) {
-                    factory = scriptEngineMap.get(script.getLang()).compile(script.getSource(), context);
-                    Objects.requireNonNull(factory);
-                    scriptCache.put(cacheKey, factory);
-                }
-            }
+        ScriptCacheKey cacheKey = new ScriptCacheKey(context, script.getLang(), script.getSource());
+        try {
+            Object factory = scriptCache.get(cacheKey);
+            return context.factoryClazz.cast(factory);
+        } catch (ExecutionException e) {
+            throw new IllegalArgumentException("Unable to get compiled script, source: " + script.getSource()
+                    + ", lang: " + script.getLang(), e);
         }
-        return context.factoryClazz.cast(factory);
     }
 
     private void register(Iterable<ScriptEngine> scriptEngines) {
@@ -113,11 +115,11 @@ public class ScriptService {
     }
 
     private static class ScriptCacheKey {
-        private final String context;
+        private final ScriptContext<?> context;
         private final String lang;
         private final String source;
 
-        ScriptCacheKey(String context, String lang, String source) {
+        ScriptCacheKey(ScriptContext<?> context, String lang, String source) {
             this.context = context;
             this.lang = lang;
             this.source = source;
@@ -132,11 +134,36 @@ public class ScriptService {
         public boolean equals(Object o) {
             if (o instanceof ScriptCacheKey) {
                 ScriptCacheKey cacheKey = (ScriptCacheKey) o;
-                return Objects.equals(context, cacheKey.context)
+                return context == cacheKey.context
                         && Objects.equals(lang, cacheKey.lang)
                         && Objects.equals(source, cacheKey.source);
             }
             return false;
+        }
+    }
+
+    /**
+     * Loader to compile script asynchronously when there is a cache miss.
+     */
+    static class ScriptLoader extends CacheLoader<ScriptCacheKey, Object> {
+
+        private final ScriptService scriptService;
+
+        ScriptLoader(ScriptService scriptService) {
+            this.scriptService = scriptService;
+        }
+
+        @Override
+        public Object load(ScriptCacheKey key) {
+            ScriptEngine engine = scriptService.scriptEngineMap.get(key.lang);
+            if (engine == null) {
+                throw new IllegalArgumentException("Cannot compile script, unknown lang: " + key.lang);
+            }
+            Object factory = engine.compile(key.source, key.context);
+            if (factory == null) {
+                throw new IllegalArgumentException("Compiled script is null, source: " + key.source + ", lang: " + key.lang);
+            }
+            return factory;
         }
     }
 }

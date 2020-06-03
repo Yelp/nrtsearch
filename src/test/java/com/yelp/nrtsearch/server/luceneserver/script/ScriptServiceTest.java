@@ -17,12 +17,14 @@
 
 package com.yelp.nrtsearch.server.luceneserver.script;
 
+import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -45,7 +47,7 @@ public class ScriptServiceTest {
 
     static class TestScriptPlugin extends Plugin implements ScriptPlugin {
         public Iterable<ScriptEngine> getScriptEngines() {
-            return Collections.singletonList(new TestScriptEngine());
+            return Arrays.asList(new TestScriptEngine(), new TestNullFactoryEngine());
         }
     }
 
@@ -60,6 +62,19 @@ public class ScriptServiceTest {
         public <T> T compile(String source, ScriptContext<T> context) {
             ScoreScript.Factory factory = ((params, docLookup) -> null);
             return context.factoryClazz.cast(factory);
+        }
+    }
+
+    static class TestNullFactoryEngine implements ScriptEngine {
+
+        @Override
+        public String getLang() {
+            return "null_lang";
+        }
+
+        @Override
+        public <T> T compile(String source, ScriptContext<T> context) {
+            return null;
         }
     }
 
@@ -138,5 +153,15 @@ public class ScriptServiceTest {
         assertSame(factory1, factory2);
         assertSame(factory2, factory3);
         assertNotSame(factory1, factory4);
+    }
+
+    @Test(expected = UncheckedExecutionException.class)
+    public void testNullFactory() {
+        init(Collections.singletonList(new TestScriptPlugin()));
+        Script script = Script.newBuilder()
+                .setLang("null_lang")
+                .setSource("my_source")
+                .build();
+        ScriptService.getInstance().compile(script, ScoreScript.CONTEXT);
     }
 }
