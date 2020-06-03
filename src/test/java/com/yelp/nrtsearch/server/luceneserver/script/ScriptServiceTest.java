@@ -24,7 +24,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
@@ -96,5 +98,45 @@ public class ScriptServiceTest {
         assertNotSame(factory1, factory2);
         assertSame(factory2, ScriptService.getInstance().compile(script2, ScoreScript.CONTEXT));
         assertSame(factory1, ScriptService.getInstance().compile(script1, ScoreScript.CONTEXT));
+    }
+
+    @Test
+    public void testCompileCachedWithDifferentParams() {
+        Map<String, Script.ParamValue> params1 = new HashMap<>();
+        params1.put("param_1", Script.ParamValue.newBuilder().setLongValue(10).build());
+        params1.put("param_2", Script.ParamValue.newBuilder().setFloatValue(2.22F).build());
+        params1.put("param_3", Script.ParamValue.newBuilder().setDoubleValue(1.11).build());
+
+        Map<String, Script.ParamValue> params2 = new HashMap<>();
+        params2.put("param_1", Script.ParamValue.newBuilder().setLongValue(7).build());
+        params2.put("param_2", Script.ParamValue.newBuilder().setFloatValue(3.33F).build());
+        params2.put("param_3", Script.ParamValue.newBuilder().setIntValue(25).build());
+
+        Script script1 = Script.newBuilder()
+                .setLang("js")
+                .setSource("param_1*long_field+param_2*count+param_3*float_field")
+                .putAllParams(params1)
+                .build();
+        Script script2 = Script.newBuilder()
+                .setLang("js")
+                .setSource("param_1*long_field+param_2*count+param_3*float_field")
+                .putAllParams(params2)
+                .build();
+        Script script3 = Script.newBuilder()
+                .setLang("js")
+                .setSource("param_1*long_field+param_2*count+param_3*float_field")
+                .build();
+        Script script4 = Script.newBuilder()
+                .setLang("js")
+                .setSource("param_1*long_field+param_2*count")
+                .build();
+
+        ScoreScript.Factory factory1 = ScriptService.getInstance().compile(script1, ScoreScript.CONTEXT);
+        ScoreScript.Factory factory2 = ScriptService.getInstance().compile(script2, ScoreScript.CONTEXT);
+        ScoreScript.Factory factory3 = ScriptService.getInstance().compile(script3, ScoreScript.CONTEXT);
+        ScoreScript.Factory factory4 = ScriptService.getInstance().compile(script4, ScoreScript.CONTEXT);
+        assertSame(factory1, factory2);
+        assertSame(factory2, factory3);
+        assertNotSame(factory1, factory4);
     }
 }

@@ -25,10 +25,12 @@ import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
 
 import java.text.ParseException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Script engine that provides a language based on javascript expressions. Expressions are compiled and field values
- * are bound using {@link com.yelp.nrtsearch.server.luceneserver.FieldDefBindings}.
+ * Script engine that provides a language based on javascript expressions. Expressions are compiled and variables
+ * are bound using {@link JsScriptBindings}.
  *
  * @see <a href="https://lucene.apache.org/core/8_5_0/expressions/org/apache/lucene/expressions/js/package-summary.html">package docs/a>
  */
@@ -51,6 +53,7 @@ public class JsScriptEngine implements ScriptEngine {
      * @param context script context information used to create a factory of the proper type
      * @param <T> factory type needed for this script context
      * @return compiled script factory
+     * @throws IllegalArgumentException if script context is not supported or javascript compile fails
      */
     @Override
     public <T> T compile(String source, ScriptContext<T> context) {
@@ -65,14 +68,22 @@ public class JsScriptEngine implements ScriptEngine {
             throw new IllegalArgumentException(String.format("could not parse expression: %s", source), pe);
         }
         ScoreScript.Factory factory = ((params, docLookup) -> {
-            Bindings bindings;
+            Map<String, Object> scriptParams;
+            Bindings fieldBindings;
             Object bindingsParam = params.get("bindings");
             if (bindingsParam instanceof Bindings) {
-                bindings = (Bindings) bindingsParam;
+                fieldBindings = (Bindings) bindingsParam;
+
+                // we do not want the bindings to be used as an expression parameter, so remove it.
+                // the extra copy may not be absolutely needed, but this only happens when a new
+                // virtual field is added to the index, and this keeps the code thread safe.
+                scriptParams = new HashMap<>(params);
+                scriptParams.remove("bindings");
             } else {
-                bindings = docLookup.getIndexState().exprBindings;
+                fieldBindings = docLookup.getIndexState().exprBindings;
+                scriptParams = params;
             }
-            return expr.getDoubleValuesSource(bindings);
+            return expr.getDoubleValuesSource(new JsScriptBindings(fieldBindings, scriptParams));
         });
         return context.factoryClazz.cast(factory);
     }

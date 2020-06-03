@@ -978,6 +978,35 @@
         }
       }
     },
+    "ScriptParamValue": {
+      "type": "object",
+      "properties": {
+        "textValue": {
+          "type": "string"
+        },
+        "booleanValue": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "intValue": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "longValue": {
+          "type": "string",
+          "format": "int64"
+        },
+        "floatValue": {
+          "type": "number",
+          "format": "float"
+        },
+        "doubleValue": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "title": "script parameter entry"
+    },
     "SearchResponseDiagnostics": {
       "type": "object",
       "properties": {
@@ -1626,8 +1655,8 @@
         "indexOptions": {
           "$ref": "#/definitions/luceneserverIndexOptions"
         },
-        "expression": {
-          "type": "string"
+        "script": {
+          "$ref": "#/definitions/luceneserverScript"
         },
         "analyzer": {
           "$ref": "#/definitions/luceneserverAnalyzer",
@@ -1750,8 +1779,8 @@
         "query": {
           "$ref": "#/definitions/luceneserverQuery"
         },
-        "function": {
-          "type": "string"
+        "script": {
+          "$ref": "#/definitions/luceneserverScript"
         }
       },
       "description": "A query that wraps another query and uses custom scoring logic to compute the wrapped query's score."
@@ -2284,6 +2313,23 @@
         }
       }
     },
+    "luceneserverScript": {
+      "type": "object",
+      "properties": {
+        "lang": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ScriptParamValue"
+          }
+        }
+      }
+    },
     "luceneserverSearchRequest": {
       "type": "object",
       "properties": {
@@ -2312,7 +2358,7 @@
         "queryText": {
           "type": "string"
         },
-        "virtualFielsd": {
+        "virtualFields": {
           "type": "array",
           "items": {
             "$ref": "#/definitions/luceneserverVirtualField"
@@ -2859,8 +2905,8 @@
     "luceneserverVirtualField": {
       "type": "object",
       "properties": {
-        "expression": {
-          "type": "string"
+        "script": {
+          "$ref": "#/definitions/luceneserverScript"
         },
         "name": {
           "type": "string"
