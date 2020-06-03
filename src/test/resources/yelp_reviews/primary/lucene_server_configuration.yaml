@@ -1,7 +1,9 @@
-!!com.yelp.nrtsearch.server.config.LuceneServerConfiguration
 nodeName: "lucene_server_primary"
 hostName: "localhost"
 port: "8000"
 replicationPort: "8001"
 stateDir: "primary_state"
 indexDir: "primary_index_base"
+threadPoolConfiguration:
+  maxSearchingThreads: 4
+  maxIndexingThreads: 16

@@ -19,23 +19,25 @@
 
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.NamedThreadFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * This is sadly necessary because for ToParentBlockJoinQuery we must invoke .scorer not .bulkScorer, yet for DrillSideways we must do
@@ -51,21 +53,8 @@ public class MyIndexSearcher extends IndexSearcher {
     private static final int MAX_DOCS_PER_SLICE = 250_000;
     private static final int MAX_SEGMENTS_PER_SLICE = 5;
 
-    private static Executor getSearchExecutor() {
-        int MAX_SEARCHING_THREADS = Runtime.getRuntime().availableProcessors();
-        int MAX_BUFFERED_ITEMS = Math.max(100, 2 * MAX_SEARCHING_THREADS);
-        // Seems to be substantially faster than ArrayBlockingQueue at high throughput:
-        final BlockingQueue<Runnable> docsToIndex = new LinkedBlockingQueue<Runnable>(MAX_BUFFERED_ITEMS);
-        //same as Executors.newFixedThreadPool except we want a NamedThreadFactory instead of defaultFactory
-        return new ThreadPoolExecutor(MAX_SEARCHING_THREADS,
-                MAX_SEARCHING_THREADS,
-                0, TimeUnit.SECONDS,
-                docsToIndex,
-                new NamedThreadFactory("LuceneSearchExecutor"));
-    }
-
-    public MyIndexSearcher(IndexReader reader) {
-        super(reader, getSearchExecutor());
+    public MyIndexSearcher(IndexReader reader, ThreadPoolExecutor executor) {
+        super(reader, executor);
     }
 
     /*** start segment to thread mapping **/

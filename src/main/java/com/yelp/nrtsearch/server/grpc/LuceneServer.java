@@ -64,6 +64,7 @@ import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.utils.Archiver;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
@@ -89,6 +90,7 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 
 /**
@@ -126,6 +128,8 @@ public class LuceneServer {
         /* The port on which the server should run */
         server = ServerBuilder.forPort(luceneServerConfiguration.getPort())
                 .addService(ServerInterceptors.intercept(new LuceneServerImpl(globalState, archiver, collectorRegistry, plugins), monitoringInterceptor))
+                .executor(ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
+                        luceneServerConfiguration.getThreadPoolConfiguration()))
                 .build()
                 .start();
         logger.info("Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
@@ -133,6 +137,8 @@ public class LuceneServer {
         /* The port on which the replication server should run */
         replicationServer = ServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
                 .addService(new ReplicationServerImpl(globalState))
+                .executor(ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
+                        luceneServerConfiguration.getThreadPoolConfiguration()))
                 .build()
                 .start();
         logger.info("Server started, listening on " + luceneServerConfiguration.getReplicationPort() + " for replication messages");
@@ -193,11 +199,15 @@ public class LuceneServer {
         private final GlobalState globalState;
         private final Archiver archiver;
         private final CollectorRegistry collectorRegistry;
+        private final ThreadPoolExecutor searchThreadPoolExecutor;
 
         LuceneServerImpl(GlobalState globalState, Archiver archiver, CollectorRegistry collectorRegistry, List<Plugin> plugins) {
             this.globalState = globalState;
             this.archiver = archiver;
             this.collectorRegistry = collectorRegistry;
+            this.searchThreadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH,
+                    globalState.getThreadPoolConfiguration());
+
             registerPlugins(plugins);
         }
 
@@ -549,7 +559,7 @@ public class LuceneServer {
         public void search(SearchRequest searchRequest, StreamObserver<SearchResponse> searchResponseStreamObserver) {
             try {
                 IndexState indexState = globalState.getIndex(searchRequest.getIndexName());
-                SearchHandler searchHandler = new SearchHandler();
+                SearchHandler searchHandler = new SearchHandler(searchThreadPoolExecutor);
                 SearchResponse reply = searchHandler.handle(indexState, searchRequest);
                 logger.debug(String.format("SearchHandler returned results %s", reply.toString()));
                 searchResponseStreamObserver.onNext(reply);
@@ -683,7 +693,7 @@ public class LuceneServer {
         public void buildSuggest(BuildSuggestRequest buildSuggestRequest, StreamObserver<BuildSuggestResponse> responseObserver) {
             try {
                 IndexState indexState = globalState.getIndex(buildSuggestRequest.getIndexName());
-                BuildSuggestHandler buildSuggestHandler = new BuildSuggestHandler();
+                BuildSuggestHandler buildSuggestHandler = new BuildSuggestHandler(searchThreadPoolExecutor);
                 BuildSuggestResponse reply = buildSuggestHandler.handle(indexState, buildSuggestRequest);
                 logger.info(String.format("BuildSuggestHandler returned results %s", reply.toString()));
                 responseObserver.onNext(reply);
@@ -1097,4 +1107,6 @@ public class LuceneServer {
         }
 
     }
+
+
 }

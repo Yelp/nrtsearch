@@ -25,9 +25,10 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.NamedThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,25 +46,20 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 public class GlobalState implements Closeable, Restorable {
-    // TODO: make these controllable
-    // nocommit allow controlling per CSV/json bulk import max concurrency sent into IW?
-    private final static int MAX_INDEXING_THREADS = Runtime.getRuntime().availableProcessors();
     public static final String NULL = "NULL";
     private final String hostName;
     private final int port;
     private final int replicationPort;
+    private final ThreadPoolConfiguration threadPoolConfiguration;
     private int replicaReplicationPortPingInterval;
 
     Logger logger = LoggerFactory.getLogger(GlobalState.class);
@@ -74,18 +70,6 @@ public class GlobalState implements Closeable, Restorable {
     public final String nodeName;
 
     public final List<RemoteNodeConnection> remoteNodes = new CopyOnWriteArrayList<>();
-
-    private final static int MAX_BUFFERED_ITEMS = Math.max(100, 2 * MAX_INDEXING_THREADS);
-
-    // Seems to be substantially faster than ArrayBlockingQueue at high throughput:
-    final BlockingQueue<Runnable> docsToIndex = new LinkedBlockingQueue<Runnable>(MAX_BUFFERED_ITEMS);
-
-    //same as Executors.newFixedThreadPool except we want a NamedThreadFactory instead of defaultFactory
-    private final ExecutorService indexService = new ThreadPoolExecutor(MAX_INDEXING_THREADS,
-            MAX_INDEXING_THREADS,
-            0, TimeUnit.SECONDS,
-            docsToIndex,
-            new NamedThreadFactory("LuceneIndexing"));
 
 
     /**
@@ -105,9 +89,10 @@ public class GlobalState implements Closeable, Restorable {
      * This is persisted so on restart we know about all previously created indices.
      */
     private final JsonObject indexNames = new JsonObject();
+    private final ExecutorService indexService;
+    private final ThreadPoolExecutor searchThreadPoolExecutor;
 
     public GlobalState(LuceneServerConfiguration luceneServerConfiguration) throws IOException {
-        logger.info("MAX INDEXING THREADS " + MAX_INDEXING_THREADS);
         this.nodeName = luceneServerConfiguration.getNodeName();
         this.stateDir = Paths.get(luceneServerConfiguration.getStateDir());
         this.indexDirBase = Paths.get(luceneServerConfiguration.getIndexDir());
@@ -115,11 +100,14 @@ public class GlobalState implements Closeable, Restorable {
         this.port = luceneServerConfiguration.getPort();
         this.replicationPort = luceneServerConfiguration.getReplicationPort();
         this.replicaReplicationPortPingInterval = luceneServerConfiguration.getReplicaReplicationPortPingInterval();
+        this.threadPoolConfiguration = luceneServerConfiguration.getThreadPoolConfiguration();
         if (Files.exists(stateDir) == false) {
             Files.createDirectories(stateDir);
         }
-        //TODO: figure if we need SearchQueue when we get searching
-        //searchQueue = new SearchQueue(this);
+        this.indexService = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.INDEX,
+                luceneServerConfiguration.getThreadPoolConfiguration());
+        this.searchThreadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH,
+                luceneServerConfiguration.getThreadPoolConfiguration());
         loadIndexNames();
     }
 
@@ -304,6 +292,14 @@ public class GlobalState implements Closeable, Restorable {
 
     public Set<String> getIndexNames() {
         return Collections.unmodifiableSet(indexNames.keySet());
+    }
+
+    public ThreadPoolConfiguration getThreadPoolConfiguration() {
+        return threadPoolConfiguration;
+    }
+
+    public ThreadPoolExecutor getSearchThreadPoolExecutor() {
+        return searchThreadPoolExecutor;
     }
 
 }
