@@ -136,7 +136,18 @@ public class FieldDef implements Closeable {
     public final CloseableThreadLocal<DateTimeParser> dateTimeParsers;
 
     /**
-     * Sole constructor.
+     * Constructor for a virtual field
+     * @param name field name
+     * @param valueSource value source to produce score
+     */
+    public FieldDef(String name, DoubleValuesSource valueSource) {
+        this(name, null, FieldDef.FieldValueType.VIRTUAL, null, null,
+                null, true, false, null, null,
+                null, false, valueSource, null);
+    }
+
+    /**
+     * Compelete constructor.
      */
     public FieldDef(String name, FieldType fieldType, FieldValueType valueType, FacetValueType faceted,
                     String postingsFormat, String docValuesFormat, boolean multiValued, boolean usePoints,

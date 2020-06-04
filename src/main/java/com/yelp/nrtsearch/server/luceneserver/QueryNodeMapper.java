@@ -17,14 +17,16 @@
 
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.google.common.collect.Maps;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
+import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
+import com.yelp.nrtsearch.server.luceneserver.script.ScriptParamsTransformer;
+import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.expressions.Expression;
-import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -39,7 +41,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import com.yelp.nrtsearch.server.grpc.*;
 
-import java.text.ParseException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -112,15 +113,11 @@ class QueryNodeMapper {
 
     private FunctionScoreQuery getFunctionScoreQuery(com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery,
                                                      IndexState state) {
-        Expression expr;
-        String exprString = functionScoreQuery.getFunction();
-        try {
-            expr = JavascriptCompiler.compile(exprString);
-        } catch (ParseException pe) {
-            // Static error (e.g. bad JavaScript syntax):
-            throw new IllegalArgumentException(String.format("could not parse expression: %s", exprString), pe);
-        }
-        return new FunctionScoreQuery(getQuery(functionScoreQuery.getQuery(), state), expr.getDoubleValuesSource(state.exprBindings));
+        ScoreScript.Factory scriptFactory = ScriptService.getInstance().compile(functionScoreQuery.getScript(), ScoreScript.CONTEXT);
+        Map<String, Object> params = Maps.transformValues(functionScoreQuery.getScript().getParamsMap(), ScriptParamsTransformer.INSTANCE);
+        return new FunctionScoreQuery(
+                getQuery(functionScoreQuery.getQuery(), state),
+                scriptFactory.newFactory(params, state.docLookup));
     }
 
     private Query getTermQuery(com.yelp.nrtsearch.server.grpc.TermQuery termQuery, IndexState state) {

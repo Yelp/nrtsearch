@@ -376,7 +376,7 @@ message Field {
     string postingsFormat = 13; // Which PostingsFormat should be used to index this field.
     string docValuesFormat = 14; // Which DocValuesFormat should be used to index this field.
     IndexOptions indexOptions = 15; //How the tokens should be indexed.
-    string expression = 16; // The JavaScript expression defining a virtual field's value (only used with type=virtual).
+    Script script = 16; // The script definition defining a virtual field's value (only used with type=virtual).
     //TODO make analyzers message types i.e. StandardAnalyzer, EnglishAnalyzer, CustomAnalyzer etc
     Analyzer analyzer = 17; // Analyzer to use for this field during indexing and searching.
     Analyzer indexAnalyzer = 18; // Analyzer to use for this field during indexing.

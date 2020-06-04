@@ -19,6 +19,7 @@
 
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.google.common.collect.Maps;
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
@@ -32,11 +33,13 @@ import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
+import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
+import com.yelp.nrtsearch.server.luceneserver.script.ScriptParamsTransformer;
+import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.expressions.Expression;
-import org.apache.lucene.expressions.js.JavascriptCompiler;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.DoubleValuesSource;
@@ -46,7 +49,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -534,22 +536,21 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
     };
 
     private FieldDef parseOneVirtualFieldType(IndexState indexState, Map<String, FieldDef> pendingFieldDefs, String fieldName, Field currentField) throws RegisterFieldsException {
-        String exprString = currentField.getExpression();
-        Expression expr;
-        try {
-            expr = JavascriptCompiler.compile(exprString);
-        } catch (ParseException pe) {
-            // Static error (e.g. bad JavaScript syntax):
-            throw new RegisterFieldsException(String.format("could not parse expression: %s", exprString), pe);
+        ScoreScript.Factory factory = ScriptService.getInstance().compile(currentField.getScript(), ScoreScript.CONTEXT);
+        Map<String, Object> params = Maps.transformValues(currentField.getScript().getParamsMap(), ScriptParamsTransformer.INSTANCE);
+        // Workaround for the fact the the javascript expression may need bindings to other fields in this request.
+        // Build the complete bindings and pass it as a script parameter. We might want to think about a better way of
+        // doing this (or maybe updating index state in general).
+        if (currentField.getScript().getLang().equals(JsScriptEngine.LANG)) {
+            params = new HashMap<>(params);
+
+            Map<String, FieldDef> allFields = new HashMap<>(indexState.getAllFields());
+            allFields.putAll(pendingFieldDefs);
+            params.put("bindings", new FieldDefBindings(allFields));
         }
-        Map<String, FieldDef> allFields = new HashMap<>(indexState.getAllFields());
-        allFields.putAll(pendingFieldDefs);
+        DoubleValuesSource values = factory.newFactory(params, indexState.docLookup);
 
-        DoubleValuesSource values;
-        values = expr.getDoubleValuesSource(new FieldDefBindings(allFields));
-
-        return new FieldDef(fieldName, null, FieldDef.FieldValueType.VIRTUAL, null, null, null, true, false, null, null, null, false, values, null);
-
+        return new FieldDef(fieldName, values);
     }
 
     public static class RegisterFieldsException extends Handler.HandlerException {

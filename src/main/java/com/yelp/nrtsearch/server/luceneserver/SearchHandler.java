@@ -19,6 +19,7 @@
 
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.google.common.collect.Maps;
 import com.yelp.nrtsearch.server.grpc.Point;
 import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.grpc.QueryType;
@@ -30,20 +31,20 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
 import com.yelp.nrtsearch.server.grpc.Selector;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
+import com.yelp.nrtsearch.server.grpc.VirtualField;
+import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
+import com.yelp.nrtsearch.server.luceneserver.script.ScriptParamsTransformer;
+import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
@@ -73,7 +74,6 @@ import org.apache.lucene.search.grouping.AllGroupsCollector;
 import org.apache.lucene.search.grouping.FirstPassGroupingCollector;
 import org.apache.lucene.search.grouping.TopGroups;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.QueryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -132,19 +132,29 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
         var diagnostics = SearchResponse.Diagnostics.newBuilder();
 
-        final Map<String, FieldDef> dynamicFields = getDynamicFields(shardState, searchRequest);
+        final Map<String, FieldDef> indexFields = indexState.getAllFields();
+        final Map<String, FieldDef> virtualFields = getVirtualFields(shardState, searchRequest);
+        final Map<String, FieldDef> queryFields = virtualFields.isEmpty() ? indexFields : new HashMap<>(indexFields);
 
-        Query q = extractQuery(indexState, searchRequest, timestampSec, dynamicFields);
-
-
-        final Set<String> fields;
-        final Map<String, FieldHighlightConfig> highlightFields;
+        final Set<String> fields = new HashSet<>();
+        final Map<String, FieldHighlightConfig> highlightFields = new HashMap<>();
         boolean forceDocScores = false;
 
+        for (Map.Entry<String, FieldDef> entry : virtualFields.entrySet()) {
+            if (indexFields.containsKey(entry.getKey())) {
+                throw new SearchHandlerException(String.format("Virtual field has a duplicate name: %s", entry.getKey()));
+            }
+            queryFields.put(entry.getKey(), entry.getValue());
+            if (entry.getValue().valueSource.needsScores()) {
+                forceDocScores = true;
+            }
+            fields.add(entry.getKey());
+        }
+
+        Query q = extractQuery(indexState, searchRequest, timestampSec);
+
         if (!searchRequest.getRetrieveFieldsList().isEmpty()) {
-            fields = new HashSet<String>();
-            highlightFields = new HashMap<String, FieldHighlightConfig>();
-            Set<String> fieldSeen = new HashSet<String>();
+            Set<String> fieldSeen = new HashSet<>();
             for (Object o : searchRequest.getRetrieveFieldsList()) {
                 String field;
                 String highlight = "no";
@@ -160,7 +170,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 }
                 fieldSeen.add(field);
 
-                FieldDef fd = dynamicFields.get(field);
+                FieldDef fd = indexFields.get(field);
                 if (fd == null) {
                     throw new SearchHandlerException(String.format("retrieveFields, field: %s was not registered and was not specified as a dynamicField", field));
                 }
@@ -168,7 +178,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 // If any of the fields being retrieved require
                 // score, than force returned FieldDoc.score to be
                 // computed:
-                if (fd.valueSource != null && fd.valueSource.getSortField(false).needsScores()) {
+                if (fd.valueSource != null && fd.valueSource.needsScores()) {
                     forceDocScores = true;
                 }
 
@@ -193,10 +203,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                     throw new SearchHandlerException(String.format("retrieveFields, field: %s was not registered with store=true or docValues=True", field));
                 }
             }
-
-        } else {
-            fields = null;
-            highlightFields = null;
         }
 
         //TODO: support this. Seems like lucene 8.2 has no PostingsHighlighter anymore?
@@ -233,7 +239,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             // in-order collectors
             //Weight w = s.createNormalizedWeight(q2);
 
-            DrillDownQuery ddq = addDrillDowns(timestampSec, indexState, searchRequest, q, dynamicFields);
+            DrillDownQuery ddq = addDrillDowns(timestampSec, indexState, searchRequest, q);
 
             diagnostics.setDrillDownQuery(ddq.toString());
 
@@ -250,7 +256,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             if (!searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
                 sortRequest = searchRequest.getQuerySort();
                 sortFieldNames = new ArrayList<String>();
-                sort = parseSort(timestampSec, indexState, searchRequest.getQuerySort().getFields().getSortedFieldsList(), sortFieldNames, dynamicFields);
+                sort = parseSort(timestampSec, indexState, searchRequest.getQuerySort().getFields().getSortedFieldsList(), sortFieldNames, queryFields);
             } else {
                 sortRequest = null;
                 sort = null;
@@ -383,7 +389,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                     }
 
                     if (fields != null || highlightFields != null) {
-                        var fieldValueMap = fillFields(indexState, null, s.searcher, hit, fields, highlights, hitIndex, dynamicFields);
+                        var fieldValueMap = fillFields(indexState, null, s.searcher, hit, fields, highlights, hitIndex, queryFields);
                         var sortedFields = getSortedFieldsForHit(hit, sort, sortFieldNames);
                         hitResponse.putAllFields(fieldValueMap);
                         hitResponse.putAllSortedFields(sortedFields);
@@ -446,18 +452,25 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
      * Parses any virtualFields, which define dynamic
      * (expression) fields for this one request.
      */
-    private static Map<String, FieldDef> getDynamicFields(ShardState shardState, SearchRequest searchRequest) {
-        IndexState indexState = shardState.indexState;
-        Map<String, FieldDef> dynamicFields = null;
-        if (!searchRequest.getVirtualFielsdList().isEmpty()) {
-            throw new UnsupportedOperationException(String.format("VirtualFields not currently supported in searchRequest: %s", searchRequest.toString()));
-        } else {
-            dynamicFields = indexState.getAllFields();
+    private static Map<String, FieldDef> getVirtualFields(ShardState shardState, SearchRequest searchRequest) {
+        if (searchRequest.getVirtualFieldsList().isEmpty()) {
+            return Collections.emptyMap();
         }
-        return dynamicFields;
+        IndexState indexState = shardState.indexState;
+        Map<String, FieldDef> virtualFields = new HashMap<>();
+        for (VirtualField vf : searchRequest.getVirtualFieldsList()) {
+            if (virtualFields.containsKey(vf.getName())) {
+                throw new IllegalArgumentException("Multiple definitions of Virtual field: " + vf.getName());
+            }
+            ScoreScript.Factory factory = ScriptService.getInstance().compile(vf.getScript(), ScoreScript.CONTEXT);
+            Map<String, Object> params = Maps.transformValues(vf.getScript().getParamsMap(), ScriptParamsTransformer.INSTANCE);
+            FieldDef virtualField = new FieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
+            virtualFields.put(vf.getName(), virtualField);
+        }
+        return virtualFields;
     }
 
-    private static Query extractQuery(IndexState state, SearchRequest searchRequest, long timestampSec, Map<String, FieldDef> dynamicFields) throws SearchHandlerException {
+    private static Query extractQuery(IndexState state, SearchRequest searchRequest, long timestampSec) throws SearchHandlerException {
         Query q;
         if (!searchRequest.getQueryText().isEmpty()) {
             QueryBuilder queryParser = createQueryParser(state, searchRequest, null);
@@ -684,7 +697,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     /**
      * Fold in any drillDowns requests into the query.
      */
-    private static DrillDownQuery addDrillDowns(long timestampSec, IndexState state, SearchRequest searchRequest, Query q, Map<String, FieldDef> dynamicFields) {
+    private static DrillDownQuery addDrillDowns(long timestampSec, IndexState state, SearchRequest searchRequest, Query q) {
         //TOOD: support "drillDowns" in input SearchRequest
         // Always create a DrillDownQuery; if there
         // are no drill-downs it will just rewrite to the
@@ -696,7 +709,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     /**
      * Decodes a list of Request into the corresponding Sort.
      */
-    static Sort parseSort(long timestampSec, IndexState state, List<SortType> fields, List<String> sortFieldNames, Map<String, FieldDef> dynamicFields) throws SearchHandlerException {
+    static Sort parseSort(long timestampSec, IndexState state, List<SortType> fields, List<String> sortFieldNames, Map<String, FieldDef> queryFields) throws SearchHandlerException {
         List<SortField> sortFields = new ArrayList<SortField>();
         for (SortType sub : fields) {
             String fieldName = sub.getFieldName();
@@ -709,17 +722,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             } else if (fieldName.equals("score")) {
                 sf = SortField.FIELD_SCORE;
             } else {
-                FieldDef fd;
-                if (dynamicFields != null) {
-                    fd = dynamicFields.get(fieldName);
-                } else {
-                    fd = null;
-                }
+                FieldDef fd = queryFields.get(fieldName);
                 if (fd == null) {
-                    fd = state.getField(fieldName);
-                }
-                if (fd == null) {
-                    throw new SearchHandlerException(String.format("field: %s was not registered and was not specified as a dynamicField", fieldName));
+                    throw new SearchHandlerException(String.format("field: %s was not registered and was not specified as a virtualField", fieldName));
                 }
 
                 if (fd.valueSource != null) {
@@ -731,8 +736,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                     Point sub2 = sub.getOrigin();
                     sf = LatLonDocValuesField.newDistanceSort(fieldName, sub2.getLatitude(), sub2.getLongitude());
                 } else {
-                    if ((fd.fieldType != null && fd.fieldType.docValuesType() == DocValuesType.NONE) ||
-                            (fd.fieldType == null && fd.valueSource == null)) {
+                    if (fd.fieldType == null || fd.fieldType.docValuesType() == DocValuesType.NONE) {
                         throw new SearchHandlerException(String.format("field: %s was not registered with sort=true", fieldName));
                     }
 
@@ -813,7 +817,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             sortFields.add(sf);
         }
 
-        return new Sort(sortFields.toArray(new SortField[sortFields.size()]));
+        return new Sort(sortFields.toArray(new SortField[0]));
     }
 
     private static SortedNumericSelector.Type parseNumericSelector(Selector selectorString) throws SearchHandlerException {
@@ -856,102 +860,35 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 if (fd.valueSource != null) {
                     List<LeafReaderContext> leaves = s.getIndexReader().leaves();
                     LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.doc, leaves));
-                    Map<String, Object> context = new HashMap<String, Object>();
 
                     int docID = hit.doc - leaf.docBase;
 
-                    assert Float.isNaN(hit.score) == false || fd.valueSource.getSortField(false).needsScores() == false;
-                    context.put("scorer", new Scorer(null) {
+                    assert !Float.isNaN(hit.score) || !fd.valueSource.needsScores();
+                    DoubleValues scoreValue = new DoubleValues() {
                         @Override
-                        public DocIdSetIterator iterator() {
-                            return null;
-                        }
-
-                        @Override
-                        public float getMaxScore(int upTo) throws IOException {
+                        public double doubleValue() throws IOException {
                             return hit.score;
                         }
 
                         @Override
-                        public float score() throws IOException {
-                            return hit.score;
+                        public boolean advanceExact(int doc) throws IOException {
+                            return !Float.isNaN(hit.score);
                         }
-
-                        @Override
-                        public int docID() {
-                            return docID;
-                        }
-                    });
-                    DoubleValues doubleValues = fd.valueSource.getValues(leaf, null);
+                    };
+                    DoubleValues doubleValues = fd.valueSource.getValues(leaf, scoreValue);
+                    doubleValues.advanceExact(docID);
                     compositeFieldValue.addFieldValue(FieldValue.newBuilder()
                             .setDoubleValue(doubleValues.doubleValue()));
                 } else if (fd.fieldType != null && fd.fieldType.docValuesType() != DocValuesType.NONE) {
                     List<LeafReaderContext> leaves = s.getIndexReader().leaves();
                     //get the current leaf/segment that this doc is in
                     LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.doc, leaves));
-                    int docID = -1;
-                    boolean advance = false;
-                    switch (fd.fieldType.docValuesType()) {
-                        case SORTED_NUMERIC:
-                            SortedNumericDocValues sortedNumericDocValues = DocValues.getSortedNumeric(leaf.reader(), name);
-                            //get segment local docID since that is what advanceExact wants
-                            docID = hit.doc - leaf.docBase;
-                            advance = sortedNumericDocValues.advanceExact(docID);
-                            if (advance) {
-                                for (int i = 0; i < sortedNumericDocValues.docValueCount(); i++) {
-                                    long val = sortedNumericDocValues.nextValue();
-                                    setCompositeFieldValue(compositeFieldValue, fd.valueType, val, true);
-                                }
-                            }
-                            break;
-                        case NUMERIC:
-                            NumericDocValues numericDocValues = DocValues.getNumeric(leaf.reader(), name);
-                            //get segment local docID since that is what advanceExact wants
-                            docID = hit.doc - leaf.docBase;
-                            advance = numericDocValues.advanceExact(docID);
-                            if (advance) {
-                                long val = numericDocValues.longValue();
-                                setCompositeFieldValue(compositeFieldValue, fd.valueType, val, false);
-                            }
-                            break;
-                        case SORTED_SET:
-                            SortedSetDocValues sortedSetDocValues = DocValues.getSortedSet(leaf.reader(), name);
-                            //get segment local docID since that is what advanceExact wants
-                            docID = hit.doc - leaf.docBase;
-                            advance = sortedSetDocValues.advanceExact(docID);
-                            if (advance) {
-                                for (; ; ) {
-                                    long ord = sortedSetDocValues.nextOrd();
-                                    if (ord == NO_MORE_ORDS) {
-                                        break;
-                                    }
-                                    BytesRef bytesRef = sortedSetDocValues.lookupOrd(ord);
-                                    compositeFieldValue.addFieldValue(FieldValue.newBuilder()
-                                            .setTextValue(bytesRef.utf8ToString()));
-                                }
-                            }
-                            break;
-                        case SORTED:
-                            SortedDocValues sortedDocValues = DocValues.getSorted(leaf.reader(), name);
-                            //get segment local docID since that is what advanceExact wants
-                            docID = hit.doc - leaf.docBase;
-                            advance = sortedDocValues.advanceExact(docID);
-                            if (advance) {
-                                int ord = sortedDocValues.ordValue();
-                                BytesRef bytesRef = sortedDocValues.lookupOrd(ord);
-                                compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(bytesRef.utf8ToString()));
-                            }
-                            break;
-                        case BINARY:
-                            BinaryDocValues binaryDocValues = DocValues.getBinary(leaf.reader(), name);
-                            //get segment local docID since that is what advanceExact wants
-                            docID = hit.doc - leaf.docBase;
-                            advance = binaryDocValues.advanceExact(docID);
-                            if (advance) {
-                                BytesRef bytesRef = binaryDocValues.binaryValue();
-                                compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(bytesRef.utf8ToString()));
-                            }
-                            break;
+                    int docID = hit.doc - leaf.docBase;
+                    // it may be possible to cache this if there are multiple hits in the same segment
+                    LoadedDocValues<?> docValues = DocValuesFactory.getDocValues(fd, leaf);
+                    docValues.setDocId(docID);
+                    for (int i = 0; i < docValues.size(); ++i) {
+                        compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
                     }
                 }
                 //retrieve stored fields
@@ -1031,34 +968,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         }
 
         return sortedFields;
-    }
-
-    private void setCompositeFieldValue(CompositeFieldValue.Builder compositeFieldValue, FieldDef.FieldValueType fieldValueType, long val, boolean isSortedNumeric) {
-        if (fieldValueType.equals(FieldDef.FieldValueType.DOUBLE)) {
-            double value;
-            if (isSortedNumeric) {
-                value = NumericUtils.sortableLongToDouble(val);
-            } else {
-                value = Double.longBitsToDouble(val);
-            }
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setDoubleValue(value));
-        } else if (fieldValueType.equals(FieldDef.FieldValueType.FLOAT)) {
-            float value;
-            if (isSortedNumeric) {
-                value = NumericUtils.sortableIntToFloat((int) val);
-            } else {
-                value = Float.intBitsToFloat((int) val);
-            }
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setFloatValue(value));
-        } else if (fieldValueType.equals(FieldDef.FieldValueType.BOOLEAN)) {
-            boolean value = val == 1;
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setBooleanValue(value));
-        } else if (fieldValueType.equals(FieldDef.FieldValueType.INT)) {
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setIntValue((int) val));
-        } else { //LONG
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setLongValue(val));
-        }
-
     }
 
     private static FieldValue convertType(FieldDef fd, Object o) {

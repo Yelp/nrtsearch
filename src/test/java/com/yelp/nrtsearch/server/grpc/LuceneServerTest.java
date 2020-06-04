@@ -24,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,9 @@ public class LuceneServerTest {
     public static final List<String> RETRIEVED_VALUES = Arrays.asList("doc_id", "license_no", "vendor_name", "vendor_name_atom",
             "count", "long_field", "double_field_multi", "double_field", "float_field_multi", "float_field", "boolean_field_multi", "boolean_field",
             "description", "date");
+    public static final List<String> INDEX_VIRTUAL_FIELDS = Arrays.asList("virtual_field", "virtual_field_w_score");
+    public static final List<String> QUERY_VIRTUAL_FIELDS = Arrays.asList("query_virtual_field", "query_virtual_field_w_score");
+    static final List<String> LAT_LON_VALUES = Arrays.asList("doc_id", "vendor_name", "vendor_name_atom", "license_no", "lat_lon");
     /**
      * This rule manages automatic graceful shutdown for the registered servers and channels at the
      * end of test.
@@ -131,6 +135,83 @@ public class LuceneServerTest {
                         .build())
                 .build());
         assertTrue(reply.getResponse().contains("new_text_field"));
+    }
+
+    @Test
+    public void testRegisterVirtualFields() throws Exception {
+        FieldDefResponse reply = new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(Mode.STANDALONE);
+        assertTrue(reply.getResponse().contains("vendor_name"));
+        assertTrue(reply.getResponse().contains("vendor_name_atom"));
+        assertTrue(reply.getResponse().contains("license_no"));
+        reply = grpcServer.getBlockingStub().updateFields(FieldDefRequest.newBuilder()
+                .setIndexName("test_index")
+                .addField(Field.newBuilder()
+                        .setName("new_virtual_field")
+                        .setType(FieldType.VIRTUAL)
+                        .setScript(Script.newBuilder()
+                                .setLang("js")
+                                .setSource("long_field*2.0")
+                                .build())
+                        .build())
+                .build());
+        assertTrue(reply.getResponse().contains("new_virtual_field"));
+    }
+
+    @Test
+    public void testRegisterVirtualAndNonVirtualFields() throws Exception {
+        FieldDefResponse reply = new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(Mode.STANDALONE);
+        assertTrue(reply.getResponse().contains("vendor_name"));
+        assertTrue(reply.getResponse().contains("vendor_name_atom"));
+        assertTrue(reply.getResponse().contains("license_no"));
+        reply = grpcServer.getBlockingStub().updateFields(FieldDefRequest.newBuilder()
+                .setIndexName("test_index")
+                .addField(Field.newBuilder()
+                        .setName("new_virtual_field")
+                        .setType(FieldType.VIRTUAL)
+                        .setScript(Script.newBuilder()
+                                .setLang("js")
+                                .setSource("long_field*2.0")
+                                .build())
+                        .build())
+                .addField(Field.newBuilder()
+                        .setName("new_text_field")
+                        .setType(FieldType.TEXT)
+                        .setStoreDocValues(true)
+                        .setSearch(true)
+                        .setMultiValued(true)
+                        .setTokenize(true)
+                        .build())
+                .build());
+        assertTrue(reply.getResponse().contains("new_virtual_field"));
+        assertTrue(reply.getResponse().contains("new_text_field"));
+    }
+
+    @Test
+    public void testRegisterVirtualWithDependentField() throws Exception {
+        FieldDefResponse reply = new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(Mode.STANDALONE);
+        assertTrue(reply.getResponse().contains("vendor_name"));
+        assertTrue(reply.getResponse().contains("vendor_name_atom"));
+        assertTrue(reply.getResponse().contains("license_no"));
+        reply = grpcServer.getBlockingStub().updateFields(FieldDefRequest.newBuilder()
+                .setIndexName("test_index")
+                .addField(Field.newBuilder()
+                        .setName("new_virtual_field")
+                        .setType(FieldType.VIRTUAL)
+                        .setScript(Script.newBuilder()
+                                .setLang("js")
+                                .setSource("needed_field*2.0")
+                                .build())
+                        .build())
+                .addField(Field.newBuilder()
+                        .setName("needed_field")
+                        .setType(FieldType.INT)
+                        .setStoreDocValues(true)
+                        .setMultiValued(false)
+                        .setSort(true)
+                        .build())
+                .build());
+        assertTrue(reply.getResponse().contains("new_virtual_field"));
+        assertTrue(reply.getResponse().contains("needed_field"));
     }
 
     @Test
@@ -401,6 +482,115 @@ public class LuceneServerTest {
     }
 
     @Test
+    public void testSearchLatLong() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+        new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(
+                Mode.STANDALONE, 0, false, "registerFieldsLatLon.json");
+        AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocsLatLon.csv");
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(LAT_LON_VALUES)
+                .build());
+
+        assertEquals(2, searchResponse.getTotalHits().getValue());
+        assertEquals(2, searchResponse.getHitsList().size());
+        SearchResponse.Hit firstHit = searchResponse.getHits(0);
+        checkHitsLatLon(firstHit);
+        SearchResponse.Hit secondHit = searchResponse.getHits(1);
+        checkHitsLatLon(secondHit);
+    }
+
+    @Test
+    public void testSearchIndexVirtualFields() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+        new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(
+                Mode.STANDALONE, 0, false, "registerFieldsVirtual.json");
+        AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocs.csv");
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        List<String> queryFields = new ArrayList<>(RETRIEVED_VALUES);
+        queryFields.addAll(INDEX_VIRTUAL_FIELDS);
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(queryFields)
+                .setQueryText("vendor_name:first vendor")
+                .build());
+
+        assertEquals(2, searchResponse.getTotalHits().getValue());
+        assertEquals(2, searchResponse.getHitsList().size());
+        SearchResponse.Hit firstHit = searchResponse.getHits(0);
+        checkHitsVirtual(firstHit, true, false);
+        SearchResponse.Hit secondHit = searchResponse.getHits(1);
+        checkHitsVirtual(secondHit, true, false);
+    }
+
+    @Test
+    public void testSearchQueryVirtualFields() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+        new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(
+                Mode.STANDALONE, 0, false, "registerFieldsBasic.json");
+        AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocs.csv");
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        List<String> queryFields = new ArrayList<>(RETRIEVED_VALUES);
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(queryFields)
+                .addAllVirtualFields(getQueryVirtualFields())
+                .setQueryText("vendor_name:first vendor")
+                .build());
+
+        assertEquals(2, searchResponse.getTotalHits().getValue());
+        assertEquals(2, searchResponse.getHitsList().size());
+        SearchResponse.Hit firstHit = searchResponse.getHits(0);
+        checkHitsVirtual(firstHit, false, true);
+        SearchResponse.Hit secondHit = searchResponse.getHits(1);
+        checkHitsVirtual(secondHit, false, true);
+    }
+
+    @Test
+    public void testSearchBothVirtualFields() throws IOException, InterruptedException {
+        GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+        new GrpcServer.IndexAndRoleManager(grpcServer).createStartIndexAndRegisterFields(
+                Mode.STANDALONE, 0, false, "registerFieldsVirtual.json");
+        AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocs.csv");
+        //manual refresh
+        grpcServer.getBlockingStub().refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+        List<String> queryFields = new ArrayList<>(RETRIEVED_VALUES);
+        queryFields.addAll(INDEX_VIRTUAL_FIELDS);
+
+        SearchResponse searchResponse = grpcServer.getBlockingStub().search(SearchRequest.newBuilder()
+                .setIndexName(grpcServer.getTestIndex())
+                .setStartHit(0)
+                .setTopHits(10)
+                .addAllRetrieveFields(queryFields)
+                .addAllVirtualFields(getQueryVirtualFields())
+                .setQueryText("vendor_name:first vendor")
+                .build());
+
+        assertEquals(2, searchResponse.getTotalHits().getValue());
+        assertEquals(2, searchResponse.getHitsList().size());
+        SearchResponse.Hit firstHit = searchResponse.getHits(0);
+        checkHitsVirtual(firstHit, true, true);
+        SearchResponse.Hit secondHit = searchResponse.getHits(1);
+        checkHitsVirtual(secondHit, true, true);
+    }
+
+    @Test
     public void testMetrics() {
         HttpBody response = grpcServer.getBlockingStub().metrics(Empty.newBuilder().build());
         HashSet expectedSampleNames = new HashSet(Arrays.asList("grpc_server_started_total", "grpc_server_handled_total", "grpc_server_msg_received_total",
@@ -421,10 +611,32 @@ public class LuceneServerTest {
         assertEquals(true, labelsHelp.equals(expectedSampleNames));
     }
 
+    public static List<VirtualField> getQueryVirtualFields() {
+        List<VirtualField> fields = new ArrayList<>();
+        fields.add(VirtualField.newBuilder()
+                .setName("query_virtual_field")
+                .setScript(Script.newBuilder()
+                        .setLang("js")
+                        .setSource("4.0*float_field+2.0*double_field")
+                        .build())
+                .build());
+        fields.add(VirtualField.newBuilder()
+                .setName("query_virtual_field_w_score")
+                .setScript(Script.newBuilder()
+                        .setLang("js")
+                        .setSource("5.0*_score")
+                        .build())
+                .build());
+        return fields;
+    }
+
     public static void checkHits(SearchResponse.Hit hit) {
         Map<String, CompositeFieldValue> fields = hit.getFieldsMap();
         checkFieldNames(RETRIEVED_VALUES, fields);
+        checkBasicFields(fields);
+    }
 
+    public static void checkBasicFields(Map<String, CompositeFieldValue> fields) {
         String docId = fields.get("doc_id").getFieldValue(0).getTextValue();
 
         List<String> expectedLicenseNo = null;
@@ -483,6 +695,125 @@ public class LuceneServerTest {
         checkPerFieldValues(expectedBooleanField, getBooleanFieldValuesListAsString(fields.get("boolean_field").getFieldValueList()));
         checkPerFieldValues(expectedDescription, getStringFieldValuesList(fields.get("description").getFieldValueList()));
         assertEquals(expectedDate, fields.get("date").getFieldValueList().get(0).getLongValue());
+    }
+
+    public static void checkHitsVirtual(SearchResponse.Hit hit, boolean withIndexVirtualFields, boolean withQueryVirtualFields) {
+        int totalFields = 0;
+
+        Map<String, CompositeFieldValue> fields = hit.getFieldsMap();
+
+        List<String> basicFields = fields.keySet().stream().filter(RETRIEVED_VALUES::contains).collect(Collectors.toList());
+        Collections.sort(RETRIEVED_VALUES);
+        Collections.sort(basicFields);
+        assertEquals(RETRIEVED_VALUES, basicFields);
+        checkBasicFields(fields);
+        totalFields += RETRIEVED_VALUES.size();
+
+        if (withIndexVirtualFields) {
+            List<String> indexVirtualFields = fields.keySet().stream().filter(INDEX_VIRTUAL_FIELDS::contains).collect(Collectors.toList());
+            Collections.sort(INDEX_VIRTUAL_FIELDS);
+            Collections.sort(indexVirtualFields);
+            assertEquals(INDEX_VIRTUAL_FIELDS, indexVirtualFields);
+            checkIndexVirtualFields(fields, hit.getScore());
+            totalFields += INDEX_VIRTUAL_FIELDS.size();
+        }
+
+        if (withQueryVirtualFields) {
+            List<String> queryVirtualFields = fields.keySet().stream().filter(QUERY_VIRTUAL_FIELDS::contains).collect(Collectors.toList());
+            Collections.sort(QUERY_VIRTUAL_FIELDS);
+            Collections.sort(queryVirtualFields);
+            assertEquals(QUERY_VIRTUAL_FIELDS, queryVirtualFields);
+            checkQueryVirtualFields(fields, hit.getScore());
+            totalFields += QUERY_VIRTUAL_FIELDS.size();
+        }
+        assertEquals(totalFields, fields.size());
+    }
+
+    public static void checkIndexVirtualFields(Map<String, CompositeFieldValue> fields, double score) {
+        String docId = fields.get("doc_id").getFieldValue(0).getTextValue();
+
+        double expectedVirtualField = 0.0;
+        double expectedVirtualWithScore = 0.0;
+        double expectedScore = 0.0;
+
+        if (docId.equals("1")) {
+            expectedVirtualField = 236.02;
+            expectedScore = 0.516;
+            expectedVirtualWithScore = 3.0 * expectedScore;
+        } else if (docId.equals("2")) {
+            expectedVirtualField = 448.04;
+            expectedScore = 0.0828;
+            expectedVirtualWithScore = 3.0 * expectedScore;
+        } else {
+            fail(String.format("docId %s not indexed", docId));
+        }
+
+        assertEquals(expectedVirtualField, fields.get("virtual_field").getFieldValue(0).getDoubleValue(), 0.001);
+        assertEquals(expectedScore, score, 0.001);
+        assertEquals(expectedVirtualWithScore, fields.get("virtual_field_w_score").getFieldValue(0).getDoubleValue(), 0.001);
+    }
+
+    public static void checkQueryVirtualFields(Map<String, CompositeFieldValue> fields, double score) {
+        String docId = fields.get("doc_id").getFieldValue(0).getTextValue();
+
+        double expectedVirtualField = 0.0;
+        double expectedVirtualWithScore = 0.0;
+        double expectedScore = 0.0;
+
+        if (docId.equals("1")) {
+            expectedVirtualField = 402.06;
+            expectedScore = 0.516;
+            expectedVirtualWithScore = 5.0 * expectedScore;
+        } else if (docId.equals("2")) {
+            expectedVirtualField = 804.1;
+            expectedScore = 0.0828;
+            expectedVirtualWithScore = 5.0 * expectedScore;
+        } else {
+            fail(String.format("docId %s not indexed", docId));
+        }
+
+        assertEquals(expectedVirtualField, fields.get("query_virtual_field").getFieldValue(0).getDoubleValue(), 0.001);
+        assertEquals(expectedScore, score, 0.001);
+        assertEquals(expectedVirtualWithScore, fields.get("query_virtual_field_w_score").getFieldValue(0).getDoubleValue(), 0.001);
+    }
+
+    public static void checkHitsLatLon(SearchResponse.Hit hit) {
+        Map<String, CompositeFieldValue> fields = hit.getFieldsMap();
+        checkFieldNames(LAT_LON_VALUES, fields);
+
+        String docId = fields.get("doc_id").getFieldValue(0).getTextValue();
+
+        List<String> expectedLicenseNo = null;
+        List<String> expectedVendorName = null;
+        List<String> expectedVendorNameAtom = null;
+        List<Double> expectedLat = null;
+        List<Double> expectedLon = null;
+
+        if (docId.equals("1")) {
+            expectedLicenseNo = Arrays.asList("300", "3100");
+            expectedVendorName = Arrays.asList("first vendor", "first again");
+            expectedVendorNameAtom = Arrays.asList("first atom vendor", "first atom again");
+            expectedLat = Arrays.asList(37.7749);
+            expectedLon = Arrays.asList(-122.393990);
+        } else if (docId.equals("2")) {
+            expectedLicenseNo = Arrays.asList("411", "4222");
+            expectedVendorName = Arrays.asList("second vendor", "second again");
+            expectedVendorNameAtom = Arrays.asList("second atom vendor", "second atom again");
+            expectedLat = Arrays.asList(37.5485);
+            expectedLon = Arrays.asList(-121.9886);
+        } else {
+            fail(String.format("docId %s not indexed", docId));
+        }
+
+        checkPerFieldValues(expectedLicenseNo, getIntFieldValuesListAsString(fields.get("license_no").getFieldValueList()));
+        checkPerFieldValues(expectedVendorName, getStringFieldValuesList(fields.get("vendor_name").getFieldValueList()));
+        checkPerFieldValues(expectedVendorNameAtom, getStringFieldValuesList(fields.get("vendor_name_atom").getFieldValueList()));
+        List<SearchResponse.Hit.FieldValue> latLonList = fields.get("lat_lon").getFieldValueList();
+        assertEquals(latLonList.size(), expectedLat.size());
+        for (int i = 0; i < latLonList.size(); ++i) {
+            assertEquals(expectedLat.get(i), latLonList.get(i).getLatLngValue().getLatitude(), 0.00001);
+            assertEquals(expectedLon.get(i), latLonList.get(i).getLatLngValue().getLongitude(), 0.00001);
+        }
     }
 
     public static void checkFieldNames(List<String> expectedNames, Map<String, CompositeFieldValue> actualNames) {
