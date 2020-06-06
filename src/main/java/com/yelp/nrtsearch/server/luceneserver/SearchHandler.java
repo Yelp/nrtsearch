@@ -482,7 +482,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             } catch (Exception e) {
                 throw new SearchHandlerException(String.format("could not parse queryText: %s", queryText));
             }
-        } else if (searchRequest.getQuery().getQueryType() != QueryType.NONE) {
+        } else if (searchRequest.getQuery().getQueryNodeCase() !=
+                com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET) {
             q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery(), state);
         } else {
             q = new MatchAllDocsQuery();

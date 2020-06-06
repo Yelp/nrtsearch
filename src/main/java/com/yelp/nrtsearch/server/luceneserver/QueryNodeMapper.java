@@ -60,8 +60,7 @@ class QueryNodeMapper {
     private final RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder();
 
     Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
-        QueryType queryType = query.getQueryType();
-        Query queryNode = getQueryNode(query, state, queryType);
+        Query queryNode = getQueryNode(query, state);
 
         if (query.getBoost() < 0) {
             throw new IllegalArgumentException("Boost must be a positive number, query: " + query);
@@ -73,19 +72,19 @@ class QueryNodeMapper {
         return queryNode;
     }
 
-    private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, IndexState state, QueryType queryType) {
-        switch (queryType) {
-            case BOOLEAN_QUERY: return getBooleanQuery(query.getBooleanQuery(), state);
-            case PHRASE_QUERY: return getPhraseQuery(query.getPhraseQuery());
-            case FUNCTION_SCORE_QUERY: return getFunctionScoreQuery(query.getFunctionScoreQuery(), state);
-            case TERM_QUERY: return getTermQuery(query.getTermQuery(), state);
-            case TERM_IN_SET_QUERY: return getTermInSetQuery(query.getTermInSetQuery(), state);
-            case DISJUNCTION_MAX: return getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), state);
-            case MATCH: return getMatchQuery(query.getMatchQuery(), state);
-            case MATCH_PHRASE: return getMatchPhraseQuery(query.getMatchPhraseQuery(), state);
-            case MULTI_MATCH: return getMultiMatchQuery(query.getMultiMatchQuery(), state);
-            case RANGE: return getRangeQuery(query.getRangeQuery(), state);
-            default: throw new UnsupportedOperationException("Unsupported query type received: " + queryType);
+    private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
+        switch (query.getQueryNodeCase()) {
+            case BOOLEANQUERY: return getBooleanQuery(query.getBooleanQuery(), state);
+            case PHRASEQUERY: return getPhraseQuery(query.getPhraseQuery());
+            case FUNCTIONSCOREQUERY: return getFunctionScoreQuery(query.getFunctionScoreQuery(), state);
+            case TERMQUERY: return getTermQuery(query.getTermQuery(), state);
+            case TERMINSETQUERY: return getTermInSetQuery(query.getTermInSetQuery(), state);
+            case DISJUNCTIONMAXQUERY: return getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), state);
+            case MATCHQUERY: return getMatchQuery(query.getMatchQuery(), state);
+            case MATCHPHRASEQUERY: return getMatchPhraseQuery(query.getMatchPhraseQuery(), state);
+            case MULTIMATCHQUERY: return getMultiMatchQuery(query.getMultiMatchQuery(), state);
+            case RANGEQUERY: return getRangeQuery(query.getRangeQuery(), state);
+            default: throw new UnsupportedOperationException("Unsupported query type received: " + query.getQueryNodeCase());
         }
     }
 
