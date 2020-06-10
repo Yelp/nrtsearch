@@ -38,9 +38,7 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.util.FilesystemResourceLoader;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
-import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -395,10 +393,11 @@ public class IndexState implements Closeable, Restorable {
 
         @Override
         public Similarity get(String name) {
-            if (internalFacetFieldNames.contains(name)) {
+            if(fields.containsKey(name)) {
+                return getField(name).sim;
+            } else {
                 return defaultSim;
             }
-            return getField(name).sim;
         }
     };
 
