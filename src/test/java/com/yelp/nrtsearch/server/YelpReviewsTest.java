@@ -53,8 +53,6 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.junit.Test;
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.Constructor;
 import picocli.CommandLine;
 
 import java.io.File;
@@ -458,7 +456,7 @@ public class YelpReviewsTest {
         }
 
         HostPort(String confiFileName) throws FileNotFoundException {
-            LuceneServerConfiguration luceneServerConfiguration = new Yaml(new Constructor(LuceneServerConfiguration.class)).load(new FileInputStream(confiFileName));
+            LuceneServerConfiguration luceneServerConfiguration = new LuceneServerConfiguration(new FileInputStream(confiFileName));
             this.hostName = luceneServerConfiguration.getHostName();
             this.port = luceneServerConfiguration.getPort();
             this.replicationPort = luceneServerConfiguration.getReplicationPort();

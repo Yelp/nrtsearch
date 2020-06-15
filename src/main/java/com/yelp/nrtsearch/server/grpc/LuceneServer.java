@@ -127,7 +127,7 @@ public class LuceneServer {
                         .withCollectorRegistry(collectorRegistry));
         /* The port on which the server should run */
         server = ServerBuilder.forPort(luceneServerConfiguration.getPort())
-                .addService(ServerInterceptors.intercept(new LuceneServerImpl(globalState, archiver, collectorRegistry, plugins), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(new LuceneServerImpl(globalState, luceneServerConfiguration, archiver, collectorRegistry, plugins), monitoringInterceptor))
                 .executor(ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
                         luceneServerConfiguration.getThreadPoolConfiguration()))
                 .build()
@@ -201,19 +201,25 @@ public class LuceneServer {
         private final CollectorRegistry collectorRegistry;
         private final ThreadPoolExecutor searchThreadPoolExecutor;
 
-        LuceneServerImpl(GlobalState globalState, Archiver archiver, CollectorRegistry collectorRegistry, List<Plugin> plugins) {
+        LuceneServerImpl(
+                GlobalState globalState,
+                LuceneServerConfiguration configuration,
+                Archiver archiver,
+                CollectorRegistry collectorRegistry,
+                List<Plugin> plugins
+        ) {
             this.globalState = globalState;
             this.archiver = archiver;
             this.collectorRegistry = collectorRegistry;
             this.searchThreadPoolExecutor = ThreadPoolExecutorFactory.getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH,
                     globalState.getThreadPoolConfiguration());
 
-            registerPlugins(plugins);
+            initExtendableComponents(configuration, plugins);
         }
 
-        private void registerPlugins(List<Plugin> plugins) {
-            AnalyzerCreator.initialize(plugins);
-            ScriptService.initialize(plugins);
+        private void initExtendableComponents(LuceneServerConfiguration configuration, List<Plugin> plugins) {
+            AnalyzerCreator.initialize(configuration, plugins);
+            ScriptService.initialize(configuration, plugins);
         }
 
         @Override

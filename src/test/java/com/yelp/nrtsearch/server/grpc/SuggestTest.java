@@ -89,7 +89,7 @@ public class SuggestTest {
     public void setUp() throws IOException {
         LuceneServerConfiguration luceneServerConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
         GlobalState globalState = new GlobalState(luceneServerConfiguration);
-        grpcServer = new GrpcServer(grpcCleanup, folder, false, globalState,
+        grpcServer = new GrpcServer(grpcCleanup, luceneServerConfiguration, folder, false, globalState,
                 luceneServerConfiguration.getIndexDir(), "test_index", globalState.getPort());
         Path tempDir = folder.newFolder("TestSuggest").toPath();
         tempFile = tempDir.resolve("suggest.in");

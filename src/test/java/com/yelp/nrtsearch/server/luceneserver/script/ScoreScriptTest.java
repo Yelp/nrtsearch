@@ -105,7 +105,7 @@ public class ScoreScriptTest {
         LuceneServerConfiguration luceneServerConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
         GlobalState globalState = new GlobalState(luceneServerConfiguration);
         return new GrpcServer(
-                collectorRegistry, grpcCleanup, folder, false, globalState, luceneServerConfiguration.getIndexDir(),
+                collectorRegistry, grpcCleanup, luceneServerConfiguration, folder, false, globalState, luceneServerConfiguration.getIndexDir(),
                 testIndex, globalState.getPort(), null, Collections.singletonList(new ScoreScriptTestPlugin())
         );
     }

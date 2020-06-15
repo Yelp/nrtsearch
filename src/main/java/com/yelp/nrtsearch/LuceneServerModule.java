@@ -42,15 +42,12 @@ import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
 
-import org.yaml.snakeyaml.Yaml;
-
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import io.prometheus.client.CollectorRegistry;
-import org.yaml.snakeyaml.constructor.Constructor;
 
 public class LuceneServerModule extends AbstractModule {
     private final String[] args;
@@ -113,9 +110,9 @@ public class LuceneServerModule extends AbstractModule {
         LuceneServerConfiguration luceneServerConfiguration;
         if (args.length == 0) {
             Path filePath = Paths.get("src", "main", "resources", "lucene_server_default_configuration.yaml");
-            luceneServerConfiguration = new Yaml(new Constructor(LuceneServerConfiguration.class)).load(new FileInputStream(filePath.toFile()));
+            luceneServerConfiguration = new LuceneServerConfiguration(new FileInputStream(filePath.toFile()));
         } else {
-            luceneServerConfiguration = new Yaml(new Constructor(LuceneServerConfiguration.class)).load(new FileInputStream(args[0]));
+            luceneServerConfiguration = new LuceneServerConfiguration(new FileInputStream(args[0]));
         }
         return luceneServerConfiguration;
     }

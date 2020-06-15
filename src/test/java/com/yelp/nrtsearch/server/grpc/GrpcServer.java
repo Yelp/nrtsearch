@@ -1,5 +1,6 @@
 package com.yelp.nrtsearch.server.grpc;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.luceneserver.RestoreStateHandler;
@@ -49,6 +50,7 @@ public class GrpcServer {
     private ReplicationServerGrpc.ReplicationServerStub replicationServerStub;
 
     private GlobalState globalState;
+    private LuceneServerConfiguration configuration;
     private LuceneServerClient luceneServerClient;
     private Server luceneServer;
     private ManagedChannel luceneServerManagedChannel;
@@ -56,11 +58,12 @@ public class GrpcServer {
     private ManagedChannel replicationServerManagedChannel;
 
 
-    public GrpcServer(CollectorRegistry collectorRegistry, GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
-                      boolean isReplication, GlobalState globalState,
+    public GrpcServer(CollectorRegistry collectorRegistry, GrpcCleanupRule grpcCleanup, LuceneServerConfiguration configuration,
+                      TemporaryFolder temporaryFolder, boolean isReplication, GlobalState globalState,
                       String indexDir, String index, int port, Archiver archiver, List<Plugin> plugins) throws IOException {
         this.grpcCleanup = grpcCleanup;
         this.temporaryFolder = temporaryFolder;
+        this.configuration = configuration;
         this.globalState = globalState;
         this.indexDir = indexDir;
         this.testIndex = index;
@@ -69,16 +72,16 @@ public class GrpcServer {
     }
 
 
-    public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
+    public GrpcServer(GrpcCleanupRule grpcCleanup, LuceneServerConfiguration configuration, TemporaryFolder temporaryFolder,
                       boolean isReplication, GlobalState globalState,
                       String indexDir, String index, int port, Archiver archiver) throws IOException {
-        this(null, grpcCleanup, temporaryFolder, isReplication, globalState, indexDir, index, port, archiver, Collections.emptyList());
+        this(null, grpcCleanup, configuration, temporaryFolder, isReplication, globalState, indexDir, index, port, archiver, Collections.emptyList());
     }
 
-    public GrpcServer(GrpcCleanupRule grpcCleanup, TemporaryFolder temporaryFolder,
+    public GrpcServer(GrpcCleanupRule grpcCleanup, LuceneServerConfiguration configuration, TemporaryFolder temporaryFolder,
                       boolean isReplication, GlobalState globalState,
                       String indexDir, String index, int port) throws IOException {
-        this(grpcCleanup, temporaryFolder, isReplication, globalState, indexDir, index, port, null);
+        this(grpcCleanup, configuration, temporaryFolder, isReplication, globalState, indexDir, index, port, null);
     }
 
     public String getIndexDir() {
@@ -140,7 +143,7 @@ public class GrpcServer {
             if (collectorRegistry == null) {
                 // Create a server, add service, start, and register for automatic graceful shutdown.
                 server = ServerBuilder.forPort(port)
-                        .addService(new LuceneServer.LuceneServerImpl(globalState, archiver, collectorRegistry, plugins).bindService())
+                        .addService(new LuceneServer.LuceneServerImpl(globalState, configuration, archiver, collectorRegistry, plugins).bindService())
                         .build()
                         .start();
             } else {
@@ -150,7 +153,7 @@ public class GrpcServer {
                                 .withCollectorRegistry(collectorRegistry));
                 // Create a server, add service, start, and register for automatic graceful shutdown.
                 server = ServerBuilder.forPort(port)
-                        .addService(ServerInterceptors.intercept(new LuceneServer.LuceneServerImpl(globalState, archiver, collectorRegistry, plugins), monitoringInterceptor))
+                        .addService(ServerInterceptors.intercept(new LuceneServer.LuceneServerImpl(globalState, configuration, archiver, collectorRegistry, plugins), monitoringInterceptor))
                         .build()
                         .start();
             }

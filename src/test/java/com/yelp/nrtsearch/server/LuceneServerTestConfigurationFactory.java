@@ -25,6 +25,7 @@ package com.yelp.nrtsearch.server;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Mode;
 
+import java.io.ByteArrayInputStream;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -35,34 +36,36 @@ public class LuceneServerTestConfigurationFactory {
 
     public static LuceneServerConfiguration getConfig(Mode mode) {
         String dirNum = String.valueOf(atomicLong.addAndGet(1));
-        LuceneServerConfiguration.Builder builder = new LuceneServerConfiguration.Builder();
         if (mode.equals(Mode.STANDALONE)) {
             String stateDir = Paths.get(DEFAULT_USER_DIR.toString(), "standalone", dirNum, "state").toString();
             String indexDir = Paths.get(DEFAULT_USER_DIR.toString(), "standalone", dirNum, "index").toString();
-            return builder.withNodeName("standalone")
-                    .withStateDir(stateDir)
-                    .withIndexDir(indexDir)
-                    .withPort(9000)
-                    .withReplicationPort(9000)
-                    .build();
+            String config = String.join("\n",
+                    "nodeName: standalone",
+                    "stateDir: " + stateDir,
+                    "indexDir: " + indexDir,
+                    "port: " + 9000,
+                    "replicationPort: " + 9000);
+            return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
         } else if (mode.equals(Mode.PRIMARY)) {
             String stateDir = Paths.get(DEFAULT_USER_DIR.toString(), "primary", dirNum, "state").toString();
             String indexDir = Paths.get(DEFAULT_USER_DIR.toString(), "primary", dirNum, "index").toString();
-            return builder.withNodeName("primary")
-                    .withStateDir(stateDir)
-                    .withIndexDir(indexDir)
-                    .withPort(9900)
-                    .withReplicationPort(9001)
-                    .build();
+            String config = String.join("\n",
+                    "nodeName: primary",
+                    "stateDir: " + stateDir,
+                    "indexDir: " + indexDir,
+                    "port: " + 9900,
+                    "replicationPort: " + 9001);
+            return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
         } else if (mode.equals(Mode.REPLICA)) {
             String stateDir = Paths.get(DEFAULT_USER_DIR.toString(), "replica", dirNum, "state").toString();
             String indexDir = Paths.get(DEFAULT_USER_DIR.toString(), "replica", dirNum, "index").toString();
-            return builder.withNodeName("replica")
-                    .withStateDir(stateDir)
-                    .withIndexDir(indexDir)
-                    .withPort(9902)
-                    .withReplicationPort(9003)
-                    .build();
+            String config = String.join("\n",
+                    "nodeName: replica",
+                    "stateDir: " + stateDir,
+                    "indexDir: " + indexDir,
+                    "port: " + 9902,
+                    "replicationPort: " + 9003);
+            return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
         }
         throw new RuntimeException("Invalid mode %s, cannot build config" + mode);
     }

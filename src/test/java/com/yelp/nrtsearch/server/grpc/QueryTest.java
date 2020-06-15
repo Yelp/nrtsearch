@@ -75,7 +75,7 @@ public class QueryTest {
         String testIndex = "test_index";
         LuceneServerConfiguration luceneServerConfiguration = LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
         GlobalState globalState = new GlobalState(luceneServerConfiguration);
-        return new GrpcServer(grpcCleanup, folder, false, globalState, luceneServerConfiguration.getIndexDir(), testIndex, globalState.getPort());
+        return new GrpcServer(grpcCleanup, luceneServerConfiguration, folder, false, globalState, luceneServerConfiguration.getIndexDir(), testIndex, globalState.getPort());
     }
 
     @Test
