@@ -174,7 +174,7 @@ enum QueryType {
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
 message Query {
-    QueryType queryType = 1; // Type of the QueryNode
+    QueryType queryType = 1 [deprecated=true]; // no longer needed, type inferred from set QueryNode
     float boost = 2; // Boost values that are less than one will give less importance to this query compared to other ones while values that are greater than one will give more importance to the scores returned by this query. Boost value of zero will do nothing (default). Boost less than 0 is invalid.
 
     oneof QueryNode {

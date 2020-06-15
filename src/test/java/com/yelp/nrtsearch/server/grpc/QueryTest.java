@@ -99,11 +99,9 @@ public class QueryTest {
     @Test
     public void testSearchBooleanQuery() {
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.BOOLEAN_QUERY)
                 .setBooleanQuery(BooleanQuery.newBuilder()
                         .addClauses(BooleanClause.newBuilder()
                                 .setQuery(Query.newBuilder()
-                                        .setQueryType(QueryType.PHRASE_QUERY)
                                         .setPhraseQuery(PhraseQuery.newBuilder()
                                                 .setSlop(0)
                                                 .setField("vendor_name")
@@ -131,7 +129,6 @@ public class QueryTest {
     @Test
     public void testSearchPhraseQuery() {
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.PHRASE_QUERY)
                 .setPhraseQuery(PhraseQuery.newBuilder()
                         .setSlop(0)
                         .setField("vendor_name")
@@ -155,11 +152,9 @@ public class QueryTest {
     @Test
     public void testSearchFunctionScoreQuery() {
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.FUNCTION_SCORE_QUERY)
                 .setFunctionScoreQuery(FunctionScoreQuery.newBuilder()
                         .setScript(Script.newBuilder().setLang("js").setSource("sqrt(4) * count").build())
                         .setQuery(Query.newBuilder()
-                                .setQueryType(QueryType.PHRASE_QUERY)
                                 .setPhraseQuery(PhraseQuery.newBuilder()
                                         .setSlop(0)
                                         .setField("vendor_name")
@@ -217,7 +212,6 @@ public class QueryTest {
 
         for (TermQuery termQuery : new TermQuery[] {textQuery, intQuery, longQuery, floatQuery, doubleQuery}) {
             Query query = Query.newBuilder()
-                    .setQueryType(QueryType.TERM_QUERY)
                     .setTermQuery(termQuery)
                     .build();
             testQuery(query, responseTester);
@@ -263,7 +257,6 @@ public class QueryTest {
 
         for (TermInSetQuery termInSetQuery : new TermInSetQuery[] {textQuery, intQuery, longQuery, floatQuery, doubleQuery}) {
             Query query = Query.newBuilder()
-                    .setQueryType(QueryType.TERM_IN_SET_QUERY)
                     .setTermInSetQuery(termInSetQuery)
                     .build();
             testQuery(query, responseTester);
@@ -273,19 +266,15 @@ public class QueryTest {
     @Test
     public void testSearchDisjunctionMaxQuery() {
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.DISJUNCTION_MAX)
                 .setDisjunctionMaxQuery(DisjunctionMaxQuery.newBuilder()
                         .addDisjuncts(Query.newBuilder()
-                                .setQueryType(QueryType.TERM_QUERY)
                                 .setTermQuery(TermQuery.newBuilder()
                                         .setField("vendor_name")
                                         .setTextValue("second")))
                         .addDisjuncts(Query.newBuilder()
-                                .setQueryType(QueryType.FUNCTION_SCORE_QUERY)
                                 .setFunctionScoreQuery(FunctionScoreQuery.newBuilder()
                                         .setScript(Script.newBuilder().setLang("js").setSource("sqrt(4) * count").build())
                                         .setQuery(Query.newBuilder()
-                                                .setQueryType(QueryType.TERM_QUERY)
                                                 .setTermQuery(TermQuery.newBuilder()
                                                         .setField("vendor_name")
                                                         .setTextValue("second")))))
@@ -308,7 +297,6 @@ public class QueryTest {
     @Test
     public void testSearchMatchQuery() {
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.MATCH)
                 .setMatchQuery(MatchQuery.newBuilder()
                         .setField("vendor_name")
                         .setQuery("SECOND again")
@@ -330,7 +318,6 @@ public class QueryTest {
     @Test
     public void testSearchMatchQueryEmptyAfterAnalysis() {
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.MATCH)
                 .setMatchQuery(MatchQuery.newBuilder()
                         .setField("vendor_name")
                         .setQuery("////????")
@@ -348,7 +335,6 @@ public class QueryTest {
     @Test
     public void testSearchMatchQueryFuzzyCustomAnalyzer() {
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.MATCH)
                 .setMatchQuery(MatchQuery.newBuilder()
                         .setField("vendor_name")
                         .setQuery("<br> SEND agn </br>")
@@ -375,7 +361,6 @@ public class QueryTest {
     @Test
     public void testSearchMatchPhraseQuery() {
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.MATCH_PHRASE)
                 .setMatchPhraseQuery(MatchPhraseQuery.newBuilder()
                         .setField("vendor_name")
                         .setQuery("SECOND second")
@@ -396,7 +381,6 @@ public class QueryTest {
     @Test
     public void testSearchMatchPhraseQueryEmptyAfterAnalysis() {
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.MATCH_PHRASE)
                 .setMatchPhraseQuery(MatchPhraseQuery.newBuilder()
                         .setField("vendor_name")
                         .setQuery("/?/ ?//?")
@@ -413,7 +397,6 @@ public class QueryTest {
     @Test
     public void testSearchMatchPhraseQueryCustomAnalyzer() {
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.MATCH_PHRASE)
                 .setMatchPhraseQuery(MatchPhraseQuery.newBuilder()
                         .setField("vendor_name")
                         .setQuery("<br> SECOND again </br>")
@@ -435,7 +418,6 @@ public class QueryTest {
     @Test
     public void testSearchMultiMatchQuery() {
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.MULTI_MATCH)
                 .setMultiMatchQuery(MultiMatchQuery.newBuilder()
                         .addFields("vendor_name")
                         .addFields("description")
@@ -509,7 +491,6 @@ public class QueryTest {
 
         for (RangeQuery rangeQuery : List.of(intQuery, longQuery, floatQuery, doubleQuery, dateQuery)) {
             Query query = Query.newBuilder()
-                    .setQueryType(QueryType.RANGE)
                     .setRangeQuery(rangeQuery)
                     .build();
 

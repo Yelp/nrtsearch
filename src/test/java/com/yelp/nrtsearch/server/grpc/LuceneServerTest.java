@@ -240,7 +240,6 @@ public class LuceneServerTest {
         List<String> RETRIEVE = Arrays.asList("doc_id", "new_text_field");
 
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.TERM_QUERY)
                 .setTermQuery(TermQuery.newBuilder()
                         .setField("new_text_field")
                         .setTextValue("updated"))
@@ -379,7 +378,6 @@ public class LuceneServerTest {
         assertEquals(2, statsResponse.getMaxDoc());
 
         Query query = Query.newBuilder()
-                .setQueryType(QueryType.TERM_QUERY)
                 .setTermQuery(TermQuery.newBuilder()
                         .setField("count")
                         .setIntValue(7))
