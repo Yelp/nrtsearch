@@ -993,6 +993,10 @@ public class LuceneServer {
                 long totalRead;
                 totalRead = pos;
                 while (totalRead < len) {
+                    if(!onReadyHandler.wasReady.get()) {
+                        Thread.sleep(1);
+                        continue;
+                    }
                     int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
                     luceneFile.readBytes(buffer, 0, chunkSize);
                     RawFileChunk rawFileChunk = RawFileChunk.newBuilder().setContent(ByteString.copyFrom(buffer, 0, chunkSize)).build();
