@@ -994,7 +994,7 @@ public class LuceneServer {
                 totalRead = pos;
                 while (totalRead < len) {
                     if(!onReadyHandler.wasReady.get()) {
-                        Thread.sleep(1);
+                        Thread.sleep(5);
                         continue;
                     }
                     int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
