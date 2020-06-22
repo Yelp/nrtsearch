@@ -69,6 +69,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.Status;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
 import me.dinowernli.grpc.prometheus.Configuration;
@@ -973,6 +974,15 @@ public class LuceneServer {
         @Override
         public void recvRawFile(FileInfo fileInfoRequest, StreamObserver<RawFileChunk> rawFileChunkStreamObserver) {
             try {
+                // Set up manual flow control for the request stream. It feels backwards to configure the request
+                // stream's flow control using the response stream's observer, but this is the way it is.
+                final ServerCallStreamObserver<RawFileChunk> serverCallStreamObserver =
+                        (ServerCallStreamObserver<RawFileChunk>) rawFileChunkStreamObserver;
+                serverCallStreamObserver.disableAutoInboundFlowControl();
+
+                final OnReadyHandler onReadyHandler = new OnReadyHandler(serverCallStreamObserver);
+                serverCallStreamObserver.setOnReadyHandler(onReadyHandler);
+
                 IndexState indexState = globalState.getIndex(fileInfoRequest.getIndexName());
                 ShardState shardState = indexState.getShard(0);
                 IndexInput luceneFile = shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT);
@@ -988,6 +998,21 @@ public class LuceneServer {
                     RawFileChunk rawFileChunk = RawFileChunk.newBuilder().setContent(ByteString.copyFrom(buffer, 0, chunkSize)).build();
                     rawFileChunkStreamObserver.onNext(rawFileChunk);
                     totalRead += chunkSize;
+                    // Check the provided ServerCallStreamObserver to see if it is still ready to accept more messages.
+                    if (serverCallStreamObserver.isReady()) {
+                        // Signal the sender to send another request. As long as isReady() stays true, the server will keep
+                        // cycling through the loop of onNext() -> request(1)...onNext() -> request(1)... until the client runs
+                        // out of messages and ends the loop (via onCompleted()).
+                        //
+                        // If request() was called here with the argument of more than 1, the server might runs out of receive
+                        // buffer space, and isReady() will turn false. When the receive buffer has sufficiently drained,
+                        // isReady() will turn true, and the serverCallStreamObserver's onReadyHandler will be called to restart
+                        // the message pump.
+                        serverCallStreamObserver.request(1);
+                    } else {
+                        // If not, note that back-pressure has begun.
+                        onReadyHandler.wasReady.set(false);
+                    }
                 }
                 //EOF
                 rawFileChunkStreamObserver.onCompleted();
