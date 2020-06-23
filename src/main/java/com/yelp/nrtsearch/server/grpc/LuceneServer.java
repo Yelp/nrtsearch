@@ -88,6 +88,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -982,12 +983,14 @@ public class LuceneServer {
                 byte[] buffer = new byte[1024 * 64];
                 long totalRead;
                 totalRead = pos;
+                Random random = new Random();
                 while (totalRead < len) {
                     int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
                     luceneFile.readBytes(buffer, 0, chunkSize);
                     RawFileChunk rawFileChunk = RawFileChunk.newBuilder().setContent(ByteString.copyFrom(buffer, 0, chunkSize)).build();
                     rawFileChunkStreamObserver.onNext(rawFileChunk);
                     totalRead += chunkSize;
+                    randomDelay(random);
                 }
                 //EOF
                 rawFileChunkStreamObserver.onCompleted();
@@ -999,6 +1002,26 @@ public class LuceneServer {
                         .augmentDescription(e.getMessage())
                         .asRuntimeException());
             }
+        }
+
+        /** induces random delay between 1ms to 10ms (both inclusive).
+         * Without this excessive buffering happens in server/primary if its to fast compared to receiver/replica.
+         * This only happens when we backfill an entire index i.e. very high indexing throughput.
+         * https://github.com/grpc/grpc-java/issues/6426. Note that flow control only works with client streaming,
+         * whereas we are using unary calls.
+         * For unary calls, you can
+         *
+         * use NettyServerBuilder.maxConcurrentCallsPerConnection to limit concurrent calls
+         *
+         * slow down to respond so that each request takes a little longer to get response.
+         *
+         * For client streaming, you can in addition do manual flow control.
+         * @param random
+         * @throws InterruptedException
+         */
+        private void randomDelay(Random random) throws InterruptedException {
+            int val = random.nextInt(10);
+            Thread.sleep(val+1);
         }
 
         @Override
