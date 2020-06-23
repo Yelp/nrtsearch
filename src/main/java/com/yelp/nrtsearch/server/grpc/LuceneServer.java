@@ -69,7 +69,6 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.Status;
-import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
 import me.dinowernli.grpc.prometheus.Configuration;
@@ -89,6 +88,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -974,15 +974,6 @@ public class LuceneServer {
         @Override
         public void recvRawFile(FileInfo fileInfoRequest, StreamObserver<RawFileChunk> rawFileChunkStreamObserver) {
             try {
-                // Set up manual flow control for the request stream. It feels backwards to configure the request
-                // stream's flow control using the response stream's observer, but this is the way it is.
-                final ServerCallStreamObserver<RawFileChunk> serverCallStreamObserver =
-                        (ServerCallStreamObserver<RawFileChunk>) rawFileChunkStreamObserver;
-                serverCallStreamObserver.disableAutoInboundFlowControl();
-
-                final OnReadyHandler onReadyHandler = new OnReadyHandler(serverCallStreamObserver);
-                serverCallStreamObserver.setOnReadyHandler(onReadyHandler);
-
                 IndexState indexState = globalState.getIndex(fileInfoRequest.getIndexName());
                 ShardState shardState = indexState.getShard(0);
                 IndexInput luceneFile = shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT);
@@ -992,34 +983,14 @@ public class LuceneServer {
                 byte[] buffer = new byte[1024 * 64];
                 long totalRead;
                 totalRead = pos;
+                Random random = new Random();
                 while (totalRead < len) {
-                    /* we have to wait for the stream to be ready before we can send next chunk on responseObserver
-                    i.e. invoked rawFileChunkStreamObserver.onNext(rawFileChunk);
-                    * */
-                    if (!serverCallStreamObserver.isReady()) {
-                        Thread.sleep(5);
-                        continue;
-                    }
                     int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
                     luceneFile.readBytes(buffer, 0, chunkSize);
                     RawFileChunk rawFileChunk = RawFileChunk.newBuilder().setContent(ByteString.copyFrom(buffer, 0, chunkSize)).build();
                     rawFileChunkStreamObserver.onNext(rawFileChunk);
                     totalRead += chunkSize;
-                    // Check the provided ServerCallStreamObserver to see if it is still ready to accept more messages.
-                    if (serverCallStreamObserver.isReady()) {
-                        // Signal the sender to send another request. As long as isReady() stays true, the server will keep
-                        // cycling through the loop of onNext() -> request(1)...onNext() -> request(1)... until the client runs
-                        // out of messages and ends the loop (via onCompleted()).
-                        //
-                        // If request() was called here with the argument of more than 1, the server might runs out of receive
-                        // buffer space, and isReady() will turn false. When the receive buffer has sufficiently drained,
-                        // isReady() will turn true, and the serverCallStreamObserver's onReadyHandler will be called to restart
-                        // the message pump.
-                        serverCallStreamObserver.request(1);
-                    } else {
-                        // If not, note that back-pressure has begun.
-                        onReadyHandler.wasReady.set(false);
-                    }
+                    randomDelay(random);
                 }
                 //EOF
                 rawFileChunkStreamObserver.onCompleted();
@@ -1031,6 +1002,26 @@ public class LuceneServer {
                         .augmentDescription(e.getMessage())
                         .asRuntimeException());
             }
+        }
+
+        /** induces random delay between 1ms to 10ms (both inclusive).
+         * Without this excessive buffering happens in server/primary if its to fast compared to receiver/replica.
+         * This only happens when we backfill an entire index i.e. very high indexing throughput.
+         * https://github.com/grpc/grpc-java/issues/6426. Note that flow control only works with client streaming,
+         * whereas we are using unary calls.
+         * For unary calls, you can
+         *
+         * use NettyServerBuilder.maxConcurrentCallsPerConnection to limit concurrent calls
+         *
+         * slow down to respond so that each request takes a little longer to get response.
+         *
+         * For client streaming, you can in addition do manual flow control.
+         * @param random
+         * @throws InterruptedException
+         */
+        private void randomDelay(Random random) throws InterruptedException {
+            int val = random.nextInt(10);
+            Thread.sleep(val+1);
         }
 
         @Override
