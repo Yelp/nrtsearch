@@ -993,7 +993,10 @@ public class LuceneServer {
                 long totalRead;
                 totalRead = pos;
                 while (totalRead < len) {
-                    if(!onReadyHandler.wasReady.get()) {
+                    /* we have to wait for the stream to be ready before we can send next chunk on responseObserver
+                    i.e. invoked rawFileChunkStreamObserver.onNext(rawFileChunk);
+                    * */
+                    if (!serverCallStreamObserver.isReady()) {
                         Thread.sleep(5);
                         continue;
                     }
