@@ -1004,7 +1004,8 @@ public class LuceneServer {
         }
 
         /** Add a delay of 1ms (inclusive) to 10ms(inclusive) between sending file chunks
-         * In absence of this we can
+         * In absence of this we can get OOM exception when server sends faster than what receiver can consume
+         * https://github.com/grpc/grpc-java/issues/6910
          * @throws InterruptedException
          */
         /**/
