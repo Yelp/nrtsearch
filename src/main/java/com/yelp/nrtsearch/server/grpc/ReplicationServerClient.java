@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 
 public class ReplicationServerClient implements Closeable {
     public final static int BINARY_MAGIC = 0x3414f5c;
+    public static final int MAX_MESSAGE_BYTES_SIZE = 1 * 1024 * 1024 * 1024;
     Logger logger = LoggerFactory.getLogger(ReplicationServerClient.class);
     private final String host;
     private final int port;
@@ -58,6 +59,7 @@ public class ReplicationServerClient implements Closeable {
                 // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
                 // needing certificates.
                 .usePlaintext()
+                .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
                 .build(), host, port);
     }
 

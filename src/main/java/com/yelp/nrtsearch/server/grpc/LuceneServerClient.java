@@ -75,6 +75,7 @@ import static com.yelp.nrtsearch.server.cli.StartIndexCommand.START_INDEX;
 import static com.yelp.nrtsearch.server.cli.StatusCommand.STATUS;
 import static com.yelp.nrtsearch.server.cli.StopIndexCommand.STOP_INDEX;
 import static com.yelp.nrtsearch.server.cli.WriteNRTPointCommand.WRITE_NRT_POINT;
+import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE;
 
 /**
  * A simple client that requests a greeting from the {@link LuceneServer}.
@@ -103,6 +104,7 @@ public class LuceneServerClient {
                 // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
                 // needing certificates.
                 .usePlaintext()
+                .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
                 .build());
     }
 
