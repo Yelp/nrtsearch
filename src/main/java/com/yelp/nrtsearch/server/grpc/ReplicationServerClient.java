@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 
 public class ReplicationServerClient implements Closeable {
     public final static int BINARY_MAGIC = 0x3414f5c;
-    public static final int MAX_MESSAGE_BYTES_SIZE = 10 * 1024 * 1024 * 1024;
+    public static final int MAX_MESSAGE_BYTES_SIZE = 2 * 1024 * 1024 * 1024;
     Logger logger = LoggerFactory.getLogger(ReplicationServerClient.class);
     private final String host;
     private final int port;
