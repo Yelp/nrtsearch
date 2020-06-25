@@ -5,6 +5,7 @@ plugins {
     id 'idea'
     id 'maven-publish'
     id 'signing'
+    id "com.diffplug.gradle.spotless" version "4.3.0"
 }
 
 repositories {
@@ -124,6 +125,7 @@ task buildGrpcGateway(dependsOn:installDist, type: Exec) {
 //e.g. to include perfTests: ./gradlew test -PincludePerfTests=true
 //e.g. default is to exclude perfTests: ./gradlew test
 test {
+    finalizedBy 'spotlessJavaCheck'
     if (!project.hasProperty('includePerfTests')) {
         exclude '**/YelpReviewsTest.class'
         exclude '**/YelpSuggestTest.class'
@@ -217,5 +219,15 @@ publishing {
             def snapshotsRepoUrl = 'https://oss.sonatype.org/content/repositories/snapshots/'
             url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
         }
+    }
+}
+
+spotless {
+    java {
+        licenseHeaderFile 'license_header'
+        removeUnusedImports()
+        endWithNewline()
+        trimTrailingWhitespace()
+        googleJavaFormat()
     }
 }

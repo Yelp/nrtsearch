@@ -4,28 +4,42 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
- * either express or implied.
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- *  limitations under the License.
- *
+ * limitations under the License.
  */
-
 package com.yelp.nrtsearch.server.luceneserver.analysis;
 
+import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.getStandardAnalyzer;
+import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.hasAnalyzer;
+import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
+import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IntObject;
 import com.yelp.nrtsearch.server.grpc.NameAndParams;
-
-import com.carrotsearch.randomizedtesting.RandomizedRunner;
-
 import com.yelp.nrtsearch.server.plugins.AnalysisPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.TokenStream;
@@ -50,328 +64,348 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.getStandardAnalyzer;
-import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.hasAnalyzer;
-import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
-import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
-import static org.apache.lucene.util.LuceneTestCase.random;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-@RunWith(RandomizedRunner.class)   // Required to call org.apache.lucene.util.LuceneTestCase.random
+@RunWith(RandomizedRunner.class) // Required to call org.apache.lucene.util.LuceneTestCase.random
 public class AnalyzerCreatorTest {
 
-    @Before
-    public void init() {
-        init(Collections.emptyList());
+  @Before
+  public void init() {
+    init(Collections.emptyList());
+  }
+
+  private void init(List<Plugin> plugins) {
+    AnalyzerCreator.initialize(getEmptyConfig(), plugins);
+  }
+
+  private LuceneServerConfiguration getEmptyConfig() {
+    String config = "nodeName: \"lucene_server_foo\"";
+    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+  }
+
+  // Tests for predefined analyzers
+
+  @Test
+  public void testPredefinedStandardAnalyzer() {
+    Analyzer analyzer =
+        AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer("standard"));
+
+    assertSame(StandardAnalyzer.class, analyzer.getClass());
+  }
+
+  @Test
+  public void testPredefinedClassicAnalyzer() {
+    Analyzer analyzer = AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer("classic"));
+
+    assertSame(ClassicAnalyzer.class, analyzer.getClass());
+  }
+
+  @Test
+  public void testPredefinedDynamicallyInitializedAnalyzer() {
+    List<String> names =
+        Arrays.asList(
+            "en.English", "bn.Bengali", "eu.Basque", "hy.Armenian", "ru.Russian", "th.Thai");
+    List<Class> classes =
+        Arrays.asList(
+            EnglishAnalyzer.class,
+            BengaliAnalyzer.class,
+            BasqueAnalyzer.class,
+            ArmenianAnalyzer.class,
+            RussianAnalyzer.class,
+            ThaiAnalyzer.class);
+
+    assertEquals(names.size(), classes.size());
+
+    for (int i = 0; i < names.size(); i++) {
+      Analyzer analyzer =
+          AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer(names.get(i)));
+      assertSame(classes.get(i), analyzer.getClass());
+    }
+  }
+
+  private static com.yelp.nrtsearch.server.grpc.Analyzer getPredefinedAnalyzer(String name) {
+    return com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder().setPredefined(name).build();
+  }
+
+  // Tests for custom analyzers - created using tests in
+  // org.apache.lucene.analysis.custom.TestCustomAnalyzer
+
+  @Test
+  public void testCustomAnalyzerFactoryHtmlStripClassicFolding() throws IOException {
+    com.yelp.nrtsearch.server.grpc.Analyzer analyzerGrpc =
+        com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
+            .setCustom(
+                com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder()
+                    .setDefaultMatchVersion("LATEST")
+                    .addCharFilters(NameAndParams.newBuilder().setName("htmlstrip"))
+                    .setTokenizer(NameAndParams.newBuilder().setName("classic"))
+                    .addTokenFilters(
+                        NameAndParams.newBuilder()
+                            .setName("asciifolding")
+                            .putParams("preserveOriginal", "true"))
+                    .addTokenFilters(NameAndParams.newBuilder().setName("lowercase"))
+                    .setPositionIncrementGap(IntObject.newBuilder().setInt(100))
+                    .setOffsetGap(IntObject.newBuilder().setInt(1000)))
+            .build();
+
+    CustomAnalyzer analyzer =
+        (CustomAnalyzer) AnalyzerCreator.getInstance().getAnalyzer(analyzerGrpc);
+    assertHtmlStripClassicFolding(analyzer);
+  }
+
+  public static void assertHtmlStripClassicFolding(CustomAnalyzer analyzer) throws IOException {
+    assertSame(ClassicTokenizerFactory.class, analyzer.getTokenizerFactory().getClass());
+    List<CharFilterFactory> charFilters = analyzer.getCharFilterFactories();
+    assertEquals(1, charFilters.size());
+    assertEquals(HTMLStripCharFilterFactory.class, charFilters.get(0).getClass());
+    List<TokenFilterFactory> tokenFilters = analyzer.getTokenFilterFactories();
+    assertEquals(2, tokenFilters.size());
+    assertSame(ASCIIFoldingFilterFactory.class, tokenFilters.get(0).getClass());
+    assertSame(LowerCaseFilterFactory.class, tokenFilters.get(1).getClass());
+    assertEquals(100, analyzer.getPositionIncrementGap("dummy"));
+    assertEquals(1000, analyzer.getOffsetGap("dummy"));
+    assertSame(Version.LATEST, analyzer.getVersion());
+
+    assertAnalyzesTo(
+        analyzer,
+        "<p>foo bar</p> FOO BAR",
+        new String[] {"foo", "bar", "foo", "bar"},
+        new int[] {1, 1, 1, 1});
+    assertAnalyzesTo(
+        analyzer,
+        "<p><b>föó</b> bär     FÖÖ BAR</p>",
+        new String[] {"foo", "föó", "bar", "bär", "foo", "föö", "bar"},
+        new int[] {1, 0, 1, 0, 1, 0, 1});
+    analyzer.close();
+  }
+
+  public static void assertAnalyzesTo(
+      Analyzer a, String input, String[] output, int[] posIncrements) throws IOException {
+    assertAnalyzesTo(a, input, output, null, null, null, posIncrements, null);
+  }
+
+  public static void assertAnalyzesTo(
+      Analyzer a,
+      String input,
+      String[] output,
+      int startOffsets[],
+      int endOffsets[],
+      String types[],
+      int posIncrements[],
+      int posLengths[])
+      throws IOException {
+    checkResetException(a, input);
+    BaseTokenStreamTestCase.checkAnalysisConsistency(random(), a, true, input);
+    assertTokenStreamContents(
+        a.tokenStream("dummy", input),
+        output,
+        startOffsets,
+        endOffsets,
+        types,
+        posIncrements,
+        posLengths,
+        input.length());
+  }
+
+  private static void checkResetException(Analyzer a, String input) throws IOException {
+    TokenStream ts = a.tokenStream("bogus", input);
+    try {
+      if (ts.incrementToken()) {
+        fail("didn't get expected exception when reset() not called");
+      }
+    } catch (IllegalStateException expected) {
+      // ok
+    } catch (Exception unexpected) {
+      unexpected.printStackTrace(System.err);
+      fail("got wrong exception when reset() not called: " + unexpected);
+    } finally {
+      // consume correctly
+      ts.reset();
+      while (ts.incrementToken()) {}
+      ts.end();
+      ts.close();
     }
 
-    private void init(List<Plugin> plugins) {
-        AnalyzerCreator.initialize(getEmptyConfig(), plugins);
+    // check for a missing close()
+    ts = a.tokenStream("bogus", input);
+    ts.reset();
+    while (ts.incrementToken()) {}
+    ts.end();
+    try {
+      ts = a.tokenStream("bogus", input);
+      fail("didn't get expected exception when close() not called");
+    } catch (IllegalStateException expected) {
+      // ok
+    } finally {
+      ts.close();
     }
+  }
 
-    private LuceneServerConfiguration getEmptyConfig() {
-        String config = "nodeName: \"lucene_server_foo\"";
-        return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
-    }
+  @Test
+  public void testCustomAnalyzerNormalizationWithMultipleTokenFilters() {
+    // none of these components are multi-term aware so they should not be applied
+    com.yelp.nrtsearch.server.grpc.Analyzer analyzerGrpc =
+        com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
+            .setCustom(
+                com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder()
+                    .setTokenizer(NameAndParams.newBuilder().setName("whitespace"))
+                    .addTokenFilters(NameAndParams.newBuilder().setName("asciifolding"))
+                    .addTokenFilters(NameAndParams.newBuilder().setName("lowercase")))
+            .build();
 
-    // Tests for predefined analyzers
+    CustomAnalyzer analyzer =
+        (CustomAnalyzer) AnalyzerCreator.getInstance().getAnalyzer(analyzerGrpc);
 
-    @Test
-    public void testPredefinedStandardAnalyzer() {
-        Analyzer analyzer = AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer("standard"));
+    assertEquals(new BytesRef("a b e"), analyzer.normalize("dummy", "À B é"));
+  }
 
-        assertSame(StandardAnalyzer.class, analyzer.getClass());
-    }
+  @Test
+  public void testCustomAnalyzerNormalizationWithMultipleCharFilters() {
+    // none of these components are multi-term aware so they should not be applied
+    com.yelp.nrtsearch.server.grpc.Analyzer analyzerGrpc =
+        com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
+            .setCustom(
+                com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder()
+                    .addCharFilters(
+                        NameAndParams.newBuilder()
+                            .setName("mapping")
+                            .putParams("mapping", "custom_analyzer_mapping/mapping1.txt"))
+                    .addCharFilters(
+                        NameAndParams.newBuilder()
+                            .setName("mapping")
+                            .putParams("mapping", "custom_analyzer_mapping/mapping2.txt"))
+                    .setTokenizer(NameAndParams.newBuilder().setName("whitespace")))
+            .build();
 
-    @Test
-    public void testPredefinedClassicAnalyzer() {
-        Analyzer analyzer = AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer("classic"));
+    CustomAnalyzer analyzer =
+        (CustomAnalyzer) AnalyzerCreator.getInstance().getAnalyzer(analyzerGrpc);
 
-        assertSame(ClassicAnalyzer.class, analyzer.getClass());
-    }
+    assertEquals(new BytesRef("e f c"), analyzer.normalize("dummy", "a b c"));
+  }
 
-    @Test
-    public void testPredefinedDynamicallyInitializedAnalyzer() {
-        List<String> names = Arrays.asList("en.English", "bn.Bengali", "eu.Basque", "hy.Armenian", "ru.Russian", "th.Thai");
-        List<Class> classes = Arrays.asList(EnglishAnalyzer.class, BengaliAnalyzer.class, BasqueAnalyzer.class,
-                ArmenianAnalyzer.class, RussianAnalyzer.class, ThaiAnalyzer.class);
+  // Test for getStandardAnalyzer method
 
-        assertEquals(names.size(), classes.size());
+  @Test
+  public void testGetStandardAnalyzer() {
+    assertSame(StandardAnalyzer.class, getStandardAnalyzer().getClass());
+  }
 
-        for (int i = 0; i < names.size(); i++) {
-            Analyzer analyzer = AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer(names.get(i)));
-            assertSame(classes.get(i), analyzer.getClass());
-        }
-    }
+  // Tests for hasAnalyzer method
 
-    private static com.yelp.nrtsearch.server.grpc.Analyzer getPredefinedAnalyzer(String name) {
-        return com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
-                .setPredefined(name)
-                .build();
-    }
+  @Test
+  public void testHasAnalyzerNoField() {
+    assertFalse(hasAnalyzer(null));
+  }
 
-    // Tests for custom analyzers - created using tests in org.apache.lucene.analysis.custom.TestCustomAnalyzer
+  @Test
+  public void testHasAnalyzerNoAnalyzer() {
+    Field field = Field.newBuilder().build();
+    assertFalse(hasAnalyzer(field));
+  }
 
-    @Test
-    public void testCustomAnalyzerFactoryHtmlStripClassicFolding() throws IOException {
-        com.yelp.nrtsearch.server.grpc.Analyzer analyzerGrpc = com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
-                .setCustom(com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder()
-                        .setDefaultMatchVersion("LATEST")
-                        .addCharFilters(NameAndParams.newBuilder()
-                                .setName("htmlstrip"))
-                        .setTokenizer(NameAndParams.newBuilder()
-                                .setName("classic"))
-                        .addTokenFilters(NameAndParams.newBuilder()
-                                .setName("asciifolding")
-                                .putParams("preserveOriginal", "true"))
-                        .addTokenFilters(NameAndParams.newBuilder()
-                                .setName("lowercase"))
-                        .setPositionIncrementGap(IntObject.newBuilder()
-                                .setInt(100))
-                        .setOffsetGap(IntObject.newBuilder()
-                                .setInt(1000)))
-                .build();
+  @Test
+  public void testHasAnalyzerAnalyzerPresent() {
+    Field field = Field.newBuilder().setAnalyzer(getPredefinedAnalyzer()).build();
 
-        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getInstance().getAnalyzer(analyzerGrpc);
-        assertHtmlStripClassicFolding(analyzer);
-    }
+    assertTrue(hasAnalyzer(field));
+  }
 
-    public static void assertHtmlStripClassicFolding(CustomAnalyzer analyzer) throws IOException {
-        assertSame(ClassicTokenizerFactory.class, analyzer.getTokenizerFactory().getClass());
-        List<CharFilterFactory> charFilters = analyzer.getCharFilterFactories();
-        assertEquals(1, charFilters.size());
-        assertEquals(HTMLStripCharFilterFactory.class, charFilters.get(0).getClass());
-        List<TokenFilterFactory> tokenFilters = analyzer.getTokenFilterFactories();
-        assertEquals(2, tokenFilters.size());
-        assertSame(ASCIIFoldingFilterFactory.class, tokenFilters.get(0).getClass());
-        assertSame(LowerCaseFilterFactory.class, tokenFilters.get(1).getClass());
-        assertEquals(100, analyzer.getPositionIncrementGap("dummy"));
-        assertEquals(1000, analyzer.getOffsetGap("dummy"));
-        assertSame(Version.LATEST, analyzer.getVersion());
+  @Test
+  public void testHasAnalyzerIndexAnalyzerPresent() {
+    Field field = Field.newBuilder().setIndexAnalyzer(getPredefinedAnalyzer()).build();
 
-        assertAnalyzesTo(analyzer, "<p>foo bar</p> FOO BAR",
-                new String[] { "foo", "bar", "foo", "bar" },
-                new int[]    { 1,     1,     1,     1});
-        assertAnalyzesTo(analyzer, "<p><b>föó</b> bär     FÖÖ BAR</p>",
-                new String[] { "foo", "föó", "bar", "bär", "foo", "föö", "bar" },
-                new int[]    { 1,     0,     1,     0,     1,     0,     1});
-        analyzer.close();
-    }
+    assertTrue(hasAnalyzer(field));
+  }
 
-    public static void assertAnalyzesTo(Analyzer a, String input, String[] output, int[] posIncrements) throws IOException {
-        assertAnalyzesTo(a, input, output, null, null, null, posIncrements, null);
-    }
+  @Test
+  public void testHasAnalyzerSearchAnalyzerPresent() {
+    Field field = Field.newBuilder().setIndexAnalyzer(getPredefinedAnalyzer()).build();
 
-    public static void assertAnalyzesTo(Analyzer a, String input, String[] output, int startOffsets[], int endOffsets[], String types[], int posIncrements[], int posLengths[]) throws IOException {
-        checkResetException(a, input);
-        BaseTokenStreamTestCase.checkAnalysisConsistency(random(), a, true, input);
-        assertTokenStreamContents(a.tokenStream("dummy", input), output, startOffsets, endOffsets, types, posIncrements, posLengths, input.length());
-    }
+    assertTrue(hasAnalyzer(field));
+  }
 
-    private static void checkResetException(Analyzer a, String input) throws IOException {
-        TokenStream ts = a.tokenStream("bogus", input);
-        try {
-            if (ts.incrementToken()) {
-                fail("didn't get expected exception when reset() not called");
+  private static com.yelp.nrtsearch.server.grpc.Analyzer getPredefinedAnalyzer() {
+    return com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder().setPredefined("dummy").build();
+  }
+
+  // Tests for isAnalyzerDefined
+
+  @Test
+  public void testIsAnalyzerDefinedNoAnalyzer() {
+    assertFalse(isAnalyzerDefined(null));
+  }
+
+  @Test
+  public void testIsAnalyzerDefinedAnalyzerPresentPredefinedAndCustomAbsent() {
+    boolean analyzerDefined =
+        isAnalyzerDefined(com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder().build());
+    assertFalse(analyzerDefined);
+  }
+
+  @Test
+  public void testIsAnalyzerDefinedPredefinedPresentCustomAbsent() {
+    boolean analyzerDefined = isAnalyzerDefined(getPredefinedAnalyzer());
+    assertTrue(analyzerDefined);
+  }
+
+  @Test
+  public void testIsAnalyzerDefinedCustomPresentPredefinedAbsent() {
+    boolean analyzerDefined =
+        isAnalyzerDefined(
+            com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
+                .setCustom(com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder().build())
+                .build());
+    assertTrue(analyzerDefined);
+  }
+
+  @Test
+  public void testIsAnalyzerDefinedPredefinedAndCustomPresent() {
+    boolean analyzerDefined =
+        isAnalyzerDefined(
+            com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
+                .setPredefined("dummy")
+                .setCustom(com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder().build())
+                .build());
+    assertTrue(analyzerDefined);
+  }
+
+  // test AnalysisPlugin
+
+  static class TestAnalysisPlugin extends Plugin implements AnalysisPlugin {
+    @Override
+    public Map<String, AnalysisProvider<? extends Analyzer>> getAnalyzers() {
+      Map<String, AnalysisProvider<? extends Analyzer>> analyzerMap = new HashMap<>();
+      analyzerMap.put(
+          "plugin_analyzer",
+          (name) -> {
+            try {
+              return CustomAnalyzer.builder()
+                  .withDefaultMatchVersion(Version.LATEST)
+                  .addCharFilter("htmlstrip")
+                  .withTokenizer("classic")
+                  .addTokenFilter("asciifolding", "preserveOriginal", "true")
+                  .addTokenFilter("lowercase")
+                  .withPositionIncrementGap(100)
+                  .withOffsetGap(1000)
+                  .build();
+            } catch (Exception e) {
+              return null;
             }
-        } catch (IllegalStateException expected) {
-            // ok
-        } catch (Exception unexpected) {
-            unexpected.printStackTrace(System.err);
-            fail("got wrong exception when reset() not called: " + unexpected);
-        } finally {
-            // consume correctly
-            ts.reset();
-            while (ts.incrementToken()) { }
-            ts.end();
-            ts.close();
-        }
-
-        // check for a missing close()
-        ts = a.tokenStream("bogus", input);
-        ts.reset();
-        while (ts.incrementToken()) {}
-        ts.end();
-        try {
-            ts = a.tokenStream("bogus", input);
-            fail("didn't get expected exception when close() not called");
-        } catch (IllegalStateException expected) {
-            // ok
-        } finally {
-            ts.close();
-        }
+          });
+      return analyzerMap;
     }
+  }
 
-    @Test
-    public void testCustomAnalyzerNormalizationWithMultipleTokenFilters() {
-        // none of these components are multi-term aware so they should not be applied
-        com.yelp.nrtsearch.server.grpc.Analyzer analyzerGrpc = com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
-                .setCustom(com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder()
-                        .setTokenizer(NameAndParams.newBuilder()
-                                .setName("whitespace"))
-                        .addTokenFilters(NameAndParams.newBuilder()
-                                .setName("asciifolding"))
-                        .addTokenFilters(NameAndParams.newBuilder()
-                                .setName("lowercase")))
-                .build();
+  @Test(expected = AnalyzerCreator.AnalyzerCreationException.class)
+  public void testPluginAnalyzerNotDefined() {
+    AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer("plugin_analyzer"));
+  }
 
-        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getInstance().getAnalyzer(analyzerGrpc);
+  @Test
+  public void testPluginProvidesAnalyzer() throws IOException {
+    init(Collections.singletonList(new TestAnalysisPlugin()));
 
-        assertEquals(new BytesRef("a b e"), analyzer.normalize("dummy", "À B é"));
-    }
-
-    @Test
-    public void testCustomAnalyzerNormalizationWithMultipleCharFilters() {
-        // none of these components are multi-term aware so they should not be applied
-        com.yelp.nrtsearch.server.grpc.Analyzer analyzerGrpc = com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
-                .setCustom(com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder()
-                        .addCharFilters(NameAndParams.newBuilder()
-                                .setName("mapping")
-                                .putParams("mapping", "custom_analyzer_mapping/mapping1.txt"))
-                        .addCharFilters(NameAndParams.newBuilder()
-                                .setName("mapping")
-                                .putParams("mapping", "custom_analyzer_mapping/mapping2.txt"))
-                        .setTokenizer(NameAndParams.newBuilder()
-                                .setName("whitespace")))
-                .build();
-
-        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getInstance().getAnalyzer(analyzerGrpc);
-
-        assertEquals(new BytesRef("e f c"), analyzer.normalize("dummy", "a b c"));
-    }
-
-    // Test for getStandardAnalyzer method
-
-    @Test
-    public void testGetStandardAnalyzer() {
-        assertSame(StandardAnalyzer.class, getStandardAnalyzer().getClass());
-    }
-
-    // Tests for hasAnalyzer method
-
-    @Test
-    public void testHasAnalyzerNoField() {
-        assertFalse(hasAnalyzer(null));
-    }
-
-    @Test
-    public void testHasAnalyzerNoAnalyzer() {
-        Field field = Field.newBuilder().build();
-        assertFalse(hasAnalyzer(field));
-    }
-
-    @Test
-    public void testHasAnalyzerAnalyzerPresent() {
-        Field field = Field.newBuilder().setAnalyzer(getPredefinedAnalyzer()).build();
-
-        assertTrue(hasAnalyzer(field));
-    }
-
-    @Test
-    public void testHasAnalyzerIndexAnalyzerPresent() {
-        Field field = Field.newBuilder().setIndexAnalyzer(getPredefinedAnalyzer()).build();
-
-        assertTrue(hasAnalyzer(field));
-    }
-
-    @Test
-    public void testHasAnalyzerSearchAnalyzerPresent() {
-        Field field = Field.newBuilder().setIndexAnalyzer(getPredefinedAnalyzer()).build();
-
-        assertTrue(hasAnalyzer(field));
-    }
-
-    private static com.yelp.nrtsearch.server.grpc.Analyzer getPredefinedAnalyzer() {
-        return com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
-                .setPredefined("dummy")
-                .build();
-    }
-
-
-    // Tests for isAnalyzerDefined
-
-    @Test
-    public void testIsAnalyzerDefinedNoAnalyzer() {
-        assertFalse(isAnalyzerDefined(null));
-    }
-
-    @Test
-    public void testIsAnalyzerDefinedAnalyzerPresentPredefinedAndCustomAbsent() {
-        boolean analyzerDefined = isAnalyzerDefined(com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
-                .build());
-        assertFalse(analyzerDefined);
-    }
-
-    @Test
-    public void testIsAnalyzerDefinedPredefinedPresentCustomAbsent() {
-        boolean analyzerDefined = isAnalyzerDefined(getPredefinedAnalyzer());
-        assertTrue(analyzerDefined);
-    }
-
-    @Test
-    public void testIsAnalyzerDefinedCustomPresentPredefinedAbsent() {
-        boolean analyzerDefined = isAnalyzerDefined(com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
-                .setCustom(com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder().build())
-                .build());
-        assertTrue(analyzerDefined);
-    }
-
-    @Test
-    public void testIsAnalyzerDefinedPredefinedAndCustomPresent() {
-        boolean analyzerDefined = isAnalyzerDefined(com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
-                .setPredefined("dummy")
-                .setCustom(com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder().build())
-                .build());
-        assertTrue(analyzerDefined);
-    }
-
-    // test AnalysisPlugin
-
-    static class TestAnalysisPlugin extends Plugin implements AnalysisPlugin {
-        @Override
-        public Map<String, AnalysisProvider<? extends Analyzer>> getAnalyzers() {
-            Map<String, AnalysisProvider<? extends Analyzer>> analyzerMap = new HashMap<>();
-            analyzerMap.put("plugin_analyzer", (name) -> {
-                try {
-                    return CustomAnalyzer.builder()
-                            .withDefaultMatchVersion(Version.LATEST)
-                            .addCharFilter("htmlstrip")
-                            .withTokenizer("classic")
-                            .addTokenFilter("asciifolding", "preserveOriginal", "true")
-                            .addTokenFilter("lowercase")
-                            .withPositionIncrementGap(100)
-                            .withOffsetGap(1000)
-                            .build();
-                } catch (Exception e) {
-                    return null;
-                }
-            });
-            return analyzerMap;
-        }
-    }
-
-    @Test(expected = AnalyzerCreator.AnalyzerCreationException.class)
-    public void testPluginAnalyzerNotDefined() {
-        AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer("plugin_analyzer"));
-    }
-
-    @Test
-    public void testPluginProvidesAnalyzer() throws IOException {
-        init(Collections.singletonList(new TestAnalysisPlugin()));
-
-        CustomAnalyzer analyzer = (CustomAnalyzer) AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer("plugin_analyzer"));
-        assertHtmlStripClassicFolding(analyzer);
-    }
+    CustomAnalyzer analyzer =
+        (CustomAnalyzer)
+            AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer("plugin_analyzer"));
+    assertHtmlStripClassicFolding(analyzer);
+  }
 }
