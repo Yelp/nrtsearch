@@ -22,7 +22,6 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.google.common.collect.Maps;
 import com.yelp.nrtsearch.server.grpc.Point;
 import com.yelp.nrtsearch.server.grpc.QuerySortField;
-import com.yelp.nrtsearch.server.grpc.QueryType;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
@@ -50,15 +49,14 @@ import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LargeNumHitsTopDocsCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
@@ -94,9 +92,8 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
-
 public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
+
     private final ThreadPoolExecutor threadPoolExecutor;
     Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
     /**
@@ -271,6 +268,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsCollectorManager = null;
             CollectorManager<TopFieldCollector, TopFieldDocs> topFieldDocsCollectorManager = null;
+            CollectorManager<LargeNumHitsTopDocsCollector, TopDocs> largeNumHitsTopDocsCollectorManager = null;
 
             //TODO: support "grouping" and "useBlockJoinCollector"
             if (sort == null) {
@@ -278,6 +276,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 FieldDoc searchAfter = null;
                 collector = TopScoreDocCollector.create(topHits, searchAfter, totalHitsThreshold);
                 topDocsCollectorManager = TopScoreDocCollector.createSharedManager(topHits, searchAfter, totalHitsThreshold);
+            } else if (q instanceof MatchAllDocsQuery) {
+                collector = new LargeNumHitsTopDocsCollector(topHits);
+                largeNumHitsTopDocsCollectorManager = LargeNumHitsTopDocsCollectorManagerCreator.createSharedManager(topHits);
             } else {
 
                 // If any of the sort fields require score, than
@@ -323,7 +324,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 try {
                     if (topDocsCollectorManager != null) {
                         topDocs = s.searcher.search(ddq, topDocsCollectorManager);
-                    } else {  //topFieldDocsCollectorManager != null
+                    }  else if(largeNumHitsTopDocsCollectorManager != null) {
+                        topDocs = s.searcher.search(ddq, largeNumHitsTopDocsCollectorManager);
+                    }
+                    else {  //topFieldDocsCollectorManager != null
                         topDocs = s.searcher.search(ddq, topFieldDocsCollectorManager);
                     }
                 } catch (TimeLimitingCollector.TimeExceededException tee) {

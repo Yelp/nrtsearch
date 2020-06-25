@@ -113,8 +113,14 @@ public class LuceneServerClient {
      */
     LuceneServerClient(ManagedChannel channel) {
         this.channel = channel;
-        blockingStub = LuceneServerGrpc.newBlockingStub(channel);
-        asyncStub = LuceneServerGrpc.newStub(channel);
+        blockingStub = LuceneServerGrpc
+                .newBlockingStub(channel)
+                .withMaxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+                .withMaxOutboundMessageSize(MAX_MESSAGE_BYTES_SIZE);
+        asyncStub = LuceneServerGrpc
+                .newStub(channel)
+                .withMaxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+                .withMaxOutboundMessageSize(MAX_MESSAGE_BYTES_SIZE);
     }
 
     public void shutdown() throws InterruptedException {

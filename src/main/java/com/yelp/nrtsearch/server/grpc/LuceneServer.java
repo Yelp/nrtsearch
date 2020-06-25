@@ -568,7 +568,6 @@ public class LuceneServer {
                 IndexState indexState = globalState.getIndex(searchRequest.getIndexName());
                 SearchHandler searchHandler = new SearchHandler(searchThreadPoolExecutor);
                 SearchResponse reply = searchHandler.handle(indexState, searchRequest);
-                logger.debug(String.format("SearchHandler returned results %s", reply.toString()));
                 searchResponseStreamObserver.onNext(reply);
                 searchResponseStreamObserver.onCompleted();
             } catch (IOException e) {

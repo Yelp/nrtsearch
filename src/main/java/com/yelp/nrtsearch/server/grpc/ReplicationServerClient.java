@@ -68,8 +68,14 @@ public class ReplicationServerClient implements Closeable {
      */
     ReplicationServerClient(ManagedChannel channel, String host, int port) {
         this.channel = channel;
-        blockingStub = ReplicationServerGrpc.newBlockingStub(channel);
-        asyncStub = ReplicationServerGrpc.newStub(channel);
+        blockingStub = ReplicationServerGrpc
+                .newBlockingStub(channel)
+                .withMaxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+                .withMaxOutboundMessageSize(MAX_MESSAGE_BYTES_SIZE);
+        asyncStub = ReplicationServerGrpc
+                .newStub(channel)
+                .withMaxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+                .withMaxOutboundMessageSize(MAX_MESSAGE_BYTES_SIZE);
         this.host = host;
         this.port = port;
     }
