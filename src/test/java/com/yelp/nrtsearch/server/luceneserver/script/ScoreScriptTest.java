@@ -38,7 +38,6 @@ import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
-import com.yelp.nrtsearch.server.luceneserver.doc.SegmentDocLookup;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
@@ -146,12 +145,12 @@ public class ScoreScriptTest {
     }
 
     @Override
-    public boolean needsScores() {
+    public boolean needs_score() {
       return true;
     }
 
     @Override
-    public DoubleValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
+    public DoubleValues newInstance(LeafReaderContext ctx, DoubleValues scores) {
       switch (scriptId) {
         case "verify_doc_values":
           return new VerifyDocValuesScript(params, docLookup, ctx, scores);
@@ -184,9 +183,9 @@ public class ScoreScriptTest {
     }
 
     @Override
-    public double doubleValue() throws IOException {
+    public double execute() {
       try {
-        LoadedDocValues<?> idDocValues = doc().get("doc_id");
+        LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
         assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
         String id = ((LoadedDocValues.SingleString) idDocValues).get(0);
@@ -252,79 +251,83 @@ public class ScoreScriptTest {
             LoadedDocValues.SortedIntegers.class,
             Integer.class,
             expectedLicenseNo,
-            doc());
+            getDoc());
         assertDocValue(
-            "count", LoadedDocValues.SingleInteger.class, Integer.class, expectedCount, doc());
+            "count", LoadedDocValues.SingleInteger.class, Integer.class, expectedCount, getDoc());
         assertDocValue(
             "vendor_name",
             LoadedDocValues.SortedStrings.class,
             String.class,
             expectedVendorName,
-            doc());
+            getDoc());
         assertDocValue(
             "vendor_name_atom",
             LoadedDocValues.SortedStrings.class,
             String.class,
             expectedVendorNameAtom,
-            doc());
+            getDoc());
         assertDocValue(
             "description",
             LoadedDocValues.SortedStrings.class,
             String.class,
             expectedDescription,
-            doc());
+            getDoc());
         assertDocValue(
             "double_field_multi",
             LoadedDocValues.SortedDoubles.class,
             Double.class,
             expectedDoubleFieldMulti,
-            doc());
+            getDoc());
         assertDocValue(
             "double_field",
             LoadedDocValues.SingleDouble.class,
             Double.class,
             expectedDoubleField,
-            doc());
+            getDoc());
         assertDocValue(
             "float_field_multi",
             LoadedDocValues.SortedFloats.class,
             Float.class,
             expectedFloatFieldMulti,
-            doc());
+            getDoc());
         assertDocValue(
             "float_field",
             LoadedDocValues.SingleFloat.class,
             Float.class,
             expectedFloatField,
-            doc());
+            getDoc());
         assertDocValue(
             "long_field_multi",
             LoadedDocValues.SortedLongs.class,
             Long.class,
             expectedLongFieldMulti,
-            doc());
+            getDoc());
         assertDocValue(
-            "long_field", LoadedDocValues.SingleLong.class, Long.class, expectedLongField, doc());
+            "long_field",
+            LoadedDocValues.SingleLong.class,
+            Long.class,
+            expectedLongField,
+            getDoc());
         assertDocValue(
             "boolean_field_multi",
             LoadedDocValues.SortedBooleans.class,
             Boolean.class,
             expectedBooleanFieldMulti,
-            doc());
+            getDoc());
         assertDocValue(
             "boolean_field",
             LoadedDocValues.SingleBoolean.class,
             Boolean.class,
             expectedBooleanField,
-            doc());
+            getDoc());
         assertDocValue(
-            "date", LoadedDocValues.SingleDateTime.class, Instant.class, expectedDate, doc());
+            "date", LoadedDocValues.SingleDateTime.class, Instant.class, expectedDate, getDoc());
         assertDocValue(
             "date_multi",
             LoadedDocValues.SortedDateTimes.class,
             Instant.class,
             expectedDateMulti,
-            doc());
+            getDoc());
       } catch (Error e) {
         throw new RuntimeException(e.getMessage(), e.getCause());
       }
@@ -342,9 +345,9 @@ public class ScoreScriptTest {
     }
 
     @Override
-    public double doubleValue() throws IOException {
+    public double execute() {
       try {
-        LoadedDocValues<?> idDocValues = doc().get("doc_id");
+        LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
         assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
         String id = ((LoadedDocValues.SingleString) idDocValues).get(0);
@@ -373,22 +376,22 @@ public class ScoreScriptTest {
             LoadedDocValues.SortedIntegers.class,
             Integer.class,
             expectedLicenseNo,
-            doc());
+            getDoc());
         assertDocValue(
             "vendor_name",
             LoadedDocValues.SortedStrings.class,
             String.class,
             expectedVendorName,
-            doc());
+            getDoc());
         assertDocValue(
             "vendor_name_atom",
             LoadedDocValues.SortedStrings.class,
             String.class,
             expectedVendorNameAtom,
-            doc());
+            getDoc());
 
         String fieldName = "lat_lon";
-        LoadedDocValues<?> docValues = doc().get(fieldName);
+        LoadedDocValues<?> docValues = getDoc().get(fieldName);
         assertNotNull(fieldName + " is null", docValues);
         assertEquals(LoadedDocValues.Locations.class, docValues.getClass());
         LoadedDocValues.Locations locations = (LoadedDocValues.Locations) docValues;
@@ -423,17 +426,17 @@ public class ScoreScriptTest {
     }
 
     @Override
-    public double doubleValue() throws IOException {
+    public double execute() {
       try {
-        LoadedDocValues<?> idDocValues = doc().get("doc_id");
+        LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
         assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
         String id = ((LoadedDocValues.SingleString) idDocValues).get(0);
 
         if (id.equals("1")) {
-          assertEquals(0.516, getScore(), 0.001);
+          assertEquals(0.516, get_score(), 0.001);
         } else if (id.equals("2")) {
-          assertEquals(0.0828, getScore(), 0.001);
+          assertEquals(0.0828, get_score(), 0.001);
         } else {
           fail(String.format("docId %s not indexed", id));
         }
@@ -454,28 +457,28 @@ public class ScoreScriptTest {
     }
 
     @Override
-    public double doubleValue() throws IOException {
+    public double execute() {
       try {
-        LoadedDocValues<?> idDocValues = doc().get("doc_id");
+        LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
         assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
         assertEquals("doc_id exists", 1, idDocValues.size());
 
-        assertEmptyDocValues("license_no", doc());
-        assertEmptyDocValues("vendor_name", doc());
-        assertEmptyDocValues("vendor_name_atom", doc());
-        assertEmptyDocValues("count", doc());
-        assertEmptyDocValues("long_field_multi", doc());
-        assertEmptyDocValues("long_field", doc());
-        assertEmptyDocValues("double_field_multi", doc());
-        assertEmptyDocValues("double_field", doc());
-        assertEmptyDocValues("float_field_multi", doc());
-        assertEmptyDocValues("float_field", doc());
-        assertEmptyDocValues("boolean_field_multi", doc());
-        assertEmptyDocValues("boolean_field", doc());
-        assertEmptyDocValues("date_multi", doc());
-        assertEmptyDocValues("date", doc());
-        assertEmptyDocValues("description", doc());
+        assertEmptyDocValues("license_no", getDoc());
+        assertEmptyDocValues("vendor_name", getDoc());
+        assertEmptyDocValues("vendor_name_atom", getDoc());
+        assertEmptyDocValues("count", getDoc());
+        assertEmptyDocValues("long_field_multi", getDoc());
+        assertEmptyDocValues("long_field", getDoc());
+        assertEmptyDocValues("double_field_multi", getDoc());
+        assertEmptyDocValues("double_field", getDoc());
+        assertEmptyDocValues("float_field_multi", getDoc());
+        assertEmptyDocValues("float_field", getDoc());
+        assertEmptyDocValues("boolean_field_multi", getDoc());
+        assertEmptyDocValues("boolean_field", getDoc());
+        assertEmptyDocValues("date_multi", getDoc());
+        assertEmptyDocValues("date", getDoc());
+        assertEmptyDocValues("description", getDoc());
       } catch (Error e) {
         throw new RuntimeException(e.getMessage(), e.getCause());
       }
@@ -493,17 +496,17 @@ public class ScoreScriptTest {
     }
 
     @Override
-    public double doubleValue() throws IOException {
+    public double execute() {
       try {
-        LoadedDocValues<?> idDocValues = doc().get("doc_id");
+        LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
         assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
         assertEquals("doc_id exists", 1, idDocValues.size());
 
-        assertEmptyDocValues("license_no", doc());
-        assertEmptyDocValues("vendor_name", doc());
-        assertEmptyDocValues("vendor_name_atom", doc());
-        assertEmptyDocValues("lat_lon", doc());
+        assertEmptyDocValues("license_no", getDoc());
+        assertEmptyDocValues("vendor_name", getDoc());
+        assertEmptyDocValues("vendor_name_atom", getDoc());
+        assertEmptyDocValues("lat_lon", getDoc());
       } catch (Error e) {
         throw new RuntimeException(e.getMessage(), e.getCause());
       }
@@ -521,42 +524,42 @@ public class ScoreScriptTest {
     }
 
     @Override
-    public double doubleValue() throws IOException {
+    public double execute() {
       try {
-        LoadedDocValues<?> idDocValues = doc().get("doc_id");
+        LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
         assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
         assertEquals("doc_id exists", 1, idDocValues.size());
 
         try {
-          doc().get(null);
+          getDoc().get(null);
           fail("null field name");
         } catch (NullPointerException ignore) {
         }
         try {
-          doc().get("not_field");
+          getDoc().get("not_field");
           fail("Invalid field");
         } catch (IllegalArgumentException ignore) {
         }
-        LoadedDocValues<?> docValues = doc().get("long_field");
+        LoadedDocValues<?> docValues = getDoc().get("long_field");
         try {
           docValues.get(2);
           fail("Invaild array index");
         } catch (IndexOutOfBoundsException ignore) {
         }
-        docValues = doc().get("long_field_multi");
+        docValues = getDoc().get("long_field_multi");
         try {
           docValues.get(2);
           fail("Invaild array index");
         } catch (IndexOutOfBoundsException ignore) {
         }
-        docValues = doc().get("vendor_name_atom");
+        docValues = getDoc().get("vendor_name_atom");
         try {
           docValues.get(2);
           fail("Invaild array index");
         } catch (IndexOutOfBoundsException ignore) {
         }
-        docValues = doc().get("vendor_name");
+        docValues = getDoc().get("vendor_name");
         try {
           docValues.get(2);
           fail("Invaild array index");
@@ -579,7 +582,7 @@ public class ScoreScriptTest {
     }
 
     @Override
-    public double doubleValue() throws IOException {
+    public double execute() {
       try {
         assertNotNull("params is null", getParams());
         assertEquals("params size", 0, getParams().size());
@@ -601,7 +604,7 @@ public class ScoreScriptTest {
     }
 
     @Override
-    public double doubleValue() throws IOException {
+    public double execute() {
       try {
         assertNotNull("params is null", getParams());
         assertEquals("params size", 6, getParams().size());
@@ -941,7 +944,7 @@ public class ScoreScriptTest {
       Class<T> docValueClass,
       Class<V> fieldValueClass,
       List<V> expectedValues,
-      SegmentDocLookup doc) {
+      Map<String, LoadedDocValues<?>> doc) {
     LoadedDocValues<?> docValues = doc.get(fieldName);
     assertNotNull(fieldName + " is null", docValues);
     assertEquals(docValueClass, docValues.getClass());
@@ -954,7 +957,7 @@ public class ScoreScriptTest {
     assertEquals(fieldName + " values", expectedValues, valuesList);
   }
 
-  private static void assertEmptyDocValues(String fieldName, SegmentDocLookup doc) {
+  private static void assertEmptyDocValues(String fieldName, Map<String, LoadedDocValues<?>> doc) {
     assertTrue("doc contains " + fieldName, doc.containsKey(fieldName));
     LoadedDocValues<?> docValues = doc.get(fieldName);
     assertNotNull(fieldName + " doc value is null", docValues);

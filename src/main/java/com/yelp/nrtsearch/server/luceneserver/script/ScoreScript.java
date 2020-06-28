@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.script;
 
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.doc.SegmentDocLookup;
 import java.io.IOException;
 import java.util.Map;
@@ -26,16 +27,22 @@ import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
 
 /**
- * Script to produce a double value for a given document. Implementations must have a doubleValue
- * function, which defines the script execution. The script has access to the query parameters, the
- * document doc values through {@link SegmentDocLookup}, and the document score through getScore.
+ * Script to produce a double value for a given document. Implementations must have an execute
+ * function. This class conforms with the script compile contract, see {@link ScriptContext}. The
+ * script has access to the query parameters, the document doc values through {@link
+ * SegmentDocLookup}, and the document score through get_score.
  */
 public abstract class ScoreScript extends DoubleValues {
+  private static final int DOC_UNSET = -1;
+
   private final Map<String, Object> params;
   private final SegmentDocLookup segmentDocLookup;
   private final DoubleValues scores;
-  private int docId = -1;
-  private Double score;
+  private int docId = DOC_UNSET;
+  private int scoreDocId = DOC_UNSET;
+
+  // names for parameters to execute
+  public static final String[] PARAMETERS = new String[] {};
 
   /**
    * ScoreScript constructor.
@@ -56,17 +63,33 @@ public abstract class ScoreScript extends DoubleValues {
   }
 
   /**
+   * Main script function.
+   *
+   * @return double value computed for document
+   */
+  public abstract double execute();
+
+  /**
+   * Redirect {@link DoubleValues} interface to get script execution result.
+   *
+   * @return script execution result
+   */
+  @Override
+  public double doubleValue() {
+    return execute();
+  }
+
+  /**
    * Advance script to a given segment document.
    *
    * @param doc segment doc id
    * @return if there is data for the given id, this should always be the case
-   * @throws IOException
    */
   @Override
-  public boolean advanceExact(int doc) throws IOException {
+  public boolean advanceExact(int doc) {
     segmentDocLookup.setDocId(doc);
     docId = doc;
-    score = null;
+    scoreDocId = DOC_UNSET;
     return true;
   }
 
@@ -74,14 +97,17 @@ public abstract class ScoreScript extends DoubleValues {
    * Get the score for the current document.
    *
    * @return document score
-   * @throws IOException
    */
-  public Double getScore() throws IOException {
-    if (score == null) {
-      scores.advanceExact(docId);
-      score = scores.doubleValue();
+  public double get_score() {
+    try {
+      if (scoreDocId == DOC_UNSET) {
+        scoreDocId = docId;
+        scores.advanceExact(scoreDocId);
+      }
+      return scores.doubleValue();
+    } catch (IOException e) {
+      throw new RuntimeException("Unable to get score", e);
     }
-    return score;
   }
 
   /** Get the script parameters provided in the request. */
@@ -89,17 +115,14 @@ public abstract class ScoreScript extends DoubleValues {
     return params;
   }
 
-  /**
-   * Get doc value lookup for this segment. During script execution, this lookup will already be
-   * advanced to the current document.
-   */
-  public SegmentDocLookup doc() {
+  /** Get doc values for the current document. */
+  public Map<String, LoadedDocValues<?>> getDoc() {
     return segmentDocLookup;
   }
 
   /**
    * Factory required from the compilation of a ScoreScript. Used to produce request level {@link
-   * DoubleValuesSource}.
+   * DoubleValuesSource}. See script compile contract {@link ScriptContext}.
    */
   public interface Factory {
     /**
@@ -112,18 +135,18 @@ public abstract class ScoreScript extends DoubleValues {
     DoubleValuesSource newFactory(Map<String, Object> params, DocLookup docLookup);
   }
 
-  // compile context for the ScoreScript, contains factory type info
+  // compile context for the ScoreScript, contains script type info
   public static final ScriptContext<ScoreScript.Factory> CONTEXT =
-      new ScriptContext<>("score", ScoreScript.Factory.class);
+      new ScriptContext<>(
+          "score", ScoreScript.Factory.class, ScoreScript.SegmentFactory.class, ScoreScript.class);
 
   /**
    * Simple abstract implementation of a {@link DoubleValuesSource} this can be extended for engines
-   * that need to implement a custom {@link ScoreScript}. The getValues and needsScores functions
-   * must be implemented. If more state is needed, the equals/hashCode should be redefined
-   * appropriately.
+   * that need to implement a custom {@link ScoreScript}. The newInstance and needs_score must be
+   * implemented. If more state is needed, the equals/hashCode should be redefined appropriately.
    *
-   * <p>This is only meant to be a helper base class. Engines are free to create there own {@link
-   * DoubleValuesSource} implementations.
+   * <p>This class conforms with the script compile contract, see {@link ScriptContext}. However,
+   * Engines are also free to create there own {@link DoubleValuesSource} implementations instead.
    */
   public abstract static class SegmentFactory extends DoubleValuesSource {
     private final Map<String, Object> params;
@@ -140,6 +163,34 @@ public abstract class ScoreScript extends DoubleValues {
 
     public DocLookup getDocLookup() {
       return docLookup;
+    }
+
+    /**
+     * Create a {@link DoubleValues} instance for the given lucene segment.
+     *
+     * @param context segment context
+     * @param scores provider of segment document scores
+     * @return script to produce values for the given segment
+     */
+    public abstract DoubleValues newInstance(LeafReaderContext context, DoubleValues scores);
+
+    /**
+     * Get if this script will need access to the document score.
+     *
+     * @return if this script uses the document score.
+     */
+    public abstract boolean needs_score();
+
+    /** Redirect {@link DoubleValuesSource} interface to script contract method. */
+    @Override
+    public DoubleValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
+      return newInstance(ctx, scores);
+    }
+
+    /** Redirect {@link DoubleValuesSource} interface to script contract method. */
+    @Override
+    public boolean needsScores() {
+      return needs_score();
     }
 
     @Override
