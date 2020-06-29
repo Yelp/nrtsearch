@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
+import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE;
+
 import com.google.api.HttpBody;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
@@ -137,6 +139,7 @@ public class LuceneServer {
                 ThreadPoolExecutorFactory.getThreadPoolExecutor(
                     ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
                     luceneServerConfiguration.getThreadPoolConfiguration()))
+            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
             .build()
             .start();
     logger.info(
@@ -150,6 +153,7 @@ public class LuceneServer {
                 ThreadPoolExecutorFactory.getThreadPoolExecutor(
                     ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
                     luceneServerConfiguration.getThreadPoolConfiguration()))
+            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
             .build()
             .start();
     logger.info(
