@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
+import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE;
+
 import com.google.api.HttpBody;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
@@ -89,8 +91,6 @@ import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE;
-
 /** Server that manages startup/shutdown of a {@code LuceneServer} server. */
 public class LuceneServer {
   private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
@@ -139,7 +139,7 @@ public class LuceneServer {
                 ThreadPoolExecutorFactory.getThreadPoolExecutor(
                     ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
                     luceneServerConfiguration.getThreadPoolConfiguration()))
-                .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
             .build()
             .start();
     logger.info(
@@ -153,7 +153,7 @@ public class LuceneServer {
                 ThreadPoolExecutorFactory.getThreadPoolExecutor(
                     ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
                     luceneServerConfiguration.getThreadPoolConfiguration()))
-                .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
             .build()
             .start();
     logger.info(
