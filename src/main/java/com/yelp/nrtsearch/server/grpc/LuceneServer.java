@@ -74,13 +74,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.PriorityQueue;
-import java.util.Queue;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
@@ -90,6 +86,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import picocli.CommandLine;
 
 /** Server that manages startup/shutdown of a {@code LuceneServer} server. */
 public class LuceneServer {
@@ -205,12 +202,35 @@ public class LuceneServer {
   }
 
   /** Main launches the server from the command line. */
-  public static void main(String[] args) throws IOException, InterruptedException {
-    logger.info("arguments passed: " + args.length);
-    Injector injector = Guice.createInjector(new LuceneServerModule(args));
-    LuceneServer luceneServer = injector.getInstance(LuceneServer.class);
-    luceneServer.start();
-    luceneServer.blockUntilShutdown();
+  public static void main(String[] args) {
+    System.exit(new CommandLine(new LuceneServerCommand()).execute(args));
+  }
+
+  @CommandLine.Command(
+      name = "lucene-server",
+      mixinStandardHelpOptions = true,
+      versionProvider = com.yelp.nrtsearch.server.cli.VersionProvider.class,
+      description = "Start NRT search server")
+  public static class LuceneServerCommand implements Callable<Integer> {
+    @CommandLine.Parameters(
+        arity = "0..1",
+        paramLabel = "server_yaml_config_file",
+        description =
+            "Optional yaml config file. Defaults to <resources>/lucene_server_default_configuration.yaml")
+    private File optionalConfigFile;
+
+    public Optional<File> maybeConfigFile() {
+      return Optional.ofNullable(optionalConfigFile);
+    }
+
+    @Override
+    public Integer call() throws Exception {
+      Injector injector = Guice.createInjector(new LuceneServerModule(this));
+      LuceneServer luceneServer = injector.getInstance(LuceneServer.class);
+      luceneServer.start();
+      luceneServer.blockUntilShutdown();
+      return 0;
+    }
   }
 
   static class LuceneServerImpl extends LuceneServerGrpc.LuceneServerImplBase {

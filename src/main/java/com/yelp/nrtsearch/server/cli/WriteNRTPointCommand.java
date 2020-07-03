@@ -15,19 +15,25 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
+import static com.yelp.nrtsearch.server.cli.LuceneClientCommand.logger;
+
+import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.grpc.SearcherVersion;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 @CommandLine.Command(
     name = WriteNRTPointCommand.WRITE_NRT_POINT,
-    mixinStandardHelpOptions = true,
-    version = "writeNRT 0.1",
     description = "Write NRT index to make all recent index operations searchable")
-public class WriteNRTPointCommand {
+public class WriteNRTPointCommand implements Callable<Integer> {
   public static final String WRITE_NRT_POINT = "writeNRT";
+
+  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
-      description = "name of the index whose NRT point is to be updated",
+      description = "Name of the index whose NRT point is to be updated",
       required = true)
   private String indexName;
 
@@ -37,9 +43,9 @@ public class WriteNRTPointCommand {
 
   @CommandLine.Option(
       names = {"--host"},
-      description = "primary host name",
-      required = false)
-  private String hostName = "localhost";
+      description = "Primary host name (default: ${DEFAULT-VALUE})",
+      defaultValue = "localhost")
+  private String hostName;
 
   public String getHostName() {
     return hostName;
@@ -47,11 +53,26 @@ public class WriteNRTPointCommand {
 
   @CommandLine.Option(
       names = {"-p", "--port"},
-      description = "primary replication port number",
+      description = "Primary replication port number",
       required = true)
   private String port;
 
   public int getPort() {
     return Integer.parseInt(port);
+  }
+
+  @Override
+  public Integer call() throws Exception {
+    LuceneServerClient client = baseCmd.getClient();
+    try {
+      ReplicationServerClient replicationServerClient =
+          new ReplicationServerClient(getHostName(), getPort());
+      SearcherVersion searcherVersion = replicationServerClient.writeNRTPoint(getIndexName());
+      logger.info("didRefresh: " + searcherVersion.getDidRefresh());
+      logger.info("searcherVersion: " + searcherVersion.getVersion());
+    } finally {
+      client.shutdown();
+    }
+    return 0;
   }
 }

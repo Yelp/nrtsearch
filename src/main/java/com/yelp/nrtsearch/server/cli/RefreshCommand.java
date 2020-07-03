@@ -15,24 +15,37 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
+import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 @CommandLine.Command(
     name = RefreshCommand.REFRESH,
-    mixinStandardHelpOptions = true,
-    version = "refresh_index 0.1",
     description = "Refresh the latest searcher for an index")
-public class RefreshCommand {
+public class RefreshCommand implements Callable<Integer> {
   public static final String REFRESH = "refresh";
+
+  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
       description =
-          "name of the index to be refreshed so latest changes are available for searching",
+          "Name of the index to be refreshed so latest changes are available for searching",
       required = true)
   private String indexName;
 
   public String getIndexName() {
     return indexName;
+  }
+
+  @Override
+  public Integer call() throws Exception {
+    LuceneServerClient client = baseCmd.getClient();
+    try {
+      client.refresh(getIndexName());
+    } finally {
+      client.shutdown();
+    }
+    return 0;
   }
 }
