@@ -16,19 +16,23 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.collect.Maps;
-import com.yelp.nrtsearch.server.grpc.Point;
 import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
-import com.yelp.nrtsearch.server.grpc.Selector;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
-import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.BooleanFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.DateTimeFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptParamsTransformer;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
@@ -47,11 +51,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -70,10 +72,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSelector;
-import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.SortedSetSelector;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
@@ -126,7 +124,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     var diagnostics = SearchResponse.Diagnostics.newBuilder();
 
     final Map<String, FieldDef> indexFields = indexState.getAllFields();
-    final Map<String, FieldDef> virtualFields = getVirtualFields(shardState, searchRequest);
+    final Map<String, VirtualFieldDef> virtualFields = getVirtualFields(shardState, searchRequest);
     final Map<String, FieldDef> queryFields =
         virtualFields.isEmpty() ? indexFields : new HashMap<>(indexFields);
 
@@ -134,13 +132,13 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     final Map<String, FieldHighlightConfig> highlightFields = new HashMap<>();
     boolean forceDocScores = false;
 
-    for (Map.Entry<String, FieldDef> entry : virtualFields.entrySet()) {
+    for (Map.Entry<String, VirtualFieldDef> entry : virtualFields.entrySet()) {
       if (indexFields.containsKey(entry.getKey())) {
         throw new SearchHandlerException(
             String.format("Virtual field has a duplicate name: %s", entry.getKey()));
       }
       queryFields.put(entry.getKey(), entry.getValue());
-      if (entry.getValue().valueSource.needsScores()) {
+      if (entry.getValue().getValuesSource().needsScores()) {
         forceDocScores = true;
       }
       fields.add(entry.getKey());
@@ -178,37 +176,38 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         // If any of the fields being retrieved require
         // score, than force returned FieldDoc.score to be
         // computed:
-        if (fd.valueSource != null && fd.valueSource.needsScores()) {
+        if (fd instanceof VirtualFieldDef
+            && ((VirtualFieldDef) fd).getValuesSource().needsScores()) {
           forceDocScores = true;
         }
 
-        if (perField != null) {
-          perField.multiValued = fd.multiValued;
-          if (fd.multiValued == false && perField.mode.equals("joinedSnippets")) {
-            throw new SearchHandlerException(
-                "highlight: joinedSnippets can only be used with multi-valued fields");
+        if (fd instanceof IndexableFieldDef) {
+          IndexableFieldDef indexableField = (IndexableFieldDef) fd;
+
+          if (perField != null) {
+            perField.multiValued = indexableField.isMultiValue();
+            if (indexableField.isMultiValue() == false && perField.mode.equals("joinedSnippets")) {
+              throw new SearchHandlerException(
+                  "highlight: joinedSnippets can only be used with multi-valued fields");
+            }
           }
-        }
-        if (!highlight.equals("no") && !fd.highlighted) {
-          throw new SearchHandlerException(
-              String.format(
-                  "retrieveFields: field: %s was not indexed with highlight=true", field));
-        }
-
-        // nocommit allow pulling from DV?  need separate
-        // dvFields?
-
-        if (fd.fieldType == null) {
-          if (fd.valueSource == null) {
+          if (!highlight.equals("no")
+              && (indexableField instanceof TextBaseFieldDef)
+              && !((TextBaseFieldDef) fd).isHighlighted()) {
             throw new SearchHandlerException(
                 String.format(
-                    "retrieveFields, field: %s was not registered with store=true", field));
+                    "retrieveFields: field: %s was not indexed with highlight=true", field));
           }
-        } else if (!fd.fieldType.stored() && DocValuesType.NONE == fd.fieldType.docValuesType()) {
-          throw new SearchHandlerException(
-              String.format(
-                  "retrieveFields, field: %s was not registered with store=true or docValues=True",
-                  field));
+
+          // nocommit allow pulling from DV?  need separate
+          // dvFields?
+
+          if (!indexableField.isStored() && !indexableField.hasDocValues()) {
+            throw new SearchHandlerException(
+                String.format(
+                    "retrieveFields, field: %s was not registered with store=true or docValues=True",
+                    field));
+          }
         }
       }
     }
@@ -478,13 +477,13 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
   }
 
   /** Parses any virtualFields, which define dynamic (expression) fields for this one request. */
-  private static Map<String, FieldDef> getVirtualFields(
+  private static Map<String, VirtualFieldDef> getVirtualFields(
       ShardState shardState, SearchRequest searchRequest) {
     if (searchRequest.getVirtualFieldsList().isEmpty()) {
       return Collections.emptyMap();
     }
     IndexState indexState = shardState.indexState;
-    Map<String, FieldDef> virtualFields = new HashMap<>();
+    Map<String, VirtualFieldDef> virtualFields = new HashMap<>();
     for (VirtualField vf : searchRequest.getVirtualFieldsList()) {
       if (virtualFields.containsKey(vf.getName())) {
         throw new IllegalArgumentException(
@@ -494,8 +493,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           ScriptService.getInstance().compile(vf.getScript(), ScoreScript.CONTEXT);
       Map<String, Object> params =
           Maps.transformValues(vf.getScript().getParamsMap(), ScriptParamsTransformer.INSTANCE);
-      FieldDef virtualField =
-          new FieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
+      VirtualFieldDef virtualField =
+          new VirtualFieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
       virtualFields.put(vf.getName(), virtualField);
     }
     return virtualFields;
@@ -800,138 +799,16 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                   fieldName));
         }
 
-        if (fd.valueSource != null) {
-          sf = fd.valueSource.getSortField(sub.getReverse());
-        } else if (fd.valueType == FieldDef.FieldValueType.LAT_LON) {
-          if (fd.fieldType.docValuesType() == DocValuesType.NONE) {
-            throw new SearchHandlerException(
-                String.format("field: %s was not registered with sort=true", fieldName));
-          }
-          Point sub2 = sub.getOrigin();
-          sf =
-              LatLonDocValuesField.newDistanceSort(
-                  fieldName, sub2.getLatitude(), sub2.getLongitude());
-        } else {
-          if (fd.fieldType == null || fd.fieldType.docValuesType() == DocValuesType.NONE) {
-            throw new SearchHandlerException(
-                String.format("field: %s was not registered with sort=true", fieldName));
-          }
-
-          if (fd.multiValued) {
-            Selector selectorString = sub.getSelector();
-            if (fd.valueType == FieldDef.FieldValueType.ATOM) {
-              SortedSetSelector.Type selector;
-              if (selectorString.equals(Selector.MIN)) {
-                selector = SortedSetSelector.Type.MIN;
-              } else if (selectorString.equals(Selector.MAX)) {
-                selector = SortedSetSelector.Type.MAX;
-              } else if (selectorString.equals(Selector.MIDDLE_MIN)) {
-                selector = SortedSetSelector.Type.MIDDLE_MIN;
-              } else if (selectorString.equals(Selector.MIDDLE_MAX)) {
-                selector = SortedSetSelector.Type.MIDDLE_MAX;
-              } else {
-                assert false;
-                // dead code but javac disagrees
-                selector = null;
-              }
-              sf = new SortedSetSortField(fieldName, sub.getReverse(), selector);
-            } else if (fd.valueType == FieldDef.FieldValueType.INT) {
-              sf =
-                  new SortedNumericSortField(
-                      fieldName,
-                      SortField.Type.INT,
-                      sub.getReverse(),
-                      parseNumericSelector(selectorString));
-            } else if (fd.valueType == FieldDef.FieldValueType.LONG) {
-              sf =
-                  new SortedNumericSortField(
-                      fieldName,
-                      SortField.Type.LONG,
-                      sub.getReverse(),
-                      parseNumericSelector(selectorString));
-            } else if (fd.valueType == FieldDef.FieldValueType.FLOAT) {
-              sf =
-                  new SortedNumericSortField(
-                      fieldName,
-                      SortField.Type.FLOAT,
-                      sub.getReverse(),
-                      parseNumericSelector(selectorString));
-            } else if (fd.valueType == FieldDef.FieldValueType.DOUBLE) {
-              sf =
-                  new SortedNumericSortField(
-                      fieldName,
-                      SortField.Type.DOUBLE,
-                      sub.getReverse(),
-                      parseNumericSelector(selectorString));
-            } else {
-              throw new SearchHandlerException(
-                  String.format(
-                      "cannot sort by multiValued field: %s tyep is %s", fieldName, fd.valueType));
-            }
-          } else {
-            SortField.Type sortType;
-            if (fd.valueType == FieldDef.FieldValueType.ATOM) {
-              sortType = SortField.Type.STRING;
-            } else if (fd.valueType == FieldDef.FieldValueType.LONG
-                || fd.valueType == FieldDef.FieldValueType.DATE_TIME) {
-              sortType = SortField.Type.LONG;
-            } else if (fd.valueType == FieldDef.FieldValueType.INT) {
-              sortType = SortField.Type.INT;
-            } else if (fd.valueType == FieldDef.FieldValueType.DOUBLE) {
-              sortType = SortField.Type.DOUBLE;
-            } else if (fd.valueType == FieldDef.FieldValueType.FLOAT) {
-              sortType = SortField.Type.FLOAT;
-            } else {
-              throw new SearchHandlerException(
-                  String.format("cannot sort by field: %s tyep is %s", fieldName, fd.valueType));
-            }
-
-            sf = new SortField(fieldName, sortType, sub.getReverse());
-          }
-        }
-
-        boolean hasMissingLast = sub.getMissingLat();
-
-        // TODO: SortType to have field missingLast?
-        boolean missingLast = false;
-
-        if (fd.valueType == FieldDef.FieldValueType.ATOM) {
-          if (missingLast) {
-            sf.setMissingValue(SortField.STRING_LAST);
-          } else {
-            sf.setMissingValue(SortField.STRING_FIRST);
-          }
-        } else if (fd.valueType == FieldDef.FieldValueType.INT) {
-          sf.setMissingValue(missingLast ? Integer.MAX_VALUE : Integer.MIN_VALUE);
-        } else if (fd.valueType == FieldDef.FieldValueType.LONG) {
-          sf.setMissingValue(missingLast ? Long.MAX_VALUE : Long.MIN_VALUE);
-        } else if (fd.valueType == FieldDef.FieldValueType.FLOAT) {
-          sf.setMissingValue(missingLast ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY);
-        } else if (fd.valueType == FieldDef.FieldValueType.DOUBLE) {
-          sf.setMissingValue(missingLast ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY);
-        } else if (hasMissingLast) {
+        if (!(fd instanceof Sortable)) {
           throw new SearchHandlerException(
-              String.format(
-                  "field: %s can only specify missingLast for string and numeric field types: got SortField type: %s ",
-                  fieldName, sf.getType()));
+              String.format("field: %s does not support sorting", fieldName));
         }
+
+        sf = ((Sortable) fd).getSortField(sub);
       }
       sortFields.add(sf);
     }
-
     return new Sort(sortFields.toArray(new SortField[0]));
-  }
-
-  private static SortedNumericSelector.Type parseNumericSelector(Selector selectorString)
-      throws SearchHandlerException {
-    if (selectorString.equals(Selector.MIN)) {
-      return SortedNumericSelector.Type.MIN;
-    } else if (selectorString.equals(Selector.MAX)) {
-      return SortedNumericSelector.Type.MAX;
-    } else {
-      throw new SearchHandlerException(
-          "selector, must be min or max for multi-valued numeric sort fields");
-    }
   }
 
   /**
@@ -966,13 +843,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         assert fd != null;
 
         // retrieve from doc values
-        if (fd.valueSource != null) {
+        if (fd instanceof VirtualFieldDef) {
+          VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
           List<LeafReaderContext> leaves = s.getIndexReader().leaves();
           LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.doc, leaves));
 
           int docID = hit.doc - leaf.docBase;
 
-          assert !Float.isNaN(hit.score) || !fd.valueSource.needsScores();
+          assert !Float.isNaN(hit.score) || !virtualFieldDef.getValuesSource().needsScores();
           DoubleValues scoreValue =
               new DoubleValues() {
                 @Override
@@ -985,32 +863,32 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                   return !Float.isNaN(hit.score);
                 }
               };
-          DoubleValues doubleValues = fd.valueSource.getValues(leaf, scoreValue);
+          DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
           doubleValues.advanceExact(docID);
           compositeFieldValue.addFieldValue(
               FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
-        } else if (fd.fieldType != null && fd.fieldType.docValuesType() != DocValuesType.NONE) {
+        } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
           List<LeafReaderContext> leaves = s.getIndexReader().leaves();
           // get the current leaf/segment that this doc is in
           LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.doc, leaves));
           int docID = hit.doc - leaf.docBase;
           // it may be possible to cache this if there are multiple hits in the same segment
-          LoadedDocValues<?> docValues = DocValuesFactory.getDocValues(fd, leaf);
+          LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);
           docValues.setDocId(docID);
           for (int i = 0; i < docValues.size(); ++i) {
             compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
           }
         }
         // retrieve stored fields
-        else if (fd.fieldType != null && fd.fieldType.stored()) {
-          String[] values = s.doc(hit.doc).getValues(name);
+        else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
+          String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.doc));
           for (String fieldValue : values) {
             compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
           }
         } else {
           Object v = doc.get(name); // FIXME: doc is never updated, not sure if this is correct
           if (v != null) {
-            if (fd.multiValued == false) {
+            if (fd instanceof IndexableFieldDef && !((IndexableFieldDef) fd).isMultiValue()) {
               compositeFieldValue.addFieldValue(convertType(fd, v));
             } else {
               if (!(v instanceof List)) {
@@ -1083,15 +961,15 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
   private static FieldValue convertType(FieldDef fd, Object o) {
     var fieldValue = FieldValue.newBuilder();
-    if (fd.valueType == FieldDef.FieldValueType.BOOLEAN) {
-      if (((Integer) o).intValue() == 1) {
+    if (fd instanceof BooleanFieldDef) {
+      if ((Integer) o == 1) {
         fieldValue.setBooleanValue(Boolean.TRUE);
       } else {
-        assert ((Integer) o).intValue() == 0;
+        assert (Integer) o == 0;
         fieldValue.setBooleanValue(Boolean.FALSE);
       }
-    } else if (fd.valueType == FieldDef.FieldValueType.DATE_TIME) {
-      fieldValue.setTextValue(msecToDateString(fd, ((Number) o).longValue()));
+    } else if (fd instanceof DateTimeFieldDef) {
+      fieldValue.setTextValue(msecToDateString(((DateTimeFieldDef) fd), ((Number) o).longValue()));
     } else {
       throw new IllegalArgumentException("Unable to convert object: " + o);
     }
@@ -1099,8 +977,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     return fieldValue.build();
   }
 
-  private static String msecToDateString(FieldDef fd, long value) {
-    assert fd.valueType == FieldDef.FieldValueType.DATE_TIME;
+  private static String msecToDateString(DateTimeFieldDef fd, long value) {
     // nocommit use CTL to reuse these?
     return fd.getDateTimeParser().parser.format(new Date(value));
   }

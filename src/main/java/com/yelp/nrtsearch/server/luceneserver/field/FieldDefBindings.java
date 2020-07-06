@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver;
+package com.yelp.nrtsearch.server.luceneserver.field;
 
+import com.yelp.nrtsearch.server.luceneserver.field.properties.Bindable;
 import java.util.Map;
 import org.apache.lucene.expressions.Bindings;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.search.DoubleValuesSource;
 
 /** Implements {@link Bindings} on top of the registered fields. */
@@ -39,26 +39,9 @@ public final class FieldDefBindings extends Bindings {
     if (fd == null) {
       throw new IllegalArgumentException("Invalid reference '" + name + "'");
     }
-    if (fd.valueType == FieldDef.FieldValueType.VIRTUAL) {
-      return fd.valueSource;
-    } else if (fd.fieldType != null && fd.fieldType.docValuesType() == DocValuesType.NUMERIC) {
-      if (fd.valueType == FieldDef.FieldValueType.INT) {
-        return DoubleValuesSource.fromIntField(name);
-      } else if (fd.valueType == FieldDef.FieldValueType.FLOAT) {
-        return DoubleValuesSource.fromFloatField(name);
-      } else if (fd.valueType == FieldDef.FieldValueType.LONG) {
-        return DoubleValuesSource.fromLongField(name);
-      } else if (fd.valueType == FieldDef.FieldValueType.DOUBLE) {
-        return DoubleValuesSource.fromDoubleField(name);
-      } else {
-        assert false : "unknown numeric field type: " + fd.valueType;
-        return null;
-      }
-    } else {
-      throw new IllegalArgumentException(
-          "Field \'"
-              + name
-              + "\' cannot be used in an expression: it was not registered with sort=true");
+    if (!(fd instanceof Bindable)) {
+      throw new IllegalArgumentException("Field: " + name + " does not support expression binding");
     }
+    return ((Bindable) fd).getExpressionBinding();
   }
 }

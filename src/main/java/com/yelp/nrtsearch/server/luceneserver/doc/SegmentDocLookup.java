@@ -15,15 +15,15 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.doc;
 
-import com.yelp.nrtsearch.server.luceneserver.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 
 /**
@@ -81,7 +81,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     String fieldName = key.toString();
     try {
       FieldDef field = indexState.getField(fieldName);
-      return field.fieldType.docValuesType() != DocValuesType.NONE;
+      return field instanceof IndexableFieldDef && ((IndexableFieldDef) field).hasDocValues();
     } catch (Exception ignored) {
       return false;
     }
@@ -112,8 +112,12 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
       if (fieldDef == null) {
         throw new IllegalArgumentException("Field does not exist: " + fieldName);
       }
+      if (!(fieldDef instanceof IndexableFieldDef)) {
+        throw new IllegalArgumentException("Field cannot have doc values: " + fieldName);
+      }
+      IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDef;
       try {
-        docValues = DocValuesFactory.getDocValues(fieldDef, context);
+        docValues = indexableFieldDef.getDocValues(context);
       } catch (IOException e) {
         throw new IllegalArgumentException("Could not get doc values for field: " + fieldName, e);
       }

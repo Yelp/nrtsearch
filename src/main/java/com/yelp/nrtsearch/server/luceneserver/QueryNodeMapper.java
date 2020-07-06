@@ -20,16 +20,15 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.is
 import com.google.common.collect.Maps;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptParamsTransformer;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.DoublePoint;
-import org.apache.lucene.document.FloatPoint;
-import org.apache.lucene.document.IntPoint;
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.*;
@@ -38,9 +37,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 
 /** This class maps our GRPC Query object to a Lucene Query object. */
@@ -53,7 +50,6 @@ class QueryNodeMapper {
           Map.of(
               MatchOperator.SHOULD, BooleanClause.Occur.SHOULD,
               MatchOperator.MUST, BooleanClause.Occur.MUST));
-  private final RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder();
 
   Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
     Query queryNode = getQueryNode(query, state);
@@ -134,51 +130,29 @@ class QueryNodeMapper {
 
   private Query getTermQuery(com.yelp.nrtsearch.server.grpc.TermQuery termQuery, IndexState state) {
     String fieldName = termQuery.getField();
-    FieldDef.FieldValueType fieldValueType = state.getField(fieldName).valueType;
+    FieldDef fieldDef = state.getField(fieldName);
 
-    switch (fieldValueType) {
-      case TEXT:
-        return new TermQuery(new Term(fieldName, termQuery.getTextValue()));
-      case INT:
-        return IntPoint.newExactQuery(fieldName, termQuery.getIntValue());
-      case LONG:
-        return LongPoint.newExactQuery(fieldName, termQuery.getLongValue());
-      case FLOAT:
-        return FloatPoint.newExactQuery(fieldName, termQuery.getFloatValue());
-      case DOUBLE:
-        return DoublePoint.newExactQuery(fieldName, termQuery.getDoubleValue());
+    if (fieldDef instanceof TermQueryable) {
+      return ((TermQueryable) fieldDef).getTermQuery(termQuery);
     }
 
     String message =
         "Unable to create TermQuery: %s, field type: %s is not supported for TermQuery";
-    throw new IllegalArgumentException(String.format(message, termQuery, fieldValueType));
+    throw new IllegalArgumentException(String.format(message, termQuery, fieldDef.getType()));
   }
 
   private Query getTermInSetQuery(
       com.yelp.nrtsearch.server.grpc.TermInSetQuery termInSetQuery, IndexState state) {
     String fieldName = termInSetQuery.getField();
-    FieldDef.FieldValueType fieldValueType = state.getField(fieldName).valueType;
+    FieldDef fieldDef = state.getField(fieldName);
 
-    switch (fieldValueType) {
-      case TEXT:
-        List<BytesRef> textTerms =
-            termInSetQuery.getTextTerms().getTermsList().stream()
-                .map(BytesRef::new)
-                .collect(Collectors.toList());
-        return new TermInSetQuery(termInSetQuery.getField(), textTerms);
-      case INT:
-        return IntPoint.newSetQuery(fieldName, termInSetQuery.getIntTerms().getTermsList());
-      case LONG:
-        return LongPoint.newSetQuery(fieldName, termInSetQuery.getLongTerms().getTermsList());
-      case FLOAT:
-        return FloatPoint.newSetQuery(fieldName, termInSetQuery.getFloatTerms().getTermsList());
-      case DOUBLE:
-        return DoublePoint.newSetQuery(fieldName, termInSetQuery.getDoubleTerms().getTermsList());
+    if (fieldDef instanceof TermQueryable) {
+      return ((TermQueryable) fieldDef).getTermInSetQuery(termInSetQuery);
     }
 
     String message =
         "Unable to create TermInSetQuery: %s, field type: %s is not supported for TermInSetQuery";
-    throw new IllegalArgumentException(String.format(message, termInSetQuery, fieldValueType));
+    throw new IllegalArgumentException(String.format(message, termInSetQuery, fieldDef.getType()));
   }
 
   private DisjunctionMaxQuery getDisjunctionMaxQuery(
@@ -293,7 +267,14 @@ class QueryNodeMapper {
   }
 
   private Query getRangeQuery(RangeQuery rangeQuery, IndexState state) {
-    return rangeQueryBuilder.buildRangeQuery(rangeQuery, state);
+    String fieldName = rangeQuery.getField();
+    FieldDef field = state.getField(fieldName);
+
+    if (!(field instanceof RangeQueryable)) {
+      throw new IllegalArgumentException("Field: " + fieldName + " does not support RangeQuery");
+    }
+
+    return ((RangeQueryable) field).getRangeQuery(rangeQuery);
   }
 
   private Map<com.yelp.nrtsearch.server.grpc.BooleanClause.Occur, BooleanClause.Occur>
