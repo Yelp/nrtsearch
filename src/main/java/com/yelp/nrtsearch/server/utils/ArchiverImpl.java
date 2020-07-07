@@ -145,12 +145,16 @@ public class ArchiverImpl implements Archiver {
               "Source directory %s, for service %s, and resource %s does not exist",
               sourceDir, serviceName, resource));
     }
+
     Path destPath = archiverDirectory.resolve(getTmpName());
-    tar.buildTar(sourceDir, destPath);
-    String versionHash = UUID.randomUUID().toString();
-    uploadTarWithMetadata(serviceName, resource, versionHash, destPath);
-    Files.deleteIfExists(destPath);
-    return versionHash;
+    try {
+      tar.buildTar(sourceDir, destPath);
+      String versionHash = UUID.randomUUID().toString();
+      uploadTarWithMetadata(serviceName, resource, versionHash, destPath);
+      return versionHash;
+    } finally {
+      Files.deleteIfExists(destPath);
+    }
   }
 
   private void uploadTarWithMetadata(
