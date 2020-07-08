@@ -15,8 +15,10 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
+import com.yelp.nrtsearch.server.luceneserver.script.ScriptContext;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptEngine;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * Plugin interface that allows for the registration of new scripting languages. These {@link
@@ -30,9 +32,10 @@ public interface ScriptPlugin {
    * com.yelp.nrtsearch.server.luceneserver.script.ScriptService}. The service delegates compilation
    * of the script source to the appropriate engine based on the specified language.
    *
+   * @param contexts list of possible script context types
    * @return list of provided {@link ScriptEngine} implementations
    */
-  default Iterable<ScriptEngine> getScriptEngines() {
+  default Iterable<ScriptEngine> getScriptEngines(List<ScriptContext<?>> contexts) {
     return Collections.emptyList();
   }
 }
