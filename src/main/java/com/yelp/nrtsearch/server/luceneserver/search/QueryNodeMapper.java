@@ -13,12 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver;
+package com.yelp.nrtsearch.server.luceneserver.search;
 
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
 
 import com.google.common.collect.Maps;
 import com.yelp.nrtsearch.server.grpc.*;
+import com.yelp.nrtsearch.server.luceneserver.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.MatchQueryBuilder;
+import com.yelp.nrtsearch.server.luceneserver.RangeQueryBuilder;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptParamsTransformer;
@@ -44,7 +48,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 
 /** This class maps our GRPC Query object to a Lucene Query object. */
-class QueryNodeMapper {
+public class QueryNodeMapper {
 
   private final Map<com.yelp.nrtsearch.server.grpc.BooleanClause.Occur, BooleanClause.Occur>
       occurMapping = initializeOccurMapping();
@@ -55,7 +59,7 @@ class QueryNodeMapper {
               MatchOperator.MUST, BooleanClause.Occur.MUST));
   private final RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder();
 
-  Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
+  public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
     Query queryNode = getQueryNode(query, state);
 
     if (query.getBoost() < 0) {

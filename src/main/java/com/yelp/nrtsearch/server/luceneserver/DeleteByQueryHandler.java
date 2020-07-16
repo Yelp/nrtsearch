@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
 import com.yelp.nrtsearch.server.grpc.DeleteByQueryRequest;
+import com.yelp.nrtsearch.server.luceneserver.search.QueryNodeMapper;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
