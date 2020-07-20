@@ -22,6 +22,8 @@ import io.grpc.StatusRuntimeException;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.net.InetAddress;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -647,7 +649,7 @@ public class ShardState implements Closeable {
                   return searcher;
                 }
               },
-              verbose ? System.out : null);
+              verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()));
 
       // nocommit this isn't used?
       searcherManager =
@@ -780,7 +782,7 @@ public class ShardState implements Closeable {
                   return searcher;
                 }
               },
-              verbose ? System.out : null,
+              verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               primaryGen);
 
       startSearcherPruningThread(indexState.globalState.shutdownNow);
