@@ -79,6 +79,12 @@ public class LuceneServerModule extends AbstractModule {
       AmazonS3 s3ClientInterim =
           AmazonS3ClientBuilder.standard().withCredentials(awsCredentialsProvider).build();
       String region = s3ClientInterim.getBucketLocation(luceneServerConfiguration.getBucketName());
+      // In useast-1, the region is returned as "US" which is an equivalent to "us-east-1"
+      // https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/model/Region.html#US_Standard
+      // However, this causes an UnknownHostException so we override it to the full region name
+      if (region.equals("US")) {
+        region = "us-east-1";
+      }
       String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
       return AmazonS3ClientBuilder.standard()
           .withCredentials(awsCredentialsProvider)
