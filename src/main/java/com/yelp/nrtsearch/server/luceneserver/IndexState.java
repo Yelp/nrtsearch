@@ -726,8 +726,8 @@ public class IndexState implements Closeable, Restorable {
     return liveSettingsSaveState.toString();
   }
 
-  public synchronized boolean hasFacets() {
-    return internalFacetFieldNames.isEmpty() == false;
+  public boolean hasFacets() {
+    return !internalFacetFieldNames.isEmpty();
   }
 
   /** Returns JSON representation of all registered fields. */
