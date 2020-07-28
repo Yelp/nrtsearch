@@ -104,7 +104,7 @@ task luceneServer(type: CreateStartScripts) {
 }
 
 task luceneServerClient(type: CreateStartScripts) {
-    mainClassName = 'com.yelp.nrtsearch.server.grpc.LuceneServerClient'
+    mainClassName = 'com.yelp.nrtsearch.server.cli.LuceneClientCommand'
     applicationName = 'lucene-client'
     outputDir = new File(project.buildDir, 'tmp')
     classpath = startScripts.classpath
@@ -239,4 +239,20 @@ spotless {
         trimTrailingWhitespace()
         googleJavaFormat()
     }
+}
+
+// Inject properties file containing the project version into resources.
+// Used to get version info at runtime.
+task createProperties(dependsOn: processResources) {
+    doLast {
+        new File("$buildDir/resources/main/version.properties").withWriter { w ->
+            Properties p = new Properties()
+            p['version'] = project.version.toString()
+            p.store w, null
+        }
+    }
+}
+
+classes {
+    dependsOn createProperties
 }

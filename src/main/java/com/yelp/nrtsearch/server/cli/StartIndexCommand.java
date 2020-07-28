@@ -17,23 +17,37 @@ package com.yelp.nrtsearch.server.cli;
 
 import static com.yelp.nrtsearch.server.cli.StartIndexCommand.START_INDEX;
 
+import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
-@CommandLine.Command(
-    name = START_INDEX,
-    mixinStandardHelpOptions = true,
-    version = "startIndex 0.1",
-    description = "starts the index")
-public class StartIndexCommand {
+@CommandLine.Command(name = START_INDEX, description = "Starts the index")
+public class StartIndexCommand implements Callable<Integer> {
   public static final String START_INDEX = "startIndex";
+
+  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-f", "--fileName"},
-      description = "name of the file containing the start index specifics",
+      description = "Name of the file containing the start index specifics",
       required = true)
   private String fileName;
 
   public String getFileName() {
     return fileName;
+  }
+
+  @Override
+  public Integer call() throws Exception {
+    LuceneServerClient client = baseCmd.getClient();
+    try {
+      Path filePath = Paths.get(getFileName());
+      client.startIndex(filePath);
+    } finally {
+      client.shutdown();
+    }
+    return 0;
   }
 }

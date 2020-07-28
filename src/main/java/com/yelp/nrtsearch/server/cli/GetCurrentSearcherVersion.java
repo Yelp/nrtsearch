@@ -15,20 +15,26 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
+import static com.yelp.nrtsearch.server.cli.LuceneClientCommand.logger;
+
+import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.grpc.SearcherVersion;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 @CommandLine.Command(
     name = GetCurrentSearcherVersion.CURRENT_SEARCHER_VERSION,
-    mixinStandardHelpOptions = true,
-    version = "currSearcherVer 0.1",
     description =
         "Gets the most recent searcher version on replica, should match primary version returned on the last writeNRT call")
-public class GetCurrentSearcherVersion {
+public class GetCurrentSearcherVersion implements Callable<Integer> {
   public static final String CURRENT_SEARCHER_VERSION = "currSearcherVer";
+
+  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
-      description = "name of the index whose NRT point is to be updated",
+      description = "Name of the index whose NRT point is to be updated",
       required = true)
   private String indexName;
 
@@ -38,9 +44,9 @@ public class GetCurrentSearcherVersion {
 
   @CommandLine.Option(
       names = {"--host"},
-      description = "replica host name",
-      required = false)
-  private String hostName = "localhost";
+      description = "Replica host name (default: ${DEFAULT-VALUE})",
+      defaultValue = "localhost")
+  private String hostName;
 
   public String getHostName() {
     return hostName;
@@ -48,11 +54,25 @@ public class GetCurrentSearcherVersion {
 
   @CommandLine.Option(
       names = {"-p", "--port"},
-      description = "replica replication port number",
+      description = "Replica replication port number",
       required = true)
   private String port;
 
   public int getPort() {
     return Integer.parseInt(port);
+  }
+
+  @Override
+  public Integer call() throws Exception {
+    LuceneServerClient client = baseCmd.getClient();
+    try {
+      ReplicationServerClient replServerClient =
+          new ReplicationServerClient(getHostName(), getPort());
+      SearcherVersion searcherVersion = replServerClient.getCurrentSearcherVersion(getIndexName());
+      logger.info("searcherVersion: " + searcherVersion.getVersion());
+    } finally {
+      client.shutdown();
+    }
+    return 0;
   }
 }

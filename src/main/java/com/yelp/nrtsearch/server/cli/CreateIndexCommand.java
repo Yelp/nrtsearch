@@ -15,25 +15,27 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
+import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 @CommandLine.Command(
     name = CreateIndexCommand.CREATE_INDEX,
-    mixinStandardHelpOptions = true,
-    version = "createIndex 0.1",
-    description = "creates the index per the specified name")
-public class CreateIndexCommand {
+    description = "Creates the index per the specified name")
+public class CreateIndexCommand implements Callable<Integer> {
   public static final String CREATE_INDEX = "createIndex";
+
+  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
-      description = "name of the index to be created",
+      description = "Name of the index to be created",
       required = true)
   private String indexName;
 
   @CommandLine.Option(
       names = {"-d", "--rootDir"},
-      description = "name of the directory where index is to be created",
+      description = "Name of the directory where index is to be created",
       required = true)
   private String rootDir;
 
@@ -43,5 +45,16 @@ public class CreateIndexCommand {
 
   public String getRootDir() {
     return rootDir;
+  }
+
+  @Override
+  public Integer call() throws Exception {
+    LuceneServerClient client = baseCmd.getClient();
+    try {
+      client.createIndex(getIndexName(), getRootDir());
+    } finally {
+      client.shutdown();
+    }
+    return 0;
   }
 }

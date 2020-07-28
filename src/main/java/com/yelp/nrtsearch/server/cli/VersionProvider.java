@@ -15,26 +15,13 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
-import static com.yelp.nrtsearch.server.cli.StatusCommand.STATUS;
-
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
-import java.util.concurrent.Callable;
+import com.yelp.nrtsearch.server.Version;
 import picocli.CommandLine;
 
-@CommandLine.Command(name = STATUS, description = "Get current status of a host")
-public class StatusCommand implements Callable<Integer> {
-  public static final String STATUS = "status";
-
-  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
-
+/** Provides dynamic version string to {@link CommandLine.Command}. */
+public class VersionProvider implements CommandLine.IVersionProvider {
   @Override
-  public Integer call() throws Exception {
-    LuceneServerClient client = baseCmd.getClient();
-    try {
-      client.status();
-    } finally {
-      client.shutdown();
-    }
-    return 0;
+  public String[] getVersion() {
+    return new String[] {Version.CURRENT.toString()};
   }
 }

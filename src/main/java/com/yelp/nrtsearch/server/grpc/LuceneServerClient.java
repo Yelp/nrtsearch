@@ -15,61 +15,21 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
-import static com.yelp.nrtsearch.server.cli.AddDocumentsCommand.ADD_DOCUMENTS;
-import static com.yelp.nrtsearch.server.cli.BackupIndexCommand.BACKUP_INDEX;
-import static com.yelp.nrtsearch.server.cli.CommitCommand.COMMIT;
-import static com.yelp.nrtsearch.server.cli.CreateIndexCommand.CREATE_INDEX;
-import static com.yelp.nrtsearch.server.cli.DeleteAllDocumentsCommand.DELETE_ALL_DOCS;
-import static com.yelp.nrtsearch.server.cli.DeleteDocumentsCommand.DELETE_DOCS;
-import static com.yelp.nrtsearch.server.cli.DeleteIndexCommand.DELETE_INDEX;
-import static com.yelp.nrtsearch.server.cli.GetCurrentSearcherVersion.CURRENT_SEARCHER_VERSION;
-import static com.yelp.nrtsearch.server.cli.LiveSettingsCommand.LIVE_SETTINGS;
-import static com.yelp.nrtsearch.server.cli.RegisterFieldsCommand.REGISTER_FIELDS;
-import static com.yelp.nrtsearch.server.cli.SearchCommand.SEARCH;
-import static com.yelp.nrtsearch.server.cli.StartIndexCommand.START_INDEX;
-import static com.yelp.nrtsearch.server.cli.StatusCommand.STATUS;
-import static com.yelp.nrtsearch.server.cli.StopIndexCommand.STOP_INDEX;
-import static com.yelp.nrtsearch.server.cli.WriteNRTPointCommand.WRITE_NRT_POINT;
 import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE;
 
-import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.cli.AddDocumentsCommand;
-import com.yelp.nrtsearch.server.cli.BackupIndexCommand;
-import com.yelp.nrtsearch.server.cli.Cmd;
-import com.yelp.nrtsearch.server.cli.CommitCommand;
-import com.yelp.nrtsearch.server.cli.CreateIndexCommand;
-import com.yelp.nrtsearch.server.cli.DeleteAllDocumentsCommand;
-import com.yelp.nrtsearch.server.cli.DeleteDocumentsCommand;
-import com.yelp.nrtsearch.server.cli.DeleteIndexCommand;
-import com.yelp.nrtsearch.server.cli.GetCurrentSearcherVersion;
-import com.yelp.nrtsearch.server.cli.LiveSettingsCommand;
-import com.yelp.nrtsearch.server.cli.RefreshCommand;
-import com.yelp.nrtsearch.server.cli.RegisterFieldsCommand;
-import com.yelp.nrtsearch.server.cli.SearchCommand;
-import com.yelp.nrtsearch.server.cli.SettingsCommand;
-import com.yelp.nrtsearch.server.cli.StartIndexCommand;
-import com.yelp.nrtsearch.server.cli.StatsCommand;
-import com.yelp.nrtsearch.server.cli.StopIndexCommand;
-import com.yelp.nrtsearch.server.cli.WriteNRTPointCommand;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
-import java.io.Reader;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import picocli.CommandLine;
 
 /** A simple client that requests a greeting from the {@link LuceneServer}. */
 public class LuceneServerClient {
@@ -221,7 +181,7 @@ public class LuceneServerClient {
 
           @Override
           public void onCompleted() {
-            logger.info(String.format("Received final response from server"));
+            logger.info("Received final response from server");
             finishLatch.countDown();
           }
         };
@@ -231,8 +191,7 @@ public class LuceneServerClient {
     // onNext and 1 completed)
     StreamObserver<AddDocumentRequest> requestObserver = asyncStub.addDocuments(responseObserver);
     try {
-      addDocumentRequestStream.forEach(
-          addDocumentRequest -> requestObserver.onNext(addDocumentRequest));
+      addDocumentRequestStream.forEach(requestObserver::onNext);
     } catch (RuntimeException e) {
       // Cancel RPC
       requestObserver.onError(e);
@@ -340,7 +299,7 @@ public class LuceneServerClient {
             .build());
   }
 
-  private void status() throws InterruptedException {
+  public void status() throws InterruptedException {
     try {
       HealthCheckResponse status =
           blockingStub.status(HealthCheckRequest.newBuilder().setCheck(true).build());
@@ -394,149 +353,5 @@ public class LuceneServerClient {
     logger.info(
         String.format("jsonStr converted to proto SettingsRequest %s", settingsRequest.toString()));
     return settingsRequest;
-  }
-
-  /**
-   * Greet server. If provided, the first element of {@code args} is the name to use in the
-   * greeting.
-   */
-  public static void main(String[] args) throws Exception {
-    /* TODO: read host port from cmd. Access a service running on the local machine on port 50051 */
-    CommandLine commandLine = new CommandLine(new Cmd());
-    CommandLine.ParseResult cmdResult = commandLine.parseArgs(args);
-    String subCommandStr = cmdResult.subcommand().commandSpec().name();
-    Object subCommand = cmdResult.subcommand().commandSpec().userObject();
-    Cmd baseComand = (Cmd) cmdResult.commandSpec().userObject();
-    LuceneServerClient client =
-        new LuceneServerClient(baseComand.getHostname(), baseComand.getPort());
-    try {
-      String jsonStr = "";
-      Path filePath;
-      switch (subCommandStr) {
-        case CREATE_INDEX:
-          CreateIndexCommand createIndexCommand = (CreateIndexCommand) subCommand;
-          client.createIndex(createIndexCommand.getIndexName(), createIndexCommand.getRootDir());
-          break;
-        case LIVE_SETTINGS:
-          LiveSettingsCommand liveSettingsCommand = (LiveSettingsCommand) subCommand;
-          client.liveSettings(
-              liveSettingsCommand.getIndexName(),
-              liveSettingsCommand.getMaxRefreshSec(),
-              liveSettingsCommand.getMinRefreshSec(),
-              liveSettingsCommand.getMaxSearcherAgeSec(),
-              liveSettingsCommand.getIndexRamBufferSizeMB());
-          break;
-        case REGISTER_FIELDS:
-          RegisterFieldsCommand registerFieldsCommand = (RegisterFieldsCommand) subCommand;
-          jsonStr = Files.readString(Paths.get(registerFieldsCommand.getFileName()));
-          client.registerFields(jsonStr);
-          break;
-        case SettingsCommand.SETTINGS:
-          SettingsCommand settingsCommand = (SettingsCommand) subCommand;
-          filePath = Paths.get(settingsCommand.getFileName());
-          client.settings(filePath);
-          break;
-        case START_INDEX:
-          StartIndexCommand startIndexCommand = (StartIndexCommand) subCommand;
-          filePath = Paths.get(startIndexCommand.getFileName());
-          client.startIndex(filePath);
-          break;
-        case ADD_DOCUMENTS:
-          AddDocumentsCommand addDocumentsCommand = (AddDocumentsCommand) subCommand;
-          String indexName = addDocumentsCommand.getIndexName();
-          String fileType = addDocumentsCommand.getFileType();
-          Stream<AddDocumentRequest> addDocumentRequestStream;
-          filePath = Paths.get(addDocumentsCommand.getFileName());
-          if (fileType.equalsIgnoreCase("csv")) {
-            Reader reader = Files.newBufferedReader(filePath);
-            CSVParser csvParser =
-                new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
-            addDocumentRequestStream =
-                new LuceneServerClientBuilder.AddDcoumentsClientBuilder(indexName, csvParser)
-                    .buildRequest(filePath);
-            client.addDocuments(addDocumentRequestStream);
-          } else if (fileType.equalsIgnoreCase("json")) {
-            LuceneServerClientBuilder.AddJsonDocumentsClientBuilder addJsonDocumentsClientBuilder =
-                new LuceneServerClientBuilder.AddJsonDocumentsClientBuilder(
-                    indexName, new Gson(), filePath, addDocumentsCommand.getMaxBufferLen());
-            while (!addJsonDocumentsClientBuilder.isFinished()) {
-              addDocumentRequestStream = addJsonDocumentsClientBuilder.buildRequest(filePath);
-              client.addDocuments(addDocumentRequestStream);
-            }
-          } else {
-            throw new RuntimeException(String.format("%s  is not a  valid fileType", fileType));
-          }
-          break;
-        case RefreshCommand.REFRESH:
-          RefreshCommand refreshCommand = (RefreshCommand) subCommand;
-          client.refresh(refreshCommand.getIndexName());
-          break;
-        case COMMIT:
-          CommitCommand commitCommand = (CommitCommand) subCommand;
-          client.commit(commitCommand.getIndexName());
-          break;
-        case StatsCommand.STATS:
-          StatsCommand statsCommand = (StatsCommand) subCommand;
-          client.stats(statsCommand.getIndexName());
-          break;
-        case SEARCH:
-          SearchCommand searchCommand = (SearchCommand) subCommand;
-          filePath = Paths.get(searchCommand.getFileName());
-          client.search(filePath);
-          break;
-        case DELETE_DOCS:
-          DeleteDocumentsCommand deleteDocumentsCommand = (DeleteDocumentsCommand) subCommand;
-          filePath = Paths.get(deleteDocumentsCommand.getFileName());
-          client.delete(filePath);
-          break;
-        case DELETE_ALL_DOCS:
-          DeleteAllDocumentsCommand deleteAllDocumentsCommand =
-              (DeleteAllDocumentsCommand) subCommand;
-          client.deleteAllDocuments(deleteAllDocumentsCommand.getIndexName());
-          break;
-        case DELETE_INDEX:
-          DeleteIndexCommand deleteIndexCommand = (DeleteIndexCommand) subCommand;
-          client.deleteIndex(deleteIndexCommand.getIndexName());
-          break;
-        case STOP_INDEX:
-          StopIndexCommand stopIndexCommand = (StopIndexCommand) subCommand;
-          client.stopIndex(stopIndexCommand.getIndexName());
-          break;
-        case WRITE_NRT_POINT:
-          WriteNRTPointCommand writeNRTPointCommand = (WriteNRTPointCommand) subCommand;
-          ReplicationServerClient replicationServerClient =
-              new ReplicationServerClient(
-                  writeNRTPointCommand.getHostName(), writeNRTPointCommand.getPort());
-          SearcherVersion searcherVersion =
-              replicationServerClient.writeNRTPoint(writeNRTPointCommand.getIndexName());
-          logger.info("didRefresh: " + searcherVersion.getDidRefresh());
-          logger.info("searcherVersion: " + searcherVersion.getVersion());
-          break;
-        case CURRENT_SEARCHER_VERSION:
-          GetCurrentSearcherVersion getCurrentSearcherVersion =
-              (GetCurrentSearcherVersion) subCommand;
-          ReplicationServerClient replServerClient =
-              new ReplicationServerClient(
-                  getCurrentSearcherVersion.getHostName(), getCurrentSearcherVersion.getPort());
-          searcherVersion =
-              replServerClient.getCurrentSearcherVersion(getCurrentSearcherVersion.getIndexName());
-          logger.info("searcherVersion: " + searcherVersion.getVersion());
-          break;
-        case BACKUP_INDEX:
-          BackupIndexCommand backupIndexCommand = (BackupIndexCommand) subCommand;
-          client.backupIndex(
-              backupIndexCommand.getIndexName(),
-              backupIndexCommand.getServiceName(),
-              backupIndexCommand.getResourceName());
-          break;
-        case STATUS:
-          client.status();
-          break;
-        default:
-          logger.warning(String.format("%s is not a valid server command", subCommandStr));
-      }
-    } finally {
-      client.shutdown();
-    }
   }
 }

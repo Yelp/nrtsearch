@@ -66,7 +66,7 @@ Note: This code has been tested on *Java14*
 ```
 
 ```
-curl -XOST localhost:<REST_PORT>/v1/create_index -d '{"indexName": "testIdx", "rootDir": "testIdx"}'
+curl -XPOST localhost:<REST_PORT>/v1/create_index -d '{"indexName": "testIdx", "rootDir": "testIdx"}'
 ```
 
 ## Update Settings
@@ -102,6 +102,7 @@ cat registerFields.json
 {             "indexName": "testIdx",
               "field":
               [
+                      { "name": "doc_id", "type": "ATOM", "storeDocValues": true},
                       { "name": "vendor_name", "type": "TEXT" , "search": true, "store": true, "tokenize": true},
                       { "name": "license_no",  "type": "INT", "multiValued": true, "storeDocValues": true}
               ]
@@ -111,7 +112,7 @@ cat registerFields.json
 ## Add Documents
 
 ```
-./build/install/nrtsearch/bin/lucene-client addDocuments -i testIdx -f docs.csv
+./build/install/nrtsearch/bin/lucene-client addDocuments -i testIdx -f docs.csv -t csv
 cat docs.csv
 doc_id,vendor_name,license_no
 0,first vendor,100;200
@@ -127,7 +128,7 @@ cat search.json
         "indexName": "testIdx",
         "startHit": 0,
         "topHits": 100,
-        "retrieveFields": ["license_no", "vendor_name"],
+        "retrieveFields": ["doc_id", license_no", "vendor_name"],
          "queryText": "vendor_name:first vendor"
 }
 ```
@@ -149,11 +150,11 @@ This should create a src/main/docs/index.html file that can be seen in your loca
 This tool indexes yelp reviews available at [Yelp dataset challenge](https://www.yelp.com/dataset/challenge). It runs a default version with only 1k reviews of the `reviews.json` or you could download the yelp dataset and place the review.json in the user.home dir and the tool will use that instead. The complete review.json should have close to 7Million reviews. The tool runs multi-threaded indexing and a search thread in parallel reporting the `totalHits`.  Command to run this specific test:
 
 ```
-./gradlew clean && ./gradlew installDist && ./gradlew test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
+./gradlew clean && ./gradlew installDist && ./gradlew :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
 ```
 
 # Suggestions
 
 This test indexes businesses, creates an Infix Suggester and fetches suggestions. It requires a host, a port and a writeable directory in a standalone nrtSearch server.
 
-```./gradlew test -DsuggestTmp=remoteServerDir -DsuggestHost=yourStandaloneServerHost -DsuggestPort=yourStandaloneServerHost --tests "com.yelp.nrtsearch.server.YelpSuggestTest"```
+```./gradlew :test -DsuggestTmp=remoteServerDir -DsuggestHost=yourStandaloneServerHost -DsuggestPort=yourStandaloneServerHost --tests "com.yelp.nrtsearch.server.YelpSuggestTest"```
