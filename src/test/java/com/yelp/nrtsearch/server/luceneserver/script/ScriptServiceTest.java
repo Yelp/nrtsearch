@@ -50,7 +50,8 @@ public class ScriptServiceTest {
   }
 
   static class TestScriptPlugin extends Plugin implements ScriptPlugin {
-    public Iterable<ScriptEngine> getScriptEngines() {
+    @Override
+    public Iterable<ScriptEngine> getScriptEngines(List<ScriptContext<?>> contexts) {
       return Arrays.asList(new TestScriptEngine(), new TestNullFactoryEngine());
     }
   }

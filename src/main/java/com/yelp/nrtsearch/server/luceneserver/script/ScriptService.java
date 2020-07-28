@@ -18,12 +18,14 @@ package com.yelp.nrtsearch.server.luceneserver.script;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.ImmutableList;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
@@ -40,6 +42,9 @@ import java.util.concurrent.TimeUnit;
 public class ScriptService {
 
   private static ScriptService instance;
+
+  private static final List<ScriptContext<?>> builtInContexts =
+      ImmutableList.<ScriptContext<?>>builder().add(ScoreScript.CONTEXT).build();
 
   private final Map<String, ScriptEngine> scriptEngineMap = new HashMap<>();
   private final LoadingCache<ScriptCacheKey, Object> scriptCache;
@@ -113,7 +118,7 @@ public class ScriptService {
     for (Plugin plugin : plugins) {
       if (plugin instanceof ScriptPlugin) {
         ScriptPlugin scriptPlugin = (ScriptPlugin) plugin;
-        instance.register(scriptPlugin.getScriptEngines());
+        instance.register(scriptPlugin.getScriptEngines(builtInContexts));
       }
     }
   }

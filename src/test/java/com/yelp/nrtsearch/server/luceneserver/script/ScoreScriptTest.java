@@ -113,7 +113,8 @@ public class ScoreScriptTest {
   }
 
   static class ScoreScriptTestPlugin extends Plugin implements ScriptPlugin {
-    public Iterable<ScriptEngine> getScriptEngines() {
+    @Override
+    public Iterable<ScriptEngine> getScriptEngines(List<ScriptContext<?>> contexts) {
       return Collections.singletonList(new TestScriptEngine());
     }
   }
@@ -398,16 +399,9 @@ public class ScoreScriptTest {
         assertEquals(fieldName + " size", 1, locations.size());
         GeoPoint loadedPoint = locations.get(0);
         assertNotNull("point is null", loadedPoint);
+        assertEquals(fieldName + " latitude", expectedPoint.getLat(), loadedPoint.getLat(), 0.0001);
         assertEquals(
-            fieldName + " latitude",
-            expectedPoint.getLatitude(),
-            loadedPoint.getLatitude(),
-            0.0001);
-        assertEquals(
-            fieldName + " longitude",
-            expectedPoint.getLongitude(),
-            loadedPoint.getLongitude(),
-            0.0001);
+            fieldName + " longitude", expectedPoint.getLon(), loadedPoint.getLon(), 0.0001);
 
       } catch (Error e) {
         throw new RuntimeException(e.getMessage(), e.getCause());
