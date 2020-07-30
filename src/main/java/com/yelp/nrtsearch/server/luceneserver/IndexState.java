@@ -28,6 +28,10 @@ import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
+import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -45,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -56,7 +61,6 @@ import org.apache.lucene.analysis.util.FilesystemResourceLoader;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
@@ -315,14 +319,15 @@ public class IndexState implements Closeable, Restorable {
         @Override
         public Analyzer getWrappedAnalyzer(String name) {
           FieldDef fd = getField(name);
-          if (fd.valueType == FieldDef.FieldValueType.ATOM) {
-            return keywordAnalyzer;
+          if (fd instanceof TextBaseFieldDef) {
+            Optional<Analyzer> maybeAnalyzer = ((TextBaseFieldDef) fd).getIndexAnalyzer();
+            if (maybeAnalyzer.isEmpty()) {
+              throw new IllegalArgumentException(
+                  "field \"" + name + "\" did not specify analyzer or indexAnalyzer");
+            }
+            return maybeAnalyzer.get();
           }
-          if (fd.indexAnalyzer == null) {
-            throw new IllegalArgumentException(
-                "field \"" + name + "\" did not specify analyzer or indexAnalyzer");
-          }
-          return fd.indexAnalyzer;
+          throw new IllegalArgumentException("field \"" + name + "\" does not support analysis");
         }
 
         @Override
@@ -338,14 +343,15 @@ public class IndexState implements Closeable, Restorable {
         @Override
         public Analyzer getWrappedAnalyzer(String name) {
           FieldDef fd = getField(name);
-          if (fd.valueType == FieldDef.FieldValueType.ATOM) {
-            return keywordAnalyzer;
+          if (fd instanceof TextBaseFieldDef) {
+            Optional<Analyzer> maybeAnalyzer = ((TextBaseFieldDef) fd).getSearchAnalyzer();
+            if (maybeAnalyzer.isEmpty()) {
+              throw new IllegalArgumentException(
+                  "field \"" + name + "\" did not specify analyzer or searchAnalyzer");
+            }
+            return maybeAnalyzer.get();
           }
-          if (fd.searchAnalyzer == null) {
-            throw new IllegalArgumentException(
-                "field \"" + name + "\" did not specify analyzer or searchAnalyzer");
-          }
-          return fd.searchAnalyzer;
+          throw new IllegalArgumentException("field \"" + name + "\" does not support analysis");
         }
 
         @Override
@@ -363,10 +369,12 @@ public class IndexState implements Closeable, Restorable {
         @Override
         public Similarity get(String name) {
           if (fields.containsKey(name)) {
-            return getField(name).sim;
-          } else {
-            return defaultSim;
+            FieldDef fd = getField(name);
+            if (fd instanceof IndexableFieldDef) {
+              return ((IndexableFieldDef) fd).getSimilarity();
+            }
           }
+          return defaultSim;
         }
       };
 
@@ -746,17 +754,20 @@ public class IndexState implements Closeable, Restorable {
 
   /** Records a new field in the internal {@code fields} state. */
   public synchronized void addField(FieldDef fd, JsonObject jsonObject) {
-    if (fields.containsKey(fd.name)) {
-      throw new IllegalArgumentException("field \"" + fd.name + "\" was already registered");
+    if (fields.containsKey(fd.getName())) {
+      throw new IllegalArgumentException("field \"" + fd.getName() + "\" was already registered");
     }
-    fields.put(fd.name, fd);
-    assert null == fieldsSaveState.get(fd.name);
-    fieldsSaveState.add(fd.name, jsonObject);
+    fields.put(fd.getName(), fd);
+    assert null == fieldsSaveState.get(fd.getName());
+    fieldsSaveState.add(fd.getName(), jsonObject);
     // nocommit support sorted set dv facets
-    if (fd.faceted != null
-        && fd.faceted.equals(FieldDef.FacetValueType.NO_FACETS) == false
-        && fd.faceted.equals(FieldDef.FacetValueType.NUMERIC_RANGE) == false) {
-      internalFacetFieldNames.add(facetsConfig.getDimConfig(fd.name).indexFieldName);
+    if (fd instanceof IndexableFieldDef) {
+      IndexableFieldDef.FacetValueType facetValueType =
+          ((IndexableFieldDef) fd).getFacetValueType();
+      if (facetValueType != IndexableFieldDef.FacetValueType.NO_FACETS
+          && facetValueType != IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
+        internalFacetFieldNames.add(facetsConfig.getDimConfig(fd.getName()).indexFieldName);
+      }
     }
   }
 
@@ -1038,11 +1049,10 @@ public class IndexState implements Closeable, Restorable {
     List<String> result = new ArrayList<String>();
     for (FieldDef fd : fields.values()) {
       // TODO: should we default to include numeric fields too...?
-      if (fd.fieldType != null
-          && fd.fieldType.indexOptions() != IndexOptions.NONE
-          && fd.searchAnalyzer != null
-          && !fd.valueType.equals(FieldDef.FieldValueType.BOOLEAN)) {
-        result.add(fd.name);
+      if (fd instanceof TextBaseFieldDef) {
+        if (((TextBaseFieldDef) fd).getSearchAnalyzer().isPresent()) {
+          result.add(fd.getName());
+        }
       }
     }
 
