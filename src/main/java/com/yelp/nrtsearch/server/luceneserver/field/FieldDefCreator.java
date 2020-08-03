@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.plugins.FieldTypePlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.util.HashMap;
 import java.util.Map;
@@ -79,15 +80,20 @@ public class FieldDefCreator {
   }
 
   /**
-   * Initialize singleton instance of {@link FieldDefCreator}. Currently, this registers all the
-   * standard field types. In the future, plugins will be able to register custom definitions.
+   * Initialize singleton instance of {@link FieldDefCreator}. Registers all the standard field
+   * types and any additional types provided by {@link FieldTypePlugin}s.
    *
    * @param configuration service configuration
    * @param plugins list of loaded plugins
    */
   public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
     instance = new FieldDefCreator(configuration);
-    // TODO: add plugin interface to register new field types
+    for (Plugin plugin : plugins) {
+      if (plugin instanceof FieldTypePlugin) {
+        FieldTypePlugin fieldTypePlugin = (FieldTypePlugin) plugin;
+        instance.register(fieldTypePlugin.getFieldTypes());
+      }
+    }
   }
 
   /** Get singleton instance. */
