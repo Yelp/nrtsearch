@@ -19,8 +19,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 
-import com.yelp.nrtsearch.server.luceneserver.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.FieldDefBindings;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
+import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -104,8 +105,8 @@ public class JsScriptBindingsTest {
     DoubleValuesSource field1Source = new DummyValuesSource();
     DoubleValuesSource field2Source = new DummyValuesSource();
     Map<String, FieldDef> fieldDefMap = new HashMap<>();
-    fieldDefMap.put("field1", new FieldDef("field1", field1Source));
-    fieldDefMap.put("field2", new FieldDef("field2", field2Source));
+    fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
+    fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
 
     JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
     DoubleValuesSource f1Source = bindings.getDoubleValuesSource("field1");
@@ -124,8 +125,8 @@ public class JsScriptBindingsTest {
     DoubleValuesSource field1Source = new DummyValuesSource();
     DoubleValuesSource field2Source = new DummyValuesSource();
     Map<String, FieldDef> fieldDefMap = new HashMap<>();
-    fieldDefMap.put("field1", new FieldDef("field1", field1Source));
-    fieldDefMap.put("field2", new FieldDef("field2", field2Source));
+    fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
+    fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
 
     JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
     bindings.getDoubleValuesSource("invalid");

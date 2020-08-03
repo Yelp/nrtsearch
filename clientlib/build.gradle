@@ -8,6 +8,7 @@ plugins {
     // Publish clientlib to maven central
     id 'maven-publish'
     id 'signing'
+    id "com.diffplug.gradle.spotless"
 }
 
 repositories {
@@ -66,7 +67,9 @@ protobuf {
     }
 }
 
-test {}
+test {
+    finalizedBy 'spotlessJavaCheck'
+}
 
 task javadocs(type: Javadoc) {
     source = sourceSets.main.java.srcDirs
@@ -163,5 +166,15 @@ publishing {
             def snapshotsRepoUrl = 'https://oss.sonatype.org/content/repositories/snapshots/'
             url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
         }
+    }
+}
+
+spotless {
+    java {
+        licenseHeaderFile '../license_header'
+        removeUnusedImports()
+        endWithNewline()
+        trimTrailingWhitespace()
+        googleJavaFormat()
     }
 }

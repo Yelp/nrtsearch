@@ -6,6 +6,7 @@ import "yelp/nrtsearch/analysis.proto";
 import "google/api/annotations.proto";
 import "google/api/httpbody.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 
 
 option java_multiple_files = true;
@@ -332,6 +333,7 @@ enum FieldType {
     VIRTUAL = 9; // Virtual field defined with a JavaScript expression.
     // TODO need tests for internal:
     INTERNAL = 10; //Internal field, currently only for holding indexed facets data.
+    CUSTOM = 11; // Field type specified by name.
 }
 
 //How the tokens should be indexed.
@@ -386,7 +388,7 @@ message Field {
     string similarity = 21; // Which Similarity implementation to use for this field.
     FacetType facet = 22; // Whether this field should index facets, and how.
     string facetIndexFieldName = 23; // "Which underlying Lucene index field is used to hold any indexed taxonomy or sorted set doc values facets
-
+    google.protobuf.Struct additionalProperties = 24; // Additional info needed to configure field, used for CUSTOM types.
 }
 
 /* Input to registerFields */

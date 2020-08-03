@@ -15,19 +15,23 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
+import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 @CommandLine.Command(
     name = DeleteDocumentsCommand.DELETE_DOCS,
-    mixinStandardHelpOptions = true,
-    version = "delete 0.1",
     description = "Delete documents from index that match any terms")
-public class DeleteDocumentsCommand {
+public class DeleteDocumentsCommand implements Callable<Integer> {
   public static final String DELETE_DOCS = "delete";
+
+  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
-      description = "name of the index whose docs are to be deleted",
+      description = "Name of the index whose docs are to be deleted",
       required = true)
   private String indexName;
 
@@ -37,11 +41,23 @@ public class DeleteDocumentsCommand {
 
   @CommandLine.Option(
       names = {"-f", "--fileName"},
-      description = "file containing document filters to be deleted",
+      description = "File containing document filters to be deleted",
       required = true)
   private String fileName;
 
   public String getFileName() {
     return fileName;
+  }
+
+  @Override
+  public Integer call() throws Exception {
+    LuceneServerClient client = baseCmd.getClient();
+    try {
+      Path filePath = Paths.get(getFileName());
+      client.delete(filePath);
+    } finally {
+      client.shutdown();
+    }
+    return 0;
   }
 }

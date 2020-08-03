@@ -28,20 +28,25 @@ import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.LuceneServer;
 import com.yelp.nrtsearch.server.utils.Archiver;
 import com.yelp.nrtsearch.server.utils.ArchiverImpl;
 import com.yelp.nrtsearch.server.utils.Tar;
 import com.yelp.nrtsearch.server.utils.TarImpl;
 import io.prometheus.client.CollectorRegistry;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Optional;
 
 public class LuceneServerModule extends AbstractModule {
-  private final String[] args;
+  private static final String DEFAULT_CONFIG_FILE_RESOURCE =
+      "/lucene_server_default_configuration.yaml";
+  private final LuceneServer.LuceneServerCommand args;
 
-  public LuceneServerModule(String[] args) {
+  public LuceneServerModule(LuceneServer.LuceneServerCommand args) {
     this.args = args;
   }
 
@@ -79,6 +84,12 @@ public class LuceneServerModule extends AbstractModule {
       AmazonS3 s3ClientInterim =
           AmazonS3ClientBuilder.standard().withCredentials(awsCredentialsProvider).build();
       String region = s3ClientInterim.getBucketLocation(luceneServerConfiguration.getBucketName());
+      // In useast-1, the region is returned as "US" which is an equivalent to "us-east-1"
+      // https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/model/Region.html#US_Standard
+      // However, this causes an UnknownHostException so we override it to the full region name
+      if (region.equals("US")) {
+        region = "us-east-1";
+      }
       String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
       return AmazonS3ClientBuilder.standard()
           .withCredentials(awsCredentialsProvider)
@@ -103,13 +114,14 @@ public class LuceneServerModule extends AbstractModule {
   protected LuceneServerConfiguration providesLuceneServerConfiguration()
       throws FileNotFoundException {
     LuceneServerConfiguration luceneServerConfiguration;
-    if (args.length == 0) {
-      Path filePath =
-          Paths.get("src", "main", "resources", "lucene_server_default_configuration.yaml");
+    Optional<File> maybeConfigFile = args.maybeConfigFile();
+    if (maybeConfigFile.isEmpty()) {
       luceneServerConfiguration =
-          new LuceneServerConfiguration(new FileInputStream(filePath.toFile()));
+          new LuceneServerConfiguration(
+              getClass().getResourceAsStream(DEFAULT_CONFIG_FILE_RESOURCE));
     } else {
-      luceneServerConfiguration = new LuceneServerConfiguration(new FileInputStream(args[0]));
+      luceneServerConfiguration =
+          new LuceneServerConfiguration(new FileInputStream(maybeConfigFile.get()));
     }
     return luceneServerConfiguration;
   }

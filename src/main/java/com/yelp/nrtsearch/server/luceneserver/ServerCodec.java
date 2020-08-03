@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -38,7 +40,12 @@ public class ServerCodec extends Lucene84Codec {
   public PostingsFormat getPostingsFormatForField(String field) {
     String pf;
     try {
-      pf = state.getField(field).postingsFormat;
+      FieldDef fd = state.getField(field);
+      if (fd instanceof IndexableFieldDef) {
+        pf = ((IndexableFieldDef) fd).getPostingsFormat();
+      } else {
+        throw new IllegalArgumentException("Field " + field + " is not indexable");
+      }
     } catch (IllegalArgumentException iae) {
       // The indexed facets field will have drill-downs,
       // which will pull the postings format:
@@ -55,7 +62,12 @@ public class ServerCodec extends Lucene84Codec {
   public DocValuesFormat getDocValuesFormatForField(String field) {
     String dvf;
     try {
-      dvf = state.getField(field).docValuesFormat;
+      FieldDef fd = state.getField(field);
+      if (fd instanceof IndexableFieldDef) {
+        dvf = ((IndexableFieldDef) fd).getDocValuesFormat();
+      } else {
+        throw new IllegalArgumentException("Field " + field + " is not indexable");
+      }
     } catch (IllegalArgumentException iae) {
       if (state.internalFacetFieldNames.contains(field)) {
         return super.getDocValuesFormatForField(field);

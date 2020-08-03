@@ -17,13 +17,24 @@ package com.yelp.nrtsearch.server.cli;
 
 import static com.yelp.nrtsearch.server.cli.StatusCommand.STATUS;
 
+import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
-@CommandLine.Command(
-    name = STATUS,
-    mixinStandardHelpOptions = true,
-    version = "status 0.1",
-    description = "get current status of a host")
-public class StatusCommand {
+@CommandLine.Command(name = STATUS, description = "Get current status of a host")
+public class StatusCommand implements Callable<Integer> {
   public static final String STATUS = "status";
+
+  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
+
+  @Override
+  public Integer call() throws Exception {
+    LuceneServerClient client = baseCmd.getClient();
+    try {
+      client.status();
+    } finally {
+      client.shutdown();
+    }
+    return 0;
+  }
 }

@@ -20,9 +20,11 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
-import com.yelp.nrtsearch.server.luceneserver.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptParamsTransformer;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
@@ -39,7 +41,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
@@ -137,7 +138,7 @@ public class SearchRequestProcessor {
       Map<String, Object> params =
           Maps.transformValues(vf.getScript().getParamsMap(), ScriptParamsTransformer.INSTANCE);
       FieldDef virtualField =
-          new FieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
+          new VirtualFieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
       virtualFields.put(vf.getName(), virtualField);
     }
     return virtualFields;
@@ -219,10 +220,14 @@ public class SearchRequestProcessor {
 
   /** If a field's value can be retrieved */
   private static boolean isRetrievable(FieldDef fieldDef) {
-    return fieldDef.valueSource != null
-        || (fieldDef.fieldType != null
-            && (fieldDef.fieldType.docValuesType() != DocValuesType.NONE
-                || fieldDef.fieldType.stored()));
+    if (fieldDef instanceof VirtualFieldDef) {
+      return true;
+    }
+    if (fieldDef instanceof IndexableFieldDef) {
+      IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDef;
+      return indexableFieldDef.hasDocValues() || indexableFieldDef.isStored();
+    }
+    return false;
   }
 
   /**

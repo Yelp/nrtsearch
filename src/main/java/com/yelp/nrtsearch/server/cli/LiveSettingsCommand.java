@@ -15,43 +15,49 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
+import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 @CommandLine.Command(
     name = LiveSettingsCommand.LIVE_SETTINGS,
-    mixinStandardHelpOptions = true,
-    version = "liveSettings 0.1",
-    description = "updates the lives settings for the the specified index")
-public class LiveSettingsCommand {
+    description = "Updates the lives settings for the the specified index")
+public class LiveSettingsCommand implements Callable<Integer> {
   public static final String LIVE_SETTINGS = "liveSettings";
+
+  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
-      description = "name of the index whose live settings are to be updated",
+      description = "Name of the index whose live settings are to be updated",
       required = true)
   private String indexName;
 
   @CommandLine.Option(
       names = {"--maxRefreshSec"},
       description =
-          "Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen).")
-  private double maxRefreshSec = 1.0;
+          "Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen). (default: ${DEFAULT-VALUE})",
+      defaultValue = "1.0")
+  private double maxRefreshSec;
 
   @CommandLine.Option(
       names = {"--minRefreshSec"},
       description =
-          "Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen).")
-  private double minRefreshSec = 0.5;
+          "Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen). (default: ${DEFAULT-VALUE})",
+      defaultValue = "0.5")
+  private double minRefreshSec;
 
   @CommandLine.Option(
       names = {"--maxSearcherAgeSec"},
-      description = "Non-current searchers older than this are pruned.")
-  private double maxSearcherAgeSec = 60.0;
+      description = "Non-current searchers older than this are pruned. (default: ${DEFAULT-VALUE})",
+      defaultValue = "60.0")
+  private double maxSearcherAgeSec;
 
   @CommandLine.Option(
       names = {"--indexRamBufferSizeMB"},
-      description = "Size (in MB) of IndexWriter's RAM buffer.")
-  private double indexRamBufferSizeMB = 250;
+      description = "Size (in MB) of IndexWriter's RAM buffer. (default: ${DEFAULT-VALUE})",
+      defaultValue = "250")
+  private double indexRamBufferSizeMB;
 
   public String getIndexName() {
     return indexName;
@@ -71,5 +77,21 @@ public class LiveSettingsCommand {
 
   public double getIndexRamBufferSizeMB() {
     return indexRamBufferSizeMB;
+  }
+
+  @Override
+  public Integer call() throws Exception {
+    LuceneServerClient client = baseCmd.getClient();
+    try {
+      client.liveSettings(
+          getIndexName(),
+          getMaxRefreshSec(),
+          getMinRefreshSec(),
+          getMaxSearcherAgeSec(),
+          getIndexRamBufferSizeMB());
+    } finally {
+      client.shutdown();
+    }
+    return 0;
   }
 }

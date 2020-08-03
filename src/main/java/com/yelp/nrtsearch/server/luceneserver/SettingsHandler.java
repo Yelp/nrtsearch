@@ -18,24 +18,18 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.grpc.Point;
-import com.yelp.nrtsearch.server.grpc.Selector;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsResponse;
 import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.lucene.document.LatLonDocValuesField;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSelector;
-import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.SortedSetSelector;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.packed.PackedInts;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -140,139 +134,17 @@ public class SettingsHandler implements Handler<SettingsRequest, SettingsRespons
                   + fieldName
                   + "\" was not registered and was not specified as a dynamicField");
         }
-        if (fd.valueSource != null) {
-          sf = fd.valueSource.getSortField(_sub.getReverse());
-        } else if (fd.valueType == FieldDef.FieldValueType.LAT_LON) {
-          if (fd.fieldType.docValuesType() == DocValuesType.NONE) {
-            throw new SettingsHandlerException(
-                "field \"" + fieldName + "\" was not registered with sort=true");
-          }
-          Point origin = _sub.getOrigin();
-          sf =
-              LatLonDocValuesField.newDistanceSort(
-                  fieldName, origin.getLatitude(), origin.getLongitude());
-        } else {
-          if ((fd.fieldType != null && fd.fieldType.docValuesType() == DocValuesType.NONE)
-              || (fd.fieldType == null && fd.valueSource == null)) {
-            throw new SettingsHandlerException(
-                "field \"" + fieldName + "\" was not registered with sort=true");
-          }
 
-          if (fd.multiValued) {
-            Selector selector = _sub.getSelector();
-            if (fd.valueType == FieldDef.FieldValueType.ATOM) {
-              SortedSetSelector.Type sortedSelector;
-              if (selector.equals(Selector.MIN)) {
-                sortedSelector = SortedSetSelector.Type.MIN;
-              } else if (selector.equals(Selector.MAX)) {
-                sortedSelector = SortedSetSelector.Type.MAX;
-              } else if (selector.equals(Selector.MIDDLE_MIN)) {
-                sortedSelector = SortedSetSelector.Type.MIDDLE_MIN;
-              } else if (selector.equals(Selector.MIDDLE_MAX)) {
-                sortedSelector = SortedSetSelector.Type.MIDDLE_MAX;
-              } else {
-                assert false;
-                // dead code but javac disagrees
-                sortedSelector = null;
-              }
-              sf = new SortedSetSortField(fieldName, _sub.getReverse(), sortedSelector);
-            } else if (fd.valueType == FieldDef.FieldValueType.INT) {
-              sf =
-                  new SortedNumericSortField(
-                      fieldName,
-                      SortField.Type.INT,
-                      _sub.getReverse(),
-                      parseNumericSelector(selector));
-            } else if (fd.valueType == FieldDef.FieldValueType.LONG) {
-              sf =
-                  new SortedNumericSortField(
-                      fieldName,
-                      SortField.Type.LONG,
-                      _sub.getReverse(),
-                      parseNumericSelector(selector));
-            } else if (fd.valueType == FieldDef.FieldValueType.FLOAT) {
-              sf =
-                  new SortedNumericSortField(
-                      fieldName,
-                      SortField.Type.FLOAT,
-                      _sub.getReverse(),
-                      parseNumericSelector(selector));
-            } else if (fd.valueType == FieldDef.FieldValueType.DOUBLE) {
-              sf =
-                  new SortedNumericSortField(
-                      fieldName,
-                      SortField.Type.DOUBLE,
-                      _sub.getReverse(),
-                      parseNumericSelector(selector));
-            } else {
-              throw new SettingsHandlerException(
-                  "field cannot sort by multiValued field \""
-                      + fieldName
-                      + "\": type is "
-                      + fd.valueType);
-            }
-          } else {
-            SortField.Type sortType;
-            if (fd.valueType == FieldDef.FieldValueType.ATOM) {
-              sortType = SortField.Type.STRING;
-            } else if (fd.valueType == FieldDef.FieldValueType.LONG
-                || fd.valueType == FieldDef.FieldValueType.DATE_TIME) {
-              sortType = SortField.Type.LONG;
-            } else if (fd.valueType == FieldDef.FieldValueType.INT) {
-              sortType = SortField.Type.INT;
-            } else if (fd.valueType == FieldDef.FieldValueType.DOUBLE) {
-              sortType = SortField.Type.DOUBLE;
-            } else if (fd.valueType == FieldDef.FieldValueType.FLOAT) {
-              sortType = SortField.Type.FLOAT;
-            } else {
-              throw new SettingsHandlerException(
-                  "field cannot sort by field \"" + fieldName + "\": type is " + fd.valueType);
-            }
-
-            sf = new SortField(fieldName, sortType, _sub.getReverse());
-          }
-        }
-
-        boolean missingLast = _sub.getMissingLat();
-
-        if (fd.valueType == FieldDef.FieldValueType.ATOM) {
-          if (missingLast) {
-            sf.setMissingValue(SortField.STRING_LAST);
-          } else {
-            sf.setMissingValue(SortField.STRING_FIRST);
-          }
-        } else if (fd.valueType == FieldDef.FieldValueType.INT) {
-          sf.setMissingValue(missingLast ? Integer.MAX_VALUE : Integer.MIN_VALUE);
-        } else if (fd.valueType == FieldDef.FieldValueType.LONG) {
-          sf.setMissingValue(missingLast ? Long.MAX_VALUE : Long.MIN_VALUE);
-        } else if (fd.valueType == FieldDef.FieldValueType.FLOAT) {
-          sf.setMissingValue(missingLast ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY);
-        } else if (fd.valueType == FieldDef.FieldValueType.DOUBLE) {
-          sf.setMissingValue(missingLast ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY);
-        } else if (missingLast == true) {
+        if (!(fd instanceof Sortable)) {
           throw new SettingsHandlerException(
-              "missingLast field="
-                  + fieldName
-                  + ": can only specify missingLast for string and numeric field types: got SortField type "
-                  + sf.getType());
+              String.format("field: %s does not support sorting", fieldName));
         }
+        sf = ((Sortable) fd).getSortField(_sub);
       }
       sortFields.add(sf);
     }
 
-    return new Sort(sortFields.toArray(new SortField[sortFields.size()]));
-  }
-
-  private static SortedNumericSelector.Type parseNumericSelector(Selector selector)
-      throws SettingsHandlerException {
-    if (selector.equals(Selector.MIN)) {
-      return SortedNumericSelector.Type.MIN;
-    } else if (selector.equals(Selector.MAX)) {
-      return SortedNumericSelector.Type.MAX;
-    } else {
-      throw new SettingsHandlerException(
-          "selector must be min or max for multi-valued numeric sort fields");
-    }
+    return new Sort(sortFields.toArray(new SortField[0]));
   }
 
   public static class SettingsHandlerException extends HandlerException {

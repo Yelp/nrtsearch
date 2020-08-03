@@ -17,9 +17,10 @@ package com.yelp.nrtsearch.server.luceneserver.search;
 
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
-import com.yelp.nrtsearch.server.luceneserver.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DoubleValues;
@@ -243,16 +243,24 @@ public class SearchExecutor {
       LeafReaderContext sliceSegment)
       throws IOException {
     for (Map.Entry<String, FieldDef> fieldDefEntry : context.queryFields().entrySet()) {
-      if (fieldDefEntry.getValue().valueSource != null) {
+      if (fieldDefEntry.getValue() instanceof VirtualFieldDef) {
         fetchFromValueSource(
-            context, sliceHits, sliceSegment, fieldDefEntry.getKey(), fieldDefEntry.getValue());
-      } else if (fieldDefEntry.getValue().fieldType != null
-          && fieldDefEntry.getValue().fieldType.docValuesType() != DocValuesType.NONE) {
-        fetchFromDocVales(
-            context, sliceHits, sliceSegment, fieldDefEntry.getKey(), fieldDefEntry.getValue());
-      } else if (fieldDefEntry.getValue().fieldType != null
-          && fieldDefEntry.getValue().fieldType.stored()) {
-        fetchFromStored(context, sliceHits, fieldDefEntry.getKey());
+            context,
+            sliceHits,
+            sliceSegment,
+            fieldDefEntry.getKey(),
+            (VirtualFieldDef) fieldDefEntry.getValue());
+      } else if (fieldDefEntry.getValue() instanceof IndexableFieldDef) {
+        IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDefEntry.getValue();
+        if (indexableFieldDef.hasDocValues()) {
+          fetchFromDocVales(
+              context, sliceHits, sliceSegment, fieldDefEntry.getKey(), indexableFieldDef);
+        } else if (indexableFieldDef.isStored()) {
+          fetchFromStored(context, sliceHits, fieldDefEntry.getKey(), indexableFieldDef);
+        } else {
+          throw new IllegalStateException(
+              "No valid method to retrieve indexable field: " + fieldDefEntry.getKey());
+        }
       } else {
         throw new IllegalStateException(
             "No valid method to retrieve field: " + fieldDefEntry.getKey());
@@ -267,10 +275,11 @@ public class SearchExecutor {
       List<SearchResponse.Hit.Builder> sliceHits,
       LeafReaderContext sliceSegment,
       String name,
-      FieldDef fieldDef)
+      VirtualFieldDef virtualFieldDef)
       throws IOException {
     SettableScoreDoubleValues scoreValue = new SettableScoreDoubleValues();
-    DoubleValues doubleValues = fieldDef.valueSource.getValues(sliceSegment, scoreValue);
+    DoubleValues doubleValues =
+        virtualFieldDef.getValuesSource().getValues(sliceSegment, scoreValue);
     for (SearchResponse.Hit.Builder hit : sliceHits) {
       int docID = hit.getLuceneDocId() - sliceSegment.docBase;
       scoreValue.setScore(hit.getScore());
@@ -290,9 +299,9 @@ public class SearchExecutor {
       List<SearchResponse.Hit.Builder> sliceHits,
       LeafReaderContext sliceSegment,
       String name,
-      FieldDef fieldDef)
+      IndexableFieldDef indexableFieldDef)
       throws IOException {
-    LoadedDocValues<?> docValues = DocValuesFactory.getDocValues(fieldDef, sliceSegment);
+    LoadedDocValues<?> docValues = indexableFieldDef.getDocValues(sliceSegment);
     for (SearchResponse.Hit.Builder hit : sliceHits) {
       int docID = hit.getLuceneDocId() - sliceSegment.docBase;
       docValues.setDocId(docID);
@@ -308,11 +317,15 @@ public class SearchExecutor {
 
   /** Fetch field value stored in the index */
   private static void fetchFromStored(
-      SearchContext context, List<SearchResponse.Hit.Builder> sliceHits, String name)
+      SearchContext context,
+      List<SearchResponse.Hit.Builder> sliceHits,
+      String name,
+      IndexableFieldDef indexableFieldDef)
       throws IOException {
     for (SearchResponse.Hit.Builder hit : sliceHits) {
       String[] values =
-          context.searcherAndTaxonomy().searcher.doc(hit.getLuceneDocId()).getValues(name);
+          indexableFieldDef.getStored(
+              context.searcherAndTaxonomy().searcher.doc(hit.getLuceneDocId()));
 
       SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
           SearchResponse.Hit.CompositeFieldValue.newBuilder();

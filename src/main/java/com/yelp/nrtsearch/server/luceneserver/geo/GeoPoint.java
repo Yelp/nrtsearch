@@ -28,11 +28,11 @@ public final class GeoPoint {
     this.longitude = longitude;
   }
 
-  public double getLatitude() {
+  public double getLat() {
     return latitude;
   }
 
-  public double getLongitude() {
+  public double getLon() {
     return longitude;
   }
 

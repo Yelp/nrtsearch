@@ -15,23 +15,36 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
+import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 @CommandLine.Command(
     name = CommitCommand.COMMIT,
-    mixinStandardHelpOptions = true,
-    version = "commit_index 0.1",
     description = "Commits all pending changes to durable storage for the given index")
-public class CommitCommand {
+public class CommitCommand implements Callable<Integer> {
   public static final String COMMIT = "commit";
+
+  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
-      description = "name of the index to be committed",
+      description = "Name of the index to be committed",
       required = true)
   private String indexName;
 
   public String getIndexName() {
     return indexName;
+  }
+
+  @Override
+  public Integer call() throws Exception {
+    LuceneServerClient client = baseCmd.getClient();
+    try {
+      client.commit(getIndexName());
+    } finally {
+      client.shutdown();
+    }
+    return 0;
   }
 }

@@ -15,19 +15,19 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
+import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
-@CommandLine.Command(
-    name = BackupIndexCommand.BACKUP_INDEX,
-    mixinStandardHelpOptions = true,
-    version = "backupIndex 0.1",
-    description = "Backup index")
-public class BackupIndexCommand {
+@CommandLine.Command(name = BackupIndexCommand.BACKUP_INDEX, description = "Backup index")
+public class BackupIndexCommand implements Callable<Integer> {
   public static final String BACKUP_INDEX = "backupIndex";
+
+  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
-      description = "name of the index which is to be backed up",
+      description = "Name of the index which is to be backed up",
       required = true)
   private String indexName;
 
@@ -37,7 +37,7 @@ public class BackupIndexCommand {
 
   @CommandLine.Option(
       names = {"-s", "--serviceName"},
-      description = "name of the service which is to be backed up",
+      description = "Name of the service which is to be backed up",
       required = true)
   private String serviceName;
 
@@ -47,11 +47,22 @@ public class BackupIndexCommand {
 
   @CommandLine.Option(
       names = {"-r", "--resourceName"},
-      description = "name of the resource which is to be backed up",
+      description = "Name of the resource which is to be backed up",
       required = true)
   private String resourceName;
 
   public String getResourceName() {
     return resourceName;
+  }
+
+  @Override
+  public Integer call() throws Exception {
+    LuceneServerClient client = baseCmd.getClient();
+    try {
+      client.backupIndex(getIndexName(), getServiceName(), getResourceName());
+    } finally {
+      client.shutdown();
+    }
+    return 0;
   }
 }

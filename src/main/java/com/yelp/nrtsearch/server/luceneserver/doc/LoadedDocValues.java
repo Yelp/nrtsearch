@@ -113,6 +113,10 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     public int size() {
       return value == null ? 0 : 1;
     }
+
+    public T getValue() {
+      return get(0);
+    }
   }
 
   public static final class SingleBoolean extends SingleNumericValue<Boolean> {
@@ -284,10 +288,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     public SearchResponse.Hit.FieldValue toFieldValue(int index) {
       GeoPoint point = get(index);
       LatLng latLon =
-          LatLng.newBuilder()
-              .setLatitude(point.getLatitude())
-              .setLongitude(point.getLongitude())
-              .build();
+          LatLng.newBuilder().setLatitude(point.getLat()).setLongitude(point.getLon()).build();
       return SearchResponse.Hit.FieldValue.newBuilder().setLatLngValue(latLon).build();
     }
   }
@@ -336,6 +337,10 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     @Override
     public int size() {
       return value == null ? 0 : 1;
+    }
+
+    public T getValue() {
+      return get(0);
     }
   }
 
