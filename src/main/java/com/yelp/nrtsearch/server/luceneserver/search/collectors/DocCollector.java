@@ -32,6 +32,17 @@ public interface DocCollector {
   CollectorManager<? extends Collector, ? extends TopDocs> getManager();
 
   /**
+   * Fill the response hit for the give {@link ScoreDoc}. This method is expected to fill the
+   * ranking information (Score or Sort info) for the response {@link
+   * com.yelp.nrtsearch.server.grpc.SearchResponse.Hit}. It is expected that the lucene doc id is
+   * already set in the Hit.
+   *
+   * @param hitResponse hit response message
+   * @param scoreDoc doc from lucene query
+   */
+  void fillHitRanking(SearchResponse.Hit.Builder hitResponse, ScoreDoc scoreDoc);
+
+  /**
    * Add information on the last hit into the search response.
    *
    * @param stateBuilder state message returned in response

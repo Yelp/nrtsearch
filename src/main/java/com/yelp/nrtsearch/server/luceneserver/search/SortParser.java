@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search;
 
-import com.google.common.collect.ImmutableSet;
+import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
@@ -23,7 +23,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 
@@ -32,13 +32,13 @@ import org.apache.lucene.search.SortField;
  */
 public class SortParser {
 
-  public static final Set<String> SPECIAL_FIELDS =
-      ImmutableSet.<String>builder().add("docid").add("score").build();
+  private static final String DOCID = "docid";
+  private static final String SCORE = "score";
 
   private SortParser() {}
 
   /**
-   * Decodes a list of Request into the corresponding Sort.
+   * Decodes a list of request {@link SortType} into the corresponding {@link Sort}.
    *
    * @param fields list of {@link SortType} from grpc request
    * @param sortFieldNames mutable list which will have all sort field names added in sort order,
@@ -55,9 +55,9 @@ public class SortParser {
       if (sortFieldNames != null) {
         sortFieldNames.add(fieldName);
       }
-      if (fieldName.equals("docid")) {
+      if (fieldName.equals(DOCID)) {
         sf = SortField.FIELD_DOC;
-      } else if (fieldName.equals("score")) {
+      } else if (fieldName.equals(SCORE)) {
         sf = SortField.FIELD_SCORE;
       } else {
         FieldDef fd = queryFields.get(fieldName);
@@ -79,5 +79,64 @@ public class SortParser {
     }
 
     return new Sort(sortFields.toArray(new SortField[0]));
+  }
+
+  /**
+   * Get the name of a {@link SortField}. This will be either an index field name or a special sort
+   * field name, such as 'docid' or 'score'.
+   *
+   * @param sortField sort field description
+   * @return sort field name
+   */
+  public static String getNameForField(SortField sortField) {
+    if (sortField == SortField.FIELD_DOC) {
+      return DOCID;
+    } else if (sortField == SortField.FIELD_SCORE) {
+      return SCORE;
+    } else {
+      return sortField.getField();
+    }
+  }
+
+  /**
+   * Get the {@link com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue}
+   * containing the sort value for the given {@link SortField}.
+   *
+   * @param sortField sort field description
+   * @param fieldDoc lucene document hit
+   * @param sortValue FieldDoc value for this sort field
+   * @return hit message field value containing sort field value
+   */
+  public static SearchResponse.Hit.CompositeFieldValue getValueForSortField(
+      SortField sortField, FieldDoc fieldDoc, Object sortValue) {
+    var fieldValue = SearchResponse.Hit.FieldValue.newBuilder();
+    switch (sortField.getType()) {
+      case DOC:
+        fieldValue.setIntValue(fieldDoc.doc);
+        break;
+      case SCORE:
+        fieldValue.setFloatValue(fieldDoc.score);
+        break;
+      case INT:
+        fieldValue.setIntValue((Integer) sortValue);
+        break;
+      case LONG:
+        fieldValue.setLongValue((Long) sortValue);
+        break;
+      case FLOAT:
+        fieldValue.setFloatValue((Float) sortValue);
+        break;
+      case DOUBLE:
+        fieldValue.setDoubleValue((Double) sortValue);
+        break;
+      case STRING:
+      case STRING_VAL:
+        fieldValue.setTextValue((String) sortValue);
+        break;
+      default:
+        throw new IllegalArgumentException(
+            "Unable to get value for sort type: " + sortField.getType());
+    }
+    return SearchResponse.Hit.CompositeFieldValue.newBuilder().addFieldValue(fieldValue).build();
   }
 }

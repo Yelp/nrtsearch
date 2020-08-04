@@ -17,8 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.luceneserver.search.FetchOperation;
+import com.yelp.nrtsearch.server.luceneserver.search.QueryOperation;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
-import com.yelp.nrtsearch.server.luceneserver.search.SearchExecutor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import java.io.IOException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -50,15 +51,15 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
     var diagnostics = SearchResponse.Diagnostics.newBuilder();
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    SearchResponse.Builder searchResponse;
+    SearchContext context;
     try {
       s = getSearcherAndTaxonomy(searchRequest, shardState, diagnostics, threadPoolExecutor);
 
-      SearchContext context =
+      context =
           SearchRequestProcessor.buildContextForRequest(
               searchRequest, indexState, shardState, s, diagnostics);
-      searchResponse = SearchExecutor.doQueryPhase(context);
-      SearchExecutor.doFetchPhase(context, searchResponse);
+      QueryOperation.execute(context);
+      FetchOperation.execute(context);
     } catch (IOException | InterruptedException e) {
       throw new SearchHandler.SearchHandlerException(e);
     } finally {
@@ -80,7 +81,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
     }
 
-    return searchResponse.build();
+    return context.searchResponse().build();
   }
 
   /**

@@ -40,6 +40,13 @@ public class LargeNumHitsCollector implements DocCollector {
   }
 
   @Override
+  public void fillHitRanking(SearchResponse.Hit.Builder hitResponse, ScoreDoc scoreDoc) {
+    if (!Float.isNaN(scoreDoc.score)) {
+      hitResponse.setScore(scoreDoc.score);
+    }
+  }
+
+  @Override
   public void fillLastHit(SearchResponse.SearchState.Builder stateBuilder, ScoreDoc lastHit) {
     stateBuilder.setLastScore(lastHit.score);
   }

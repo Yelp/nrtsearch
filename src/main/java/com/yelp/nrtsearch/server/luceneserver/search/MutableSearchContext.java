@@ -21,7 +21,6 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.Map;
-import java.util.Set;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.search.Query;
 
@@ -30,13 +29,11 @@ class MutableSearchContext implements SearchContext {
   private final IndexState indexState;
   private final ShardState shardState;
   private final SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy;
-  private final SearchResponse.Diagnostics.Builder diagnostics;
+  private final SearchResponse.Builder searchResponse;
 
   private long timestampSec;
   private int startHit;
   private Map<String, FieldDef> queryFields;
-  private Set<String> sortFieldNames;
-  private Set<String> retrieveFieldNames;
   private Query query;
   private DocCollector collector;
 
@@ -44,11 +41,11 @@ class MutableSearchContext implements SearchContext {
       IndexState indexState,
       ShardState shardState,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy,
-      SearchResponse.Diagnostics.Builder diagnostics) {
+      SearchResponse.Builder searchResponse) {
     this.indexState = indexState;
     this.shardState = shardState;
     this.searcherAndTaxonomy = searcherAndTaxonomy;
-    this.diagnostics = diagnostics;
+    this.searchResponse = searchResponse;
   }
 
   @Override
@@ -67,8 +64,8 @@ class MutableSearchContext implements SearchContext {
   }
 
   @Override
-  public SearchResponse.Diagnostics.Builder diagnostics() {
-    return diagnostics;
+  public SearchResponse.Builder searchResponse() {
+    return searchResponse;
   }
 
   @Override
@@ -84,16 +81,6 @@ class MutableSearchContext implements SearchContext {
   @Override
   public Map<String, FieldDef> queryFields() {
     return queryFields;
-  }
-
-  @Override
-  public Set<String> retrieveFieldNames() {
-    return retrieveFieldNames;
-  }
-
-  @Override
-  public Set<String> sortFieldNames() {
-    return sortFieldNames;
   }
 
   @Override
@@ -116,14 +103,6 @@ class MutableSearchContext implements SearchContext {
 
   void setQueryFields(Map<String, FieldDef> queryFields) {
     this.queryFields = queryFields;
-  }
-
-  void setRetrieveFieldNames(Set<String> retrieveFieldNames) {
-    this.retrieveFieldNames = retrieveFieldNames;
-  }
-
-  void setSortFieldNames(Set<String> sortFieldNames) {
-    this.sortFieldNames = sortFieldNames;
   }
 
   void setQuery(Query query) {

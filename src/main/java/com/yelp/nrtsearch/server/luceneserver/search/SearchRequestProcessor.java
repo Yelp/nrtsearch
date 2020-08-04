@@ -18,7 +18,6 @@ package com.yelp.nrtsearch.server.luceneserver.search;
 import com.google.common.collect.Maps;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
@@ -37,8 +36,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
@@ -50,7 +47,7 @@ import org.apache.lucene.util.QueryBuilder;
 
 /**
  * Class to process a {@link SearchRequest} grpc message into the data structures required for
- * search. Produces a {@link SearchContext} usable by the {@link SearchExecutor}.
+ * search. Produces a {@link SearchContext} usable to perform search operations.
  */
 public class SearchRequestProcessor {
   /**
@@ -84,25 +81,26 @@ public class SearchRequestProcessor {
       throws IOException {
 
     MutableSearchContext context =
-        new MutableSearchContext(indexState, shardState, searcherAndTaxonomy, diagnostics);
+        new MutableSearchContext(
+            indexState, shardState, searcherAndTaxonomy, SearchResponse.newBuilder());
+
     context.setTimestampSec(System.currentTimeMillis() / 1000);
     context.setStartHit(searchRequest.getStartHit());
 
     context.setQueryFields(getQueryFields(context, searchRequest));
-    context.setSortFieldNames(getSortFieldNames(searchRequest));
-    context.setRetrieveFieldNames(Set.copyOf(searchRequest.getRetrieveFieldsList()));
 
     Query query = extractQuery(context.indexState(), searchRequest);
-    context.diagnostics().setParsedQuery(query.toString());
+    diagnostics.setParsedQuery(query.toString());
 
     Query rewrittenQuery = context.searcherAndTaxonomy().searcher.rewrite(query);
-    context.diagnostics().setRewrittenQuery(rewrittenQuery.toString());
+    diagnostics.setRewrittenQuery(rewrittenQuery.toString());
 
     Query drillDownQuery = addDrillDowns(context.indexState(), rewrittenQuery);
-    context.diagnostics().setDrillDownQuery(drillDownQuery.toString());
+    diagnostics.setDrillDownQuery(drillDownQuery.toString());
 
     context.setQuery(drillDownQuery);
     context.setCollector(buildCollector(context, searchRequest));
+    context.searchResponse().setDiagnostics(diagnostics);
     return context;
   }
 
@@ -111,14 +109,13 @@ public class SearchRequestProcessor {
       SearchContext context, SearchRequest searchRequest) {
     Map<String, FieldDef> queryFields = getVirtualFields(context.shardState(), searchRequest);
     addRetrieveFields(context, searchRequest, queryFields);
-    addSortFields(context, searchRequest, queryFields);
     return queryFields;
   }
 
   /**
    * Parses any virtualFields, which define dynamic (expression) fields for this one request.
    *
-   * @throws IllegalArgumentException if there are multiple virtual fiels with the same name
+   * @throws IllegalArgumentException if there are multiple virtual fields with the same name
    */
   private static Map<String, FieldDef> getVirtualFields(
       ShardState shardState, SearchRequest searchRequest) {
@@ -161,38 +158,6 @@ public class SearchRequestProcessor {
         throw new IllegalArgumentException("QueryFields: " + field + " specified multiple times");
       }
     }
-  }
-
-  /**
-   * Add specified sort fields to given query fields map.
-   *
-   * @param context search context
-   * @param searchRequest request
-   * @param queryFields mutable current map of query fields
-   */
-  private static void addSortFields(
-      SearchContext context, SearchRequest searchRequest, Map<String, FieldDef> queryFields) {
-    if (searchRequest.hasQuerySort() && searchRequest.getQuerySort().hasFields()) {
-      for (SortType sortType : searchRequest.getQuerySort().getFields().getSortedFieldsList()) {
-        if (queryFields.containsKey(sortType.getFieldName())) {
-          continue;
-        }
-        if (!SortParser.SPECIAL_FIELDS.contains(sortType.getFieldName())) {
-          FieldDef fieldDef = getFieldDef(sortType.getFieldName(), context);
-          queryFields.put(sortType.getFieldName(), fieldDef);
-        }
-      }
-    }
-  }
-
-  /** Get set of sort field identifiers */
-  private static Set<String> getSortFieldNames(SearchRequest searchRequest) {
-    if (searchRequest.hasQuerySort() && searchRequest.getQuerySort().hasFields()) {
-      return searchRequest.getQuerySort().getFields().getSortedFieldsList().stream()
-          .map(SortType::getFieldName)
-          .collect(Collectors.toUnmodifiableSet());
-    }
-    return Collections.emptySet();
   }
 
   /**

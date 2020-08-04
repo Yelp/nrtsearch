@@ -21,7 +21,6 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.Map;
-import java.util.Set;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.search.Query;
 
@@ -36,8 +35,8 @@ public interface SearchContext {
   /** Get searcher instance for query. */
   SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy();
 
-  /** Get container to store diagnostic information in response. */
-  SearchResponse.Diagnostics.Builder diagnostics();
+  /** Response message builder for search request */
+  SearchResponse.Builder searchResponse();
 
   /** Get timestamp to use for query. */
   long timestampSec();
@@ -47,12 +46,6 @@ public interface SearchContext {
 
   /** Get map of all fields needed for this query. */
   Map<String, FieldDef> queryFields();
-
-  /** Get all field names that should be returned as fields. */
-  Set<String> retrieveFieldNames();
-
-  /** Get all sort field names that should be returned as sortedFields. */
-  Set<String> sortFieldNames();
 
   /** Get final lucene query to perform. */
   Query query();

@@ -27,6 +27,7 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
@@ -35,6 +36,7 @@ import org.apache.lucene.search.TopFieldDocs;
 public class FieldCollector implements DocCollector {
 
   private final CollectorManager<TopFieldCollector, TopFieldDocs> manager;
+  private final Sort sort;
 
   public FieldCollector(SearchContext context, SearchRequest searchRequest) {
     FieldDoc searchAfter = null;
@@ -43,7 +45,6 @@ public class FieldCollector implements DocCollector {
     if (searchRequest.getTotalHitsThreshold() != 0) {
       totalHitsThreshold = searchRequest.getTotalHitsThreshold();
     }
-    Sort sort;
     try {
       sort =
           SortParser.parseSort(
@@ -59,6 +60,25 @@ public class FieldCollector implements DocCollector {
   @Override
   public CollectorManager<? extends Collector, ? extends TopDocs> getManager() {
     return manager;
+  }
+
+  @Override
+  public void fillHitRanking(SearchResponse.Hit.Builder hitResponse, ScoreDoc scoreDoc) {
+    FieldDoc fd = (FieldDoc) scoreDoc;
+    if (fd.fields.length != sort.getSort().length) {
+      throw new IllegalArgumentException(
+          "Size mismatch between Sort and ScoreDoc: "
+              + sort.getSort().length
+              + " != "
+              + fd.fields.length);
+    }
+
+    for (int i = 0; i < fd.fields.length; ++i) {
+      SortField sortField = sort.getSort()[i];
+      hitResponse.putSortedFields(
+          SortParser.getNameForField(sortField),
+          SortParser.getValueForSortField(sortField, fd, fd.fields[i]));
+    }
   }
 
   @Override

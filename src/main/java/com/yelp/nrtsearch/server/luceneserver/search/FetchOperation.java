@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.luceneserver.search;
 
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
@@ -26,135 +25,33 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DoubleValues;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TimeLimitingCollector;
-import org.apache.lucene.search.TopDocs;
 
-/**
- * Class to handle execution of a search query. Execution is broken into two phases, query and
- * fetch. The query phase produces a {@link SearchResponse.Builder} containing the query hits
- * populated with their lucene doc ids and scores. The fetch phase fills in the other field data
- * needed for each hit.
- */
-public class SearchExecutor {
+/** Class for executing the fetch phase of a search query. */
+public class FetchOperation {
 
-  private SearchExecutor() {}
+  private FetchOperation() {}
 
   /**
-   * Execute the query phase of a search. From the given {@link SearchContext} information, perform
-   * the required queries and construct a {@link SearchResponse.Builder} populated with the
-   * resulting hits. The hits will only contain the lucene doc ids and scores.
-   *
-   * @param context search context
-   * @return response builder containing query hits
-   * @throws IOException on search error
-   */
-  public static SearchResponse.Builder doQueryPhase(SearchContext context) throws IOException {
-    SearchResponse.Builder searchResponse = SearchResponse.newBuilder();
-
-    long searchStartTime = System.nanoTime();
-    TopDocs hits;
-    try {
-      hits =
-          context
-              .searcherAndTaxonomy()
-              .searcher
-              .search(context.query(), context.collector().getManager());
-    } catch (TimeLimitingCollector.TimeExceededException tee) {
-      searchResponse.setHitTimeout(true);
-      return searchResponse;
-    }
-    context
-        .diagnostics()
-        .setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
-
-    hits = getHitsFromOffset(hits, context.startHit());
-    setResponseHits(searchResponse, hits);
-
-    SearchResponse.SearchState.Builder searchState = SearchResponse.SearchState.newBuilder();
-    searchState.setTimestamp(context.timestampSec());
-    searchState.setSearcherVersion(
-        ((DirectoryReader) context.searcherAndTaxonomy().searcher.getIndexReader()).getVersion());
-    if (hits.scoreDocs.length != 0) {
-      ScoreDoc lastHit = hits.scoreDocs[hits.scoreDocs.length - 1];
-      searchState.setLastDocId(lastHit.doc);
-      context.collector().fillLastHit(searchState, lastHit);
-    }
-    searchResponse.setSearchState(searchState);
-
-    return searchResponse;
-  }
-
-  /**
-   * Given all the top documents and a starting offset, produce a slice of the documents starting
-   * from that offset.
-   *
-   * @param hits all hits
-   * @param startHit offset into top docs
-   * @return slice of hits starting at given offset, or empty slice if there are less startHit docs
-   */
-  private static TopDocs getHitsFromOffset(TopDocs hits, int startHit) {
-    if (startHit != 0) {
-      // Slice:
-      int count = Math.max(0, hits.scoreDocs.length - startHit);
-      ScoreDoc[] newScoreDocs = new ScoreDoc[count];
-      if (count > 0) {
-        System.arraycopy(hits.scoreDocs, startHit, newScoreDocs, 0, count);
-      }
-      return new TopDocs(hits.totalHits, newScoreDocs);
-    }
-    return hits;
-  }
-
-  /**
-   * Add {@link com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder}s to the {@link
-   * SearchResponse.Builder} for each of the query hits. Populate the builders with the lucene doc
-   * id and score.
-   *
-   * @param searchResponse search response to add hits
-   * @param hits hits from query
-   */
-  private static void setResponseHits(SearchResponse.Builder searchResponse, TopDocs hits) {
-    TotalHits totalHits =
-        TotalHits.newBuilder()
-            .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation.name()))
-            .setValue(hits.totalHits.value)
-            .build();
-    searchResponse.setTotalHits(totalHits);
-    for (int hitIndex = 0; hitIndex < hits.scoreDocs.length; hitIndex++) {
-      ScoreDoc hit = hits.scoreDocs[hitIndex];
-      var hitResponse = searchResponse.addHitsBuilder();
-      hitResponse.setLuceneDocId(hit.doc);
-      if (!Float.isNaN(hit.score)) {
-        hitResponse.setScore(hit.score);
-      }
-    }
-  }
-
-  /**
-   * Execute the fetch phase for this query. Fills hit field information for the supplied {@link
+   * Execute the fetch phase for this query. Fills hit field information for the context {@link
    * SearchResponse}. The response is expected to already contain {@link
    * com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder} entries with the lucene doc ids and
-   * scores set.
+   * scores/sort set.
    *
    * @param context search context
-   * @param searchResponse response to fill field data for
    * @throws IOException on error reading field data
    */
-  public static void doFetchPhase(SearchContext context, SearchResponse.Builder searchResponse)
-      throws IOException {
-    if (searchResponse.getHitsCount() == 0) {
+  public static void execute(SearchContext context) throws IOException {
+    if (context.searchResponse().getHitsCount() == 0) {
       return;
     }
     long t0 = System.nanoTime();
 
+    // sort hits by lucene doc id
     List<SearchResponse.Hit.Builder> sortedHits =
-        new ArrayList<>(searchResponse.getHitsBuilderList());
+        new ArrayList<>(context.searchResponse().getHitsBuilderList());
     sortedHits.sort(Comparator.comparingInt(SearchResponse.Hit.Builder::getLuceneDocId));
 
     List<LeafReaderContext> leaves =
@@ -165,13 +62,18 @@ public class SearchExecutor {
       leafIndex =
           getSegmentIndexForDocId(leaves, leafIndex, sortedHits.get(hitIndex).getLuceneDocId());
       LeafReaderContext sliceSegment = leaves.get(leafIndex);
-      List<SearchResponse.Hit.Builder> sliceHits = getSliceHits(sortedHits, hitIndex, sliceSegment);
 
+      // get all hits in the same segment and process them together for better resource reuse
+      List<SearchResponse.Hit.Builder> sliceHits = getSliceHits(sortedHits, hitIndex, sliceSegment);
       fetchSlice(context, sliceHits, sliceSegment);
 
       hitIndex += sliceHits.size();
+      leafIndex++;
     }
-    context.diagnostics().setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
+    context
+        .searchResponse()
+        .getDiagnosticsBuilder()
+        .setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
   }
 
   /**
@@ -187,7 +89,7 @@ public class SearchExecutor {
    */
   private static int getSegmentIndexForDocId(
       List<LeafReaderContext> contexts, int nextSegmentIndex, int docId) {
-    if (docId < contexts.get(nextSegmentIndex).docBase) {
+    if (nextSegmentIndex < contexts.size() && docId < contexts.get(nextSegmentIndex).docBase) {
       throw new IllegalArgumentException(
           "docId: "
               + docId
@@ -215,6 +117,7 @@ public class SearchExecutor {
     throw new IllegalArgumentException("Unable to find Segment context for docId: " + docId);
   }
 
+  /** Get all hits belonging to the same lucene segment */
   private static List<SearchResponse.Hit.Builder> getSliceHits(
       List<SearchResponse.Hit.Builder> sortedHits, int startIndex, LeafReaderContext sliceSegment) {
     int endDoc = sliceSegment.docBase + sliceSegment.reader().maxDoc();
@@ -245,7 +148,6 @@ public class SearchExecutor {
     for (Map.Entry<String, FieldDef> fieldDefEntry : context.queryFields().entrySet()) {
       if (fieldDefEntry.getValue() instanceof VirtualFieldDef) {
         fetchFromValueSource(
-            context,
             sliceHits,
             sliceSegment,
             fieldDefEntry.getKey(),
@@ -253,8 +155,7 @@ public class SearchExecutor {
       } else if (fieldDefEntry.getValue() instanceof IndexableFieldDef) {
         IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDefEntry.getValue();
         if (indexableFieldDef.hasDocValues()) {
-          fetchFromDocVales(
-              context, sliceHits, sliceSegment, fieldDefEntry.getKey(), indexableFieldDef);
+          fetchFromDocVales(sliceHits, sliceSegment, fieldDefEntry.getKey(), indexableFieldDef);
         } else if (indexableFieldDef.isStored()) {
           fetchFromStored(context, sliceHits, fieldDefEntry.getKey(), indexableFieldDef);
         } else {
@@ -266,18 +167,17 @@ public class SearchExecutor {
             "No valid method to retrieve field: " + fieldDefEntry.getKey());
       }
     }
-    addSpecialSortFields(sliceHits, context.sortFieldNames());
   }
 
   /** Fetch field value from virtual field's {@link org.apache.lucene.search.DoubleValuesSource} */
   private static void fetchFromValueSource(
-      SearchContext context,
       List<SearchResponse.Hit.Builder> sliceHits,
       LeafReaderContext sliceSegment,
       String name,
       VirtualFieldDef virtualFieldDef)
       throws IOException {
-    SettableScoreDoubleValues scoreValue = new SettableScoreDoubleValues();
+    FetchOperation.SettableScoreDoubleValues scoreValue =
+        new FetchOperation.SettableScoreDoubleValues();
     DoubleValues doubleValues =
         virtualFieldDef.getValuesSource().getValues(sliceSegment, scoreValue);
     for (SearchResponse.Hit.Builder hit : sliceHits) {
@@ -289,13 +189,12 @@ public class SearchExecutor {
           SearchResponse.Hit.CompositeFieldValue.newBuilder();
       compositeFieldValue.addFieldValue(
           SearchResponse.Hit.FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
-      setFieldValueForHit(name, compositeFieldValue.build(), hit, context);
+      hit.putFields(name, compositeFieldValue.build());
     }
   }
 
   /** Fetch field value from its doc value */
   private static void fetchFromDocVales(
-      SearchContext context,
       List<SearchResponse.Hit.Builder> sliceHits,
       LeafReaderContext sliceSegment,
       String name,
@@ -311,7 +210,7 @@ public class SearchExecutor {
       for (int i = 0; i < docValues.size(); ++i) {
         compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
       }
-      setFieldValueForHit(name, compositeFieldValue.build(), hit, context);
+      hit.putFields(name, compositeFieldValue.build());
     }
   }
 
@@ -333,75 +232,7 @@ public class SearchExecutor {
         compositeFieldValue.addFieldValue(
             SearchResponse.Hit.FieldValue.newBuilder().setTextValue(fieldValue));
       }
-      setFieldValueForHit(name, compositeFieldValue.build(), hit, context);
-    }
-  }
-
-  /**
-   * Add the given {@link com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue}
-   * into the response hit. It may be needed in sort fields, retrieve fields, or both.
-   *
-   * @param name field name
-   * @param fieldValue loaded field value0
-   * @param hit response hit
-   * @param context search context
-   */
-  private static void setFieldValueForHit(
-      String name,
-      SearchResponse.Hit.CompositeFieldValue fieldValue,
-      SearchResponse.Hit.Builder hit,
-      SearchContext context) {
-    if (context.sortFieldNames().contains(name)) {
-      hit.putSortedFields(name, fieldValue);
-      if (context.retrieveFieldNames().contains(name)) {
-        hit.putFields(name, fieldValue);
-      }
-    } else {
-      hit.putFields(name, fieldValue);
-    }
-  }
-
-  /**
-   * Add sort values for fields that are not index fields, into {@link SearchResponse.Hit.Builder}s.
-   * These would be special sort fields like 'docid' and 'score'.
-   *
-   * @param sliceHits segment hits
-   * @param sortFieldNames names of query sort field names
-   * @throws IllegalArgumentException if special field name is unknown
-   */
-  private static void addSpecialSortFields(
-      List<SearchResponse.Hit.Builder> sliceHits, Set<String> sortFieldNames) {
-    if (sortFieldNames.isEmpty()) {
-      return;
-    }
-    for (String specialField : SortParser.SPECIAL_FIELDS) {
-      if (sortFieldNames.contains(specialField)) {
-        if (specialField.equals("docid")) {
-          for (SearchResponse.Hit.Builder hit : sliceHits) {
-            var fieldValue =
-                SearchResponse.Hit.CompositeFieldValue.newBuilder()
-                    .addFieldValue(
-                        SearchResponse.Hit.FieldValue.newBuilder()
-                            .setIntValue(hit.getLuceneDocId())
-                            .build())
-                    .build();
-            hit.putFields(specialField, fieldValue);
-          }
-        } else if (specialField.equals("score")) {
-          for (SearchResponse.Hit.Builder hit : sliceHits) {
-            var fieldValue =
-                SearchResponse.Hit.CompositeFieldValue.newBuilder()
-                    .addFieldValue(
-                        SearchResponse.Hit.FieldValue.newBuilder()
-                            .setDoubleValue(hit.getScore())
-                            .build())
-                    .build();
-            hit.putFields(specialField, fieldValue);
-          }
-        } else {
-          throw new IllegalArgumentException("Unknown special sort field: " + specialField);
-        }
-      }
+      hit.putFields(name, compositeFieldValue.build());
     }
   }
 
