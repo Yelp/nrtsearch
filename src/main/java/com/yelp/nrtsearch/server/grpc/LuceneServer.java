@@ -125,8 +125,7 @@ public class LuceneServer {
                 .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
                 .withCollectorRegistry(collectorRegistry),
             serviceName,
-            nodeName
-        );
+            nodeName);
     /* The port on which the server should run */
     server =
         ServerBuilder.forPort(luceneServerConfiguration.getPort())
