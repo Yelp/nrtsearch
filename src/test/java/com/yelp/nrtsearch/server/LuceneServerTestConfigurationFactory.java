@@ -15,24 +15,23 @@
  */
 package com.yelp.nrtsearch.server;
 
-import static com.yelp.nrtsearch.server.config.LuceneServerConfiguration.DEFAULT_USER_DIR;
-
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class LuceneServerTestConfigurationFactory {
   static AtomicLong atomicLong = new AtomicLong();
 
-  public static LuceneServerConfiguration getConfig(Mode mode) {
+  public static LuceneServerConfiguration getConfig(Mode mode, File dataRootDir) {
     String dirNum = String.valueOf(atomicLong.addAndGet(1));
     if (mode.equals(Mode.STANDALONE)) {
       String stateDir =
-          Paths.get(DEFAULT_USER_DIR.toString(), "standalone", dirNum, "state").toString();
+          Paths.get(dataRootDir.getAbsolutePath(), "standalone", dirNum, "state").toString();
       String indexDir =
-          Paths.get(DEFAULT_USER_DIR.toString(), "standalone", dirNum, "index").toString();
+          Paths.get(dataRootDir.getAbsolutePath(), "standalone", dirNum, "index").toString();
       String config =
           String.join(
               "\n",
@@ -44,9 +43,9 @@ public class LuceneServerTestConfigurationFactory {
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     } else if (mode.equals(Mode.PRIMARY)) {
       String stateDir =
-          Paths.get(DEFAULT_USER_DIR.toString(), "primary", dirNum, "state").toString();
+          Paths.get(dataRootDir.getAbsolutePath(), "primary", dirNum, "state").toString();
       String indexDir =
-          Paths.get(DEFAULT_USER_DIR.toString(), "primary", dirNum, "index").toString();
+          Paths.get(dataRootDir.getAbsolutePath(), "primary", dirNum, "index").toString();
       String config =
           String.join(
               "\n",
@@ -58,9 +57,9 @@ public class LuceneServerTestConfigurationFactory {
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     } else if (mode.equals(Mode.REPLICA)) {
       String stateDir =
-          Paths.get(DEFAULT_USER_DIR.toString(), "replica", dirNum, "state").toString();
+          Paths.get(dataRootDir.getAbsolutePath(), "replica", dirNum, "state").toString();
       String indexDir =
-          Paths.get(DEFAULT_USER_DIR.toString(), "replica", dirNum, "index").toString();
+          Paths.get(dataRootDir.getAbsolutePath(), "replica", dirNum, "index").toString();
       String config =
           String.join(
               "\n",

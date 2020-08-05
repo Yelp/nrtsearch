@@ -82,7 +82,7 @@ public class CustomFieldTypeTest {
   private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
+        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     GlobalState globalState = new GlobalState(luceneServerConfiguration);
     return new GrpcServer(
         collectorRegistry,

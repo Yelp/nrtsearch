@@ -83,7 +83,7 @@ public class BackupRestoreIndexRequestHandlerTest {
 
   private GrpcServer setUpGrpcServer() throws IOException {
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
+        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     GlobalState globalState = new GlobalState(luceneServerConfiguration);
     return new GrpcServer(
         grpcCleanup,

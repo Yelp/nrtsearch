@@ -76,7 +76,7 @@ public class SuggestTest {
   @Before
   public void setUp() throws IOException {
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
+        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     GlobalState globalState = new GlobalState(luceneServerConfiguration);
     grpcServer =
         new GrpcServer(
