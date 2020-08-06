@@ -94,7 +94,8 @@ public class LuceneServerConfiguration {
       metricsBuckets = DEFAULT_METRICS_BUCKETS;
     }
     this.metricsBuckets = metricsBuckets;
-    addDocumentsMaxBufferLen = configReader.getInteger("addDocumentsMaxBufferLen", DEFAULT_ADD_DOCUMENTS_MAX_BUFFER_LEN);
+    addDocumentsMaxBufferLen =
+        configReader.getInteger("addDocumentsMaxBufferLen", DEFAULT_ADD_DOCUMENTS_MAX_BUFFER_LEN);
     plugins = configReader.getStringList("plugins", DEFAULT_PLUGINS).toArray(new String[0]);
     pluginSearchPath =
         configReader.getString("pluginSearchPath", DEFAULT_PLUGIN_SEARCH_PATH.toString());
