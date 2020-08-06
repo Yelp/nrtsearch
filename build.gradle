@@ -44,13 +44,11 @@ def commonsCompressVersion = '1.19'
 def awsJavaSdkVersion = '1.11.695'
 def guicedeeVersion = '1.0.1.7-jre13'
 def lz4Version = '1.7.0'
-def prometheusVersion = '0.3.0'
 def prometheusClientVersion = '0.8.0'
 
 dependencies {
 
     //prometheus (metrics) deps
-    implementation "me.dinowernli:java-grpc-prometheus:${prometheusVersion}"
     implementation "io.prometheus:simpleclient_servlet:${prometheusClientVersion}"
 
     //
@@ -178,6 +176,11 @@ publishing {
                         id = 'alok'
                         name = 'Alok Mysore'
                         email = 'alok@yelp.com'
+                    }
+                    developer {
+                        id = 'erikyang'
+                        name = 'Erik Yang'
+                        email = 'erikyang@yelp.com'
                     }
                     developer {
                         id = 'karthik'
