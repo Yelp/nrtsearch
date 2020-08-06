@@ -240,6 +240,8 @@ public class LuceneServer {
     private final CollectorRegistry collectorRegistry;
     private final ThreadPoolExecutor searchThreadPoolExecutor;
 
+    private final int addDocumentsMaxBufferLen;
+
     LuceneServerImpl(
         GlobalState globalState,
         LuceneServerConfiguration configuration,
@@ -253,6 +255,9 @@ public class LuceneServer {
           ThreadPoolExecutorFactory.getThreadPoolExecutor(
               ThreadPoolExecutorFactory.ExecutorType.SEARCH,
               globalState.getThreadPoolConfiguration());
+      this.addDocumentsMaxBufferLen = configuration.getAddDocumentsMaxBufferLen();
+      logger.warn(String.format("Add Documents Max Buffer Length: %d",
+          configuration.getAddDocumentsMaxBufferLen()));
 
       initExtendableComponents(configuration, plugins);
     }
@@ -490,10 +495,8 @@ public class LuceneServer {
     public StreamObserver<AddDocumentRequest> addDocuments(
         StreamObserver<AddDocumentResponse> responseObserver) {
       return new StreamObserver<AddDocumentRequest>() {
-        // TODO make this a config
-        private static final int MAX_BUFFER_LEN = 100;
         private long count = 0;
-        Queue<AddDocumentRequest> addDocumentRequestQueue = new ArrayBlockingQueue(MAX_BUFFER_LEN);
+        Queue<AddDocumentRequest> addDocumentRequestQueue = new ArrayBlockingQueue(addDocumentsMaxBufferLen);
         List<Future<Long>> futures = new ArrayList<>();
 
         @Override
@@ -503,7 +506,7 @@ public class LuceneServer {
                   "onNext, addDocumentRequestQueue size: %s", addDocumentRequestQueue.size()));
           count++;
           addDocumentRequestQueue.add(addDocumentRequest);
-          if (addDocumentRequestQueue.size() == MAX_BUFFER_LEN) {
+          if (addDocumentRequestQueue.size() == addDocumentsMaxBufferLen) {
             logger.debug(
                 String.format(
                     "indexing addDocumentRequestQueue size: %s, total: %s",
