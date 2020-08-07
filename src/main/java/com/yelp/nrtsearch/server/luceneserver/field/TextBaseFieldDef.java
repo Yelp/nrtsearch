@@ -31,6 +31,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.facet.FacetField;
+import org.apache.lucene.facet.sortedset.SortedSetDocValuesFacetField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
@@ -114,6 +115,10 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef {
       return FacetValueType.HIERARCHY;
     } else if (facetType.equals(FacetType.NUMERIC_RANGE)) {
       throw new IllegalArgumentException("numericRange facets only applies to numeric types");
+    } else if (facetType.equals(FacetType.SORTED_SET_DOC_VALUES)) {
+      return FacetValueType.SORTED_SET_DOC_VALUES;
+    } else if (facetType.equals(FacetType.FLAT)) {
+      return FacetValueType.FLAT;
     }
     return FacetValueType.NO_FACETS;
   }
@@ -285,8 +290,11 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef {
   }
 
   private void addFacet(Document document, String value) {
-    if (facetValueType == FacetValueType.HIERARCHY) {
+    if (facetValueType == FacetValueType.HIERARCHY || facetValueType == FacetValueType.FLAT) {
       document.add(new FacetField(getName(), value));
+    } else if (facetValueType == FacetValueType.SORTED_SET_DOC_VALUES) {
+      String facetValue = String.valueOf(value);
+      document.add(new SortedSetDocValuesFacetField(getName(), facetValue));
     }
   }
 

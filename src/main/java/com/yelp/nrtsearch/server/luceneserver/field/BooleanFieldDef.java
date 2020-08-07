@@ -69,7 +69,9 @@ public class BooleanFieldDef extends IndexableFieldDef {
 
   protected FacetValueType parseFacetValueType(Field requestField) {
     if (requestField.getFacet() == FacetType.HIERARCHY
-        || requestField.getFacet() == FacetType.NUMERIC_RANGE) {
+        || requestField.getFacet() == FacetType.NUMERIC_RANGE
+        || requestField.getFacet() == FacetType.SORTED_SET_DOC_VALUES
+        || requestField.getFacet() == FacetType.FLAT) {
       throw new IllegalArgumentException("unsupported facet type: " + requestField.getFacet());
     }
     return FacetValueType.NO_FACETS;

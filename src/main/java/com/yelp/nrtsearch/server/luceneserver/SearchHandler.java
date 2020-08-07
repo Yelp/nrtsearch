@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.collect.Maps;
+import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -26,6 +27,7 @@ import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.luceneserver.field.BooleanFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
@@ -52,6 +54,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import org.apache.lucene.facet.DrillDownQuery;
+import org.apache.lucene.facet.DrillSideways;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -75,7 +78,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.grouping.AllGroupsCollector;
 import org.apache.lucene.search.grouping.FirstPassGroupingCollector;
@@ -282,22 +284,18 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         totalHitsThreshold = searchRequest.getTotalHitsThreshold();
       }
 
-      CollectorManager<TopScoreDocCollector, TopDocs> topDocsCollectorManager = null;
-      CollectorManager<TopFieldCollector, TopFieldDocs> topFieldDocsCollectorManager = null;
-      CollectorManager<LargeNumHitsTopDocsCollector, TopDocs> largeNumHitsTopDocsCollectorManager =
-          null;
+      CollectorManager<? extends Collector, ? extends TopDocs> collectorManager = null;
 
       // TODO: support "grouping" and "useBlockJoinCollector"
       if (sort == null) {
         // TODO: support "searchAfter" when supplied by user
         FieldDoc searchAfter = null;
         collector = TopScoreDocCollector.create(topHits, searchAfter, totalHitsThreshold);
-        topDocsCollectorManager =
+        collectorManager =
             TopScoreDocCollector.createSharedManager(topHits, searchAfter, totalHitsThreshold);
       } else if (q instanceof MatchAllDocsQuery) {
         collector = new LargeNumHitsTopDocsCollector(topHits);
-        largeNumHitsTopDocsCollectorManager =
-            LargeNumHitsTopDocsCollectorManagerCreator.createSharedManager(topHits);
+        collectorManager = LargeNumHitsTopDocsCollectorManagerCreator.createSharedManager(topHits);
       } else {
 
         // If any of the sort fields require score, than
@@ -311,7 +309,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         FieldDoc searchAfter;
         searchAfter = null;
         collector = TopFieldCollector.create(sort, topHits, searchAfter, totalHitsThreshold);
-        topFieldDocsCollectorManager =
+        collectorManager =
             TopFieldCollector.createSharedManager(sort, topHits, searchAfter, totalHitsThreshold);
       }
 
@@ -340,17 +338,24 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       long searchStartTime = System.nanoTime();
 
       // TODO: If "facets" create DrillSideways(ds) and do ds.search(ddq, c2)
-      // else if not facets...
       TopDocs topDocs = null;
-      {
+      if (!searchRequest.getFacetsList().isEmpty()) {
+        List<FacetResult> grpcFacetResults = new ArrayList<>();
+        DrillSideways drillS =
+            new DrillSidewaysImpl(
+                s.searcher,
+                indexState.facetsConfig,
+                s.taxonomyReader,
+                searchRequest.getFacetsList(),
+                s,
+                shardState,
+                queryFields,
+                grpcFacetResults);
+        drillS.search(ddq, collectorManager);
+        searchResponse.addAllFacetResult(grpcFacetResults);
+      } else {
         try {
-          if (topDocsCollectorManager != null) {
-            topDocs = s.searcher.search(ddq, topDocsCollectorManager);
-          } else if (largeNumHitsTopDocsCollectorManager != null) {
-            topDocs = s.searcher.search(ddq, largeNumHitsTopDocsCollectorManager);
-          } else { // topFieldDocsCollectorManager != null
-            topDocs = s.searcher.search(ddq, topFieldDocsCollectorManager);
-          }
+          topDocs = s.searcher.search(ddq, collectorManager);
         } catch (TimeLimitingCollector.TimeExceededException tee) {
           searchResponse.setHitTimeout(true);
         }

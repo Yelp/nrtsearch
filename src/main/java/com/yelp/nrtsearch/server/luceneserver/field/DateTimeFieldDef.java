@@ -170,13 +170,22 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
 
   @Override
   protected FacetValueType parseFacetValueType(Field requestField) {
-    if (requestField.getFacet() == FacetType.HIERARCHY) {
+    FacetType facetType = requestField.getFacet();
+    if (facetType.equals(FacetType.HIERARCHY)) {
       if (requestField.getStore()) {
         throw new IllegalArgumentException("facet=hierarchy fields cannot have store=true");
       }
       return FacetValueType.HIERARCHY;
-    } else if (requestField.getFacet() == FacetType.NUMERIC_RANGE) {
-      throw new IllegalArgumentException("numericRange facet not supported on this field type");
+    } else if (facetType.equals(FacetType.NUMERIC_RANGE)) {
+      if (!requestField.getSearch()) {
+        throw new IllegalArgumentException("facet=numericRange fields must have search=true");
+      }
+      return FacetValueType.NUMERIC_RANGE;
+    } else if (facetType.equals(FacetType.SORTED_SET_DOC_VALUES)) {
+      throw new IllegalArgumentException(
+          "facet=SORTED_SET_DOC_VALUES can work only for TEXT fields");
+    } else if (facetType.equals(FacetType.FLAT)) {
+      return FacetValueType.FLAT;
     }
     return FacetValueType.NO_FACETS;
   }
@@ -210,7 +219,7 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
   }
 
   private void addFacet(Document document, long value) {
-    if (facetValueType == FacetValueType.HIERARCHY) {
+    if (facetValueType == FacetValueType.HIERARCHY || facetValueType == FacetValueType.FLAT) {
       String facetValue = String.valueOf(value);
       document.add(new FacetField(getName(), facetValue));
     }
