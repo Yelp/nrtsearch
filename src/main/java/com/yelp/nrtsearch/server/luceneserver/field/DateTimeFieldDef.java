@@ -191,7 +191,8 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
   }
 
   @Override
-  public void parseDocumentField(Document document, List<String> fieldValues) {
+  public void parseDocumentField(
+      Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     if (fieldValues.size() > 1 && !isMultiValue()) {
       throw new IllegalArgumentException("Cannot index multiple values into single value field");
     }

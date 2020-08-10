@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import org.apache.lucene.facet.DrillSideways;
 import org.apache.lucene.facet.FacetResult;
 import org.apache.lucene.facet.Facets;
@@ -73,8 +74,9 @@ public class DrillSidewaysImpl extends DrillSideways {
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomyManager,
       ShardState shardState,
       Map<String, FieldDef> dynamicFields,
-      List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults) {
-    super(searcher, config, taxoReader);
+      List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults,
+      ExecutorService executorService) {
+    super(searcher, config, taxoReader, null, executorService);
     this.grpcFacets = grpcFacets;
     this.searcherAndTaxonomyManager = searcherAndTaxonomyManager;
     this.shardState = shardState;
@@ -294,7 +296,7 @@ public class DrillSidewaysImpl extends DrillSideways {
                       shardState.getOrdsCache(indexFieldName),
                       searcherAndTaxonomyManager.taxonomyReader,
                       indexState.facetsConfig,
-                      c);
+                      drillDowns);
             } else {
               luceneFacets =
                   new FastTaxonomyFacetCounts(

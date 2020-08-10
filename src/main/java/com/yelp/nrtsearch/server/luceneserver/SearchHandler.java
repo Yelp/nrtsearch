@@ -350,8 +350,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 s,
                 shardState,
                 queryFields,
-                grpcFacetResults);
-        drillS.search(ddq, collectorManager);
+                grpcFacetResults,
+                threadPoolExecutor);
+        DrillSideways.ConcurrentDrillSidewaysResult<? extends TopDocs>
+            concurrentDrillSidewaysResult = drillS.search(ddq, collectorManager);
+        topDocs = concurrentDrillSidewaysResult.collectorResult;
         searchResponse.addAllFacetResult(grpcFacetResults);
       } else {
         try {

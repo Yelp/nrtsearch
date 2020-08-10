@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import org.apache.lucene.analysis.Analyzer;
@@ -252,12 +253,14 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef {
   }
 
   @Override
-  public void parseDocumentField(Document document, List<String> fieldValues) {
+  public void parseDocumentField(
+      Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     if (fieldValues.size() > 1 && !isMultiValue()) {
       throw new IllegalArgumentException("Cannot index multiple values into single value field");
     }
 
-    for (String fieldStr : fieldValues) {
+    for (int i = 0; i < fieldValues.size(); i++) {
+      String fieldStr = fieldValues.get(i);
       if (isHighlighted && isMultiValue() && fieldStr.indexOf(Constants.INFORMATION_SEP) != -1) {
         // TODO: we could remove this restriction if it
         // ever matters ... we can highlight multi-valued
@@ -285,12 +288,21 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef {
         document.add(new FieldWithData(getName(), fieldType, fieldStr));
       }
 
-      addFacet(document, fieldStr);
+      addFacet(
+          document,
+          fieldStr,
+          facetHierarchyPaths.isEmpty() ? Collections.emptyList() : facetHierarchyPaths.get(i));
     }
   }
 
-  private void addFacet(Document document, String value) {
-    if (facetValueType == FacetValueType.HIERARCHY || facetValueType == FacetValueType.FLAT) {
+  private void addFacet(Document document, String value, List<String> paths) {
+    if (facetValueType == FacetValueType.HIERARCHY) {
+      if (paths.isEmpty()) {
+        document.add(new FacetField(getName(), value));
+      } else {
+        document.add(new FacetField(getName(), paths.toArray(new String[paths.size()])));
+      }
+    } else if (facetValueType == FacetValueType.FLAT) {
       document.add(new FacetField(getName(), value));
     } else if (facetValueType == FacetValueType.SORTED_SET_DOC_VALUES) {
       String facetValue = String.valueOf(value);
