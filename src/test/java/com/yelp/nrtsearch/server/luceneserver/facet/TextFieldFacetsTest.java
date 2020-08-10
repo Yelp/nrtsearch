@@ -170,7 +170,13 @@ public class TextFieldFacetsTest extends ServerTestCase {
   }
 
   private SearchResponse getSearchResponse(String dimension, String... paths) {
-    Facet.Builder facetBuilder = Facet.newBuilder().setDim(dimension).setTopN(10);
+    return getSearchResponse(dimension, false, paths);
+  }
+
+  private SearchResponse getSearchResponse(
+      String dimension, boolean useOrdsCache, String... paths) {
+    Facet.Builder facetBuilder =
+        Facet.newBuilder().setDim(dimension).setTopN(10).setUseOrdsCache(useOrdsCache);
     facetBuilder.addAllPaths(Arrays.asList(paths));
     return getGrpcServer()
         .getBlockingStub()
@@ -213,6 +219,10 @@ public class TextFieldFacetsTest extends ServerTestCase {
   @Test
   public void testHierarchyMultivaluedNoPath() {
     SearchResponse response = getSearchResponse("hierarchy_facet_field");
+    assertFacetResultMatch(response);
+  }
+
+  public void assertFacetResultMatch(SearchResponse response) {
     assertEquals(1, response.getFacetResultCount());
     List<FacetResult> facetResults = response.getFacetResultList();
     List<LabelAndValue> expectedLabelAndValues = new ArrayList<>();
@@ -226,9 +236,39 @@ public class TextFieldFacetsTest extends ServerTestCase {
   }
 
   @Test
+  public void testHierarchyMultivaluedNoPathUseOrdinalsCache() {
+    SearchResponse response = getSearchResponse("hierarchy_facet_field", true);
+    assertFacetResultMatch(response);
+  }
+
+  @Test
   public void testHierarchyWithPath() {
     SearchResponse response = getSearchResponse("hierarchy_facet_field", "home");
-    System.out.println(response);
+    List<FacetResult> facetResults = response.getFacetResultList();
+    List<LabelAndValue> expectedLabelAndValues = new ArrayList<>();
+    expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("mike").setValue(1.0).build());
+    expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("john").setValue(1.0).build());
+    // NOTE: total number of buckets/value returned by FastTaxonomyFacetCounts is -1 on multivalued
+    // fields.
+    assertFacetResult(
+        facetResults.get(0), "hierarchy_facet_field", -1, 2L, expectedLabelAndValues, "home");
+
+    response = getSearchResponse("hierarchy_facet_field", "home", "john");
+    facetResults = response.getFacetResultList();
+    expectedLabelAndValues = new ArrayList<>();
+    expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("work").setValue(1.0).build());
+    expectedLabelAndValues.add(
+        LabelAndValue.newBuilder().setLabel("personal").setValue(1.0).build());
+    // NOTE: total number of buckets/value returned by FastTaxonomyFacetCounts is -1 on multivalued
+    // fields.
+    assertFacetResult(
+        facetResults.get(0),
+        "hierarchy_facet_field",
+        -1,
+        2L,
+        expectedLabelAndValues,
+        "home",
+        "john");
   }
 
   @Test
@@ -275,7 +315,7 @@ public class TextFieldFacetsTest extends ServerTestCase {
       // labels not just topN
       long childCount, // total number of distinct buckets/terms
       List<LabelAndValue> expectedLableValues,
-      String... path) {
+      String... paths) {
     assertEquals(dim, testFacetResult.getDim());
     assertEquals(value, testFacetResult.getValue(), 0.001);
     assertEquals(childCount, testFacetResult.getChildCount());
@@ -288,6 +328,8 @@ public class TextFieldFacetsTest extends ServerTestCase {
           testFacetResult.getLabelValues(i).getValue(),
           0.001);
     }
-    // assertEquals(path, testFacetResult.getPathList());
+    for (int i = 0; i < paths.length; i++) {
+      assertEquals(paths[i], testFacetResult.getPath(i));
+    }
   }
 }

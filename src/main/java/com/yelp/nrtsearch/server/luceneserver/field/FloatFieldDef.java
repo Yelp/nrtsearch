@@ -20,7 +20,7 @@ import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
-import org.apache.lucene.document.FloatDocValuesField;
+import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
@@ -42,7 +42,9 @@ public class FloatFieldDef extends NumberFieldDef {
   @Override
   protected org.apache.lucene.document.Field getDocValueField(Number fieldValue) {
     if (docValuesType == DocValuesType.NUMERIC) {
-      return new FloatDocValuesField(getName(), fieldValue.floatValue());
+      // FloatDocValuesField does not work with NUMERIC_RANGE facets hence we store the doc value as
+      // double here
+      return new DoubleDocValuesField(getName(), fieldValue.floatValue());
     } else if (docValuesType == DocValuesType.SORTED_NUMERIC) {
       return new SortedNumericDocValuesField(
           getName(), SORTED_FLOAT_ENCODER.applyAsLong(fieldValue));

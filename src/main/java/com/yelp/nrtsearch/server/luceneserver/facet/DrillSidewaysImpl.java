@@ -330,12 +330,6 @@ public class DrillSidewaysImpl extends DrillSideways {
               String.format("each facet request must have either topN or labels"));
         }
       }
-      //
-      //            if (facetResult == null) {
-      //                facetResults.add(null);
-      //            } else {
-      //                facetResults.add(buildFacetResultJSON(facetResult));
-      //            }
       if (facetResult != null) {
         grpcFacetResults.add(buildFacetResultGrpc(facetResult));
       }
