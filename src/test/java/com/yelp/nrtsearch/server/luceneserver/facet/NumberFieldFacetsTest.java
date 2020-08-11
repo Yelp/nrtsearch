@@ -33,6 +33,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import io.grpc.StatusRuntimeException;
 import org.junit.Test;
 
 public class NumberFieldFacetsTest extends ServerTestCase {
@@ -111,7 +113,7 @@ public class NumberFieldFacetsTest extends ServerTestCase {
     assertNumericRangeFacet("int_number_facet_field");
   }
 
-  @Test
+  @Test(expected = StatusRuntimeException.class)
   public void testFloatNumberNumericRange() {
     assertNumericRangeFacet("float_number_facet_field");
   }

@@ -180,9 +180,14 @@ public class DrillSidewaysImpl extends DrillSideways {
                   0,
                   indexableFieldDef.getName(),
                   facet.getPathsList().toArray(new String[facet.getPathsCount()]));
-        } else if (indexableFieldDef instanceof FloatFieldDef
-            || indexableFieldDef
-                instanceof DoubleFieldDef) { // TODO  this should allow VirtualFieldDef to
+        } else if (indexableFieldDef instanceof FloatFieldDef) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "field %s is of type float with FloatFieldDocValues which do not support numeric_range faceting",
+                  indexableFieldDef.getName()));
+
+        } else if (indexableFieldDef
+            instanceof DoubleFieldDef) { // TODO  this should allow VirtualFieldDef to
           List<NumericRangeType> rangeList = facet.getNumericRangeList();
           DoubleRange[] ranges = new DoubleRange[rangeList.size()];
           for (int i = 0; i < ranges.length; i++) {
