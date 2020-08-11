@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.grpc.NumericRangeType;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,8 +34,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import io.grpc.StatusRuntimeException;
 import org.junit.Test;
 
 public class NumberFieldFacetsTest extends ServerTestCase {
