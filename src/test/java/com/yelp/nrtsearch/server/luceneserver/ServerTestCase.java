@@ -158,6 +158,7 @@ public class ServerTestCase {
       grpcServer.getGlobalState().close();
       grpcServer.shutdown();
       rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
+      initialized = false;
     }
   }
 

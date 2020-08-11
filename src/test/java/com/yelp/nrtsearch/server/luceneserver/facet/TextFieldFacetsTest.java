@@ -26,13 +26,16 @@ import com.yelp.nrtsearch.server.grpc.LabelAndValue;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.ClassRule;
 import org.junit.Test;
 
 public class TextFieldFacetsTest extends ServerTestCase {
+  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   private List<AddDocumentRequest> buildDocumentsWithPath(String indexName) {
     List<AddDocumentRequest> documentRequests = new ArrayList<>();

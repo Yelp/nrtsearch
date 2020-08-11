@@ -27,6 +27,7 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.StatusRuntimeException;
+import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,9 +35,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.ClassRule;
 import org.junit.Test;
 
 public class NumberFieldFacetsTest extends ServerTestCase {
+  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
   private static final List<String> fields =
       Arrays.asList(
           new String[] {
@@ -112,14 +116,14 @@ public class NumberFieldFacetsTest extends ServerTestCase {
     assertNumericRangeFacet("int_number_facet_field");
   }
 
-  @Test(expected = StatusRuntimeException.class)
-  public void testFloatNumberNumericRange() {
-    assertNumericRangeFacet("float_number_facet_field");
-  }
-
   @Test
   public void testLongNumberNumericRange() {
     assertNumericRangeFacet("long_number_facet_field");
+  }
+
+  @Test(expected = StatusRuntimeException.class)
+  public void testFloatNumberNumericRange() {
+    assertNumericRangeFacet("float_number_facet_field");
   }
 
   @Test
