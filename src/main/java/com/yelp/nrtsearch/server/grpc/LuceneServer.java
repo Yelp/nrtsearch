@@ -82,7 +82,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.stream.Collectors;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -494,11 +493,13 @@ public class LuceneServer {
     @Override
     public StreamObserver<AddDocumentRequest> addDocuments(
         StreamObserver<AddDocumentResponse> responseObserver) {
+
       return new StreamObserver<AddDocumentRequest>() {
         // TODO make this a config
         private static final int MAX_BUFFER_LEN = 100;
         private long count = 0;
-        Queue<AddDocumentRequest> addDocumentRequestQueue = new ArrayBlockingQueue(MAX_BUFFER_LEN);
+        Queue<AddDocumentRequest> addDocumentRequestQueue =
+            new ArrayBlockingQueue<>(MAX_BUFFER_LEN);
         List<Future<Long>> futures = new ArrayList<>();
 
         @Override
@@ -514,8 +515,7 @@ public class LuceneServer {
                     "indexing addDocumentRequestQueue size: %s, total: %s",
                     addDocumentRequestQueue.size(), count));
             try {
-              List<AddDocumentRequest> addDocRequestList =
-                  addDocumentRequestQueue.stream().collect(Collectors.toList());
+              List<AddDocumentRequest> addDocRequestList = new ArrayList<>(addDocumentRequestQueue);
               Future<Long> future =
                   globalState.submitIndexingTask(
                       new DocumentIndexer(globalState, addDocRequestList));
@@ -546,8 +546,7 @@ public class LuceneServer {
                   String.format(
                       "indexing left over addDocumentRequestQueue of size: %s",
                       addDocumentRequestQueue.size()));
-              List<AddDocumentRequest> addDocRequestList =
-                  addDocumentRequestQueue.stream().collect(Collectors.toList());
+              List<AddDocumentRequest> addDocRequestList = new ArrayList<>(addDocumentRequestQueue);
               Future<Long> future =
                   globalState.submitIndexingTask(
                       new DocumentIndexer(globalState, addDocRequestList));
@@ -563,7 +562,6 @@ public class LuceneServer {
               pq.offer(gen);
             }
             long t1 = System.nanoTime();
-            finishIndexingJob();
             responseObserver.onNext(
                 AddDocumentResponse.newBuilder().setGenId(String.valueOf(pq.peek())).build());
             responseObserver.onCompleted();
@@ -583,15 +581,6 @@ public class LuceneServer {
           } finally {
             addDocumentRequestQueue.clear();
             count = 0;
-          }
-        }
-
-        private void finishIndexingJob() throws IOException {
-          for (String indexName : globalState.getIndexNames()) {
-            ShardState shard = globalState.getIndex(indexName).getShard(0);
-            if (shard.isStarted()) {
-              shard.maybeRefreshBlocking();
-            }
           }
         }
       };
