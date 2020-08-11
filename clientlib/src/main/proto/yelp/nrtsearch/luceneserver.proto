@@ -359,7 +359,7 @@ enum FacetType {
     FLAT = 1; //Facets are indexed with no hierarchy.
     HIERARCHY = 2; //Facets are indexed and are hierarchical.
     NUMERIC_RANGE = 3; //Compute facet counts for custom numeric ranges
-    SORTED_SET_DOC_VALUES = 4; //"Use SortedSetDocValuesFacetCounts, which must be flat but don't require a taxonomy index
+    SORTED_SET_DOC_VALUES = 4; //Uses SortedSetDocValuesFacetCounts, which must be flat but don't require a taxonomy index
 }
 
 message Field {
@@ -452,8 +452,14 @@ message AddDocumentRequest {
     //we use this wrapper object to represent each field as a multivalued field.
     message MultiValuedField {
         repeated string value = 1; //list of values for this field
+        //Facet paths/hierarchy to bucket these values by, if indexed field is of type Facet.HIERARCHY
+        repeated FacetHierarchyPath faceHierarchyPaths = 2;
     }
     map<string, MultiValuedField> fields = 3; //map of field name to a list of string values.
+}
+
+message FacetHierarchyPath {
+    repeated string value = 1;
 }
 
 message AddDocumentResponse {

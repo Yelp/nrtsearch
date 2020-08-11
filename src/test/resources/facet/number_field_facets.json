@@ -1,0 +1,37 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "int_number_facet_field",
+      "type": "INT",
+      "storeDocValues": true,
+      "multiValued": false,
+      "search": true,
+      "facet": "NUMERIC_RANGE"
+    },
+    {
+      "name": "float_number_facet_field",
+      "type": "FLOAT",
+      "storeDocValues": true,
+      "multiValued": false,
+      "search": true,
+      "facet": "NUMERIC_RANGE"
+    },
+    {
+      "name": "long_number_facet_field",
+      "type": "LONG",
+      "storeDocValues": true,
+      "multiValued": false,
+      "search": true,
+      "facet": "NUMERIC_RANGE"
+    },
+    {
+      "name": "double_number_facet_field",
+      "type": "DOUBLE",
+      "storeDocValues": true,
+      "multiValued": false,
+      "search": true,
+      "facet": "NUMERIC_RANGE"
+    }
+  ]
+}

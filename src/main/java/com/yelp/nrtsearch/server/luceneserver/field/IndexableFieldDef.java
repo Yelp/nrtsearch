@@ -236,8 +236,11 @@ public abstract class IndexableFieldDef extends FieldDef {
    *
    * @param document lucene document to be added to the index
    * @param fieldValues list of String encoded field values
+   * @param facetHierarchyPaths list of list of String encoded paths for each field value be
+   *     determine hierarchy for faceting
    */
-  public abstract void parseDocumentField(Document document, List<String> fieldValues);
+  public abstract void parseDocumentField(
+      Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths);
 
   /**
    * Get Similarity implementation that should be used for this field.
