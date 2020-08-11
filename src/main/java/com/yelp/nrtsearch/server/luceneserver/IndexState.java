@@ -400,6 +400,9 @@ public class IndexState implements Closeable, Restorable {
   /** RAM buffer size passed to {@link IndexWriterConfig#setRAMBufferSizeMB}. */
   volatile double indexRamBufferSizeMB = 16;
 
+  /** Max number of documents to be added at a time. */
+  volatile int addDocumentsMaxBufferLen = 100;
+
   /** True if this is a new index. */
   private final boolean doCreate;
 
@@ -729,6 +732,14 @@ public class IndexState implements Closeable, Restorable {
     }
   }
 
+  /**
+   * Live setting: max number of documents to add at a time.
+   */
+  public synchronized void setAddDocumentsMaxBufferLen(int i) {
+    addDocumentsMaxBufferLen = i;
+    liveSettingsSaveState.addProperty("addDocumentsMaxBufferLen", i);
+  }
+
   /** Returns JSON representation of all live settings. */
   public synchronized String getLiveSettingsJSON() {
     return liveSettingsSaveState.toString();
@@ -1028,10 +1039,13 @@ public class IndexState implements Closeable, Restorable {
       liveSettingsRequestBuilder.setMinRefreshSec(0.5);
     }
     if (liveSettingsRequestBuilder.getMaxSearcherAgeSec() == 0) {
-      liveSettingsRequestBuilder.setMaxRefreshSec(60.0);
+      liveSettingsRequestBuilder.setMaxSearcherAgeSec(60.0);
     }
     if (liveSettingsRequestBuilder.getIndexRamBufferSizeMB() == 0) {
       liveSettingsRequestBuilder.setIndexRamBufferSizeMB(250);
+    }
+    if (liveSettingsRequestBuilder.getAddDocumentsMaxBufferLen() == 0) {
+      liveSettingsRequestBuilder.setAddDocumentsMaxBufferLen(100);
     }
 
     // set indexName which is not present in the jsonStr from state

@@ -365,7 +365,7 @@ public class GrpcServer {
       Path filePath = Paths.get("src", "test", "resources", addDocsFile);
       Reader reader = Files.newBufferedReader(filePath);
       CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
-      return new LuceneServerClientBuilder.AddDcoumentsClientBuilder(
+      return new LuceneServerClientBuilder.AddDocumentsClientBuilder(
               grpcServer.getTestIndex(), csvParser)
           .buildRequest(filePath);
     }

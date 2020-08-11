@@ -95,12 +95,14 @@ public class LuceneServerClient {
       double maxRefreshSec,
       double minRefreshSec,
       double maxSearcherAgeSec,
-      double indexRamBufferSizeMB) {
+      double indexRamBufferSizeMB,
+      int addDocumentsMaxBufferLen) {
     logger.info(
         String.format(
             "will try to update liveSettings for indexName: %s, "
-                + "maxRefreshSec: %s, minRefreshSec: %s, maxSearcherAgeSec: %s, indexRamBufferSizeMB: %s ",
-            indexName, maxRefreshSec, minRefreshSec, maxSearcherAgeSec, indexRamBufferSizeMB));
+                + "maxRefreshSec: %s, minRefreshSec: %s, maxSearcherAgeSec: %s, "
+                + "indexRamBufferSizeMB: %s, addDocumentsMaxBufferLen: %s ",
+            indexName, maxRefreshSec, minRefreshSec, maxSearcherAgeSec, indexRamBufferSizeMB, addDocumentsMaxBufferLen));
     LiveSettingsRequest request =
         LiveSettingsRequest.newBuilder()
             .setIndexName(indexName)
@@ -108,6 +110,7 @@ public class LuceneServerClient {
             .setMinRefreshSec(minRefreshSec)
             .setMaxSearcherAgeSec(maxSearcherAgeSec)
             .setIndexRamBufferSizeMB(indexRamBufferSizeMB)
+            .setAddDocumentsMaxBufferLen(addDocumentsMaxBufferLen)
             .build();
     LiveSettingsResponse response;
     try {

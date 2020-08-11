@@ -311,6 +311,8 @@ message LiveSettingsRequest {
     double maxSearcherAgeSec = 4;
     //Size (in MB) of IndexWriter's RAM buffer.
     double indexRamBufferSizeMB = 5;
+    //Max number of documents to add at a time.
+    int32 addDocumentsMaxBufferLen = 6;
 }
 
 /* Response from Server to liveSettings */

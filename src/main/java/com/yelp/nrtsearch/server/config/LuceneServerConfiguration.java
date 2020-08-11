@@ -46,7 +46,6 @@ public class LuceneServerConfiguration {
   private static final Path DEFAULT_PLUGIN_SEARCH_PATH =
       Paths.get(DEFAULT_USER_DIR.toString(), "plugins");
   private static final String DEFAULT_SERVICE_NAME = "nrtsearch-generic";
-  private static final int DEFAULT_ADD_DOCUMENTS_MAX_BUFFER_LEN = 100;
 
   private final int port;
   private final int replicationPort;
@@ -59,7 +58,6 @@ public class LuceneServerConfiguration {
   private final String botoCfgPath;
   private final String bucketName;
   private final double[] metricsBuckets;
-  private final int addDocumentsMaxBufferLen;
   private final String[] plugins;
   private final String pluginSearchPath;
   private final String serviceName;
@@ -94,8 +92,6 @@ public class LuceneServerConfiguration {
       metricsBuckets = DEFAULT_METRICS_BUCKETS;
     }
     this.metricsBuckets = metricsBuckets;
-    addDocumentsMaxBufferLen =
-        configReader.getInteger("addDocumentsMaxBufferLen", DEFAULT_ADD_DOCUMENTS_MAX_BUFFER_LEN);
     plugins = configReader.getStringList("plugins", DEFAULT_PLUGINS).toArray(new String[0]);
     pluginSearchPath =
         configReader.getString("pluginSearchPath", DEFAULT_PLUGIN_SEARCH_PATH.toString());
@@ -150,10 +146,6 @@ public class LuceneServerConfiguration {
 
   public double[] getMetricsBuckets() {
     return metricsBuckets;
-  }
-
-  public int getAddDocumentsMaxBufferLen() {
-    return addDocumentsMaxBufferLen;
   }
 
   public int getReplicaReplicationPortPingInterval() {
