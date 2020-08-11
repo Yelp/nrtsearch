@@ -103,6 +103,11 @@ public abstract class NumberFieldDef extends IndexableFieldDef
         throw new IllegalArgumentException("facet=numericRange fields must have search=true");
       }
       return FacetValueType.NUMERIC_RANGE;
+    } else if (facetType.equals(FacetType.SORTED_SET_DOC_VALUES)) {
+      throw new IllegalArgumentException(
+          "facet=SORTED_SET_DOC_VALUES can work only for TEXT fields");
+    } else if (facetType.equals(FacetType.FLAT)) {
+      return FacetValueType.FLAT;
     }
     return FacetValueType.NO_FACETS;
   }
@@ -167,7 +172,8 @@ public abstract class NumberFieldDef extends IndexableFieldDef
   protected abstract Number getSortMissingValue(boolean missingLast);
 
   @Override
-  public void parseDocumentField(Document document, List<String> fieldValues) {
+  public void parseDocumentField(
+      Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     if (fieldValues.size() > 1 && !isMultiValue()) {
       throw new IllegalArgumentException("Cannot index multiple values into single value field");
     }
@@ -188,7 +194,7 @@ public abstract class NumberFieldDef extends IndexableFieldDef
   }
 
   private void addFacet(Document document, Number value) {
-    if (facetValueType == FacetValueType.HIERARCHY) {
+    if (facetValueType == FacetValueType.HIERARCHY || facetValueType == FacetValueType.FLAT) {
       String facetValue = value.toString();
       document.add(new FacetField(getName(), facetValue));
     }

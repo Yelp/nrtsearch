@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.StatusRuntimeException;
 import java.io.Closeable;
@@ -44,11 +45,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.facet.FacetsConfig;
+import org.apache.lucene.facet.sortedset.DefaultSortedSetDocValuesReaderState;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesReaderState;
+import org.apache.lucene.facet.taxonomy.CachedOrdinalsReader;
+import org.apache.lucene.facet.taxonomy.DocValuesOrdinalsReader;
 import org.apache.lucene.facet.taxonomy.OrdinalsReader;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.facet.taxonomy.directory.DirectoryTaxonomyWriter;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
@@ -57,6 +63,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.PersistentSnapshotDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ControlledRealTimeReopenThread;
 import org.apache.lucene.search.IndexSearcher;
@@ -153,7 +160,7 @@ public class ShardState implements Closeable {
 
   private final List<HostAndPort> replicas = new ArrayList<>();
 
-  public final Map<IndexReader, Map<String, SortedSetDocValuesReaderState>> ssdvStates =
+  public final Map<IndexReader.CacheKey, Map<String, SortedSetDocValuesReaderState>> ssdvStates =
       new HashMap<>();
 
   public final String name;
@@ -674,6 +681,72 @@ public class ShardState implements Closeable {
             reopenThread, nrtPrimaryNode, writer, taxoWriter, slm, indexDir, taxoDir);
         writer = null;
       }
+    }
+  }
+
+  private IndexReader.ClosedListener removeSSDVStates =
+      cacheKey -> {
+        synchronized (ssdvStates) {
+          ssdvStates.remove(cacheKey);
+        }
+      };
+
+  /** Returns cached ordinals for the specified index field name. */
+  public synchronized OrdinalsReader getOrdsCache(String indexFieldName) {
+    OrdinalsReader ords = ordsCache.get(indexFieldName);
+    if (ords == null) {
+      ords = new CachedOrdinalsReader(new DocValuesOrdinalsReader(indexFieldName));
+      ordsCache.put(indexFieldName, ords);
+    }
+    return ords;
+  }
+
+  public SortedSetDocValuesReaderState getSSDVState(
+      SearcherTaxonomyManager.SearcherAndTaxonomy s, FieldDef fd) throws IOException {
+    FacetsConfig.DimConfig dimConfig = indexState.facetsConfig.getDimConfig(fd.getName());
+    IndexReader reader = s.searcher.getIndexReader();
+    synchronized (ssdvStates) {
+      Map<String, SortedSetDocValuesReaderState> readerSSDVStates = ssdvStates.get(reader);
+      if (readerSSDVStates == null) {
+        readerSSDVStates = new HashMap<>();
+        ssdvStates.put(reader.getReaderCacheHelper().getKey(), readerSSDVStates);
+        reader.getReaderCacheHelper().addClosedListener(removeSSDVStates);
+      }
+
+      SortedSetDocValuesReaderState ssdvState = readerSSDVStates.get(dimConfig.indexFieldName);
+      if (ssdvState == null) {
+        // TODO: maybe we should do this up front when reader is first opened instead
+        ssdvState =
+            new DefaultSortedSetDocValuesReaderState(reader, dimConfig.indexFieldName) {
+              @Override
+              public SortedSetDocValues getDocValues() throws IOException {
+                SortedSetDocValues values = super.getDocValues();
+                if (values == null) {
+                  values = DocValues.emptySortedSet();
+                }
+                return values;
+              }
+
+              @Override
+              public OrdRange getOrdRange(String dim) {
+                OrdRange result = super.getOrdRange(dim);
+                if (result == null) {
+                  result = new OrdRange(0, -1);
+                }
+                return result;
+              }
+            };
+        // nocommit maybe we shouldn't make this a hard error
+        // ... ie just return 0 facets
+        if (ssdvState == null) {
+          throw new IllegalArgumentException(
+              String.format(
+                  "field %s was properly registered with facet=sortedSetDocValues, however no documents were indexed as of this searcher"));
+        }
+        readerSSDVStates.put(dimConfig.indexFieldName, ssdvState);
+      }
+
+      return ssdvState;
     }
   }
 

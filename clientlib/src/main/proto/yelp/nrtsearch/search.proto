@@ -174,7 +174,7 @@ enum QueryType {
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
 message Query {
-    QueryType queryType = 1 [deprecated=true]; // no longer needed, type inferred from set QueryNode
+    QueryType queryType = 1 [deprecated = true]; // no longer needed, type inferred from set QueryNode
     float boost = 2; // Boost values that are less than one will give less importance to this query compared to other ones while values that are greater than one will give more importance to the scores returned by this query. Boost value of zero will do nothing (default). Boost less than 0 is invalid.
 
     oneof QueryNode {
@@ -209,7 +209,7 @@ message SearchRequest {
         string snapshot = 12; //Search a snapshot previously created with #createSnapshot
     }
     int32 totalHitsThreshold = 13; //By default we count hits accurately up to 1000. This makes sure that we don't spend most time on computing hit counts
-
+    repeated Facet facets = 14; // Which facets to retrieve
 }
 
 /* Virtual field used during search */
@@ -336,4 +336,36 @@ message SearchResponse {
     TotalHits totalHits = 3;
     repeated Hit hits = 4;
     SearchState searchState = 5;
+    repeated FacetResult facetResult = 6; ////Counts or aggregates for a single dimension
+}
+
+message NumericRangeType {
+    string label = 1; //Label for this range
+    int64 min = 2; //Min value for the range
+    bool minInclusive = 3; //True if the min value is inclusive
+    int64 max = 4; //Max value for the range
+    bool maxInclusive = 5; //True if the max value is inclusive
+}
+
+message Facet {
+    string dim = 1; //Dimension (field)
+    repeated string paths = 2; //Prefix path to facet 'under'
+    repeated NumericRangeType numericRange = 3; //Custom numeric ranges.  Field must be indexed with facet=numericRange.
+    bool useOrdsCache = 4; // True if the ordinals cache should be used
+    repeated string labels = 5; // Specific facet lables to retrieve
+    int32 topN = 6; //How many top facets to return
+}
+
+
+message FacetResult {
+    string dim = 1; //Dimension that was requested
+    repeated string path = 2; //Path whose children were requested.
+    double value = 3; //Total value for this path (sum of all child counts, or sum of all child values), even those not included in the topN.
+    repeated LabelAndValue labelValues = 4; // Child counts.
+    int64 childCount = 5; //How many child labels were encountered.
+}
+
+message LabelAndValue {
+    string label = 1; //Facet's label.
+    double value = 2; // Value associated with this label.
 }

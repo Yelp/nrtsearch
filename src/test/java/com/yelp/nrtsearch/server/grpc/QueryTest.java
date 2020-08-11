@@ -72,7 +72,7 @@ public class QueryTest {
   private GrpcServer setUpGrpcServer() throws IOException {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE);
+        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     GlobalState globalState = new GlobalState(luceneServerConfiguration);
     return new GrpcServer(
         grpcCleanup,
