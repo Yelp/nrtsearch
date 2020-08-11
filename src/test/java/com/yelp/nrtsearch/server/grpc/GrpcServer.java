@@ -356,7 +356,14 @@ public class GrpcServer {
       if (!finishLatch.await(20, TimeUnit.SECONDS)) {
         throw new RuntimeException("addDocuments can not finish within 20 seconds");
       }
+      refresh();
       return addDocumentResponse;
+    }
+
+    public void refresh() {
+      grpcServer
+          .getBlockingStub()
+          .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
     }
 
     private Stream<AddDocumentRequest> getAddDocumentRequestStream(String fileName)
