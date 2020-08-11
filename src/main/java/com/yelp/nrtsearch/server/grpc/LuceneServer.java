@@ -60,6 +60,8 @@ import com.yelp.nrtsearch.server.luceneserver.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.monitoring.Configuration;
+import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.utils.Archiver;
@@ -81,8 +83,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
-import me.dinowernli.grpc.prometheus.Configuration;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -116,11 +116,16 @@ public class LuceneServer {
 
     List<Plugin> plugins = pluginsService.loadPlugins();
 
-    MonitoringServerInterceptor monitoringInterceptor =
-        MonitoringServerInterceptor.create(
+    String serviceName = luceneServerConfiguration.getServiceName();
+    String nodeName = luceneServerConfiguration.getNodeName();
+
+    LuceneServerMonitoringServerInterceptor monitoringInterceptor =
+        LuceneServerMonitoringServerInterceptor.create(
             Configuration.allMetrics()
                 .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
-                .withCollectorRegistry(collectorRegistry));
+                .withCollectorRegistry(collectorRegistry),
+            serviceName,
+            nodeName);
     /* The port on which the server should run */
     server =
         ServerBuilder.forPort(luceneServerConfiguration.getPort())
