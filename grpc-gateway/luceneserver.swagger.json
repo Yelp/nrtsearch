@@ -332,6 +332,28 @@
         ]
       }
     },
+    "/v1/force_merge": {
+      "post": {
+        "operationId": "LuceneServer_forceMerge",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverForceMergeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/indices": {
       "get": {
         "summary": "indices",
@@ -921,6 +943,13 @@
           "items": {
             "type": "string"
           }
+        },
+        "faceHierarchyPaths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverFacetHierarchyPath"
+          },
+          "title": "Facet paths/hierarchy to bucket these values by, if indexed field is of type Facet.HIERARCHY"
         }
       },
       "description": "we use this wrapper object to represent each field as a multivalued field."
@@ -935,6 +964,14 @@
       ],
       "default": "SHOULD",
       "description": "Defines how clauses may occur in matching documents. This will always be SHOULD by default."
+    },
+    "ForceMergeResponseStatus": {
+      "type": "string",
+      "enum": [
+        "FORCE_MERGE_COMPLETED",
+        "FORCE_MERGE_SUBMITTED"
+      ],
+      "default": "FORCE_MERGE_COMPLETED"
     },
     "HitCompositeFieldValue": {
       "type": "object",
@@ -1586,6 +1623,79 @@
         }
       }
     },
+    "luceneserverFacet": {
+      "type": "object",
+      "properties": {
+        "dim": {
+          "type": "string"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "numericRange": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverNumericRangeType"
+          }
+        },
+        "useOrdsCache": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "topN": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "luceneserverFacetHierarchyPath": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "luceneserverFacetResult": {
+      "type": "object",
+      "properties": {
+        "dim": {
+          "type": "string"
+        },
+        "path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "value": {
+          "type": "number",
+          "format": "double"
+        },
+        "labelValues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverLabelAndValue"
+          }
+        },
+        "childCount": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
     "luceneserverFacetType": {
       "type": "string",
       "enum": [
@@ -1777,6 +1887,14 @@
         }
       }
     },
+    "luceneserverForceMergeResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/ForceMergeResponseStatus"
+        }
+      }
+    },
     "luceneserverFunctionScoreQuery": {
       "type": "object",
       "properties": {
@@ -1937,6 +2055,18 @@
         }
       },
       "title": "Used to be able to check if a value was set"
+    },
+    "luceneserverLabelAndValue": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number",
+          "format": "double"
+        }
+      }
     },
     "luceneserverLiveSettingsRequest": {
       "type": "object",
@@ -2099,6 +2229,30 @@
         "port": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "luceneserverNumericRangeType": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "min": {
+          "type": "string",
+          "format": "int64"
+        },
+        "minInclusive": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "max": {
+          "type": "string",
+          "format": "int64"
+        },
+        "maxInclusive": {
+          "type": "boolean",
+          "format": "boolean"
         }
       }
     },
@@ -2388,6 +2542,12 @@
         "totalHitsThreshold": {
           "type": "integer",
           "format": "int32"
+        },
+        "facets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverFacet"
+          }
         }
       }
     },
@@ -2412,6 +2572,12 @@
         },
         "searchState": {
           "$ref": "#/definitions/SearchResponseSearchState"
+        },
+        "facetResult": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverFacetResult"
+          }
         }
       }
     },
@@ -2433,6 +2599,10 @@
         "staleAgeSeconds": {
           "type": "number",
           "format": "double"
+        },
+        "numSegments": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },

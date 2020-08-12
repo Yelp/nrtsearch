@@ -417,6 +417,7 @@ public class LuceneServerTest {
     assertEquals(2, statsResponse.getMaxDoc());
     assertEquals(0, statsResponse.getOrd());
     assertEquals(2, statsResponse.getCurrentSearcher().getNumDocs());
+    assertEquals(1, statsResponse.getCurrentSearcher().getNumSegments());
     assertEquals(6610, statsResponse.getDirSize(), 1000);
     assertEquals("started", statsResponse.getState());
   }
@@ -777,6 +778,43 @@ public class LuceneServerTest {
     }
     assertEquals(true, labelsHelp.equals(labelsType));
     assertEquals(true, labelsHelp.equals(expectedSampleNames));
+  }
+
+  @Test
+  public void testForceMerge() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    // 2 docs addDocuments
+    testAddDocs.addDocuments();
+    // add more documents to different segment
+    testAddDocs.addDocuments();
+
+    StatsResponse stats =
+        grpcServer
+            .getBlockingStub()
+            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    assertEquals(4, stats.getNumDocs());
+    assertEquals(2, stats.getCurrentSearcher().getNumSegments());
+
+    ForceMergeResponse response =
+        grpcServer
+            .getBlockingStub()
+            .forceMerge(
+                ForceMergeRequest.newBuilder()
+                    .setIndexName(grpcServer.getTestIndex())
+                    .setMaxNumSegments(1)
+                    .setDoWait(true)
+                    .build());
+    assertEquals(ForceMergeResponse.Status.FORCE_MERGE_COMPLETED, response.getStatus());
+
+    testAddDocs.refresh();
+
+    stats =
+        grpcServer
+            .getBlockingStub()
+            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    assertEquals(stats.getNumDocs(), 4);
+    assertEquals(1, stats.getCurrentSearcher().getNumSegments());
   }
 
   public static List<VirtualField> getQueryVirtualFields() {
