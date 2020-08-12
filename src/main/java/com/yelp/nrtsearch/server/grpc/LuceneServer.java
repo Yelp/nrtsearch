@@ -1106,6 +1106,35 @@ public class LuceneServer {
                 .asRuntimeException());
       }
     }
+
+    @Override
+    public void forceMerge(
+        ForceMergeRequest forceMergeRequest, StreamObserver<ForceMergeResponse> responseObserver) {
+      if (forceMergeRequest.getIndexName().isEmpty()) {
+        responseObserver.onError(new IllegalArgumentException("Index name in request is empty"));
+        return;
+      }
+      if (forceMergeRequest.getMaxNumSegments() == 0) {
+        responseObserver.onError(new IllegalArgumentException("Cannot have 0 max segments"));
+        return;
+      }
+
+      try {
+        IndexState indexState = globalState.getIndex(forceMergeRequest.getIndexName());
+        ShardState shardState = indexState.shards.get(0);
+        shardState.writer.forceMerge(
+            forceMergeRequest.getMaxNumSegments(), forceMergeRequest.getDoWait());
+      } catch (IOException e) {
+        responseObserver.onError(e);
+      }
+      ForceMergeResponse.Status status =
+          forceMergeRequest.getDoWait()
+              ? ForceMergeResponse.Status.FORCE_MERGE_COMPLETED
+              : ForceMergeResponse.Status.FORCE_MERGE_SUBMITTED;
+      ForceMergeResponse response = ForceMergeResponse.newBuilder().setStatus(status).build();
+      responseObserver.onNext(response);
+      responseObserver.onCompleted();
+    }
   }
 
   static class ReplicationServerImpl extends ReplicationServerGrpc.ReplicationServerImplBase {

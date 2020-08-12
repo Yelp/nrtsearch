@@ -28,7 +28,9 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherLifetimeManager;
 import org.slf4j.Logger;
@@ -99,7 +101,12 @@ public class StatsRequestHandler implements Handler<StatsRequest, StatsResponse>
         Searcher.Builder searcher = Searcher.newBuilder();
         if (s.searcher != null) {
           searcher.setSegments(s.searcher.toString());
-          searcher.setNumDocs(s.searcher.getIndexReader().numDocs());
+          IndexReader indexReader = s.searcher.getIndexReader();
+          searcher.setNumDocs(indexReader.numDocs());
+          if (indexReader instanceof StandardDirectoryReader) {
+            StandardDirectoryReader standardDirectoryReader = (StandardDirectoryReader) indexReader;
+            searcher.setNumSegments(standardDirectoryReader.getSegmentInfos().asList().size());
+          }
         }
         statsResponseBuilder.setCurrentSearcher(searcher.build());
       } finally {

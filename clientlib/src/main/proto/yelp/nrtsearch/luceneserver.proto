@@ -255,6 +255,11 @@ service LuceneServer {
     };
     }
 
+    rpc forceMerge(ForceMergeRequest) returns (ForceMergeResponse) {
+        option (google.api.http) = {
+      post: "/v1/force_merge"
+    };
+    }
 }
 
 //The ReplicationServer service definition.
@@ -520,6 +525,7 @@ message Searcher {
     int32 numDocs = 2; //total number of docs in this index
     string segments = 3; //string representation of segments
     double staleAgeSeconds = 4; //how much time has passed since this searcher was the current (live) searcher
+    int32 numSegments = 5; // number of segments, filled only if Searcher has StandardDirectoryReader
 }
 
 message DeleteAllDocumentsRequest {
@@ -864,4 +870,18 @@ message NodeInfo {
 message DeleteByQueryRequest {
     string indexName = 1; // Index to delete documents from
     repeated Query query = 2; // Queries to match documents to be deleted
+}
+
+message ForceMergeRequest {
+    string indexName = 1; // Index whose segments must be force merged
+    int32 maxNumSegments = 2; // Maximum number of segments after force merge
+    bool doWait = 3; // If true, waits until the force merge is completed before returning a response. Otherwise starts force merging in async and returns a response.
+}
+
+message ForceMergeResponse {
+    enum Status {
+        FORCE_MERGE_COMPLETED = 0;
+        FORCE_MERGE_SUBMITTED = 1;
+    }
+    Status status = 1;
 }
