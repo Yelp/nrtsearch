@@ -813,7 +813,7 @@ public class LuceneServerTest {
         grpcServer
             .getBlockingStub()
             .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
-    assertEquals(stats.getNumDocs(), 4);
+    assertEquals(4, stats.getNumDocs());
     assertEquals(1, stats.getCurrentSearcher().getNumSegments());
   }
 
