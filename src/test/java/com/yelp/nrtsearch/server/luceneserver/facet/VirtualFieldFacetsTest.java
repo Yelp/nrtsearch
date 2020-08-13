@@ -133,19 +133,15 @@ public class VirtualFieldFacetsTest extends ServerTestCase {
             .setMax(100L)
             .setMaxInclusive(true)
             .build());
-    String dim = "virtual_field_js_script" ;
-    SearchResponse response = getSearchResponse(
-            dim,
-            false,
-            numericRangeTypes,
-            "int_number_facet_field*5.0",
-            Collections.emptyMap());
+    String dim = "virtual_field_js_script";
+    SearchResponse response =
+        getSearchResponse(
+            dim, false, numericRangeTypes, "int_number_facet_field*5.0", Collections.emptyMap());
     assertEquals(1, response.getFacetResultCount());
     List<FacetResult> facetResults = response.getFacetResultList();
     List<LabelAndValue> expectedLabelAndValues = new ArrayList<>();
     expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("1-50").setValue(1.0).build());
     expectedLabelAndValues.add(LabelAndValue.newBuilder().setLabel("51-100").setValue(1.0).build());
     assertFacetResult(facetResults.get(0), dim, 2, 2L, expectedLabelAndValues);
-
   }
 }
