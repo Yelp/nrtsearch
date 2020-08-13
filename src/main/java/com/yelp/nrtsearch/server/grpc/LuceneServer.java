@@ -506,12 +506,7 @@ public class LuceneServer {
 
         private int getAddDocumentsMaxBufferLen(String indexName) {
           try {
-            return globalState
-                .getIndex(indexName)
-                .getSaveState()
-                .getAsJsonObject("liveSettings")
-                .get("addDocumentsMaxBufferLen")
-                .getAsInt();
+            return globalState.getIndex(indexName).getAddDocumentsMaxBufferLen();
           } catch (Exception e) {
             logger.warn(
                 String.format(

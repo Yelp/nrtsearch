@@ -401,7 +401,7 @@ public class IndexState implements Closeable, Restorable {
   volatile double indexRamBufferSizeMB = 16;
 
   /** Max number of documents to be added at a time. */
-  volatile int addDocumentsMaxBufferLen = 100;
+  int addDocumentsMaxBufferLen = 100;
 
   /** True if this is a new index. */
   private final boolean doCreate;
@@ -736,6 +736,11 @@ public class IndexState implements Closeable, Restorable {
   public synchronized void setAddDocumentsMaxBufferLen(int i) {
     addDocumentsMaxBufferLen = i;
     liveSettingsSaveState.addProperty("addDocumentsMaxBufferLen", i);
+  }
+
+  /** Live setting: max number of documents to add at a time. */
+  public int getAddDocumentsMaxBufferLen() {
+    return addDocumentsMaxBufferLen;
   }
 
   /** Returns JSON representation of all live settings. */
