@@ -27,6 +27,7 @@ import org.apache.lucene.search.SortField;
  */
 public class VirtualFieldDef extends FieldDef implements Bindable, Sortable {
   private final DoubleValuesSource valuesSource;
+  private final IndexableFieldDef.FacetValueType facetValueType;
 
   /**
    * Field constructor.
@@ -37,6 +38,9 @@ public class VirtualFieldDef extends FieldDef implements Bindable, Sortable {
   public VirtualFieldDef(String name, DoubleValuesSource valuesSource) {
     super(name);
     this.valuesSource = valuesSource;
+    // Since we have the DoublesValueSource on this field should always be able to produce
+    // numeric_range facets on it
+    this.facetValueType = IndexableFieldDef.FacetValueType.NUMERIC_RANGE;
   }
 
   /**
@@ -51,6 +55,16 @@ public class VirtualFieldDef extends FieldDef implements Bindable, Sortable {
   @Override
   public String getType() {
     return "VIRTUAL";
+  }
+
+  /**
+   * Get the facet value type for this field.
+   *
+   * @return field facet value type
+   */
+  @Override
+  public IndexableFieldDef.FacetValueType getFacetValueType() {
+    return facetValueType;
   }
 
   @Override

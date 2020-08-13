@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FloatFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IntFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.LongFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -129,8 +130,8 @@ public class DrillSidewaysImpl extends DrillSideways {
 
     for (Facet facet : grpcFacets) {
       String fieldName = facet.getDim();
-      FieldDef fd = dynamicFields.get(fieldName);
-      if (fd == null) {
+      FieldDef fieldDef = dynamicFields.get(fieldName);
+      if (fieldDef == null) {
         throw new IllegalArgumentException(
             String.format(
                 "field %s was not registered and was not specified as a dynamic field ",
@@ -138,23 +139,20 @@ public class DrillSidewaysImpl extends DrillSideways {
       }
 
       FacetResult facetResult;
-      if (!(fd instanceof IndexableFieldDef)) { // TODO: Also enable facet support in Virtual Fields
+      if (!(fieldDef instanceof IndexableFieldDef) && !(fieldDef instanceof VirtualFieldDef)) {
         throw new IllegalArgumentException(
             String.format(
-                "field % not registered as an indexable field. Facets applicable only to indexable fields",
+                "field %s is neither a virtual field nor registered as an indexable field. Facets are supported only for these types",
                 fieldName));
       }
-      IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fd;
       if (!facet.getNumericRangeList().isEmpty()) {
 
-        if (indexableFieldDef.getFacetValueType()
-            != IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
+        if (fieldDef.getFacetValueType() != IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
           throw new IllegalArgumentException(
               String.format(
-                  "field %s was not registered with facet=numericRange",
-                  indexableFieldDef.getName()));
+                  "field %s was not registered with facet=numericRange", fieldDef.getName()));
         }
-        if (indexableFieldDef instanceof IntFieldDef || indexableFieldDef instanceof LongFieldDef) {
+        if (fieldDef instanceof IntFieldDef || fieldDef instanceof LongFieldDef) {
           List<NumericRangeType> rangeList = facet.getNumericRangeList();
           LongRange[] ranges = new LongRange[rangeList.size()];
           for (int i = 0; i < ranges.length; i++) {
@@ -168,26 +166,25 @@ public class DrillSidewaysImpl extends DrillSideways {
                     numericRangeType.getMaxInclusive());
           }
 
-          FacetsCollector c = dsDimMap.get(indexableFieldDef.getName());
+          FacetsCollector c = dsDimMap.get(fieldDef.getName());
           if (c == null) {
             c = drillDowns;
           }
-
           LongRangeFacetCounts longRangeFacetCounts =
-              new LongRangeFacetCounts(indexableFieldDef.getName(), c, ranges);
+              new LongRangeFacetCounts(fieldDef.getName(), c, ranges);
+
           facetResult =
               longRangeFacetCounts.getTopChildren(
                   0,
-                  indexableFieldDef.getName(),
+                  fieldDef.getName(),
                   facet.getPathsList().toArray(new String[facet.getPathsCount()]));
-        } else if (indexableFieldDef instanceof FloatFieldDef) {
+        } else if (fieldDef instanceof FloatFieldDef) {
           throw new IllegalArgumentException(
               String.format(
                   "field %s is of type float with FloatFieldDocValues which do not support numeric_range faceting",
-                  indexableFieldDef.getName()));
+                  fieldDef.getName()));
 
-        } else if (indexableFieldDef
-            instanceof DoubleFieldDef) { // TODO  this should allow VirtualFieldDef to
+        } else if (fieldDef instanceof DoubleFieldDef || fieldDef instanceof VirtualFieldDef) {
           List<NumericRangeType> rangeList = facet.getNumericRangeList();
           DoubleRange[] ranges = new DoubleRange[rangeList.size()];
           for (int i = 0; i < ranges.length; i++) {
@@ -201,51 +198,54 @@ public class DrillSidewaysImpl extends DrillSideways {
                     numericRangeType.getMaxInclusive());
           }
 
-          FacetsCollector c = dsDimMap.get(indexableFieldDef.getName());
+          FacetsCollector c = dsDimMap.get(fieldDef.getName());
           if (c == null) {
             c = drillDowns;
           }
+          DoubleRangeFacetCounts doubleRangeFacetCounts;
+          if (fieldDef instanceof VirtualFieldDef) {
+            VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fieldDef;
+            doubleRangeFacetCounts =
+                new DoubleRangeFacetCounts(
+                    virtualFieldDef.getName(), virtualFieldDef.getValuesSource(), c, ranges);
 
-          DoubleRangeFacetCounts doubleRangeFacetCounts =
-              new DoubleRangeFacetCounts(
-                  indexableFieldDef.getName(),
-                  c, // TODO: for VirtualFieldDef pass valueSource here
-                  ranges);
+          } else {
+            doubleRangeFacetCounts = new DoubleRangeFacetCounts(fieldDef.getName(), c, ranges);
+          }
+
           facetResult =
               doubleRangeFacetCounts.getTopChildren(
                   0,
-                  indexableFieldDef.getName(),
+                  fieldDef.getName(),
                   facet.getPathsList().toArray(new String[facet.getPathsCount()]));
         } else {
           throw new IllegalArgumentException(
               String.format(
                   "numericRanges must be provided only on field type numeric e.g. int, double, flat"));
         }
-      } else if (indexableFieldDef.getFacetValueType()
+      } else if (fieldDef.getFacetValueType()
           == IndexableFieldDef.FacetValueType.SORTED_SET_DOC_VALUES) {
-        FacetsCollector c = dsDimMap.get(indexableFieldDef.getName());
+        FacetsCollector c = dsDimMap.get(fieldDef.getName());
         if (c == null) {
           c = drillDowns;
         }
         SortedSetDocValuesFacetCounts sortedSetDocValuesFacetCounts =
             new SortedSetDocValuesFacetCounts(
-                shardState.getSSDVState(searcherAndTaxonomyManager, indexableFieldDef), c);
+                shardState.getSSDVState(searcherAndTaxonomyManager, fieldDef), c);
         facetResult =
             sortedSetDocValuesFacetCounts.getTopChildren(
-                facet.getTopN(), indexableFieldDef.getName(), new String[0]);
+                facet.getTopN(), fieldDef.getName(), new String[0]);
       } else {
 
         // Taxonomy  facets
-        if (indexableFieldDef.getFacetValueType() == IndexableFieldDef.FacetValueType.NO_FACETS) {
+        if (fieldDef.getFacetValueType() == IndexableFieldDef.FacetValueType.NO_FACETS) {
           throw new IllegalArgumentException(
-              String.format(
-                  "%s was not registered with facet enabled", indexableFieldDef.getName()));
-        } else if (indexableFieldDef.getFacetValueType()
-            == IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
+              String.format("%s was not registered with facet enabled", fieldDef.getName()));
+        } else if (fieldDef.getFacetValueType() == IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
           throw new IllegalArgumentException(
               String.format(
                   "%s was registered with facet = numericRange; must pass numericRanges in the request",
-                  indexableFieldDef.getName()));
+                  fieldDef.getName()));
         }
 
         String[] path;
@@ -259,7 +259,7 @@ public class DrillSidewaysImpl extends DrillSideways {
           path = new String[0];
         }
 
-        FacetsCollector c = dsDimMap.get(indexableFieldDef.getName());
+        FacetsCollector c = dsDimMap.get(fieldDef.getName());
         boolean useCachedOrds = facet.getUseOrdsCache();
 
         Facets luceneFacets;
@@ -268,7 +268,7 @@ public class DrillSidewaysImpl extends DrillSideways {
           // drill-down; compute its facet counts from the
           // drill-sideways collector:
           String indexFieldName =
-              indexState.facetsConfig.getDimConfig(indexableFieldDef.getName()).indexFieldName;
+              indexState.facetsConfig.getDimConfig(fieldDef.getName()).indexFieldName;
           if (useCachedOrds) {
             luceneFacets =
                 new TaxonomyFacetCounts(
@@ -291,7 +291,7 @@ public class DrillSidewaysImpl extends DrillSideways {
           // See if we already computed facet
           // counts for this indexFieldName:
           String indexFieldName =
-              indexState.facetsConfig.getDimConfig(indexableFieldDef.getName()).indexFieldName;
+              indexState.facetsConfig.getDimConfig(fieldDef.getName()).indexFieldName;
           Map<String, Facets> facetsMap = indexFieldNameToFacets;
           luceneFacets = facetsMap.get(indexFieldName);
           if (luceneFacets == null) {
@@ -314,18 +314,16 @@ public class DrillSidewaysImpl extends DrillSideways {
           }
         }
         if (facet.getTopN() != 0) {
-          facetResult =
-              luceneFacets.getTopChildren(facet.getTopN(), indexableFieldDef.getName(), path);
+          facetResult = luceneFacets.getTopChildren(facet.getTopN(), fieldDef.getName(), path);
         } else if (!facet.getLabelsList().isEmpty()) {
           List<LabelAndValue> results = new ArrayList<LabelAndValue>();
           for (String label : facet.getLabelsList()) {
             results.add(
-                new LabelAndValue(
-                    label, luceneFacets.getSpecificValue(indexableFieldDef.getName(), label)));
+                new LabelAndValue(label, luceneFacets.getSpecificValue(fieldDef.getName(), label)));
           }
           facetResult =
               new FacetResult(
-                  indexableFieldDef.getName(),
+                  fieldDef.getName(),
                   path,
                   -1,
                   results.toArray(new LabelAndValue[results.size()]),

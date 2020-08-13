@@ -158,7 +158,7 @@ public class NumberFieldFacetsTest extends ServerTestCase {
     assertFacetResult(facetResults.get(0), fieldName, 3, 2L, expectedLabelAndValues);
   }
 
-  private void assertFacetResult(
+  static void assertFacetResult(
       FacetResult testFacetResult,
       String dim, // dimension against which to bucket/group also the fieldName
       double
