@@ -732,9 +732,7 @@ public class IndexState implements Closeable, Restorable {
     }
   }
 
-  /**
-   * Live setting: max number of documents to add at a time.
-   */
+  /** Live setting: max number of documents to add at a time. */
   public synchronized void setAddDocumentsMaxBufferLen(int i) {
     addDocumentsMaxBufferLen = i;
     liveSettingsSaveState.addProperty("addDocumentsMaxBufferLen", i);

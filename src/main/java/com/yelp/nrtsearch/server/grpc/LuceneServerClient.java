@@ -102,7 +102,12 @@ public class LuceneServerClient {
             "will try to update liveSettings for indexName: %s, "
                 + "maxRefreshSec: %s, minRefreshSec: %s, maxSearcherAgeSec: %s, "
                 + "indexRamBufferSizeMB: %s, addDocumentsMaxBufferLen: %s ",
-            indexName, maxRefreshSec, minRefreshSec, maxSearcherAgeSec, indexRamBufferSizeMB, addDocumentsMaxBufferLen));
+            indexName,
+            maxRefreshSec,
+            minRefreshSec,
+            maxSearcherAgeSec,
+            indexRamBufferSizeMB,
+            addDocumentsMaxBufferLen));
     LiveSettingsRequest request =
         LiveSettingsRequest.newBuilder()
             .setIndexName(indexName)

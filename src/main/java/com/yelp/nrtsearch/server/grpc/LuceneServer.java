@@ -78,6 +78,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
@@ -490,23 +491,74 @@ public class LuceneServer {
     public StreamObserver<AddDocumentRequest> addDocuments(
         StreamObserver<AddDocumentResponse> responseObserver) {
       return new StreamObserver<AddDocumentRequest>() {
-        private long count = 0;
-        Queue<AddDocumentRequest> addDocumentRequestQueue =
-            new ArrayBlockingQueue(addDocumentsMaxBufferLen);
         List<Future<Long>> futures = new ArrayList<>();
+        // Map of {indexName: addDocumentRequestQueue}
+        Map<String, ArrayBlockingQueue<AddDocumentRequest>> addDocumentRequestQueueMap =
+            new ConcurrentHashMap<>();
+        // Map of {indexName: count}
+        Map<String, Long> countMap = new ConcurrentHashMap<>();
+        private static final int DEFAULT_MAX_BUFFER_LEN = 100;
+
+        private int getAddDocumentsMaxBufferLen(String indexName) {
+          try {
+            return globalState
+                .getIndex(indexName)
+                .getSaveState()
+                .getAsJsonObject("liveSettings")
+                .get("addDocumentsMaxBufferLen")
+                .getAsInt();
+          } catch (Exception e) {
+            logger.warn(
+                String.format(
+                    "error while trying to get addDocumentsMaxBufferLen from"
+                        + "liveSettings of index %s. Using DEFAULT_MAX_BUFFER_LEN %d.",
+                    indexName, DEFAULT_MAX_BUFFER_LEN),
+                e);
+            responseObserver.onError(e);
+            return DEFAULT_MAX_BUFFER_LEN;
+          }
+        }
+
+        private ArrayBlockingQueue<AddDocumentRequest> getAddDocumentRequestQueue(
+            String indexName) {
+          if (addDocumentRequestQueueMap.containsKey(indexName)) {
+            return addDocumentRequestQueueMap.get(indexName);
+          } else {
+            int addDocumentsMaxBufferLen = getAddDocumentsMaxBufferLen(indexName);
+            ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue =
+                new ArrayBlockingQueue<>(addDocumentsMaxBufferLen);
+            return addDocumentRequestQueueMap.put(indexName, addDocumentRequestQueue);
+          }
+        }
+
+        private long getCount(String indexName) {
+          return countMap.getOrDefault(indexName, 0L);
+        }
+
+        private void incrementCount(String indexName) {
+          if (countMap.containsKey(indexName)) {
+            countMap.put(indexName, countMap.get(indexName) + 1);
+          } else {
+            countMap.put(indexName, 1L);
+          }
+        }
 
         @Override
         public void onNext(AddDocumentRequest addDocumentRequest) {
+          String indexName = addDocumentRequest.getIndexName();
+          ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue =
+              getAddDocumentRequestQueue(indexName);
           logger.debug(
               String.format(
-                  "onNext, addDocumentRequestQueue size: %s", addDocumentRequestQueue.size()));
-          count++;
+                  "onNext, index: %s, addDocumentRequestQueue size: %s",
+                  indexName, addDocumentRequestQueue.size()));
+          incrementCount(indexName);
           addDocumentRequestQueue.add(addDocumentRequest);
-          if (addDocumentRequestQueue.size() == addDocumentsMaxBufferLen) {
+          if (addDocumentRequestQueue.remainingCapacity() == 0) {
             logger.debug(
                 String.format(
                     "indexing addDocumentRequestQueue size: %s, total: %s",
-                    addDocumentRequestQueue.size(), count));
+                    addDocumentRequestQueue.size(), getCount(indexName)));
             try {
               List<AddDocumentRequest> addDocRequestList =
                   addDocumentRequestQueue.stream().collect(Collectors.toList());
@@ -528,8 +580,9 @@ public class LuceneServer {
           responseObserver.onError(t);
         }
 
-        @Override
-        public void onCompleted() {
+        private void onCompletedForIndex(String indexName) {
+          ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue =
+              getAddDocumentRequestQueue(indexName);
           logger.debug(
               String.format(
                   "onCompleted, addDocumentRequestQueue: %s", addDocumentRequestQueue.size()));
@@ -564,7 +617,7 @@ public class LuceneServer {
             logger.debug(
                 String.format(
                     "Indexing job completed for %s docs, in %s chunks, with latest sequence number: %s, took: %s micro seconds",
-                    count, numIndexingChunks, pq.peek(), ((t1 - t0) / 1000)));
+                    getCount(indexName), numIndexingChunks, pq.peek(), ((t1 - t0) / 1000)));
           } catch (Exception e) {
             logger.warn("error while trying to addDocuments", e);
             responseObserver.onError(
@@ -576,7 +629,14 @@ public class LuceneServer {
 
           } finally {
             addDocumentRequestQueue.clear();
-            count = 0;
+            countMap.put(indexName, 0L);
+          }
+        }
+
+        @Override
+        public void onCompleted() {
+          for (String indexName : addDocumentRequestQueueMap.keySet()) {
+            onCompletedForIndex(indexName);
           }
         }
 

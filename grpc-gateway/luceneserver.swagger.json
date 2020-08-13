@@ -1963,6 +1963,11 @@
           "type": "number",
           "format": "double",
           "description": "Size (in MB) of IndexWriter's RAM buffer."
+        },
+        "addDocumentsMaxBufferLen": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Max number of documents to add at a time."
         }
       },
       "title": "Input to liveSettings"

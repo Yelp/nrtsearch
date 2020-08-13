@@ -51,7 +51,8 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
       indexState.setAddDocumentsMaxBufferLen(liveSettingsRequest.getAddDocumentsMaxBufferLen());
       logger.info(
           String.format(
-              "set addDocumentsMaxBufferLen: %s", liveSettingsRequest.getAddDocumentsMaxBufferLen()));
+              "set addDocumentsMaxBufferLen: %s",
+              liveSettingsRequest.getAddDocumentsMaxBufferLen()));
     }
     String response = indexState.getLiveSettingsJSON();
     LiveSettingsResponse reply = LiveSettingsResponse.newBuilder().setResponse(response).build();
