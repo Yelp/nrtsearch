@@ -519,7 +519,6 @@ public class LuceneServer {
                         + "liveSettings of index %s. Using DEFAULT_MAX_BUFFER_LEN %d.",
                     indexName, DEFAULT_MAX_BUFFER_LEN),
                 e);
-            responseObserver.onError(e);
             return DEFAULT_MAX_BUFFER_LEN;
           }
         }
