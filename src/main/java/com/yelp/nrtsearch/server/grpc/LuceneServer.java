@@ -527,7 +527,8 @@ public class LuceneServer {
             int addDocumentsMaxBufferLen = getAddDocumentsMaxBufferLen(indexName);
             ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue =
                 new ArrayBlockingQueue<>(addDocumentsMaxBufferLen);
-            return addDocumentRequestQueueMap.put(indexName, addDocumentRequestQueue);
+            addDocumentRequestQueueMap.put(indexName, addDocumentRequestQueue);
+            return addDocumentRequestQueue;
           }
         }
 
