@@ -91,7 +91,7 @@ public class AddDocumentsCommand implements Callable<Integer> {
         Reader reader = Files.newBufferedReader(filePath);
         CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
         addDocumentRequestStream =
-            new LuceneServerClientBuilder.AddDcoumentsClientBuilder(indexName, csvParser)
+            new LuceneServerClientBuilder.AddDocumentsClientBuilder(indexName, csvParser)
                 .buildRequest(filePath);
         client.addDocuments(addDocumentRequestStream);
       } else if (fileType.equalsIgnoreCase("json")) {
