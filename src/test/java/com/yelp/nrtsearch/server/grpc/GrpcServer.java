@@ -20,6 +20,8 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.RestoreStateHandler;
+import com.yelp.nrtsearch.server.monitoring.Configuration;
+import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.utils.Archiver;
 import io.grpc.ManagedChannel;
@@ -42,8 +44,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-import me.dinowernli.grpc.prometheus.Configuration;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.junit.rules.TemporaryFolder;
@@ -210,9 +210,13 @@ public class GrpcServer {
                 .build()
                 .start();
       } else {
-        MonitoringServerInterceptor monitoringInterceptor =
-            MonitoringServerInterceptor.create(
-                Configuration.allMetrics().withCollectorRegistry(collectorRegistry));
+        String serviceName = configuration.getServiceName();
+        String nodeName = configuration.getNodeName();
+        LuceneServerMonitoringServerInterceptor monitoringInterceptor =
+            LuceneServerMonitoringServerInterceptor.create(
+                Configuration.allMetrics().withCollectorRegistry(collectorRegistry),
+                serviceName,
+                nodeName);
         // Create a server, add service, start, and register for automatic graceful shutdown.
         server =
             ServerBuilder.forPort(port)
@@ -356,7 +360,14 @@ public class GrpcServer {
       if (!finishLatch.await(20, TimeUnit.SECONDS)) {
         throw new RuntimeException("addDocuments can not finish within 20 seconds");
       }
+      refresh();
       return addDocumentResponse;
+    }
+
+    public void refresh() {
+      grpcServer
+          .getBlockingStub()
+          .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
     }
 
     private Stream<AddDocumentRequest> getAddDocumentRequestStream(String fileName)

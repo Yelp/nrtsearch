@@ -162,10 +162,14 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
         if (indexableFieldDef.isMultiValue()) {
           indexState.facetsConfig.setMultiValued(fieldName, true);
         }
-        indexState.facetsConfig.setIndexFieldName(fieldName, currentField.getFacetIndexFieldName());
+        // set indexFieldName for HIERARCHY (TAXO), SORTED_SET_DOC_VALUE and FLAT  facet
+        String facetFieldName =
+            currentField.getFacetIndexFieldName().isEmpty()
+                ? String.format("$_%s", currentField.getName())
+                : currentField.getFacetIndexFieldName();
+        indexState.facetsConfig.setIndexFieldName(fieldName, facetFieldName);
       }
     }
-
     // nocommit facetsConfig.setRequireDimCount
     logger.info("REGISTER: " + fieldName + " -> " + fieldDef);
     return fieldDef;
