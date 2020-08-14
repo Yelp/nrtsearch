@@ -146,6 +146,10 @@ public class ArchiverImpl implements Archiver {
               sourceDir, serviceName, resource));
     }
 
+    if (!Files.exists(archiverDirectory)) {
+      logger.info("Archiver directory doesn't exist: " + archiverDirectory + " creating new ");
+      Files.createDirectories(archiverDirectory);
+    }
     Path destPath = archiverDirectory.resolve(getTmpName());
     try {
       tar.buildTar(sourceDir, destPath);
