@@ -258,6 +258,7 @@ service LuceneServer {
     rpc forceMerge(ForceMergeRequest) returns (ForceMergeResponse) {
         option (google.api.http) = {
       post: "/v1/force_merge"
+      body: "*"
     };
     }
 }

@@ -1179,7 +1179,9 @@ public class LuceneServer {
             forceMergeRequest.getMaxNumSegments(), forceMergeRequest.getDoWait());
       } catch (IOException e) {
         responseObserver.onError(e);
+        return;
       }
+
       ForceMergeResponse.Status status =
           forceMergeRequest.getDoWait()
               ? ForceMergeResponse.Status.FORCE_MERGE_COMPLETED

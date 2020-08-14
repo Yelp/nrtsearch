@@ -349,6 +349,16 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverForceMergeRequest"
+            }
+          }
+        ],
         "tags": [
           "LuceneServer"
         ]
@@ -1868,6 +1878,21 @@
           "items": {
             "$ref": "#/definitions/luceneserverFileMetadata"
           }
+        }
+      }
+    },
+    "luceneserverForceMergeRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "maxNumSegments": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "doWait": {
+          "type": "boolean"
         }
       }
     },
