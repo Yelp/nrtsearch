@@ -401,7 +401,7 @@ public class IndexState implements Closeable, Restorable {
   volatile double indexRamBufferSizeMB = 16;
 
   /** Max number of documents to be added at a time. */
-  int addDocumentsMaxBufferLen = 100;
+  volatile int addDocumentsMaxBufferLen = 100;
 
   /** True if this is a new index. */
   private final boolean doCreate;
