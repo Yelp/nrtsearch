@@ -81,6 +81,7 @@ public class MultiSegmentTest extends ServerTestCase {
       if (requestChunk.size() == SEGMENT_CHUNK) {
         addDocuments(requestChunk.stream());
         requestChunk.clear();
+        writer.commit();
       }
     }
   }

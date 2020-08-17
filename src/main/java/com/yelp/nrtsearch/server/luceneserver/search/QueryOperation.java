@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.search;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
 import java.io.IOException;
+import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TimeLimitingCollector;
@@ -40,11 +41,24 @@ public class QueryOperation {
     long searchStartTime = System.nanoTime();
     TopDocs hits;
     try {
-      hits =
-          context
-              .searcherAndTaxonomy()
-              .searcher
-              .search(context.query(), context.collector().getManager());
+      if (context.maybeDrillSideways().isPresent()) {
+        if (!(context.query() instanceof DrillDownQuery)) {
+          throw new IllegalArgumentException("Can only use DrillSideways on DrillDownQuery");
+        }
+        DrillDownQuery ddq = (DrillDownQuery) context.query();
+        hits =
+            context
+                .maybeDrillSideways()
+                .get()
+                .search(ddq, context.collector().getManager())
+                .collectorResult;
+      } else {
+        hits =
+            context
+                .searcherAndTaxonomy()
+                .searcher
+                .search(context.query(), context.collector().getManager());
+      }
     } catch (TimeLimitingCollector.TimeExceededException tee) {
       context.searchResponse().setHitTimeout(true);
       return;

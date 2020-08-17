@@ -21,6 +21,8 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.Map;
+import java.util.Optional;
+import org.apache.lucene.facet.DrillSideways;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.search.Query;
 
@@ -34,8 +36,10 @@ class MutableSearchContext implements SearchContext {
   private long timestampSec;
   private int startHit;
   private Map<String, FieldDef> queryFields;
+  private Map<String, FieldDef> retrieveFields;
   private Query query;
   private DocCollector collector;
+  private DrillSideways drillSideways;
 
   MutableSearchContext(
       IndexState indexState,
@@ -64,6 +68,11 @@ class MutableSearchContext implements SearchContext {
   }
 
   @Override
+  public Optional<DrillSideways> maybeDrillSideways() {
+    return Optional.ofNullable(drillSideways);
+  }
+
+  @Override
   public SearchResponse.Builder searchResponse() {
     return searchResponse;
   }
@@ -81,6 +90,11 @@ class MutableSearchContext implements SearchContext {
   @Override
   public Map<String, FieldDef> queryFields() {
     return queryFields;
+  }
+
+  @Override
+  public Map<String, FieldDef> retrieveFields() {
+    return retrieveFields;
   }
 
   @Override
@@ -105,11 +119,19 @@ class MutableSearchContext implements SearchContext {
     this.queryFields = queryFields;
   }
 
+  void setRetrieveFields(Map<String, FieldDef> retrieveFields) {
+    this.retrieveFields = retrieveFields;
+  }
+
   void setQuery(Query query) {
     this.query = query;
   }
 
   void setCollector(DocCollector collector) {
     this.collector = collector;
+  }
+
+  void setDrillSideways(DrillSideways drillSideways) {
+    this.drillSideways = drillSideways;
   }
 }

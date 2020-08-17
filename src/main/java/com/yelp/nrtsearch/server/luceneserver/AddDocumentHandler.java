@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.google.protobuf.Any;
 import com.google.protobuf.ProtocolStringList;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.FacetHierarchyPath;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,12 +70,25 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
         FieldDef field, AddDocumentRequest.MultiValuedField value, Document document)
         throws AddDocumentHandlerException {
       ProtocolStringList fieldValues = value.getValueList();
+      List<FacetHierarchyPath> facetHierarchyPaths = value.getFaceHierarchyPathsList();
+      List<List<String>> facetHierarchyPathValues =
+          facetHierarchyPaths.stream().map(fp -> fp.getValueList()).collect(Collectors.toList());
+      if (!facetHierarchyPathValues.isEmpty()) {
+        if (facetHierarchyPathValues.size() != fieldValues.size()) {
+          throw new AddDocumentHandlerException(
+              String.format(
+                  "Field: %s, fieldValues.size(): %s !=  "
+                      + "facetHierarchyPaths.size(): %s, must have same list size for "
+                      + "fieldValues and facetHierarchyPaths",
+                  field.getName(), fieldValues.size(), facetHierarchyPathValues.size()));
+        }
+      }
       if (!(field instanceof IndexableFieldDef)) {
         throw new AddDocumentHandlerException(
             String.format("Field: %s is not indexable", field.getName()));
       }
       IndexableFieldDef indexableFieldDef = (IndexableFieldDef) field;
-      indexableFieldDef.parseDocumentField(document, fieldValues);
+      indexableFieldDef.parseDocumentField(document, fieldValues, facetHierarchyPathValues);
     }
   }
 

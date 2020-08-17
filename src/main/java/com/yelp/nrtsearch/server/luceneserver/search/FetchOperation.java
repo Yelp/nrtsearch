@@ -145,7 +145,7 @@ public class FetchOperation {
       List<SearchResponse.Hit.Builder> sliceHits,
       LeafReaderContext sliceSegment)
       throws IOException {
-    for (Map.Entry<String, FieldDef> fieldDefEntry : context.queryFields().entrySet()) {
+    for (Map.Entry<String, FieldDef> fieldDefEntry : context.retrieveFields().entrySet()) {
       if (fieldDefEntry.getValue() instanceof VirtualFieldDef) {
         fetchFromValueSource(
             sliceHits,

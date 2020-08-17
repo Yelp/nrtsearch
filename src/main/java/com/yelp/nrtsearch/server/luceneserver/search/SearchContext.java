@@ -21,6 +21,8 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.Map;
+import java.util.Optional;
+import org.apache.lucene.facet.DrillSideways;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.search.Query;
 
@@ -35,6 +37,8 @@ public interface SearchContext {
   /** Get searcher instance for query. */
   SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy();
 
+  Optional<DrillSideways> maybeDrillSideways();
+
   /** Response message builder for search request */
   SearchResponse.Builder searchResponse();
 
@@ -44,8 +48,14 @@ public interface SearchContext {
   /** Get the offset of the first hit to return from the top hits. */
   int startHit();
 
-  /** Get map of all fields needed for this query. */
+  /**
+   * Get map of all fields usable for this query. This includes all fields defined in the index and
+   * dynamic fields from the request.
+   */
   Map<String, FieldDef> queryFields();
+
+  /** Get map of all fields that should be filled in the response */
+  Map<String, FieldDef> retrieveFields();
 
   /** Get final lucene query to perform. */
   Query query();

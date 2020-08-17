@@ -332,6 +332,28 @@
         ]
       }
     },
+    "/v1/force_merge": {
+      "post": {
+        "operationId": "LuceneServer_forceMerge",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverForceMergeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/indices": {
       "get": {
         "summary": "indices",
@@ -737,8 +759,7 @@
             "name": "check",
             "in": "query",
             "required": false,
-            "type": "boolean",
-            "format": "boolean"
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -921,6 +942,13 @@
           "items": {
             "type": "string"
           }
+        },
+        "faceHierarchyPaths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverFacetHierarchyPath"
+          },
+          "title": "Facet paths/hierarchy to bucket these values by, if indexed field is of type Facet.HIERARCHY"
         }
       },
       "description": "we use this wrapper object to represent each field as a multivalued field."
@@ -935,6 +963,14 @@
       ],
       "default": "SHOULD",
       "description": "Defines how clauses may occur in matching documents. This will always be SHOULD by default."
+    },
+    "ForceMergeResponseStatus": {
+      "type": "string",
+      "enum": [
+        "FORCE_MERGE_COMPLETED",
+        "FORCE_MERGE_SUBMITTED"
+      ],
+      "default": "FORCE_MERGE_COMPLETED"
     },
     "HitCompositeFieldValue": {
       "type": "object",
@@ -954,8 +990,7 @@
           "type": "string"
         },
         "booleanValue": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "intValue": {
           "type": "integer",
@@ -985,8 +1020,7 @@
           "type": "string"
         },
         "booleanValue": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "intValue": {
           "type": "integer",
@@ -1245,12 +1279,10 @@
           "format": "int32"
         },
         "preserveSep": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "exactFirst": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         }
       },
       "title": "Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester"
@@ -1449,8 +1481,7 @@
           "type": "string"
         },
         "openSearcher": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         }
       },
       "description": "Creates a snapshot in the index, which is saved point-in-time view of the last commit in the\nindex such that no files referenced by that snapshot will be deleted by ongoing indexing until\nthe snapshot is released with @releaseSnapshot.  Note that this will reference the last commit,\nso be sure to call commit first if you have pending changes that you'd like to be included in\nthe snapshot.\u003cp\u003eThis can be used for backup purposes, i.e. after creating the snapshot you can\ncopy all referenced files to backup storage, and then release the snapshot once complete.\nTo restore the backup, just copy all the files back and restart the server.  It can also\nbe used for transactional purposes, i.e. if you sometimes need to search a specific snapshot\ninstead of the current live index.\u003cp\u003eCreating a snapshot is very fast (does not require any\nfile copying), but over time it will consume extra disk space as old segments are merged in\nthe index.  Be sure to release the snapshot once you're done.  Snapshots survive shutdown\nand restart of the server.  Returns all protected filenames referenced by this snapshot:\nthese files will not change and will not be deleted until the snapshot is released.\nThis returns the directories and files referenced by the snapshot."
@@ -1586,6 +1617,78 @@
         }
       }
     },
+    "luceneserverFacet": {
+      "type": "object",
+      "properties": {
+        "dim": {
+          "type": "string"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "numericRange": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverNumericRangeType"
+          }
+        },
+        "useOrdsCache": {
+          "type": "boolean"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "topN": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "luceneserverFacetHierarchyPath": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "luceneserverFacetResult": {
+      "type": "object",
+      "properties": {
+        "dim": {
+          "type": "string"
+        },
+        "path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "value": {
+          "type": "number",
+          "format": "double"
+        },
+        "labelValues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverLabelAndValue"
+          }
+        },
+        "childCount": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
     "luceneserverFacetType": {
       "type": "string",
       "enum": [
@@ -1608,40 +1711,31 @@
           "$ref": "#/definitions/luceneserverFieldType"
         },
         "search": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "store": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "storeDocValues": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "sort": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "tokenize": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "group": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "multiValued": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "highlight": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "omitNorms": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "dateTimeFormat": {
           "type": "string"
@@ -1777,6 +1871,14 @@
         }
       }
     },
+    "luceneserverForceMergeResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/ForceMergeResponseStatus"
+        }
+      }
+    },
     "luceneserverFunctionScoreQuery": {
       "type": "object",
       "properties": {
@@ -1805,8 +1907,7 @@
           "format": "int32"
         },
         "transpositions": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         }
       }
     },
@@ -1831,12 +1932,10 @@
           "format": "int32"
         },
         "preserveSep": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "exactFirst": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "minFuzzyLength": {
           "type": "integer",
@@ -1851,12 +1950,10 @@
           "format": "int32"
         },
         "transpositions": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "unicodeAware": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         }
       },
       "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
@@ -1938,6 +2035,18 @@
       },
       "title": "Used to be able to check if a value was set"
     },
+    "luceneserverLabelAndValue": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
     "luceneserverLiveSettingsRequest": {
       "type": "object",
       "properties": {
@@ -1963,6 +2072,11 @@
           "type": "number",
           "format": "double",
           "description": "Size (in MB) of IndexWriter's RAM buffer."
+        },
+        "addDocumentsMaxBufferLen": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Max number of documents to add at a time."
         }
       },
       "title": "Input to liveSettings"
@@ -2102,12 +2216,33 @@
         }
       }
     },
+    "luceneserverNumericRangeType": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "min": {
+          "type": "string",
+          "format": "int64"
+        },
+        "minInclusive": {
+          "type": "boolean"
+        },
+        "max": {
+          "type": "string",
+          "format": "int64"
+        },
+        "maxInclusive": {
+          "type": "boolean"
+        }
+      }
+    },
     "luceneserverOneHighlight": {
       "type": "object",
       "properties": {
         "isHit": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "text": {
           "type": "string"
@@ -2215,12 +2350,10 @@
       "type": "object",
       "properties": {
         "doDocScores": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "doMaxScore": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "fields": {
           "$ref": "#/definitions/luceneserverSortFields"
@@ -2301,8 +2434,7 @@
       "type": "object",
       "properties": {
         "success": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         }
       }
     },
@@ -2388,6 +2520,12 @@
         "totalHitsThreshold": {
           "type": "integer",
           "format": "int32"
+        },
+        "facets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverFacet"
+          }
         }
       }
     },
@@ -2398,8 +2536,7 @@
           "$ref": "#/definitions/SearchResponseDiagnostics"
         },
         "hitTimeout": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "totalHits": {
           "$ref": "#/definitions/luceneserverTotalHits"
@@ -2412,6 +2549,12 @@
         },
         "searchState": {
           "$ref": "#/definitions/SearchResponseSearchState"
+        },
+        "facetResult": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverFacetResult"
+          }
         }
       }
     },
@@ -2433,6 +2576,10 @@
         "staleAgeSeconds": {
           "type": "number",
           "format": "double"
+        },
+        "numSegments": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -2444,8 +2591,7 @@
           "format": "int64"
         },
         "didRefresh": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         }
       }
     },
@@ -2490,12 +2636,10 @@
           "$ref": "#/definitions/luceneserverSortFields"
         },
         "indexVerbose": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "indexMergeSchedulerAutoThrottle": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "normsFormat": {
           "type": "string"
@@ -2559,12 +2703,10 @@
         },
         "missingLat": {
           "type": "boolean",
-          "format": "boolean",
           "description": "Whether missing values should sort last instead of first.\nNote that this runs \\\"before\\\" reverse, so if you sort missing first and reverse=true then missing values will\nbe at the end."
         },
         "reverse": {
           "type": "boolean",
-          "format": "boolean",
           "title": "Sort in reverse of the field's natural order"
         }
       },
@@ -2694,8 +2836,7 @@
           "description": "Local file (to the server) to read suggestions + weights from; format is weight U+001F suggestion U+001F payload,\none per line, with suggestion UTF-8 encoded. If this option is used then searcher, suggestField,\nweightField/Expression, payloadField should not be specified."
         },
         "hasContexts": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         }
       }
     },
@@ -2723,12 +2864,10 @@
           "type": "string"
         },
         "highlight": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "allTermsRequired": {
-          "type": "boolean",
-          "format": "boolean"
+          "type": "boolean"
         },
         "contexts": {
           "type": "array",

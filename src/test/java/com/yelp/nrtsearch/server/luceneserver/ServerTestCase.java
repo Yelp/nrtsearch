@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
+
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
@@ -55,15 +57,14 @@ import org.junit.rules.TemporaryFolder;
  * Protected methods may be overridden to specify arbitrary indices and add documents.
  */
 public class ServerTestCase {
-  public static String DEFAULT_TEST_INDEX = "test_index";
-
+  public static final String DEFAULT_TEST_INDEX = "test_index";
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
-   * end of test class.
+   * end of test.
    */
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
   /**
-   * This rule ensure the temporary folder which maintains indexes are cleaned up after test class
+   * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
    */
   @ClassRule public static final TemporaryFolder folder = new TemporaryFolder();
 
@@ -156,7 +157,8 @@ public class ServerTestCase {
     if (initialized) {
       grpcServer.getGlobalState().close();
       grpcServer.shutdown();
-      GrpcServer.rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
+      rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
+      initialized = false;
     }
   }
 

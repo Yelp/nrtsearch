@@ -59,6 +59,12 @@ public class LiveSettingsCommand implements Callable<Integer> {
       defaultValue = "250")
   private double indexRamBufferSizeMB;
 
+  @CommandLine.Option(
+      names = {"--addDocumentsMaxBufferLen"},
+      description = "Max number of documents to add at a time. (default: ${DEFAULT-VALUE})",
+      defaultValue = "100")
+  private int addDocumentsMaxBufferLen;
+
   public String getIndexName() {
     return indexName;
   }
@@ -79,6 +85,10 @@ public class LiveSettingsCommand implements Callable<Integer> {
     return indexRamBufferSizeMB;
   }
 
+  public int getAddDocumentsMaxBufferLen() {
+    return addDocumentsMaxBufferLen;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -88,7 +98,8 @@ public class LiveSettingsCommand implements Callable<Integer> {
           getMaxRefreshSec(),
           getMinRefreshSec(),
           getMaxSearcherAgeSec(),
-          getIndexRamBufferSizeMB());
+          getIndexRamBufferSizeMB(),
+          getAddDocumentsMaxBufferLen());
     } finally {
       client.shutdown();
     }

@@ -116,7 +116,8 @@ public class CustomFieldTypeTest {
     }
 
     @Override
-    public void parseDocumentField(Document document, List<String> fieldValues) {
+    public void parseDocumentField(
+        Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
       int val = Integer.parseInt(fieldValues.get(0)) + 10;
       org.apache.lucene.document.Field field = new NumericDocValuesField(getName(), val);
       document.add(field);

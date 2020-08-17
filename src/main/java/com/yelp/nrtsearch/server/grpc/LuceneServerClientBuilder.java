@@ -89,13 +89,13 @@ public interface LuceneServerClientBuilder<T> {
     }
   }
 
-  class AddDcoumentsClientBuilder implements LuceneServerClientBuilder<Stream<AddDocumentRequest>> {
+  class AddDocumentsClientBuilder implements LuceneServerClientBuilder<Stream<AddDocumentRequest>> {
     private static final Logger logger =
-        Logger.getLogger(AddDcoumentsClientBuilder.class.getName());
+        Logger.getLogger(AddDocumentsClientBuilder.class.getName());
     private final String indexName;
     private final CSVParser csvParser;
 
-    public AddDcoumentsClientBuilder(String indexName, CSVParser csvParser) {
+    public AddDocumentsClientBuilder(String indexName, CSVParser csvParser) {
       this.indexName = indexName;
       this.csvParser = csvParser;
     }

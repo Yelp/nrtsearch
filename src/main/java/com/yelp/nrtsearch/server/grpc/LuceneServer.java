@@ -60,6 +60,8 @@ import com.yelp.nrtsearch.server.luceneserver.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.monitoring.Configuration;
+import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.utils.Archiver;
@@ -78,11 +80,9 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.stream.Collectors;
-import me.dinowernli.grpc.prometheus.Configuration;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -116,11 +116,16 @@ public class LuceneServer {
 
     List<Plugin> plugins = pluginsService.loadPlugins();
 
-    MonitoringServerInterceptor monitoringInterceptor =
-        MonitoringServerInterceptor.create(
+    String serviceName = luceneServerConfiguration.getServiceName();
+    String nodeName = luceneServerConfiguration.getNodeName();
+
+    LuceneServerMonitoringServerInterceptor monitoringInterceptor =
+        LuceneServerMonitoringServerInterceptor.create(
             Configuration.allMetrics()
                 .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
-                .withCollectorRegistry(collectorRegistry));
+                .withCollectorRegistry(collectorRegistry),
+            serviceName,
+            nodeName);
     /* The port on which the server should run */
     server =
         ServerBuilder.forPort(luceneServerConfiguration.getPort())
@@ -489,28 +494,73 @@ public class LuceneServer {
     @Override
     public StreamObserver<AddDocumentRequest> addDocuments(
         StreamObserver<AddDocumentResponse> responseObserver) {
+
       return new StreamObserver<AddDocumentRequest>() {
-        // TODO make this a config
-        private static final int MAX_BUFFER_LEN = 100;
-        private long count = 0;
-        Queue<AddDocumentRequest> addDocumentRequestQueue = new ArrayBlockingQueue(MAX_BUFFER_LEN);
         List<Future<Long>> futures = new ArrayList<>();
+        // Map of {indexName: addDocumentRequestQueue}
+        Map<String, ArrayBlockingQueue<AddDocumentRequest>> addDocumentRequestQueueMap =
+            new ConcurrentHashMap<>();
+        // Map of {indexName: count}
+        Map<String, Long> countMap = new ConcurrentHashMap<>();
+        private static final int DEFAULT_MAX_BUFFER_LEN = 100;
+
+        private int getAddDocumentsMaxBufferLen(String indexName) {
+          try {
+            return globalState.getIndex(indexName).getAddDocumentsMaxBufferLen();
+          } catch (Exception e) {
+            logger.warn(
+                String.format(
+                    "error while trying to get addDocumentsMaxBufferLen from"
+                        + "liveSettings of index %s. Using DEFAULT_MAX_BUFFER_LEN %d.",
+                    indexName, DEFAULT_MAX_BUFFER_LEN),
+                e);
+            return DEFAULT_MAX_BUFFER_LEN;
+          }
+        }
+
+        private ArrayBlockingQueue<AddDocumentRequest> getAddDocumentRequestQueue(
+            String indexName) {
+          if (addDocumentRequestQueueMap.containsKey(indexName)) {
+            return addDocumentRequestQueueMap.get(indexName);
+          } else {
+            int addDocumentsMaxBufferLen = getAddDocumentsMaxBufferLen(indexName);
+            ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue =
+                new ArrayBlockingQueue<>(addDocumentsMaxBufferLen);
+            addDocumentRequestQueueMap.put(indexName, addDocumentRequestQueue);
+            return addDocumentRequestQueue;
+          }
+        }
+
+        private long getCount(String indexName) {
+          return countMap.getOrDefault(indexName, 0L);
+        }
+
+        private void incrementCount(String indexName) {
+          if (countMap.containsKey(indexName)) {
+            countMap.put(indexName, countMap.get(indexName) + 1);
+          } else {
+            countMap.put(indexName, 1L);
+          }
+        }
 
         @Override
         public void onNext(AddDocumentRequest addDocumentRequest) {
+          String indexName = addDocumentRequest.getIndexName();
+          ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue =
+              getAddDocumentRequestQueue(indexName);
           logger.debug(
               String.format(
-                  "onNext, addDocumentRequestQueue size: %s", addDocumentRequestQueue.size()));
-          count++;
+                  "onNext, index: %s, addDocumentRequestQueue size: %s",
+                  indexName, addDocumentRequestQueue.size()));
+          incrementCount(indexName);
           addDocumentRequestQueue.add(addDocumentRequest);
-          if (addDocumentRequestQueue.size() == MAX_BUFFER_LEN) {
+          if (addDocumentRequestQueue.remainingCapacity() == 0) {
             logger.debug(
                 String.format(
                     "indexing addDocumentRequestQueue size: %s, total: %s",
-                    addDocumentRequestQueue.size(), count));
+                    addDocumentRequestQueue.size(), getCount(indexName)));
             try {
-              List<AddDocumentRequest> addDocRequestList =
-                  addDocumentRequestQueue.stream().collect(Collectors.toList());
+              List<AddDocumentRequest> addDocRequestList = new ArrayList<>(addDocumentRequestQueue);
               Future<Long> future =
                   globalState.submitIndexingTask(
                       new DocumentIndexer(globalState, addDocRequestList));
@@ -529,8 +579,9 @@ public class LuceneServer {
           responseObserver.onError(t);
         }
 
-        @Override
-        public void onCompleted() {
+        private void onCompletedForIndex(String indexName) {
+          ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue =
+              getAddDocumentRequestQueue(indexName);
           logger.debug(
               String.format(
                   "onCompleted, addDocumentRequestQueue: %s", addDocumentRequestQueue.size()));
@@ -541,8 +592,7 @@ public class LuceneServer {
                   String.format(
                       "indexing left over addDocumentRequestQueue of size: %s",
                       addDocumentRequestQueue.size()));
-              List<AddDocumentRequest> addDocRequestList =
-                  addDocumentRequestQueue.stream().collect(Collectors.toList());
+              List<AddDocumentRequest> addDocRequestList = new ArrayList<>(addDocumentRequestQueue);
               Future<Long> future =
                   globalState.submitIndexingTask(
                       new DocumentIndexer(globalState, addDocRequestList));
@@ -558,14 +608,13 @@ public class LuceneServer {
               pq.offer(gen);
             }
             long t1 = System.nanoTime();
-            finishIndexingJob();
             responseObserver.onNext(
                 AddDocumentResponse.newBuilder().setGenId(String.valueOf(pq.peek())).build());
             responseObserver.onCompleted();
             logger.debug(
                 String.format(
                     "Indexing job completed for %s docs, in %s chunks, with latest sequence number: %s, took: %s micro seconds",
-                    count, numIndexingChunks, pq.peek(), ((t1 - t0) / 1000)));
+                    getCount(indexName), numIndexingChunks, pq.peek(), ((t1 - t0) / 1000)));
           } catch (Exception e) {
             logger.warn("error while trying to addDocuments", e);
             responseObserver.onError(
@@ -577,16 +626,14 @@ public class LuceneServer {
 
           } finally {
             addDocumentRequestQueue.clear();
-            count = 0;
+            countMap.put(indexName, 0L);
           }
         }
 
-        private void finishIndexingJob() throws IOException {
-          for (String indexName : globalState.getIndexNames()) {
-            ShardState shard = globalState.getIndex(indexName).getShard(0);
-            if (shard.isStarted()) {
-              shard.maybeRefreshBlocking();
-            }
+        @Override
+        public void onCompleted() {
+          for (String indexName : addDocumentRequestQueueMap.keySet()) {
+            onCompletedForIndex(indexName);
           }
         }
       };
@@ -1111,6 +1158,35 @@ public class LuceneServer {
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
       }
+    }
+
+    @Override
+    public void forceMerge(
+        ForceMergeRequest forceMergeRequest, StreamObserver<ForceMergeResponse> responseObserver) {
+      if (forceMergeRequest.getIndexName().isEmpty()) {
+        responseObserver.onError(new IllegalArgumentException("Index name in request is empty"));
+        return;
+      }
+      if (forceMergeRequest.getMaxNumSegments() == 0) {
+        responseObserver.onError(new IllegalArgumentException("Cannot have 0 max segments"));
+        return;
+      }
+
+      try {
+        IndexState indexState = globalState.getIndex(forceMergeRequest.getIndexName());
+        ShardState shardState = indexState.shards.get(0);
+        shardState.writer.forceMerge(
+            forceMergeRequest.getMaxNumSegments(), forceMergeRequest.getDoWait());
+      } catch (IOException e) {
+        responseObserver.onError(e);
+      }
+      ForceMergeResponse.Status status =
+          forceMergeRequest.getDoWait()
+              ? ForceMergeResponse.Status.FORCE_MERGE_COMPLETED
+              : ForceMergeResponse.Status.FORCE_MERGE_SUBMITTED;
+      ForceMergeResponse response = ForceMergeResponse.newBuilder().setStatus(status).build();
+      responseObserver.onNext(response);
+      responseObserver.onCompleted();
     }
   }
 

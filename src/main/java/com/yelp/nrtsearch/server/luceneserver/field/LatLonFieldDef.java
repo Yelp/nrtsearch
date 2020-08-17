@@ -73,7 +73,8 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable {
   }
 
   @Override
-  public void parseDocumentField(Document document, List<String> fieldValues) {
+  public void parseDocumentField(
+      Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     // this field is technically multi valued, but we only allow it to have one right now
     if (fieldValues.size() != 2) {
       throw new IllegalArgumentException("lat_lon field requires two values to be provided");

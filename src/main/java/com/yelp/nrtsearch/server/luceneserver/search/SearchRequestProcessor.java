@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
@@ -36,6 +37,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
@@ -69,6 +71,7 @@ public class SearchRequestProcessor {
    * @param shardState shard state
    * @param searcherAndTaxonomy index searcher
    * @param diagnostics container message for returned diagnostic info
+   * @param threadPoolExecutor search handler executor
    * @return context info needed to execute the search query
    * @throws IOException if query rewrite fails
    */
@@ -77,7 +80,8 @@ public class SearchRequestProcessor {
       IndexState indexState,
       ShardState shardState,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy,
-      SearchResponse.Diagnostics.Builder diagnostics)
+      SearchResponse.Diagnostics.Builder diagnostics,
+      ThreadPoolExecutor threadPoolExecutor)
       throws IOException {
 
     MutableSearchContext context =
@@ -87,18 +91,38 @@ public class SearchRequestProcessor {
     context.setTimestampSec(System.currentTimeMillis() / 1000);
     context.setStartHit(searchRequest.getStartHit());
 
-    context.setQueryFields(getQueryFields(context, searchRequest));
+    Map<String, FieldDef> queryVirtualFields = getVirtualFields(shardState, searchRequest);
+
+    Map<String, FieldDef> queryFields = new HashMap<>(queryVirtualFields);
+    addIndexFields(context, queryFields);
+    context.setQueryFields(Collections.unmodifiableMap(queryFields));
+
+    Map<String, FieldDef> retrieveFields = new HashMap<>(queryVirtualFields);
+    addRetrieveFields(context, searchRequest, retrieveFields);
+    context.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
     Query query = extractQuery(context.indexState(), searchRequest);
     diagnostics.setParsedQuery(query.toString());
 
-    Query rewrittenQuery = context.searcherAndTaxonomy().searcher.rewrite(query);
-    diagnostics.setRewrittenQuery(rewrittenQuery.toString());
+    query = context.searcherAndTaxonomy().searcher.rewrite(query);
+    diagnostics.setRewrittenQuery(query.toString());
 
-    Query drillDownQuery = addDrillDowns(context.indexState(), rewrittenQuery);
-    diagnostics.setDrillDownQuery(drillDownQuery.toString());
+    if (searchRequest.getFacetsCount() > 0) {
+      query = addDrillDowns(context.indexState(), query);
+      diagnostics.setDrillDownQuery(query.toString());
 
-    context.setQuery(drillDownQuery);
+      context.setDrillSideways(
+          new DrillSidewaysImpl(
+              indexState.facetsConfig,
+              searchRequest.getFacetsList(),
+              searcherAndTaxonomy,
+              shardState,
+              context.queryFields(),
+              context.searchResponse(),
+              threadPoolExecutor));
+    }
+
+    context.setQuery(query);
     context.setCollector(buildCollector(context, searchRequest));
     context.searchResponse().setDiagnostics(diagnostics);
     return context;
@@ -156,6 +180,23 @@ public class SearchRequestProcessor {
       FieldDef current = queryFields.put(field, fieldDef);
       if (current != null) {
         throw new IllegalArgumentException("QueryFields: " + field + " specified multiple times");
+      }
+    }
+  }
+
+  /**
+   * Add index fields to given query fields map.
+   *
+   * @param context search context
+   * @param queryFields mutable current map of query fields
+   * @throws IllegalArgumentException if any index field already exists
+   */
+  private static void addIndexFields(SearchContext context, Map<String, FieldDef> queryFields) {
+    for (Map.Entry<String, FieldDef> entry : context.indexState().getAllFields().entrySet()) {
+      FieldDef current = queryFields.put(entry.getKey(), entry.getValue());
+      if (current != null) {
+        throw new IllegalArgumentException(
+            "QueryFields: " + entry.getKey() + " specified multiple times");
       }
     }
   }

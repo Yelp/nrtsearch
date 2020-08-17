@@ -57,7 +57,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       context =
           SearchRequestProcessor.buildContextForRequest(
-              searchRequest, indexState, shardState, s, diagnostics);
+              searchRequest, indexState, shardState, s, diagnostics, threadPoolExecutor);
       QueryOperation.execute(context);
       FetchOperation.execute(context);
     } catch (IOException | InterruptedException e) {
