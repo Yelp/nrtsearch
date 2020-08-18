@@ -38,6 +38,13 @@ public abstract class FieldDef implements Closeable {
   /** Get String representation of the field type. */
   public abstract String getType();
 
+  /**
+   * Get the facet value type for this field.
+   *
+   * @return field facet value type
+   */
+  public abstract IndexableFieldDef.FacetValueType getFacetValueType();
+
   @Override
   public void close() {}
 }

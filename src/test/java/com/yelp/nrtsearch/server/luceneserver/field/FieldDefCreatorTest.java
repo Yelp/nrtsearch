@@ -55,6 +55,16 @@ public class FieldDefCreatorTest {
     public String getType() {
       return "custom_field_type";
     }
+
+    /**
+     * Get the facet value type for this field.
+     *
+     * @return field facet value type
+     */
+    @Override
+    public IndexableFieldDef.FacetValueType getFacetValueType() {
+      return IndexableFieldDef.FacetValueType.NO_FACETS;
+    }
   }
 
   static class TestFieldTypePlugin extends Plugin implements FieldTypePlugin {
