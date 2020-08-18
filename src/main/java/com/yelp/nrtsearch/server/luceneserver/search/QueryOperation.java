@@ -39,25 +39,25 @@ public class QueryOperation {
    */
   public static void execute(SearchContext context) throws IOException {
     long searchStartTime = System.nanoTime();
-    TopDocs hits;
+    SearcherResult searchResult;
     try {
       if (context.maybeDrillSideways().isPresent()) {
         if (!(context.query() instanceof DrillDownQuery)) {
           throw new IllegalArgumentException("Can only use DrillSideways on DrillDownQuery");
         }
         DrillDownQuery ddq = (DrillDownQuery) context.query();
-        hits =
+        searchResult =
             context
                 .maybeDrillSideways()
                 .get()
-                .search(ddq, context.collector().getManager())
+                .search(ddq, context.collectorManager())
                 .collectorResult;
       } else {
-        hits =
+        searchResult =
             context
                 .searcherAndTaxonomy()
                 .searcher
-                .search(context.query(), context.collector().getManager());
+                .search(context.query(), context.collectorManager());
       }
     } catch (TimeLimitingCollector.TimeExceededException tee) {
       context.searchResponse().setHitTimeout(true);
@@ -68,8 +68,13 @@ public class QueryOperation {
         .getDiagnosticsBuilder()
         .setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 
+    TopDocs hits = searchResult.getTopDocs();
     hits = getHitsFromOffset(hits, context.startHit());
     setResponseHits(context, hits);
+
+    if (!searchResult.getCollectorResults().isEmpty()) {
+      context.searchResponse().putAllCollectorResults(searchResult.getCollectorResults());
+    }
 
     SearchResponse.SearchState.Builder searchState = SearchResponse.SearchState.newBuilder();
     searchState.setTimestamp(context.timestampSec());
@@ -78,7 +83,7 @@ public class QueryOperation {
     if (hits.scoreDocs.length != 0) {
       ScoreDoc lastHit = hits.scoreDocs[hits.scoreDocs.length - 1];
       searchState.setLastDocId(lastHit.doc);
-      context.collector().fillLastHit(searchState, lastHit);
+      context.collectorManager().getDocCollector().fillLastHit(searchState, lastHit);
     }
     context.searchResponse().setSearchState(searchState);
   }
@@ -123,7 +128,7 @@ public class QueryOperation {
       var hitResponse = context.searchResponse().addHitsBuilder();
       ScoreDoc hit = hits.scoreDocs[hitIndex];
       hitResponse.setLuceneDocId(hit.doc);
-      context.collector().fillHitRanking(hitResponse, hit);
+      context.collectorManager().getDocCollector().fillHitRanking(hitResponse, hit);
     }
   }
 }

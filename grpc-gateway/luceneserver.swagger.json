@@ -1382,6 +1382,22 @@
         }
       }
     },
+    "luceneserverCollector": {
+      "type": "object",
+      "properties": {
+        "max": {
+          "$ref": "#/definitions/luceneserverMaxCollector"
+        }
+      }
+    },
+    "luceneserverCollectorResult": {
+      "type": "object",
+      "properties": {
+        "max": {
+          "$ref": "#/definitions/luceneserverMaxCollectorResult"
+        }
+      }
+    },
     "luceneserverCommitRequest": {
       "type": "object",
       "properties": {
@@ -2142,6 +2158,35 @@
       },
       "description": "A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined using term queries in boolean clauses."
     },
+    "luceneserverMaxCollector": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverMaxCollectorResult": {
+      "type": "object",
+      "properties": {
+        "intValue": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "longValue": {
+          "type": "string",
+          "format": "int64"
+        },
+        "floatValue": {
+          "type": "number",
+          "format": "float"
+        },
+        "doubleValue": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
     "luceneserverMode": {
       "type": "string",
       "enum": [
@@ -2526,6 +2571,12 @@
           "items": {
             "$ref": "#/definitions/luceneserverFacet"
           }
+        },
+        "collectors": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollector"
+          }
         }
       }
     },
@@ -2554,6 +2605,12 @@
           "type": "array",
           "items": {
             "$ref": "#/definitions/luceneserverFacetResult"
+          }
+        },
+        "collectorResults": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollectorResult"
           }
         }
       }

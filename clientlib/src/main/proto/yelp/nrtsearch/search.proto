@@ -210,6 +210,7 @@ message SearchRequest {
     }
     int32 totalHitsThreshold = 13; //By default we count hits accurately up to 1000. This makes sure that we don't spend most time on computing hit counts
     repeated Facet facets = 14; // Which facets to retrieve
+    map<string, Collector> collectors = 15;
 }
 
 /* Virtual field used during search */
@@ -337,6 +338,7 @@ message SearchResponse {
     repeated Hit hits = 4;
     SearchState searchState = 5;
     repeated FacetResult facetResult = 6; ////Counts or aggregates for a single dimension
+    map<string, CollectorResult> collectorResults = 7;
 }
 
 message NumericRangeType {
@@ -368,4 +370,29 @@ message FacetResult {
 message LabelAndValue {
     string label = 1; //Facet's label.
     double value = 2; // Value associated with this label.
+}
+
+message Collector {
+    oneof Collectors {
+        MaxCollector max = 1; //Collector for getting the max value of a field.
+    }
+}
+
+message MaxCollector {
+    string field = 1; //Field to find max of, must be Sortable.
+}
+
+message CollectorResult {
+    oneof CollectorResults {
+        MaxCollectorResult max = 1; //Resulting value of max value collection.
+    }
+}
+
+message MaxCollectorResult {
+    oneof ResultValue {
+        int32 intValue = 1; // Max value for INT FieldType
+        int64 longValue = 2; // Max value for LONG and DATE_TIME (as milliseconds since epoch in UTC zone) FieldType
+        float floatValue = 3; // Max value for FLOAT FieldType
+        double doubleValue = 4; // Max value for DOUBLE FieldType
+    }
 }

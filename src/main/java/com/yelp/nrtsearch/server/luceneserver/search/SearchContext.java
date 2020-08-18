@@ -19,7 +19,6 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.lucene.facet.DrillSideways;
@@ -60,6 +59,6 @@ public interface SearchContext {
   /** Get final lucene query to perform. */
   Query query();
 
-  /** Get collector to manage query hits. */
-  DocCollector collector();
+  /** Get collector manager for query. */
+  SearchCollectorManager collectorManager();
 }

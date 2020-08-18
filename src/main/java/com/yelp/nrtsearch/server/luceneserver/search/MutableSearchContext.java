@@ -19,7 +19,6 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.lucene.facet.DrillSideways;
@@ -38,7 +37,7 @@ class MutableSearchContext implements SearchContext {
   private Map<String, FieldDef> queryFields;
   private Map<String, FieldDef> retrieveFields;
   private Query query;
-  private DocCollector collector;
+  private SearchCollectorManager collectorManager;
   private DrillSideways drillSideways;
 
   MutableSearchContext(
@@ -103,8 +102,8 @@ class MutableSearchContext implements SearchContext {
   }
 
   @Override
-  public DocCollector collector() {
-    return collector;
+  public SearchCollectorManager collectorManager() {
+    return collectorManager;
   }
 
   void setTimestampSec(long timestampSec) {
@@ -127,8 +126,8 @@ class MutableSearchContext implements SearchContext {
     this.query = query;
   }
 
-  void setCollector(DocCollector collector) {
-    this.collector = collector;
+  void setCollectorManager(SearchCollectorManager collectorManager) {
+    this.collectorManager = collectorManager;
   }
 
   void setDrillSideways(DrillSideways drillSideways) {

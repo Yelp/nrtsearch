@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 
+import com.google.common.base.Stopwatch;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
@@ -38,6 +39,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -171,6 +173,11 @@ public class ServerTestCase {
   }
 
   public void setUpClass() throws Exception {
+    // reset internal stopwatch, otherwise this rule cannot be used multiple times
+    Field stopwatchField = GrpcCleanupRule.class.getDeclaredField("stopwatch");
+    stopwatchField.setAccessible(true);
+    stopwatchField.set(grpcCleanup, Stopwatch.createUnstarted());
+
     collectorRegistry = new CollectorRegistry();
     grpcServer = setUpGrpcServer(collectorRegistry);
     initIndices();

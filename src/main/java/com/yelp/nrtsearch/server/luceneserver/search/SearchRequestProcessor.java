@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.search;
 
 import com.google.common.collect.Maps;
+import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
@@ -28,11 +29,14 @@ import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptParamsTransformer;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreator;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.CustomCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.FieldCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.LargeNumHitsCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.ScoreCollector;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -43,6 +47,7 @@ import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
@@ -123,17 +128,9 @@ public class SearchRequestProcessor {
     }
 
     context.setQuery(query);
-    context.setCollector(buildCollector(context, searchRequest));
+    context.setCollectorManager(buildCollectorManager(context, searchRequest));
     context.searchResponse().setDiagnostics(diagnostics);
     return context;
-  }
-
-  /** Get map containing all {@link FieldDef} needed for this query */
-  private static Map<String, FieldDef> getQueryFields(
-      SearchContext context, SearchRequest searchRequest) {
-    Map<String, FieldDef> queryFields = getVirtualFields(context.shardState(), searchRequest);
-    addRetrieveFields(context, searchRequest, queryFields);
-    return queryFields;
   }
 
   /**
@@ -299,14 +296,41 @@ public class SearchRequestProcessor {
   }
 
   /**
+   * Build the primary {@link org.apache.lucene.search.CollectorManager} to pass to the {@link
+   * org.apache.lucene.search.IndexSearcher}. This will handle collection of the top documents and
+   * any additional custom collectors.
+   *
+   * @param context search context
+   * @param searchRequest request
+   * @return primary query collector manager
+   */
+  private static SearchCollectorManager buildCollectorManager(
+      SearchContext context, SearchRequest searchRequest) {
+    DocCollector docCollector = buildDocCollector(context, searchRequest);
+    if (searchRequest.getCollectorsCount() > 0) {
+      List<CustomCollectorManager<? extends Collector, ? extends CollectorResult>>
+          collectorManagers = new ArrayList<>(searchRequest.getCollectorsCount());
+      for (Map.Entry<String, com.yelp.nrtsearch.server.grpc.Collector> entry :
+          searchRequest.getCollectorsMap().entrySet()) {
+        collectorManagers.add(
+            CollectorCreator.createCollectorManager(context, entry.getKey(), entry.getValue()));
+      }
+      return new SearchCollectorManager(docCollector, collectorManagers);
+    } else {
+      return new SearchCollectorManager(docCollector, Collections.emptyList());
+    }
+  }
+
+  /**
    * Build {@link DocCollector} to provide the {@link org.apache.lucene.search.CollectorManager} for
-   * this query.
+   * collecting hits for this query.
    *
    * @param context search context
    * @param searchRequest request
    * @return collector
    */
-  private static DocCollector buildCollector(SearchContext context, SearchRequest searchRequest) {
+  private static DocCollector buildDocCollector(
+      SearchContext context, SearchRequest searchRequest) {
     if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
       return new ScoreCollector(context, searchRequest);
     } else if (hasLargeNumHits(searchRequest)) {
