@@ -22,6 +22,8 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
@@ -37,6 +39,7 @@ public class FieldCollector implements DocCollector {
 
   private final CollectorManager<TopFieldCollector, TopFieldDocs> manager;
   private final Sort sort;
+  private final List<String> sortNames;
 
   public FieldCollector(SearchContext context, SearchRequest searchRequest) {
     FieldDoc searchAfter = null;
@@ -45,12 +48,14 @@ public class FieldCollector implements DocCollector {
     if (searchRequest.getTotalHitsThreshold() != 0) {
       totalHitsThreshold = searchRequest.getTotalHitsThreshold();
     }
+
+    sortNames = new ArrayList<>(searchRequest.getQuerySort().getFields().getSortedFieldsCount());
     try {
       sort =
           SortParser.parseSort(
               searchRequest.getQuerySort().getFields().getSortedFieldsList(),
-              null,
-              context.indexState().getAllFields());
+              sortNames,
+              context.queryFields());
     } catch (SearchHandler.SearchHandlerException e) {
       throw new IllegalArgumentException(e);
     }
@@ -72,12 +77,18 @@ public class FieldCollector implements DocCollector {
               + " != "
               + fd.fields.length);
     }
+    if (fd.fields.length != sortNames.size()) {
+      throw new IllegalArgumentException(
+          "Size mismatch between Sort and Sort names: "
+              + fd.fields.length
+              + " != "
+              + sortNames.size());
+    }
 
     for (int i = 0; i < fd.fields.length; ++i) {
       SortField sortField = sort.getSort()[i];
       hitResponse.putSortedFields(
-          SortParser.getNameForField(sortField),
-          SortParser.getValueForSortField(sortField, fd, fd.fields[i]));
+          sortNames.get(i), SortParser.getValueForSortField(sortField, fd.fields[i]));
     }
   }
 

@@ -23,7 +23,6 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 
@@ -56,9 +55,17 @@ public class SortParser {
         sortFieldNames.add(fieldName);
       }
       if (fieldName.equals(DOCID)) {
-        sf = SortField.FIELD_DOC;
+        if (!sub.getReverse()) {
+          sf = SortField.FIELD_DOC;
+        } else {
+          sf = new SortField(null, SortField.Type.DOC, true);
+        }
       } else if (fieldName.equals(SCORE)) {
-        sf = SortField.FIELD_SCORE;
+        if (!sub.getReverse()) {
+          sf = SortField.FIELD_SCORE;
+        } else {
+          sf = new SortField(null, SortField.Type.SCORE, true);
+        }
       } else {
         FieldDef fd = queryFields.get(fieldName);
         if (fd == null) {
@@ -82,40 +89,22 @@ public class SortParser {
   }
 
   /**
-   * Get the name of a {@link SortField}. This will be either an index field name or a special sort
-   * field name, such as 'docid' or 'score'.
-   *
-   * @param sortField sort field description
-   * @return sort field name
-   */
-  public static String getNameForField(SortField sortField) {
-    if (sortField == SortField.FIELD_DOC) {
-      return DOCID;
-    } else if (sortField == SortField.FIELD_SCORE) {
-      return SCORE;
-    } else {
-      return sortField.getField();
-    }
-  }
-
-  /**
    * Get the {@link com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue}
    * containing the sort value for the given {@link SortField}.
    *
    * @param sortField sort field description
-   * @param fieldDoc lucene document hit
    * @param sortValue FieldDoc value for this sort field
    * @return hit message field value containing sort field value
    */
   public static SearchResponse.Hit.CompositeFieldValue getValueForSortField(
-      SortField sortField, FieldDoc fieldDoc, Object sortValue) {
+      SortField sortField, Object sortValue) {
     var fieldValue = SearchResponse.Hit.FieldValue.newBuilder();
     switch (sortField.getType()) {
       case DOC:
-        fieldValue.setIntValue(fieldDoc.doc);
+        fieldValue.setIntValue((Integer) sortValue);
         break;
       case SCORE:
-        fieldValue.setFloatValue(fieldDoc.score);
+        fieldValue.setFloatValue((Float) sortValue);
         break;
       case INT:
         fieldValue.setIntValue((Integer) sortValue);
@@ -133,10 +122,31 @@ public class SortParser {
       case STRING_VAL:
         fieldValue.setTextValue((String) sortValue);
         break;
+      case CUSTOM:
+        // could be anything, try to determine from value class
+        fillFromValueClass(fieldValue, sortValue);
+        break;
       default:
         throw new IllegalArgumentException(
             "Unable to get value for sort type: " + sortField.getType());
     }
     return SearchResponse.Hit.CompositeFieldValue.newBuilder().addFieldValue(fieldValue).build();
+  }
+
+  private static void fillFromValueClass(
+      SearchResponse.Hit.FieldValue.Builder fieldValue, Object sortValue) {
+    if (sortValue instanceof Double) {
+      fieldValue.setDoubleValue((Double) sortValue);
+    } else if (sortValue instanceof Float) {
+      fieldValue.setFloatValue((Float) sortValue);
+    } else if (sortValue instanceof Integer) {
+      fieldValue.setIntValue((Integer) sortValue);
+    } else if (sortValue instanceof Long) {
+      fieldValue.setLongValue((Long) sortValue);
+    } else if (sortValue instanceof Number) {
+      fieldValue.setDoubleValue(((Number) sortValue).doubleValue());
+    } else {
+      throw new IllegalArgumentException("Unable to fill sort value: " + sortValue);
+    }
   }
 }

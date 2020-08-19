@@ -332,9 +332,11 @@ public class SearchRequestProcessor {
   private static DocCollector buildDocCollector(
       SearchContext context, SearchRequest searchRequest) {
     if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
-      return new ScoreCollector(context, searchRequest);
-    } else if (hasLargeNumHits(searchRequest)) {
-      return new LargeNumHitsCollector(searchRequest);
+      if (hasLargeNumHits(searchRequest)) {
+        return new LargeNumHitsCollector(searchRequest);
+      } else {
+        return new ScoreCollector(context, searchRequest);
+      }
     } else {
       return new FieldCollector(context, searchRequest);
     }

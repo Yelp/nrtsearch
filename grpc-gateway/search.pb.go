@@ -1913,7 +1913,7 @@ type SortType struct {
 	//Note that this runs \"before\" reverse, so if you sort missing first and reverse=true then missing values will
 	//be at the end.
 	MissingLat bool `protobuf:"varint,4,opt,name=missingLat,proto3" json:"missingLat,omitempty"`
-	// Sort in reverse of the field's natural order
+	// Sort in reverse of the field's natural order. Note that sorting by score is naturally high to low.
 	Reverse bool `protobuf:"varint,5,opt,name=reverse,proto3" json:"reverse,omitempty"`
 }
 
