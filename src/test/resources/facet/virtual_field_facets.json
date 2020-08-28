@@ -1,0 +1,20 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "int_number_facet_field",
+      "type": "INT",
+      "storeDocValues": true,
+      "multiValued": false,
+      "search": true
+    },
+    {
+      "name": "text_field",
+      "type": "TEXT",
+      "storeDocValues": true,
+      "multiValued": true,
+      "tokenize": true,
+      "search": true
+    }
+  ]
+}

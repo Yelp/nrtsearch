@@ -202,6 +202,7 @@ public abstract class IndexableFieldDef extends FieldDef {
    *
    * @return field facet value type
    */
+  @Override
   public FacetValueType getFacetValueType() {
     return facetValueType;
   }
