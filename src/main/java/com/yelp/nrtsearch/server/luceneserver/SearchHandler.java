@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.google.common.collect.Maps;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
@@ -36,8 +35,8 @@ import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
-import com.yelp.nrtsearch.server.luceneserver.script.ScriptParamsTransformer;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.text.BreakIterator;
 import java.text.ParseException;
@@ -499,8 +498,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
       ScoreScript.Factory factory =
           ScriptService.getInstance().compile(vf.getScript(), ScoreScript.CONTEXT);
-      Map<String, Object> params =
-          Maps.transformValues(vf.getScript().getParamsMap(), ScriptParamsTransformer.INSTANCE);
+      Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
       VirtualFieldDef virtualField =
           new VirtualFieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
       virtualFields.put(vf.getName(), virtualField);

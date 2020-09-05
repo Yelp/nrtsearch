@@ -1013,6 +1013,38 @@
         }
       }
     },
+    "ScriptParamListValue": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ScriptParamValue"
+          }
+        }
+      },
+      "title": "list parameter value"
+    },
+    "ScriptParamNullValue": {
+      "type": "string",
+      "enum": [
+        "NULL_VALUE"
+      ],
+      "default": "NULL_VALUE",
+      "title": "null parameter value"
+    },
+    "ScriptParamStructValue": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ScriptParamValue"
+          }
+        }
+      },
+      "title": "map parameter value"
+    },
     "ScriptParamValue": {
       "type": "object",
       "properties": {
@@ -1037,6 +1069,15 @@
         "doubleValue": {
           "type": "number",
           "format": "double"
+        },
+        "nullValue": {
+          "$ref": "#/definitions/ScriptParamNullValue"
+        },
+        "listValue": {
+          "$ref": "#/definitions/ScriptParamListValue"
+        },
+        "structValue": {
+          "$ref": "#/definitions/ScriptParamStructValue"
         }
       },
       "title": "script parameter entry"
