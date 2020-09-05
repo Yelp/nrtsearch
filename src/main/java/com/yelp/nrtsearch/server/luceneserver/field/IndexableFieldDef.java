@@ -43,6 +43,7 @@ public abstract class IndexableFieldDef extends FieldDef {
   private final boolean isStored;
   private final boolean isMultiValue;
   private final boolean isSearchable;
+  private final boolean isDocId;
   private final String postingsFormat;
   private final String docValuesFormat;
   private final Similarity similarity;
@@ -67,6 +68,7 @@ public abstract class IndexableFieldDef extends FieldDef {
     isStored = requestField.getStore();
     isMultiValue = requestField.getMultiValued();
     isSearchable = requestField.getSearch();
+    isDocId = requestField.getDocId();
     docValuesType = parseDocValuesType(requestField);
 
     fieldType = new FieldType();
@@ -117,6 +119,18 @@ public abstract class IndexableFieldDef extends FieldDef {
           String.format(
               "field: %s cannot have both group and multivalued set to true. Cannot  group on multiValued fields",
               requestField.getName()));
+    }
+    if (requestField.getDocId()) {
+      if (requestField.getMultiValued()) {
+        throw new IllegalArgumentException(
+            String.format(
+                "field: %s cannot have both multivalued and docId set to true. Only single docId is supported",
+                requestField.getName()));
+      }
+      if (!requestField.getStore()) {
+        throw new IllegalArgumentException(
+            String.format("field: %s is a docId and should be stored", requestField.getName()));
+      }
     }
   }
 
@@ -195,6 +209,15 @@ public abstract class IndexableFieldDef extends FieldDef {
    */
   public boolean isSearchable() {
     return isSearchable;
+  }
+
+  /**
+   * Get if this field is to be used as a docId
+   *
+   * @return if this field can be used as a docId
+   */
+  public boolean isDocId() {
+    return isDocId;
   }
 
   /**

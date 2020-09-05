@@ -133,6 +133,7 @@ public class IndexState implements Closeable, Restorable {
 
   private static final Pattern reSimpleName = Pattern.compile("^[a-zA-Z_][a-zA-Z_0-9]*$");
   private ThreadPoolExecutor searchThreadPoolExecutor;
+  private IndexableFieldDef docIdField;
 
   public ShardState addShard(int shardOrd, boolean doCreate) {
     if (shards.containsKey(shardOrd)) {
@@ -766,6 +767,10 @@ public class IndexState implements Closeable, Restorable {
     return Collections.unmodifiableMap(fields);
   }
 
+  public IndexableFieldDef getDocIdField() {
+    return docIdField;
+  }
+
   /** Records a new field in the internal {@code fields} state. */
   public synchronized void addField(FieldDef fd, JsonObject jsonObject) {
     if (fields.containsKey(fd.getName())) {
@@ -783,6 +788,18 @@ public class IndexState implements Closeable, Restorable {
         internalFacetFieldNames.add(facetsConfig.getDimConfig(fd.getName()).indexFieldName);
       }
     }
+  }
+
+  public synchronized void setDocIdField(IndexableFieldDef indexableFieldDef) {
+    if (docIdField != null) {
+      throw new IllegalArgumentException(
+          "cannot register a new docId field: \""
+              + indexableFieldDef.getName()
+              + "\" as a docId field: \""
+              + docIdField.getName()
+              + " was already registered.");
+    }
+    docIdField = indexableFieldDef;
   }
 
   public void setNormsFormat(String format, float acceptableOverheadRatio) {

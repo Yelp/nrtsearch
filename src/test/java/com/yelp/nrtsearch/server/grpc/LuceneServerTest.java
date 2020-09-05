@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -390,6 +391,61 @@ public class LuceneServerTest {
     AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocsLatLon.csv");
     assertEquals(false, testAddDocs.error);
     assertEquals(true, testAddDocs.completed);
+  }
+
+  @Test
+  public void testDocIdUpdates() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+    new GrpcServer.IndexAndRoleManager(grpcServer)
+        .createStartIndexAndRegisterFields(
+            Mode.STANDALONE, 0, false, "registerFieldsBasicWithDocId.json");
+    // 2 docs addDocuments
+    testAddDocs.addDocuments();
+    assertFalse(testAddDocs.error);
+    assertTrue(testAddDocs.completed);
+
+    // add 2 more docs
+    testAddDocs.addDocuments();
+    assertFalse(testAddDocs.error);
+    assertTrue(testAddDocs.completed);
+
+    StatsResponse stats =
+        grpcServer
+            .getBlockingStub()
+            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+    // there are only 2 documents
+    assertEquals(2, stats.getNumDocs());
+
+    // update schema: add a new field
+    grpcServer
+        .getBlockingStub()
+        .updateFields(
+            FieldDefRequest.newBuilder()
+                .setIndexName("test_index")
+                .addField(
+                    Field.newBuilder()
+                        .setName("new_text_field")
+                        .setType(FieldType.TEXT)
+                        .setStoreDocValues(true)
+                        .setSearch(true)
+                        .setMultiValued(true)
+                        .setTokenize(true)
+                        .build())
+                .build());
+
+    // 2 docs addDocuments
+    testAddDocs.addDocuments("addDocsUpdated.csv");
+    assertFalse(testAddDocs.error);
+    assertTrue(testAddDocs.completed);
+    stats =
+        grpcServer
+            .getBlockingStub()
+            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+    // there are 4 documents in total
+    assertEquals(4, stats.getNumDocs());
   }
 
   @Test

@@ -59,6 +59,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
     final Map<String, FieldDef> pendingFieldDefs = new HashMap<>();
     final Map<String, String> saveStates = new HashMap<>();
     Set<String> seen = new HashSet<>();
+    boolean docIdFieldFound = false;
 
     // We make two passes.  In the first pass, we do the
     // "real" fields, and second pass does the virtual
@@ -84,6 +85,14 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
           // Do this on 2nd pass so the field it refers to will be registered even if it's a single
           // request
           continue;
+        }
+
+        if (currentField.getDocId()) {
+          if (docIdFieldFound) {
+            throw new RegisterFieldsException("multiple docId fields found");
+          } else {
+            docIdFieldFound = true;
+          }
         }
 
         if (!IndexState.isSimpleName(fieldName)) {
@@ -168,6 +177,10 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                 ? String.format("$_%s", currentField.getName())
                 : currentField.getFacetIndexFieldName();
         indexState.facetsConfig.setIndexFieldName(fieldName, facetFieldName);
+      }
+      // Register DocIdField
+      if (indexableFieldDef.isDocId()) {
+        indexState.setDocIdField(indexableFieldDef);
       }
     }
     // nocommit facetsConfig.setRequireDimCount
