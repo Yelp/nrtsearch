@@ -127,7 +127,7 @@ public abstract class IndexableFieldDef extends FieldDef {
                 "field: %s cannot have both multivalued and docId set to true. Only single docId is supported",
                 requestField.getName()));
       }
-      if (!requestField.getStore()) {
+      if (!requestField.getStoreDocValues()) {
         throw new IllegalArgumentException(
             String.format("field: %s is a docId and should be stored", requestField.getName()));
       }

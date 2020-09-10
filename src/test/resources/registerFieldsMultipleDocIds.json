@@ -1,0 +1,17 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "docId": true
+    },
+    {
+      "name": "duplicate_doc_id",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "docId": true
+    }
+  ]
+}

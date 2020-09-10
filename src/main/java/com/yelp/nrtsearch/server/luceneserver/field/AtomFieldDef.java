@@ -38,6 +38,8 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
 
   @Override
   protected void validateRequest(Field requestField) {
+    super.validateRequest(requestField);
+
     if (requestField.getHighlight() && !requestField.getSearch()) {
       throw new IllegalArgumentException("search must be true when highlight is true");
     }
