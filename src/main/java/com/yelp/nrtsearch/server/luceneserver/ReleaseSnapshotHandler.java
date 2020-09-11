@@ -17,10 +17,15 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 
 public class ReleaseSnapshotHandler
     implements Handler<ReleaseSnapshotRequest, ReleaseSnapshotResponse> {
+  private static final Logger logger = LoggerFactory.getLogger(ReleaseSnapshotHandler.class);
+
   @Override
   public ReleaseSnapshotResponse handle(
       IndexState indexState, ReleaseSnapshotRequest releaseSnapshotRequest)
@@ -41,7 +46,13 @@ public class ReleaseSnapshotHandler
         shardState.taxoSnapshots.release(gens.taxoGen);
         shardState.taxoInternalWriter.deleteUnusedFiles();
       }
-      indexState.decRef(gens.stateGen);
+
+      long stateGen = gens.stateGen;
+      if (indexState.genRefCounts.containsKey(stateGen)) {
+        indexState.decRef(stateGen);
+      } else {
+        logger.warn("State gen {} is not held by a snapshot, skipping release", stateGen);
+      }
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

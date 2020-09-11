@@ -1073,6 +1073,24 @@ public class LuceneServer {
     }
 
     @Override
+    public void getAllSnapshotIndexGen(GetAllSnapshotGenRequest request, StreamObserver<GetAllSnapshotGenResponse> responseObserver) {
+      try {
+        Set<Long> snapshotGens = globalState.getIndex(request.getIndexName())
+                .getShard(0)
+                .snapshotGenToVersion
+                .keySet();
+        GetAllSnapshotGenResponse response = GetAllSnapshotGenResponse.newBuilder()
+                .addAllIndexGens(snapshotGens)
+                .build();
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+      } catch (IOException e) {
+        logger.error("Error getting all snapshotted index gens for index: {}", request.getIndexName(), e);
+        responseObserver.onError(e);
+      }
+    }
+
+    @Override
     public void backupIndex(
         BackupIndexRequest backupIndexRequest,
         StreamObserver<BackupIndexResponse> responseObserver) {
