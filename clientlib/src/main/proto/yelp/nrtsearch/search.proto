@@ -338,7 +338,7 @@ message SearchResponse {
     repeated Hit hits = 4;
     SearchState searchState = 5;
     repeated FacetResult facetResult = 6; ////Counts or aggregates for a single dimension
-    map<string, CollectorResult> collectorResults = 7;
+    map<string, CollectorResult> collectorResults = 7; // Results from any custom document collectors
 }
 
 message NumericRangeType {

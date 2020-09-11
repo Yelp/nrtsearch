@@ -57,10 +57,8 @@ public class FetchOperation {
     List<LeafReaderContext> leaves =
         context.searcherAndTaxonomy().searcher.getIndexReader().leaves();
     int hitIndex = 0;
-    int leafIndex = ReaderUtil.subIndex(sortedHits.get(0).getLuceneDocId(), leaves);
     while (hitIndex < sortedHits.size()) {
-      leafIndex =
-          getSegmentIndexForDocId(leaves, leafIndex, sortedHits.get(hitIndex).getLuceneDocId());
+      int leafIndex = ReaderUtil.subIndex(sortedHits.get(hitIndex).getLuceneDocId(), leaves);
       LeafReaderContext sliceSegment = leaves.get(leafIndex);
 
       // get all hits in the same segment and process them together for better resource reuse
@@ -68,53 +66,11 @@ public class FetchOperation {
       fetchSlice(context, sliceHits, sliceSegment);
 
       hitIndex += sliceHits.size();
-      leafIndex++;
     }
     context
         .searchResponse()
         .getDiagnosticsBuilder()
         .setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
-  }
-
-  /**
-   * Get the index of the lucene segment containing the given doc id. The search will start at the
-   * provided index and walk through the segment list until found.
-   *
-   * @param contexts list of segment contexts for query
-   * @param nextSegmentIndex index of segment to start searching
-   * @param docId lucene doc id to find
-   * @return index of segment containing docId
-   * @throws IllegalArgumentException if the starting segment is already past the docId, or if doc
-   *     is not in any segment.
-   */
-  private static int getSegmentIndexForDocId(
-      List<LeafReaderContext> contexts, int nextSegmentIndex, int docId) {
-    if (nextSegmentIndex < contexts.size() && docId < contexts.get(nextSegmentIndex).docBase) {
-      throw new IllegalArgumentException(
-          "docId: "
-              + docId
-              + " is below initial docBase: "
-              + contexts.get(nextSegmentIndex).docBase);
-    }
-
-    int segmentIndex = nextSegmentIndex;
-    while (segmentIndex < contexts.size()) {
-      LeafReaderContext context = contexts.get(segmentIndex);
-      int endDoc = context.docBase + context.reader().maxDoc();
-      if (docId >= endDoc) {
-        segmentIndex++;
-        continue;
-      }
-      if (docId == context.docBase) {
-        if ((segmentIndex + 1) < contexts.size()
-            && contexts.get(segmentIndex + 1).docBase == docId) {
-          segmentIndex++;
-          continue;
-        }
-      }
-      return segmentIndex;
-    }
-    throw new IllegalArgumentException("Unable to find Segment context for docId: " + docId);
   }
 
   /** Get all hits belonging to the same lucene segment */

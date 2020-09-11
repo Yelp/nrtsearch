@@ -2106,8 +2106,8 @@ type SearchResponse struct {
 	TotalHits        *TotalHits                  `protobuf:"bytes,3,opt,name=totalHits,proto3" json:"totalHits,omitempty"`
 	Hits             []*SearchResponse_Hit       `protobuf:"bytes,4,rep,name=hits,proto3" json:"hits,omitempty"`
 	SearchState      *SearchResponse_SearchState `protobuf:"bytes,5,opt,name=searchState,proto3" json:"searchState,omitempty"`
-	FacetResult      []*FacetResult              `protobuf:"bytes,6,rep,name=facetResult,proto3" json:"facetResult,omitempty"` ////Counts or aggregates for a single dimension
-	CollectorResults map[string]*CollectorResult `protobuf:"bytes,7,rep,name=collectorResults,proto3" json:"collectorResults,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	FacetResult      []*FacetResult              `protobuf:"bytes,6,rep,name=facetResult,proto3" json:"facetResult,omitempty"`                                                                                                   ////Counts or aggregates for a single dimension
+	CollectorResults map[string]*CollectorResult `protobuf:"bytes,7,rep,name=collectorResults,proto3" json:"collectorResults,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"` // Results from any custom document collectors
 }
 
 func (x *SearchResponse) Reset() {

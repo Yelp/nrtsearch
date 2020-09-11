@@ -130,7 +130,7 @@ public class SearchRequestProcessor {
     context.setQuery(query);
     context.setCollectorManager(buildCollectorManager(context, searchRequest));
     context.searchResponse().setDiagnostics(diagnostics);
-    return context;
+    return context.freeze();
   }
 
   /**
