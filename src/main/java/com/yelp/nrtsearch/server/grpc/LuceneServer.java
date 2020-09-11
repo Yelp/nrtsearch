@@ -1058,14 +1058,14 @@ public class LuceneServer {
       } catch (Exception e) {
         logger.warn(
             String.format(
-                "error while trying to releaseSnapshott for index %s",
+                "error while trying to releaseSnapshot for index %s",
                 releaseSnapshotRequest.getIndexName()),
             e);
         responseObserver.onError(
             Status.UNKNOWN
                 .withDescription(
                     String.format(
-                        "error while trying to releaseSnapshott for index %s",
+                        "error while trying to releaseSnapshot for index %s",
                         releaseSnapshotRequest.getIndexName()))
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
@@ -1073,19 +1073,19 @@ public class LuceneServer {
     }
 
     @Override
-    public void getAllSnapshotIndexGen(GetAllSnapshotGenRequest request, StreamObserver<GetAllSnapshotGenResponse> responseObserver) {
+    public void getAllSnapshotIndexGen(
+        GetAllSnapshotGenRequest request,
+        StreamObserver<GetAllSnapshotGenResponse> responseObserver) {
       try {
-        Set<Long> snapshotGens = globalState.getIndex(request.getIndexName())
-                .getShard(0)
-                .snapshotGenToVersion
-                .keySet();
-        GetAllSnapshotGenResponse response = GetAllSnapshotGenResponse.newBuilder()
-                .addAllIndexGens(snapshotGens)
-                .build();
+        Set<Long> snapshotGens =
+            globalState.getIndex(request.getIndexName()).getShard(0).snapshotGenToVersion.keySet();
+        GetAllSnapshotGenResponse response =
+            GetAllSnapshotGenResponse.newBuilder().addAllIndexGens(snapshotGens).build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
       } catch (IOException e) {
-        logger.error("Error getting all snapshotted index gens for index: {}", request.getIndexName(), e);
+        logger.error(
+            "Error getting all snapshotted index gens for index: {}", request.getIndexName(), e);
         responseObserver.onError(e);
       }
     }
