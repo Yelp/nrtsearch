@@ -19,6 +19,7 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.ha
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.SortType;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.Keyable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
@@ -29,11 +30,13 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSortField;
 
 /** Field class for 'ATOM' field type. Uses {@link KeywordAnalyzer} for text analysis. */
-public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
+public class AtomFieldDef extends TextBaseFieldDef implements Sortable, Keyable {
   private static final Analyzer keywordAnalyzer = new KeywordAnalyzer();
+  private final boolean isKey;
 
   public AtomFieldDef(String name, Field requestField) {
     super(name, requestField);
+    isKey = requestField.getKey();
   }
 
   @Override
@@ -140,5 +143,10 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
       sortField.setMissingValue(SortField.STRING_FIRST);
     }
     return sortField;
+  }
+
+  @Override
+  public boolean isKey() {
+    return isKey;
   }
 }

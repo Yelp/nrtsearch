@@ -29,6 +29,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.Keyable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptParamsTransformer;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
@@ -59,7 +60,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
     final Map<String, FieldDef> pendingFieldDefs = new HashMap<>();
     final Map<String, String> saveStates = new HashMap<>();
     Set<String> seen = new HashSet<>();
-    boolean docIdFieldFound = false;
+    boolean keyableFieldExists = indexState.getKeyableField() != null;
 
     // We make two passes.  In the first pass, we do the
     // "real" fields, and second pass does the virtual
@@ -87,11 +88,11 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
           continue;
         }
 
-        if (currentField.getDocId()) {
-          if (docIdFieldFound) {
+        if (currentField.getKey()) {
+          if (keyableFieldExists) {
             throw new RegisterFieldsException("multiple docId fields found");
           } else {
-            docIdFieldFound = true;
+            keyableFieldExists = true;
           }
         }
 
@@ -120,8 +121,13 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
           throw new RuntimeException(e);
         }
 
-        pendingFieldDefs.put(
-            fieldName, parseOneFieldType(indexState, pendingFieldDefs, fieldName, currentField));
+        FieldDef fieldDef =
+            parseOneFieldType(indexState, pendingFieldDefs, fieldName, currentField);
+        if (currentField.getKey() && !(fieldDef instanceof Keyable)) {
+          throw new RegisterFieldsException(
+              "field \"" + fieldName + "\" is not a keyable field type");
+        }
+        pendingFieldDefs.put(fieldName, fieldDef);
       }
     }
 
@@ -129,7 +135,14 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
     for (Map.Entry<String, FieldDef> ent : pendingFieldDefs.entrySet()) {
       JsonObject fieldAsJsonObject =
           jsonParser.parse(saveStates.get(ent.getKey())).getAsJsonObject();
-      indexState.addField(ent.getValue(), fieldAsJsonObject);
+      FieldDef fieldDef = ent.getValue();
+      indexState.addField(fieldDef, fieldAsJsonObject);
+      if (fieldDef instanceof Keyable) {
+        Keyable keyableField = (Keyable) fieldDef;
+        if (keyableField.isKey()) {
+          indexState.setKeyableField(keyableField);
+        }
+      }
     }
     String response = indexState.getAllFieldsJSON();
     FieldDefResponse reply = FieldDefResponse.newBuilder().setResponse(response).build();
@@ -177,10 +190,6 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
                 ? String.format("$_%s", currentField.getName())
                 : currentField.getFacetIndexFieldName();
         indexState.facetsConfig.setIndexFieldName(fieldName, facetFieldName);
-      }
-      // Register DocIdField
-      if (indexableFieldDef.isDocId()) {
-        indexState.setDocIdField(indexableFieldDef);
       }
     }
     // nocommit facetsConfig.setRequireDimCount

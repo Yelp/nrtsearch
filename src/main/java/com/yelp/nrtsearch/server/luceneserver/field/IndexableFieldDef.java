@@ -18,11 +18,13 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.luceneserver.ServerCodec;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.Keyable;
 import java.io.IOException;
 import java.util.List;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
@@ -43,7 +45,6 @@ public abstract class IndexableFieldDef extends FieldDef {
   private final boolean isStored;
   private final boolean isMultiValue;
   private final boolean isSearchable;
-  private final boolean isDocId;
   private final String postingsFormat;
   private final String docValuesFormat;
   private final Similarity similarity;
@@ -68,7 +69,6 @@ public abstract class IndexableFieldDef extends FieldDef {
     isStored = requestField.getStore();
     isMultiValue = requestField.getMultiValued();
     isSearchable = requestField.getSearch();
-    isDocId = requestField.getDocId();
     docValuesType = parseDocValuesType(requestField);
 
     fieldType = new FieldType();
@@ -120,16 +120,18 @@ public abstract class IndexableFieldDef extends FieldDef {
               "field: %s cannot have both group and multivalued set to true. Cannot  group on multiValued fields",
               requestField.getName()));
     }
-    if (requestField.getDocId()) {
+    if (requestField.getKey()) {
       if (requestField.getMultiValued()) {
         throw new IllegalArgumentException(
             String.format(
                 "field: %s cannot have both multivalued and docId set to true. Only single docId is supported",
                 requestField.getName()));
       }
-      if (!requestField.getStoreDocValues()) {
+      if (!requestField.getStoreDocValues() && !requestField.getStore()) {
         throw new IllegalArgumentException(
-            String.format("field: %s is a docId and should be stored", requestField.getName()));
+            String.format(
+                "field: %s is a docId and should have either store=true or storeDocValues=true",
+                requestField.getName()));
       }
     }
   }
@@ -171,7 +173,13 @@ public abstract class IndexableFieldDef extends FieldDef {
    * @param fieldType type that needs search properties set
    * @param requestField field from request
    */
-  protected void setSearchProperties(FieldType fieldType, Field requestField) {}
+  protected void setSearchProperties(FieldType fieldType, Field requestField) {
+    if (this instanceof Keyable) {
+      fieldType.setIndexOptions(IndexOptions.DOCS);
+      fieldType.setTokenized(false);
+      fieldType.setOmitNorms(true);
+    }
+  }
 
   /**
    * Get if this field can have doc values. These values must be accessible via {@link
@@ -209,15 +217,6 @@ public abstract class IndexableFieldDef extends FieldDef {
    */
   public boolean isSearchable() {
     return isSearchable;
-  }
-
-  /**
-   * Get if this field is to be used as a docId
-   *
-   * @return if this field can be used as a docId
-   */
-  public boolean isDocId() {
-    return isDocId;
   }
 
   /**

@@ -32,6 +32,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.Keyable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -133,7 +134,7 @@ public class IndexState implements Closeable, Restorable {
 
   private static final Pattern reSimpleName = Pattern.compile("^[a-zA-Z_][a-zA-Z_0-9]*$");
   private ThreadPoolExecutor searchThreadPoolExecutor;
-  private IndexableFieldDef docIdField;
+  private Keyable keyableField;
 
   public ShardState addShard(int shardOrd, boolean doCreate) {
     if (shards.containsKey(shardOrd)) {
@@ -767,8 +768,8 @@ public class IndexState implements Closeable, Restorable {
     return Collections.unmodifiableMap(fields);
   }
 
-  public IndexableFieldDef getDocIdField() {
-    return docIdField;
+  public Keyable getKeyableField() {
+    return keyableField;
   }
 
   /** Records a new field in the internal {@code fields} state. */
@@ -790,16 +791,16 @@ public class IndexState implements Closeable, Restorable {
     }
   }
 
-  public synchronized void setDocIdField(IndexableFieldDef indexableFieldDef) {
-    if (docIdField != null) {
+  public synchronized void setKeyableField(Keyable keyableField) {
+    if (this.keyableField != null) {
       throw new IllegalArgumentException(
           "cannot register a new docId field: \""
-              + indexableFieldDef.getName()
+              + keyableField.getName()
               + "\" as a docId field: \""
-              + docIdField.getName()
+              + this.keyableField.getName()
               + " was already registered.");
     }
-    docIdField = indexableFieldDef;
+    this.keyableField = keyableField;
   }
 
   public void setNormsFormat(String format, float acceptableOverheadRatio) {

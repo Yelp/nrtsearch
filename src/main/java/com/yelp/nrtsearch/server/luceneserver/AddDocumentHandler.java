@@ -30,7 +30,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.Term;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -137,7 +136,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
       }
       ShardState shardState = indexState.getShard(0);
       try {
-        if (indexState.getDocIdField() != null) {
+        if (indexState.getKeyableField() != null) {
           updateDocuments(documents, indexState, shardState);
         } else {
           addDocuments(documents, shardState);
@@ -161,11 +160,9 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
     private void updateDocuments(
         Queue<Document> documents, IndexState indexState, ShardState shardState)
         throws IOException {
-      String docIdFieldName = indexState.getDocIdField().getName();
       for (Document nextDoc : documents) {
         nextDoc = handleFacets(shardState, nextDoc);
-        shardState.writer.updateDocument(
-            new Term(docIdFieldName, nextDoc.getBinaryValue(docIdFieldName)), nextDoc);
+        shardState.writer.updateDocument(indexState.getKeyableField().getTerm(nextDoc), nextDoc);
       }
     }
 

@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.Keyable;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -32,10 +33,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 
 /** Field class for 'LONG' field type. */
-public class LongFieldDef extends NumberFieldDef {
+public class LongFieldDef extends NumberFieldDef implements Keyable {
+
+  private final boolean isKey;
 
   public LongFieldDef(String name, Field requestField) {
     super(name, requestField, LONG_PARSER);
+    isKey = requestField.getKey();
   }
 
   @Override
@@ -117,5 +121,10 @@ public class LongFieldDef extends NumberFieldDef {
   @Override
   public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
     return LongPoint.newSetQuery(getName(), termInSetQuery.getLongTerms().getTermsList());
+  }
+
+  @Override
+  public boolean isKey() {
+    return isKey;
   }
 }

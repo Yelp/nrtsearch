@@ -3,9 +3,10 @@
   "field": [
     {
       "name": "doc_id",
-      "type": "ATOM",
+      "type": "INT",
       "storeDocValues": true,
-      "docId": true
+      "store": true,
+      "key": true
     },
     {
       "name": "vendor_name",
