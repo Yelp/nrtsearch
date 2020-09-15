@@ -27,6 +27,7 @@ import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
+import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
@@ -111,8 +112,12 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
           throw new RuntimeException(e);
         }
 
-        pendingFieldDefs.put(
-            fieldName, parseOneFieldType(indexState, pendingFieldDefs, fieldName, currentField));
+        FieldDef fieldDef =
+            parseOneFieldType(indexState, pendingFieldDefs, fieldName, currentField);
+        if (fieldDef instanceof IdFieldDef) {
+          verifyOnlyOneIdFieldExists(pendingFieldDefs, fieldDef);
+        }
+        pendingFieldDefs.put(fieldName, fieldDef);
       }
     }
 
@@ -125,6 +130,18 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
     String response = indexState.getAllFieldsJSON();
     FieldDefResponse reply = FieldDefResponse.newBuilder().setResponse(response).build();
     return reply;
+  }
+
+  private void verifyOnlyOneIdFieldExists(Map<String, FieldDef> pendingFieldDefs, FieldDef fieldDef)
+      throws RegisterFieldsException {
+    for (Map.Entry<String, FieldDef> f : pendingFieldDefs.entrySet()) {
+      if (f.getValue() instanceof IdFieldDef) {
+        throw new RegisterFieldsException(
+            String.format(
+                "cannot register another _id field \"%s\" as an _id field \"%s\" already exists",
+                fieldDef.getName(), f.getKey()));
+      }
+    }
   }
 
   private FieldDef parseOneFieldType(

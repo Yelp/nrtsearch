@@ -20,6 +20,7 @@ import com.google.protobuf.ProtocolStringList;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FacetHierarchyPath;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import java.io.IOException;
 import java.util.Iterator;
@@ -135,46 +136,13 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
         }
       }
       ShardState shardState = indexState.getShard(0);
-      long gen;
+      IdFieldDef idFieldDef = indexState.getIdFieldDef();
       try {
-        shardState.writer.addDocuments(
-            new Iterable<Document>() {
-              @Override
-              public Iterator<Document> iterator() {
-                final boolean hasFacets = shardState.indexState.hasFacets();
-                int docListSize = addDocumentRequestList.size();
-                return new Iterator<Document>() {
-                  private Document nextDoc;
-
-                  @Override
-                  public boolean hasNext() {
-                    if (!documents.isEmpty()) {
-                      nextDoc = documents.poll();
-                      if (hasFacets) {
-                        try {
-                          nextDoc =
-                              shardState.indexState.facetsConfig.build(
-                                  shardState.taxoWriter, nextDoc);
-                        } catch (IOException ioe) {
-                          throw new RuntimeException(
-                              String.format("document: %s hit exception building facets", nextDoc),
-                              ioe);
-                        }
-                      }
-                      return true;
-                    } else {
-                      nextDoc = null;
-                      return false;
-                    }
-                  }
-
-                  @Override
-                  public Document next() {
-                    return nextDoc;
-                  }
-                };
-              }
-            });
+        if (idFieldDef != null) {
+          updateDocuments(documents, idFieldDef, shardState);
+        } else {
+          addDocuments(documents, shardState);
+        }
       } catch (IOException e) { // This exception should be caught in parent to and set
         // responseObserver.onError(e) so client knows the job failed
         logger.warn(
@@ -189,6 +157,54 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
               Thread.currentThread().getName() + Thread.currentThread().getId(),
               shardState.writer.getMaxCompletedSequenceNumber()));
       return shardState.writer.getMaxCompletedSequenceNumber();
+    }
+
+    private void updateDocuments(
+        Queue<Document> documents, IdFieldDef idFieldDef, ShardState shardState)
+        throws IOException {
+      for (Document nextDoc : documents) {
+        nextDoc = handleFacets(shardState, nextDoc);
+        shardState.writer.updateDocument(idFieldDef.getTerm(nextDoc), nextDoc);
+      }
+    }
+
+    private void addDocuments(Queue<Document> documents, ShardState shardState) throws IOException {
+      shardState.writer.addDocuments(
+          (Iterable<Document>)
+              () ->
+                  new Iterator<>() {
+                    private Document nextDoc;
+
+                    @Override
+                    public boolean hasNext() {
+                      if (!documents.isEmpty()) {
+                        nextDoc = documents.poll();
+                        nextDoc = handleFacets(shardState, nextDoc);
+                        return true;
+                      } else {
+                        nextDoc = null;
+                        return false;
+                      }
+                    }
+
+                    @Override
+                    public Document next() {
+                      return nextDoc;
+                    }
+                  });
+    }
+
+    private Document handleFacets(ShardState shardState, Document nextDoc) {
+      final boolean hasFacets = shardState.indexState.hasFacets();
+      if (hasFacets) {
+        try {
+          nextDoc = shardState.indexState.facetsConfig.build(shardState.taxoWriter, nextDoc);
+        } catch (IOException ioe) {
+          throw new RuntimeException(
+              String.format("document: %s hit exception building facets", nextDoc), ioe);
+        }
+      }
+      return nextDoc;
     }
 
     @Override

@@ -30,6 +30,7 @@ import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
+import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import java.io.Closeable;
@@ -224,6 +225,15 @@ public class IndexState implements Closeable, Restorable {
 
   public ThreadPoolExecutor getSearchThreadPoolExecutor() {
     return searchThreadPoolExecutor;
+  }
+
+  public IdFieldDef getIdFieldDef() {
+    for (Map.Entry<String, FieldDef> entry : fields.entrySet()) {
+      if (entry.getValue() instanceof IdFieldDef) {
+        return (IdFieldDef) entry.getValue();
+      }
+    }
+    return null;
   }
 
   /** Tracks snapshot references to generations. */
