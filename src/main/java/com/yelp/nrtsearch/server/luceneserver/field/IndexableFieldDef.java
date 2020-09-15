@@ -74,6 +74,7 @@ public abstract class IndexableFieldDef extends FieldDef {
     fieldType = new FieldType();
     fieldType.setStored(requestField.getStore());
     setSearchProperties(fieldType, requestField);
+    setKeyableSearchProperties(fieldType, requestField);
     fieldType.freeze();
 
     facetValueType = parseFacetValueType(requestField);
@@ -121,18 +122,25 @@ public abstract class IndexableFieldDef extends FieldDef {
               requestField.getName()));
     }
     if (requestField.getKey()) {
-      if (requestField.getMultiValued()) {
-        throw new IllegalArgumentException(
-            String.format(
-                "field: %s cannot have both multivalued and docId set to true. Only single docId is supported",
-                requestField.getName()));
-      }
-      if (!requestField.getStoreDocValues() && !requestField.getStore()) {
-        throw new IllegalArgumentException(
-            String.format(
-                "field: %s is a docId and should have either store=true or storeDocValues=true",
-                requestField.getName()));
-      }
+      validateKeyField(requestField);
+    }
+  }
+
+  private void validateKeyField(Field requestField) {
+    if (!(this instanceof Keyable)) {
+      throw new IllegalArgumentException(
+          String.format("field: \"%s\" is not a keyable field type", requestField.getName()));
+    }
+    if (requestField.getMultiValued()) {
+      throw new IllegalArgumentException(
+          String.format(
+              "field: %s cannot have both multivalued and docId set to true. Only single docId is supported",
+              requestField.getName()));
+    }
+    if (!requestField.getStore()) {
+      throw new IllegalArgumentException(
+          String.format(
+              "field: %s is a keyable field and should have store=true", requestField.getName()));
     }
   }
 
@@ -173,8 +181,18 @@ public abstract class IndexableFieldDef extends FieldDef {
    * @param fieldType type that needs search properties set
    * @param requestField field from request
    */
-  protected void setSearchProperties(FieldType fieldType, Field requestField) {
-    if (this instanceof Keyable) {
+  protected void setSearchProperties(FieldType fieldType, Field requestField) {}
+
+  /**
+   * Method called by {@link #IndexableFieldDef(String, Field)} to explicitly set the search
+   * properties on the given {@link FieldType} for fields of type {@link Keyable} and declared as a
+   * key in the index.
+   *
+   * @param fieldType type that needs search properties set
+   * @param requestField field from request
+   */
+  private void setKeyableSearchProperties(FieldType fieldType, Field requestField) {
+    if (this instanceof Keyable && requestField.getKey()) {
       fieldType.setIndexOptions(IndexOptions.DOCS);
       fieldType.setTokenized(false);
       fieldType.setOmitNorms(true);

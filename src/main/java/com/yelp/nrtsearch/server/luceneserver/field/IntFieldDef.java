@@ -35,11 +35,8 @@ import org.apache.lucene.search.SortField;
 /** Field class for 'INT' field type. */
 public class IntFieldDef extends NumberFieldDef implements Keyable {
 
-  private final boolean isKey;
-
   public IntFieldDef(String name, Field requestField) {
     super(name, requestField, INT_PARSER);
-    isKey = requestField.getKey();
   }
 
   @Override
@@ -117,10 +114,5 @@ public class IntFieldDef extends NumberFieldDef implements Keyable {
   @Override
   public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
     return IntPoint.newSetQuery(getName(), termInSetQuery.getIntTerms().getTermsList());
-  }
-
-  @Override
-  public boolean isKey() {
-    return isKey;
   }
 }

@@ -97,21 +97,35 @@ public class LuceneServerKeyedFieldTest {
   }
 
   @Test
-  public void testKeyedFieldsUpdatesAndRetrieval() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
+  public void testIntKeyedFieldUpdatesAndRetrieval() throws IOException, InterruptedException {
+    assertAddUpdateAndSearch("registerFieldsBasicWithIntKeyedField.json");
+  }
+
+  @Test
+  public void testLongKeyedFieldUpdatesAndRetrieval() throws IOException, InterruptedException {
+    assertAddUpdateAndSearch("registerFieldsBasicWithLongKeyedField.json");
+  }
+
+  @Test
+  public void testAtomKeyedFieldUpdatesAndRetrieval() throws IOException, InterruptedException {
+    assertAddUpdateAndSearch("registerFieldsBasicWithAtomKeyedField.json");
+  }
+
+  private void assertAddUpdateAndSearch(String registerFilePath)
+      throws IOException, InterruptedException {
+    GrpcServer.TestServer testServer =
         new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
     new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(
-            Mode.STANDALONE, 0, false, "registerFieldsBasicWithKeyedField.json");
+        .createStartIndexAndRegisterFields(Mode.STANDALONE, 0, false, registerFilePath);
     // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    assertFalse(testAddDocs.error);
-    assertTrue(testAddDocs.completed);
+    testServer.addDocuments();
+    assertFalse(testServer.error);
+    assertTrue(testServer.completed);
 
     // add 2 more docs
-    testAddDocs.addDocuments();
-    assertFalse(testAddDocs.error);
-    assertTrue(testAddDocs.completed);
+    testServer.addDocuments();
+    assertFalse(testServer.error);
+    assertTrue(testServer.completed);
 
     StatsResponse stats =
         grpcServer
@@ -137,11 +151,10 @@ public class LuceneServerKeyedFieldTest {
                         .setTokenize(true)
                         .build())
                 .build());
-
     // 2 docs addDocuments
-    testAddDocs.addDocuments("addDocsUpdated.csv");
-    assertFalse(testAddDocs.error);
-    assertTrue(testAddDocs.completed);
+    testServer.addDocuments("addDocsUpdated.csv");
+    assertFalse(testServer.error);
+    assertTrue(testServer.completed);
     stats =
         grpcServer
             .getBlockingStub()
@@ -172,8 +185,9 @@ public class LuceneServerKeyedFieldTest {
                     .build());
     assertEquals(1, searchResponse.getTotalHits().getValue());
     assertEquals(1, searchResponse.getHitsList().size());
-    SearchResponse.Hit firstHit = searchResponse.getHits(0);
-    assertEquals(1, firstHit.getFieldsMap().get("doc_id").getFieldValue(0).getIntValue());
+    assertEquals(
+        "1",
+        searchResponse.getHits(0).getFieldsMap().get("doc_id").getFieldValue(0).getTextValue());
   }
 
   // No exceptions when registering with storeDocValues=false, but store=true
@@ -182,8 +196,7 @@ public class LuceneServerKeyedFieldTest {
     registerFields(List.of(getFieldBuilder("doc_id", false, true, false)));
   }
 
-  // No exceptions when registering with storeDocValues=true, but store=false
-  @Test
+  @Test(expected = StatusRuntimeException.class)
   public void testStoreFalse() throws Exception {
     registerFields(List.of(getFieldBuilder("doc_id", true, false, false)));
   }
@@ -193,12 +206,12 @@ public class LuceneServerKeyedFieldTest {
     try {
       registerFields(
           List.of(
-              getFieldBuilder("doc_id", true, false, false),
-              getFieldBuilder("doc_id_2", true, false, false)));
+              getFieldBuilder("doc_id", true, true, false),
+              getFieldBuilder("doc_id_2", true, true, false)));
     } catch (RuntimeException e) {
       String message =
           "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index\n"
-              + "multiple docId fields found";
+              + "field \"doc_id_2\" cannot be registered as as key as \"doc_id\" is already declared as a key field";
       assertEquals(message, e.getMessage());
       throw e;
     }
@@ -224,7 +237,7 @@ public class LuceneServerKeyedFieldTest {
     } catch (RuntimeException e) {
       String message =
           "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index\n"
-              + "field: doc_id is a docId and should have either store=true or storeDocValues=true";
+              + "field: doc_id is a keyable field and should have store=true";
       assertEquals(message, e.getMessage());
       throw e;
     }
@@ -233,7 +246,9 @@ public class LuceneServerKeyedFieldTest {
   // Keyable field types don't throw exceptions
   @Test
   public void testFieldTypesForDocIdsSupported() throws Exception {
-    for (Field field : getFields(true)) {
+    List<Field> fields = getFields(true);
+    for (Field f : fields) {
+      Field field = getFieldBuilder("doc_id", false, true, false, f.getType());
       registerFields(field.getType().toString(), List.of(field));
     }
   }
@@ -242,8 +257,9 @@ public class LuceneServerKeyedFieldTest {
   @Test(expected = StatusRuntimeException.class)
   public void testFieldTypesDocIdsNotSupported() throws Exception {
     List<Exception> exceptions = new LinkedList<>();
-    List<Field> fieldTypes = getFields(false);
-    for (Field field : fieldTypes) {
+    List<Field> fields = getFields(false);
+    for (Field f : fields) {
+      Field field = getFieldBuilder("doc_id", true, false, false, f.getType());
       String suffix = field.getType().toString();
       try {
         registerFields(suffix, List.of(field));
@@ -252,12 +268,12 @@ public class LuceneServerKeyedFieldTest {
             "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index"
                 + suffix
                 + "\n"
-                + "field \"doc_id\" is not a keyable field type";
+                + "field: \"doc_id\" is not a keyable field type";
         assertEquals(message, e.getMessage());
         exceptions.add(e);
       }
     }
-    assertEquals(fieldTypes.size(), exceptions.size());
+    assertEquals(fields.size(), exceptions.size());
     throw (exceptions.get(0));
   }
 
@@ -267,7 +283,7 @@ public class LuceneServerKeyedFieldTest {
       if (fieldType == FieldType.UNRECOGNIZED || fieldType.getNumber() > 8) {
         continue;
       }
-      Field field = getFieldBuilder("doc_id", true, false, false, fieldType);
+      Field field = Field.newBuilder().setType(fieldType).build();
       FieldDef fieldDef = new FieldDefCreator(null).createFieldDef("", fieldType.name(), field);
       if (keyable == fieldDef instanceof Keyable) {
         fields.add(field);

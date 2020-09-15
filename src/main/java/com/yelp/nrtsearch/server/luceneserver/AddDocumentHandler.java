@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FacetHierarchyPath;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.Keyable;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -136,7 +137,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
       }
       ShardState shardState = indexState.getShard(0);
       try {
-        if (indexState.getKeyableField() != null) {
+        if (indexState.hasKeyableField()) {
           updateDocuments(documents, indexState, shardState);
         } else {
           addDocuments(documents, shardState);
@@ -160,9 +161,10 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
     private void updateDocuments(
         Queue<Document> documents, IndexState indexState, ShardState shardState)
         throws IOException {
+      Keyable keyableField = indexState.getKeyableField();
       for (Document nextDoc : documents) {
         nextDoc = handleFacets(shardState, nextDoc);
-        shardState.writer.updateDocument(indexState.getKeyableField().getTerm(nextDoc), nextDoc);
+        shardState.writer.updateDocument(keyableField.getTerm(nextDoc), nextDoc);
       }
     }
 

@@ -32,11 +32,9 @@ import org.apache.lucene.search.SortedSetSortField;
 /** Field class for 'ATOM' field type. Uses {@link KeywordAnalyzer} for text analysis. */
 public class AtomFieldDef extends TextBaseFieldDef implements Sortable, Keyable {
   private static final Analyzer keywordAnalyzer = new KeywordAnalyzer();
-  private final boolean isKey;
 
   public AtomFieldDef(String name, Field requestField) {
     super(name, requestField);
-    isKey = requestField.getKey();
   }
 
   @Override
@@ -143,10 +141,5 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable, Keyable 
       sortField.setMissingValue(SortField.STRING_FIRST);
     }
     return sortField;
-  }
-
-  @Override
-  public boolean isKey() {
-    return isKey;
   }
 }

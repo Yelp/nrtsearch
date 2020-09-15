@@ -36,19 +36,22 @@ public interface Keyable {
   String getName();
 
   /**
-   * One FieldDef has to be registered with key=true in order to be used for updating the documents.
-   *
-   * @return whether the field is registered with key=true
-   */
-  boolean isKey();
-
-  /**
    * Construct a Term with the given field and value to identify the document to be added or updated
    *
    * @param document the document to be added or updated
    * @return a Term with field and value
    */
   default Term getTerm(Document document) {
-    return new Term(this.getName(), document.get(this.getName()));
+    String fieldName = this.getName();
+    if (fieldName == null) {
+      throw new IllegalArgumentException(
+          "the keyable field should have a name to be able to build a Term for updating the document");
+    }
+    String fieldValue = document.get(fieldName);
+    if (fieldValue == null) {
+      throw new IllegalArgumentException(
+          "document cannot have a null field value for a keyable field");
+    }
+    return new Term(fieldName, fieldValue);
   }
 }

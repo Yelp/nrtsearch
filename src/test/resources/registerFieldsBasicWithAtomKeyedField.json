@@ -3,8 +3,7 @@
   "field": [
     {
       "name": "doc_id",
-      "type": "INT",
-      "storeDocValues": true,
+      "type": "ATOM",
       "store": true,
       "key": true
     },

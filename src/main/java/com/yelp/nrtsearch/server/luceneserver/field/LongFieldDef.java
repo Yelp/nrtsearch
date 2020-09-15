@@ -35,11 +35,8 @@ import org.apache.lucene.search.SortField;
 /** Field class for 'LONG' field type. */
 public class LongFieldDef extends NumberFieldDef implements Keyable {
 
-  private final boolean isKey;
-
   public LongFieldDef(String name, Field requestField) {
     super(name, requestField, LONG_PARSER);
-    isKey = requestField.getKey();
   }
 
   @Override
@@ -121,10 +118,5 @@ public class LongFieldDef extends NumberFieldDef implements Keyable {
   @Override
   public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
     return LongPoint.newSetQuery(getName(), termInSetQuery.getLongTerms().getTermsList());
-  }
-
-  @Override
-  public boolean isKey() {
-    return isKey;
   }
 }

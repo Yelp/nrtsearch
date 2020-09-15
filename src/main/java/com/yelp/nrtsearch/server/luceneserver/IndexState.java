@@ -772,6 +772,10 @@ public class IndexState implements Closeable, Restorable {
     return keyableField;
   }
 
+  public boolean hasKeyableField() {
+    return keyableField != null;
+  }
+
   /** Records a new field in the internal {@code fields} state. */
   public synchronized void addField(FieldDef fd, JsonObject jsonObject) {
     if (fields.containsKey(fd.getName())) {
@@ -794,11 +798,11 @@ public class IndexState implements Closeable, Restorable {
   public synchronized void setKeyableField(Keyable keyableField) {
     if (this.keyableField != null) {
       throw new IllegalArgumentException(
-          "cannot register a new docId field: \""
+          "cannot register a new keyable field: \""
               + keyableField.getName()
-              + "\" as a docId field: \""
+              + "\" as a keyable field: \""
               + this.keyableField.getName()
-              + " was already registered.");
+              + "\" was already registered.");
     }
     this.keyableField = keyableField;
   }

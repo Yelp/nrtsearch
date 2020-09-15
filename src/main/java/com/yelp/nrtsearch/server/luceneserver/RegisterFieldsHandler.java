@@ -60,7 +60,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
     final Map<String, FieldDef> pendingFieldDefs = new HashMap<>();
     final Map<String, String> saveStates = new HashMap<>();
     Set<String> seen = new HashSet<>();
-    boolean keyableFieldExists = indexState.getKeyableField() != null;
+    Keyable keyableField = indexState.getKeyableField();
 
     // We make two passes.  In the first pass, we do the
     // "real" fields, and second pass does the virtual
@@ -86,14 +86,6 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
           // Do this on 2nd pass so the field it refers to will be registered even if it's a single
           // request
           continue;
-        }
-
-        if (currentField.getKey()) {
-          if (keyableFieldExists) {
-            throw new RegisterFieldsException("multiple docId fields found");
-          } else {
-            keyableFieldExists = true;
-          }
         }
 
         if (!IndexState.isSimpleName(fieldName)) {
@@ -123,9 +115,18 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
 
         FieldDef fieldDef =
             parseOneFieldType(indexState, pendingFieldDefs, fieldName, currentField);
-        if (currentField.getKey() && !(fieldDef instanceof Keyable)) {
-          throw new RegisterFieldsException(
-              "field \"" + fieldName + "\" is not a keyable field type");
+        if (currentField.getKey()) {
+          if (keyableField != null) {
+            throw new RegisterFieldsException(
+                String.format(
+                    "field \"%s\" cannot be registered as as key as \"%s\" is already declared as a key field",
+                    currentField.getName(), keyableField.getName()));
+          }
+          if (!(fieldDef instanceof Keyable)) {
+            throw new RegisterFieldsException(
+                "field \"" + fieldName + "\" is not a keyable field type");
+          }
+          keyableField = (Keyable) fieldDef;
         }
         pendingFieldDefs.put(fieldName, fieldDef);
       }
@@ -137,12 +138,9 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
           jsonParser.parse(saveStates.get(ent.getKey())).getAsJsonObject();
       FieldDef fieldDef = ent.getValue();
       indexState.addField(fieldDef, fieldAsJsonObject);
-      if (fieldDef instanceof Keyable) {
-        Keyable keyableField = (Keyable) fieldDef;
-        if (keyableField.isKey()) {
-          indexState.setKeyableField(keyableField);
-        }
-      }
+    }
+    if (!indexState.hasKeyableField()) {
+      indexState.setKeyableField(keyableField);
     }
     String response = indexState.getAllFieldsJSON();
     FieldDefResponse reply = FieldDefResponse.newBuilder().setResponse(response).build();

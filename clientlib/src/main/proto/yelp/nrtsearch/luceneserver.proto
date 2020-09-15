@@ -396,7 +396,7 @@ message Field {
     FacetType facet = 22; // Whether this field should index facets, and how.
     string facetIndexFieldName = 23; // "Which underlying Lucene index field is used to hold any indexed taxonomy or sorted set doc values facets
     google.protobuf.Struct additionalProperties = 24; // Additional info needed to configure field, used for CUSTOM types.
-    bool key = 25; // Denotes whether the field is to be used as a Keyable field
+    bool key = 25; // Denotes whether the field is to be used as a Keyable field. There can be only one such field per index.
 }
 
 /* Input to registerFields */
