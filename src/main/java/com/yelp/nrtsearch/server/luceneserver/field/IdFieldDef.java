@@ -16,9 +16,13 @@
 package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
+import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
@@ -28,10 +32,11 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 
 /** Field class for defining '_ID' fields which are used to update documents */
-public class IdFieldDef extends IndexableFieldDef {
+public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
 
   protected IdFieldDef(String name, Field requestField) {
     super(name, requestField);
@@ -50,10 +55,11 @@ public class IdFieldDef extends IndexableFieldDef {
               "field: %s cannot have multivalued fields or tokenization as it's an _ID field",
               requestField.getName()));
     }
-    if (!requestField.getStore()) {
+    if (!requestField.getStore() && !requestField.getStoreDocValues()) {
       throw new IllegalArgumentException(
           String.format(
-              "field: %s is an _ID field and should have store=true", requestField.getName()));
+              "field: %s is an _ID field and should be retrievable by either store=true or storeDocValues=true",
+              requestField.getName()));
     }
   }
 
@@ -88,9 +94,7 @@ public class IdFieldDef extends IndexableFieldDef {
       BytesRef stringBytes = new BytesRef(fieldStr);
       document.add(new BinaryDocValuesField(getName(), stringBytes));
     }
-    if (isStored()) {
-      document.add(new FieldWithData(getName(), fieldType, fieldStr));
-    }
+    document.add(new FieldWithData(getName(), fieldType, fieldStr));
   }
 
   @Override
@@ -141,5 +145,20 @@ public class IdFieldDef extends IndexableFieldDef {
           "document cannot have a null field value for a keyable field");
     }
     return new Term(fieldName, fieldValue);
+  }
+
+  @Override
+  public Query getTermQuery(TermQuery termQuery) {
+    return new org.apache.lucene.search.TermQuery(
+        new Term(termQuery.getField(), termQuery.getTextValue()));
+  }
+
+  @Override
+  public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
+    List<BytesRef> textTerms =
+        termInSetQuery.getTextTerms().getTermsList().stream()
+            .map(BytesRef::new)
+            .collect(Collectors.toList());
+    return new org.apache.lucene.search.TermInSetQuery(termInSetQuery.getField(), textTerms);
   }
 }

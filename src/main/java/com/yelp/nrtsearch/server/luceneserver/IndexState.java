@@ -134,6 +134,7 @@ public class IndexState implements Closeable, Restorable {
 
   private static final Pattern reSimpleName = Pattern.compile("^[a-zA-Z_][a-zA-Z_0-9]*$");
   private ThreadPoolExecutor searchThreadPoolExecutor;
+  private IdFieldDef idFieldDef = null;
 
   public ShardState addShard(int shardOrd, boolean doCreate) {
     if (shards.containsKey(shardOrd)) {
@@ -228,12 +229,7 @@ public class IndexState implements Closeable, Restorable {
   }
 
   public IdFieldDef getIdFieldDef() {
-    for (Map.Entry<String, FieldDef> entry : fields.entrySet()) {
-      if (entry.getValue() instanceof IdFieldDef) {
-        return (IdFieldDef) entry.getValue();
-      }
-    }
-    return null;
+    return idFieldDef;
   }
 
   /** Tracks snapshot references to generations. */
@@ -792,6 +788,9 @@ public class IndexState implements Closeable, Restorable {
           && facetValueType != IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
         internalFacetFieldNames.add(facetsConfig.getDimConfig(fd.getName()).indexFieldName);
       }
+    }
+    if (fd instanceof IdFieldDef) {
+      idFieldDef = (IdFieldDef) fd;
     }
   }
 

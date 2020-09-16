@@ -170,6 +170,107 @@ public class LuceneServerIdFieldTest {
     assertEquals(
         "1",
         searchResponse.getHits(0).getFieldsMap().get("doc_id").getFieldValue(0).getTextValue());
+
+    // Term Query for first document
+    searchResponse =
+        grpcServer
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(grpcServer.getTestIndex())
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addAllRetrieveFields(List.of("doc_id", "vendor_name"))
+                    .setQuery(
+                        Query.newBuilder()
+                            .setTermQuery(
+                                TermQuery.newBuilder().setField("doc_id").setTextValue("1").build())
+                            .build())
+                    .build());
+    assertEquals(1, searchResponse.getTotalHits().getValue());
+    assertEquals(1, searchResponse.getHitsList().size());
+    assertEquals(
+        "1",
+        searchResponse.getHits(0).getFieldsMap().get("doc_id").getFieldValue(0).getTextValue());
+
+    // TermInSetQuery for first and third document
+    searchResponse =
+        grpcServer
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(grpcServer.getTestIndex())
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addAllRetrieveFields(List.of("doc_id", "vendor_name"))
+                    .setQuery(
+                        Query.newBuilder()
+                            .setTermInSetQuery(
+                                TermInSetQuery.newBuilder()
+                                    .setField("doc_id")
+                                    .setTextTerms(
+                                        TermInSetQuery.TextTerms.newBuilder()
+                                            .addAllTerms(List.of("1", "3"))
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+    assertEquals(2, searchResponse.getTotalHits().getValue());
+    assertEquals(2, searchResponse.getHitsList().size());
+    assertEquals(
+        "1",
+        searchResponse.getHits(0).getFieldsMap().get("doc_id").getFieldValue(0).getTextValue());
+    assertEquals(
+        "3",
+        searchResponse.getHits(1).getFieldsMap().get("doc_id").getFieldValue(0).getTextValue());
+  }
+
+  @Test(expected = StatusRuntimeException.class)
+  public void testDuplicateIdFieldInIndexState() throws IOException, InterruptedException {
+    GrpcServer.TestServer testServer =
+        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+    new GrpcServer.IndexAndRoleManager(grpcServer)
+        .createStartIndexAndRegisterFields(
+            Mode.STANDALONE, 0, false, "registerFieldsBasicWithId.json");
+    // 2 docs addDocuments
+    testServer.addDocuments();
+    assertFalse(testServer.error);
+    assertTrue(testServer.completed);
+
+    // add 2 more docs
+    testServer.addDocuments();
+    assertFalse(testServer.error);
+    assertTrue(testServer.completed);
+
+    StatsResponse stats =
+        grpcServer
+            .getBlockingStub()
+            .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+    // there are only 2 documents
+    assertEquals(2, stats.getNumDocs());
+
+    try {
+      // update schema: add a new field
+      grpcServer
+          .getBlockingStub()
+          .updateFields(
+              FieldDefRequest.newBuilder()
+                  .setIndexName("test_index")
+                  .addField(
+                      Field.newBuilder()
+                          .setName("new_text_field")
+                          .setType(FieldType._ID)
+                          .setStore(true)
+                          .build())
+                  .build());
+    } catch (RuntimeException e) {
+      String message =
+          "INVALID_ARGUMENT: error while trying to UpdateFieldsHandler for index: test_index\n"
+              + "cannot register another _id field \"new_text_field\" as an _id field \"doc_id\" already exists";
+      assertEquals(message, e.getMessage());
+      throw e;
+    }
   }
 
   @Test(expected = StatusRuntimeException.class)
@@ -199,16 +300,26 @@ public class LuceneServerIdFieldTest {
   }
 
   @Test(expected = StatusRuntimeException.class)
-  public void testStoreMandatory() throws IOException {
+  public void testStoreAndDocValuesFalse() throws IOException {
     try {
       registerFields(List.of(getFieldBuilder("doc_id", false, false, false, false)));
     } catch (RuntimeException e) {
       String message =
           "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index\n"
-              + "field: doc_id is an _ID field and should have store=true";
+              + "field: doc_id is an _ID field and should be retrievable by either store=true or storeDocValues=true";
       assertEquals(message, e.getMessage());
       throw e;
     }
+  }
+
+  @Test
+  public void testStoreTrueAndDocValuesFalse() throws IOException {
+    registerFields(List.of(getFieldBuilder("doc_id", false, true, false, false)));
+  }
+
+  @Test
+  public void testStoreFalseAndDocValuesTrue() throws IOException {
+    registerFields(List.of(getFieldBuilder("doc_id", true, false, false, false)));
   }
 
   @Test(expected = StatusRuntimeException.class)

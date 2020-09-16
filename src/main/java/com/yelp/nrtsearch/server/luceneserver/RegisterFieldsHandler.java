@@ -115,7 +115,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
         FieldDef fieldDef =
             parseOneFieldType(indexState, pendingFieldDefs, fieldName, currentField);
         if (fieldDef instanceof IdFieldDef) {
-          verifyOnlyOneIdFieldExists(pendingFieldDefs, fieldDef);
+          verifyOnlyOneIdFieldExists(indexState, pendingFieldDefs, fieldDef);
         }
         pendingFieldDefs.put(fieldName, fieldDef);
       }
@@ -132,15 +132,23 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
     return reply;
   }
 
-  private void verifyOnlyOneIdFieldExists(Map<String, FieldDef> pendingFieldDefs, FieldDef fieldDef)
+  private void verifyOnlyOneIdFieldExists(
+      IndexState indexState, Map<String, FieldDef> pendingFieldDefs, FieldDef fieldDef)
       throws RegisterFieldsException {
-    for (Map.Entry<String, FieldDef> f : pendingFieldDefs.entrySet()) {
-      if (f.getValue() instanceof IdFieldDef) {
-        throw new RegisterFieldsException(
-            String.format(
-                "cannot register another _id field \"%s\" as an _id field \"%s\" already exists",
-                fieldDef.getName(), f.getKey()));
+    IdFieldDef existingIdField = indexState.getIdFieldDef();
+    if (existingIdField == null) {
+      for (Map.Entry<String, FieldDef> f : pendingFieldDefs.entrySet()) {
+        if (f.getValue() instanceof IdFieldDef) {
+          existingIdField = (IdFieldDef) f.getValue();
+          break;
+        }
       }
+    }
+    if (existingIdField != null) {
+      throw new RegisterFieldsException(
+          String.format(
+              "cannot register another _id field \"%s\" as an _id field \"%s\" already exists",
+              fieldDef.getName(), existingIdField.getName()));
     }
   }
 
