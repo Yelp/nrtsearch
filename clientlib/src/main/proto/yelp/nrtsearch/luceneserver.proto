@@ -220,8 +220,7 @@ service LuceneServer {
     /* Gets all unreleased index gens of snapshots previously created with @createSnapshot. */
     rpc getAllSnapshotIndexGen (GetAllSnapshotGenRequest) returns (GetAllSnapshotGenResponse) {
         option (google.api.http) = {
-      get: "/v1/get_all_snapshot_index_gen"
-      body: "*"
+      get: "/v1/get_all_snapshot_index_gen/{indexName}"
     };
 
     }
