@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.field;
 
-import com.google.common.collect.Maps;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.luceneserver.ServerCodec;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
@@ -87,8 +86,7 @@ public abstract class IndexableFieldDef extends FieldDef {
 
     String similarityStr = requestField.getSimilarity();
     Map<String, Object> similarityParams =
-        Maps.transformValues(
-            requestField.getSimilarityParams().getFieldsMap(), StructValueTransformer.INSTANCE);
+        StructValueTransformer.transformStruct(requestField.getSimilarityParams());
     this.similarity =
         SimilarityCreator.getInstance().createSimilarity(similarityStr, similarityParams);
   }

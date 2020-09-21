@@ -40,7 +40,7 @@ public class StructValueTransformer
    * @param struct struct message to convert
    * @return native representation of struct
    */
-  public static Map<String, ?> transformStruct(Struct struct) {
+  public static Map<String, Object> transformStruct(Struct struct) {
     return Maps.transformValues(struct.getFieldsMap(), INSTANCE);
   }
 
@@ -51,7 +51,7 @@ public class StructValueTransformer
    * @param listValue list message to convert
    * @return native representation of list
    */
-  public static List<?> transformList(ListValue listValue) {
+  public static List<Object> transformList(ListValue listValue) {
     return Lists.transform(listValue.getValuesList(), INSTANCE);
   }
 
