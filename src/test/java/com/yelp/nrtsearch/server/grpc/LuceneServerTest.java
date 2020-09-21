@@ -16,9 +16,7 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 import com.google.api.HttpBody;
 import com.google.protobuf.Empty;
@@ -41,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.hamcrest.core.IsCollectionContaining;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -815,6 +814,93 @@ public class LuceneServerTest {
             .stats(StatsRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
     assertEquals(4, stats.getNumDocs());
     assertEquals(1, stats.getCurrentSearcher().getNumSegments());
+  }
+
+  @Test
+  public void testReleaseSnapshotOnPrimary() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.PRIMARY);
+    // 2 docs addDocuments
+    testAddDocs.addDocuments();
+    CommitRequest commitRequest =
+        CommitRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+    grpcServer.getBlockingStub().commit(commitRequest);
+
+    // create a snapshot
+    CreateSnapshotRequest createSnapshotRequest =
+        CreateSnapshotRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+    CreateSnapshotResponse createSnapshotResponse =
+        grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
+    assertEquals(1, createSnapshotResponse.getSnapshotId().getIndexGen());
+    assertEquals(0, createSnapshotResponse.getSnapshotId().getStateGen());
+
+    // add more documents and another commit to create another index gen
+    testAddDocs.addDocuments();
+    grpcServer.getBlockingStub().commit(commitRequest);
+
+    // create another snapshot
+    createSnapshotResponse = grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
+    assertEquals(2, createSnapshotResponse.getSnapshotId().getIndexGen());
+    assertEquals(1, createSnapshotResponse.getSnapshotId().getStateGen());
+
+    // Release the first snapshot with index and state gen
+    ReleaseSnapshotRequest releaseSnapshotRequest =
+        ReleaseSnapshotRequest.newBuilder()
+            .setIndexName(grpcServer.getTestIndex())
+            .setSnapshotId(SnapshotId.newBuilder().setIndexGen(1).setStateGen(0))
+            .build();
+    ReleaseSnapshotResponse releaseSnapshotResponse =
+        grpcServer.getBlockingStub().releaseSnapshot(releaseSnapshotRequest);
+    assertTrue(releaseSnapshotResponse.getSuccess());
+
+    // Release the second snapshot's index gen and already released state gen
+    releaseSnapshotRequest =
+        ReleaseSnapshotRequest.newBuilder()
+            .setIndexName(grpcServer.getTestIndex())
+            .setSnapshotId(SnapshotId.newBuilder().setIndexGen(2).setStateGen(0))
+            .build();
+    releaseSnapshotResponse = grpcServer.getBlockingStub().releaseSnapshot(releaseSnapshotRequest);
+    assertTrue(releaseSnapshotResponse.getSuccess());
+
+    // Verify both index gens released
+    GetAllSnapshotGenRequest getAllSnapshotGenRequest =
+        GetAllSnapshotGenRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+    GetAllSnapshotGenResponse getAllSnapshotGenResponse =
+        grpcServer.getBlockingStub().getAllSnapshotIndexGen(getAllSnapshotGenRequest);
+    assertEquals(0, getAllSnapshotGenResponse.getIndexGensCount());
+  }
+
+  @Test
+  public void testGetAllSnapshotIndexGen() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    // 2 docs addDocuments
+    testAddDocs.addDocuments();
+    CommitRequest commitRequest =
+        CommitRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+    grpcServer.getBlockingStub().commit(commitRequest);
+
+    // create a snapshot
+    CreateSnapshotRequest createSnapshotRequest =
+        CreateSnapshotRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+    CreateSnapshotResponse createSnapshotResponse =
+        grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
+    assertEquals(1, createSnapshotResponse.getSnapshotId().getIndexGen());
+
+    // add more documents and another commit to create another index gen
+    testAddDocs.addDocuments();
+    grpcServer.getBlockingStub().commit(commitRequest);
+
+    // create another snapshot
+    createSnapshotResponse = grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
+    assertEquals(2, createSnapshotResponse.getSnapshotId().getIndexGen());
+
+    GetAllSnapshotGenRequest getAllSnapshotGenRequest =
+        GetAllSnapshotGenRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+    GetAllSnapshotGenResponse getAllSnapshotGenResponse =
+        grpcServer.getBlockingStub().getAllSnapshotIndexGen(getAllSnapshotGenRequest);
+
+    assertThat(
+        getAllSnapshotGenResponse.getIndexGensList(), IsCollectionContaining.hasItems(1L, 2L));
   }
 
   public static List<VirtualField> getQueryVirtualFields() {

@@ -216,6 +216,15 @@ service LuceneServer {
     };
 
     }
+
+    /* Gets all unreleased index gens of snapshots previously created with @createSnapshot. */
+    rpc getAllSnapshotIndexGen (GetAllSnapshotGenRequest) returns (GetAllSnapshotGenResponse) {
+        option (google.api.http) = {
+      get: "/v1/get_all_snapshot_index_gen/{indexName}"
+    };
+
+    }
+
     /* backs up a resource (index) and it associated metadata e.g. settings, schema to s3 */
     rpc backupIndex (BackupIndexRequest) returns (BackupIndexResponse) {
         option (google.api.http) = {
@@ -258,6 +267,7 @@ service LuceneServer {
     rpc forceMerge(ForceMergeRequest) returns (ForceMergeResponse) {
         option (google.api.http) = {
       post: "/v1/force_merge"
+      body: "*"
     };
     }
 }
@@ -341,6 +351,7 @@ enum FieldType {
     // TODO need tests for internal:
     INTERNAL = 10; //Internal field, currently only for holding indexed facets data.
     CUSTOM = 11; // Field type specified by name.
+    _ID = 12; // Field which will be used as document IDs
 }
 
 //How the tokens should be indexed.
@@ -711,6 +722,14 @@ message ReleaseSnapshotRequest {
 
 message ReleaseSnapshotResponse {
     bool success = 1; //true if successful
+}
+
+message GetAllSnapshotGenRequest {
+    string indexName = 1; // name of index whose snapshotted index gens are needed
+}
+
+message GetAllSnapshotGenResponse {
+    repeated int64 indexGens = 1; // list of snapshotted index gens
 }
 
 message BackupIndexRequest {

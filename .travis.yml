@@ -12,3 +12,4 @@ script:
   - ./gradlew clean check test --info
   - ./gradlew clean buildGrpcGateway
   - ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
+  - ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.grpc.MergeBehaviorTests" --info
