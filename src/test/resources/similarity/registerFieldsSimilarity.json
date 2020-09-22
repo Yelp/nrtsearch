@@ -1,0 +1,75 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "storeDocValues": true
+    },
+    {
+      "name": "vendor_name",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "analyzer": {
+        "custom": {
+          "tokenizer": {
+            "name": "standard"
+          },
+          "tokenFilters": [
+            {
+              "name": "lowercase"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "vendor_name_classic",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "analyzer": {
+        "custom": {
+          "tokenizer": {
+            "name": "standard"
+          },
+          "tokenFilters": [
+            {
+              "name": "lowercase"
+            }
+          ]
+        }
+      },
+      "similarity": "classic"
+    },
+    {
+      "name": "vendor_name_custom",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "analyzer": {
+        "custom": {
+          "tokenizer": {
+            "name": "standard"
+          },
+          "tokenFilters": [
+            {
+              "name": "lowercase"
+            }
+          ]
+        }
+      },
+      "similarity": "plugin_similarity"
+    }
+  ]
+}

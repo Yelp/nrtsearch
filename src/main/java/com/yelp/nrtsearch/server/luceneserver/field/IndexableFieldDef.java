@@ -18,20 +18,19 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.luceneserver.ServerCodec;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
+import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 
 /** Base class for all field definition types that can be written into the index. */
 public abstract class IndexableFieldDef extends FieldDef {
-  public static final Similarity DEFAULT_SIMILARITY = new BM25Similarity();
-
   public enum FacetValueType {
     NO_FACETS,
     FLAT,
@@ -86,21 +85,10 @@ public abstract class IndexableFieldDef extends FieldDef {
             : requestField.getDocValuesFormat();
 
     String similarityStr = requestField.getSimilarity();
-    if (!similarityStr.isEmpty()) {
-      if (similarityStr.equalsIgnoreCase("DefaultSimilarity")) {
-        this.similarity = new ClassicSimilarity();
-      } else if (similarityStr.equalsIgnoreCase("BM25Similarity")) {
-        // TODO pass custom k1, b values so that we can call Constructor BM25Similarity(float k1,
-        // float b)
-        this.similarity = new BM25Similarity();
-      } else {
-        // TODO support CustomSimilarity
-        assert false;
-        this.similarity = null;
-      }
-    } else {
-      this.similarity = DEFAULT_SIMILARITY;
-    }
+    Map<String, Object> similarityParams =
+        StructValueTransformer.transformStruct(requestField.getSimilarityParams());
+    this.similarity =
+        SimilarityCreator.getInstance().createSimilarity(similarityStr, similarityParams);
   }
 
   /**
