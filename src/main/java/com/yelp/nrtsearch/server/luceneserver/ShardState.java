@@ -148,7 +148,7 @@ public class ShardState implements Closeable {
   public ControlledRealTimeReopenThread<IndexSearcher> reopenThreadPrimary;
 
   /** Periodically wakes up and prunes old searchers from slm. */
-  Thread searcherPruningThread;
+  SearcherPruningThread searcherPruningThread;
 
   /** Holds the persistent snapshots */
   public PersistentSnapshotDeletionPolicy snapshots;
@@ -295,6 +295,7 @@ public class ShardState implements Closeable {
       closeables.add(searcherManager);
       // this closes writer:
       closeables.add(nrtPrimaryNode);
+      closeables.add(searcherPruningThread);
       closeables.add(slm);
       closeables.add(indexDir);
       closeables.add(taxoDir);
@@ -304,6 +305,7 @@ public class ShardState implements Closeable {
       closeables.add(reopenThreadPrimary);
       closeables.add(searcherManager);
       closeables.add(nrtReplicaNode);
+      closeables.add(searcherPruningThread);
       closeables.add(slm);
       closeables.add(indexDir);
       closeables.add(taxoDir);
@@ -311,6 +313,7 @@ public class ShardState implements Closeable {
     } else if (writer != null) {
       closeables.add(reopenThread);
       closeables.add(manager);
+      closeables.add(searcherPruningThread);
       closeables.add(slm);
       closeables.add(writer);
       closeables.add(taxoWriter);
@@ -364,8 +367,9 @@ public class ShardState implements Closeable {
   }
 
   /** Prunes stale searchers. */
-  private class SearcherPruningThread extends Thread {
+  private class SearcherPruningThread extends Thread implements Closeable {
     private final CountDownLatch shutdownNow;
+    private volatile boolean done = false;
 
     /** Sole constructor. */
     public SearcherPruningThread(CountDownLatch shutdownNow) {
@@ -374,7 +378,7 @@ public class ShardState implements Closeable {
 
     @Override
     public void run() {
-      while (true) {
+      while (!done) {
         try {
           final SearcherLifetimeManager.Pruner byAge =
               new SearcherLifetimeManager.PruneByAge(indexState.maxSearcherAgeSec);
@@ -403,10 +407,12 @@ public class ShardState implements Closeable {
           Thread.currentThread().interrupt();
           throw new RuntimeException(ie);
         }
-        if (writer == null) {
-          break;
-        }
       }
+    }
+
+    @Override
+    public void close() throws IOException {
+      done = true;
     }
   }
 
@@ -545,7 +551,14 @@ public class ShardState implements Closeable {
     } finally {
       if (!success) {
         IOUtils.closeWhileHandlingException(
-            reopenThread, manager, writer, taxoWriter, slm, indexDir, taxoDir);
+            reopenThread,
+            manager,
+            writer,
+            taxoWriter,
+            searcherPruningThread,
+            slm,
+            indexDir,
+            taxoDir);
         writer = null;
       }
     }
@@ -678,7 +691,14 @@ public class ShardState implements Closeable {
     } finally {
       if (!success) {
         IOUtils.closeWhileHandlingException(
-            reopenThread, nrtPrimaryNode, writer, taxoWriter, slm, indexDir, taxoDir);
+            reopenThread,
+            nrtPrimaryNode,
+            writer,
+            taxoWriter,
+            searcherPruningThread,
+            slm,
+            indexDir,
+            taxoDir);
         writer = null;
       }
     }
@@ -883,7 +903,14 @@ public class ShardState implements Closeable {
     } finally {
       if (!success) {
         IOUtils.closeWhileHandlingException(
-            reopenThread, nrtReplicaNode, writer, taxoWriter, slm, indexDir, taxoDir);
+            reopenThread,
+            nrtReplicaNode,
+            writer,
+            taxoWriter,
+            searcherPruningThread,
+            slm,
+            indexDir,
+            taxoDir);
         writer = null;
       }
     }
