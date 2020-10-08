@@ -21,6 +21,12 @@ import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.BindingValuesSources.NumericDecodedValuesSource;
+import com.yelp.nrtsearch.server.luceneserver.field.BindingValuesSources.NumericEmptyValuesSource;
+import com.yelp.nrtsearch.server.luceneserver.field.BindingValuesSources.NumericLengthValuesSource;
+import com.yelp.nrtsearch.server.luceneserver.field.BindingValuesSources.SortedNumericEmptyValuesSource;
+import com.yelp.nrtsearch.server.luceneserver.field.BindingValuesSources.SortedNumericLengthValuesSource;
+import com.yelp.nrtsearch.server.luceneserver.field.BindingValuesSources.SortedNumericMinValuesSource;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Bindable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
@@ -28,6 +34,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongToDoubleFunction;
 import java.util.function.ToLongFunction;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.facet.FacetField;
@@ -56,6 +63,9 @@ public abstract class NumberFieldDef extends IndexableFieldDef
       value -> NumericUtils.floatToSortableInt(value.floatValue());
   public static final ToLongFunction<Number> SORTED_DOUBLE_ENCODER =
       value -> NumericUtils.doubleToSortableLong(value.doubleValue());
+
+  public static final String LENGTH_BINDING_PROPERTY = "length";
+  public static final String EMPTY_BINDING_PROPERTY = "empty";
 
   private final Function<String, Number> fieldParser;
 
@@ -149,12 +159,12 @@ public abstract class NumberFieldDef extends IndexableFieldDef
   protected abstract LoadedDocValues<?> getSortedNumericDocValues(SortedNumericDocValues docValues);
 
   /**
-   * Get the {@link DoubleValuesSource} to produce the field value when evaluating an {@link
-   * org.apache.lucene.expressions.Expression} based script.
+   * Get the {@link LongToDoubleFunction} to use when decoding doc value data in {@link
+   * org.apache.lucene.expressions.Expression} bindings.
    *
-   * @return value source for expression binding
+   * @return decoder for doc value data to double
    */
-  protected abstract DoubleValuesSource getBindingSource();
+  protected abstract LongToDoubleFunction getBindingDecoder();
 
   /**
    * Get the {@link SortField.Type} to use when building a {@link SortField}.
@@ -214,11 +224,32 @@ public abstract class NumberFieldDef extends IndexableFieldDef
   }
 
   @Override
-  public DoubleValuesSource getExpressionBinding() {
-    if (docValuesType != DocValuesType.NUMERIC) {
-      throw new IllegalArgumentException("Cannot bind multi value field");
+  public DoubleValuesSource getExpressionBinding(String property) {
+    if (!hasDocValues()) {
+      throw new IllegalStateException("Cannot bind field without doc values enabled");
     }
-    return getBindingSource();
+    switch (property) {
+      case VALUE_PROPERTY:
+        if (isMultiValue()) {
+          return new SortedNumericMinValuesSource(getName(), getBindingDecoder());
+        } else {
+          return new NumericDecodedValuesSource(getName(), getBindingDecoder());
+        }
+      case LENGTH_BINDING_PROPERTY:
+        if (isMultiValue()) {
+          return new SortedNumericLengthValuesSource(getName());
+        } else {
+          return new NumericLengthValuesSource(getName());
+        }
+      case EMPTY_BINDING_PROPERTY:
+        if (isMultiValue()) {
+          return new SortedNumericEmptyValuesSource(getName());
+        } else {
+          return new NumericEmptyValuesSource(getName());
+        }
+      default:
+        throw new IllegalArgumentException("Unsupported expression binding property: " + property);
+    }
   }
 
   @Override

@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.GrpcServer;
+import com.yelp.nrtsearch.server.grpc.LuceneServerClientBuilder;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.RefreshRequest;
@@ -38,7 +39,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
@@ -47,6 +51,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -146,6 +152,16 @@ public class ServerTestCase {
       throw new RuntimeException("addDocuments can not finish within 20 seconds");
     }
     return response.get();
+  }
+
+  public static void addDocsFromResourceFile(String index, String resourceFile) throws Exception {
+    Path filePath = Paths.get(ServerTestCase.class.getResource(resourceFile).toURI());
+    Reader reader = Files.newBufferedReader(filePath);
+    CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
+    Stream<AddDocumentRequest> requestStream =
+        new LuceneServerClientBuilder.AddDocumentsClientBuilder(index, csvParser)
+            .buildRequest(filePath);
+    addDocuments(requestStream);
   }
 
   @AfterClass

@@ -20,13 +20,13 @@ import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import java.util.function.LongToDoubleFunction;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
@@ -66,8 +66,12 @@ public class DoubleFieldDef extends NumberFieldDef {
   }
 
   @Override
-  protected DoubleValuesSource getBindingSource() {
-    return DoubleValuesSource.fromDoubleField(getName());
+  protected LongToDoubleFunction getBindingDecoder() {
+    if (isMultiValue()) {
+      return BindingValuesSources.SORTED_DOUBLE_DECODER;
+    } else {
+      return BindingValuesSources.DOUBLE_DECODER;
+    }
   }
 
   @Override

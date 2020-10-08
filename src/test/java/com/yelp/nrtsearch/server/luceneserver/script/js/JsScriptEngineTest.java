@@ -15,98 +15,49 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.script.js;
 
-import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
 
-import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
-import com.yelp.nrtsearch.server.grpc.GrpcServer;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
-import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.Query;
-import com.yelp.nrtsearch.server.grpc.RefreshRequest;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.client.CollectorRegistry;
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
-public class JsScriptEngineTest {
+public class JsScriptEngineTest extends ServerTestCase {
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
    * end of test.
    */
   @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
-  /**
-   * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
-   */
-  @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private GrpcServer grpcServer;
-  private CollectorRegistry collectorRegistry;
-
-  @After
-  public void tearDown() throws IOException {
-    tearDownGrpcServer();
+  protected List<String> getIndices() {
+    return Collections.singletonList(DEFAULT_TEST_INDEX);
   }
 
-  private void tearDownGrpcServer() throws IOException {
-    grpcServer.getGlobalState().close();
-    grpcServer.shutdown();
-    rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
+  protected FieldDefRequest getIndexDef(String name) throws IOException {
+    return getFieldsFromResourceFile("/script/registerFieldsJs.json");
   }
 
-  @Before
-  public void setUp() throws IOException {
-    collectorRegistry = new CollectorRegistry();
-    grpcServer = setUpGrpcServer(collectorRegistry);
-  }
-
-  private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
-    String testIndex = "test_index";
-    LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    GlobalState globalState = new GlobalState(luceneServerConfiguration);
-    return new GrpcServer(
-        collectorRegistry,
-        grpcCleanup,
-        luceneServerConfiguration,
-        folder,
-        false,
-        globalState,
-        luceneServerConfiguration.getIndexDir(),
-        testIndex,
-        globalState.getPort(),
-        null,
-        Collections.emptyList());
+  protected void initIndex(String name) throws Exception {
+    addDocsFromResourceFile(name, "/script/addDocsJs.csv");
   }
 
   @Test
   public void testBindsIndexFields() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
-
     SearchResponse searchResponse =
         doFunctionScoreQuery("long_field*3.0+double_field*5.0", Collections.emptyMap());
     assertEquals(2, searchResponse.getHitsCount());
@@ -115,16 +66,27 @@ public class JsScriptEngineTest {
   }
 
   @Test
-  public void testBindsScriptParam() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+  public void testBindsExtendedIndexFields() throws Exception {
+    SearchResponse searchResponse =
+        doFunctionScoreQuery(
+            "doc['long_field'].value*3.0+doc['double_field'].value*5.0", Collections.emptyMap());
+    assertEquals(2, searchResponse.getHitsCount());
+    assertEquals(58.05, searchResponse.getHits(0).getScore(), 0.001);
+    assertEquals(41.05, searchResponse.getHits(1).getScore(), 0.001);
+  }
 
+  @Test
+  public void testBindsMixedIndexFields() throws Exception {
+    SearchResponse searchResponse =
+        doFunctionScoreQuery(
+            "doc['long_field'].value*3.0+double_field*5.0", Collections.emptyMap());
+    assertEquals(2, searchResponse.getHitsCount());
+    assertEquals(58.05, searchResponse.getHits(0).getScore(), 0.001);
+    assertEquals(41.05, searchResponse.getHits(1).getScore(), 0.001);
+  }
+
+  @Test
+  public void testBindsScriptParam() throws Exception {
     Map<String, Script.ParamValue> params = new HashMap<>();
     params.put("param_1", Script.ParamValue.newBuilder().setLongValue(10).build());
     params.put("param_2", Script.ParamValue.newBuilder().setFloatValue(2.22F).build());
@@ -138,15 +100,6 @@ public class JsScriptEngineTest {
 
   @Test
   public void testBindsAllScriptParamTypes() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
-
     Map<String, Script.ParamValue> params = new HashMap<>();
     params.put("bool_p", Script.ParamValue.newBuilder().setBooleanValue(true).build());
     params.put("int_p", Script.ParamValue.newBuilder().setIntValue(3).build());
@@ -163,15 +116,6 @@ public class JsScriptEngineTest {
 
   @Test
   public void testBindsFieldsAndParams() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
-
     Map<String, Script.ParamValue> params = new HashMap<>();
     params.put("param_1", Script.ParamValue.newBuilder().setLongValue(10).build());
     params.put("param_2", Script.ParamValue.newBuilder().setFloatValue(2.22F).build());
@@ -185,23 +129,29 @@ public class JsScriptEngineTest {
   }
 
   @Test
-  public void testBindsParamsFirst() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
-
+  public void testBindsExtendedFieldsAndParams() throws Exception {
     Map<String, Script.ParamValue> params = new HashMap<>();
     params.put("param_1", Script.ParamValue.newBuilder().setLongValue(10).build());
     params.put("param_2", Script.ParamValue.newBuilder().setFloatValue(2.22F).build());
-    params.put("count", Script.ParamValue.newBuilder().setDoubleValue(1.11).build());
+    params.put("param_3", Script.ParamValue.newBuilder().setDoubleValue(1.11).build());
 
     SearchResponse searchResponse =
-        doFunctionScoreQuery("param_1*long_field+count*double_field", params);
+        doFunctionScoreQuery(
+            "param_1*doc['long_field'].value+param_2*doc['float_field'].value+param_3", params);
+    assertEquals(2, searchResponse.getHitsCount());
+    assertEquals(605.1544, searchResponse.getHits(0).getScore(), 0.001);
+    assertEquals(343.1322, searchResponse.getHits(1).getScore(), 0.001);
+  }
+
+  @Test
+  public void testBindsParamsFirst() throws Exception {
+    Map<String, Script.ParamValue> params = new HashMap<>();
+    params.put("param_1", Script.ParamValue.newBuilder().setLongValue(10).build());
+    params.put("param_2", Script.ParamValue.newBuilder().setFloatValue(2.22F).build());
+    params.put("int_field", Script.ParamValue.newBuilder().setDoubleValue(1.11).build());
+
+    SearchResponse searchResponse =
+        doFunctionScoreQuery("param_1*long_field+int_field*double_field", params);
     assertEquals(2, searchResponse.getHitsCount());
     assertEquals(162.2311, searchResponse.getHits(0).getScore(), 0.001);
     assertEquals(121.1211, searchResponse.getHits(1).getScore(), 0.001);
@@ -209,15 +159,6 @@ public class JsScriptEngineTest {
 
   @Test
   public void testExpressionsWithDifferentParams() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
-    grpcServer
-        .getBlockingStub()
-        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
-
     Map<String, Script.ParamValue> params1 = new HashMap<>();
     params1.put("param_1", Script.ParamValue.newBuilder().setLongValue(10).build());
     params1.put("param_2", Script.ParamValue.newBuilder().setFloatValue(2.22F).build());
@@ -234,7 +175,7 @@ public class JsScriptEngineTest {
             .setScript(
                 Script.newBuilder()
                     .setLang("js")
-                    .setSource("param_3*long_field+param_2*count+param_1*float_field")
+                    .setSource("param_3*long_field+param_2*int_field+param_1*float_field")
                     .putAllParams(params1)
                     .build())
             .build();
@@ -245,7 +186,7 @@ public class JsScriptEngineTest {
             .setScript(
                 Script.newBuilder()
                     .setLang("js")
-                    .setSource("param_3*long_field+param_2*count+param_1*float_field")
+                    .setSource("param_3*long_field+param_2*int_field+param_1*float_field")
                     .putAllParams(params2)
                     .build())
             .build();
@@ -253,11 +194,11 @@ public class JsScriptEngineTest {
     List<VirtualField> fields = Arrays.asList(virtualField1, virtualField2);
 
     SearchResponse searchResponse =
-        grpcServer
+        getGrpcServer()
             .getBlockingStub()
             .search(
                 SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
+                    .setIndexName(DEFAULT_TEST_INDEX)
                     .setStartHit(0)
                     .setTopHits(10)
                     .addAllVirtualFields(fields)
@@ -281,13 +222,137 @@ public class JsScriptEngineTest {
         0.001);
   }
 
+  @Test
+  public void testVirtualField() {
+    SearchResponse searchResponse =
+        doFunctionScoreQuery("virtual_field + 10", Collections.emptyMap());
+    assertEquals(2, searchResponse.getHitsCount());
+    assertEquals(458.04, searchResponse.getHits(0).getScore(), 0.001);
+    assertEquals(246.02, searchResponse.getHits(1).getScore(), 0.001);
+  }
+
+  @Test
+  public void testVirtualFieldExtended() {
+    SearchResponse searchResponse =
+        doFunctionScoreQuery("doc['virtual_field'].value + 10", Collections.emptyMap());
+    assertEquals(2, searchResponse.getHitsCount());
+    assertEquals(458.04, searchResponse.getHits(0).getScore(), 0.001);
+    assertEquals(246.02, searchResponse.getHits(1).getScore(), 0.001);
+  }
+
+  @Test
+  public void testAllExtendedSingleValueBindings() {
+    SearchResponse searchResponse =
+        doFunctionScoreQuery(
+            "doc['long_field'].value*3.0+doc['double_field'].value*5.0+doc['float_field'].value*2.0+doc['int_field'].value",
+            Collections.emptyMap());
+    assertEquals(2, searchResponse.getHitsCount());
+    assertEquals(465.09, searchResponse.getHits(0).getScore(), 0.001);
+    assertEquals(244.07, searchResponse.getHits(1).getScore(), 0.001);
+  }
+
+  @Test
+  public void testAllMultiValueBindings() {
+    SearchResponse searchResponse =
+        doFunctionScoreQuery(
+            "doc['long_field_multi'].value*3.0+doc['double_field_multi'].value*5.0+doc['float_field_multi'].value*2.0+doc['int_field_multi'].value",
+            Collections.emptyMap());
+    assertEquals(2, searchResponse.getHitsCount());
+    assertEquals(831.4, searchResponse.getHits(0).getScore(), 0.001);
+    assertEquals(508.7, searchResponse.getHits(1).getScore(), 0.001);
+  }
+
+  @Test
+  public void testSingleValueLength() {
+    verifyLength("int_field", 1);
+    verifyLength("long_field", 1);
+    verifyLength("float_field", 1);
+    verifyLength("double_field", 1);
+
+    verifyLength("empty_int", 0);
+    verifyLength("empty_long", 0);
+    verifyLength("empty_float", 0);
+    verifyLength("empty_double", 0);
+  }
+
+  @Test
+  public void testSingleValueEmpty() {
+    verifyEmpty("int_field", false);
+    verifyEmpty("long_field", false);
+    verifyEmpty("float_field", false);
+    verifyEmpty("double_field", false);
+
+    verifyEmpty("empty_int", true);
+    verifyEmpty("empty_long", true);
+    verifyEmpty("empty_float", true);
+    verifyEmpty("empty_double", true);
+  }
+
+  @Test
+  public void testMultiValueLength() {
+    verifyLength("int_field_multi", 2);
+    verifyLength("long_field_multi", 2);
+    verifyLength("float_field_multi", 2);
+    verifyLength("double_field_multi", 2);
+
+    verifyLength("empty_int_multi", 0);
+    verifyLength("empty_long_multi", 0);
+    verifyLength("empty_float_multi", 0);
+    verifyLength("empty_double_multi", 0);
+  }
+
+  @Test
+  public void testMultiValueEmpty() {
+    verifyEmpty("int_field_multi", false);
+    verifyEmpty("long_field_multi", false);
+    verifyEmpty("float_field_multi", false);
+    verifyEmpty("double_field_multi", false);
+
+    verifyEmpty("empty_int_multi", true);
+    verifyEmpty("empty_long_multi", true);
+    verifyEmpty("empty_float_multi", true);
+    verifyEmpty("empty_double_multi", true);
+  }
+
+  @Test(expected = StatusRuntimeException.class)
+  public void testNumericUnknownProperty() {
+    doFunctionScoreQuery("doc['long_field_multi'].invalid", Collections.emptyMap());
+  }
+
+  @Test(expected = StatusRuntimeException.class)
+  public void testVirtualFieldUnknownProperty() {
+    doFunctionScoreQuery("doc['virtual_field'].length", Collections.emptyMap());
+  }
+
+  private void verifyLength(String field, double expectedLength) {
+    SearchResponse searchResponse =
+        doFunctionScoreQuery("doc['" + field + "'].length", Collections.emptyMap());
+    assertEquals(2, searchResponse.getHitsCount());
+    assertEquals(expectedLength, searchResponse.getHits(0).getScore(), 0.001);
+    assertEquals(expectedLength, searchResponse.getHits(1).getScore(), 0.001);
+  }
+
+  private void verifyEmpty(String field, boolean expectedEmpty) {
+    SearchResponse searchResponse =
+        doFunctionScoreQuery("doc['" + field + "'].empty ? 5 : 4", Collections.emptyMap());
+    double expectedValue;
+    if (expectedEmpty) {
+      expectedValue = 5;
+    } else {
+      expectedValue = 4;
+    }
+    assertEquals(2, searchResponse.getHitsCount());
+    assertEquals(expectedValue, searchResponse.getHits(0).getScore(), 0.001);
+    assertEquals(expectedValue, searchResponse.getHits(1).getScore(), 0.001);
+  }
+
   private SearchResponse doFunctionScoreQuery(
       String scriptSource, Map<String, Script.ParamValue> params) {
-    return grpcServer
+    return getGrpcServer()
         .getBlockingStub()
         .search(
             SearchRequest.newBuilder()
-                .setIndexName(grpcServer.getTestIndex())
+                .setIndexName(DEFAULT_TEST_INDEX)
                 .setStartHit(0)
                 .setTopHits(10)
                 .setQuery(

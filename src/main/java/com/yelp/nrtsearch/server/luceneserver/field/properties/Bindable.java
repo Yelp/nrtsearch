@@ -22,11 +22,17 @@ import org.apache.lucene.search.DoubleValuesSource;
  * be bound into lucene {@link org.apache.lucene.expressions.Expression} scripts.
  */
 public interface Bindable {
+  String VALUE_PROPERTY = "value";
   /**
    * Get {@link DoubleValuesSource} to produce values per document when this field is bound into a
    * lucene {@link org.apache.lucene.expressions.Expression} script.
    *
+   * <p>Fields may allow for different properties to be bound. The 'value' property should return
+   * the value of the field (or first value of a multi valued field). Numeric fields also define the
+   * 'length' and 'empty' properties.
+   *
+   * @param property name of the property to bind
    * @return value source to use for expression script binding
    */
-  DoubleValuesSource getExpressionBinding();
+  DoubleValuesSource getExpressionBinding(String property);
 }

@@ -132,6 +132,70 @@ public class JsScriptBindingsTest {
     bindings.getDoubleValuesSource("invalid");
   }
 
+  @Test(expected = IllegalArgumentException.class)
+  public void testExtendedInvalidName() {
+    Map<String, Object> params = new HashMap<>();
+    params.put("param1", 100);
+    params.put("param2", 1.11);
+
+    DoubleValuesSource field1Source = new DummyValuesSource();
+    DoubleValuesSource field2Source = new DummyValuesSource();
+    Map<String, FieldDef> fieldDefMap = new HashMap<>();
+    fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
+    fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
+
+    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
+    bindings.getDoubleValuesSource("doc['invalid'].value");
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testExtendedIntIndex() {
+    Map<String, Object> params = new HashMap<>();
+    params.put("param1", 100);
+    params.put("param2", 1.11);
+
+    DoubleValuesSource field1Source = new DummyValuesSource();
+    DoubleValuesSource field2Source = new DummyValuesSource();
+    Map<String, FieldDef> fieldDefMap = new HashMap<>();
+    fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
+    fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
+
+    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
+    bindings.getDoubleValuesSource("doc[1].value");
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testExtendedInvalidPrefix() {
+    Map<String, Object> params = new HashMap<>();
+    params.put("param1", 100);
+    params.put("param2", 1.11);
+
+    DoubleValuesSource field1Source = new DummyValuesSource();
+    DoubleValuesSource field2Source = new DummyValuesSource();
+    Map<String, FieldDef> fieldDefMap = new HashMap<>();
+    fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
+    fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
+
+    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
+    bindings.getDoubleValuesSource("not_doc['field1'].value");
+  }
+
+  @Test(expected = IllegalArgumentException.class)
+  public void testExtendedMissingProperty() {
+    Map<String, Object> params = new HashMap<>();
+    params.put("param1", 100);
+    params.put("param2", 1.11);
+
+    DoubleValuesSource field1Source = new DummyValuesSource();
+    DoubleValuesSource field2Source = new DummyValuesSource();
+    Map<String, FieldDef> fieldDefMap = new HashMap<>();
+    fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
+    fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
+
+    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
+    bindings.getDoubleValuesSource("doc['field1']");
+  }
+
   @Test
   public void testParamBindingIsCached() {
     Map<String, Object> params = new HashMap<>();
