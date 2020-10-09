@@ -128,7 +128,7 @@ cat search.json
         "indexName": "testIdx",
         "startHit": 0,
         "topHits": 100,
-        "retrieveFields": ["doc_id", license_no", "vendor_name"],
+        "retrieveFields": ["doc_id", "license_no", "vendor_name"],
          "queryText": "vendor_name:first vendor"
 }
 ```
