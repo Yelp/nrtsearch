@@ -370,8 +370,9 @@ message Facet {
     repeated string paths = 2; //Prefix path to facet 'under'
     repeated NumericRangeType numericRange = 3; //Custom numeric ranges.  Field must be indexed with facet=numericRange.
     bool useOrdsCache = 4; // True if the ordinals cache should be used
-    repeated string labels = 5; // Specific facet lables to retrieve
+    repeated string labels = 5; // Specific facet labels to retrieve
     int32 topN = 6; //How many top facets to return
+    Script script = 7; //FacetScript definition to use in place of index facet
 }
 
 
