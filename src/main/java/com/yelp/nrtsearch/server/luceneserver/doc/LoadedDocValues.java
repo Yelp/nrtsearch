@@ -279,6 +279,25 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
   }
 
+  // Even single points use SortedNumericDocValues, since they are LatLonDocValuesFields
+  public static final class SingleLocation extends SortedNumericValues<GeoPoint> {
+    public SingleLocation(SortedNumericDocValues docValues) {
+      super(docValues, GEO_POINT_DECODER);
+    }
+
+    public GeoPoint getValue() {
+      return get(0);
+    }
+
+    @Override
+    public SearchResponse.Hit.FieldValue toFieldValue(int index) {
+      GeoPoint point = get(index);
+      LatLng latLon =
+          LatLng.newBuilder().setLatitude(point.getLat()).setLongitude(point.getLon()).build();
+      return SearchResponse.Hit.FieldValue.newBuilder().setLatLngValue(latLon).build();
+    }
+  }
+
   public static final class Locations extends SortedNumericValues<GeoPoint> {
     public Locations(SortedNumericDocValues docValues) {
       super(docValues, GEO_POINT_DECODER);

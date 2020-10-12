@@ -32,6 +32,12 @@
     {
       "name": "lat_lon",
       "type": "LAT_LON",
+      "storeDocValues": true,
+      "sort": true
+    },
+    {
+      "name": "lat_lon_multi",
+      "type": "LAT_LON",
       "multiValued": true,
       "storeDocValues": true,
       "sort": true
