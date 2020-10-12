@@ -3108,6 +3108,10 @@
           "type": "number",
           "format": "double",
           "description": "DOUBLE FieldType term to search for."
+        },
+        "booleanValue": {
+          "type": "boolean",
+          "description": "BOOLEAN FieldType term to search for."
         }
       },
       "description": "A query that matches documents containing a term."
