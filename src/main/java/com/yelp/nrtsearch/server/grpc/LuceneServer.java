@@ -35,6 +35,7 @@ import com.yelp.nrtsearch.server.luceneserver.CreateSnapshotHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteAllDocumentsHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteByQueryHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteDocumentsHandler;
+import com.yelp.nrtsearch.server.luceneserver.DeleteIndexBackupHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteIndexHandler;
 import com.yelp.nrtsearch.server.luceneserver.GetNodesInfoHandler;
 import com.yelp.nrtsearch.server.luceneserver.GetStateHandler;
@@ -1127,9 +1128,24 @@ public class LuceneServer {
       }
     }
 
-//    @Override
-//    public void backupIndex
-
+    @Override
+    public void deleteIndexBackup(DeleteIndexBackupRequest request,
+        StreamObserver<DeleteIndexBackupResponse> responseObserver) {
+      System.out.println("hello");
+//      try {
+//        String index = request.getIndexName();
+//        String service = request.getServiceName();
+//
+//
+//        DeleteIndexBackupHandler deleteIndexBackupHandler = new DeleteIndexBackupHandler()
+//
+//        logger.info(String.format("BackupRequestHandler returned results %s", reply.toString()));
+//        responseObserver.onNext(reply);
+//        responseObserver.onCompleted();
+//      } catch (Exception e) {
+//
+//      }
+    }
 
     @Override
     public void metrics(Empty request, StreamObserver<HttpBody> responseObserver) {

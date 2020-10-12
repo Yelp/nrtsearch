@@ -249,7 +249,7 @@ public class ArchiverImpl implements Archiver {
 
 
   @Override
-  public boolean delete(String serviceName, String resource, String versionHash)
+  public boolean deleteVersion(String serviceName, String resource, String versionHash)
       throws IOException {
     return false;
   }
