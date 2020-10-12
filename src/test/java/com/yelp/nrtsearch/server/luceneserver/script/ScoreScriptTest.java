@@ -357,17 +357,22 @@ public class ScoreScriptTest {
         List<String> expectedVendorName = null;
         List<String> expectedVendorNameAtom = null;
         GeoPoint expectedPoint = null;
+        List<GeoPoint> expectedMultiPoints = null;
 
         if (id.equals("1")) {
           expectedLicenseNo = Arrays.asList(300, 3100);
           expectedVendorName = Arrays.asList("first again", "first vendor");
           expectedVendorNameAtom = Arrays.asList("first atom again", "first atom vendor");
           expectedPoint = new GeoPoint(37.7749, -122.393990);
+          expectedMultiPoints =
+              Arrays.asList(new GeoPoint(30.9988, -120.33977), new GeoPoint(40.1748, -142.453490));
         } else if (id.equals("2")) {
           expectedLicenseNo = Arrays.asList(411, 4222);
           expectedVendorName = Arrays.asList("second again", "second vendor");
           expectedVendorNameAtom = Arrays.asList("second atom again", "second atom vendor");
           expectedPoint = new GeoPoint(37.5485, -121.9886);
+          expectedMultiPoints =
+              Arrays.asList(new GeoPoint(29.9988, -119.33977), new GeoPoint(39.1748, -141.453490));
         } else {
           fail(String.format("docId %s not indexed", id));
         }
@@ -394,15 +399,35 @@ public class ScoreScriptTest {
         String fieldName = "lat_lon";
         LoadedDocValues<?> docValues = getDoc().get(fieldName);
         assertNotNull(fieldName + " is null", docValues);
-        assertEquals(LoadedDocValues.Locations.class, docValues.getClass());
-        LoadedDocValues.Locations locations = (LoadedDocValues.Locations) docValues;
-        assertEquals(fieldName + " size", 1, locations.size());
-        GeoPoint loadedPoint = locations.get(0);
+        assertEquals(LoadedDocValues.SingleLocation.class, docValues.getClass());
+        LoadedDocValues.SingleLocation singleLocation = (LoadedDocValues.SingleLocation) docValues;
+        assertEquals(fieldName + " size", 1, singleLocation.size());
+        GeoPoint loadedPoint = singleLocation.get(0);
         assertNotNull("point is null", loadedPoint);
         assertEquals(fieldName + " latitude", expectedPoint.getLat(), loadedPoint.getLat(), 0.0001);
         assertEquals(
             fieldName + " longitude", expectedPoint.getLon(), loadedPoint.getLon(), 0.0001);
 
+        fieldName = "lat_lon_multi";
+        docValues = getDoc().get(fieldName);
+        assertNotNull(fieldName + " is null", docValues);
+        assertEquals(LoadedDocValues.Locations.class, docValues.getClass());
+        LoadedDocValues.Locations locations = (LoadedDocValues.Locations) docValues;
+        assertEquals(fieldName + " size", 2, locations.size());
+        for (int i = 0; i < locations.size(); ++i) {
+          loadedPoint = locations.get(i);
+          assertNotNull("point " + i + " is null", loadedPoint);
+          assertEquals(
+              fieldName + " latitude " + i,
+              expectedMultiPoints.get(i).getLat(),
+              loadedPoint.getLat(),
+              0.0001);
+          assertEquals(
+              fieldName + " longitude " + i,
+              expectedMultiPoints.get(i).getLon(),
+              loadedPoint.getLon(),
+              0.0001);
+        }
       } catch (Error e) {
         throw new RuntimeException(e.getMessage(), e.getCause());
       }
@@ -501,6 +526,7 @@ public class ScoreScriptTest {
         assertEmptyDocValues("vendor_name", getDoc());
         assertEmptyDocValues("vendor_name_atom", getDoc());
         assertEmptyDocValues("lat_lon", getDoc());
+        assertEmptyDocValues("lat_lon_multi", getDoc());
       } catch (Error e) {
         throw new RuntimeException(e.getMessage(), e.getCause());
       }

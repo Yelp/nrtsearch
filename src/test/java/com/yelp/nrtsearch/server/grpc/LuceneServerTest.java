@@ -71,7 +71,8 @@ public class LuceneServerTest {
   public static final List<String> QUERY_VIRTUAL_FIELDS =
       Arrays.asList("query_virtual_field", "query_virtual_field_w_score");
   static final List<String> LAT_LON_VALUES =
-      Arrays.asList("doc_id", "vendor_name", "vendor_name_atom", "license_no", "lat_lon");
+      Arrays.asList(
+          "doc_id", "vendor_name", "vendor_name_atom", "license_no", "lat_lon", "lat_lon_multi");
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
    * end of test.
@@ -1121,6 +1122,8 @@ public class LuceneServerTest {
     List<String> expectedVendorNameAtom = null;
     List<Double> expectedLat = null;
     List<Double> expectedLon = null;
+    List<Double> expectedMultiLat = null;
+    List<Double> expectedMultiLon = null;
 
     if (docId.equals("1")) {
       expectedLicenseNo = Arrays.asList("300", "3100");
@@ -1128,12 +1131,16 @@ public class LuceneServerTest {
       expectedVendorNameAtom = Arrays.asList("first atom vendor", "first atom again");
       expectedLat = Arrays.asList(37.7749);
       expectedLon = Arrays.asList(-122.393990);
+      expectedMultiLat = Arrays.asList(30.9988, 40.1748);
+      expectedMultiLon = Arrays.asList(-120.33977, -142.453490);
     } else if (docId.equals("2")) {
       expectedLicenseNo = Arrays.asList("411", "4222");
       expectedVendorName = Arrays.asList("second vendor", "second again");
       expectedVendorNameAtom = Arrays.asList("second atom vendor", "second atom again");
       expectedLat = Arrays.asList(37.5485);
       expectedLon = Arrays.asList(-121.9886);
+      expectedMultiLat = Arrays.asList(29.9988, 39.1748);
+      expectedMultiLon = Arrays.asList(-119.33977, -141.453490);
     } else {
       fail(String.format("docId %s not indexed", docId));
     }
@@ -1152,6 +1159,15 @@ public class LuceneServerTest {
     for (int i = 0; i < latLonList.size(); ++i) {
       assertEquals(expectedLat.get(i), latLonList.get(i).getLatLngValue().getLatitude(), 0.00001);
       assertEquals(expectedLon.get(i), latLonList.get(i).getLatLngValue().getLongitude(), 0.00001);
+    }
+    List<SearchResponse.Hit.FieldValue> latLonMultiList =
+        fields.get("lat_lon_multi").getFieldValueList();
+    assertEquals(latLonMultiList.size(), expectedMultiLat.size());
+    for (int i = 0; i < latLonMultiList.size(); ++i) {
+      assertEquals(
+          expectedMultiLat.get(i), latLonMultiList.get(i).getLatLngValue().getLatitude(), 0.00001);
+      assertEquals(
+          expectedMultiLon.get(i), latLonMultiList.get(i).getLatLngValue().getLongitude(), 0.00001);
     }
   }
 

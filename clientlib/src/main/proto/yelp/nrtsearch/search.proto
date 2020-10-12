@@ -75,6 +75,8 @@ message TermQuery {
         float floatValue = 5;
         // DOUBLE FieldType term to search for.
         double doubleValue = 6;
+        // BOOLEAN FieldType term to search for.
+        bool booleanValue = 7;
     }
 }
 

@@ -75,17 +75,22 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable {
   @Override
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
-    // this field is technically multi valued, but we only allow it to have one right now
-    if (fieldValues.size() != 2) {
-      throw new IllegalArgumentException("lat_lon field requires two values to be provided");
+    if ((fieldValues.size() % 2) == 1) {
+      throw new IllegalArgumentException(
+          "Odd number of values to index. lat_lon fields must be specified as a sequence of lat lon.");
     }
-    double latitude = Double.parseDouble(fieldValues.get(0));
-    double longitude = Double.parseDouble(fieldValues.get(1));
-    if (hasDocValues()) {
-      document.add(new LatLonDocValuesField(getName(), latitude, longitude));
+    if (!isMultiValue() && fieldValues.size() > 2) {
+      throw new IllegalArgumentException("Trying to index multiple values into single value point");
     }
-    if (isSearchable()) {
-      document.add(new LatLonPoint(getName(), latitude, longitude));
+    for (int i = 0; i < fieldValues.size(); i = i + 2) {
+      double latitude = Double.parseDouble(fieldValues.get(i));
+      double longitude = Double.parseDouble(fieldValues.get(i + 1));
+      if (hasDocValues()) {
+        document.add(new LatLonDocValuesField(getName(), latitude, longitude));
+      }
+      if (isSearchable()) {
+        document.add(new LatLonPoint(getName(), latitude, longitude));
+      }
     }
   }
 
@@ -94,7 +99,11 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable {
     if (docValuesType == DocValuesType.SORTED_NUMERIC) {
       SortedNumericDocValues sortedNumericDocValues =
           DocValues.getSortedNumeric(context.reader(), getName());
-      return new LoadedDocValues.Locations(sortedNumericDocValues);
+      if (isMultiValue()) {
+        return new LoadedDocValues.Locations(sortedNumericDocValues);
+      } else {
+        return new LoadedDocValues.SingleLocation(sortedNumericDocValues);
+      }
     }
     throw new IllegalStateException("Unsupported doc value type: " + docValuesType);
   }
