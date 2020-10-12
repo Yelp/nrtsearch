@@ -27,5 +27,8 @@ public interface Archiver {
   boolean blessVersion(final String serviceName, final String resource, String versionHash)
       throws IOException;
 
-  List<String> getResources(final String serviceName);
+  boolean delete(final String serviceName, final String resource, String versionHash)
+      throws IOException;
+
+  List<ResourceObject> getResources(final String serviceName);
 }

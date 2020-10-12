@@ -118,8 +118,8 @@ public class ArchiverImpl implements Archiver {
   }
 
   @Override
-  public List<String> getResources(String serviceName) {
-    List<String> resources = new ArrayList<>();
+  public List<ResourceObject> getResources(String serviceName) {
+    List<ResourceObject> resources = new ArrayList<>();
     ListObjectsRequest listObjectsRequest =
         new ListObjectsRequest()
             .withBucketName(bucketName)
@@ -130,9 +130,14 @@ public class ArchiverImpl implements Archiver {
       String[] prefix = resource.split(DELIMITER);
       String potentialResourceName = prefix[prefix.length - 1];
       if (!potentialResourceName.equals("_version")) {
-        resources.add(potentialResourceName);
+        ResourceObject object = new ResourceObjectBuilder()
+            .setName(potentialResourceName)
+            .setCreationTimestampSec(0)
+            .createResourceObject();
+        resources.add(object);
       }
     }
+
     return resources;
   }
 
@@ -193,6 +198,8 @@ public class ArchiverImpl implements Archiver {
     }
   }
 
+
+
   private void getVersionContent(
       final String serviceName, final String resource, final String hash, final Path destDirectory)
       throws IOException {
@@ -238,6 +245,13 @@ public class ArchiverImpl implements Archiver {
         }
       }
     }
+  }
+
+
+  @Override
+  public boolean delete(String serviceName, String resource, String versionHash)
+      throws IOException {
+    return false;
   }
 
   private String getTmpName() {
