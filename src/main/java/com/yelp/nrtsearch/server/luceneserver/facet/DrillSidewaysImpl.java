@@ -205,19 +205,6 @@ public class DrillSidewaysImpl extends DrillSideways {
 
   private static com.yelp.nrtsearch.server.grpc.FacetResult buildScriptFacetResultGrpc(
       Map<Object, Integer> countsMap, Facet facet, int totalDocs) {
-
-    // add all map entries into a priority queue, keeping only the top N
-    PriorityQueue<Map.Entry<Object, Integer>> priorityQueue =
-        new PriorityQueue<>(
-            Math.min(countsMap.size(), facet.getTopN()) + 1,
-            Map.Entry.comparingByValue(Integer::compare));
-    for (Map.Entry<Object, Integer> entry : countsMap.entrySet()) {
-      priorityQueue.offer(entry);
-      if (priorityQueue.size() > facet.getTopN()) {
-        priorityQueue.poll();
-      }
-    }
-
     com.yelp.nrtsearch.server.grpc.FacetResult.Builder builder =
         com.yelp.nrtsearch.server.grpc.FacetResult.newBuilder();
     builder.setDim(facet.getDim());
@@ -225,18 +212,38 @@ public class DrillSidewaysImpl extends DrillSideways {
     builder.setValue(totalDocs);
     builder.setChildCount(countsMap.size());
 
-    // the priority queue is a min heap, use a linked list to reverse the order
-    LinkedList<com.yelp.nrtsearch.server.grpc.LabelAndValue> labelAndValues = new LinkedList<>();
-    while (!priorityQueue.isEmpty()) {
-      Map.Entry<Object, Integer> entry = priorityQueue.poll();
-      labelAndValues.addFirst(
-          com.yelp.nrtsearch.server.grpc.LabelAndValue.newBuilder()
-              // the key will never be null, since we check before adding
-              .setLabel(entry.getKey().toString())
-              .setValue(entry.getValue())
-              .build());
+    if (countsMap.size() > 0 && facet.getTopN() > 0) {
+      // add all map entries into a priority queue, keeping only the top N
+      PriorityQueue<Map.Entry<Object, Integer>> priorityQueue =
+          new PriorityQueue<>(
+              Math.min(countsMap.size(), facet.getTopN()),
+              Map.Entry.comparingByValue(Integer::compare));
+
+      int minimumCount = -1;
+      for (Map.Entry<Object, Integer> entry : countsMap.entrySet()) {
+        if (priorityQueue.size() < facet.getTopN()) {
+          priorityQueue.offer(entry);
+          minimumCount = priorityQueue.peek().getValue();
+        } else if (entry.getValue() > minimumCount) {
+          priorityQueue.poll();
+          priorityQueue.offer(entry);
+          minimumCount = priorityQueue.peek().getValue();
+        }
+      }
+
+      // the priority queue is a min heap, use a linked list to reverse the order
+      LinkedList<com.yelp.nrtsearch.server.grpc.LabelAndValue> labelAndValues = new LinkedList<>();
+      while (!priorityQueue.isEmpty()) {
+        Map.Entry<Object, Integer> entry = priorityQueue.poll();
+        labelAndValues.addFirst(
+            com.yelp.nrtsearch.server.grpc.LabelAndValue.newBuilder()
+                // the key will never be null, since we check before adding
+                .setLabel(entry.getKey().toString())
+                .setValue(entry.getValue())
+                .build());
+      }
+      builder.addAllLabelValues(labelAndValues);
     }
-    builder.addAllLabelValues(labelAndValues);
     return builder.build();
   }
 
