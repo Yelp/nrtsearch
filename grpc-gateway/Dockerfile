@@ -30,10 +30,16 @@ ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
 
 RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
+
+#use go modules to pin module versions
+ENV GO111MODULE=on
+ENV GRPC_GATEWAY_VERSION=1.15.2
+
 #install required go protoc plugins to build grpc-gateway server
-RUN go get -u \
-    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
-    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger \
+RUN go mod init
+RUN go get \
+    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
+    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION} \
     github.com/golang/protobuf/protoc-gen-go \
     google.golang.org/grpc
 
