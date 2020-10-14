@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import net.jpountz.lz4.LZ4FrameInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.junit.After;
@@ -166,7 +167,9 @@ public class ArchiverTest {
     Path sourceDir = createDirWithFiles(service, resources[0]);
     String versionHash = archiver.upload(service, resources[0], sourceDir);
     archiver.blessVersion(service, resources[0], versionHash);
-    List<String> actualResources = archiver.getResources(service);
+    List<String> actualResources = archiver.getResources(service)
+        .stream()
+        .collect(Collectors.toList());
     String[] actual = actualResources.toArray(new String[0]);
     Assert.assertArrayEquals(resources, actual);
   }
