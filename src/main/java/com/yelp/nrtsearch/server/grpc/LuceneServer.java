@@ -1131,20 +1131,37 @@ public class LuceneServer {
     @Override
     public void deleteIndexBackup(DeleteIndexBackupRequest request,
         StreamObserver<DeleteIndexBackupResponse> responseObserver) {
-      System.out.println("hello");
-//      try {
-//        String index = request.getIndexName();
-//        String service = request.getServiceName();
-//
-//
-//        DeleteIndexBackupHandler deleteIndexBackupHandler = new DeleteIndexBackupHandler()
-//
-//        logger.info(String.format("BackupRequestHandler returned results %s", reply.toString()));
-//        responseObserver.onNext(reply);
-//        responseObserver.onCompleted();
-//      } catch (Exception e) {
-//
-//      }
+      try {
+        IndexState indexState = globalState.getIndex(request.getIndexName());
+        DeleteIndexBackupHandler backupIndexRequestHandler =
+            new DeleteIndexBackupHandler(archiver);
+        DeleteIndexBackupResponse reply =
+            backupIndexRequestHandler.handle(indexState, request);
+        logger.info(String.format("DeleteIndexBackupHandler returned results %s", reply.toString()));
+        responseObserver.onNext(reply);
+        responseObserver.onCompleted();
+      } catch (Exception e) {
+        logger.warn(
+            String.format(
+                "error while trying to deleteIndexBackup for index: %s for service: %s, resource: %s, nDays: %s",
+                request.getIndexName(),
+                request.getServiceName(),
+                request.getResourceName(),
+                request.getNDays()),
+            e);
+        responseObserver.onError(
+            Status.UNKNOWN
+                .withCause(e)
+                .withDescription(
+                    String.format(
+                        "error while trying to deleteIndexBackup for index %s for service: %s, resource: %s, nDays: %s",
+                        request.getIndexName(),
+                        request.getServiceName(),
+                        request.getResourceName(),
+                        request.getNDays()))
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
     }
 
     @Override

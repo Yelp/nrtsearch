@@ -169,7 +169,6 @@ public class ArchiverTest {
     archiver.blessVersion(service, resources[0], versionHash);
     List<String> actualResources = archiver.getResources(service)
         .stream()
-        .map(ResourceObject::getName)
         .collect(Collectors.toList());
     String[] actual = actualResources.toArray(new String[0]);
     Assert.assertArrayEquals(resources, actual);

@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.utils.Archiver;
-import com.yelp.nrtsearch.server.utils.ResourceObject;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -46,17 +45,16 @@ public class RestoreStateHandler {
   public static List<String> restore(Archiver archiver, GlobalState globalState, String serviceName)
       throws IOException {
     List<String> indexNames = new ArrayList<>();
-    List<ResourceObject> resources = archiver.getResources(serviceName);
-    for (ResourceObject resource : resources) {
-      String resourceName = resource.getName();
-      if (resourceName.contains("_metadata")) {
-        Path path = archiver.download(serviceName, resourceName);
+    List<String> resources = archiver.getResources(serviceName);
+    for (String resource : resources) {
+      if (resource.contains("_metadata")) {
+        Path path = archiver.download(serviceName, resource);
         logger.info(
             String.format(
                 "Downloaded state dir at: %s for service: %s, resource: %s",
                 path.toString(), serviceName, resource));
         globalState.setStateDir(path);
-        indexNames.add(resourceName);
+        indexNames.add(resource);
       }
     }
     return indexNames;

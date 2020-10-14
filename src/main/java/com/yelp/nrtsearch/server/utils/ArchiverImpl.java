@@ -21,6 +21,7 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.transfer.Download;
 import com.amazonaws.services.s3.transfer.PersistableTransfer;
 import com.amazonaws.services.s3.transfer.TransferManager;
@@ -118,8 +119,8 @@ public class ArchiverImpl implements Archiver {
   }
 
   @Override
-  public List<ResourceObject> getResources(String serviceName) {
-    List<ResourceObject> resources = new ArrayList<>();
+  public List<String> getResources(String serviceName) {
+    List<String> resources = new ArrayList<>();
     ListObjectsRequest listObjectsRequest =
         new ListObjectsRequest()
             .withBucketName(bucketName)
@@ -130,14 +131,35 @@ public class ArchiverImpl implements Archiver {
       String[] prefix = resource.split(DELIMITER);
       String potentialResourceName = prefix[prefix.length - 1];
       if (!potentialResourceName.equals("_version")) {
-        ResourceObject object = new ResourceObjectBuilder()
-            .setName(potentialResourceName)
-            .setCreationTimestampSec(0)
-            .createResourceObject();
-        resources.add(object);
+        resources.add(potentialResourceName);
       }
     }
+    return resources;
+  }
 
+  @Override
+  public List<VersionedResourceObject> getVersionedResource(String serviceName, String resource) {
+    List<VersionedResourceObject> resources = new ArrayList<>();
+    ListObjectsRequest listObjectsRequest =
+        new ListObjectsRequest()
+            .withBucketName(bucketName)
+            .withPrefix(serviceName + DELIMITER + resource + DELIMITER)
+            .withDelimiter(DELIMITER);
+
+    List<S3ObjectSummary> objects = s3.listObjects(listObjectsRequest).getObjectSummaries();
+
+    for (S3ObjectSummary object : objects) {
+      String key = object.getKey();
+      String[] prefix = key.split(DELIMITER);
+      String versionHash = prefix[prefix.length - 1];
+      VersionedResourceObject versionedResourceObject = VersionedResourceObject.builder()
+          .setServiceName(serviceName)
+          .setResourceName(resource)
+          .setVersionHash(versionHash)
+          .setCreationTimestamp(object.getLastModified())
+          .createVersionedResourceObject();
+      resources.add(versionedResourceObject);
+    }
     return resources;
   }
 
@@ -251,7 +273,7 @@ public class ArchiverImpl implements Archiver {
   @Override
   public boolean deleteVersion(String serviceName, String resource, String versionHash)
       throws IOException {
-    return false;
+    return versionManger.deleteVersion(serviceName, resource, versionHash);
   }
 
   private String getTmpName() {

@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.utils;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import java.io.IOException;
 import org.apache.commons.io.IOUtils;
@@ -112,6 +113,21 @@ public class VersionManager {
     String latestVersionKey = String.format("%s/_latest_version", versionPath);
     s3.putObject(bucketName, latestVersionKey, String.valueOf(newVersion));
 
+    return true;
+  }
+
+  /* Deletes a particular version of a resource. */
+  public boolean deleteVersion(String serviceName, String resourceName, String resourceHash) {
+    final String resourceKey = String.format("%s/%s/%s", serviceName, resourceName, resourceHash);
+    if (!s3.doesObjectExist(bucketName, resourceKey)) {
+      logger.error(
+          String.format(
+              "delete_index_backup -- %s/%s/%s does not exist in s3",
+              serviceName, resourceName, resourceHash));
+      return false;
+    }
+    DeleteObjectRequest deleteObjectRequest = new DeleteObjectRequest(bucketName, resourceKey);
+    s3.deleteObject(deleteObjectRequest);
     return true;
   }
 }
