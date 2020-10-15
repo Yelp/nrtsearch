@@ -20,7 +20,6 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.is
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.LatLonFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;

@@ -128,6 +128,10 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQu
 
   @Override
   public Query getGeoBoundingBoxQuery(GeoBoundingBoxQuery geoBoundingBoxQuery) {
+    if (!this.isSearchable()) {
+      throw new IllegalArgumentException(
+          String.format("field %s is not searchable", this.getName()));
+    }
     return LatLonPoint.newBoxQuery(
         geoBoundingBoxQuery.getField(),
         geoBoundingBoxQuery.getBottomRight().getLatitude(),

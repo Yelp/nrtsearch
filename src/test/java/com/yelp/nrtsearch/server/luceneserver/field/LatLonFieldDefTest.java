@@ -28,6 +28,7 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -111,6 +112,19 @@ public class LatLonFieldDefTest extends ServerTestCase {
                 LatLng.newBuilder().setLatitude(37.346484).setLongitude(-121.984961).build())
             .build();
     queryAndVerifyIds(mountainViewGeoBoxQuery);
+  }
+
+  @Test(expected = StatusRuntimeException.class)
+  public void testGeoBoxQueryNotSearchable() {
+    GeoBoundingBoxQuery fremontGeoBoundingBoxQuery =
+        GeoBoundingBoxQuery.newBuilder()
+            .setField("lat_lon_not_searchable")
+            .setTopLeft(
+                LatLng.newBuilder().setLatitude(37.589207).setLongitude(-122.019474).build())
+            .setBottomRight(
+                LatLng.newBuilder().setLatitude(37.419254).setLongitude(-121.836704).build())
+            .build();
+    queryAndVerifyIds(fremontGeoBoundingBoxQuery);
   }
 
   private void queryAndVerifyIds(GeoBoundingBoxQuery geoBoundingBoxQuery, String... expectedIds) {
