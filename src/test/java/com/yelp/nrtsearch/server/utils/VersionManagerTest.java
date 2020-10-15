@@ -21,10 +21,13 @@ import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.util.IOUtils;
 import io.findify.s3mock.S3Mock;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -109,5 +112,30 @@ public class VersionManagerTest {
 
     s3Object = s3.getObject(BUCKET_NAME, "testservice/_version/testresource/2");
     assertEquals("abcdef", IOUtils.toString(s3Object.getObjectContent()));
+  }
+
+  @Test
+  public void deleteVersionWhenDoesntExist() throws IOException {
+    boolean result = versionManager.deleteVersion("testservice", "testresource", "abcdef");
+    assertEquals(false, result);
+  }
+
+  @Test
+  public void deleteVersionWhenExists() throws IOException {
+    String key1 = "testservice/testresource/abcdef";
+    String key2 = "testservice/testresource/other_version";
+    s3.putObject(BUCKET_NAME, key1, "foo");
+    s3.putObject(BUCKET_NAME, key2, "boo");
+    boolean result = versionManager.deleteVersion("testservice", "testresource", "abcdef");
+    assertEquals(true, result);
+
+    List<S3ObjectSummary> objects = s3.listObjects(BUCKET_NAME, "testservice/testresource/").getObjectSummaries();
+
+    List<String> objectKeys = objects.stream()
+        .map(S3ObjectSummary::getKey)
+        .collect(Collectors.toList());
+
+    assertTrue(objectKeys.contains(key2));
+    assertFalse(objectKeys.contains(key1));
   }
 }

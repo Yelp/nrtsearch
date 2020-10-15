@@ -173,4 +173,48 @@ public class ArchiverTest {
     String[] actual = actualResources.toArray(new String[0]);
     Assert.assertArrayEquals(resources, actual);
   }
+
+
+  @Test
+  public void testGetVersionedResource() throws IOException {
+    String service = "testservice";
+    String resource = "testresource";
+    Path sourceDir = createDirWithFiles(service, resource);
+    String versionHash1 = archiver.upload(service, resource, sourceDir);
+    String versionHash2 = archiver.upload(service, resource, sourceDir);
+    List<VersionedResourceObject> actualResources = archiver.getVersionedResource(service, resource)
+        .stream()
+        .collect(Collectors.toList());
+
+    List<String> versionHashes = actualResources.stream()
+        .map(VersionedResourceObject::getVersionHash)
+        .collect(Collectors.toList());
+
+    Assert.assertTrue(versionHashes.contains(versionHash1));
+    Assert.assertTrue(versionHashes.contains(versionHash2));
+    Assert.assertEquals(2, versionHashes.size());
+  }
+
+  @Test
+  public void testDeleteVersion() throws IOException {
+    String service = "testservice";
+    String resource = "testresource";
+    Path sourceDir = createDirWithFiles(service, resource);
+    String versionHash1 = archiver.upload(service, resource, sourceDir);
+    String versionHash2 = archiver.upload(service, resource, sourceDir);
+
+    archiver.deleteVersion(service, resource, versionHash1);
+
+    List<VersionedResourceObject> actualResources = archiver.getVersionedResource(service, resource)
+        .stream()
+        .collect(Collectors.toList());
+
+    List<String> versionHashes = actualResources.stream()
+        .map(VersionedResourceObject::getVersionHash)
+        .collect(Collectors.toList());
+
+    Assert.assertFalse(versionHashes.contains(versionHash1));
+    Assert.assertTrue(versionHashes.contains(versionHash2));
+    Assert.assertEquals(1, versionHashes.size());
+  }
 }
