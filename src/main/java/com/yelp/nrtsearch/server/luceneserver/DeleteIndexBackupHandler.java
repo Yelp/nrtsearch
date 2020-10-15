@@ -4,7 +4,6 @@ import com.yelp.nrtsearch.server.grpc.DeleteIndexBackupRequest;
 import com.yelp.nrtsearch.server.grpc.DeleteIndexBackupResponse;
 import com.yelp.nrtsearch.server.utils.Archiver;
 import com.yelp.nrtsearch.server.utils.VersionedResourceObject;
-import java.io.Console;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -52,7 +51,7 @@ public class DeleteIndexBackupHandler implements Handler<DeleteIndexBackupReques
       List<VersionedResourceObject> objectsOlderThanNDays = new ArrayList<>();
 
       for (VersionedResourceObject obj : resourceObjects) {
-        if(olderThanNDays(obj, nDays)){
+        if(olderThanNDays(obj, new Date(), nDays)){
           objectsOlderThanNDays.add(obj);
         }
       }
@@ -79,11 +78,10 @@ public class DeleteIndexBackupHandler implements Handler<DeleteIndexBackupReques
     return deleteIndexBackupResponseBuilder.build();
   }
 
-  private boolean olderThanNDays(VersionedResourceObject resourceObject, int nDays) {
-    Date currentDate = new Date();
+  public static boolean olderThanNDays(VersionedResourceObject resourceObject, Date now, int nDays) {
     Calendar c = Calendar.getInstance();
-    c.setTime(currentDate);
-    c.add(Calendar.DAY_OF_MONTH, -nDays);
+    c.setTime(now);
+    c.add(Calendar.DATE, -nDays);
     Date dateNDaysAgo = c.getTime();
     Date dateObjectCreated = resourceObject.getCreationTimestamp();
     return dateObjectCreated.before(dateNDaysAgo);
