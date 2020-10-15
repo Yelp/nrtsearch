@@ -1129,15 +1129,15 @@ public class LuceneServer {
     }
 
     @Override
-    public void deleteIndexBackup(DeleteIndexBackupRequest request,
+    public void deleteIndexBackup(
+        DeleteIndexBackupRequest request,
         StreamObserver<DeleteIndexBackupResponse> responseObserver) {
       try {
         IndexState indexState = globalState.getIndex(request.getIndexName());
-        DeleteIndexBackupHandler backupIndexRequestHandler =
-            new DeleteIndexBackupHandler(archiver);
-        DeleteIndexBackupResponse reply =
-            backupIndexRequestHandler.handle(indexState, request);
-        logger.info(String.format("DeleteIndexBackupHandler returned results %s", reply.toString()));
+        DeleteIndexBackupHandler backupIndexRequestHandler = new DeleteIndexBackupHandler(archiver);
+        DeleteIndexBackupResponse reply = backupIndexRequestHandler.handle(indexState, request);
+        logger.info(
+            String.format("DeleteIndexBackupHandler returned results %s", reply.toString()));
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
       } catch (Exception e) {

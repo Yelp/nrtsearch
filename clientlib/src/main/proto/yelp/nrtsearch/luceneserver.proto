@@ -231,7 +231,6 @@ service LuceneServer {
       post: "/v1/backup_index"
       body: "*"
     };
-
     }
 
     rpc deleteIndexBackup (DeleteIndexBackupRequest) returns (DeleteIndexBackupResponse) {

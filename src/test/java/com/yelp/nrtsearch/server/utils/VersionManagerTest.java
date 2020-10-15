@@ -129,11 +129,11 @@ public class VersionManagerTest {
     boolean result = versionManager.deleteVersion("testservice", "testresource", "abcdef");
     assertEquals(true, result);
 
-    List<S3ObjectSummary> objects = s3.listObjects(BUCKET_NAME, "testservice/testresource/").getObjectSummaries();
+    List<S3ObjectSummary> objects =
+        s3.listObjects(BUCKET_NAME, "testservice/testresource/").getObjectSummaries();
 
-    List<String> objectKeys = objects.stream()
-        .map(S3ObjectSummary::getKey)
-        .collect(Collectors.toList());
+    List<String> objectKeys =
+        objects.stream().map(S3ObjectSummary::getKey).collect(Collectors.toList());
 
     assertTrue(objectKeys.contains(key2));
     assertFalse(objectKeys.contains(key1));

@@ -1,3 +1,18 @@
+/*
+ * Copyright 2020 Yelp Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.DeleteIndexBackupRequest;
@@ -14,7 +29,8 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DeleteIndexBackupHandler implements Handler<DeleteIndexBackupRequest, DeleteIndexBackupResponse> {
+public class DeleteIndexBackupHandler
+    implements Handler<DeleteIndexBackupRequest, DeleteIndexBackupResponse> {
   Logger logger = LoggerFactory.getLogger(BackupIndexRequestHandler.class);
   private final Archiver archiver;
 
@@ -23,8 +39,8 @@ public class DeleteIndexBackupHandler implements Handler<DeleteIndexBackupReques
   }
 
   @Override
-  public DeleteIndexBackupResponse handle(IndexState indexState,
-      DeleteIndexBackupRequest protoRequest) throws HandlerException {
+  public DeleteIndexBackupResponse handle(
+      IndexState indexState, DeleteIndexBackupRequest protoRequest) throws HandlerException {
 
     DeleteIndexBackupResponse.Builder deleteIndexBackupResponseBuilder =
         DeleteIndexBackupResponse.newBuilder();
@@ -43,15 +59,14 @@ public class DeleteIndexBackupHandler implements Handler<DeleteIndexBackupReques
       List<VersionedResourceObject> versionedResourceMetadata =
           archiver.getVersionedResource(serviceName, resourceMetadata);
 
-      List<VersionedResourceObject> resourceObjects = Stream.concat(
-          versionedResourceData.stream(),
-          versionedResourceMetadata.stream()
-      ).collect(Collectors.toList());
+      List<VersionedResourceObject> resourceObjects =
+          Stream.concat(versionedResourceData.stream(), versionedResourceMetadata.stream())
+              .collect(Collectors.toList());
 
       List<VersionedResourceObject> objectsOlderThanNDays = new ArrayList<>();
 
       for (VersionedResourceObject obj : resourceObjects) {
-        if(olderThanNDays(obj, new Date(), nDays)){
+        if (olderThanNDays(obj, new Date(), nDays)) {
           objectsOlderThanNDays.add(obj);
         }
       }
@@ -60,8 +75,7 @@ public class DeleteIndexBackupHandler implements Handler<DeleteIndexBackupReques
         archiver.deleteVersion(
             objectToDelete.getServiceName(),
             objectToDelete.getResourceName(),
-            objectToDelete.getVersionHash()
-        );
+            objectToDelete.getVersionHash());
       }
     } catch (IOException e) {
       logger.error(
@@ -78,7 +92,8 @@ public class DeleteIndexBackupHandler implements Handler<DeleteIndexBackupReques
     return deleteIndexBackupResponseBuilder.build();
   }
 
-  public static boolean olderThanNDays(VersionedResourceObject resourceObject, Date now, int nDays) {
+  public static boolean olderThanNDays(
+      VersionedResourceObject resourceObject, Date now, int nDays) {
     Calendar c = Calendar.getInstance();
     c.setTime(now);
     c.add(Calendar.DATE, -nDays);

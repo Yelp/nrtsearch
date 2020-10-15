@@ -32,5 +32,6 @@ public interface Archiver {
 
   List<String> getResources(final String serviceName);
 
-  List<VersionedResourceObject> getVersionedResource(final String serviceName, final String resource);
+  List<VersionedResourceObject> getVersionedResource(
+      final String serviceName, final String resource);
 }

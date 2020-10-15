@@ -152,12 +152,13 @@ public class ArchiverImpl implements Archiver {
       String key = object.getKey();
       String[] prefix = key.split(DELIMITER);
       String versionHash = prefix[prefix.length - 1];
-      VersionedResourceObject versionedResourceObject = VersionedResourceObject.builder()
-          .setServiceName(serviceName)
-          .setResourceName(resource)
-          .setVersionHash(versionHash)
-          .setCreationTimestamp(object.getLastModified())
-          .createVersionedResourceObject();
+      VersionedResourceObject versionedResourceObject =
+          VersionedResourceObject.builder()
+              .setServiceName(serviceName)
+              .setResourceName(resource)
+              .setVersionHash(versionHash)
+              .setCreationTimestamp(object.getLastModified())
+              .createVersionedResourceObject();
       resources.add(versionedResourceObject);
     }
     return resources;
@@ -220,8 +221,6 @@ public class ArchiverImpl implements Archiver {
     }
   }
 
-
-
   private void getVersionContent(
       final String serviceName, final String resource, final String hash, final Path destDirectory)
       throws IOException {
@@ -268,7 +267,6 @@ public class ArchiverImpl implements Archiver {
       }
     }
   }
-
 
   @Override
   public boolean deleteVersion(String serviceName, String resource, String versionHash)

@@ -167,13 +167,10 @@ public class ArchiverTest {
     Path sourceDir = createDirWithFiles(service, resources[0]);
     String versionHash = archiver.upload(service, resources[0], sourceDir);
     archiver.blessVersion(service, resources[0], versionHash);
-    List<String> actualResources = archiver.getResources(service)
-        .stream()
-        .collect(Collectors.toList());
+    List<String> actualResources = archiver.getResources(service);
     String[] actual = actualResources.toArray(new String[0]);
     Assert.assertArrayEquals(resources, actual);
   }
-
 
   @Test
   public void testGetVersionedResource() throws IOException {
@@ -182,13 +179,13 @@ public class ArchiverTest {
     Path sourceDir = createDirWithFiles(service, resource);
     String versionHash1 = archiver.upload(service, resource, sourceDir);
     String versionHash2 = archiver.upload(service, resource, sourceDir);
-    List<VersionedResourceObject> actualResources = archiver.getVersionedResource(service, resource)
-        .stream()
-        .collect(Collectors.toList());
+    List<VersionedResourceObject> actualResources =
+        archiver.getVersionedResource(service, resource);
 
-    List<String> versionHashes = actualResources.stream()
-        .map(VersionedResourceObject::getVersionHash)
-        .collect(Collectors.toList());
+    List<String> versionHashes =
+        actualResources.stream()
+            .map(VersionedResourceObject::getVersionHash)
+            .collect(Collectors.toList());
 
     Assert.assertTrue(versionHashes.contains(versionHash1));
     Assert.assertTrue(versionHashes.contains(versionHash2));
@@ -205,13 +202,13 @@ public class ArchiverTest {
 
     archiver.deleteVersion(service, resource, versionHash1);
 
-    List<VersionedResourceObject> actualResources = archiver.getVersionedResource(service, resource)
-        .stream()
-        .collect(Collectors.toList());
+    List<VersionedResourceObject> actualResources =
+        archiver.getVersionedResource(service, resource);
 
-    List<String> versionHashes = actualResources.stream()
-        .map(VersionedResourceObject::getVersionHash)
-        .collect(Collectors.toList());
+    List<String> versionHashes =
+        actualResources.stream()
+            .map(VersionedResourceObject::getVersionHash)
+            .collect(Collectors.toList());
 
     Assert.assertFalse(versionHashes.contains(versionHash1));
     Assert.assertTrue(versionHashes.contains(versionHash2));
