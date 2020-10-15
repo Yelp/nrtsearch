@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
 import com.yelp.nrtsearch.server.grpc.Point;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import java.io.IOException;
 import java.util.List;
@@ -37,7 +38,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 
 /** Field class for 'LAT_LON' field type. */
-public class LatLonFieldDef extends IndexableFieldDef implements Sortable {
+public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQueryable {
   public LatLonFieldDef(String name, Field requestField) {
     super(name, requestField);
   }
@@ -125,6 +126,7 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable {
         getName(), origin.getLatitude(), origin.getLongitude());
   }
 
+  @Override
   public Query getGeoBoundingBoxQuery(GeoBoundingBoxQuery geoBoundingBoxQuery) {
     return LatLonPoint.newBoxQuery(
         geoBoundingBoxQuery.getField(),

@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.LatLonFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
@@ -282,12 +283,12 @@ class QueryNodeMapper {
     String fieldName = geoBoundingBoxQuery.getField();
     FieldDef field = state.getField(fieldName);
 
-    if (!(field instanceof LatLonFieldDef)) {
+    if (!(field instanceof GeoQueryable)) {
       throw new IllegalArgumentException(
           "Field: " + fieldName + " does not support GeoBoundingBoxQuery");
     }
 
-    return ((LatLonFieldDef) field).getGeoBoundingBoxQuery(geoBoundingBoxQuery);
+    return ((GeoQueryable) field).getGeoBoundingBoxQuery(geoBoundingBoxQuery);
   }
 
   private Map<com.yelp.nrtsearch.server.grpc.BooleanClause.Occur, BooleanClause.Occur>
