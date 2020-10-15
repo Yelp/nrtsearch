@@ -20,6 +20,7 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.is
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.LatLonFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
@@ -85,6 +86,8 @@ class QueryNodeMapper {
         return getMultiMatchQuery(query.getMultiMatchQuery(), state);
       case RANGEQUERY:
         return getRangeQuery(query.getRangeQuery(), state);
+      case GEOBOUNDINGBOXQUERY:
+        return getGeoBoundingBoxQuery(query.getGeoBoundingBoxQuery(), state);
       default:
         throw new UnsupportedOperationException(
             "Unsupported query type received: " + query.getQueryNodeCase());
@@ -273,6 +276,18 @@ class QueryNodeMapper {
     }
 
     return ((RangeQueryable) field).getRangeQuery(rangeQuery);
+  }
+
+  private Query getGeoBoundingBoxQuery(GeoBoundingBoxQuery geoBoundingBoxQuery, IndexState state) {
+    String fieldName = geoBoundingBoxQuery.getField();
+    FieldDef field = state.getField(fieldName);
+
+    if (!(field instanceof LatLonFieldDef)) {
+      throw new IllegalArgumentException(
+          "Field: " + fieldName + " does not support GeoBoundingBoxQuery");
+    }
+
+    return ((LatLonFieldDef) field).getGeoBoundingBoxQuery(geoBoundingBoxQuery);
   }
 
   private Map<com.yelp.nrtsearch.server.grpc.BooleanClause.Occur, BooleanClause.Occur>
