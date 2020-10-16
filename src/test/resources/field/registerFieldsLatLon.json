@@ -1,0 +1,26 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "storeDocValues": true
+    },
+    {
+      "name": "lat_lon_multi",
+      "type": "LAT_LON",
+      "multiValued": true,
+      "storeDocValues": true,
+      "sort": true,
+      "search": true
+    },
+    {
+      "name": "lat_lon_not_searchable",
+      "type": "LAT_LON",
+      "multiValued": true,
+      "storeDocValues": true,
+      "sort": true,
+      "search": false
+    }
+  ]
+}
