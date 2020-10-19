@@ -179,12 +179,11 @@ public class ArchiverTest {
     Path sourceDir = createDirWithFiles(service, resource);
     String versionHash1 = archiver.upload(service, resource, sourceDir);
     String versionHash2 = archiver.upload(service, resource, sourceDir);
-    List<VersionedResourceObject> actualResources =
-        archiver.getVersionedResource(service, resource);
+    List<VersionedResource> actualResources = archiver.getVersionedResource(service, resource);
 
     List<String> versionHashes =
         actualResources.stream()
-            .map(VersionedResourceObject::getVersionHash)
+            .map(VersionedResource::getVersionHash)
             .collect(Collectors.toList());
 
     Assert.assertTrue(versionHashes.contains(versionHash1));
@@ -202,12 +201,11 @@ public class ArchiverTest {
 
     archiver.deleteVersion(service, resource, versionHash1);
 
-    List<VersionedResourceObject> actualResources =
-        archiver.getVersionedResource(service, resource);
+    List<VersionedResource> actualResources = archiver.getVersionedResource(service, resource);
 
     List<String> versionHashes =
         actualResources.stream()
-            .map(VersionedResourceObject::getVersionHash)
+            .map(VersionedResource::getVersionHash)
             .collect(Collectors.toList());
 
     Assert.assertFalse(versionHashes.contains(versionHash1));

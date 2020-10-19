@@ -15,34 +15,81 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.yelp.nrtsearch.server.utils.VersionedResourceObject;
-import java.util.Date;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.yelp.nrtsearch.server.grpc.DeleteIndexBackupRequest;
+import com.yelp.nrtsearch.server.grpc.DeleteIndexBackupResponse;
+import com.yelp.nrtsearch.server.luceneserver.Handler.HandlerException;
+import com.yelp.nrtsearch.server.utils.Archiver;
+import com.yelp.nrtsearch.server.utils.VersionedResource;
+import java.io.IOException;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Arrays;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class DeleteIndexBackupHandlerTest {
 
   @Test
-  public void testOlderThanNDays() {
+  public void testDeleteIndexBackupHandlerHandle() throws HandlerException, IOException {
+    String indexName = "testindex";
+    String serviceName = "testservice";
+    String resourceName = "testresource";
+    int nDays = 30;
 
-    Date now = new Date(2020, 5, 25);
-    Date date1 = new Date(2020, 5, 1);
-    Date date2 = new Date(2020, 4, 20);
+    Archiver archiver = mock(Archiver.class);
+    DeleteIndexBackupHandler handler = new DeleteIndexBackupHandler(archiver);
+    DeleteIndexBackupRequest request =
+        DeleteIndexBackupRequest.newBuilder()
+            .setIndexName(indexName)
+            .setServiceName(serviceName)
+            .setResourceName(resourceName)
+            .setNDays(nDays)
+            .build();
+
+    IndexState testIndex = mock(IndexState.class);
+
+    Instant date1 = LocalDate.of(2010, 5, 1).atStartOfDay().atZone(ZoneId.of("UCT")).toInstant();
+    String versionHash1 = "hash_1";
+    VersionedResource testVersionedResource1 =
+        VersionedResource.builder()
+            .setServiceName(serviceName)
+            .setResourceName(resourceName + "_data")
+            .setCreationTimestamp(date1)
+            .setVersionHash(versionHash1)
+            .createVersionedResourceObject();
+
+    when(archiver.getVersionedResource(serviceName, resourceName + "_data"))
+        .thenReturn(Arrays.asList(testVersionedResource1));
+
+    DeleteIndexBackupResponse response = handler.handle(testIndex, request);
+
+    verify(archiver).deleteVersion(serviceName, resourceName + "_data", versionHash1);
+
+    Assert.assertEquals(response.getDeletedVersionHashes(0), versionHash1);
+  }
+
+  @Test
+  public void testIsOlderThanNDays() {
+
+    Instant now = LocalDate.of(2020, 5, 25).atStartOfDay().atZone(ZoneId.of("UCT")).toInstant();
+    Instant date1 = LocalDate.of(2020, 5, 1).atStartOfDay().atZone(ZoneId.of("UCT")).toInstant();
+    Instant date2 = LocalDate.of(2020, 4, 20).atStartOfDay().atZone(ZoneId.of("UCT")).toInstant();
 
     int nDays = 30;
 
-    VersionedResourceObject testObj1 =
-        VersionedResourceObject.builder()
-            .setCreationTimestamp(date1)
-            .createVersionedResourceObject();
+    VersionedResource testObj1 =
+        VersionedResource.builder().setCreationTimestamp(date1).createVersionedResourceObject();
 
-    Assert.assertEquals(false, DeleteIndexBackupHandler.olderThanNDays(testObj1, now, nDays));
+    Assert.assertEquals(false, DeleteIndexBackupHandler.isOlderThanNDays(testObj1, now, nDays));
 
-    VersionedResourceObject testObj2 =
-        VersionedResourceObject.builder()
-            .setCreationTimestamp(date2)
-            .createVersionedResourceObject();
+    VersionedResource testObj2 =
+        VersionedResource.builder().setCreationTimestamp(date2).createVersionedResourceObject();
 
-    Assert.assertEquals(true, DeleteIndexBackupHandler.olderThanNDays(testObj2, now, nDays));
+    Assert.assertEquals(true, DeleteIndexBackupHandler.isOlderThanNDays(testObj2, now, nDays));
   }
 }

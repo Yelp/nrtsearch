@@ -759,6 +759,7 @@ message DeleteIndexBackupRequest {
 }
 
 message DeleteIndexBackupResponse {
+    repeated string deletedVersionHashes = 1; // version hashes of backups which were deleted
 }
 
 message IndicesRequest {

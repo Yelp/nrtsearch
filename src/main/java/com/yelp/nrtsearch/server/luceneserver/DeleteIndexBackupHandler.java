@@ -18,12 +18,13 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.DeleteIndexBackupRequest;
 import com.yelp.nrtsearch.server.grpc.DeleteIndexBackupResponse;
 import com.yelp.nrtsearch.server.utils.Archiver;
-import com.yelp.nrtsearch.server.utils.VersionedResourceObject;
+import com.yelp.nrtsearch.server.utils.VersionedResource;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -31,7 +32,7 @@ import org.slf4j.LoggerFactory;
 
 public class DeleteIndexBackupHandler
     implements Handler<DeleteIndexBackupRequest, DeleteIndexBackupResponse> {
-  Logger logger = LoggerFactory.getLogger(BackupIndexRequestHandler.class);
+  private static final Logger logger = LoggerFactory.getLogger(DeleteIndexBackupHandler.class);
   private final Archiver archiver;
 
   public DeleteIndexBackupHandler(Archiver archiver) {
@@ -40,65 +41,54 @@ public class DeleteIndexBackupHandler
 
   @Override
   public DeleteIndexBackupResponse handle(
-      IndexState indexState, DeleteIndexBackupRequest protoRequest) throws HandlerException {
+      IndexState indexState, DeleteIndexBackupRequest deleteIndexBackupRequest)
+      throws HandlerException {
 
     DeleteIndexBackupResponse.Builder deleteIndexBackupResponseBuilder =
         DeleteIndexBackupResponse.newBuilder();
 
-    String indexName = protoRequest.getIndexName();
+    String indexName = deleteIndexBackupRequest.getIndexName();
+    String serviceName = deleteIndexBackupRequest.getServiceName();
+    String resourceName = deleteIndexBackupRequest.getResourceName();
+    String resourceData = IndexBackupUtils.getResourceData(resourceName);
+    String resourceMetadata = IndexBackupUtils.getResourceMetadata(resourceName);
+    int nDays = deleteIndexBackupRequest.getNDays();
+
+    Set<String> deletedVersionHashes = new HashSet<>();
 
     try {
-      String serviceName = protoRequest.getServiceName();
-      String resourceName = protoRequest.getResourceName();
-      String resourceData = BackupIndexRequestHandler.getResourceData(resourceName);
-      String resourceMetadata = BackupIndexRequestHandler.getResourceMetadata(resourceName);
-      int nDays = protoRequest.getNDays();
-
-      List<VersionedResourceObject> versionedResourceData =
+      List<VersionedResource> versionedResourceData =
           archiver.getVersionedResource(serviceName, resourceData);
-      List<VersionedResourceObject> versionedResourceMetadata =
+      List<VersionedResource> versionedResourceMetadata =
           archiver.getVersionedResource(serviceName, resourceMetadata);
 
-      List<VersionedResourceObject> resourceObjects =
+      Instant now = Instant.now();
+
+      List<VersionedResource> objectsOlderThanNDays =
           Stream.concat(versionedResourceData.stream(), versionedResourceMetadata.stream())
+              .filter(resourceObject -> isOlderThanNDays(resourceObject, now, nDays))
               .collect(Collectors.toList());
 
-      List<VersionedResourceObject> objectsOlderThanNDays = new ArrayList<>();
-
-      for (VersionedResourceObject obj : resourceObjects) {
-        if (olderThanNDays(obj, new Date(), nDays)) {
-          objectsOlderThanNDays.add(obj);
-        }
-      }
-
-      for (VersionedResourceObject objectToDelete : objectsOlderThanNDays) {
+      for (VersionedResource objectToDelete : objectsOlderThanNDays) {
         archiver.deleteVersion(
             objectToDelete.getServiceName(),
             objectToDelete.getResourceName(),
             objectToDelete.getVersionHash());
+        deletedVersionHashes.add(objectToDelete.getVersionHash());
       }
     } catch (IOException e) {
       logger.error(
-          String.format(
-              "Error while trying to delete backup of index %s with serviceName %s, resourceName %s, nDays: %s",
-              indexName,
-              protoRequest.getServiceName(),
-              protoRequest.getResourceName(),
-              protoRequest.getNDays()),
-          e);
+          "Error while trying to delete backup of index %s with serviceName %s, resourceName %s, nDays: %d",
+          indexName, serviceName, resourceName, nDays, e);
       return deleteIndexBackupResponseBuilder.build();
     }
 
-    return deleteIndexBackupResponseBuilder.build();
+    return deleteIndexBackupResponseBuilder
+        .addAllDeletedVersionHashes(deletedVersionHashes)
+        .build();
   }
 
-  public static boolean olderThanNDays(
-      VersionedResourceObject resourceObject, Date now, int nDays) {
-    Calendar c = Calendar.getInstance();
-    c.setTime(now);
-    c.add(Calendar.DATE, -nDays);
-    Date dateNDaysAgo = c.getTime();
-    Date dateObjectCreated = resourceObject.getCreationTimestamp();
-    return dateObjectCreated.before(dateNDaysAgo);
+  public static boolean isOlderThanNDays(VersionedResource resource, Instant now, int nDays) {
+    return now.minus(nDays, ChronoUnit.DAYS).isAfter(resource.getCreationTimestamp());
   }
 }

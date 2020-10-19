@@ -138,8 +138,8 @@ public class ArchiverImpl implements Archiver {
   }
 
   @Override
-  public List<VersionedResourceObject> getVersionedResource(String serviceName, String resource) {
-    List<VersionedResourceObject> resources = new ArrayList<>();
+  public List<VersionedResource> getVersionedResource(String serviceName, String resource) {
+    List<VersionedResource> resources = new ArrayList<>();
     ListObjectsRequest listObjectsRequest =
         new ListObjectsRequest()
             .withBucketName(bucketName)
@@ -152,14 +152,14 @@ public class ArchiverImpl implements Archiver {
       String key = object.getKey();
       String[] prefix = key.split(DELIMITER);
       String versionHash = prefix[prefix.length - 1];
-      VersionedResourceObject versionedResourceObject =
-          VersionedResourceObject.builder()
+      VersionedResource versionedResource =
+          VersionedResource.builder()
               .setServiceName(serviceName)
               .setResourceName(resource)
               .setVersionHash(versionHash)
-              .setCreationTimestamp(object.getLastModified())
+              .setCreationTimestamp(object.getLastModified().toInstant())
               .createVersionedResourceObject();
-      resources.add(versionedResourceObject);
+      resources.add(versionedResource);
     }
     return resources;
   }
