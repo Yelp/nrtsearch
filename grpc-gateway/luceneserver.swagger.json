@@ -1710,7 +1710,15 @@
       }
     },
     "luceneserverDeleteIndexBackupResponse": {
-      "type": "object"
+      "type": "object",
+      "properties": {
+        "deletedVersionHashes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     },
     "luceneserverDeleteIndexRequest": {
       "type": "object",
