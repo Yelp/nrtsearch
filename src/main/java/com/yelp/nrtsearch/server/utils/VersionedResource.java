@@ -117,7 +117,7 @@ public class VersionedResource {
       return this;
     }
 
-    public VersionedResource createVersionedResourceObject() {
+    public VersionedResource createVersionedResource() {
       return new VersionedResource(serviceName, resourceName, versionHash, creationTimestamp);
     }
   }

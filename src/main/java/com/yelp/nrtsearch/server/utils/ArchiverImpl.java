@@ -158,7 +158,7 @@ public class ArchiverImpl implements Archiver {
               .setResourceName(resource)
               .setVersionHash(versionHash)
               .setCreationTimestamp(object.getLastModified().toInstant())
-              .createVersionedResourceObject();
+              .createVersionedResource();
       resources.add(versionedResource);
     }
     return resources;
