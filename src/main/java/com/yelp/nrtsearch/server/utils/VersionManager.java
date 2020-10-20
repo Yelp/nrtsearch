@@ -122,7 +122,9 @@ public class VersionManager {
     if (!s3.doesObjectExist(bucketName, resourceKey)) {
       logger.error(
           "Unable to delete object: {}/{}/{} does not exist in s3",
-          serviceName, resourceName, resourceHash);
+          serviceName,
+          resourceName,
+          resourceHash);
       return false;
     }
     DeleteObjectRequest deleteObjectRequest = new DeleteObjectRequest(bucketName, resourceKey);

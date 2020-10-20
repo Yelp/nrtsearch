@@ -1136,8 +1136,7 @@ public class LuceneServer {
         IndexState indexState = globalState.getIndex(request.getIndexName());
         DeleteIndexBackupHandler backupIndexRequestHandler = new DeleteIndexBackupHandler(archiver);
         DeleteIndexBackupResponse reply = backupIndexRequestHandler.handle(indexState, request);
-        logger.info(
-            "DeleteIndexBackupHandler returned results {}", reply.toString());
+        logger.info("DeleteIndexBackupHandler returned results {}", reply.toString());
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
       } catch (Exception e) {
@@ -1157,9 +1156,7 @@ public class LuceneServer {
                         request.getIndexName(),
                         request.getServiceName(),
                         request.getResourceName(),
-                        request.getNDays()
-                    )
-                )
+                        request.getNDays()))
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
       }

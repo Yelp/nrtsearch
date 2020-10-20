@@ -79,7 +79,11 @@ public class DeleteIndexBackupHandler
     } catch (IOException e) {
       logger.error(
           "Error while trying to delete backup of index {} with serviceName {}, resourceName {}, nDays: {}",
-          indexName, serviceName, resourceName, nDays, e);
+          indexName,
+          serviceName,
+          resourceName,
+          nDays,
+          e);
       return deleteIndexBackupResponseBuilder.build();
     }
 
