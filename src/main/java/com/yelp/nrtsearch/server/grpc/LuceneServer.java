@@ -278,41 +278,52 @@ public class LuceneServer {
     @Override
     public void createIndex(
         CreateIndexRequest req, StreamObserver<CreateIndexResponse> responseObserver) {
-      IndexState indexState = null;
+      String indexName = req.getIndexName();
+      String validIndexNameRegex = "[A-z0-9]+";
+      if (!indexName.matches(validIndexNameRegex)) {
+        responseObserver.onError(
+                Status.INVALID_ARGUMENT
+                        .withDescription(
+                                String.format("Index name %s is invalid - must contain only a-z, A-Z or 0-9", indexName)
+                        )
+                        .asRuntimeException()
+        );
+        return;
+      }
+
       try {
-        // TODO validate indexName e.g only allow a-z, A-Z, 0-9
-        indexState = globalState.createIndex(req.getIndexName(), Paths.get(req.getRootDir()));
+        IndexState indexState = globalState.createIndex(indexName, Paths.get(req.getRootDir()));
         // Create the first shard
         logger.info("NOW ADD SHARD 0");
         indexState.addShard(0, true);
         logger.info("DONE ADD SHARD 0");
         String response =
             String.format(
-                "Created Index name: %s, at rootDir: %s", req.getIndexName(), req.getRootDir());
+                "Created Index name: %s, at rootDir: %s", indexName, req.getRootDir());
         CreateIndexResponse reply = CreateIndexResponse.newBuilder().setResponse(response).build();
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
       } catch (IllegalArgumentException e) {
-        logger.warn("invalid IndexName: " + req.getIndexName(), e);
+        logger.warn("invalid IndexName: " + indexName, e);
         responseObserver.onError(
             Status.ALREADY_EXISTS
-                .withDescription("invalid indexName: " + req.getIndexName())
+                .withDescription("invalid indexName: " + indexName)
                 .augmentDescription("IllegalArgumentException()")
                 .withCause(e)
                 .asRuntimeException());
       } catch (Exception e) {
         logger.warn(
             "error while trying to save index state to disk for indexName: "
-                + req.getIndexName()
+                + indexName
                 + "at rootDir: "
                 + req.getRootDir()
-                + req.getIndexName(),
+                + indexName,
             e);
         responseObserver.onError(
             Status.INTERNAL
                 .withDescription(
                     "error while trying to save index state to disk for indexName: "
-                        + req.getIndexName()
+                        + indexName
                         + "at rootDir: "
                         + req.getRootDir())
                 .augmentDescription(e.getMessage())

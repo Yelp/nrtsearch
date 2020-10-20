@@ -124,19 +124,42 @@ public class LuceneServerTest {
   }
 
   @Test
-  public void testCreateIndex() throws Exception {
+  public void testCreateIndex() {
+    List<String> validIndexNames = List.of("idx", "idx1", "123", "IDX123", "iD1x23");
+    List<String> invalidIndexNames = List.of("id@x", "idx,1", "#", "", "(idx)");
+
     LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
-    CreateIndexResponse reply =
-        blockingStub.createIndex(
-            CreateIndexRequest.newBuilder()
-                .setIndexName(grpcServer.getTestIndex())
-                .setRootDir(grpcServer.getIndexDir())
-                .build());
-    assertEquals(
-        reply.getResponse(),
-        String.format(
-            "Created Index name: %s, at rootDir: %s",
-            grpcServer.getTestIndex(), grpcServer.getIndexDir()));
+
+    for (String indexName : validIndexNames) {
+      CreateIndexRequest request = CreateIndexRequest.newBuilder()
+              .setIndexName(indexName)
+              .setRootDir(grpcServer.getIndexDir())
+              .build();
+      CreateIndexResponse reply = blockingStub.createIndex(request);
+      assertEquals(
+              String.format(
+                      "Created Index name: %s, at rootDir: %s",
+                      indexName, grpcServer.getIndexDir()),
+              reply.getResponse());
+    }
+
+    for (String indexName : invalidIndexNames) {
+      CreateIndexRequest request = CreateIndexRequest.newBuilder()
+              .setIndexName(indexName)
+              .setRootDir(grpcServer.getIndexDir())
+              .build();
+      try {
+        blockingStub.createIndex(request);
+        fail("The above line must throw an exception");
+      } catch (StatusRuntimeException e) {
+        assertEquals(
+                String.format(
+                        "INVALID_ARGUMENT: Index name %s is invalid - must contain only a-z, A-Z or 0-9", indexName
+                ),
+                e.getMessage()
+        );
+      }
+    }
   }
 
   @Test
@@ -910,7 +933,7 @@ public class LuceneServerTest {
     LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
     String index1 = "index1";
     String index2 = "index2";
-    for (String indexName : Arrays.asList(index1, index2)) {
+    for (String indexName : List.of(index1, index2)) {
       CreateIndexResponse createIndexResponse = blockingStub.createIndex(
               CreateIndexRequest.newBuilder()
                       .setIndexName(indexName)
