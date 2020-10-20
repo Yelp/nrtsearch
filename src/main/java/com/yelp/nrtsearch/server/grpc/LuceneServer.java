@@ -87,7 +87,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
-
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -128,8 +127,8 @@ public class LuceneServer {
     if (luceneServerConfiguration.getRestoreState()) {
       logger.info("Loading state for any previously backed up indexes");
       List<String> indexes =
-              RestoreStateHandler.restore(
-                      archiver, globalState, luceneServerConfiguration.getServiceName());
+          RestoreStateHandler.restore(
+              archiver, globalState, luceneServerConfiguration.getServiceName());
       for (String index : indexes) {
         logger.info("Loaded state for index " + index);
       }
@@ -283,12 +282,11 @@ public class LuceneServer {
       String validIndexNameRegex = "[A-z0-9]+";
       if (!indexName.matches(validIndexNameRegex)) {
         responseObserver.onError(
-                Status.INVALID_ARGUMENT
-                        .withDescription(
-                                String.format("Index name %s is invalid - must contain only a-z, A-Z or 0-9", indexName)
-                        )
-                        .asRuntimeException()
-        );
+            Status.INVALID_ARGUMENT
+                .withDescription(
+                    String.format(
+                        "Index name %s is invalid - must contain only a-z, A-Z or 0-9", indexName))
+                .asRuntimeException());
         return;
       }
 
@@ -299,8 +297,7 @@ public class LuceneServer {
         indexState.addShard(0, true);
         logger.info("DONE ADD SHARD 0");
         String response =
-            String.format(
-                "Created Index name: %s, at rootDir: %s", indexName, req.getRootDir());
+            String.format("Created Index name: %s, at rootDir: %s", indexName, req.getRootDir());
         CreateIndexResponse reply = CreateIndexResponse.newBuilder().setResponse(response).build();
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
@@ -949,13 +946,13 @@ public class LuceneServer {
     }
 
     /**
-     * Returns a valid response only if all indices in {@link GlobalState} are started or if
-     * any index names are provided in {@link ReadyCheckRequest} returns a valid response if
-     * those specific indices are started.
+     * Returns a valid response only if all indices in {@link GlobalState} are started or if any
+     * index names are provided in {@link ReadyCheckRequest} returns a valid response if those
+     * specific indices are started.
      */
     @Override
     public void ready(
-            ReadyCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
+        ReadyCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
       Set<String> indexNames;
 
       // If specific index names are provided we will check only those indices, otherwise check all
@@ -966,20 +963,19 @@ public class LuceneServer {
 
         Set<String> allIndices = globalState.getIndexNames();
 
-        Sets.SetView<String> nonExistentIndices = Sets.difference(Set.copyOf(indexNamesToCheck), allIndices);
+        Sets.SetView<String> nonExistentIndices =
+            Sets.difference(Set.copyOf(indexNamesToCheck), allIndices);
         if (!nonExistentIndices.isEmpty()) {
           logger.warn("Indices: {} do not exist", nonExistentIndices);
           responseObserver.onError(
-                  Status.UNAVAILABLE
-                          .withDescription(String.format("Indices do not exist: %s", nonExistentIndices))
-                          .asRuntimeException());
+              Status.UNAVAILABLE
+                  .withDescription(String.format("Indices do not exist: %s", nonExistentIndices))
+                  .asRuntimeException());
           return;
         }
 
-        indexNames = allIndices
-                .stream()
-                .filter(indexNamesToCheck::contains)
-                .collect(Collectors.toSet());
+        indexNames =
+            allIndices.stream().filter(indexNamesToCheck::contains).collect(Collectors.toSet());
       }
 
       try {
@@ -993,24 +989,24 @@ public class LuceneServer {
 
         if (indicesNotStarted.isEmpty()) {
           HealthCheckResponse reply =
-                  HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
+              HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
           logger.debug("Ready check returned " + reply.toString());
           responseObserver.onNext(reply);
           responseObserver.onCompleted();
         } else {
           logger.warn("Indices not started: {}", indicesNotStarted);
           responseObserver.onError(
-                  Status.UNAVAILABLE
-                          .withDescription(String.format("Indices not started: %s", indicesNotStarted))
-                          .asRuntimeException());
+              Status.UNAVAILABLE
+                  .withDescription(String.format("Indices not started: %s", indicesNotStarted))
+                  .asRuntimeException());
         }
       } catch (Exception e) {
         logger.warn("error while trying to check if all required indices are started", e);
         responseObserver.onError(
-                Status.INVALID_ARGUMENT
-                        .withDescription("error while trying to check if all required indices are started")
-                        .augmentDescription(e.getMessage())
-                        .asRuntimeException());
+            Status.INVALID_ARGUMENT
+                .withDescription("error while trying to check if all required indices are started")
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
       }
     }
 

@@ -131,20 +131,21 @@ public class LuceneServerTest {
     LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
 
     for (String indexName : validIndexNames) {
-      CreateIndexRequest request = CreateIndexRequest.newBuilder()
+      CreateIndexRequest request =
+          CreateIndexRequest.newBuilder()
               .setIndexName(indexName)
               .setRootDir(grpcServer.getIndexDir())
               .build();
       CreateIndexResponse reply = blockingStub.createIndex(request);
       assertEquals(
-              String.format(
-                      "Created Index name: %s, at rootDir: %s",
-                      indexName, grpcServer.getIndexDir()),
-              reply.getResponse());
+          String.format(
+              "Created Index name: %s, at rootDir: %s", indexName, grpcServer.getIndexDir()),
+          reply.getResponse());
     }
 
     for (String indexName : invalidIndexNames) {
-      CreateIndexRequest request = CreateIndexRequest.newBuilder()
+      CreateIndexRequest request =
+          CreateIndexRequest.newBuilder()
               .setIndexName(indexName)
               .setRootDir(grpcServer.getIndexDir())
               .build();
@@ -153,11 +154,10 @@ public class LuceneServerTest {
         fail("The above line must throw an exception");
       } catch (StatusRuntimeException e) {
         assertEquals(
-                String.format(
-                        "INVALID_ARGUMENT: Index name %s is invalid - must contain only a-z, A-Z or 0-9", indexName
-                ),
-                e.getMessage()
-        );
+            String.format(
+                "INVALID_ARGUMENT: Index name %s is invalid - must contain only a-z, A-Z or 0-9",
+                indexName),
+            e.getMessage());
       }
     }
   }
@@ -934,19 +934,19 @@ public class LuceneServerTest {
     String index1 = "index1";
     String index2 = "index2";
     for (String indexName : List.of(index1, index2)) {
-      CreateIndexResponse createIndexResponse = blockingStub.createIndex(
+      CreateIndexResponse createIndexResponse =
+          blockingStub.createIndex(
               CreateIndexRequest.newBuilder()
-                      .setIndexName(indexName)
-                      .setRootDir(grpcServer.getIndexDir())
-                      .build());
-      String expectedResponse = String.format(
+                  .setIndexName(indexName)
+                  .setRootDir(grpcServer.getIndexDir())
+                  .build());
+      String expectedResponse =
+          String.format(
               "Created Index name: %s, at rootDir: %s", indexName, grpcServer.getIndexDir());
       assertEquals(expectedResponse, createIndexResponse.getResponse());
     }
-    StartIndexRequest startIndexRequest = StartIndexRequest.newBuilder()
-            .setIndexName(index2)
-            .setMode(Mode.STANDALONE)
-            .build();
+    StartIndexRequest startIndexRequest =
+        StartIndexRequest.newBuilder().setIndexName(index2).setMode(Mode.STANDALONE).build();
     StartIndexResponse startIndexResponse = blockingStub.startIndex(startIndexRequest);
     assertEquals(0, startIndexResponse.getNumDocs());
 
@@ -968,7 +968,8 @@ public class LuceneServerTest {
       }
     }
 
-    HealthCheckResponse response = blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames("index2").build());
+    HealthCheckResponse response =
+        blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames("index2").build());
     assertEquals(response.getHealth(), TransferStatusCode.Done);
   }
 
