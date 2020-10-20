@@ -121,7 +121,7 @@ public class VersionManager {
     final String resourceKey = String.format("%s/%s/%s", serviceName, resourceName, resourceHash);
     if (!s3.doesObjectExist(bucketName, resourceKey)) {
       logger.error(
-          "Unable to delete object: %s/%s/%s does not exist in s3",
+          "Unable to delete object: {}/{}/{} does not exist in s3",
           serviceName, resourceName, resourceHash);
       return false;
     }

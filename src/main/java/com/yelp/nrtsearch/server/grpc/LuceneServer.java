@@ -1137,17 +1137,16 @@ public class LuceneServer {
         DeleteIndexBackupHandler backupIndexRequestHandler = new DeleteIndexBackupHandler(archiver);
         DeleteIndexBackupResponse reply = backupIndexRequestHandler.handle(indexState, request);
         logger.info(
-            String.format("DeleteIndexBackupHandler returned results %s", reply.toString()));
+            "DeleteIndexBackupHandler returned results {}", reply.toString());
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
       } catch (Exception e) {
         logger.warn(
-            String.format(
-                "error while trying to deleteIndexBackup for index: %s for service: %s, resource: %s, nDays: %s",
-                request.getIndexName(),
-                request.getServiceName(),
-                request.getResourceName(),
-                request.getNDays()),
+            "error while trying to deleteIndexBackup for index: {} for service: {}, resource: {}, nDays: {}",
+            request.getIndexName(),
+            request.getServiceName(),
+            request.getResourceName(),
+            request.getNDays(),
             e);
         responseObserver.onError(
             Status.UNKNOWN
@@ -1158,7 +1157,9 @@ public class LuceneServer {
                         request.getIndexName(),
                         request.getServiceName(),
                         request.getResourceName(),
-                        request.getNDays()))
+                        request.getNDays()
+                    )
+                )
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
       }
