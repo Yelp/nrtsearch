@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.grpc;
 import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE;
 
 import com.google.api.HttpBody;
+import com.google.common.base.Splitter;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
@@ -84,6 +85,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
+
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -93,6 +96,7 @@ import picocli.CommandLine;
 /** Server that manages startup/shutdown of a {@code LuceneServer} server. */
 public class LuceneServer {
   private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
+  private static final Splitter COMMA_SPLITTER = Splitter.on(",");
   private final Archiver archiver;
   private final CollectorRegistry collectorRegistry;
   private final PluginsService pluginsService;
@@ -929,6 +933,59 @@ public class LuceneServer {
                 .withDescription("error while trying to get status")
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
+      }
+    }
+
+    /**
+     * Returns a valid response only if all indices in {@link GlobalState} are started or if
+     * any index names are provided in {@link ReadyCheckRequest} returns a valid response if
+     * those specific indices are started.
+     */
+    @Override
+    public void ready(
+            ReadyCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
+      Set<String> indexNames;
+
+      // If specific index names are provided we will check only those indices, otherwise check all
+      if (request.getIndexNames().isEmpty()) {
+        indexNames = globalState.getIndexNames();
+      } else {
+        List<String> indexNamesToCheck = COMMA_SPLITTER.splitToList(request.getIndexNames());
+        indexNames = globalState.getIndexNames()
+                .stream()
+                .filter(indexNamesToCheck::contains)
+                .collect(Collectors.toSet());
+      }
+
+      try {
+        List<String> indicesNotStarted = new ArrayList<>();
+        for (String indexName : indexNames) {
+          IndexState indexState = globalState.getIndex(indexName);
+          if (!indexState.isStarted()) {
+            indicesNotStarted.add(indexName);
+          }
+        }
+
+        if (indicesNotStarted.isEmpty()) {
+          HealthCheckResponse reply =
+                  HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
+          logger.debug("Ready check returned " + reply.toString());
+          responseObserver.onNext(reply);
+          responseObserver.onCompleted();
+        } else {
+          logger.warn("Indices not started: {}", indicesNotStarted);
+          responseObserver.onError(
+                  Status.UNAVAILABLE
+                          .withDescription(String.format("Indices not started: %s", indicesNotStarted))
+                          .asRuntimeException());
+        }
+      } catch (Exception e) {
+        logger.warn("error while trying to check if all required indices are started", e);
+        responseObserver.onError(
+                Status.INVALID_ARGUMENT
+                        .withDescription("error while trying to check if all required indices are started")
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
       }
     }
 
