@@ -1862,6 +1862,12 @@
         },
         "similarityParams": {
           "type": "object"
+        },
+        "childFields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverField"
+          }
         }
       }
     },
@@ -2058,6 +2064,21 @@
         }
       },
       "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
+    },
+    "luceneserverGeoBoundingBoxQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "topLeft": {
+          "$ref": "#/definitions/typeLatLng"
+        },
+        "bottomRight": {
+          "$ref": "#/definitions/typeLatLng"
+        }
+      },
+      "description": "A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types."
     },
     "luceneserverGetAllSnapshotGenResponse": {
       "type": "object",
@@ -2455,6 +2476,9 @@
         },
         "rangeQuery": {
           "$ref": "#/definitions/luceneserverRangeQuery"
+        },
+        "geoBoundingBoxQuery": {
+          "$ref": "#/definitions/luceneserverGeoBoundingBoxQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -2486,7 +2510,8 @@
         "MATCH",
         "MATCH_PHRASE",
         "MULTI_MATCH",
-        "RANGE"
+        "RANGE",
+        "GEO_BOUNDING_BOX"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."

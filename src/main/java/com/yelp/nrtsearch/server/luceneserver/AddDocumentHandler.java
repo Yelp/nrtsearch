@@ -89,7 +89,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
             String.format("Field: %s is not indexable", field.getName()));
       }
       IndexableFieldDef indexableFieldDef = (IndexableFieldDef) field;
-      indexableFieldDef.parseDocumentField(document, fieldValues, facetHierarchyPathValues);
+      indexableFieldDef.parseFieldWithChildren(document, fieldValues, facetHierarchyPathValues);
     }
   }
 

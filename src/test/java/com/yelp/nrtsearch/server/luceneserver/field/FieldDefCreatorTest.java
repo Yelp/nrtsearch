@@ -17,8 +17,11 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import static org.junit.Assert.assertTrue;
 
+import com.google.protobuf.Struct;
+import com.google.protobuf.Value;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.plugins.FieldTypePlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.io.ByteArrayInputStream;
@@ -78,16 +81,31 @@ public class FieldDefCreatorTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testCustomFieldNotDefined() {
-    Field field = Field.newBuilder().build();
-    FieldDefCreator.getInstance().createFieldDef("test_field", "custom_field_type", field);
+    Field field =
+        Field.newBuilder()
+            .setType(FieldType.CUSTOM)
+            .setAdditionalProperties(
+                Struct.newBuilder()
+                    .putFields(
+                        "type", Value.newBuilder().setStringValue("custom_field_type").build())
+                    .build())
+            .build();
+    FieldDefCreator.getInstance().createFieldDef("test_field", field);
   }
 
   @Test
   public void testPluginProvidesFieldType() {
     init(Collections.singletonList(new TestFieldTypePlugin()));
-    Field field = Field.newBuilder().build();
-    FieldDef testFieldDef =
-        FieldDefCreator.getInstance().createFieldDef("test_field", "custom_field_type", field);
+    Field field =
+        Field.newBuilder()
+            .setType(FieldType.CUSTOM)
+            .setAdditionalProperties(
+                Struct.newBuilder()
+                    .putFields(
+                        "type", Value.newBuilder().setStringValue("custom_field_type").build())
+                    .build())
+            .build();
+    FieldDef testFieldDef = FieldDefCreator.getInstance().createFieldDef("test_field", field);
     assertTrue(testFieldDef instanceof TestFieldDef);
   }
 }

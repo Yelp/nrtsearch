@@ -27,6 +27,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IntObject;
@@ -65,6 +66,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 @RunWith(RandomizedRunner.class) // Required to call org.apache.lucene.util.LuceneTestCase.random
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public class AnalyzerCreatorTest {
 
   @Before

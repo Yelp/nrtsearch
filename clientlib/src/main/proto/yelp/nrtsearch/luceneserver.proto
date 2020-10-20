@@ -408,6 +408,7 @@ message Field {
     string facetIndexFieldName = 23; // "Which underlying Lucene index field is used to hold any indexed taxonomy or sorted set doc values facets
     google.protobuf.Struct additionalProperties = 24; // Additional info needed to configure field, used for CUSTOM types.
     google.protobuf.Struct similarityParams = 25; // Parameters for similarity implementation.
+    repeated Field childFields = 26; // Child fields accessible by dot notation, index same data as parent
 }
 
 /* Input to registerFields */
