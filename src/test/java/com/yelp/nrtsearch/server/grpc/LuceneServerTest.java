@@ -959,6 +959,15 @@ public class LuceneServerTest {
       }
     }
 
+    for (String indexNames : Arrays.asList("index3", "index1,index3", "index3,index2,index1")) {
+      try {
+        blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames(indexNames).build());
+        fail("Expecting exception on the previous line");
+      } catch (StatusRuntimeException e) {
+        assertEquals(e.getMessage(), "UNAVAILABLE: Indices do not exist: [index3]");
+      }
+    }
+
     HealthCheckResponse response = blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames("index2").build());
     assertEquals(response.getHealth(), TransferStatusCode.Done);
   }

@@ -19,6 +19,7 @@ import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE
 
 import com.google.api.HttpBody;
 import com.google.common.base.Splitter;
+import com.google.common.collect.Sets;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
@@ -962,7 +963,20 @@ public class LuceneServer {
         indexNames = globalState.getIndexNames();
       } else {
         List<String> indexNamesToCheck = COMMA_SPLITTER.splitToList(request.getIndexNames());
-        indexNames = globalState.getIndexNames()
+
+        Set<String> allIndices = globalState.getIndexNames();
+
+        Sets.SetView<String> nonExistentIndices = Sets.difference(Set.copyOf(indexNamesToCheck), allIndices);
+        if (!nonExistentIndices.isEmpty()) {
+          logger.warn("Indices: {} do not exist", nonExistentIndices);
+          responseObserver.onError(
+                  Status.UNAVAILABLE
+                          .withDescription(String.format("Indices do not exist: %s", nonExistentIndices))
+                          .asRuntimeException());
+          return;
+        }
+
+        indexNames = allIndices
                 .stream()
                 .filter(indexNamesToCheck::contains)
                 .collect(Collectors.toSet());
