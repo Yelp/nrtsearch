@@ -124,6 +124,16 @@ public class LuceneServer {
     String serviceName = luceneServerConfiguration.getServiceName();
     String nodeName = luceneServerConfiguration.getNodeName();
 
+    if (luceneServerConfiguration.getRestoreState()) {
+      logger.info("Loading state for any previously backed up indexes");
+      List<String> indexes =
+              RestoreStateHandler.restore(
+                      archiver, globalState, luceneServerConfiguration.getServiceName());
+      for (String index : indexes) {
+        logger.info("Loaded state for index " + index);
+      }
+    }
+
     LuceneServerMonitoringServerInterceptor monitoringInterceptor =
         LuceneServerMonitoringServerInterceptor.create(
             Configuration.allMetrics()
@@ -180,16 +190,6 @@ public class LuceneServer {
                 logger.error("*** server shut down");
               }
             });
-
-    if (luceneServerConfiguration.getRestoreState()) {
-      logger.info("Loading state for any previously backed up indexes");
-      List<String> indexes =
-          RestoreStateHandler.restore(
-              archiver, globalState, luceneServerConfiguration.getServiceName());
-      for (String index : indexes) {
-        logger.info("Loaded state for index " + index);
-      }
-    }
   }
 
   private void stop() {
