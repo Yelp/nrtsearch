@@ -279,7 +279,7 @@ public class LuceneServer {
     public void createIndex(
         CreateIndexRequest req, StreamObserver<CreateIndexResponse> responseObserver) {
       String indexName = req.getIndexName();
-      String validIndexNameRegex = "[A-z0-9]+";
+      String validIndexNameRegex = "[A-z0-9_-]+";
       if (!indexName.matches(validIndexNameRegex)) {
         responseObserver.onError(
             Status.INVALID_ARGUMENT

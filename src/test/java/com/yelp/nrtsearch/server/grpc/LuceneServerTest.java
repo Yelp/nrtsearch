@@ -125,7 +125,8 @@ public class LuceneServerTest {
 
   @Test
   public void testCreateIndex() {
-    List<String> validIndexNames = List.of("idx", "idx1", "123", "IDX123", "iD1x23");
+    List<String> validIndexNames =
+        List.of("idx", "idx1", "idx_1", "idx-3", "123", "IDX123", "iD1x23", "_");
     List<String> invalidIndexNames = List.of("id@x", "idx,1", "#", "", "(idx)");
 
     LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();

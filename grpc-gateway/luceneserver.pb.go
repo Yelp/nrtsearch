@@ -7884,6 +7884,9 @@ type LuceneServerClient interface {
 	State(ctx context.Context, in *StateRequest, opts ...grpc.CallOption) (*StateResponse, error)
 	// healthcheck
 	Status(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
+	//
+	//Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)
+	//are started. Can specify comma-separated list of index name to only check specific indices if needed.
 	Ready(ctx context.Context, in *ReadyCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
 	// metrics
 	Metrics(ctx context.Context, in *empty.Empty, opts ...grpc.CallOption) (*httpbody.HttpBody, error)
@@ -8260,6 +8263,9 @@ type LuceneServerServer interface {
 	State(context.Context, *StateRequest) (*StateResponse, error)
 	// healthcheck
 	Status(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error)
+	//
+	//Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)
+	//are started. Can specify comma-separated list of index name to only check specific indices if needed.
 	Ready(context.Context, *ReadyCheckRequest) (*HealthCheckResponse, error)
 	// metrics
 	Metrics(context.Context, *empty.Empty) (*httpbody.HttpBody, error)
