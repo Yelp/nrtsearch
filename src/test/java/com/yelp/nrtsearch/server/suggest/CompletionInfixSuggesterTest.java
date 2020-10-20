@@ -154,6 +154,18 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
     assertEquals("shack shack", actualResults.get(0).key);
   }
 
+  @Test(expected = RuntimeException.class)
+  public void testSuggesterLookupWithoutValidIndexBuild() throws IOException {
+    Directory dir = newDirectory();
+    Analyzer analyzer = new StandardAnalyzer();
+    CompletionInfixSuggester testSuggester = new CompletionInfixSuggester(dir, analyzer);
+    try {
+      lookupHelper(testSuggester, "sha", Set.of("9q9hf"), 2);
+    } finally {
+      testSuggester.close();
+    }
+  }
+
   private List<LookupResult> lookupHelper(
       Lookup suggester, String key, Set<String> contexts, int count) throws IOException {
     Set<BytesRef> contextSet = new HashSet<>();

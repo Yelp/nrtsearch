@@ -46,6 +46,26 @@ import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 
+/** Analyzes the input text and suggests matched suggest items
+ * based on the prefix matches to any pre-analyzed suffix-token gram in the indexed text.
+ *
+ * <p> This suggester relies on a customized InputIterator FromFileSuggestItemIterator to build suggestion index.
+ * Each suggest text is pre-analyzed as a list of suffix-token grams.
+ *
+ * <p> This suggester requires payload defined for each suggest item. The payload persist necessary information
+ * for the downstream services.
+ *
+ * <p> This suggester supports multiple contexts. The suggested results are returned only when any of its contexts
+ * matches any context in the lookup query. Context match is not considered if there is no context specified in the
+ * lookup query.
+ *
+ * <p> The same as AnalyzingInfixSuggester, results are sorted by descending weight values.
+ *
+ * Example usage of this suggester:
+ *  1. Use FromFileSuggestItemIterator iterator to read the raw file of suggest items
+ *  2. call build method with FromFileSuggestItemIterator iterator to build indexes
+ *  3. call lookup method to look up the matched items based on the input text and optional contexts.
+ **/
 public class CompletionInfixSuggester extends AnalyzingInfixSuggester {
 
   private static final String EXACT_TEXT_FIELD_NAME = "text";
@@ -64,8 +84,11 @@ public class CompletionInfixSuggester extends AnalyzingInfixSuggester {
   @Override
   public List<LookupResult> lookup(
       CharSequence key, Set<BytesRef> contexts, boolean onlyMorePopular, int num)
-      throws IOException {
-    ensureOpen();
+      throws IOException, RuntimeException {
+    if (searcherMgr == null) {
+      throw new RuntimeException("No valid searcher manager available!");
+    }
+
     IndexSearcher searcher;
     SearcherManager mgr;
     List<LookupResult> results;
