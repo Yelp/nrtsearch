@@ -256,7 +256,7 @@ service LuceneServer {
         option (google.api.http) = {
             get: "/v1/ready"
             additional_bindings {
-				get: "/v1/ready/{indexName}"
+				get: "/v1/ready/{indexNames}"
 			}
         };
     }
