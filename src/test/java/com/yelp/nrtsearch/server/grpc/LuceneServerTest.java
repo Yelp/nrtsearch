@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
 import java.io.IOException;
@@ -123,19 +124,43 @@ public class LuceneServerTest {
   }
 
   @Test
-  public void testCreateIndex() throws Exception {
+  public void testCreateIndex() {
+    List<String> validIndexNames =
+        List.of("idx", "idx1", "idx_1", "idx-3", "123", "IDX123", "iD1x23", "_");
+    List<String> invalidIndexNames = List.of("id@x", "idx,1", "#", "", "(idx)");
+
     LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
-    CreateIndexResponse reply =
-        blockingStub.createIndex(
-            CreateIndexRequest.newBuilder()
-                .setIndexName(grpcServer.getTestIndex())
-                .setRootDir(grpcServer.getIndexDir())
-                .build());
-    assertEquals(
-        reply.getResponse(),
-        String.format(
-            "Created Index name: %s, at rootDir: %s",
-            grpcServer.getTestIndex(), grpcServer.getIndexDir()));
+
+    for (String indexName : validIndexNames) {
+      CreateIndexRequest request =
+          CreateIndexRequest.newBuilder()
+              .setIndexName(indexName)
+              .setRootDir(grpcServer.getIndexDir())
+              .build();
+      CreateIndexResponse reply = blockingStub.createIndex(request);
+      assertEquals(
+          String.format(
+              "Created Index name: %s, at rootDir: %s", indexName, grpcServer.getIndexDir()),
+          reply.getResponse());
+    }
+
+    for (String indexName : invalidIndexNames) {
+      CreateIndexRequest request =
+          CreateIndexRequest.newBuilder()
+              .setIndexName(indexName)
+              .setRootDir(grpcServer.getIndexDir())
+              .build();
+      try {
+        blockingStub.createIndex(request);
+        fail("The above line must throw an exception");
+      } catch (StatusRuntimeException e) {
+        assertEquals(
+            String.format(
+                "INVALID_ARGUMENT: Index name %s is invalid - must contain only a-z, A-Z or 0-9",
+                indexName),
+            e.getMessage());
+      }
+    }
   }
 
   @Test
@@ -902,6 +927,51 @@ public class LuceneServerTest {
 
     assertThat(
         getAllSnapshotGenResponse.getIndexGensList(), IsCollectionContaining.hasItems(1L, 2L));
+  }
+
+  @Test
+  public void testReady() {
+    LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
+    String index1 = "index1";
+    String index2 = "index2";
+    for (String indexName : List.of(index1, index2)) {
+      CreateIndexResponse createIndexResponse =
+          blockingStub.createIndex(
+              CreateIndexRequest.newBuilder()
+                  .setIndexName(indexName)
+                  .setRootDir(grpcServer.getIndexDir())
+                  .build());
+      String expectedResponse =
+          String.format(
+              "Created Index name: %s, at rootDir: %s", indexName, grpcServer.getIndexDir());
+      assertEquals(expectedResponse, createIndexResponse.getResponse());
+    }
+    StartIndexRequest startIndexRequest =
+        StartIndexRequest.newBuilder().setIndexName(index2).setMode(Mode.STANDALONE).build();
+    StartIndexResponse startIndexResponse = blockingStub.startIndex(startIndexRequest);
+    assertEquals(0, startIndexResponse.getNumDocs());
+
+    for (String indexNames : Arrays.asList("", "index1", "index1,index2")) {
+      try {
+        blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames(indexNames).build());
+        fail("Expecting exception on the previous line");
+      } catch (StatusRuntimeException e) {
+        assertEquals(e.getMessage(), "UNAVAILABLE: Indices not started: [index1]");
+      }
+    }
+
+    for (String indexNames : Arrays.asList("index3", "index1,index3", "index3,index2,index1")) {
+      try {
+        blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames(indexNames).build());
+        fail("Expecting exception on the previous line");
+      } catch (StatusRuntimeException e) {
+        assertEquals(e.getMessage(), "UNAVAILABLE: Indices do not exist: [index3]");
+      }
+    }
+
+    HealthCheckResponse response =
+        blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames("index2").build());
+    assertEquals(response.getHealth(), TransferStatusCode.Done);
   }
 
   public static List<VirtualField> getQueryVirtualFields() {

@@ -17,14 +17,19 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
+import com.yelp.nrtsearch.server.grpc.TermQuery;
+import com.yelp.nrtsearch.server.grpc.TermQuery.TermTypesCase;
 import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -38,13 +43,15 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 
 /**
  * Base class for all text base field definitions. In addition to the properties from {@link
  * IndexableFieldDef}, text fields have the option for {@link Analyzer}s and highlighting.
  */
-public abstract class TextBaseFieldDef extends IndexableFieldDef {
+public abstract class TextBaseFieldDef extends IndexableFieldDef implements TermQueryable {
 
   private final boolean isHighlighted;
   private final Analyzer indexAnalyzer;
@@ -317,5 +324,27 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef {
    */
   public boolean isHighlighted() {
     return isHighlighted;
+  }
+
+  @Override
+  public Query getTermQuery(TermQuery termQuery) {
+    if (termQuery.getTermTypesCase() != TermTypesCase.TEXTVALUE) {
+      throw new IllegalArgumentException(
+          "Cannot query for term type: " + termQuery.getTermTypesCase());
+    }
+    return new org.apache.lucene.search.TermQuery(new Term(getName(), termQuery.getTextValue()));
+  }
+
+  @Override
+  public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
+    if (termInSetQuery.getTermTypesCase() != TermInSetQuery.TermTypesCase.TEXTTERMS) {
+      throw new IllegalArgumentException(
+          "Cannot query for terms type: " + termInSetQuery.getTermTypesCase());
+    }
+    List<BytesRef> textTerms =
+        termInSetQuery.getTextTerms().getTermsList().stream()
+            .map(BytesRef::new)
+            .collect(Collectors.toList());
+    return new org.apache.lucene.search.TermInSetQuery(termInSetQuery.getField(), textTerms);
   }
 }

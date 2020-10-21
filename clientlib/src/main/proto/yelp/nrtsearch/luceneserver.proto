@@ -232,6 +232,14 @@ service LuceneServer {
       body: "*"
     };
     }
+
+    rpc deleteIndexBackup (DeleteIndexBackupRequest) returns (DeleteIndexBackupResponse) {
+        option (google.api.http) = {
+            post: "/v1/delete_index_backup"
+            body: "*"
+        };
+    }
+
     /* Gets the state of a started index, includes settings, live_settings, search schema, suggest schema */
     rpc state (StateRequest) returns (StateResponse) {
         option (google.api.http) = {
@@ -251,6 +259,20 @@ service LuceneServer {
     };
 
     }
+
+    /*
+    Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)
+    are started. Can specify comma-separated list of index name to only check specific indices if needed.
+    */
+    rpc ready (ReadyCheckRequest) returns (HealthCheckResponse) {
+        option (google.api.http) = {
+            get: "/v1/ready"
+            additional_bindings {
+				get: "/v1/ready/{indexNames}"
+			}
+        };
+    }
+
     /* metrics  */
     rpc metrics (google.protobuf.Empty) returns (google.api.HttpBody) {
         option (google.api.http) = {
@@ -743,6 +765,17 @@ message BackupIndexResponse {
     string metadataVersionHash = 2; //version identifier for metadata on s3
 }
 
+message DeleteIndexBackupRequest {
+    string indexName = 1; //name of the index to backup
+    string serviceName = 2; // remote storage namespace qualifier for service
+    string resourceName = 3; //remote storage namespace qualifier for resource e.g. indexName
+    int32 nDays = 4; //backups older than nDays will be deleted from s3
+}
+
+message DeleteIndexBackupResponse {
+    repeated string deletedVersionHashes = 1; // version hashes of backups which were deleted
+}
+
 message IndicesRequest {
 }
 
@@ -852,6 +885,10 @@ message HealthCheckRequest {
 
 message HealthCheckResponse {
     TransferStatusCode health = 1; //enum response of healthcheck;
+}
+
+message ReadyCheckRequest {
+    string indexNames = 1;
 }
 
 message TransferStatus {

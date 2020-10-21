@@ -13,18 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver.field;
+package com.yelp.nrtsearch.server.luceneserver;
 
-import com.yelp.nrtsearch.server.grpc.Field;
+public class IndexBackupUtils {
 
-/** Field class for 'TEXT' field type. */
-public class TextFieldDef extends TextBaseFieldDef {
-  public TextFieldDef(String name, Field requestField) {
-    super(name, requestField);
+  public static String getResourceMetadata(String resourceName) {
+    return String.format("%s_metadata", resourceName);
   }
 
-  @Override
-  public String getType() {
-    return "TEXT";
+  public static String getResourceData(String resourceName) {
+    return String.format("%s_data", resourceName);
   }
 }
