@@ -18,6 +18,8 @@ package com.yelp.nrtsearch.server.grpc;
 import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE;
 
 import com.google.api.HttpBody;
+import com.google.common.base.Splitter;
+import com.google.common.collect.Sets;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
@@ -35,6 +37,7 @@ import com.yelp.nrtsearch.server.luceneserver.CreateSnapshotHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteAllDocumentsHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteByQueryHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteDocumentsHandler;
+import com.yelp.nrtsearch.server.luceneserver.DeleteIndexBackupHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteIndexHandler;
 import com.yelp.nrtsearch.server.luceneserver.GetNodesInfoHandler;
 import com.yelp.nrtsearch.server.luceneserver.GetStateHandler;
@@ -84,6 +87,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Collectors;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -93,6 +97,7 @@ import picocli.CommandLine;
 /** Server that manages startup/shutdown of a {@code LuceneServer} server. */
 public class LuceneServer {
   private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
+  private static final Splitter COMMA_SPLITTER = Splitter.on(",");
   private final Archiver archiver;
   private final CollectorRegistry collectorRegistry;
   private final PluginsService pluginsService;
@@ -119,6 +124,16 @@ public class LuceneServer {
 
     String serviceName = luceneServerConfiguration.getServiceName();
     String nodeName = luceneServerConfiguration.getNodeName();
+
+    if (luceneServerConfiguration.getRestoreState()) {
+      logger.info("Loading state for any previously backed up indexes");
+      List<String> indexes =
+          RestoreStateHandler.restore(
+              archiver, globalState, luceneServerConfiguration.getServiceName());
+      for (String index : indexes) {
+        logger.info("Loaded state for index " + index);
+      }
+    }
 
     LuceneServerMonitoringServerInterceptor monitoringInterceptor =
         LuceneServerMonitoringServerInterceptor.create(
@@ -176,16 +191,6 @@ public class LuceneServer {
                 logger.error("*** server shut down");
               }
             });
-
-    if (luceneServerConfiguration.getRestoreState()) {
-      logger.info("Loading state for any previously backed up indexes");
-      List<String> indexes =
-          RestoreStateHandler.restore(
-              archiver, globalState, luceneServerConfiguration.getServiceName());
-      for (String index : indexes) {
-        logger.info("Loaded state for index " + index);
-      }
-    }
   }
 
   private void stop() {
@@ -274,41 +279,50 @@ public class LuceneServer {
     @Override
     public void createIndex(
         CreateIndexRequest req, StreamObserver<CreateIndexResponse> responseObserver) {
-      IndexState indexState = null;
+      String indexName = req.getIndexName();
+      String validIndexNameRegex = "[A-z0-9_-]+";
+      if (!indexName.matches(validIndexNameRegex)) {
+        responseObserver.onError(
+            Status.INVALID_ARGUMENT
+                .withDescription(
+                    String.format(
+                        "Index name %s is invalid - must contain only a-z, A-Z or 0-9", indexName))
+                .asRuntimeException());
+        return;
+      }
+
       try {
-        // TODO validate indexName e.g only allow a-z, A-Z, 0-9
-        indexState = globalState.createIndex(req.getIndexName(), Paths.get(req.getRootDir()));
+        IndexState indexState = globalState.createIndex(indexName, Paths.get(req.getRootDir()));
         // Create the first shard
         logger.info("NOW ADD SHARD 0");
         indexState.addShard(0, true);
         logger.info("DONE ADD SHARD 0");
         String response =
-            String.format(
-                "Created Index name: %s, at rootDir: %s", req.getIndexName(), req.getRootDir());
+            String.format("Created Index name: %s, at rootDir: %s", indexName, req.getRootDir());
         CreateIndexResponse reply = CreateIndexResponse.newBuilder().setResponse(response).build();
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
       } catch (IllegalArgumentException e) {
-        logger.warn("invalid IndexName: " + req.getIndexName(), e);
+        logger.warn("invalid IndexName: " + indexName, e);
         responseObserver.onError(
             Status.ALREADY_EXISTS
-                .withDescription("invalid indexName: " + req.getIndexName())
+                .withDescription("invalid indexName: " + indexName)
                 .augmentDescription("IllegalArgumentException()")
                 .withCause(e)
                 .asRuntimeException());
       } catch (Exception e) {
         logger.warn(
             "error while trying to save index state to disk for indexName: "
-                + req.getIndexName()
+                + indexName
                 + "at rootDir: "
                 + req.getRootDir()
-                + req.getIndexName(),
+                + indexName,
             e);
         responseObserver.onError(
             Status.INTERNAL
                 .withDescription(
                     "error while trying to save index state to disk for indexName: "
-                        + req.getIndexName()
+                        + indexName
                         + "at rootDir: "
                         + req.getRootDir())
                 .augmentDescription(e.getMessage())
@@ -932,6 +946,71 @@ public class LuceneServer {
       }
     }
 
+    /**
+     * Returns a valid response only if all indices in {@link GlobalState} are started or if any
+     * index names are provided in {@link ReadyCheckRequest} returns a valid response if those
+     * specific indices are started.
+     */
+    @Override
+    public void ready(
+        ReadyCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
+      Set<String> indexNames;
+
+      // If specific index names are provided we will check only those indices, otherwise check all
+      if (request.getIndexNames().isEmpty()) {
+        indexNames = globalState.getIndexNames();
+      } else {
+        List<String> indexNamesToCheck = COMMA_SPLITTER.splitToList(request.getIndexNames());
+
+        Set<String> allIndices = globalState.getIndexNames();
+
+        Sets.SetView<String> nonExistentIndices =
+            Sets.difference(Set.copyOf(indexNamesToCheck), allIndices);
+        if (!nonExistentIndices.isEmpty()) {
+          logger.warn("Indices: {} do not exist", nonExistentIndices);
+          responseObserver.onError(
+              Status.UNAVAILABLE
+                  .withDescription(String.format("Indices do not exist: %s", nonExistentIndices))
+                  .asRuntimeException());
+          return;
+        }
+
+        indexNames =
+            allIndices.stream().filter(indexNamesToCheck::contains).collect(Collectors.toSet());
+      }
+
+      try {
+        List<String> indicesNotStarted = new ArrayList<>();
+        for (String indexName : indexNames) {
+          IndexState indexState = globalState.getIndex(indexName);
+          if (!indexState.isStarted()) {
+            indicesNotStarted.add(indexName);
+          }
+        }
+
+        if (indicesNotStarted.isEmpty()) {
+          HealthCheckResponse reply =
+              HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
+          logger.debug("Ready check returned " + reply.toString());
+          responseObserver.onNext(reply);
+          responseObserver.onCompleted();
+        } else {
+          logger.warn("Indices not started: {}", indicesNotStarted);
+          responseObserver.onError(
+              Status.UNAVAILABLE
+                  .withDescription(String.format("Indices not started: %s", indicesNotStarted))
+                  .asRuntimeException());
+        }
+      } catch (Exception e) {
+        logger.warn("error while trying to check if all required indices are started", e);
+        responseObserver.onError(
+            Status.INVALID_ARGUMENT
+                .withDescription("error while trying to check if all required indices are started")
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+
     @Override
     public void buildSuggest(
         BuildSuggestRequest buildSuggestRequest,
@@ -1122,6 +1201,40 @@ public class LuceneServer {
                         backupIndexRequest.getIndexName(),
                         backupIndexRequest.getServiceName(),
                         backupIndexRequest.getResourceName()))
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+
+    @Override
+    public void deleteIndexBackup(
+        DeleteIndexBackupRequest request,
+        StreamObserver<DeleteIndexBackupResponse> responseObserver) {
+      try {
+        IndexState indexState = globalState.getIndex(request.getIndexName());
+        DeleteIndexBackupHandler backupIndexRequestHandler = new DeleteIndexBackupHandler(archiver);
+        DeleteIndexBackupResponse reply = backupIndexRequestHandler.handle(indexState, request);
+        logger.info("DeleteIndexBackupHandler returned results {}", reply.toString());
+        responseObserver.onNext(reply);
+        responseObserver.onCompleted();
+      } catch (Exception e) {
+        logger.warn(
+            "error while trying to deleteIndexBackup for index: {} for service: {}, resource: {}, nDays: {}",
+            request.getIndexName(),
+            request.getServiceName(),
+            request.getResourceName(),
+            request.getNDays(),
+            e);
+        responseObserver.onError(
+            Status.UNKNOWN
+                .withCause(e)
+                .withDescription(
+                    String.format(
+                        "error while trying to deleteIndexBackup for index %s for service: %s, resource: %s, nDays: %s",
+                        request.getIndexName(),
+                        request.getServiceName(),
+                        request.getResourceName(),
+                        request.getNDays()))
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
       }

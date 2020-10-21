@@ -44,7 +44,10 @@ public class ScriptService {
   private static ScriptService instance;
 
   private static final List<ScriptContext<?>> builtInContexts =
-      ImmutableList.<ScriptContext<?>>builder().add(ScoreScript.CONTEXT).build();
+      ImmutableList.<ScriptContext<?>>builder()
+          .add(FacetScript.CONTEXT)
+          .add(ScoreScript.CONTEXT)
+          .build();
 
   private final Map<String, ScriptEngine> scriptEngineMap = new HashMap<>();
   private final LoadingCache<ScriptCacheKey, Object> scriptCache;
