@@ -83,21 +83,13 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     return backupIndexResponseBuilder.build();
   }
 
-  public static String getResourceMetadata(String resourceName) {
-    return String.format("%s_metadata", resourceName);
-  }
-
-  public static String getResourceData(String resourceName) {
-    return String.format("%s_data", resourceName);
-  }
-
   public void uploadArtifacts(
       String serviceName,
       String resourceName,
       IndexState indexState,
       BackupIndexResponse.Builder backupIndexResponseBuilder)
       throws IOException {
-    String resourceData = getResourceData(resourceName);
+    String resourceData = IndexBackupUtils.getResourceData(resourceName);
     String versionHash = archiver.upload(serviceName, resourceData, indexState.rootDir);
     archiver.blessVersion(serviceName, resourceData, versionHash);
     backupIndexResponseBuilder.setDataVersionHash(versionHash);
@@ -111,7 +103,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       IndexState indexState,
       BackupIndexResponse.Builder backupIndexResponseBuilder)
       throws IOException {
-    String resourceMetadata = getResourceMetadata(resourceName);
+    String resourceMetadata = IndexBackupUtils.getResourceMetadata(resourceName);
     String versionHash =
         archiver.upload(serviceName, resourceMetadata, indexState.globalState.stateDir);
     archiver.blessVersion(serviceName, resourceMetadata, versionHash);

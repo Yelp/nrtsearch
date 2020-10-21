@@ -37,6 +37,7 @@ import com.yelp.nrtsearch.server.luceneserver.CreateSnapshotHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteAllDocumentsHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteByQueryHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteDocumentsHandler;
+import com.yelp.nrtsearch.server.luceneserver.DeleteIndexBackupHandler;
 import com.yelp.nrtsearch.server.luceneserver.DeleteIndexHandler;
 import com.yelp.nrtsearch.server.luceneserver.GetNodesInfoHandler;
 import com.yelp.nrtsearch.server.luceneserver.GetStateHandler;
@@ -1200,6 +1201,40 @@ public class LuceneServer {
                         backupIndexRequest.getIndexName(),
                         backupIndexRequest.getServiceName(),
                         backupIndexRequest.getResourceName()))
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+
+    @Override
+    public void deleteIndexBackup(
+        DeleteIndexBackupRequest request,
+        StreamObserver<DeleteIndexBackupResponse> responseObserver) {
+      try {
+        IndexState indexState = globalState.getIndex(request.getIndexName());
+        DeleteIndexBackupHandler backupIndexRequestHandler = new DeleteIndexBackupHandler(archiver);
+        DeleteIndexBackupResponse reply = backupIndexRequestHandler.handle(indexState, request);
+        logger.info("DeleteIndexBackupHandler returned results {}", reply.toString());
+        responseObserver.onNext(reply);
+        responseObserver.onCompleted();
+      } catch (Exception e) {
+        logger.warn(
+            "error while trying to deleteIndexBackup for index: {} for service: {}, resource: {}, nDays: {}",
+            request.getIndexName(),
+            request.getServiceName(),
+            request.getResourceName(),
+            request.getNDays(),
+            e);
+        responseObserver.onError(
+            Status.UNKNOWN
+                .withCause(e)
+                .withDescription(
+                    String.format(
+                        "error while trying to deleteIndexBackup for index %s for service: %s, resource: %s, nDays: %s",
+                        request.getIndexName(),
+                        request.getServiceName(),
+                        request.getResourceName(),
+                        request.getNDays()))
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
       }

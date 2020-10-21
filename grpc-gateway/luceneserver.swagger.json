@@ -332,6 +332,38 @@
         ]
       }
     },
+    "/v1/delete_index_backup": {
+      "post": {
+        "operationId": "LuceneServer_deleteIndexBackup",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverDeleteIndexBackupResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverDeleteIndexBackupRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/force_merge": {
       "post": {
         "operationId": "LuceneServer_forceMerge",
@@ -1717,6 +1749,35 @@
           "type": "array",
           "items": {
             "$ref": "#/definitions/luceneserverQuery"
+          }
+        }
+      }
+    },
+    "luceneserverDeleteIndexBackupRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        },
+        "resourceName": {
+          "type": "string"
+        },
+        "nDays": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "luceneserverDeleteIndexBackupResponse": {
+      "type": "object",
+      "properties": {
+        "deletedVersionHashes": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       }
