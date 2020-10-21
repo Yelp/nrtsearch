@@ -259,6 +259,20 @@ service LuceneServer {
     };
 
     }
+
+    /*
+    Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)
+    are started. Can specify comma-separated list of index name to only check specific indices if needed.
+    */
+    rpc ready (ReadyCheckRequest) returns (HealthCheckResponse) {
+        option (google.api.http) = {
+            get: "/v1/ready"
+            additional_bindings {
+				get: "/v1/ready/{indexNames}"
+			}
+        };
+    }
+
     /* metrics  */
     rpc metrics (google.protobuf.Empty) returns (google.api.HttpBody) {
         option (google.api.http) = {
@@ -871,6 +885,10 @@ message HealthCheckRequest {
 
 message HealthCheckResponse {
     TransferStatusCode health = 1; //enum response of healthcheck;
+}
+
+message ReadyCheckRequest {
+    string indexNames = 1;
 }
 
 message TransferStatus {

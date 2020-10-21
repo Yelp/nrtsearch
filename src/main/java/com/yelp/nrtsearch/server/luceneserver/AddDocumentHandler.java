@@ -58,12 +58,12 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
 
     /** Parses a field's value, which is a MultiValuedField in all cases */
     private static void parseOneField(
-        String key,
+        String fieldName,
         AddDocumentRequest.MultiValuedField value,
         Document document,
         IndexState indexState)
         throws AddDocumentHandlerException {
-      parseMultiValueField(indexState.getField(key), value, document);
+      parseMultiValueField(indexState.getField(fieldName), value, document);
     }
 
     /** Parse MultiValuedField for a single field, which is always a List<String>. */

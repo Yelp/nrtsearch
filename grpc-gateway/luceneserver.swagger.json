@@ -483,6 +483,68 @@
         ]
       }
     },
+    "/v1/ready": {
+      "get": {
+        "summary": "Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)\nare started. Can specify comma-separated list of index name to only check specific indices if needed.",
+        "operationId": "LuceneServer_ready",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverHealthCheckResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "indexNames",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/ready/{indexNames}": {
+      "get": {
+        "summary": "Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)\nare started. Can specify comma-separated list of index name to only check specific indices if needed.",
+        "operationId": "LuceneServer_ready2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverHealthCheckResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "indexNames",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/refresh": {
       "post": {
         "summary": "Refresh the latest searcher for an index",
@@ -2120,6 +2182,21 @@
       },
       "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
     },
+    "luceneserverGeoBoundingBoxQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "topLeft": {
+          "$ref": "#/definitions/typeLatLng"
+        },
+        "bottomRight": {
+          "$ref": "#/definitions/typeLatLng"
+        }
+      },
+      "description": "A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types."
+    },
     "luceneserverGetAllSnapshotGenResponse": {
       "type": "object",
       "properties": {
@@ -2516,6 +2593,9 @@
         },
         "rangeQuery": {
           "$ref": "#/definitions/luceneserverRangeQuery"
+        },
+        "geoBoundingBoxQuery": {
+          "$ref": "#/definitions/luceneserverGeoBoundingBoxQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -2547,7 +2627,8 @@
         "MATCH",
         "MATCH_PHRASE",
         "MULTI_MATCH",
-        "RANGE"
+        "RANGE",
+        "GEO_BOUNDING_BOX"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."
