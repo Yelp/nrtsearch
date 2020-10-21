@@ -27,10 +27,13 @@ import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.apache.lucene.util.automaton.Operations;
 
 /**
- * Analyzes the input text and suggests fuzzy-matched suggest items based on the prefix fuzzily
- * matches to any pre-analyzed suffix-token gram in the indexed text.
+ * Suggests fuzzy-matched suggest items.
  *
- * <p>maxEdits = 1 is recommended for faster lookup
+ * <p>The similarity is measured by default Damerau-Levenshtein algorithm or classic Levenshtein
+ * algorithm with false value in transpositions.
+ *
+ * <p>The maximum edit distance is controlled by maxEdit variable. It is recommended to set maxEdit
+ * as 1 for faster lookup.
  */
 public class FuzzyInfixSuggester extends CompletionInfixSuggester {
 
