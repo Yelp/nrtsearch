@@ -57,7 +57,7 @@ public class FuzzyInfixSuggesterTest extends LuceneTestCase {
 
   @Test
   public void testCompletionSuggestionWithLongPrefixWithoutContext() throws IOException {
-    List<LookupResult> actualResults = lookupHelper(suggester, "hom", Set.of(), 10);
+    List<LookupResult> actualResults = lookupHelper(suggester, "hom", Set.of(), 9);
 
     // "iom decoration" text is not returned since non_fuzzy_prefix is 1.
     assertNotNull(actualResults);
@@ -70,7 +70,7 @@ public class FuzzyInfixSuggesterTest extends LuceneTestCase {
 
   @Test
   public void testCompletionSuggestionWithShortPrefixWithoutContext() throws IOException {
-    List<LookupResult> actualResults = lookupHelper(suggester, "hi", Set.of(), 10);
+    List<LookupResult> actualResults = lookupHelper(suggester, "hi", Set.of(), 9);
 
     // No fuzzy match is returned since the length of prefix is less than non_fuzzy_prefix (3 in
     // this case).
@@ -81,7 +81,7 @@ public class FuzzyInfixSuggesterTest extends LuceneTestCase {
 
   @Test
   public void testCompletionSuggestionWithLongPrefixWithContext() throws IOException {
-    List<LookupResult> actualResults = lookupHelper(suggester, "hom", Set.of("9q9hfe"), 10);
+    List<LookupResult> actualResults = lookupHelper(suggester, "hom", Set.of("9q9hfe"), 9);
 
     // "iom decoration" text is not returned since non_fuzzy_prefix is 1.
     assertNotNull(actualResults);
