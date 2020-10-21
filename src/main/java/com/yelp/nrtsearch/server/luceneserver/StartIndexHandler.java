@@ -133,9 +133,9 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       String serviceName, String resourceName, INDEXED_DATA_TYPE indexDataType) {
     String resource;
     if (indexDataType.equals(INDEXED_DATA_TYPE.DATA)) {
-      resource = BackupIndexRequestHandler.getResourceData(resourceName);
+      resource = IndexBackupUtils.getResourceData(resourceName);
     } else if (indexDataType.equals(INDEXED_DATA_TYPE.STATE)) {
-      resource = BackupIndexRequestHandler.getResourceMetadata(resourceName);
+      resource = IndexBackupUtils.getResourceMetadata(resourceName);
     } else {
       throw new RuntimeException("Invalid INDEXED_DATA_TYPE " + indexDataType);
     }

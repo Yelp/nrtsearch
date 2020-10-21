@@ -21,6 +21,7 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.transfer.Download;
 import com.amazonaws.services.s3.transfer.PersistableTransfer;
 import com.amazonaws.services.s3.transfer.TransferManager;
@@ -137,6 +138,33 @@ public class ArchiverImpl implements Archiver {
   }
 
   @Override
+  public List<VersionedResource> getVersionedResource(String serviceName, String resource) {
+    List<VersionedResource> resources = new ArrayList<>();
+    ListObjectsRequest listObjectsRequest =
+        new ListObjectsRequest()
+            .withBucketName(bucketName)
+            .withPrefix(serviceName + DELIMITER + resource + DELIMITER)
+            .withDelimiter(DELIMITER);
+
+    List<S3ObjectSummary> objects = s3.listObjects(listObjectsRequest).getObjectSummaries();
+
+    for (S3ObjectSummary object : objects) {
+      String key = object.getKey();
+      String[] prefix = key.split(DELIMITER);
+      String versionHash = prefix[prefix.length - 1];
+      VersionedResource versionedResource =
+          VersionedResource.builder()
+              .setServiceName(serviceName)
+              .setResourceName(resource)
+              .setVersionHash(versionHash)
+              .setCreationTimestamp(object.getLastModified().toInstant())
+              .createVersionedResource();
+      resources.add(versionedResource);
+    }
+    return resources;
+  }
+
+  @Override
   public String upload(final String serviceName, final String resource, Path sourceDir)
       throws IOException {
     if (!Files.exists(sourceDir)) {
@@ -238,6 +266,12 @@ public class ArchiverImpl implements Archiver {
         }
       }
     }
+  }
+
+  @Override
+  public boolean deleteVersion(String serviceName, String resource, String versionHash)
+      throws IOException {
+    return versionManger.deleteVersion(serviceName, resource, versionHash);
   }
 
   private String getTmpName() {
