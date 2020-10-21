@@ -155,7 +155,7 @@ public class CompletionInfixSuggester extends AnalyzingInfixSuggester {
     return contextQuery;
   }
 
-  private CompletionQuery createCompletionQuery(CharSequence key) {
+  protected CompletionQuery createCompletionQuery(CharSequence key) {
     return new PrefixCompletionQuery(
         queryAnalyzer, new Term(SEARCH_TEXT_FIELD_NAME, new BytesRef(key)));
   }
