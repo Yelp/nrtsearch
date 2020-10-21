@@ -1852,6 +1852,9 @@
         "topN": {
           "type": "integer",
           "format": "int32"
+        },
+        "script": {
+          "$ref": "#/definitions/luceneserverScript"
         }
       }
     },
