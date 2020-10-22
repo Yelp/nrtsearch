@@ -33,7 +33,6 @@ import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
-import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -45,7 +44,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefResponse> {
-  static final String CUSTOM_TYPE_KEY = "type";
   Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
   private final JsonParser jsonParser = new JsonParser();
 
@@ -117,18 +115,38 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
           verifyOnlyOneIdFieldExists(indexState, pendingFieldDefs, fieldDef);
         }
         pendingFieldDefs.put(fieldName, fieldDef);
+        if (fieldDef instanceof IndexableFieldDef) {
+          addChildFields((IndexableFieldDef) fieldDef, pendingFieldDefs);
+        }
       }
     }
 
     // add FieldDef and its corresponding JsonObject to states variable in IndexState
     for (Map.Entry<String, FieldDef> ent : pendingFieldDefs.entrySet()) {
-      JsonObject fieldAsJsonObject =
-          jsonParser.parse(saveStates.get(ent.getKey())).getAsJsonObject();
-      indexState.addField(ent.getValue(), fieldAsJsonObject);
+      if (IndexState.isChildName(ent.getKey())) {
+        // child field will be present in top level field json
+        indexState.addField(ent.getValue(), null);
+      } else {
+        JsonObject fieldAsJsonObject =
+            jsonParser.parse(saveStates.get(ent.getKey())).getAsJsonObject();
+        indexState.addField(ent.getValue(), fieldAsJsonObject);
+      }
     }
     String response = indexState.getAllFieldsJSON();
     FieldDefResponse reply = FieldDefResponse.newBuilder().setResponse(response).build();
     return reply;
+  }
+
+  // recursively add all children to pendingFieldDefs
+  private void addChildFields(
+      IndexableFieldDef indexableFieldDef, Map<String, FieldDef> pendingFieldDefs) {
+    indexableFieldDef
+        .getChildFields()
+        .forEach(
+            (k, v) -> {
+              pendingFieldDefs.put(k, v);
+              addChildFields(v, pendingFieldDefs);
+            });
   }
 
   private void verifyOnlyOneIdFieldExists(
@@ -157,21 +175,11 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
       String fieldName,
       Field currentField)
       throws RegisterFieldsException {
-    FieldType fieldType = currentField.getType();
     if (FieldType.VIRTUAL.equals(currentField.getType())) {
       return parseOneVirtualFieldType(indexState, pendingFieldDefs, fieldName, currentField);
     }
 
-    String fieldTypeStr;
-    if (fieldType.equals(FieldType.CUSTOM)) {
-      fieldTypeStr =
-          getCustomFieldType(
-              StructValueTransformer.transformStruct(currentField.getAdditionalProperties()));
-    } else {
-      fieldTypeStr = fieldType.name();
-    }
-    FieldDef fieldDef =
-        FieldDefCreator.getInstance().createFieldDef(fieldName, fieldTypeStr, currentField);
+    FieldDef fieldDef = FieldDefCreator.getInstance().createFieldDef(fieldName, currentField);
     // handle fields with facets. We may want to rethink where this happens once facets
     // are fully functional.
     if (fieldDef instanceof IndexableFieldDef) {
@@ -243,17 +251,5 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
     public RegisterFieldsException(String errorMessage, Throwable err) {
       super(errorMessage, err);
     }
-  }
-
-  private String getCustomFieldType(Map<String, ?> additionalProperties) {
-    Object typeObject = additionalProperties.get(CUSTOM_TYPE_KEY);
-    if (typeObject == null) {
-      throw new IllegalArgumentException(
-          "Custom fields must specify additionalProperties: " + CUSTOM_TYPE_KEY);
-    }
-    if (!(typeObject instanceof String)) {
-      throw new IllegalArgumentException("Custom type must be a String, found: " + typeObject);
-    }
-    return typeObject.toString();
   }
 }

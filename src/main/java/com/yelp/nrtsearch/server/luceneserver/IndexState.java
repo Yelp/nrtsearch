@@ -101,6 +101,7 @@ import org.slf4j.LoggerFactory;
  * </ul>
  */
 public class IndexState implements Closeable, Restorable {
+  public static final String CHILD_FIELD_SEPARATOR = ".";
 
   Logger logger = LoggerFactory.getLogger(IndexState.class);
   public final GlobalState globalState;
@@ -687,6 +688,11 @@ public class IndexState implements Closeable, Restorable {
     return reSimpleName.matcher(name).matches();
   }
 
+  /** Checks if this name is consistent with a child field (contains a dot) */
+  public static boolean isChildName(String name) {
+    return name.contains(CHILD_FIELD_SEPARATOR);
+  }
+
   /**
    * Live setting: set the mininum refresh time (seconds), which is the longest amount of time a
    * client may wait for a searcher to reopen.
@@ -777,9 +783,19 @@ public class IndexState implements Closeable, Restorable {
     if (fields.containsKey(fd.getName())) {
       throw new IllegalArgumentException("field \"" + fd.getName() + "\" was already registered");
     }
+    // only json for top level fields needs to be added to the save state
+    if (!isChildName(fd.getName())) {
+      if (jsonObject == null) {
+        throw new IllegalArgumentException("Field json cannot be null for " + fd.getName());
+      }
+      assert null == fieldsSaveState.get(fd.getName());
+      fieldsSaveState.add(fd.getName(), jsonObject);
+    } else if (jsonObject != null) {
+      throw new IllegalArgumentException(
+          "Field json should not be specified for child field " + fd.getName());
+    }
+
     fields.put(fd.getName(), fd);
-    assert null == fieldsSaveState.get(fd.getName());
-    fieldsSaveState.add(fd.getName(), jsonObject);
     // nocommit support sorted set dv facets
     if (fd instanceof IndexableFieldDef) {
       IndexableFieldDef.FacetValueType facetValueType =

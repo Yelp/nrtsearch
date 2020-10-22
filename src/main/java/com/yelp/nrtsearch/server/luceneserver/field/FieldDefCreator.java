@@ -17,8 +17,10 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.plugins.FieldTypePlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,6 +29,7 @@ import java.util.Map;
  * FieldDefProvider}s to produce concrete {@link FieldDef}s.
  */
 public class FieldDefCreator {
+  static final String CUSTOM_TYPE_KEY = "type";
   private static FieldDefCreator instance;
 
   private final Map<String, FieldDefProvider<? extends FieldDef>> fieldDefMap = new HashMap<>();
@@ -57,11 +60,19 @@ public class FieldDefCreator {
    * Field} definition.
    *
    * @param name field name
-   * @param type type string used to lookup registered {@link FieldDefProvider}
    * @param field grpc request field definition
    * @return field definition
    */
-  public FieldDef createFieldDef(String name, String type, Field field) {
+  public FieldDef createFieldDef(String name, Field field) {
+    String type;
+    if (field.getType().equals(FieldType.CUSTOM)) {
+      type =
+          getCustomFieldType(
+              StructValueTransformer.transformStruct(field.getAdditionalProperties()));
+    } else {
+      type = field.getType().name();
+    }
+
     FieldDefProvider<?> provider = fieldDefMap.get(type);
     if (provider == null) {
       throw new IllegalArgumentException("Invalid field type: " + type);
@@ -78,6 +89,18 @@ public class FieldDefCreator {
       throw new IllegalArgumentException("FieldDef " + name + " already exists");
     }
     fieldDefMap.put(name, fieldDef);
+  }
+
+  private String getCustomFieldType(Map<String, ?> additionalProperties) {
+    Object typeObject = additionalProperties.get(CUSTOM_TYPE_KEY);
+    if (typeObject == null) {
+      throw new IllegalArgumentException(
+          "Custom fields must specify additionalProperties: " + CUSTOM_TYPE_KEY);
+    }
+    if (!(typeObject instanceof String)) {
+      throw new IllegalArgumentException("Custom type must be a String, found: " + typeObject);
+    }
+    return typeObject.toString();
   }
 
   /**

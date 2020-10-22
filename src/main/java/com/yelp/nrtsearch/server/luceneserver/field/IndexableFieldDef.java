@@ -16,11 +16,14 @@
 package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ServerCodec;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.lucene.document.Document;
@@ -45,6 +48,8 @@ public abstract class IndexableFieldDef extends FieldDef {
   private final String postingsFormat;
   private final String docValuesFormat;
   private final Similarity similarity;
+
+  private final Map<String, IndexableFieldDef> childFields;
 
   protected final DocValuesType docValuesType;
   protected final IndexableFieldDef.FacetValueType facetValueType;
@@ -89,6 +94,35 @@ public abstract class IndexableFieldDef extends FieldDef {
         StructValueTransformer.transformStruct(requestField.getSimilarityParams());
     this.similarity =
         SimilarityCreator.getInstance().createSimilarity(similarityStr, similarityParams);
+
+    // add any children this field has
+    if (requestField.getChildFieldsCount() > 0) {
+      Map<String, IndexableFieldDef> childFields = new HashMap<>();
+      for (Field field : requestField.getChildFieldsList()) {
+        checkChildName(field.getName());
+        String childName = getName() + IndexState.CHILD_FIELD_SEPARATOR + field.getName();
+        FieldDef fieldDef = FieldDefCreator.getInstance().createFieldDef(childName, field);
+        if (!(fieldDef instanceof IndexableFieldDef)) {
+          throw new IllegalArgumentException("Child field is not indexable: " + childName);
+        }
+        childFields.put(childName, (IndexableFieldDef) fieldDef);
+      }
+      this.childFields = Collections.unmodifiableMap(childFields);
+    } else {
+      this.childFields = Collections.emptyMap();
+    }
+  }
+
+  private void checkChildName(String name) {
+    if (!IndexState.isSimpleName(name)) {
+      throw new IllegalArgumentException(
+          "invalid child field name \"" + name + "\": must be [a-zA-Z_][a-zA-Z0-9]*");
+    }
+
+    if (name.endsWith("_boost")) {
+      throw new IllegalArgumentException(
+          "invalid child field name \"" + name + "\": field names cannot end with _boost");
+    }
   }
 
   /**
@@ -196,6 +230,15 @@ public abstract class IndexableFieldDef extends FieldDef {
   }
 
   /**
+   * Get map of direct children of this field.
+   *
+   * @return child map
+   */
+  public Map<String, IndexableFieldDef> getChildFields() {
+    return childFields;
+  }
+
+  /**
    * Get the doc values for this field, bound to the given lucene segment context. This method
    * should only be called if {@link #isStored()} is true. Contains field values used when
    * retrieving fields during search and when preforming script scoring.
@@ -217,6 +260,22 @@ public abstract class IndexableFieldDef extends FieldDef {
    */
   public String[] getStored(Document document) {
     return document.getValues(getName());
+  }
+
+  /**
+   * Parse a list of field values for this field and its children. The values will be those present
+   * in a {@link com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField}.
+   *
+   * @param document lucene document to be added to the index
+   * @param fieldValues list of String encoded field values
+   * @param facetHierarchyPaths list of list of String encoded paths for each field value be
+   *     determine hierarchy for faceting
+   */
+  public void parseFieldWithChildren(
+      Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
+    parseDocumentField(document, fieldValues, facetHierarchyPaths);
+    childFields.forEach(
+        (k, v) -> v.parseFieldWithChildren(document, fieldValues, facetHierarchyPaths));
   }
 
   /**

@@ -1988,6 +1988,12 @@
         },
         "similarityParams": {
           "type": "object"
+        },
+        "childFields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverField"
+          }
         }
       }
     },
