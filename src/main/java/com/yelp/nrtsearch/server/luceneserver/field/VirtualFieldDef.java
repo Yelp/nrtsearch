@@ -68,7 +68,10 @@ public class VirtualFieldDef extends FieldDef implements Bindable, Sortable {
   }
 
   @Override
-  public DoubleValuesSource getExpressionBinding() {
+  public DoubleValuesSource getExpressionBinding(String property) {
+    if (!VALUE_PROPERTY.equals(property)) {
+      throw new IllegalArgumentException("Virtual fields can only bind the value property");
+    }
     return getValuesSource();
   }
 
