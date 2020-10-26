@@ -29,6 +29,8 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SuggestLookupHighlight;
 import com.yelp.nrtsearch.server.grpc.SuggestNonLocalSource;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
+import com.yelp.nrtsearch.server.luceneserver.suggest.CompletionInfixSuggester;
+import com.yelp.nrtsearch.server.luceneserver.suggest.FromFileSuggestItemIterator;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -79,7 +81,8 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
       BuildSuggestRequest buildSuggestRequest = buildSuggestRequestBuilder.build();
       Lookup suggester = getSuggester(indexState, buildSuggestRequest);
 
-      if ((suggester instanceof AnalyzingInfixSuggester) == false) {
+      if ((suggester instanceof AnalyzingInfixSuggester) == false
+          || (suggester instanceof CompletionInfixSuggester) == false) {
         // nocommit store suggesters 1 dir up:
         try (IndexInput in =
             shardState.origIndexDir.openInput("suggest." + suggestName, IOContext.DEFAULT)) {
@@ -293,6 +296,27 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
               return suggestLookupHighlightBuilder.build();
             }
           };
+    } else if (buildSuggestRequest.hasCompletionInfixSuggester()) {
+      com.yelp.nrtsearch.server.grpc.CompletionInfixSuggester completionInfixSuggester =
+          buildSuggestRequest.getCompletionInfixSuggester();
+      if (completionInfixSuggester.getAnalyzer() != null) {
+        indexAnalyzer = queryAnalyzer = AnalyzerCreator.getStandardAnalyzer();
+      } else {
+        indexAnalyzer = AnalyzerCreator.getStandardAnalyzer();
+        queryAnalyzer = AnalyzerCreator.getStandardAnalyzer();
+      }
+      if (indexAnalyzer == null) {
+        throw new RuntimeException("analyzer analyzer or indexAnalyzer must be specified");
+      }
+      if (queryAnalyzer == null) {
+        throw new RuntimeException("analyzer analyzer or queryAnalyzer must be specified");
+      }
+
+      suggester =
+          new CompletionInfixSuggester(
+              indexState.df.open(indexState.rootDir.resolve("suggest." + suggestName + ".infix")),
+              indexAnalyzer,
+              queryAnalyzer);
     } else {
       throw new RuntimeException(
           "Suggester provided must be one of AnalyzingSuggester, InfixSuggester, FuzzySuggester");
@@ -424,10 +448,16 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
                 buildSuggestRequest.getLocalSource().getLocalFile()));
       }
       boolean hasContexts = buildSuggestRequest.getLocalSource().getHasContexts();
+      boolean hasPayload = buildSuggestRequest.getLocalSource().getHasPayload();
+      boolean hasMultiSearchTexts = buildSuggestRequest.getLocalSource().getHasMultiSearchText();
       searcher = null;
       // Pull suggestions from local file:
       try {
-        iterator = new FromFileTermFreqIterator(localFile, hasContexts);
+        if (hasMultiSearchTexts) {
+          iterator = new FromFileSuggestItemIterator(localFile, hasContexts, hasPayload);
+        } else {
+          iterator = new FromFileTermFreqIterator(localFile, hasContexts);
+        }
       } catch (IOException ioe) {
         throw new RuntimeException("localFile cannot open file", ioe);
       }

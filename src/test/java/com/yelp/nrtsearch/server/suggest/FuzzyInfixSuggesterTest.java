@@ -94,7 +94,7 @@ public class FuzzyInfixSuggesterTest extends LuceneTestCase {
   public void testSuggesterLookupWithoutValidIndexBuild() throws IOException {
     Directory dir = newDirectory();
     Analyzer analyzer = new StandardAnalyzer();
-    CompletionInfixSuggester testSuggester = new CompletionInfixSuggester(dir, analyzer);
+    CompletionInfixSuggester testSuggester = new CompletionInfixSuggester(dir, analyzer, analyzer);
     try {
       lookupHelper(testSuggester, "sha", Set.of("9q9hf"), 2);
     } finally {

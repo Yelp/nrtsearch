@@ -46,14 +46,15 @@ public class FuzzyInfixSuggester extends CompletionInfixSuggester {
 
   public FuzzyInfixSuggester(
       Directory dir,
-      Analyzer analyzer,
+      Analyzer indexAnalyzer,
+      Analyzer queryAnalyzer,
       int maxEdits,
       boolean transpositions,
       int nonFuzzyPrefix,
       int minFuzzyLength,
       boolean unicodeAware)
       throws IOException {
-    super(dir, analyzer);
+    super(dir, indexAnalyzer, queryAnalyzer);
     if (maxEdits < 0 || maxEdits > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
       throw new IllegalArgumentException(
           "maxEdits must be between 0 and " + LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE);
@@ -75,7 +76,7 @@ public class FuzzyInfixSuggester extends CompletionInfixSuggester {
   }
 
   public FuzzyInfixSuggester(Directory dir, Analyzer analyzer) throws IOException {
-    super(dir, analyzer);
+    super(dir, analyzer, analyzer);
     this.maxEdits = FuzzyCompletionQuery.DEFAULT_MAX_EDITS;
     this.transpositions = FuzzyCompletionQuery.DEFAULT_TRANSPOSITIONS;
     this.nonFuzzyPrefix = FuzzyCompletionQuery.DEFAULT_NON_FUZZY_PREFIX;

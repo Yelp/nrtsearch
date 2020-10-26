@@ -44,7 +44,7 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
     Directory dir = newDirectory();
     FromFileSuggestItemIterator iter = createIterator("suggest/suggest_item.file");
     Analyzer analyzer = new StandardAnalyzer();
-    suggester = new CompletionInfixSuggester(dir, analyzer);
+    suggester = new CompletionInfixSuggester(dir, analyzer, analyzer);
     suggester.build(iter);
   }
 
@@ -158,7 +158,7 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
   public void testSuggesterLookupWithoutValidIndexBuild() throws IOException {
     Directory dir = newDirectory();
     Analyzer analyzer = new StandardAnalyzer();
-    CompletionInfixSuggester testSuggester = new CompletionInfixSuggester(dir, analyzer);
+    CompletionInfixSuggester testSuggester = new CompletionInfixSuggester(dir, analyzer, analyzer);
     try {
       lookupHelper(testSuggester, "sha", Set.of("9q9hf"), 2);
     } finally {

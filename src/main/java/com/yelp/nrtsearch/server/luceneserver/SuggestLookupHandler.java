@@ -57,7 +57,9 @@ public class SuggestLookupHandler implements Handler<SuggestLookupRequest, Sugge
 
     List<Lookup.LookupResult> results;
     try {
-      if (lookup instanceof AnalyzingInfixSuggester) {
+      // Make sure lookup object is not a subclass of AnalyzingInfixSuggester.
+      if (lookup instanceof AnalyzingInfixSuggester
+          && lookup.getClass() == AnalyzingInfixSuggester.class) {
         results =
             ((AnalyzingInfixSuggester) lookup)
                 .lookup(text, contexts, count, allTermsRequired, highlight);
