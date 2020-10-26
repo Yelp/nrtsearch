@@ -81,8 +81,7 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
       BuildSuggestRequest buildSuggestRequest = buildSuggestRequestBuilder.build();
       Lookup suggester = getSuggester(indexState, buildSuggestRequest);
 
-      if ((suggester instanceof AnalyzingInfixSuggester) == false
-          || (suggester instanceof CompletionInfixSuggester) == false) {
+      if ((suggester instanceof AnalyzingInfixSuggester) == false) {
         // nocommit store suggesters 1 dir up:
         try (IndexInput in =
             shardState.origIndexDir.openInput("suggest." + suggestName, IOContext.DEFAULT)) {
