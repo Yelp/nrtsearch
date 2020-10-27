@@ -136,6 +136,11 @@ public class DrillSidewaysImpl extends DrillSideways {
     Map<String, Facets> indexFieldNameToSSDVFacets = new HashMap<String, Facets>();
 
     for (Facet facet : grpcFacets) {
+      // these facets will be created from the top docs
+      if (facet.getSampleTopDocs() != 0) {
+        continue;
+      }
+
       com.yelp.nrtsearch.server.grpc.FacetResult facetResult;
       if (facet.hasScript()) {
         // this facet is a FacetScript, run script against all matching documents
@@ -186,7 +191,7 @@ public class DrillSidewaysImpl extends DrillSideways {
         docId = iterator.nextDoc();
       }
     }
-    return buildScriptFacetResultGrpc(countsMap, facet, totalDocs);
+    return buildFacetResultFromCountsGrpc(countsMap, facet, totalDocs);
   }
 
   private static void processScriptResult(Object scriptResult, Map<Object, Integer> countsMap) {
@@ -203,10 +208,20 @@ public class DrillSidewaysImpl extends DrillSideways {
     }
   }
 
-  private static com.yelp.nrtsearch.server.grpc.FacetResult buildScriptFacetResultGrpc(
+  /**
+   * Build a {@link com.yelp.nrtsearch.server.grpc.FacetResult} given a computed aggregation in the
+   * form of a count map.
+   *
+   * @param countsMap map containing all aggregated values to the number of times they were observed
+   * @param facet facet definition grpc message
+   * @param totalDocs total number of docs aggregated
+   * @return facet result grpc message
+   */
+  public static com.yelp.nrtsearch.server.grpc.FacetResult buildFacetResultFromCountsGrpc(
       Map<Object, Integer> countsMap, Facet facet, int totalDocs) {
     com.yelp.nrtsearch.server.grpc.FacetResult.Builder builder =
         com.yelp.nrtsearch.server.grpc.FacetResult.newBuilder();
+    builder.setName(facet.getName());
     builder.setDim(facet.getDim());
     builder.addAllPath(facet.getPathsList());
     builder.setValue(totalDocs);
@@ -462,14 +477,15 @@ public class DrillSidewaysImpl extends DrillSideways {
       }
     }
     if (facetResult != null) {
-      return buildFacetResultGrpc(facetResult);
+      return buildFacetResultGrpc(facetResult, facet.getName());
     }
     return null;
   }
 
   private static com.yelp.nrtsearch.server.grpc.FacetResult buildFacetResultGrpc(
-      FacetResult facetResult) {
+      FacetResult facetResult, String name) {
     var builder = com.yelp.nrtsearch.server.grpc.FacetResult.newBuilder();
+    builder.setName(name);
     builder.setDim(facetResult.dim);
     builder.addAllPath(Arrays.asList(facetResult.path));
     builder.setValue(facetResult.value.doubleValue());
