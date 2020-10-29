@@ -1,8 +1,6 @@
 /* Description of message types for search request and response */
 syntax = "proto3";
 
-import "google/type/latlng.proto";
-
 option java_multiple_files = true;
 option java_package = "com.yelp.nrtsearch.server.grpc";
 option java_outer_classname = "SuggestResponseProto";
