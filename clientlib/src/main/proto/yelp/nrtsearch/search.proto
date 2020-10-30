@@ -159,11 +159,17 @@ message RangeQuery {
     string upper = 3; // Upper bound, inclusive
 }
 
-// A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types.
+// A query that matches documents with geopoint within the geo box. The topLeft and bottomRight values though provided as strings will be converted to the Double.
 message GeoBoundingBoxQuery {
     string field = 1; // Field in the document to query
     google.type.LatLng topLeft = 2; // top left corner of the geo box
     google.type.LatLng bottomRight = 3; // bottom right corner of the geo box
+}
+
+// A query hat matches documents with polygon that contains the geo point.
+message GeoPolygonQuery {
+    string field = 1; // Field in the document to query
+    google.type.LatLng point = 2; // point used to query whether the polygon contains it.
 }
 
 // Defines different types of QueryNodes.
@@ -180,6 +186,7 @@ enum QueryType {
     MULTI_MATCH = 9;
     RANGE = 10;
     GEO_BOUNDING_BOX = 11;
+    GEO_POLYGON = 12;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -199,6 +206,7 @@ message Query {
         MultiMatchQuery multiMatchQuery = 11;
         RangeQuery rangeQuery = 12;
         GeoBoundingBoxQuery geoBoundingBoxQuery = 13;
+        GeoPolygonQuery geoPolygonQuery = 14;
     }
 }
 
