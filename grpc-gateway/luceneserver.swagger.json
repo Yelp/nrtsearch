@@ -1534,6 +1534,10 @@
           "$ref": "#/definitions/luceneserverFuzzySuggester",
           "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
         },
+        "completionInfixSuggester": {
+          "$ref": "#/definitions/luceneserverCompletionInfixSuggester",
+          "title": "A suggester that matches terms anywhere in the input text. The implementation is different from InfixSuggester"
+        },
         "localSource": {
           "$ref": "#/definitions/luceneserverSuggestLocalSource"
         },
@@ -1575,6 +1579,21 @@
           "description": "sequence number of the last operation in the commit.  All sequence numbers less than this value\nwill be reflected in the commit, and all others will not."
         }
       }
+    },
+    "luceneserverCompletionInfixSuggester": {
+      "type": "object",
+      "properties": {
+        "analyzer": {
+          "type": "string"
+        },
+        "indexAnalyzer": {
+          "type": "string"
+        },
+        "queryAnalyzer": {
+          "type": "string"
+        }
+      },
+      "title": "A suggester that matches terms anywhere in the input text. The implementation is different from InfixSuggester"
     },
     "luceneserverConditionalTokenFilter": {
       "type": "object",
@@ -3100,6 +3119,12 @@
           "description": "Local file (to the server) to read suggestions + weights from; format is weight U+001F suggestion U+001F payload,\none per line, with suggestion UTF-8 encoded. If this option is used then searcher, suggestField,\nweightField/Expression, payloadField should not be specified."
         },
         "hasContexts": {
+          "type": "boolean"
+        },
+        "hasPayload": {
+          "type": "boolean"
+        },
+        "hasMultiSearchText": {
           "type": "boolean"
         }
       }
