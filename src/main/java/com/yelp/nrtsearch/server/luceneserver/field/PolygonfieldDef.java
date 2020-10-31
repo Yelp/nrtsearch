@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.hasAnalyzer;
 
 import com.yelp.nrtsearch.server.grpc.Field;
-import com.yelp.nrtsearch.server.grpc.GeoPolygonQuery;
+import com.yelp.nrtsearch.server.grpc.GeoPointQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.PolygonQueryable;
 import java.io.IOException;
@@ -33,9 +33,9 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 
-public class PolygofieldDef extends IndexableFieldDef implements PolygonQueryable {
+public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryable {
 
-  protected PolygofieldDef(String name, Field requestField) {
+  protected PolygonfieldDef(String name, Field requestField) {
     super(name, requestField);
   }
 
@@ -115,13 +115,13 @@ public class PolygofieldDef extends IndexableFieldDef implements PolygonQueryabl
   }
 
   @Override
-  public Query getGeoPolygoQuery(GeoPolygonQuery geoPolygonQuery) {
+  public Query getGeoPointQuery(GeoPointQuery geoPointQuery) {
     return LatLonShape.newBoxQuery(
-        geoPolygonQuery.getField(),
+        geoPointQuery.getField(),
         ShapeField.QueryRelation.CONTAINS,
-        geoPolygonQuery.getPoint().getLatitude(),
-        geoPolygonQuery.getPoint().getLatitude(),
-        geoPolygonQuery.getPoint().getLongitude(),
-        geoPolygonQuery.getPoint().getLongitude());
+        geoPointQuery.getPoint().getLatitude(),
+        geoPointQuery.getPoint().getLatitude(),
+        geoPointQuery.getPoint().getLongitude(),
+        geoPointQuery.getPoint().getLongitude());
   }
 }

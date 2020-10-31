@@ -15,9 +15,9 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.field.properties;
 
-import com.yelp.nrtsearch.server.grpc.GeoPolygonQuery;
+import com.yelp.nrtsearch.server.grpc.GeoPointQuery;
 import org.apache.lucene.search.Query;
 
 public interface PolygonQueryable {
-  Query getGeoPolygoQuery(GeoPolygonQuery geoPolygonQuery);
+  Query getGeoPointQuery(GeoPointQuery geoPolygonQuery);
 }

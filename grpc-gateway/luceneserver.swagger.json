@@ -2207,7 +2207,7 @@
       },
       "description": "A query that matches documents with geopoint within the geo box. The topLeft and bottomRight values though provided as strings will be converted to the Double."
     },
-    "luceneserverGeoPolygonQuery": {
+    "luceneserverGeoPointQuery": {
       "type": "object",
       "properties": {
         "field": {
@@ -2217,7 +2217,7 @@
           "$ref": "#/definitions/typeLatLng"
         }
       },
-      "description": "A query hat matches documents with polygon that contains the geo point."
+      "description": "A query that matches documents with polygon that contains the geo point."
     },
     "luceneserverGetAllSnapshotGenResponse": {
       "type": "object",
@@ -2619,8 +2619,8 @@
         "geoBoundingBoxQuery": {
           "$ref": "#/definitions/luceneserverGeoBoundingBoxQuery"
         },
-        "geoPolygonQuery": {
-          "$ref": "#/definitions/luceneserverGeoPolygonQuery"
+        "geoPointQuery": {
+          "$ref": "#/definitions/luceneserverGeoPointQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -2654,7 +2654,7 @@
         "MULTI_MATCH",
         "RANGE",
         "GEO_BOUNDING_BOX",
-        "GEO_POLYGON"
+        "GEO_POINT"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."

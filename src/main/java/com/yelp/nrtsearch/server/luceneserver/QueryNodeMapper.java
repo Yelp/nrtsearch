@@ -89,8 +89,8 @@ class QueryNodeMapper {
         return getRangeQuery(query.getRangeQuery(), state);
       case GEOBOUNDINGBOXQUERY:
         return getGeoBoundingBoxQuery(query.getGeoBoundingBoxQuery(), state);
-      case GEOPOLYGONQUERY:
-        return getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
+      case GEOPOINTQUERY:
+        return getGeoPointQuery(query.getGeoPointQuery(), state);
       default:
         throw new UnsupportedOperationException(
             "Unsupported query type received: " + query.getQueryNodeCase());
@@ -293,14 +293,14 @@ class QueryNodeMapper {
     return ((GeoQueryable) field).getGeoBoundingBoxQuery(geoBoundingBoxQuery);
   }
 
-  private Query getGeoPolygonQuery(GeoPolygonQuery geoPolygonQuery, IndexState state) {
+  private Query getGeoPointQuery(GeoPointQuery geoPolygonQuery, IndexState state) {
     String fieldName = geoPolygonQuery.getField();
     FieldDef field = state.getField(fieldName);
 
     if (!(field instanceof PolygonQueryable)) {
       throw new IllegalArgumentException("Field " + fieldName + "does not support GeoPolygonQuery");
     }
-    return ((PolygonQueryable) field).getGeoPolygoQuery(geoPolygonQuery);
+    return ((PolygonQueryable) field).getGeoPointQuery(geoPolygonQuery);
   }
 
   private Map<com.yelp.nrtsearch.server.grpc.BooleanClause.Occur, BooleanClause.Occur>

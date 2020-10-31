@@ -71,25 +71,25 @@ public class PolygonFieldDefTest extends ServerTestCase {
   }
 
   @Test
-  public void testGeoPolygonQuery() {
-    GeoPolygonQuery inGeoPolygonQuery =
-        GeoPolygonQuery.newBuilder()
+  public void testGeoPointQuery() {
+    GeoPointQuery inGeoPolygonQuery =
+        GeoPointQuery.newBuilder()
             .setField("polygon")
             .setPoint(LatLng.newBuilder().setLatitude(0.9).setLongitude(100.9).build())
             .build();
     queryAndVerifyIds(inGeoPolygonQuery, "1");
 
     // No result in the hole
-    GeoPolygonQuery outGeoPolygonQuery =
-        GeoPolygonQuery.newBuilder()
+    GeoPointQuery outGeoPolygonQuery =
+        GeoPointQuery.newBuilder()
             .setField("polygon")
             .setPoint(LatLng.newBuilder().setLatitude(0.5).setLongitude(100.5).build())
             .build();
     queryAndVerifyIds(outGeoPolygonQuery);
   }
 
-  private void queryAndVerifyIds(GeoPolygonQuery geoPolygonQuery, String... expectedIds) {
-    Query query = Query.newBuilder().setGeoPolygonQuery(geoPolygonQuery).build();
+  private void queryAndVerifyIds(GeoPointQuery geoPolygonQuery, String... expectedIds) {
+    Query query = Query.newBuilder().setGeoPointQuery(geoPolygonQuery).build();
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
