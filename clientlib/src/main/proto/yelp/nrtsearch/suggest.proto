@@ -20,12 +20,14 @@ message BuildSuggestRequest {
     FuzzySuggester fuzzySuggester = 4;
     // A suggester that matches terms anywhere in the input text. The implementation is different from InfixSuggester
     CompletionInfixSuggester completionInfixSuggester = 5;
+    // A suggester that matches fuzzy terms in the input text.
+    FuzzyInfixSuggester fuzzyInfixSuggester = 6;
   }
   oneof Source {
-    SuggestLocalSource localSource = 6;
-    SuggestNonLocalSource nonLocalSource = 7;
+    SuggestLocalSource localSource = 7;
+    SuggestNonLocalSource nonLocalSource = 8;
   }
-  string suggestName = 8; //Unique name for this suggest build.
+  string suggestName = 9; //Unique name for this suggest build.
 }
 
 message BuildSuggestResponse {
@@ -133,4 +135,16 @@ message CompletionInfixSuggester {
   string analyzer = 1; //Index and query analyzer
   string indexAnalyzer = 2; //Index Analyzer
   string queryAnalyzer = 3; //Query Analyzer
+}
+
+/* A suggester that matches fuzzy terms in the input text*/
+message FuzzyInfixSuggester {
+  string analyzer = 1;
+  string indexAnalyzer = 2; // Index Analyzer
+  string queryAnalyzer = 3; // Query Analyzer
+  int32 minFuzzyLength = 4; //Minimum key length before edits are allowed,
+  int32 nonFuzzyPrefix = 5; //Key prefix where edits are not allowed,
+  int32 maxEdits = 6; //Maximum number of edits for fuzzy suggestions
+  bool transpositions = 7; //Whether transpositions are allowed
+  bool unicodeAware = 8; //True if all edits are measured in unicode characters, not UTF-8 bytes
 }

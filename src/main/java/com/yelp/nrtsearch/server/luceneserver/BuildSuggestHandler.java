@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.server.grpc.SuggestNonLocalSource;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.suggest.CompletionInfixSuggester;
 import com.yelp.nrtsearch.server.luceneserver.suggest.FromFileSuggestItemIterator;
+import com.yelp.nrtsearch.server.luceneserver.suggest.FuzzyInfixSuggester;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -51,6 +52,7 @@ import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingInfixSuggester;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester;
+import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -298,6 +300,7 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
     } else if (buildSuggestRequest.hasCompletionInfixSuggester()) {
       com.yelp.nrtsearch.server.grpc.CompletionInfixSuggester completionInfixSuggester =
           buildSuggestRequest.getCompletionInfixSuggester();
+      // Todo: use standard analyzer by default. Different analyzers will be considered later
       if (completionInfixSuggester.getAnalyzer() != null) {
         indexAnalyzer = queryAnalyzer = AnalyzerCreator.getStandardAnalyzer();
       } else {
@@ -316,6 +319,48 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
               indexState.df.open(indexState.rootDir.resolve("suggest." + suggestName + ".infix")),
               indexAnalyzer,
               queryAnalyzer);
+    } else if (buildSuggestRequest.hasFuzzyInfixSuggester()) {
+      com.yelp.nrtsearch.server.grpc.FuzzyInfixSuggester fuzzyInfixSuggester =
+          buildSuggestRequest.getFuzzyInfixSuggester();
+      // Todo: use standard analyzer by default. Different analyzers will be considered later
+      if (fuzzyInfixSuggester.getAnalyzer() != null) {
+        indexAnalyzer = queryAnalyzer = AnalyzerCreator.getStandardAnalyzer();
+      } else {
+        indexAnalyzer = AnalyzerCreator.getStandardAnalyzer();
+        queryAnalyzer = AnalyzerCreator.getStandardAnalyzer();
+      }
+      if (indexAnalyzer == null) {
+        throw new RuntimeException("analyzer analyzer or indexAnalyzer must be specified");
+      }
+      if (queryAnalyzer == null) {
+        throw new RuntimeException("analyzer analyzer or queryAnalyzer must be specified");
+      }
+
+      int maxEdits =
+          fuzzyInfixSuggester.getMaxEdits() == 0
+              ? FuzzyCompletionQuery.DEFAULT_MAX_EDITS
+              : fuzzyInfixSuggester.getMaxEdits();
+      boolean transpositions = fuzzyInfixSuggester.getTranspositions();
+      int nonFuzzyPrefix =
+          fuzzyInfixSuggester.getNonFuzzyPrefix() == 0
+              ? FuzzyCompletionQuery.DEFAULT_NON_FUZZY_PREFIX
+              : fuzzyInfixSuggester.getNonFuzzyPrefix();
+      int minFuzzyLength =
+          fuzzyInfixSuggester.getMinFuzzyLength() == 0
+              ? FuzzyCompletionQuery.DEFAULT_MIN_FUZZY_LENGTH
+              : fuzzyInfixSuggester.getMinFuzzyLength();
+      boolean unicodeAware = fuzzyInfixSuggester.getUnicodeAware();
+
+      suggester =
+          new FuzzyInfixSuggester(
+              indexState.df.open(indexState.rootDir.resolve("suggest." + suggestName + ".infix")),
+              indexAnalyzer,
+              queryAnalyzer,
+              maxEdits,
+              transpositions,
+              nonFuzzyPrefix,
+              minFuzzyLength,
+              unicodeAware);
     } else {
       throw new RuntimeException(
           "Suggester provided must be one of AnalyzingSuggester, InfixSuggester, FuzzySuggester");

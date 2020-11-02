@@ -1538,6 +1538,10 @@
           "$ref": "#/definitions/luceneserverCompletionInfixSuggester",
           "title": "A suggester that matches terms anywhere in the input text. The implementation is different from InfixSuggester"
         },
+        "fuzzyInfixSuggester": {
+          "$ref": "#/definitions/luceneserverFuzzyInfixSuggester",
+          "description": "A suggester that matches fuzzy terms in the input text."
+        },
         "localSource": {
           "$ref": "#/definitions/luceneserverSuggestLocalSource"
         },
@@ -2142,6 +2146,39 @@
         }
       },
       "description": "A query that wraps another query and uses custom scoring logic to compute the wrapped query's score."
+    },
+    "luceneserverFuzzyInfixSuggester": {
+      "type": "object",
+      "properties": {
+        "analyzer": {
+          "type": "string"
+        },
+        "indexAnalyzer": {
+          "type": "string"
+        },
+        "queryAnalyzer": {
+          "type": "string"
+        },
+        "minFuzzyLength": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "nonFuzzyPrefix": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxEdits": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "transpositions": {
+          "type": "boolean"
+        },
+        "unicodeAware": {
+          "type": "boolean"
+        }
+      },
+      "title": "A suggester that matches fuzzy terms in the input text"
     },
     "luceneserverFuzzyParams": {
       "type": "object",
