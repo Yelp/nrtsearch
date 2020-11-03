@@ -977,6 +977,15 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     return sortedFields;
   }
 
+  /**
+   * Get the maximum number of hits that should be collected during ranking. This value will at
+   * least be as large as the query specified top hits, and may be larger if doing a facet sample
+   * aggregation requiring a greater number of top docs.
+   *
+   * @param topHits maximum hits needed in query response
+   * @param request search request
+   * @return total top docs needed for query response and sample facets
+   */
   private int getNumHitsToCollect(int topHits, SearchRequest request) {
     int collectHits = topHits;
     for (Facet facet : request.getFacetsList()) {
