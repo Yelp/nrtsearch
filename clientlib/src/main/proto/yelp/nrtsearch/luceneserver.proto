@@ -375,6 +375,7 @@ enum FieldType {
     INTERNAL = 10; //Internal field, currently only for holding indexed facets data.
     CUSTOM = 11; // Field type specified by name.
     _ID = 12; // Field which will be used as document IDs
+    POLYGON = 13; // Geojson string for polygon
 }
 
 //How the tokens should be indexed.

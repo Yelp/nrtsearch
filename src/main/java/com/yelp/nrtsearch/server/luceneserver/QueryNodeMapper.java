@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.PolygonQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
@@ -88,6 +89,8 @@ class QueryNodeMapper {
         return getRangeQuery(query.getRangeQuery(), state);
       case GEOBOUNDINGBOXQUERY:
         return getGeoBoundingBoxQuery(query.getGeoBoundingBoxQuery(), state);
+      case GEOPOINTQUERY:
+        return getGeoPointQuery(query.getGeoPointQuery(), state);
       default:
         throw new UnsupportedOperationException(
             "Unsupported query type received: " + query.getQueryNodeCase());
@@ -288,6 +291,16 @@ class QueryNodeMapper {
     }
 
     return ((GeoQueryable) field).getGeoBoundingBoxQuery(geoBoundingBoxQuery);
+  }
+
+  private Query getGeoPointQuery(GeoPointQuery geoPolygonQuery, IndexState state) {
+    String fieldName = geoPolygonQuery.getField();
+    FieldDef field = state.getField(fieldName);
+
+    if (!(field instanceof PolygonQueryable)) {
+      throw new IllegalArgumentException("Field " + fieldName + "does not support GeoPolygonQuery");
+    }
+    return ((PolygonQueryable) field).getGeoPointQuery(geoPolygonQuery);
   }
 
   private Map<com.yelp.nrtsearch.server.grpc.BooleanClause.Occur, BooleanClause.Occur>

@@ -2069,7 +2069,8 @@
         "VIRTUAL",
         "INTERNAL",
         "CUSTOM",
-        "_ID"
+        "_ID",
+        "POLYGON"
       ],
       "default": "ATOM",
       "description": "- VIRTUAL: TODO name this \"dynamic\" instead of \"virtual\"?\n - INTERNAL: TODO need tests for internal:",
@@ -2270,7 +2271,19 @@
           "$ref": "#/definitions/typeLatLng"
         }
       },
-      "description": "A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types."
+      "description": "A query that matches documents with geopoint within the geo box. The topLeft and bottomRight values though provided as strings will be converted to the Double."
+    },
+    "luceneserverGeoPointQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "point": {
+          "$ref": "#/definitions/typeLatLng"
+        }
+      },
+      "description": "A query that matches documents with polygon that contains the geo point."
     },
     "luceneserverGetAllSnapshotGenResponse": {
       "type": "object",
@@ -2671,6 +2684,9 @@
         },
         "geoBoundingBoxQuery": {
           "$ref": "#/definitions/luceneserverGeoBoundingBoxQuery"
+        },
+        "geoPointQuery": {
+          "$ref": "#/definitions/luceneserverGeoPointQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -2703,7 +2719,8 @@
         "MATCH_PHRASE",
         "MULTI_MATCH",
         "RANGE",
-        "GEO_BOUNDING_BOX"
+        "GEO_BOUNDING_BOX",
+        "GEO_POINT"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."
