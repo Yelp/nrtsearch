@@ -1878,6 +1878,13 @@
         },
         "script": {
           "$ref": "#/definitions/luceneserverScript"
+        },
+        "sampleTopDocs": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "name": {
+          "type": "string"
         }
       }
     },
@@ -1917,6 +1924,9 @@
         "childCount": {
           "type": "string",
           "format": "int64"
+        },
+        "name": {
+          "type": "string"
         }
       }
     },

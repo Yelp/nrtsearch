@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
@@ -27,6 +28,7 @@ import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.facet.DrillSidewaysImpl;
+import com.yelp.nrtsearch.server.luceneserver.facet.FacetTopDocs;
 import com.yelp.nrtsearch.server.luceneserver.field.BooleanFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
@@ -278,6 +280,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
 
       int topHits = searchRequest.getTopHits();
+      int hitsToCollect = getNumHitsToCollect(topHits, searchRequest);
       int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
       if (searchRequest.getTotalHitsThreshold() != 0) {
         totalHitsThreshold = searchRequest.getTotalHitsThreshold();
@@ -289,12 +292,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       if (sort == null) {
         // TODO: support "searchAfter" when supplied by user
         FieldDoc searchAfter = null;
-        collector = TopScoreDocCollector.create(topHits, searchAfter, totalHitsThreshold);
+        collector = TopScoreDocCollector.create(hitsToCollect, searchAfter, totalHitsThreshold);
         collectorManager =
-            TopScoreDocCollector.createSharedManager(topHits, searchAfter, totalHitsThreshold);
+            TopScoreDocCollector.createSharedManager(
+                hitsToCollect, searchAfter, totalHitsThreshold);
       } else if (q instanceof MatchAllDocsQuery) {
-        collector = new LargeNumHitsTopDocsCollector(topHits);
-        collectorManager = LargeNumHitsTopDocsCollectorManagerCreator.createSharedManager(topHits);
+        collector = new LargeNumHitsTopDocsCollector(hitsToCollect);
+        collectorManager =
+            LargeNumHitsTopDocsCollectorManagerCreator.createSharedManager(hitsToCollect);
       } else {
 
         // If any of the sort fields require score, than
@@ -307,9 +312,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         // TODO: support "searchAfter" when supplied by user
         FieldDoc searchAfter;
         searchAfter = null;
-        collector = TopFieldCollector.create(sort, topHits, searchAfter, totalHitsThreshold);
+        collector = TopFieldCollector.create(sort, hitsToCollect, searchAfter, totalHitsThreshold);
         collectorManager =
-            TopFieldCollector.createSharedManager(sort, topHits, searchAfter, totalHitsThreshold);
+            TopFieldCollector.createSharedManager(
+                sort, hitsToCollect, searchAfter, totalHitsThreshold);
       }
 
       long timeoutMS;
@@ -355,6 +361,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             concurrentDrillSidewaysResult = drillS.search(ddq, collectorManager);
         topDocs = concurrentDrillSidewaysResult.collectorResult;
         searchResponse.addAllFacetResult(grpcFacetResults);
+        searchResponse.addAllFacetResult(
+            FacetTopDocs.facetTopDocsSample(
+                topDocs, searchRequest.getFacetsList(), indexState, s.searcher));
       } else {
         try {
           topDocs = s.searcher.search(ddq, collectorManager);
@@ -375,9 +384,12 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         joinGroups = null;
         hits = topDocs;
 
-        if (startHit != 0) {
+        // TopDocs may have more hits than needed, if they are being used for a
+        // sampler facet
+        int retrieveHits = Math.min(topHits, hits.scoreDocs.length);
+        if (startHit != 0 || retrieveHits != hits.scoreDocs.length) {
           // Slice:
-          int count = Math.max(0, hits.scoreDocs.length - startHit);
+          int count = Math.max(0, retrieveHits - startHit);
           ScoreDoc[] newScoreDocs = new ScoreDoc[count];
           if (count > 0) {
             System.arraycopy(hits.scoreDocs, startHit, newScoreDocs, 0, count);
@@ -963,6 +975,26 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     }
 
     return sortedFields;
+  }
+
+  /**
+   * Get the maximum number of hits that should be collected during ranking. This value will at
+   * least be as large as the query specified top hits, and may be larger if doing a facet sample
+   * aggregation requiring a greater number of top docs.
+   *
+   * @param topHits maximum hits needed in query response
+   * @param request search request
+   * @return total top docs needed for query response and sample facets
+   */
+  private int getNumHitsToCollect(int topHits, SearchRequest request) {
+    int collectHits = topHits;
+    for (Facet facet : request.getFacetsList()) {
+      int facetSample = facet.getSampleTopDocs();
+      if (facetSample > 0 && facetSample > collectHits) {
+        collectHits = facetSample;
+      }
+    }
+    return collectHits;
   }
 
   private static FieldValue convertType(FieldDef fd, Object o) {

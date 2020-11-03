@@ -1,0 +1,35 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "storeDocValues": true
+    },
+    {
+      "name": "int_field",
+      "type": "INT",
+      "storeDocValues": true,
+      "search": true
+    },
+    {
+      "name": "long_field",
+      "type": "LONG",
+      "search": true,
+      "storeDocValues": true,
+      "facet": "NUMERIC_RANGE"
+    },
+    {
+      "name": "no_doc_values",
+      "type": "LONG"
+    },
+    {
+      "name": "virtual_field",
+      "type": "VIRTUAL",
+      "script": {
+        "lang": "js",
+        "source": "long_field"
+      }
+    }
+  ]
+}
