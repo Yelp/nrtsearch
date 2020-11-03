@@ -12,18 +12,22 @@ package luceneserver;
 message BuildSuggestRequest {
   string indexName = 1; //index name
   oneof Suggester {
-    //A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)
+    // A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)
     InfixSuggester infixSuggester = 2;
     // Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester
     AnalyzingSuggester analyzingSuggester = 3;
     // Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester
     FuzzySuggester fuzzySuggester = 4;
+    // A suggester that matches terms anywhere in the input text. The implementation is different from InfixSuggester
+    CompletionInfixSuggester completionInfixSuggester = 5;
+    // A suggester that matches fuzzy terms in the input text.
+    FuzzyInfixSuggester fuzzyInfixSuggester = 6;
   }
   oneof Source {
-    SuggestLocalSource localSource = 5;
-    SuggestNonLocalSource nonLocalSource = 6;
+    SuggestLocalSource localSource = 7;
+    SuggestNonLocalSource nonLocalSource = 8;
   }
-  string suggestName = 7; //Unique name for this suggest build.
+  string suggestName = 9; //Unique name for this suggest build.
 }
 
 message BuildSuggestResponse {
@@ -70,7 +74,9 @@ message SuggestLocalSource {
   one per line, with suggestion UTF-8 encoded. If this option is used then searcher, suggestField,
   weightField/Expression, payloadField should not be specified.*/
   string localFile = 1;
-  bool hasContexts = 2; //True if this file provides per-suggestion contexts.
+  bool hasContexts = 2; //True if this file provides per-suggestion contexts
+  bool hasPayload = 3; //True if this file provides per-suggestion payload
+  bool hasMultiSearchText = 4; //True if this file is required to parsed by FromFileSuggestItemIterator
 }
 
 message SuggestNonLocalSource {
@@ -122,4 +128,23 @@ message FuzzySuggester {
   int32 maxEdits = 10; //Maximum number of edits for fuzzy suggestions
   bool transpositions = 11; //Whether transpositions are allowed
   bool unicodeAware = 12; //True if all edits are measured in unicode characters, not UTF-8 bytes
+}
+
+/* A suggester that matches terms anywhere in the input text. The implementation is different from InfixSuggester*/
+message CompletionInfixSuggester {
+  string analyzer = 1; //Index and query analyzer
+  string indexAnalyzer = 2; //Index Analyzer
+  string queryAnalyzer = 3; //Query Analyzer
+}
+
+/* A suggester that matches fuzzy terms in the input text*/
+message FuzzyInfixSuggester {
+  string analyzer = 1;
+  string indexAnalyzer = 2; // Index Analyzer
+  string queryAnalyzer = 3; // Query Analyzer
+  int32 minFuzzyLength = 4; //Minimum key length before edits are allowed,
+  int32 nonFuzzyPrefix = 5; //Key prefix where edits are not allowed,
+  int32 maxEdits = 6; //Maximum number of edits for fuzzy suggestions
+  bool transpositions = 7; //Whether transpositions are allowed
+  bool unicodeAware = 8; //True if all edits are measured in unicode characters, not UTF-8 bytes
 }

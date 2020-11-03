@@ -392,6 +392,8 @@ message Facet {
     repeated string labels = 5; // Specific facet labels to retrieve
     int32 topN = 6; //How many top facets to return
     Script script = 7; //FacetScript definition to use in place of index facet
+    int32 sampleTopDocs = 8; //Facet over the top N ranked documents, instead of all hits. Only works with field doc values.
+    string name = 9; //Name for this facet
 }
 
 
@@ -401,6 +403,7 @@ message FacetResult {
     double value = 3; //Total value for this path (sum of all child counts, or sum of all child values), even those not included in the topN.
     repeated LabelAndValue labelValues = 4; // Child counts.
     int64 childCount = 5; //How many child labels were encountered.
+    string name = 6; //Name for this facet
 }
 
 message LabelAndValue {

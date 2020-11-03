@@ -1534,6 +1534,14 @@
           "$ref": "#/definitions/luceneserverFuzzySuggester",
           "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
         },
+        "completionInfixSuggester": {
+          "$ref": "#/definitions/luceneserverCompletionInfixSuggester",
+          "title": "A suggester that matches terms anywhere in the input text. The implementation is different from InfixSuggester"
+        },
+        "fuzzyInfixSuggester": {
+          "$ref": "#/definitions/luceneserverFuzzyInfixSuggester",
+          "description": "A suggester that matches fuzzy terms in the input text."
+        },
         "localSource": {
           "$ref": "#/definitions/luceneserverSuggestLocalSource"
         },
@@ -1575,6 +1583,21 @@
           "description": "sequence number of the last operation in the commit.  All sequence numbers less than this value\nwill be reflected in the commit, and all others will not."
         }
       }
+    },
+    "luceneserverCompletionInfixSuggester": {
+      "type": "object",
+      "properties": {
+        "analyzer": {
+          "type": "string"
+        },
+        "indexAnalyzer": {
+          "type": "string"
+        },
+        "queryAnalyzer": {
+          "type": "string"
+        }
+      },
+      "title": "A suggester that matches terms anywhere in the input text. The implementation is different from InfixSuggester"
     },
     "luceneserverConditionalTokenFilter": {
       "type": "object",
@@ -1855,6 +1878,13 @@
         },
         "script": {
           "$ref": "#/definitions/luceneserverScript"
+        },
+        "sampleTopDocs": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "name": {
+          "type": "string"
         }
       }
     },
@@ -1894,6 +1924,9 @@
         "childCount": {
           "type": "string",
           "format": "int64"
+        },
+        "name": {
+          "type": "string"
         }
       }
     },
@@ -2124,6 +2157,39 @@
         }
       },
       "description": "A query that wraps another query and uses custom scoring logic to compute the wrapped query's score."
+    },
+    "luceneserverFuzzyInfixSuggester": {
+      "type": "object",
+      "properties": {
+        "analyzer": {
+          "type": "string"
+        },
+        "indexAnalyzer": {
+          "type": "string"
+        },
+        "queryAnalyzer": {
+          "type": "string"
+        },
+        "minFuzzyLength": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "nonFuzzyPrefix": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxEdits": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "transpositions": {
+          "type": "boolean"
+        },
+        "unicodeAware": {
+          "type": "boolean"
+        }
+      },
+      "title": "A suggester that matches fuzzy terms in the input text"
     },
     "luceneserverFuzzyParams": {
       "type": "object",
@@ -3117,6 +3183,12 @@
           "description": "Local file (to the server) to read suggestions + weights from; format is weight U+001F suggestion U+001F payload,\none per line, with suggestion UTF-8 encoded. If this option is used then searcher, suggestField,\nweightField/Expression, payloadField should not be specified."
         },
         "hasContexts": {
+          "type": "boolean"
+        },
+        "hasPayload": {
+          "type": "boolean"
+        },
+        "hasMultiSearchText": {
           "type": "boolean"
         }
       }
