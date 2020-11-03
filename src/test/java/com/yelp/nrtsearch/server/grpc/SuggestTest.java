@@ -52,7 +52,8 @@ public class SuggestTest {
     INFIX,
     ANALYZING,
     FUZZY,
-    COMPLETION_INFIX
+    COMPLETION_INFIX,
+    FUZZY_INFIX
   }
 
   /**
@@ -168,6 +169,49 @@ public class SuggestTest {
     }
   }
 
+  @Test
+  public void testFuzzyInfixSuggest() throws Exception {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    Writer fstream = new OutputStreamWriter(new FileOutputStream(tempFile.toFile()), "UTF-8");
+    BufferedWriter out = new BufferedWriter(fstream);
+    out.write("home depot\u001fhome depot\u001edepot\u001f1\u001fpayload\u001fc1\u001ec2");
+    out.close();
+
+    BuildSuggestResponse response =
+        sendBuildSuggest("suggest2", true, true, true, false, Suggester.FUZZY_INFIX);
+    assertEquals(1, response.getCount());
+
+    for (int i = 0; i < 2; i++) {
+      // 1 transposition and this matches the infix of "depot":
+      SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+      suggestLookupBuilder.setText("dip");
+      suggestLookupBuilder.setSuggestName("suggest2");
+      suggestLookupBuilder.setIndexName("test_index");
+      SuggestLookupResponse suggestResponse =
+          grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+      List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+
+      assertNotNull(results);
+      assertEquals(1, results.size());
+      assertEquals(1, results.get(0).getWeight());
+      assertEquals("home depot", results.get(0).getKey());
+      assertEquals("payload", results.get(0).getPayload());
+
+      // commit state and indexes
+      grpcServer
+          .getBlockingStub()
+          .commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+      // mimic bounce server to make sure suggestions survive restart
+      grpcServer
+          .getBlockingStub()
+          .stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
+      grpcServer
+          .getBlockingStub()
+          .startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
+    }
+  }
+
   private BuildSuggestResponse sendBuildSuggest(
       String suggestName,
       boolean hasContexts,
@@ -190,6 +234,9 @@ public class SuggestTest {
     } else if (suggester.equals(Suggester.COMPLETION_INFIX)) {
       buildSuggestRequestBuilder.setCompletionInfixSuggester(
           CompletionInfixSuggester.newBuilder().setAnalyzer("default").build());
+    } else if (suggester.equals(Suggester.FUZZY_INFIX)) {
+      buildSuggestRequestBuilder.setFuzzyInfixSuggester(
+          FuzzyInfixSuggester.newBuilder().setAnalyzer("default").setTranspositions(true).build());
     }
     buildSuggestRequestBuilder.setLocalSource(
         SuggestLocalSource.newBuilder()
