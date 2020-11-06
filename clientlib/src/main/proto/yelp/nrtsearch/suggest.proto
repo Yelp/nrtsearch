@@ -148,3 +148,12 @@ message FuzzyInfixSuggester {
   bool transpositions = 7; //Whether transpositions are allowed
   bool unicodeAware = 8; //True if all edits are measured in unicode characters, not UTF-8 bytes
 }
+
+/* The schema of suggest item to build suggest index*/
+message NrtsearchIndex {
+  int64 uniqueId = 1;
+  repeated string searchTexts = 2;
+  int64 score = 3;
+  repeated string contexts = 4;
+  bytes payload = 5;
+}
