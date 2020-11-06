@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.NumericRangeType;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.DoubleFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FloatFieldDef;
@@ -188,6 +189,32 @@ public class DrillSidewaysImpl extends DrillSideways {
           processScriptResult(scriptResult, countsMap);
         }
         totalDocs++;
+        docId = iterator.nextDoc();
+      }
+    }
+    return buildFacetResultFromCountsGrpc(countsMap, facet, totalDocs);
+  }
+
+  private static com.yelp.nrtsearch.server.grpc.FacetResult getDocValuesFacetResult(
+      Facet facet, FacetsCollector drillDowns, IndexableFieldDef fieldDef) throws IOException {
+    Map<Object, Integer> countsMap = new HashMap<>();
+    int totalDocs = 0;
+    // get doc values for all match docs, and aggregate counts
+    for (MatchingDocs matchingDocs : drillDowns.getMatchingDocs()) {
+      LoadedDocValues<?> docValues = fieldDef.getDocValues(matchingDocs.context);
+      DocIdSetIterator iterator = matchingDocs.bits.iterator();
+      if (iterator == null) {
+        continue;
+      }
+      int docId = iterator.nextDoc();
+      while (docId != DocIdSetIterator.NO_MORE_DOCS) {
+        docValues.setDocId(docId);
+        if (!docValues.isEmpty()) {
+          for (Object value : docValues) {
+            countsMap.merge(value, 1, Integer::sum);
+          }
+          totalDocs++;
+        }
         docId = iterator.nextDoc();
       }
     }
@@ -378,13 +405,10 @@ public class DrillSidewaysImpl extends DrillSideways {
       facetResult =
           sortedSetDocValuesFacetCounts.getTopChildren(
               facet.getTopN(), fieldDef.getName(), new String[0]);
-    } else {
+    } else if (fieldDef.getFacetValueType() != IndexableFieldDef.FacetValueType.NO_FACETS) {
 
       // Taxonomy  facets
-      if (fieldDef.getFacetValueType() == IndexableFieldDef.FacetValueType.NO_FACETS) {
-        throw new IllegalArgumentException(
-            String.format("%s was not registered with facet enabled", fieldDef.getName()));
-      } else if (fieldDef.getFacetValueType() == IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
+      if (fieldDef.getFacetValueType() == IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
         throw new IllegalArgumentException(
             String.format(
                 "%s was registered with facet = numericRange; must pass numericRanges in the request",
@@ -475,6 +499,18 @@ public class DrillSidewaysImpl extends DrillSideways {
         throw new IllegalArgumentException(
             String.format("each facet request must have either topN or labels"));
       }
+    } else {
+      // if no facet type is enabled on the field, try using the field doc values
+      if (!(fieldDef instanceof IndexableFieldDef)) {
+        throw new IllegalArgumentException(
+            "Doc values facet requires an indexable field : " + fieldName);
+      }
+      IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDef;
+      if (!indexableFieldDef.hasDocValues()) {
+        throw new IllegalArgumentException(
+            "Doc values facet requires doc values enabled : " + fieldName);
+      }
+      return getDocValuesFacetResult(facet, drillDowns, indexableFieldDef);
     }
     if (facetResult != null) {
       return buildFacetResultGrpc(facetResult, facet.getName());
