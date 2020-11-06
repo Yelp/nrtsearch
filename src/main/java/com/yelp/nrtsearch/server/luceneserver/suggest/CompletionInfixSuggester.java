@@ -166,9 +166,9 @@ public class CompletionInfixSuggester extends AnalyzingInfixSuggester {
 
   @Override
   public void build(InputIterator iterator) throws IOException {
-    if (!(iterator instanceof FromFileSuggestItemIterator)) {
+    if (!(iterator instanceof FromProtobufFileSuggestItemIterator)) {
       throw new IllegalArgumentException(
-          "this suggester only works with FromFileSuggestItemIterator");
+          "this suggester only works with FromProtobufFileSuggestItemIterator");
     }
     if (!iterator.hasPayloads()) {
       throw new IllegalArgumentException("this suggester requires to have payload in index");
@@ -177,7 +177,7 @@ public class CompletionInfixSuggester extends AnalyzingInfixSuggester {
       throw new IllegalArgumentException("this suggester requires to have context in index");
     }
 
-    FromFileSuggestItemIterator iter = (FromFileSuggestItemIterator) iterator;
+    FromProtobufFileSuggestItemIterator iter = (FromProtobufFileSuggestItemIterator) iterator;
 
     synchronized (searcherMgrLock) {
       if (searcherMgr != null) {

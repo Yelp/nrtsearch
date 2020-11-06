@@ -104,9 +104,7 @@ public class FromProtobufFileSuggestItemIterator implements InputIterator, Close
     return text;
   }
 
-  /**
-   * Parse each protobuf object based on NrtsearchIndex proto schema
-   */
+  /** Parse each protobuf object based on NrtsearchIndex proto schema */
   private boolean parseProtobufIndex(NrtsearchIndex suggestIndexInfo) {
     text = new BytesRef(String.valueOf(suggestIndexInfo.getUniqueId()));
     searchTexts.clear();
