@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
+import com.yelp.nrtsearch.server.grpc.Facet;
+import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
@@ -48,4 +50,23 @@ public interface DocCollector {
    * @param lastHit last hit document
    */
   void fillLastHit(SearchResponse.SearchState.Builder stateBuilder, ScoreDoc lastHit);
+
+  /**
+   * Get the maximum number of hits that should be collected during ranking. This value will at
+   * least be as large as the query specified top hits, and may be larger if doing a facet sample
+   * aggregation requiring a greater number of top docs.
+   *
+   * @param request search request
+   * @return total top docs needed for query response and sample facets
+   */
+  default int getNumHitsToCollect(SearchRequest request) {
+    int collectHits = request.getTopHits();
+    for (Facet facet : request.getFacetsList()) {
+      int facetSample = facet.getSampleTopDocs();
+      if (facetSample > 0 && facetSample > collectHits) {
+        collectHits = facetSample;
+      }
+    }
+    return collectHits;
+  }
 }

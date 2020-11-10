@@ -30,7 +30,7 @@ public class LargeNumHitsCollector implements DocCollector {
   private final CollectorManager<LargeNumHitsTopDocsCollector, TopDocs> manager;
 
   public LargeNumHitsCollector(SearchRequest searchRequest) {
-    int topHits = searchRequest.getTopHits();
+    int topHits = getNumHitsToCollect(searchRequest);
     manager = LargeNumHitsTopDocsCollectorManagerCreator.createSharedManager(topHits);
   }
 

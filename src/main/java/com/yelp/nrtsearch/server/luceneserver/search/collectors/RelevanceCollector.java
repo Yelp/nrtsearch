@@ -33,7 +33,7 @@ public class RelevanceCollector implements DocCollector {
 
   public RelevanceCollector(SearchRequest searchRequest) {
     FieldDoc searchAfter = null;
-    int topHits = searchRequest.getTopHits();
+    int topHits = getNumHitsToCollect(searchRequest);
     int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
     if (searchRequest.getTotalHitsThreshold() != 0) {
       totalHitsThreshold = searchRequest.getTotalHitsThreshold();

@@ -89,7 +89,8 @@ public class SearchRequestProcessor {
         .setSearcherAndTaxonomy(searcherAndTaxonomy)
         .setResponseBuilder(responseBuilder)
         .setTimestampSec(System.currentTimeMillis() / 1000)
-        .setStartHit(searchRequest.getStartHit());
+        .setStartHit(searchRequest.getStartHit())
+        .setTopHits(searchRequest.getTopHits());
 
     Map<String, FieldDef> queryVirtualFields = getVirtualFields(shardState, searchRequest);
 

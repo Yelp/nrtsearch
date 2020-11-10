@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.facet.DrillSidewaysImpl;
+import com.yelp.nrtsearch.server.luceneserver.facet.FacetTopDocs;
 import com.yelp.nrtsearch.server.luceneserver.field.BooleanFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
@@ -114,6 +115,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 drillS.search(ddq, searchContext.getCollector().getManager());
         hits = concurrentDrillSidewaysResult.collectorResult;
         searchContext.getResponseBuilder().addAllFacetResult(grpcFacetResults);
+        searchContext
+            .getResponseBuilder()
+            .addAllFacetResult(
+                FacetTopDocs.facetTopDocsSample(
+                    hits, searchRequest.getFacetsList(), indexState, s.searcher));
       } else {
         try {
           hits =
@@ -129,7 +135,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       long t0 = System.nanoTime();
 
-      hits = getHitsFromOffset(hits, searchContext.getStartHit());
+      hits = getHitsFromOffset(hits, searchContext.getStartHit(), searchContext.getTopHits());
 
       // create Hit.Builder for each hit, and populate with lucene doc id and ranking info
       setResponseHits(searchContext, hits);
@@ -195,18 +201,21 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
   }
 
   /**
-   * Given all the top documents and a starting offset, produce a slice of the documents starting
-   * from that offset.
+   * Given all the top documents, produce a slice of the documents starting from a start offset and
+   * going up to the query needed maximum hits. There may be more top docs than the topHits limit,
+   * if top docs sampling facets are used.
    *
    * @param hits all hits
    * @param startHit offset into top docs
+   * @param topHits maximum number of hits needed for search response
    * @return slice of hits starting at given offset, or empty slice if there are less than startHit
    *     docs
    */
-  private static TopDocs getHitsFromOffset(TopDocs hits, int startHit) {
-    if (startHit != 0) {
+  private static TopDocs getHitsFromOffset(TopDocs hits, int startHit, int topHits) {
+    int retrieveHits = Math.min(topHits, hits.scoreDocs.length);
+    if (startHit != 0 || retrieveHits != hits.scoreDocs.length) {
       // Slice:
-      int count = Math.max(0, hits.scoreDocs.length - startHit);
+      int count = Math.max(0, retrieveHits - startHit);
       ScoreDoc[] newScoreDocs = new ScoreDoc[count];
       if (count > 0) {
         System.arraycopy(hits.scoreDocs, startHit, newScoreDocs, 0, count);

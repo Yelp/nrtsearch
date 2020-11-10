@@ -27,10 +27,10 @@ import org.junit.ClassRule;
 import org.junit.Test;
 
 public class StartHitTest extends ServerTestCase {
+  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
   private static final String TEST_INDEX = "test_index";
   private static final int NUM_DOCS = 100;
-
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
   protected List<String> getIndices() {

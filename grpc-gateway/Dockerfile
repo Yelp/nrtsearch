@@ -55,7 +55,8 @@ RUN protoc \
 --go_out=plugins=grpc:$OUTPATH \
 $PROTO_PATH/yelp/nrtsearch/analysis.proto \
 $PROTO_PATH/yelp/nrtsearch/luceneserver.proto \
-$PROTO_PATH/yelp/nrtsearch/search.proto
+$PROTO_PATH/yelp/nrtsearch/search.proto \
+$PROTO_PATH/yelp/nrtsearch/suggest.proto
 
 RUN protoc \
 -I $PROTO_PATH \
@@ -65,7 +66,8 @@ RUN protoc \
 --grpc-gateway_out=logtostderr=true:$OUTPATH \
 $PROTO_PATH/yelp/nrtsearch/analysis.proto \
 $PROTO_PATH/yelp/nrtsearch/luceneserver.proto \
-$PROTO_PATH/yelp/nrtsearch/search.proto
+$PROTO_PATH/yelp/nrtsearch/search.proto \
+$PROTO_PATH/yelp/nrtsearch/suggest.proto
 
 RUN protoc \
 -I $PROTO_PATH \
@@ -75,7 +77,8 @@ RUN protoc \
 --swagger_out=logtostderr=true:$OUTPATH \
 $PROTO_PATH/yelp/nrtsearch/analysis.proto \
 $PROTO_PATH/yelp/nrtsearch/luceneserver.proto \
-$PROTO_PATH/yelp/nrtsearch/search.proto
+$PROTO_PATH/yelp/nrtsearch/search.proto \
+$PROTO_PATH/yelp/nrtsearch/suggest.proto
 
 RUN cp $OUTPATH/yelp/nrtsearch/* grpc-gateway/
 

@@ -77,8 +77,9 @@ public class CompletionInfixSuggester extends AnalyzingInfixSuggester {
 
   private final Directory dir;
 
-  public CompletionInfixSuggester(Directory dir, Analyzer analyzer) throws IOException {
-    super(dir, analyzer, analyzer, DEFAULT_MIN_PREFIX_CHARS, DEFAULT_COMMIT_ON_BUILD);
+  public CompletionInfixSuggester(Directory dir, Analyzer indexAnalyzer, Analyzer queryAnalyzer)
+      throws IOException {
+    super(dir, indexAnalyzer, queryAnalyzer, DEFAULT_MIN_PREFIX_CHARS, DEFAULT_COMMIT_ON_BUILD);
     this.dir = dir;
   }
 
@@ -148,10 +149,13 @@ public class CompletionInfixSuggester extends AnalyzingInfixSuggester {
   private ContextQuery createContextQuery(CharSequence key, Set<BytesRef> contexts) {
     CompletionQuery completionQuery = createCompletionQuery(key);
     ContextQuery contextQuery = new ContextQuery(completionQuery);
-    assert contexts != null;
-    for (BytesRef context : contexts) {
-      contextQuery.addContext(context.utf8ToString());
+
+    if (contexts != null) {
+      for (BytesRef context : contexts) {
+        contextQuery.addContext(context.utf8ToString());
+      }
     }
+
     return contextQuery;
   }
 

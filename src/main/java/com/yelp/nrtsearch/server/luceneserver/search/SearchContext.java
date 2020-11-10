@@ -35,6 +35,7 @@ public class SearchContext {
 
   private final long timestampSec;
   private final int startHit;
+  private final int topHits;
   private final Map<String, FieldDef> queryFields;
   private final Map<String, FieldDef> retrieveFields;
   private final Query query;
@@ -47,6 +48,7 @@ public class SearchContext {
     this.responseBuilder = builder.responseBuilder;
     this.timestampSec = builder.timestampSec;
     this.startHit = builder.startHit;
+    this.topHits = builder.topHits;
     this.queryFields = builder.queryFields;
     this.retrieveFields = builder.retrieveFields;
     this.query = builder.query;
@@ -85,6 +87,11 @@ public class SearchContext {
   /** Get the offset of the first hit to return from the top hits. */
   public int getStartHit() {
     return startHit;
+  }
+
+  /** Get the number of hits to collect to satisfy the search response */
+  public int getTopHits() {
+    return topHits;
   }
 
   /**
@@ -131,6 +138,9 @@ public class SearchContext {
     if (startHit < 0) {
       throw new IllegalStateException("Invalid startHit value: " + startHit);
     }
+    if (topHits < 0) {
+      throw new IllegalStateException("Invalid topHits value: " + topHits);
+    }
   }
 
   /** Builder class for search context. */
@@ -142,6 +152,7 @@ public class SearchContext {
 
     private long timestampSec = -1;
     private int startHit = -1;
+    private int topHits = -1;
     private Map<String, FieldDef> queryFields;
     private Map<String, FieldDef> retrieveFields;
     private Query query;
@@ -182,6 +193,12 @@ public class SearchContext {
     /** Set the offset of the first hit to return from the top hits. */
     public Builder setStartHit(int startHit) {
       this.startHit = startHit;
+      return this;
+    }
+
+    /** Set the number of hits to collect to satisfy the search response */
+    public Builder setTopHits(int topHits) {
+      this.topHits = topHits;
       return this;
     }
 
