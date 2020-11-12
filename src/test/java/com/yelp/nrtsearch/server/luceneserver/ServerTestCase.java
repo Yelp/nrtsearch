@@ -64,6 +64,7 @@ import org.junit.rules.TemporaryFolder;
  */
 public class ServerTestCase {
   public static final String DEFAULT_TEST_INDEX = "test_index";
+
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
    * end of test.
@@ -226,6 +227,9 @@ public class ServerTestCase {
       // start the index
       StartIndexRequest.Builder startIndexBuilder =
           StartIndexRequest.newBuilder().setIndexName(indexName);
+      if (shouldInitializeIndicesAsPrimary()) {
+        startIndexBuilder.setMode(Mode.PRIMARY);
+      }
       blockingStub.startIndex(startIndexBuilder.build());
 
       // add Docs
@@ -234,6 +238,10 @@ public class ServerTestCase {
       // refresh
       blockingStub.refresh(RefreshRequest.newBuilder().setIndexName(indexName).build());
     }
+  }
+
+  protected boolean shouldInitializeIndicesAsPrimary() {
+    return false;
   }
 
   protected List<String> getIndices() {
