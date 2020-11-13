@@ -144,7 +144,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       if (entry.getValue().getValuesSource().needsScores()) {
         forceDocScores = true;
       }
-      fields.add(entry.getKey());
     }
 
     Query q = extractQuery(indexState, searchRequest, timestampSec);
@@ -168,7 +167,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         }
         fieldSeen.add(field);
 
-        FieldDef fd = indexFields.get(field);
+        FieldDef fd = queryFields.get(field);
         if (fd == null) {
           throw new SearchHandlerException(
               String.format(
