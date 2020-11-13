@@ -2027,6 +2027,9 @@
           "items": {
             "$ref": "#/definitions/luceneserverField"
           }
+        },
+        "eagerGlobalOrdinals": {
+          "type": "boolean"
         }
       }
     },
