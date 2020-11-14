@@ -25,6 +25,20 @@ import org.apache.lucene.search.Query;
  */
 public interface TermQueryable {
   /**
+   * Get TermTypesCase for TermQuery. Used for input value validation.
+   *
+   * @return expected TermTypesCase
+   */
+  TermQuery.TermTypesCase getTermQueryType();
+
+  /**
+   * Get TermTypesCase for TermInSetQuery. Used for input value validation.
+   *
+   * @return expected TermTypesCase
+   */
+  TermInSetQuery.TermTypesCase getTermInSetQueryType();
+
+  /**
    * Build a term query for this field type with the given configuration.
    *
    * @param termQuery term query configuration

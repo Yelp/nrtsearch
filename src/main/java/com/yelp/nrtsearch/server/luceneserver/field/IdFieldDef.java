@@ -148,6 +148,16 @@ public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
   }
 
   @Override
+  public TermQuery.TermTypesCase getTermQueryType() {
+    return TermQuery.TermTypesCase.TEXTVALUE;
+  }
+
+  @Override
+  public TermInSetQuery.TermTypesCase getTermInSetQueryType() {
+    return TermInSetQuery.TermTypesCase.TEXTTERMS;
+  }
+
+  @Override
   public Query getTermQuery(TermQuery termQuery) {
     return new org.apache.lucene.search.TermQuery(
         new Term(termQuery.getField(), termQuery.getTextValue()));

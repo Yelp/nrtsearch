@@ -106,6 +106,16 @@ public class IntFieldDef extends NumberFieldDef {
   }
 
   @Override
+  public TermQuery.TermTypesCase getTermQueryType() {
+    return TermQuery.TermTypesCase.INTVALUE;
+  }
+
+  @Override
+  public TermInSetQuery.TermTypesCase getTermInSetQueryType() {
+    return TermInSetQuery.TermTypesCase.INTTERMS;
+  }
+
+  @Override
   public Query getTermQuery(TermQuery termQuery) {
     return IntPoint.newExactQuery(getName(), termQuery.getIntValue());
   }

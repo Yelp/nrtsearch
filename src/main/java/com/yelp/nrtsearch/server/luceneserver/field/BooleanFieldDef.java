@@ -140,25 +140,19 @@ public class BooleanFieldDef extends IndexableFieldDef implements TermQueryable 
   }
 
   @Override
-  public Query getTermQuery(TermQuery termQuery) {
-    if (!isSearchable()) {
-      throw new IllegalStateException(
-          "Field " + getName() + " is not searchable, which is required for TermQuery");
-    }
+  public TermQuery.TermTypesCase getTermQueryType() {
+    return TermQuery.TermTypesCase.BOOLEANVALUE;
+  }
 
-    boolean termValue;
-    switch (termQuery.getTermTypesCase()) {
-      case TEXTVALUE:
-        termValue = parseBooleanOrThrow(termQuery.getTextValue());
-        break;
-      case BOOLEANVALUE:
-        termValue = termQuery.getBooleanValue();
-        break;
-      default:
-        throw new IllegalArgumentException(
-            "BOOLEAN field does not support term type: " + termQuery.getTermTypesCase());
-    }
-    String indexTermValue = termValue ? "1" : "0";
+  @Override
+  public TermInSetQuery.TermTypesCase getTermInSetQueryType() {
+    // A boolean can only be two values, this query type is not very useful
+    throw new UnsupportedOperationException("BOOLEAN fields do not support TermInSetQuery");
+  }
+
+  @Override
+  public Query getTermQuery(TermQuery termQuery) {
+    String indexTermValue = termQuery.getBooleanValue() ? "1" : "0";
     return new org.apache.lucene.search.TermQuery(new Term(getName(), indexTermValue));
   }
 

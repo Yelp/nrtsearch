@@ -123,6 +123,16 @@ public class DoubleFieldDef extends NumberFieldDef {
   }
 
   @Override
+  public TermQuery.TermTypesCase getTermQueryType() {
+    return TermQuery.TermTypesCase.DOUBLEVALUE;
+  }
+
+  @Override
+  public TermInSetQuery.TermTypesCase getTermInSetQueryType() {
+    return TermInSetQuery.TermTypesCase.DOUBLETERMS;
+  }
+
+  @Override
   public Query getTermQuery(TermQuery termQuery) {
     return DoublePoint.newExactQuery(getName(), termQuery.getDoubleValue());
   }

@@ -327,6 +327,16 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef implements Term
   }
 
   @Override
+  public TermQuery.TermTypesCase getTermQueryType() {
+    return TermTypesCase.TEXTVALUE;
+  }
+
+  @Override
+  public TermInSetQuery.TermTypesCase getTermInSetQueryType() {
+    return TermInSetQuery.TermTypesCase.TEXTTERMS;
+  }
+
+  @Override
   public Query getTermQuery(TermQuery termQuery) {
     if (termQuery.getTermTypesCase() != TermTypesCase.TEXTVALUE) {
       throw new IllegalArgumentException(
