@@ -20,9 +20,6 @@ import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
-
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.LongToDoubleFunction;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -110,40 +107,11 @@ public class IntFieldDef extends NumberFieldDef {
 
   @Override
   public Query getTermQuery(TermQuery termQuery) {
-    int intValue;
-    switch (termQuery.getTermTypesCase()) {
-      case TEXTVALUE:
-        intValue = Integer.parseInt(termQuery.getTextValue());
-        break;
-      case INTVALUE:
-        intValue = termQuery.getIntValue();
-        break;
-      default:
-        throw new IllegalArgumentException(
-            "INT field does not support term type: " + termQuery.getTermTypesCase());
-    }
-    return IntPoint.newExactQuery(getName(), intValue);
+    return IntPoint.newExactQuery(getName(), termQuery.getIntValue());
   }
 
   @Override
   public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
-    List<Integer> intValues;
-    switch (termInSetQuery.getTermTypesCase()) {
-      case TEXTTERMS:
-        List<Integer> intTermsList = new ArrayList<>();
-        termInSetQuery.getTextTerms().getTermsList().forEach(
-            s -> intTermsList.add(Integer.parseInt(s))
-        );
-        intValues = intTermsList;
-        break;
-      case INTTERMS:
-        intValues = termInSetQuery.getIntTerms().getTermsList();
-        break;
-      default:
-        throw new IllegalArgumentException(
-            "INT field does not support term type: " + termInSetQuery.getTermTypesCase());
-    }
-
-    return IntPoint.newSetQuery(getName(), intValues);
+    return IntPoint.newSetQuery(getName(), termInSetQuery.getIntTerms().getTermsList());
   }
 }
