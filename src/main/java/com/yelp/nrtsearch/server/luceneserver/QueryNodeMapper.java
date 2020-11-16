@@ -21,7 +21,6 @@ import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.PolygonQueryable;
@@ -161,11 +160,11 @@ class QueryNodeMapper {
   }
 
   private void validateTermQueryIsSearchable(FieldDef fieldDef) {
-    if (fieldDef instanceof IndexableFieldDef
-        && !(fieldDef instanceof IdFieldDef)
-        && !((IndexableFieldDef) fieldDef).isSearchable()) {
+    if (fieldDef instanceof IndexableFieldDef && !((IndexableFieldDef) fieldDef).isSearchable()) {
       throw new IllegalStateException(
-          "Field " + fieldDef.getName() + " is not searchable, which is required for TermQuery / TermInSetQuery");
+          "Field "
+              + fieldDef.getName()
+              + " is not searchable, which is required for TermQuery / TermInSetQuery");
     }
   }
 
