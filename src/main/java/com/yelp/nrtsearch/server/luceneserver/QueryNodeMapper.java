@@ -151,17 +151,21 @@ class QueryNodeMapper {
 
   private void validateTermQuery(
       FieldDef fieldDef, com.yelp.nrtsearch.server.grpc.TermQuery termQuery) {
-    if (fieldDef instanceof IndexableFieldDef
-        && !(fieldDef instanceof IdFieldDef)
-        && !((IndexableFieldDef) fieldDef).isSearchable()) {
-      throw new IllegalStateException(
-          "Field " + fieldDef.getName() + " is not searchable, which is required for TermQuery");
-    }
+    validateTermQueryIsSearchable(fieldDef);
     if (((TermQueryable) fieldDef).getTermQueryType() != termQuery.getTermTypesCase()) {
       throw new IllegalArgumentException(
           String.format(
               "%s field does not support term type: %s",
               fieldDef.getName(), termQuery.getTermTypesCase()));
+    }
+  }
+
+  private void validateTermQueryIsSearchable(FieldDef fieldDef) {
+    if (fieldDef instanceof IndexableFieldDef
+        && !(fieldDef instanceof IdFieldDef)
+        && !((IndexableFieldDef) fieldDef).isSearchable()) {
+      throw new IllegalStateException(
+          "Field " + fieldDef.getName() + " is not searchable, which is required for TermQuery / TermInSetQuery");
     }
   }
 
@@ -181,12 +185,7 @@ class QueryNodeMapper {
   }
 
   private void validateTermInSetQuery(FieldDef fieldDef, TermInSetQuery termInSetQuery) {
-    if (fieldDef instanceof IndexableFieldDef
-        && !(fieldDef instanceof IdFieldDef)
-        && !((IndexableFieldDef) fieldDef).isSearchable()) {
-      throw new IllegalStateException(
-          "Field " + fieldDef.getName() + " is not searchable, which is required for TermQuery");
-    }
+    validateTermQueryIsSearchable(fieldDef);
     if (((TermQueryable) fieldDef).getTermInSetQueryType() != termInSetQuery.getTermTypesCase()) {
       throw new IllegalArgumentException(
           String.format(
