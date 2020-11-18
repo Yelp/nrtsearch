@@ -69,11 +69,9 @@ public class YelpSuggestTest extends TestIndexManager {
     LuceneServerClient standaloneServerClient =
         new LuceneServerClient(
             System.getProperty("suggestHost"), Integer.parseInt(System.getProperty("suggestPort")));
-    Path standaloneDir = yelp_suggest_test_base_path.resolve("standalone_3");
 
     setUpIndex(
         standaloneServerClient,
-        standaloneDir,
         INDEX_NAME,
         SUGGESTIONS_FILE_PATH,
         new YelpSuggestTest.OneDocBuilderImpl());

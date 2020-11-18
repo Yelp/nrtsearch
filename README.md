@@ -62,11 +62,11 @@ Note: This code has been tested on *Java14*
 ## Create Index
 
 ```
-./build/install/nrtsearch/bin/lucene-client createIndex --indexName  testIdx --rootDir testIdx
+./build/install/nrtsearch/bin/lucene-client createIndex --indexName  testIdx
 ```
 
 ```
-curl -XPOST localhost:<REST_PORT>/v1/create_index -d '{"indexName": "testIdx", "rootDir": "testIdx"}'
+curl -XPOST localhost:<REST_PORT>/v1/create_index -d '{"indexName": "testIdx"}'
 ```
 
 ## Update Settings
