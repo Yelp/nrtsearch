@@ -1657,9 +1657,6 @@
       "properties": {
         "indexName": {
           "type": "string"
-        },
-        "rootDir": {
-          "type": "string"
         }
       },
       "title": "Input to createIndex"
