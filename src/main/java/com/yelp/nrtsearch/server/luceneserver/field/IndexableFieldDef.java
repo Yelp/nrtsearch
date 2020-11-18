@@ -49,7 +49,7 @@ public abstract class IndexableFieldDef extends FieldDef {
   private final String docValuesFormat;
   private final Similarity similarity;
 
-  private final Map<String, IndexableFieldDef> childFields;
+  protected final Map<String, IndexableFieldDef> childFields;
 
   protected final DocValuesType docValuesType;
   protected final IndexableFieldDef.FacetValueType facetValueType;

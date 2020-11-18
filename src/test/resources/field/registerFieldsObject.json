@@ -1,0 +1,30 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "delivery_areas",
+      "type": "OBJECT",
+      "search": true,
+      "childFields": [
+        {
+          "name": "hours",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "zipcode",
+          "type": "ATOM",
+          "search": true,
+          "storeDocValues": true
+        }
+      ]
+    }
+  ]
+}
