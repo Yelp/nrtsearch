@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.NumericRangeType;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.DoubleFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FloatFieldDef;
@@ -136,6 +137,11 @@ public class DrillSidewaysImpl extends DrillSideways {
     Map<String, Facets> indexFieldNameToSSDVFacets = new HashMap<String, Facets>();
 
     for (Facet facet : grpcFacets) {
+      // these facets will be created from the top docs
+      if (facet.getSampleTopDocs() != 0) {
+        continue;
+      }
+
       com.yelp.nrtsearch.server.grpc.FacetResult facetResult;
       if (facet.hasScript()) {
         // this facet is a FacetScript, run script against all matching documents
@@ -186,7 +192,33 @@ public class DrillSidewaysImpl extends DrillSideways {
         docId = iterator.nextDoc();
       }
     }
-    return buildScriptFacetResultGrpc(countsMap, facet, totalDocs);
+    return buildFacetResultFromCountsGrpc(countsMap, facet, totalDocs);
+  }
+
+  private static com.yelp.nrtsearch.server.grpc.FacetResult getDocValuesFacetResult(
+      Facet facet, FacetsCollector drillDowns, IndexableFieldDef fieldDef) throws IOException {
+    Map<Object, Integer> countsMap = new HashMap<>();
+    int totalDocs = 0;
+    // get doc values for all match docs, and aggregate counts
+    for (MatchingDocs matchingDocs : drillDowns.getMatchingDocs()) {
+      LoadedDocValues<?> docValues = fieldDef.getDocValues(matchingDocs.context);
+      DocIdSetIterator iterator = matchingDocs.bits.iterator();
+      if (iterator == null) {
+        continue;
+      }
+      int docId = iterator.nextDoc();
+      while (docId != DocIdSetIterator.NO_MORE_DOCS) {
+        docValues.setDocId(docId);
+        if (!docValues.isEmpty()) {
+          for (Object value : docValues) {
+            countsMap.merge(value, 1, Integer::sum);
+          }
+          totalDocs++;
+        }
+        docId = iterator.nextDoc();
+      }
+    }
+    return buildFacetResultFromCountsGrpc(countsMap, facet, totalDocs);
   }
 
   private static void processScriptResult(Object scriptResult, Map<Object, Integer> countsMap) {
@@ -203,10 +235,20 @@ public class DrillSidewaysImpl extends DrillSideways {
     }
   }
 
-  private static com.yelp.nrtsearch.server.grpc.FacetResult buildScriptFacetResultGrpc(
+  /**
+   * Build a {@link com.yelp.nrtsearch.server.grpc.FacetResult} given a computed aggregation in the
+   * form of a count map.
+   *
+   * @param countsMap map containing all aggregated values to the number of times they were observed
+   * @param facet facet definition grpc message
+   * @param totalDocs total number of docs aggregated
+   * @return facet result grpc message
+   */
+  public static com.yelp.nrtsearch.server.grpc.FacetResult buildFacetResultFromCountsGrpc(
       Map<Object, Integer> countsMap, Facet facet, int totalDocs) {
     com.yelp.nrtsearch.server.grpc.FacetResult.Builder builder =
         com.yelp.nrtsearch.server.grpc.FacetResult.newBuilder();
+    builder.setName(facet.getName());
     builder.setDim(facet.getDim());
     builder.addAllPath(facet.getPathsList());
     builder.setValue(totalDocs);
@@ -363,13 +405,10 @@ public class DrillSidewaysImpl extends DrillSideways {
       facetResult =
           sortedSetDocValuesFacetCounts.getTopChildren(
               facet.getTopN(), fieldDef.getName(), new String[0]);
-    } else {
+    } else if (fieldDef.getFacetValueType() != IndexableFieldDef.FacetValueType.NO_FACETS) {
 
       // Taxonomy  facets
-      if (fieldDef.getFacetValueType() == IndexableFieldDef.FacetValueType.NO_FACETS) {
-        throw new IllegalArgumentException(
-            String.format("%s was not registered with facet enabled", fieldDef.getName()));
-      } else if (fieldDef.getFacetValueType() == IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
+      if (fieldDef.getFacetValueType() == IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
         throw new IllegalArgumentException(
             String.format(
                 "%s was registered with facet = numericRange; must pass numericRanges in the request",
@@ -460,16 +499,29 @@ public class DrillSidewaysImpl extends DrillSideways {
         throw new IllegalArgumentException(
             String.format("each facet request must have either topN or labels"));
       }
+    } else {
+      // if no facet type is enabled on the field, try using the field doc values
+      if (!(fieldDef instanceof IndexableFieldDef)) {
+        throw new IllegalArgumentException(
+            "Doc values facet requires an indexable field : " + fieldName);
+      }
+      IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDef;
+      if (!indexableFieldDef.hasDocValues()) {
+        throw new IllegalArgumentException(
+            "Doc values facet requires doc values enabled : " + fieldName);
+      }
+      return getDocValuesFacetResult(facet, drillDowns, indexableFieldDef);
     }
     if (facetResult != null) {
-      return buildFacetResultGrpc(facetResult);
+      return buildFacetResultGrpc(facetResult, facet.getName());
     }
     return null;
   }
 
   private static com.yelp.nrtsearch.server.grpc.FacetResult buildFacetResultGrpc(
-      FacetResult facetResult) {
+      FacetResult facetResult, String name) {
     var builder = com.yelp.nrtsearch.server.grpc.FacetResult.newBuilder();
+    builder.setName(name);
     builder.setDim(facetResult.dim);
     builder.addAllPath(Arrays.asList(facetResult.path));
     builder.setValue(facetResult.value.doubleValue());

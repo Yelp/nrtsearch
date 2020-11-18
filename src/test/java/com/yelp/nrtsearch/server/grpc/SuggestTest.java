@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
@@ -50,7 +51,9 @@ public class SuggestTest {
   enum Suggester {
     INFIX,
     ANALYZING,
-    FUZZY
+    FUZZY,
+    COMPLETION_INFIX,
+    FUZZY_INFIX
   }
 
   /**
@@ -101,7 +104,8 @@ public class SuggestTest {
     out.write("15\u001flove lost\u001ffoobar\n");
     out.close();
 
-    BuildSuggestResponse response = sendBuildSuggest("suggest2", false, false, Suggester.INFIX);
+    BuildSuggestResponse response =
+        sendBuildSuggest("suggest2", false, false, false, false, Suggester.INFIX);
     assertEquals(1, response.getCount());
 
     for (int i = 0; i < 2; i++) {
@@ -122,8 +126,99 @@ public class SuggestTest {
     }
   }
 
+  @Test
+  public void testCompletionInfixSuggest() throws Exception {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    Writer fstream = new OutputStreamWriter(new FileOutputStream(tempFile.toFile()), "UTF-8");
+    BufferedWriter out = new BufferedWriter(fstream);
+    out.write("home depot\u001fhome depot\u001edepot\u001f1\u001fpayload\u001fc1\u001ec2");
+    out.close();
+
+    BuildSuggestResponse response =
+        sendBuildSuggest("suggest2", true, true, true, false, Suggester.COMPLETION_INFIX);
+    assertEquals(1, response.getCount());
+
+    for (int i = 0; i < 2; i++) {
+      // 1 transposition and this matches the infix of "depot":
+      SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+      suggestLookupBuilder.setText("de");
+      suggestLookupBuilder.setSuggestName("suggest2");
+      suggestLookupBuilder.setIndexName("test_index");
+      SuggestLookupResponse suggestResponse =
+          grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+      List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+
+      assertNotNull(results);
+      assertEquals(1, results.size());
+      assertEquals(1, results.get(0).getWeight());
+      assertEquals("home depot", results.get(0).getKey());
+      assertEquals("payload", results.get(0).getPayload());
+
+      // commit state and indexes
+      grpcServer
+          .getBlockingStub()
+          .commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+      // mimic bounce server to make sure suggestions survive restart
+      grpcServer
+          .getBlockingStub()
+          .stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
+      grpcServer
+          .getBlockingStub()
+          .startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
+    }
+  }
+
+  @Test
+  public void testFuzzyInfixSuggest() throws Exception {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    Writer fstream = new OutputStreamWriter(new FileOutputStream(tempFile.toFile()), "UTF-8");
+    BufferedWriter out = new BufferedWriter(fstream);
+    out.write("home depot\u001fhome depot\u001edepot\u001f1\u001fpayload\u001fc1\u001ec2");
+    out.close();
+
+    BuildSuggestResponse response =
+        sendBuildSuggest("suggest2", true, true, true, false, Suggester.FUZZY_INFIX);
+    assertEquals(1, response.getCount());
+
+    for (int i = 0; i < 2; i++) {
+      // 1 transposition and this matches the infix of "depot":
+      SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+      suggestLookupBuilder.setText("dip");
+      suggestLookupBuilder.setSuggestName("suggest2");
+      suggestLookupBuilder.setIndexName("test_index");
+      SuggestLookupResponse suggestResponse =
+          grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+      List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+
+      assertNotNull(results);
+      assertEquals(1, results.size());
+      assertEquals(1, results.get(0).getWeight());
+      assertEquals("home depot", results.get(0).getKey());
+      assertEquals("payload", results.get(0).getPayload());
+
+      // commit state and indexes
+      grpcServer
+          .getBlockingStub()
+          .commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+      // mimic bounce server to make sure suggestions survive restart
+      grpcServer
+          .getBlockingStub()
+          .stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
+      grpcServer
+          .getBlockingStub()
+          .startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
+    }
+  }
+
   private BuildSuggestResponse sendBuildSuggest(
-      String suggestName, boolean hasContexts, boolean isUpdate, Suggester suggester) {
+      String suggestName,
+      boolean hasContexts,
+      boolean hasPayload,
+      boolean hasMultiSearchTexts,
+      boolean isUpdate,
+      Suggester suggester) {
     BuildSuggestRequest.Builder buildSuggestRequestBuilder = BuildSuggestRequest.newBuilder();
     buildSuggestRequestBuilder.setSuggestName(suggestName);
     buildSuggestRequestBuilder.setIndexName("test_index");
@@ -136,11 +231,19 @@ public class SuggestTest {
     } else if (suggester.equals(Suggester.FUZZY)) {
       buildSuggestRequestBuilder.setFuzzySuggester(
           FuzzySuggester.newBuilder().setAnalyzer("default").build());
+    } else if (suggester.equals(Suggester.COMPLETION_INFIX)) {
+      buildSuggestRequestBuilder.setCompletionInfixSuggester(
+          CompletionInfixSuggester.newBuilder().setAnalyzer("default").build());
+    } else if (suggester.equals(Suggester.FUZZY_INFIX)) {
+      buildSuggestRequestBuilder.setFuzzyInfixSuggester(
+          FuzzyInfixSuggester.newBuilder().setAnalyzer("default").setTranspositions(true).build());
     }
     buildSuggestRequestBuilder.setLocalSource(
         SuggestLocalSource.newBuilder()
             .setLocalFile(tempFile.toAbsolutePath().toString())
             .setHasContexts(hasContexts)
+            .setHasPayload(hasPayload)
+            .setHasMultiSearchText(hasMultiSearchTexts)
             .build());
     BuildSuggestResponse response;
     if (isUpdate) {
@@ -206,7 +309,8 @@ public class SuggestTest {
     out.write("15\u001flove lost\u001ffoobar\n");
     out.close();
 
-    BuildSuggestResponse response = sendBuildSuggest("suggestnrt", false, false, Suggester.INFIX);
+    BuildSuggestResponse response =
+        sendBuildSuggest("suggestnrt", false, false, false, false, Suggester.INFIX);
     assertEquals(1, response.getCount());
 
     assertOneHighlightOnIndexLoveLost("lost", "suggestnrt", 15, "foobar");
@@ -219,7 +323,7 @@ public class SuggestTest {
     out.write("20\u001flove found\u001ffooboo\n");
     out.close();
 
-    response = sendBuildSuggest("suggestnrt", false, true, Suggester.INFIX);
+    response = sendBuildSuggest("suggestnrt", false, false, false, true, Suggester.INFIX);
     assertEquals(2, response.getCount());
 
     for (int i = 0; i < 2; i++) {
@@ -285,7 +389,8 @@ public class SuggestTest {
     out.write("5\u001ftheories take time\u001ffoobar\n");
     out.write("5\u001fthe time is now\u001ffoobar\n");
     out.close();
-    BuildSuggestResponse response = sendBuildSuggest("suggest", false, false, Suggester.ANALYZING);
+    BuildSuggestResponse response =
+        sendBuildSuggest("suggest", false, false, false, false, Suggester.ANALYZING);
     assertEquals(5, response.getCount());
 
     for (int i = 0; i < 2; i++) {
@@ -347,7 +452,8 @@ public class SuggestTest {
     out.write("15\u001flove lost\u001ffoobar\n");
     out.close();
 
-    BuildSuggestResponse result = sendBuildSuggest("suggest3", false, false, Suggester.FUZZY);
+    BuildSuggestResponse result =
+        sendBuildSuggest("suggest3", false, false, false, false, Suggester.FUZZY);
     assertEquals(1, result.getCount());
 
     for (int i = 0; i < 2; i++) {
@@ -501,7 +607,8 @@ public class SuggestTest {
     out.write("15\u001flove lost\u001ffoobar\u001flucene\n");
     out.close();
 
-    BuildSuggestResponse response = sendBuildSuggest("suggest", true, false, Suggester.INFIX);
+    BuildSuggestResponse response =
+        sendBuildSuggest("suggest", true, false, false, false, Suggester.INFIX);
     assertEquals(1, response.getCount());
 
     for (int i = 0; i < 2; i++) {

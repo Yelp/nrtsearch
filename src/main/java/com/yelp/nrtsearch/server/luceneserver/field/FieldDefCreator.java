@@ -43,6 +43,7 @@ public class FieldDefCreator {
     register("DOUBLE", DoubleFieldDef::new);
     register("FLOAT", FloatFieldDef::new);
     register("LAT_LON", LatLonFieldDef::new);
+    register("POLYGON", PolygonfieldDef::new);
     register("DATE_TIME", DateTimeFieldDef::new);
     register("OBJECT", ObjectFieldDef::new);
     register("_ID", IdFieldDef::new);
