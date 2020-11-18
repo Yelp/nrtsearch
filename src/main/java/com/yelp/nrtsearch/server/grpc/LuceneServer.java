@@ -80,7 +80,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
@@ -292,13 +291,12 @@ public class LuceneServer {
       }
 
       try {
-        IndexState indexState = globalState.createIndex(indexName, Paths.get(req.getRootDir()));
+        IndexState indexState = globalState.createIndex(indexName);
         // Create the first shard
         logger.info("NOW ADD SHARD 0");
         indexState.addShard(0, true);
         logger.info("DONE ADD SHARD 0");
-        String response =
-            String.format("Created Index name: %s, at rootDir: %s", indexName, req.getRootDir());
+        String response = String.format("Created Index name: %s", indexName);
         CreateIndexResponse reply = CreateIndexResponse.newBuilder().setResponse(response).build();
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
@@ -315,8 +313,7 @@ public class LuceneServer {
             "error while trying to save index state to disk for indexName: "
                 + indexName
                 + "at rootDir: "
-                + req.getRootDir()
-                + indexName,
+                + globalState.getIndexDir(indexName),
             e);
         responseObserver.onError(
             Status.INTERNAL
@@ -324,7 +321,7 @@ public class LuceneServer {
                     "error while trying to save index state to disk for indexName: "
                         + indexName
                         + "at rootDir: "
-                        + req.getRootDir())
+                        + globalState.getIndexDir(indexName))
                 .augmentDescription(e.getMessage())
                 .withCause(e)
                 .asRuntimeException());
