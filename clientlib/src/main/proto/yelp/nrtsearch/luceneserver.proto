@@ -376,7 +376,7 @@ enum FieldType {
     CUSTOM = 11; // Field type specified by name.
     _ID = 12; // Field which will be used as document IDs
     POLYGON = 13; // Geojson string for polygon
-    OBJECT = 14； // JSON
+    OBJECT = 14; // JSON
 }
 
 //How the tokens should be indexed.
