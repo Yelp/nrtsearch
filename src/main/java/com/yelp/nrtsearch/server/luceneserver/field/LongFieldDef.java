@@ -118,4 +118,8 @@ public class LongFieldDef extends NumberFieldDef {
   public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
     return LongPoint.newSetQuery(getName(), termInSetQuery.getLongTerms().getTermsList());
   }
+
+  protected Number parseNumberString(String numberString) {
+    return DOUBLE_PARSER.apply(numberString).longValue();
+  }
 }

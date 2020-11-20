@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.google.gson.Gson;
 import com.yelp.nrtsearch.server.grpc.Field;
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +54,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
       List<Map<String, Object>> fieldValues,
       List<List<String>> facetHierarchyPaths) {
     for (Map.Entry<String, IndexableFieldDef> childField : childFields.entrySet()) {
-      String[] keys = childField.getKey().split(IndexState.CHILD_FIELD_SEPARATOR);
+      String[] keys = childField.getKey().split("\\.");
       String key = keys[keys.length - 1];
       if (childField.getValue().getType().equals("object")) {
         List<Map<String, Object>> childrenValues = new ArrayList<>();
@@ -77,6 +76,10 @@ public class ObjectFieldDef extends IndexableFieldDef {
         List<String> childrenValues = new ArrayList<>();
         for (Map<String, Object> fieldValue : fieldValues) {
           Object childValue = fieldValue.get(key);
+          /**
+           * if (true) { throw new RuntimeException("key: " + key + ", " + gson.toJson(fieldValue));
+           * }
+           */
           if (childValue != null) {
             if (childValue instanceof List) {
               ((List<Object>) childValue)

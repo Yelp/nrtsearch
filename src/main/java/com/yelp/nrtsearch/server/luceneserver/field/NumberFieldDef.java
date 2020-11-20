@@ -181,6 +181,10 @@ public abstract class NumberFieldDef extends IndexableFieldDef
    */
   protected abstract Number getSortMissingValue(boolean missingLast);
 
+  protected Number parseNumberString(String numberString) {
+    return fieldParser.apply(numberString);
+  }
+
   @Override
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
@@ -188,7 +192,7 @@ public abstract class NumberFieldDef extends IndexableFieldDef
       throw new IllegalArgumentException("Cannot index multiple values into single value field");
     }
     for (String fieldStr : fieldValues) {
-      Number fieldValue = fieldParser.apply(fieldStr);
+      Number fieldValue = parseNumberString(fieldStr);
       if (hasDocValues()) {
         document.add(getDocValueField(fieldValue));
       }

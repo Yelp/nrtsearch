@@ -42,8 +42,8 @@ public class ObjectFieldDefTest extends ServerTestCase {
     List<AddDocumentRequest> docs = new ArrayList<>();
     Gson gson = new Gson();
     Map<String, Object> map = new HashMap<>();
-    map.put("hours", List.of(1, 2));
-    map.put("zipcode", List.of("94105", "EC2Y8NE"));
+    map.put("hours", List.of(1));
+    map.put("zipcode", List.of("94105"));
     AddDocumentRequest request =
         AddDocumentRequest.newBuilder()
             .setIndexName(name)
@@ -62,8 +62,11 @@ public class ObjectFieldDefTest extends ServerTestCase {
     SearchResponse response =
         doQuery(
             Query.newBuilder()
-                .setMatchQuery(
-                    MatchQuery.newBuilder().setField("delivery_areas.hours").setQuery("1").build())
+                .setTermQuery(
+                    TermQuery.newBuilder()
+                        .setField("delivery_areas.zipcode")
+                        .setTextValue("94105")
+                        .build())
                 .build(),
             List.of("doc_id"));
     assertFields(response, "1");

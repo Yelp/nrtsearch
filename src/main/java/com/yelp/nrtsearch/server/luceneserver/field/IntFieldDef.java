@@ -114,4 +114,9 @@ public class IntFieldDef extends NumberFieldDef {
   public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
     return IntPoint.newSetQuery(getName(), termInSetQuery.getIntTerms().getTermsList());
   }
+
+  @Override
+  protected Number parseNumberString(String numberString) {
+    return DOUBLE_PARSER.apply(numberString).intValue();
+  }
 }
