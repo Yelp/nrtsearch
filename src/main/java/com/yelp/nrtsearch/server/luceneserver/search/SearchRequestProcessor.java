@@ -113,6 +113,8 @@ public class SearchRequestProcessor {
       diagnostics.setDrillDownQuery(query.toString());
     }
 
+    contextBuilder.setFetchTasks(new FetchTasks(searchRequest.getFetchTasksList()));
+
     contextBuilder.setQuery(query);
     contextBuilder.setCollector(buildDocCollector(queryFields, searchRequest));
     return contextBuilder.build(true);
