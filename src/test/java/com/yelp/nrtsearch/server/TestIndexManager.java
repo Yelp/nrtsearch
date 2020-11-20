@@ -64,14 +64,13 @@ public class TestIndexManager {
 
   protected static void setUpIndex(
       LuceneServerClient standaloneServerClient,
-      Path standaloneDir,
       String indexName,
       String suggestionsFilePath,
       OneDocBuilder oneDocBuilder)
       throws IOException, ExecutionException, InterruptedException {
     // create index if it does not exist
     try {
-      createIndex(standaloneServerClient, standaloneDir, indexName);
+      createIndex(standaloneServerClient, indexName);
     } catch (StatusRuntimeException e) {
       if (!e.getStatus().getCode().name().equals("ALREADY_EXISTS")) throw e;
     }
@@ -150,15 +149,11 @@ public class TestIndexManager {
     return fieldDefRequest;
   }
 
-  protected static void createIndex(LuceneServerClient serverClient, Path dir, String indexName) {
+  protected static void createIndex(LuceneServerClient serverClient, String indexName) {
     CreateIndexResponse response =
         serverClient
             .getBlockingStub()
-            .createIndex(
-                CreateIndexRequest.newBuilder()
-                    .setIndexName(indexName)
-                    .setRootDir(dir.resolve("index").toString())
-                    .build());
+            .createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
     logger.info(response.getResponse());
   }
 

@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
@@ -58,7 +57,6 @@ public class GlobalState implements Closeable, Restorable {
   private int replicaReplicationPortPingInterval;
 
   Logger logger = LoggerFactory.getLogger(GlobalState.class);
-  Gson gson = new Gson();
   private long lastIndicesGen;
   private final JsonParser jsonParser = new JsonParser();
 
@@ -203,13 +201,12 @@ public class GlobalState implements Closeable, Restorable {
     }
   }
 
-  private Path getIndexDir(String indexName) {
+  public Path getIndexDir(String indexName) {
     return Paths.get(indexDirBase.toString(), indexName);
   }
 
   /** Create a new index. */
-  public IndexState createIndex(String name, Path rootDirDeprecated)
-      throws IllegalArgumentException, IOException {
+  public IndexState createIndex(String name) throws IllegalArgumentException, IOException {
     synchronized (indices) {
       Path rootDir = getIndexDir(name);
       if (indexNames.get(name) != null) {

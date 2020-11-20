@@ -409,16 +409,11 @@ public class GrpcServer {
         throws IOException {
       String registerFields =
           registerFieldsFileName == null ? "registerFieldsBasic.json" : registerFieldsFileName;
-      String rootDirName = grpcServer.getIndexDir();
       String testIndex = grpcServer.getTestIndex();
       LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
       if (!startOldIndex) {
         // create the index
-        blockingStub.createIndex(
-            CreateIndexRequest.newBuilder()
-                .setIndexName(testIndex)
-                .setRootDir(rootDirName)
-                .build());
+        blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(testIndex).build());
       }
       // start the index
       StartIndexRequest.Builder startIndexBuilder =

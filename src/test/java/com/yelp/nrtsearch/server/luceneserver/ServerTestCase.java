@@ -217,8 +217,7 @@ public class ServerTestCase {
       LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
 
       // create the index
-      blockingStub.createIndex(
-          CreateIndexRequest.newBuilder().setIndexName(indexName).setRootDir(rootDirName).build());
+      blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
 
       // register fields
       blockingStub.registerFields(getIndexDef(indexName));

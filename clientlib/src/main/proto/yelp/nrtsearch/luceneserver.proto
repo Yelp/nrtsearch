@@ -330,7 +330,6 @@ service ReplicationServer {
 /* Input to createIndex */
 message CreateIndexRequest {
     string indexName = 1; // name of the index to be created. [a-zA-Z0-9]*
-    string rootDir = 2; //rootDirectory that maintains all state files for durability.
 }
 
 /* Response from Server to createIndex */
