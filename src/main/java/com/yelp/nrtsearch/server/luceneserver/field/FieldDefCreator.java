@@ -37,7 +37,7 @@ public class FieldDefCreator {
   public FieldDefCreator(LuceneServerConfiguration configuration) {
     register("ATOM", AtomFieldDef::new);
     register("TEXT", TextFieldDef::new);
-    register("BOOLEAN", BooleanFieldDef::new);
+    register("BOOLEAN", BooleanFieldDefTerm::new);
     register("LONG", LongFieldDef::new);
     register("INT", IntFieldDef::new);
     register("DOUBLE", DoubleFieldDef::new);

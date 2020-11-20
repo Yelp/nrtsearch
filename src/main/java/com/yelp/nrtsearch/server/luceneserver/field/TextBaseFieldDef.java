@@ -19,12 +19,10 @@ import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery.TermTypesCase;
 import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
-import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -51,7 +49,7 @@ import org.apache.lucene.util.BytesRef;
  * Base class for all text base field definitions. In addition to the properties from {@link
  * IndexableFieldDef}, text fields have the option for {@link Analyzer}s and highlighting.
  */
-public abstract class TextBaseFieldDef extends IndexableFieldDef implements TermQueryable {
+public abstract class TextBaseFieldDef extends TermQueryableIndexableFieldDef {
 
   private final boolean isHighlighted;
   private final Analyzer indexAnalyzer;
@@ -327,30 +325,12 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef implements Term
   }
 
   @Override
-  public TermQuery.TermTypesCase getTermQueryType() {
-    return TermTypesCase.TEXTVALUE;
-  }
-
-  @Override
-  public TermInSetQuery.TermTypesCase getTermInSetQueryType() {
-    return TermInSetQuery.TermTypesCase.TEXTTERMS;
-  }
-
-  @Override
-  public Query getTermQuery(TermQuery termQuery) {
-    if (termQuery.getTermTypesCase() != TermTypesCase.TEXTVALUE) {
-      throw new IllegalArgumentException(
-          "Cannot query for term type: " + termQuery.getTermTypesCase());
-    }
+  public Query getTermQueryFromTextValue(TermQuery termQuery) {
     return new org.apache.lucene.search.TermQuery(new Term(getName(), termQuery.getTextValue()));
   }
 
   @Override
-  public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
-    if (termInSetQuery.getTermTypesCase() != TermInSetQuery.TermTypesCase.TEXTTERMS) {
-      throw new IllegalArgumentException(
-          "Cannot query for terms type: " + termInSetQuery.getTermTypesCase());
-    }
+  public Query getTermInSetQueryFromTextValue(TermInSetQuery termInSetQuery) {
     List<BytesRef> textTerms =
         termInSetQuery.getTextTerms().getTermsList().stream()
             .map(BytesRef::new)

@@ -18,7 +18,6 @@ package com.yelp.nrtsearch.server.luceneserver;
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
 
 import com.yelp.nrtsearch.server.grpc.*;
-import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
@@ -139,24 +138,13 @@ class QueryNodeMapper {
     FieldDef fieldDef = state.getField(fieldName);
 
     if (fieldDef instanceof TermQueryable) {
-      validateTermQuery(fieldDef, termQuery);
+      validateTermQueryIsSearchable(fieldDef);
       return ((TermQueryable) fieldDef).getTermQuery(termQuery);
     }
 
     String message =
         "Unable to create TermQuery: %s, field type: %s is not supported for TermQuery";
     throw new IllegalArgumentException(String.format(message, termQuery, fieldDef.getType()));
-  }
-
-  private void validateTermQuery(
-      FieldDef fieldDef, com.yelp.nrtsearch.server.grpc.TermQuery termQuery) {
-    validateTermQueryIsSearchable(fieldDef);
-    if (((TermQueryable) fieldDef).getTermQueryType() != termQuery.getTermTypesCase()) {
-      throw new IllegalArgumentException(
-          String.format(
-              "%s field does not support term type: %s",
-              fieldDef.getName(), termQuery.getTermTypesCase()));
-    }
   }
 
   private void validateTermQueryIsSearchable(FieldDef fieldDef) {
@@ -174,23 +162,13 @@ class QueryNodeMapper {
     FieldDef fieldDef = state.getField(fieldName);
 
     if (fieldDef instanceof TermQueryable) {
-      validateTermInSetQuery(fieldDef, termInSetQuery);
+      validateTermQueryIsSearchable(fieldDef);
       return ((TermQueryable) fieldDef).getTermInSetQuery(termInSetQuery);
     }
 
     String message =
         "Unable to create TermInSetQuery: %s, field type: %s is not supported for TermInSetQuery";
     throw new IllegalArgumentException(String.format(message, termInSetQuery, fieldDef.getType()));
-  }
-
-  private void validateTermInSetQuery(FieldDef fieldDef, TermInSetQuery termInSetQuery) {
-    validateTermQueryIsSearchable(fieldDef);
-    if (((TermQueryable) fieldDef).getTermInSetQueryType() != termInSetQuery.getTermTypesCase()) {
-      throw new IllegalArgumentException(
-          String.format(
-              "%s field does not support termInSet type: %s",
-              termInSetQuery.getField(), termInSetQuery.getTermTypesCase()));
-    }
   }
 
   private DisjunctionMaxQuery getDisjunctionMaxQuery(

@@ -29,7 +29,7 @@ import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.luceneserver.facet.FacetTopDocs;
-import com.yelp.nrtsearch.server.luceneserver.field.BooleanFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.BooleanFieldDefTerm;
 import com.yelp.nrtsearch.server.luceneserver.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
@@ -999,7 +999,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
   private static FieldValue convertType(FieldDef fd, Object o) {
     var fieldValue = FieldValue.newBuilder();
-    if (fd instanceof BooleanFieldDef) {
+    if (fd instanceof BooleanFieldDefTerm) {
       if ((Integer) o == 1) {
         fieldValue.setBooleanValue(Boolean.TRUE);
       } else {

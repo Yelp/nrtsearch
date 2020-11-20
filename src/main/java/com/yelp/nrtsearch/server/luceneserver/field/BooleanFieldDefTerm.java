@@ -22,7 +22,6 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
-import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.List;
 import org.apache.lucene.document.Document;
@@ -39,8 +38,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 
 /** Field class for 'BOOLEAN' field type. */
-public class BooleanFieldDef extends IndexableFieldDef implements TermQueryable {
-  protected BooleanFieldDef(String name, Field requestField) {
+public class BooleanFieldDefTerm extends TermQueryableIndexableFieldDef {
+  protected BooleanFieldDefTerm(String name, Field requestField) {
     super(name, requestField);
   }
 
@@ -140,19 +139,15 @@ public class BooleanFieldDef extends IndexableFieldDef implements TermQueryable 
   }
 
   @Override
-  public TermQuery.TermTypesCase getTermQueryType() {
-    return TermQuery.TermTypesCase.BOOLEANVALUE;
-  }
-
-  @Override
-  public TermInSetQuery.TermTypesCase getTermInSetQueryType() {
-    // A boolean can only be two values, this query type is not very useful
-    throw new UnsupportedOperationException("BOOLEAN fields do not support TermInSetQuery");
-  }
-
-  @Override
-  public Query getTermQuery(TermQuery termQuery) {
+  public Query getTermQueryFromBooleanValue(TermQuery termQuery) {
     String indexTermValue = termQuery.getBooleanValue() ? "1" : "0";
+    return new org.apache.lucene.search.TermQuery(new Term(getName(), indexTermValue));
+  }
+
+  @Override
+  public Query getTermQueryFromTextValue(TermQuery termQuery) {
+    boolean termValue = parseBooleanOrThrow(termQuery.getTextValue());
+    String indexTermValue = termValue ? "1" : "0";
     return new org.apache.lucene.search.TermQuery(new Term(getName(), indexTermValue));
   }
 

@@ -19,7 +19,6 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
-import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -36,7 +35,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 
 /** Field class for defining '_ID' fields which are used to update documents */
-public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
+public class IdFieldDef extends TermQueryableIndexableFieldDef {
 
   protected IdFieldDef(String name, Field requestField) {
     super(name, requestField);
@@ -148,23 +147,13 @@ public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
   }
 
   @Override
-  public TermQuery.TermTypesCase getTermQueryType() {
-    return TermQuery.TermTypesCase.TEXTVALUE;
-  }
-
-  @Override
-  public TermInSetQuery.TermTypesCase getTermInSetQueryType() {
-    return TermInSetQuery.TermTypesCase.TEXTTERMS;
-  }
-
-  @Override
-  public Query getTermQuery(TermQuery termQuery) {
+  public Query getTermQueryFromTextValue(TermQuery termQuery) {
     return new org.apache.lucene.search.TermQuery(
         new Term(termQuery.getField(), termQuery.getTextValue()));
   }
 
   @Override
-  public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
+  public Query getTermInSetQueryFromTextValue(TermInSetQuery termInSetQuery) {
     List<BytesRef> textTerms =
         termInSetQuery.getTextTerms().getTermsList().stream()
             .map(BytesRef::new)

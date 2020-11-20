@@ -110,22 +110,12 @@ public class LongFieldDef extends NumberFieldDef {
   }
 
   @Override
-  public TermQuery.TermTypesCase getTermQueryType() {
-    return TermQuery.TermTypesCase.LONGVALUE;
-  }
-
-  @Override
-  public TermInSetQuery.TermTypesCase getTermInSetQueryType() {
-    return TermInSetQuery.TermTypesCase.LONGTERMS;
-  }
-
-  @Override
-  public Query getTermQuery(TermQuery termQuery) {
+  public Query getTermQueryFromLongValue(TermQuery termQuery) {
     return LongPoint.newExactQuery(getName(), termQuery.getLongValue());
   }
 
   @Override
-  public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
+  public Query getTermInSetQueryFromLongValue(TermInSetQuery termInSetQuery) {
     return LongPoint.newSetQuery(getName(), termInSetQuery.getLongTerms().getTermsList());
   }
 }

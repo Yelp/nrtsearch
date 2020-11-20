@@ -92,7 +92,6 @@ public class BooleanFieldTest extends ServerTestCase {
     queryAndVerifyIds(falseBoolQuery, "2");
   }
 
-  @Test(expected = StatusRuntimeException.class)
   public void testTermQuerySingleValueBooleanStrings() {
     TermQuery falseQuery = TermQuery.newBuilder().setField("single").setTextValue("false").build();
     TermQuery trueQuery = TermQuery.newBuilder().setField("single").setTextValue("true").build();
@@ -111,7 +110,6 @@ public class BooleanFieldTest extends ServerTestCase {
     queryAndVerifyIds(falseBoolQuery);
   }
 
-  @Test(expected = StatusRuntimeException.class)
   public void testTermQuerySingleNoValueBooleanStrings() {
     TermQuery falseQuery =
         TermQuery.newBuilder().setField("single_none").setTextValue("false").build();
@@ -140,7 +138,6 @@ public class BooleanFieldTest extends ServerTestCase {
     queryAndVerifyIds(falseBoolQuery, "1");
   }
 
-  @Test(expected = StatusRuntimeException.class)
   public void testTermQueryMultiOneBooleanStrings() {
     TermQuery falseQuery =
         TermQuery.newBuilder().setField("multi_one").setTextValue("false").build();
@@ -161,7 +158,6 @@ public class BooleanFieldTest extends ServerTestCase {
     queryAndVerifyIds(falseBoolQuery, "1", "2");
   }
 
-  @Test(expected = StatusRuntimeException.class)
   public void testTermQueryMultiBothBooleanStrings() {
     TermQuery falseQuery =
         TermQuery.newBuilder().setField("multi_both").setTextValue("false").build();
@@ -183,7 +179,6 @@ public class BooleanFieldTest extends ServerTestCase {
     queryAndVerifyIds(falseBoolQuery);
   }
 
-  @Test(expected = StatusRuntimeException.class)
   public void testTermQueryMultiNoneBooleanStrings() {
     TermQuery falseQuery =
         TermQuery.newBuilder().setField("multi_none").setTextValue("false").build();

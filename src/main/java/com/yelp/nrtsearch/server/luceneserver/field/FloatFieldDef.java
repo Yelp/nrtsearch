@@ -119,22 +119,12 @@ public class FloatFieldDef extends NumberFieldDef {
   }
 
   @Override
-  public TermQuery.TermTypesCase getTermQueryType() {
-    return TermQuery.TermTypesCase.FLOATVALUE;
-  }
-
-  @Override
-  public TermInSetQuery.TermTypesCase getTermInSetQueryType() {
-    return TermInSetQuery.TermTypesCase.FLOATTERMS;
-  }
-
-  @Override
-  public Query getTermQuery(TermQuery termQuery) {
+  public Query getTermQueryFromFloatValue(TermQuery termQuery) {
     return FloatPoint.newExactQuery(getName(), termQuery.getFloatValue());
   }
 
   @Override
-  public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
+  public Query getTermInSetQueryFromFloatValue(TermInSetQuery termInSetQuery) {
     return FloatPoint.newSetQuery(getName(), termInSetQuery.getFloatTerms().getTermsList());
   }
 }
