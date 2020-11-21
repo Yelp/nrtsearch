@@ -359,11 +359,7 @@ public class LuceneServerIdFieldTest {
     String indexName = grpcServer.getTestIndex();
     grpcServer
         .getBlockingStub()
-        .createIndex(
-            CreateIndexRequest.newBuilder()
-                .setIndexName(indexName)
-                .setRootDir(grpcServer.getIndexDir())
-                .build());
+        .createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
     FieldDefRequest.Builder builder = FieldDefRequest.newBuilder().setIndexName(indexName);
     for (Field field : fields) {
       builder.addField(field);

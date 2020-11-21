@@ -42,7 +42,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.QueryBuilder;
 
 /** This class maps our GRPC Query object to a Lucene Query object. */
-class QueryNodeMapper {
+public class QueryNodeMapper {
 
   private final Map<com.yelp.nrtsearch.server.grpc.BooleanClause.Occur, BooleanClause.Occur>
       occurMapping = initializeOccurMapping();
@@ -52,7 +52,7 @@ class QueryNodeMapper {
               MatchOperator.SHOULD, BooleanClause.Occur.SHOULD,
               MatchOperator.MUST, BooleanClause.Occur.MUST));
 
-  Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
+  public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
     Query queryNode = getQueryNode(query, state);
 
     if (query.getBoost() < 0) {

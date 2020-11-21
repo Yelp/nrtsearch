@@ -33,25 +33,15 @@ public class CreateIndexCommand implements Callable<Integer> {
       required = true)
   private String indexName;
 
-  @CommandLine.Option(
-      names = {"-d", "--rootDir"},
-      description = "Name of the directory where index is to be created",
-      required = true)
-  private String rootDir;
-
   public String getIndexName() {
     return indexName;
-  }
-
-  public String getRootDir() {
-    return rootDir;
   }
 
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
     try {
-      client.createIndex(getIndexName(), getRootDir());
+      client.createIndex(getIndexName());
     } finally {
       client.shutdown();
     }

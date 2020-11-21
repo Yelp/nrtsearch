@@ -76,10 +76,9 @@ public class LuceneServerClient {
     channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
   }
 
-  public void createIndex(String indexName, String rootDir) {
-    logger.info("Will try to create index: " + indexName + " ,at rootDir: " + rootDir);
-    CreateIndexRequest request =
-        CreateIndexRequest.newBuilder().setIndexName(indexName).setRootDir(rootDir).build();
+  public void createIndex(String indexName) {
+    logger.info("Will try to create index: " + indexName);
+    CreateIndexRequest request = CreateIndexRequest.newBuilder().setIndexName(indexName).build();
     CreateIndexResponse response;
     try {
       response = blockingStub.createIndex(request);

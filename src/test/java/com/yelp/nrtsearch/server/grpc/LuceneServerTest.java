@@ -132,24 +132,15 @@ public class LuceneServerTest {
     LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
 
     for (String indexName : validIndexNames) {
-      CreateIndexRequest request =
-          CreateIndexRequest.newBuilder()
-              .setIndexName(indexName)
-              .setRootDir(grpcServer.getIndexDir())
-              .build();
+      CreateIndexRequest request = CreateIndexRequest.newBuilder().setIndexName(indexName).build();
       CreateIndexResponse reply = blockingStub.createIndex(request);
       assertEquals(
-          String.format(
-              "Created Index name: %s, at rootDir: %s", indexName, grpcServer.getIndexDir()),
+          String.format("Created Index name: %s", indexName, grpcServer.getIndexDir()),
           reply.getResponse());
     }
 
     for (String indexName : invalidIndexNames) {
-      CreateIndexRequest request =
-          CreateIndexRequest.newBuilder()
-              .setIndexName(indexName)
-              .setRootDir(grpcServer.getIndexDir())
-              .build();
+      CreateIndexRequest request = CreateIndexRequest.newBuilder().setIndexName(indexName).build();
       try {
         blockingStub.createIndex(request);
         fail("The above line must throw an exception");
@@ -165,12 +156,10 @@ public class LuceneServerTest {
 
   @Test
   public void testStartShard() throws IOException {
-    String rootDirName = grpcServer.getIndexDir();
     String testIndex = grpcServer.getTestIndex();
     LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
     // create the index
-    blockingStub.createIndex(
-        CreateIndexRequest.newBuilder().setIndexName(testIndex).setRootDir(rootDirName).build());
+    blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(testIndex).build());
     // start the index
     StartIndexResponse reply =
         blockingStub.startIndex(StartIndexRequest.newBuilder().setIndexName(testIndex).build());
@@ -938,14 +927,9 @@ public class LuceneServerTest {
     String index2 = "index2";
     for (String indexName : List.of(index1, index2)) {
       CreateIndexResponse createIndexResponse =
-          blockingStub.createIndex(
-              CreateIndexRequest.newBuilder()
-                  .setIndexName(indexName)
-                  .setRootDir(grpcServer.getIndexDir())
-                  .build());
+          blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
       String expectedResponse =
-          String.format(
-              "Created Index name: %s, at rootDir: %s", indexName, grpcServer.getIndexDir());
+          String.format("Created Index name: %s", indexName, grpcServer.getIndexDir());
       assertEquals(expectedResponse, createIndexResponse.getResponse());
     }
     StartIndexRequest startIndexRequest =

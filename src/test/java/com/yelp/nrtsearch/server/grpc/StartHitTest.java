@@ -189,15 +189,7 @@ public class StartHitTest extends ServerTestCase {
                 .setTopHits(topHits)
                 .addRetrieveFields("doc_id")
                 .addRetrieveFields("int_field")
-                .setQuery(
-                    Query.newBuilder()
-                        .setRangeQuery(
-                            RangeQuery.newBuilder()
-                                .setField("int_field")
-                                .setLower("1")
-                                .setUpper("100")
-                                .build())
-                        .build())
+                .setQuery(Query.newBuilder().build())
                 .setQuerySort(
                     QuerySortField.newBuilder()
                         .setFields(

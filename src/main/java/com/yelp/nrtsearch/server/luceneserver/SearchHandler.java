@@ -15,17 +15,14 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
-import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
-import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
-import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.facet.DrillSidewaysImpl;
 import com.yelp.nrtsearch.server.luceneserver.facet.FacetTopDocs;
@@ -33,20 +30,14 @@ import com.yelp.nrtsearch.server.luceneserver.field.BooleanFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
-import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
-import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
-import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import java.io.IOException;
-import java.text.BreakIterator;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,30 +52,12 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
-import org.apache.lucene.queryparser.classic.QueryParserBase;
-import org.apache.lucene.queryparser.simple.SimpleQueryParser;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.DoubleValues;
-import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LargeNumHitsTopDocsCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopFieldCollector;
-import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.grouping.AllGroupsCollector;
-import org.apache.lucene.search.grouping.FirstPassGroupingCollector;
-import org.apache.lucene.search.grouping.TopGroups;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.QueryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,13 +65,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
   private final ThreadPoolExecutor threadPoolExecutor;
   Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
-  /**
-   * By default we count hits accurately up to 1000. This makes sure that we don't spend most time
-   * on computing hit counts
-   */
-  private static final int TOTAL_HITS_THRESHOLD = 1000;
-
-  private static final QueryNodeMapper QUERY_NODE_MAPPER = new QueryNodeMapper();
 
   public SearchHandler(ThreadPoolExecutor threadPoolExecutor) {
     this.threadPoolExecutor = threadPoolExecutor;
@@ -110,240 +76,28 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     ShardState shardState = indexState.getShard(0);
     indexState.verifyStarted();
 
-    // App should re-use a previous timestampSec if user does a
-    // follow-on action, so that things relying on timestampSec
-    // (e.g. dynamic range facet counts, recency blended
-    // sorting) don't change as the user drills down / next
-    // pages / etc.
-    // TODO: implement timeStamp
-    final long timestampSec;
-    //        if (searchRequest.getTimeStamp() != 0.0) {
-    //            timestampSec = searchRequest.getTimeStamp();
-    //        } else
-    {
-      timestampSec = System.currentTimeMillis() / 1000;
-    }
-
     var diagnostics = SearchResponse.Diagnostics.newBuilder();
 
-    final Map<String, FieldDef> indexFields = indexState.getAllFields();
-    final Map<String, VirtualFieldDef> virtualFields = getVirtualFields(shardState, searchRequest);
-    final Map<String, FieldDef> queryFields =
-        virtualFields.isEmpty() ? indexFields : new HashMap<>(indexFields);
-
-    final Set<String> fields = new HashSet<>();
-    final Map<String, FieldHighlightConfig> highlightFields = new HashMap<>();
-    boolean forceDocScores = false;
-
-    for (Map.Entry<String, VirtualFieldDef> entry : virtualFields.entrySet()) {
-      if (indexFields.containsKey(entry.getKey())) {
-        throw new SearchHandlerException(
-            String.format("Virtual field has a duplicate name: %s", entry.getKey()));
-      }
-      queryFields.put(entry.getKey(), entry.getValue());
-      if (entry.getValue().getValuesSource().needsScores()) {
-        forceDocScores = true;
-      }
-    }
-
-    Query q = extractQuery(indexState, searchRequest, timestampSec);
-
-    if (!searchRequest.getRetrieveFieldsList().isEmpty()) {
-      Set<String> fieldSeen = new HashSet<>();
-      for (Object o : searchRequest.getRetrieveFieldsList()) {
-        String field;
-        String highlight = "no";
-        FieldHighlightConfig perField = null;
-        if (o instanceof String) {
-          field = (String) o;
-          fields.add(field);
-        } else {
-          throw new UnsupportedOperationException(
-              "retrieveFields, unrecognized object. Does not support highlighting fields yet at query time");
-        }
-        if (fieldSeen.contains(field)) {
-          throw new SearchHandlerException(
-              String.format("retrieveField has a duplicate field: %s", field));
-        }
-        fieldSeen.add(field);
-
-        FieldDef fd = queryFields.get(field);
-        if (fd == null) {
-          throw new SearchHandlerException(
-              String.format(
-                  "retrieveFields, field: %s was not registered and was not specified as a dynamicField",
-                  field));
-        }
-
-        // If any of the fields being retrieved require
-        // score, than force returned FieldDoc.score to be
-        // computed:
-        if (fd instanceof VirtualFieldDef
-            && ((VirtualFieldDef) fd).getValuesSource().needsScores()) {
-          forceDocScores = true;
-        }
-
-        if (fd instanceof IndexableFieldDef) {
-          IndexableFieldDef indexableField = (IndexableFieldDef) fd;
-
-          if (perField != null) {
-            perField.multiValued = indexableField.isMultiValue();
-            if (indexableField.isMultiValue() == false && perField.mode.equals("joinedSnippets")) {
-              throw new SearchHandlerException(
-                  "highlight: joinedSnippets can only be used with multi-valued fields");
-            }
-          }
-          if (!highlight.equals("no")
-              && (indexableField instanceof TextBaseFieldDef)
-              && !((TextBaseFieldDef) fd).isHighlighted()) {
-            throw new SearchHandlerException(
-                String.format(
-                    "retrieveFields: field: %s was not indexed with highlight=true", field));
-          }
-
-          // nocommit allow pulling from DV?  need separate
-          // dvFields?
-
-          if (!indexableField.isStored() && !indexableField.hasDocValues()) {
-            throw new SearchHandlerException(
-                String.format(
-                    "retrieveFields, field: %s was not registered with store=true or docValues=True",
-                    field));
-          }
-        }
-      }
-    }
-
-    // TODO: support this. Seems like lucene 8.2 has no PostingsHighlighter anymore?
-    // HighlighterConfig highlighter = getHighlighter(indexState, r, highlightFields);
-
-    diagnostics.setParsedQuery(q.toString());
-
-    TopDocs hits;
-    TopGroups<BytesRef> groups;
-    TopGroups<Integer> joinGroups;
-    int totalGroupCount = -1;
-
-    String resultString;
-    SearchResponse.Builder searchResponse = SearchResponse.newBuilder();
-
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    // matching finally clause releases this searcher:
+    SearchContext searchContext;
     try {
-      // Pull the searcher we will use
       s = getSearcherAndTaxonomy(searchRequest, shardState, diagnostics, threadPoolExecutor);
-      // nocommit can we ... not do this?  it's awkward that
-      // we have to ... but, the 2-pass (query time
-      // join/grouping) is slower for MTQs if we don't
-      // ... and the whole out-of-order collector or not
-      // ...
 
-      q = s.searcher.rewrite(q);
-      logger.debug(String.format("after rewrite, query: %s", q.toString()));
-      diagnostics.setRewrittenQuery(q.toString());
+      searchContext =
+          SearchRequestProcessor.buildContextForRequest(
+              searchRequest, indexState, shardState, s, diagnostics);
 
-      // nocommit add test with drill down on OR of fields:
-
-      // TODO: re-enable this?  else we never get
-      // in-order collectors
-      // Weight w = s.createNormalizedWeight(q2);
-
-      DrillDownQuery ddq = addDrillDowns(timestampSec, indexState, searchRequest, q);
-
-      diagnostics.setDrillDownQuery(ddq.toString());
-
-      Collector collector;
-      // FIXME? not sure if these two groupCollectors are correct?
-      FirstPassGroupingCollector groupCollector = null;
-      AllGroupsCollector allGroupsCollector = null;
-
-      FieldDef groupField = null;
-      Sort groupSort = null;
-      Sort sort;
-      QuerySortField sortRequest;
-      List<String> sortFieldNames;
-      if (!searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
-        sortRequest = searchRequest.getQuerySort();
-        sortFieldNames = new ArrayList<String>();
-        sort =
-            parseSort(
-                timestampSec,
-                indexState,
-                searchRequest.getQuerySort().getFields().getSortedFieldsList(),
-                sortFieldNames,
-                queryFields);
-      } else {
-        sortRequest = null;
-        sort = null;
-        sortFieldNames = null;
-      }
-
-      int topHits = searchRequest.getTopHits();
-      int hitsToCollect = getNumHitsToCollect(topHits, searchRequest);
-      int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
-      if (searchRequest.getTotalHitsThreshold() != 0) {
-        totalHitsThreshold = searchRequest.getTotalHitsThreshold();
-      }
-
-      CollectorManager<? extends Collector, ? extends TopDocs> collectorManager = null;
-
-      // TODO: support "grouping" and "useBlockJoinCollector"
-      if (sort == null) {
-        // TODO: support "searchAfter" when supplied by user
-        FieldDoc searchAfter = null;
-        collector = TopScoreDocCollector.create(hitsToCollect, searchAfter, totalHitsThreshold);
-        collectorManager =
-            TopScoreDocCollector.createSharedManager(
-                hitsToCollect, searchAfter, totalHitsThreshold);
-      } else if (q instanceof MatchAllDocsQuery) {
-        collector = new LargeNumHitsTopDocsCollector(hitsToCollect);
-        collectorManager =
-            LargeNumHitsTopDocsCollectorManagerCreator.createSharedManager(hitsToCollect);
-      } else {
-
-        // If any of the sort fields require score, than
-        // ask for FieldDoc.score in the returned hits:
-        for (SortField sortField : sort.getSort()) {
-          forceDocScores |= sortField.needsScores();
-        }
-
-        // Sort by fields:
-        // TODO: support "searchAfter" when supplied by user
-        FieldDoc searchAfter;
-        searchAfter = null;
-        collector = TopFieldCollector.create(sort, hitsToCollect, searchAfter, totalHitsThreshold);
-        collectorManager =
-            TopFieldCollector.createSharedManager(
-                sort, hitsToCollect, searchAfter, totalHitsThreshold);
-      }
-
-      long timeoutMS;
-      /* TODO: fixme; we dont use timeOut as of now
-          would need new CollectorManager impl that returns TimeLimitingCollector on newCollector() call
-          e.g. new impls similar to TopFieldCollector.createSharedManager and TopScoreDocCollector.createSharedManager
-      */
-      Collector c2;
-      if (searchRequest.getTimeoutSec() != 0.0) {
-        timeoutMS = (long) (searchRequest.getTimeoutSec() * 1000);
-        if (timeoutMS <= 0) {
-          throw new SearchHandlerException("timeoutSec must be > 0 msec");
-        }
-        c2 =
-            new TimeLimitingCollector(
-                collector, TimeLimitingCollector.getGlobalCounter(), timeoutMS);
-      } else {
-        c2 = collector;
-        timeoutMS = -1;
-      }
-
-      // nocommit can we do better?  sometimes downgrade
-      // to DDQ not DS?
+      searchContext.getResponseBuilder().setDiagnostics(diagnostics);
 
       long searchStartTime = System.nanoTime();
 
-      // TODO: If "facets" create DrillSideways(ds) and do ds.search(ddq, c2)
-      TopDocs topDocs = null;
+      TopDocs hits;
       if (!searchRequest.getFacetsList().isEmpty()) {
+        if (!(searchContext.getQuery() instanceof DrillDownQuery)) {
+          throw new IllegalArgumentException("Can only use DrillSideways on DrillDownQuery");
+        }
+        DrillDownQuery ddq = (DrillDownQuery) searchContext.getQuery();
+
         List<FacetResult> grpcFacetResults = new ArrayList<>();
         DrillSideways drillS =
             new DrillSidewaysImpl(
@@ -353,122 +107,74 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 searchRequest.getFacetsList(),
                 s,
                 shardState,
-                queryFields,
+                searchContext.getQueryFields(),
                 grpcFacetResults,
                 threadPoolExecutor);
         DrillSideways.ConcurrentDrillSidewaysResult<? extends TopDocs>
-            concurrentDrillSidewaysResult = drillS.search(ddq, collectorManager);
-        topDocs = concurrentDrillSidewaysResult.collectorResult;
-        searchResponse.addAllFacetResult(grpcFacetResults);
-        searchResponse.addAllFacetResult(
-            FacetTopDocs.facetTopDocsSample(
-                topDocs, searchRequest.getFacetsList(), indexState, s.searcher));
+            concurrentDrillSidewaysResult =
+                drillS.search(ddq, searchContext.getCollector().getManager());
+        hits = concurrentDrillSidewaysResult.collectorResult;
+        searchContext.getResponseBuilder().addAllFacetResult(grpcFacetResults);
+        searchContext
+            .getResponseBuilder()
+            .addAllFacetResult(
+                FacetTopDocs.facetTopDocsSample(
+                    hits, searchRequest.getFacetsList(), indexState, s.searcher));
       } else {
         try {
-          topDocs = s.searcher.search(ddq, collectorManager);
+          hits =
+              s.searcher.search(
+                  searchContext.getQuery(), searchContext.getCollector().getManager());
         } catch (TimeLimitingCollector.TimeExceededException tee) {
-          searchResponse.setHitTimeout(true);
+          searchContext.getResponseBuilder().setHitTimeout(true);
+          return searchContext.getResponseBuilder().build();
         }
       }
 
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 
-      int startHit = searchRequest.getStartHit();
-
-      // TODO: support "grouping" and "useBlockJoinCollector" (we need a new collector for grouping
-      // and blockJoin)
-      // else do this...
-      {
-        groups = null;
-        joinGroups = null;
-        hits = topDocs;
-
-        // TopDocs may have more hits than needed, if they are being used for a
-        // sampler facet
-        int retrieveHits = Math.min(topHits, hits.scoreDocs.length);
-        if (startHit != 0 || retrieveHits != hits.scoreDocs.length) {
-          // Slice:
-          int count = Math.max(0, retrieveHits - startHit);
-          ScoreDoc[] newScoreDocs = new ScoreDoc[count];
-          if (count > 0) {
-            System.arraycopy(hits.scoreDocs, startHit, newScoreDocs, 0, count);
-          }
-          hits = new TopDocs(hits.totalHits, newScoreDocs);
-        }
-      }
-
-      int[] highlightDocIDs = null;
-      // TODO: if "groupField!=null" collect group counts as well
-      {
-        highlightDocIDs = new int[hits.scoreDocs.length];
-        for (int i = 0; i < hits.scoreDocs.length; i++) {
-          highlightDocIDs[i] = hits.scoreDocs[i].doc;
-        }
-      }
-
-      Map<String, Object[]> highlights = null;
-
       long t0 = System.nanoTime();
-      if (highlightDocIDs != null && highlightFields != null && !highlightFields.isEmpty()) {
-        // TODO
-        // highlights = highlighter to objects
-      }
-      diagnostics.setHighlightTimeMs((System.nanoTime() - t0) / 1000000.);
 
-      t0 = System.nanoTime();
+      hits = getHitsFromOffset(hits, searchContext.getStartHit(), searchContext.getTopHits());
 
-      // TODO: deal with fillFields for group!=null and useBlockJoin
-      {
-        TotalHits totalHits =
-            TotalHits.newBuilder()
-                .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation.name()))
-                .setValue(hits.totalHits.value)
-                .build();
-        searchResponse.setTotalHits(totalHits);
-        for (int hitIndex = 0; hitIndex < hits.scoreDocs.length; hitIndex++) {
-          ScoreDoc hit = hits.scoreDocs[hitIndex];
-          var hitResponse = SearchResponse.Hit.newBuilder();
-          hitResponse.setLuceneDocId(hit.doc);
-          if (!Float.isNaN(hit.score)) {
-            hitResponse.setScore(hit.score);
-          }
+      // create Hit.Builder for each hit, and populate with lucene doc id and ranking info
+      setResponseHits(searchContext, hits);
 
-          if (fields != null || highlightFields != null) {
-            var fieldValueMap =
-                fillFields(
-                    indexState, null, s.searcher, hit, fields, highlights, hitIndex, queryFields);
-            var sortedFields = getSortedFieldsForHit(hit, sort, sortFieldNames);
-            hitResponse.putAllFields(fieldValueMap);
-            hitResponse.putAllSortedFields(sortedFields);
-          }
-          searchResponse.addHits(hitResponse);
+      // fill all other needed fields into each Hit.Builder
+      List<Hit.Builder> hitBuilders = searchContext.getResponseBuilder().getHitsBuilderList();
+      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+        var hitResponse = hitBuilders.get(hitIndex);
+
+        if (!searchContext.getRetrieveFields().isEmpty()) {
+          var fieldValueMap =
+              fillFields(
+                  indexState,
+                  null,
+                  s.searcher,
+                  hitResponse,
+                  searchContext.getRetrieveFields().keySet(),
+                  Collections.emptyMap(),
+                  hitIndex,
+                  searchContext.getRetrieveFields());
+          hitResponse.putAllFields(fieldValueMap);
         }
       }
 
       SearchState.Builder searchState = SearchState.newBuilder();
-      searchState.setTimestamp(timestampSec);
+      searchContext.getResponseBuilder().setSearchState(searchState);
+      searchState.setTimestamp(searchContext.getTimestampSec());
 
       // Record searcher version that handled this request:
       searchState.setSearcherVersion(((DirectoryReader) s.searcher.getIndexReader()).getVersion());
 
       // Fill in lastDoc for searchAfter:
-      if (hits != null && hits.scoreDocs.length != 0) {
+      if (hits.scoreDocs.length != 0) {
         ScoreDoc lastHit = hits.scoreDocs[hits.scoreDocs.length - 1];
         searchState.setLastDocId(lastHit.doc);
-        if (sort != null) {
-          FieldDoc fd = (FieldDoc) lastHit;
-          for (Object fv : fd.fields) {
-            searchState.addLastFieldValues(fv.toString());
-          }
-        } else {
-          searchState.setLastScore(lastHit.score);
-        }
+        searchContext.getCollector().fillLastHit(searchState, lastHit);
       }
 
-      diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000));
-
-      searchResponse.setDiagnostics(diagnostics);
-      searchResponse.setSearchState(searchState);
+      diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
     } catch (IOException | InterruptedException e) {
       logger.warn(e.getMessage(), e);
       throw new SearchHandlerException(e);
@@ -491,78 +197,54 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
     }
 
-    return searchResponse.build();
+    return searchContext.getResponseBuilder().build();
   }
 
-  /** Parses any virtualFields, which define dynamic (expression) fields for this one request. */
-  private static Map<String, VirtualFieldDef> getVirtualFields(
-      ShardState shardState, SearchRequest searchRequest) {
-    if (searchRequest.getVirtualFieldsList().isEmpty()) {
-      return Collections.emptyMap();
-    }
-    IndexState indexState = shardState.indexState;
-    Map<String, VirtualFieldDef> virtualFields = new HashMap<>();
-    for (VirtualField vf : searchRequest.getVirtualFieldsList()) {
-      if (virtualFields.containsKey(vf.getName())) {
-        throw new IllegalArgumentException(
-            "Multiple definitions of Virtual field: " + vf.getName());
+  /**
+   * Given all the top documents, produce a slice of the documents starting from a start offset and
+   * going up to the query needed maximum hits. There may be more top docs than the topHits limit,
+   * if top docs sampling facets are used.
+   *
+   * @param hits all hits
+   * @param startHit offset into top docs
+   * @param topHits maximum number of hits needed for search response
+   * @return slice of hits starting at given offset, or empty slice if there are less than startHit
+   *     docs
+   */
+  private static TopDocs getHitsFromOffset(TopDocs hits, int startHit, int topHits) {
+    int retrieveHits = Math.min(topHits, hits.scoreDocs.length);
+    if (startHit != 0 || retrieveHits != hits.scoreDocs.length) {
+      // Slice:
+      int count = Math.max(0, retrieveHits - startHit);
+      ScoreDoc[] newScoreDocs = new ScoreDoc[count];
+      if (count > 0) {
+        System.arraycopy(hits.scoreDocs, startHit, newScoreDocs, 0, count);
       }
-      ScoreScript.Factory factory =
-          ScriptService.getInstance().compile(vf.getScript(), ScoreScript.CONTEXT);
-      Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
-      VirtualFieldDef virtualField =
-          new VirtualFieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
-      virtualFields.put(vf.getName(), virtualField);
+      return new TopDocs(hits.totalHits, newScoreDocs);
     }
-    return virtualFields;
+    return hits;
   }
 
-  private static Query extractQuery(
-      IndexState state, SearchRequest searchRequest, long timestampSec)
-      throws SearchHandlerException {
-    Query q;
-    if (!searchRequest.getQueryText().isEmpty()) {
-      QueryBuilder queryParser = createQueryParser(state, searchRequest, null);
-
-      String queryText = searchRequest.getQueryText();
-
-      try {
-        q = parseQuery(queryParser, queryText);
-      } catch (Exception e) {
-        throw new SearchHandlerException(String.format("could not parse queryText: %s", queryText));
-      }
-    } else if (searchRequest.getQuery().getQueryNodeCase()
-        != com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET) {
-      q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery(), state);
-    } else {
-      q = new MatchAllDocsQuery();
-    }
-
-    return q;
-  }
-
-  /** If field is non-null it overrides any specified defaultField. */
-  private static QueryBuilder createQueryParser(
-      IndexState state, SearchRequest searchRequest, String field) {
-    // TODO: Support "queryParser" field provided by user e.g. MultiFieldQueryParser,
-    // SimpleQueryParser, classic
-    List<String> fields;
-    if (field != null) {
-      fields = Collections.singletonList(field);
-    } else {
-      // Default to MultiFieldQueryParser over all indexed fields:
-      fields = state.getIndexedAnalyzedFields();
-    }
-    return new MultiFieldQueryParser(
-        fields.toArray(new String[fields.size()]), state.searchAnalyzer);
-  }
-
-  private static Query parseQuery(QueryBuilder qp, String text)
-      throws ParseException, org.apache.lucene.queryparser.classic.ParseException {
-    if (qp instanceof QueryParserBase) {
-      return ((QueryParserBase) qp).parse(text);
-    } else {
-      return ((SimpleQueryParser) qp).parse(text);
+  /**
+   * Add {@link com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder}s to the context {@link
+   * SearchResponse.Builder} for each of the query hits. Populate the builders with the lucene doc
+   * id and ranking info.
+   *
+   * @param context search context
+   * @param hits hits from query
+   */
+  private static void setResponseHits(SearchContext context, TopDocs hits) {
+    TotalHits totalHits =
+        TotalHits.newBuilder()
+            .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation.name()))
+            .setValue(hits.totalHits.value)
+            .build();
+    context.getResponseBuilder().setTotalHits(totalHits);
+    for (int hitIndex = 0; hitIndex < hits.scoreDocs.length; hitIndex++) {
+      var hitResponse = context.getResponseBuilder().addHitsBuilder();
+      ScoreDoc hit = hits.scoreDocs[hitIndex];
+      hitResponse.setLuceneDocId(hit.doc);
+      context.getCollector().fillHitRanking(hitResponse, hit);
     }
   }
 
@@ -718,7 +400,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
       state.waitForGeneration(gen);
       if (diagnostics != null) {
-        diagnostics.setNrtWaitTimeMs((System.nanoTime() - t0) / 1000000);
+        diagnostics.setNrtWaitTimeMs((System.nanoTime() - t0) / 1000000.0);
       }
       s = state.acquire();
       state.slm.record(s.searcher);
@@ -777,57 +459,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     }
   }
 
-  /** Fold in any drillDowns requests into the query. */
-  private static DrillDownQuery addDrillDowns(
-      long timestampSec, IndexState state, SearchRequest searchRequest, Query q) {
-    // TOOD: support "drillDowns" in input SearchRequest
-    // Always create a DrillDownQuery; if there
-    // are no drill-downs it will just rewrite to the
-    // original query:
-    DrillDownQuery ddq = new DrillDownQuery(state.facetsConfig, q);
-    return ddq;
-  }
-
-  /** Decodes a list of Request into the corresponding Sort. */
-  static Sort parseSort(
-      long timestampSec,
-      IndexState state,
-      List<SortType> fields,
-      List<String> sortFieldNames,
-      Map<String, FieldDef> queryFields)
-      throws SearchHandlerException {
-    List<SortField> sortFields = new ArrayList<SortField>();
-    for (SortType sub : fields) {
-      String fieldName = sub.getFieldName();
-      SortField sf;
-      if (sortFieldNames != null) {
-        sortFieldNames.add(fieldName);
-      }
-      if (fieldName.equals("docid")) {
-        sf = SortField.FIELD_DOC;
-      } else if (fieldName.equals("score")) {
-        sf = SortField.FIELD_SCORE;
-      } else {
-        FieldDef fd = queryFields.get(fieldName);
-        if (fd == null) {
-          throw new SearchHandlerException(
-              String.format(
-                  "field: %s was not registered and was not specified as a virtualField",
-                  fieldName));
-        }
-
-        if (!(fd instanceof Sortable)) {
-          throw new SearchHandlerException(
-              String.format("field: %s does not support sorting", fieldName));
-        }
-
-        sf = ((Sortable) fd).getSortField(sub);
-      }
-      sortFields.add(sf);
-    }
-    return new Sort(sortFields.toArray(new SortField[0]));
-  }
-
   /**
    * Fills in the returned fields (some hilited) for one hit:
    *
@@ -837,7 +468,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       IndexState state,
       Object highlighter,
       IndexSearcher s,
-      ScoreDoc hit,
+      Hit.Builder hit,
       Set<String> fields,
       Map<String, Object[]> highlights,
       int hiliteHitIndex,
@@ -863,21 +494,21 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         if (fd instanceof VirtualFieldDef) {
           VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
           List<LeafReaderContext> leaves = s.getIndexReader().leaves();
-          LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.doc, leaves));
+          LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.getLuceneDocId(), leaves));
 
-          int docID = hit.doc - leaf.docBase;
+          int docID = hit.getLuceneDocId() - leaf.docBase;
 
-          assert !Float.isNaN(hit.score) || !virtualFieldDef.getValuesSource().needsScores();
+          assert !Double.isNaN(hit.getScore()) || !virtualFieldDef.getValuesSource().needsScores();
           DoubleValues scoreValue =
               new DoubleValues() {
                 @Override
                 public double doubleValue() throws IOException {
-                  return hit.score;
+                  return hit.getScore();
                 }
 
                 @Override
                 public boolean advanceExact(int doc) throws IOException {
-                  return !Float.isNaN(hit.score);
+                  return !Double.isNaN(hit.getScore());
                 }
               };
           DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
@@ -887,8 +518,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
           List<LeafReaderContext> leaves = s.getIndexReader().leaves();
           // get the current leaf/segment that this doc is in
-          LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.doc, leaves));
-          int docID = hit.doc - leaf.docBase;
+          LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.getLuceneDocId(), leaves));
+          int docID = hit.getLuceneDocId() - leaf.docBase;
           // it may be possible to cache this if there are multiple hits in the same segment
           LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);
           docValues.setDocId(docID);
@@ -898,7 +529,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         }
         // retrieve stored fields
         else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
-          String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.doc));
+          String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.getLuceneDocId()));
           for (String fieldValue : values) {
             compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
           }
@@ -942,60 +573,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     return fieldValueMap;
   }
 
-  private Map<String, CompositeFieldValue> getSortedFieldsForHit(
-      ScoreDoc hit, Sort sort, List<String> sortFieldNames) {
-    var sortedFields = new HashMap<String, CompositeFieldValue>();
-    if (hit instanceof FieldDoc) {
-      FieldDoc fd = (FieldDoc) hit;
-      if (fd.fields != null) {
-        SortField[] sortFields = sort.getSort();
-
-        for (int i = 0; i < sortFields.length; i++) {
-          // We must use a separate list because an expr's
-          // SortField doesn't know the virtual field name
-          // (it returns the expression string from
-          // .getField):
-          String fieldName = sortFieldNames.get(i);
-          String value;
-
-          if (fd.fields[i] instanceof BytesRef) {
-            value = ((BytesRef) fd.fields[i]).utf8ToString();
-          } else {
-            // FIXME: not sure this is serializable to string?
-            value = fd.fields[i].toString();
-          }
-          var compositeFieldValue =
-              CompositeFieldValue.newBuilder()
-                  .addFieldValue(FieldValue.newBuilder().setTextValue(value))
-                  .build();
-          sortedFields.put(fieldName, compositeFieldValue);
-        }
-      }
-    }
-
-    return sortedFields;
-  }
-
-  /**
-   * Get the maximum number of hits that should be collected during ranking. This value will at
-   * least be as large as the query specified top hits, and may be larger if doing a facet sample
-   * aggregation requiring a greater number of top docs.
-   *
-   * @param topHits maximum hits needed in query response
-   * @param request search request
-   * @return total top docs needed for query response and sample facets
-   */
-  private int getNumHitsToCollect(int topHits, SearchRequest request) {
-    int collectHits = topHits;
-    for (Facet facet : request.getFacetsList()) {
-      int facetSample = facet.getSampleTopDocs();
-      if (facetSample > 0 && facetSample > collectHits) {
-        collectHits = facetSample;
-      }
-    }
-    return collectHits;
-  }
-
   private static FieldValue convertType(FieldDef fd, Object o) {
     var fieldValue = FieldValue.newBuilder();
     if (fd instanceof BooleanFieldDef) {
@@ -1017,22 +594,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
   private static String msecToDateString(DateTimeFieldDef fd, long value) {
     // nocommit use CTL to reuse these?
     return fd.getDateTimeParser().parser.format(new Date(value));
-  }
-
-  /** Highlight configuration. */
-  static class FieldHighlightConfig {
-    /** Number of passages. */
-    public int maxPassages = -1;
-
-    // nocommit use enum:
-    /** Snippet or whole. */
-    public String mode;
-
-    /** True if field is single valued. */
-    public boolean multiValued;
-
-    /** {@link BreakIterator} to use. */
-    public BreakIterator breakIterator;
   }
 
   public static class SearchHandlerException extends HandlerException {
