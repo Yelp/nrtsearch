@@ -25,18 +25,18 @@ public class BooleanFieldDefTest {
 
   @Test
   public void testParseTrue() {
-    assertTrue(BooleanFieldDefTerm.parseBooleanOrThrow("true"));
-    assertTrue(BooleanFieldDefTerm.parseBooleanOrThrow("True"));
-    assertTrue(BooleanFieldDefTerm.parseBooleanOrThrow("TRUE"));
-    assertTrue(BooleanFieldDefTerm.parseBooleanOrThrow("truE"));
+    assertTrue(BooleanFieldDef.parseBooleanOrThrow("true"));
+    assertTrue(BooleanFieldDef.parseBooleanOrThrow("True"));
+    assertTrue(BooleanFieldDef.parseBooleanOrThrow("TRUE"));
+    assertTrue(BooleanFieldDef.parseBooleanOrThrow("truE"));
   }
 
   @Test
   public void testParseFalse() {
-    assertFalse(BooleanFieldDefTerm.parseBooleanOrThrow("false"));
-    assertFalse(BooleanFieldDefTerm.parseBooleanOrThrow("False"));
-    assertFalse(BooleanFieldDefTerm.parseBooleanOrThrow("FALSE"));
-    assertFalse(BooleanFieldDefTerm.parseBooleanOrThrow("falsE"));
+    assertFalse(BooleanFieldDef.parseBooleanOrThrow("false"));
+    assertFalse(BooleanFieldDef.parseBooleanOrThrow("False"));
+    assertFalse(BooleanFieldDef.parseBooleanOrThrow("FALSE"));
+    assertFalse(BooleanFieldDef.parseBooleanOrThrow("falsE"));
   }
 
   @Test
@@ -52,7 +52,7 @@ public class BooleanFieldDefTest {
 
   private void assertMalformedString(String booleanStr) {
     try {
-      BooleanFieldDefTerm.parseBooleanOrThrow(booleanStr);
+      BooleanFieldDef.parseBooleanOrThrow(booleanStr);
       Assert.fail();
     } catch (IllegalArgumentException ignored) {
 

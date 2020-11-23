@@ -38,8 +38,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 
 /** Field class for 'BOOLEAN' field type. */
-public class BooleanFieldDefTerm extends TermQueryableIndexableFieldDef {
-  protected BooleanFieldDefTerm(String name, Field requestField) {
+public class BooleanFieldDef extends TermQueryableIndexableFieldDef {
+  protected BooleanFieldDef(String name, Field requestField) {
     super(name, requestField);
   }
 
