@@ -1145,6 +1145,9 @@
         },
         "latLngValue": {
           "$ref": "#/definitions/typeLatLng"
+        },
+        "structValue": {
+          "type": "object"
         }
       }
     },
@@ -1938,6 +1941,17 @@
       ],
       "default": "NO_FACETS",
       "description": "Whether/How this field should index facets, and how."
+    },
+    "luceneserverFetchTask": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object"
+        }
+      }
     },
     "luceneserverField": {
       "type": "object",
@@ -2869,6 +2883,12 @@
           "type": "array",
           "items": {
             "$ref": "#/definitions/luceneserverFacet"
+          }
+        },
+        "fetchTasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverFetchTask"
           }
         }
       }

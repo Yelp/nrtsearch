@@ -142,8 +142,12 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       // fill all other needed fields into each Hit.Builder
       List<Hit.Builder> hitBuilders = searchContext.getResponseBuilder().getHitsBuilderList();
+      List<LeafReaderContext> leaves = s.searcher.getIndexReader().leaves();
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         var hitResponse = hitBuilders.get(hitIndex);
+
+        LeafReaderContext leaf =
+            leaves.get(ReaderUtil.subIndex(hitResponse.getLuceneDocId(), leaves));
 
         if (!searchContext.getRetrieveFields().isEmpty()) {
           var fieldValueMap =
@@ -152,13 +156,20 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                   null,
                   s.searcher,
                   hitResponse,
+                  leaf,
                   searchContext.getRetrieveFields().keySet(),
                   Collections.emptyMap(),
                   hitIndex,
                   searchContext.getRetrieveFields());
           hitResponse.putAllFields(fieldValueMap);
         }
+
+        searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
       }
+
+      searchContext
+          .getFetchTasks()
+          .processAllHits(searchContext, searchContext.getResponseBuilder().getHitsBuilderList());
 
       SearchState.Builder searchState = SearchState.newBuilder();
       searchContext.getResponseBuilder().setSearchState(searchState);
@@ -469,6 +480,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       Object highlighter,
       IndexSearcher s,
       Hit.Builder hit,
+      LeafReaderContext leaf,
       Set<String> fields,
       Map<String, Object[]> highlights,
       int hiliteHitIndex,
@@ -493,8 +505,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         // retrieve from doc values
         if (fd instanceof VirtualFieldDef) {
           VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
-          List<LeafReaderContext> leaves = s.getIndexReader().leaves();
-          LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.getLuceneDocId(), leaves));
 
           int docID = hit.getLuceneDocId() - leaf.docBase;
 
@@ -516,9 +526,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           compositeFieldValue.addFieldValue(
               FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
         } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
-          List<LeafReaderContext> leaves = s.getIndexReader().leaves();
-          // get the current leaf/segment that this doc is in
-          LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.getLuceneDocId(), leaves));
           int docID = hit.getLuceneDocId() - leaf.docBase;
           // it may be possible to cache this if there are multiple hits in the same segment
           LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);

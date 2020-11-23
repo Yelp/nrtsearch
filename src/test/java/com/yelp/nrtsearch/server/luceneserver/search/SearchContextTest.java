@@ -76,6 +76,7 @@ public class SearchContextTest extends ServerTestCase {
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
         .setCollector(new DummyCollector())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .build(true);
   }
 
@@ -102,6 +103,7 @@ public class SearchContextTest extends ServerTestCase {
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
         .setCollector(new DummyCollector())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .build(true);
   }
 
@@ -118,6 +120,7 @@ public class SearchContextTest extends ServerTestCase {
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
         .setCollector(new DummyCollector())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .build(true);
   }
 
@@ -134,6 +137,7 @@ public class SearchContextTest extends ServerTestCase {
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
         .setCollector(new DummyCollector())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .build(true);
   }
 
@@ -150,6 +154,7 @@ public class SearchContextTest extends ServerTestCase {
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
         .setCollector(new DummyCollector())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .build(true);
   }
 
@@ -166,6 +171,7 @@ public class SearchContextTest extends ServerTestCase {
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
         .setCollector(new DummyCollector())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .build(true);
   }
 
@@ -182,6 +188,7 @@ public class SearchContextTest extends ServerTestCase {
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
         .setCollector(new DummyCollector())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .build(true);
   }
 
@@ -198,6 +205,7 @@ public class SearchContextTest extends ServerTestCase {
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
         .setCollector(new DummyCollector())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .build(true);
   }
 
@@ -214,6 +222,7 @@ public class SearchContextTest extends ServerTestCase {
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
         .setCollector(new DummyCollector())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .build(true);
   }
 
@@ -230,6 +239,7 @@ public class SearchContextTest extends ServerTestCase {
         .setQueryFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
         .setCollector(new DummyCollector())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .build(true);
   }
 
@@ -246,6 +256,7 @@ public class SearchContextTest extends ServerTestCase {
         .setQueryFields(Collections.emptyMap())
         .setRetrieveFields(Collections.emptyMap())
         .setCollector(new DummyCollector())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .build(true);
   }
 
@@ -262,6 +273,24 @@ public class SearchContextTest extends ServerTestCase {
         .setQueryFields(Collections.emptyMap())
         .setRetrieveFields(Collections.emptyMap())
         .setQuery(new MatchAllDocsQuery())
+        .setFetchTasks(new FetchTasks(Collections.emptyList()))
+        .build(true);
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testMissingFetchTasks() throws Exception {
+    SearchContext.newBuilder()
+        .setIndexState(getGlobalState().getIndex(DEFAULT_TEST_INDEX))
+        .setShardState(getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0))
+        .setSearcherAndTaxonomy(new SearcherAndTaxonomy(null, null))
+        .setResponseBuilder(SearchResponse.newBuilder())
+        .setTimestampSec(1)
+        .setStartHit(0)
+        .setTopHits(10)
+        .setQueryFields(Collections.emptyMap())
+        .setRetrieveFields(Collections.emptyMap())
+        .setQuery(new MatchAllDocsQuery())
+        .setCollector(new DummyCollector())
         .build(true);
   }
 }
