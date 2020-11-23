@@ -22,11 +22,9 @@ import com.yelp.nrtsearch.server.utils.VersionedResource;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,30 +50,38 @@ public class DeleteIndexBackupHandler
     String resourceName = deleteIndexBackupRequest.getResourceName();
     String resourceData = IndexBackupUtils.getResourceData(resourceName);
     String resourceMetadata = IndexBackupUtils.getResourceMetadata(resourceName);
+    String resourceVersionData = IndexBackupUtils.getResourceVersionData(resourceName);
+    String resourceVersionMetadata = IndexBackupUtils.getResourceVersionMetadata(resourceName);
     int nDays = deleteIndexBackupRequest.getNDays();
-
-    Set<String> deletedVersionHashes = new HashSet<>();
 
     try {
       List<VersionedResource> versionedResourceData =
           archiver.getVersionedResource(serviceName, resourceData);
       List<VersionedResource> versionedResourceMetadata =
           archiver.getVersionedResource(serviceName, resourceMetadata);
+      List<VersionedResource> versionedResourceVersionData =
+          archiver.getVersionedResource(serviceName, resourceVersionData);
+      List<VersionedResource> versionedResourceVersionMetadata =
+          archiver.getVersionedResource(serviceName, resourceVersionMetadata);
 
       Instant now = Instant.now();
 
-      List<VersionedResource> objectsOlderThanNDays =
-          Stream.concat(versionedResourceData.stream(), versionedResourceMetadata.stream())
-              .filter(resourceObject -> isOlderThanNDays(resourceObject, now, nDays))
-              .collect(Collectors.toList());
+      List<String> deletedResourceDataHashes =
+          deleteOlderThanNDays(versionedResourceData, now, nDays);
+      List<String> deletedResourceMetadataHashes =
+          deleteOlderThanNDays(versionedResourceMetadata, now, nDays);
+      List<String> deletedVersionDataHashes =
+          deleteOlderThanNDays(versionedResourceVersionData, now, nDays);
+      List<String> deletedVersionMetadataHashes =
+          deleteOlderThanNDays(versionedResourceVersionMetadata, now, nDays);
 
-      for (VersionedResource objectToDelete : objectsOlderThanNDays) {
-        archiver.deleteVersion(
-            objectToDelete.getServiceName(),
-            objectToDelete.getResourceName(),
-            objectToDelete.getVersionHash());
-        deletedVersionHashes.add(objectToDelete.getVersionHash());
-      }
+      return deleteIndexBackupResponseBuilder
+          .addAllDeletedResourceDataHashes(deletedResourceDataHashes)
+          .addAllDeletedResourceMetadataHashes(deletedResourceMetadataHashes)
+          .addAllDeletedVersionDataHashes(deletedVersionDataHashes)
+          .addAllDeletedVersionMetadataHashes(deletedVersionMetadataHashes)
+          .build();
+
     } catch (IOException e) {
       logger.error(
           "Error while trying to delete backup of index {} with serviceName {}, resourceName {}, nDays: {}",
@@ -86,10 +92,27 @@ public class DeleteIndexBackupHandler
           e);
       return deleteIndexBackupResponseBuilder.build();
     }
+  }
 
-    return deleteIndexBackupResponseBuilder
-        .addAllDeletedVersionHashes(deletedVersionHashes)
-        .build();
+  private List<String> deleteOlderThanNDays(
+      List<VersionedResource> versionedResources, Instant now, int nDays) throws IOException {
+
+    List<String> deletedVersions = new ArrayList<>();
+
+    List<VersionedResource> resourcesOlderThanNDays =
+        versionedResources.stream()
+            .filter(resourceObject -> isOlderThanNDays(resourceObject, now, nDays))
+            .collect(Collectors.toList());
+
+    for (VersionedResource objectToDelete : resourcesOlderThanNDays) {
+      archiver.deleteVersion(
+          objectToDelete.getServiceName(),
+          objectToDelete.getResourceName(),
+          objectToDelete.getVersionHash());
+      deletedVersions.add(objectToDelete.getVersionHash());
+    }
+
+    return deletedVersions;
   }
 
   public static boolean isOlderThanNDays(VersionedResource resource, Instant now, int nDays) {

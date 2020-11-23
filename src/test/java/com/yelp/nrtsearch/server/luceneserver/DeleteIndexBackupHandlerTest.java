@@ -84,7 +84,7 @@ public class DeleteIndexBackupHandlerTest {
     verify(archiver, never()).deleteVersion(serviceName, resourceName + "_data", versionHash1);
     verify(archiver).deleteVersion(serviceName, resourceName + "_data", versionHash2);
 
-    Assert.assertEquals(response.getDeletedVersionHashesList(), Arrays.asList(versionHash2));
+    Assert.assertEquals(response.getDeletedResourceDataHashesList(), Arrays.asList(versionHash2));
   }
 
   @Test

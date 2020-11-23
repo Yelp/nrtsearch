@@ -660,7 +660,10 @@ message DeleteIndexBackupRequest {
 }
 
 message DeleteIndexBackupResponse {
-    repeated string deletedVersionHashes = 1; // version hashes of backups which were deleted
+    repeated string deletedResourceDataHashes = 1;     // version hashes of deleted backups from {resource}_data folder
+    repeated string deletedResourceMetadataHashes = 2; // version hashes of deleted metadata of backups from {resource}_metadata folder
+    repeated string deletedVersionDataHashes = 3;      // version hashes of deleted backup versions from _version/{resource}_metadata folder
+    repeated string deletedVersionMetadataHashes = 4;  // version hashes of deleted backup versions from _version/{resource}_data folder
 }
 
 message IndicesRequest {
