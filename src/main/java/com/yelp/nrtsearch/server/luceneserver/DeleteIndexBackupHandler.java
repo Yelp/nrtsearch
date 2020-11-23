@@ -70,16 +70,16 @@ public class DeleteIndexBackupHandler
           deleteOlderThanNDays(versionedResourceData, now, nDays);
       List<String> deletedResourceMetadataHashes =
           deleteOlderThanNDays(versionedResourceMetadata, now, nDays);
-      List<String> deletedVersionDataHashes =
+      List<String> deletedDataVersions =
           deleteOlderThanNDays(versionedResourceVersionData, now, nDays);
-      List<String> deletedVersionMetadataHashes =
+      List<String> deletedMetadataVersions =
           deleteOlderThanNDays(versionedResourceVersionMetadata, now, nDays);
 
       return deleteIndexBackupResponseBuilder
           .addAllDeletedResourceDataHashes(deletedResourceDataHashes)
           .addAllDeletedResourceMetadataHashes(deletedResourceMetadataHashes)
-          .addAllDeletedVersionDataHashes(deletedVersionDataHashes)
-          .addAllDeletedVersionMetadataHashes(deletedVersionMetadataHashes)
+          .addAllDeletedDataVersions(deletedDataVersions)
+          .addAllDeletedMetadataVersions(deletedMetadataVersions)
           .build();
 
     } catch (IOException e) {
