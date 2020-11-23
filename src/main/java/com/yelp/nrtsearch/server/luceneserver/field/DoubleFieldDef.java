@@ -20,6 +20,8 @@ import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.LongToDoubleFunction;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.DoublePoint;
@@ -130,5 +132,20 @@ public class DoubleFieldDef extends NumberFieldDef {
   @Override
   public Query getTermInSetQueryFromDoubleValue(TermInSetQuery termInSetQuery) {
     return DoublePoint.newSetQuery(getName(), termInSetQuery.getDoubleTerms().getTermsList());
+  }
+
+  @Override
+  public Query getTermQueryFromTextValue(TermQuery termQuery) {
+    return DoublePoint.newExactQuery(getName(), Double.parseDouble(termQuery.getTextValue()));
+  }
+
+  @Override
+  public Query getTermInSetQueryFromTextValue(TermInSetQuery termInSetQuery) {
+    List<Double> doubleTerms = new ArrayList();
+    termInSetQuery
+        .getTextTerms()
+        .getTermsList()
+        .forEach((s) -> doubleTerms.add(Double.parseDouble(s)));
+    return DoublePoint.newSetQuery(getName(), doubleTerms);
   }
 }

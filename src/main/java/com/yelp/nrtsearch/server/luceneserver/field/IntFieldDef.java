@@ -20,6 +20,8 @@ import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.LongToDoubleFunction;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -113,5 +115,17 @@ public class IntFieldDef extends NumberFieldDef {
   @Override
   public Query getTermInSetQueryFromIntValue(TermInSetQuery termInSetQuery) {
     return IntPoint.newSetQuery(getName(), termInSetQuery.getIntTerms().getTermsList());
+  }
+
+  @Override
+  public Query getTermQueryFromTextValue(TermQuery termQuery) {
+    return IntPoint.newExactQuery(getName(), Integer.parseInt(termQuery.getTextValue()));
+  }
+
+  @Override
+  public Query getTermInSetQueryFromTextValue(TermInSetQuery termInSetQuery) {
+    List<Integer> intTerms = new ArrayList();
+    termInSetQuery.getTextTerms().getTermsList().forEach((s) -> intTerms.add(Integer.parseInt(s)));
+    return IntPoint.newSetQuery(getName(), intTerms);
   }
 }

@@ -20,6 +20,8 @@ import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.LongToDoubleFunction;
 import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.document.FloatPoint;
@@ -126,5 +128,20 @@ public class FloatFieldDef extends NumberFieldDef {
   @Override
   public Query getTermInSetQueryFromFloatValue(TermInSetQuery termInSetQuery) {
     return FloatPoint.newSetQuery(getName(), termInSetQuery.getFloatTerms().getTermsList());
+  }
+
+  @Override
+  public Query getTermQueryFromTextValue(TermQuery termQuery) {
+    return FloatPoint.newExactQuery(getName(), Float.parseFloat(termQuery.getTextValue()));
+  }
+
+  @Override
+  public Query getTermInSetQueryFromTextValue(TermInSetQuery termInSetQuery) {
+    List<Float> floatTerms = new ArrayList();
+    termInSetQuery
+        .getTextTerms()
+        .getTermsList()
+        .forEach((s) -> floatTerms.add(Float.parseFloat(s)));
+    return FloatPoint.newSetQuery(getName(), floatTerms);
   }
 }
