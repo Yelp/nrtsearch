@@ -17,8 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
-import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import java.util.ArrayList;
 import java.util.List;
@@ -112,24 +110,24 @@ public class LongFieldDef extends NumberFieldDef {
   }
 
   @Override
-  public Query getTermQueryFromLongValue(TermQuery termQuery) {
-    return LongPoint.newExactQuery(getName(), termQuery.getLongValue());
+  public Query getTermQueryFromLongValue(long longValue) {
+    return LongPoint.newExactQuery(getName(), longValue);
   }
 
   @Override
-  public Query getTermInSetQueryFromLongValue(TermInSetQuery termInSetQuery) {
-    return LongPoint.newSetQuery(getName(), termInSetQuery.getLongTerms().getTermsList());
+  public Query getTermInSetQueryFromLongValues(List<Long> longValues) {
+    return LongPoint.newSetQuery(getName(), longValues);
   }
 
   @Override
-  public Query getTermQueryFromTextValue(TermQuery termQuery) {
-    return LongPoint.newExactQuery(getName(), Long.parseLong(termQuery.getTextValue()));
+  public Query getTermQueryFromTextValue(String textValue) {
+    return LongPoint.newExactQuery(getName(), Long.parseLong(textValue));
   }
 
   @Override
-  public Query getTermInSetQueryFromTextValue(TermInSetQuery termInSetQuery) {
+  public Query getTermInSetQueryFromTextValues(List<String> textValues) {
     List<Long> longTerms = new ArrayList();
-    termInSetQuery.getTextTerms().getTermsList().forEach((s) -> longTerms.add(Long.parseLong(s)));
+    textValues.forEach((s) -> longTerms.add(Long.parseLong(s)));
     return LongPoint.newSetQuery(getName(), longTerms);
   }
 }

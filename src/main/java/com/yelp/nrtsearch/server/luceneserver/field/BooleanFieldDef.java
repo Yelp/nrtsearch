@@ -20,7 +20,6 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.ha
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import java.io.IOException;
 import java.util.List;
@@ -139,14 +138,14 @@ public class BooleanFieldDef extends TermQueryableIndexableFieldDef {
   }
 
   @Override
-  public Query getTermQueryFromBooleanValue(TermQuery termQuery) {
-    String indexTermValue = termQuery.getBooleanValue() ? "1" : "0";
+  public Query getTermQueryFromBooleanValue(boolean booleanValue) {
+    String indexTermValue = booleanValue ? "1" : "0";
     return new org.apache.lucene.search.TermQuery(new Term(getName(), indexTermValue));
   }
 
   @Override
-  public Query getTermQueryFromTextValue(TermQuery termQuery) {
-    boolean termValue = parseBooleanOrThrow(termQuery.getTextValue());
+  public Query getTermQueryFromTextValue(String textValue) {
+    boolean termValue = parseBooleanOrThrow(textValue);
     String indexTermValue = termValue ? "1" : "0";
     return new org.apache.lucene.search.TermQuery(new Term(getName(), indexTermValue));
   }

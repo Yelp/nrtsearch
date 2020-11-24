@@ -17,8 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
-import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import java.util.ArrayList;
 import java.util.List;
@@ -121,27 +119,24 @@ public class FloatFieldDef extends NumberFieldDef {
   }
 
   @Override
-  public Query getTermQueryFromFloatValue(TermQuery termQuery) {
-    return FloatPoint.newExactQuery(getName(), termQuery.getFloatValue());
+  public Query getTermQueryFromFloatValue(float floatValue) {
+    return FloatPoint.newExactQuery(getName(), floatValue);
   }
 
   @Override
-  public Query getTermInSetQueryFromFloatValue(TermInSetQuery termInSetQuery) {
-    return FloatPoint.newSetQuery(getName(), termInSetQuery.getFloatTerms().getTermsList());
+  public Query getTermInSetQueryFromFloatValues(List<Float> floatValues) {
+    return FloatPoint.newSetQuery(getName(), floatValues);
   }
 
   @Override
-  public Query getTermQueryFromTextValue(TermQuery termQuery) {
-    return FloatPoint.newExactQuery(getName(), Float.parseFloat(termQuery.getTextValue()));
+  public Query getTermQueryFromTextValue(String textValue) {
+    return FloatPoint.newExactQuery(getName(), Float.parseFloat(textValue));
   }
 
   @Override
-  public Query getTermInSetQueryFromTextValue(TermInSetQuery termInSetQuery) {
+  public Query getTermInSetQueryFromTextValues(List<String> textValues) {
     List<Float> floatTerms = new ArrayList();
-    termInSetQuery
-        .getTextTerms()
-        .getTermsList()
-        .forEach((s) -> floatTerms.add(Float.parseFloat(s)));
+    textValues.forEach((s) -> floatTerms.add(Float.parseFloat(s)));
     return FloatPoint.newSetQuery(getName(), floatTerms);
   }
 }

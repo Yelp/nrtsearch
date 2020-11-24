@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
+import java.util.List;
 import org.apache.lucene.search.Query;
 
 public abstract class TermQueryableIndexableFieldDef extends IndexableFieldDef
@@ -39,116 +40,116 @@ public abstract class TermQueryableIndexableFieldDef extends IndexableFieldDef
   // Performs type validation. Do not @Override in subclasses.
   @Override
   public Query getTermQuery(TermQuery termQuery) {
+    Query query;
     switch (termQuery.getTermTypesCase()) {
       case BOOLEANVALUE:
-        return getTermQueryFromBooleanValue(termQuery);
+        query = getTermQueryFromBooleanValue(termQuery.getBooleanValue());
+        break;
       case DOUBLEVALUE:
-        return getTermQueryFromDoubleValue(termQuery);
+        query = getTermQueryFromDoubleValue(termQuery.getDoubleValue());
+        break;
       case FLOATVALUE:
-        return getTermQueryFromFloatValue(termQuery);
+        query = getTermQueryFromFloatValue(termQuery.getFloatValue());
+        break;
       case INTVALUE:
-        return getTermQueryFromIntValue(termQuery);
+        query = getTermQueryFromIntValue(termQuery.getIntValue());
+        break;
       case LONGVALUE:
-        return getTermQueryFromLongValue(termQuery);
+        query = getTermQueryFromLongValue(termQuery.getLongValue());
+        break;
       case TEXTVALUE:
-        return getTermQueryFromTextValue(termQuery);
+        query = getTermQueryFromTextValue(termQuery.getTextValue());
+        break;
       default:
-        throw new IllegalArgumentException(
-            String.format(
-                "%s field does not support term type: %s",
-                termQuery.getField(), termQuery.getTermTypesCase()));
+        query = null;
+        break;
+    }
+
+    if (query.equals(null)) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "%s field does not support term type: %s",
+              termQuery.getField(), termQuery.getTermTypesCase()));
+    } else {
+      return query;
     }
   }
 
-  Query getTermQueryFromBooleanValue(TermQuery termQuery) {
-    throwIllegalArgumentException(termQuery);
+  Query getTermQueryFromBooleanValue(boolean booleanValue) {
     return null;
   }
 
-  Query getTermQueryFromDoubleValue(TermQuery termQuery) {
-    throwIllegalArgumentException(termQuery);
+  Query getTermQueryFromDoubleValue(double doubleValue) {
     return null;
   }
 
-  Query getTermQueryFromFloatValue(TermQuery termQuery) {
-    throwIllegalArgumentException(termQuery);
+  Query getTermQueryFromFloatValue(float floatValue) {
     return null;
   }
 
-  Query getTermQueryFromIntValue(TermQuery termQuery) {
-    throwIllegalArgumentException(termQuery);
+  Query getTermQueryFromIntValue(int intValue) {
     return null;
   }
 
-  Query getTermQueryFromLongValue(TermQuery termQuery) {
-    throwIllegalArgumentException(termQuery);
+  Query getTermQueryFromLongValue(long longValue) {
     return null;
   }
 
-  Query getTermQueryFromTextValue(TermQuery termQuery) {
-    throwIllegalArgumentException(termQuery);
+  Query getTermQueryFromTextValue(String textValue) {
     return null;
-  }
-
-  void throwIllegalArgumentException(TermQuery termQuery) {
-    throw new IllegalArgumentException(
-        String.format(
-            "%s field does not support term type: %s",
-            termQuery.getField(), termQuery.getTermTypesCase()));
   }
 
   // Performs type validation. Do not @Override in subclasses.
   @Override
   public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
+    Query query;
     switch (termInSetQuery.getTermTypesCase()) {
       case DOUBLETERMS:
-        return getTermInSetQueryFromDoubleValue(termInSetQuery);
+        query = getTermInSetQueryFromDoubleValues(termInSetQuery.getDoubleTerms().getTermsList());
+        break;
       case FLOATTERMS:
-        return getTermInSetQueryFromFloatValue(termInSetQuery);
+        query = getTermInSetQueryFromFloatValues(termInSetQuery.getFloatTerms().getTermsList());
+        break;
       case INTTERMS:
-        return getTermInSetQueryFromIntValue(termInSetQuery);
+        query = getTermInSetQueryFromIntValues(termInSetQuery.getIntTerms().getTermsList());
+        break;
       case LONGTERMS:
-        return getTermInSetQueryFromLongValue(termInSetQuery);
+        query = getTermInSetQueryFromLongValues(termInSetQuery.getLongTerms().getTermsList());
+        break;
       case TEXTTERMS:
-        return getTermInSetQueryFromTextValue(termInSetQuery);
+        query = getTermInSetQueryFromTextValues(termInSetQuery.getTextTerms().getTermsList());
+        break;
       default:
-        throw new IllegalArgumentException(
-            String.format(
-                "%s field does not support term type: %s",
-                termInSetQuery.getField(), termInSetQuery.getTermTypesCase()));
+        query = null;
+        break;
+    }
+    if (query.equals(null)) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "%s field does not support term type: %s",
+              termInSetQuery.getField(), termInSetQuery.getTermTypesCase()));
+    } else {
+      return query;
     }
   }
 
-  Query getTermInSetQueryFromDoubleValue(TermInSetQuery termInSetQuery) {
-    throwIllegalArgumentException(termInSetQuery);
+  Query getTermInSetQueryFromDoubleValues(List<Double> doubleValues) {
     return null;
   }
 
-  Query getTermInSetQueryFromFloatValue(TermInSetQuery termInSetQuery) {
-    throwIllegalArgumentException(termInSetQuery);
+  Query getTermInSetQueryFromFloatValues(List<Float> floatValues) {
     return null;
   }
 
-  Query getTermInSetQueryFromIntValue(TermInSetQuery termInSetQuery) {
-    throwIllegalArgumentException(termInSetQuery);
+  Query getTermInSetQueryFromIntValues(List<Integer> intValues) {
     return null;
   }
 
-  Query getTermInSetQueryFromLongValue(TermInSetQuery termInSetQuery) {
-    throwIllegalArgumentException(termInSetQuery);
+  Query getTermInSetQueryFromLongValues(List<Long> longValues) {
     return null;
   }
 
-  Query getTermInSetQueryFromTextValue(TermInSetQuery termInSetQuery) {
-    throwIllegalArgumentException(termInSetQuery);
+  Query getTermInSetQueryFromTextValues(List<String> textValues) {
     return null;
-  }
-
-  void throwIllegalArgumentException(TermInSetQuery termInSetQuery)
-      throws IllegalArgumentException {
-    throw new IllegalArgumentException(
-        String.format(
-            "%s field does not support term type: %s",
-            termInSetQuery.getField(), termInSetQuery.getTermTypesCase()));
   }
 }

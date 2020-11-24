@@ -17,8 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
-import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
@@ -325,16 +323,13 @@ public abstract class TextBaseFieldDef extends TermQueryableIndexableFieldDef {
   }
 
   @Override
-  public Query getTermQueryFromTextValue(TermQuery termQuery) {
-    return new org.apache.lucene.search.TermQuery(new Term(getName(), termQuery.getTextValue()));
+  public Query getTermQueryFromTextValue(String textValue) {
+    return new org.apache.lucene.search.TermQuery(new Term(getName(), textValue));
   }
 
   @Override
-  public Query getTermInSetQueryFromTextValue(TermInSetQuery termInSetQuery) {
-    List<BytesRef> textTerms =
-        termInSetQuery.getTextTerms().getTermsList().stream()
-            .map(BytesRef::new)
-            .collect(Collectors.toList());
-    return new org.apache.lucene.search.TermInSetQuery(termInSetQuery.getField(), textTerms);
+  public Query getTermInSetQueryFromTextValues(List<String> textValues) {
+    List<BytesRef> textTerms = textValues.stream().map(BytesRef::new).collect(Collectors.toList());
+    return new org.apache.lucene.search.TermInSetQuery(getName(), textTerms);
   }
 }

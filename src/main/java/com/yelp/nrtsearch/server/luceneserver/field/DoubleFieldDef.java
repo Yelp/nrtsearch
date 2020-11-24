@@ -17,8 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
-import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import java.util.ArrayList;
 import java.util.List;
@@ -125,27 +123,24 @@ public class DoubleFieldDef extends NumberFieldDef {
   }
 
   @Override
-  public Query getTermQueryFromDoubleValue(TermQuery termQuery) {
-    return DoublePoint.newExactQuery(getName(), termQuery.getDoubleValue());
+  public Query getTermQueryFromDoubleValue(double doubleValue) {
+    return DoublePoint.newExactQuery(getName(), doubleValue);
   }
 
   @Override
-  public Query getTermInSetQueryFromDoubleValue(TermInSetQuery termInSetQuery) {
-    return DoublePoint.newSetQuery(getName(), termInSetQuery.getDoubleTerms().getTermsList());
+  public Query getTermInSetQueryFromDoubleValues(List<Double> doubleValues) {
+    return DoublePoint.newSetQuery(getName(), doubleValues);
   }
 
   @Override
-  public Query getTermQueryFromTextValue(TermQuery termQuery) {
-    return DoublePoint.newExactQuery(getName(), Double.parseDouble(termQuery.getTextValue()));
+  public Query getTermQueryFromTextValue(String textValue) {
+    return DoublePoint.newExactQuery(getName(), Double.parseDouble(textValue));
   }
 
   @Override
-  public Query getTermInSetQueryFromTextValue(TermInSetQuery termInSetQuery) {
+  public Query getTermInSetQueryFromTextValues(List<String> textValues) {
     List<Double> doubleTerms = new ArrayList();
-    termInSetQuery
-        .getTextTerms()
-        .getTermsList()
-        .forEach((s) -> doubleTerms.add(Double.parseDouble(s)));
+    textValues.forEach((s) -> doubleTerms.add(Double.parseDouble(s)));
     return DoublePoint.newSetQuery(getName(), doubleTerms);
   }
 }
