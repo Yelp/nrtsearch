@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.List;
 import org.apache.lucene.document.Document;
@@ -37,7 +38,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 
 /** Field class for 'BOOLEAN' field type. */
-public class BooleanFieldDef extends TermQueryableIndexableFieldDef {
+public class BooleanFieldDef extends IndexableFieldDef implements TermQueryable {
   protected BooleanFieldDef(String name, Field requestField) {
     super(name, requestField);
   }

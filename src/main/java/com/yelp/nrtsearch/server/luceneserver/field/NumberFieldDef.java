@@ -30,6 +30,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.BindingValuesSources.SortedN
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Bindable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
@@ -51,8 +52,8 @@ import org.apache.lucene.util.NumericUtils;
  * Base class for all fields that are a {@link Number} type. Contains the common handling used by
  * all of number fields and provides abstract functions for type specific operations.
  */
-public abstract class NumberFieldDef extends TermQueryableIndexableFieldDef
-    implements Bindable, Sortable, RangeQueryable {
+public abstract class NumberFieldDef extends IndexableFieldDef
+    implements Bindable, Sortable, RangeQueryable, TermQueryable {
   public static final Function<String, Number> INT_PARSER = Integer::valueOf;
   public static final Function<String, Number> LONG_PARSER = Long::valueOf;
   public static final Function<String, Number> FLOAT_PARSER = Float::valueOf;

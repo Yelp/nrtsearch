@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -33,7 +34,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 
 /** Field class for defining '_ID' fields which are used to update documents */
-public class IdFieldDef extends TermQueryableIndexableFieldDef {
+public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
 
   protected IdFieldDef(String name, Field requestField) {
     super(name, requestField);

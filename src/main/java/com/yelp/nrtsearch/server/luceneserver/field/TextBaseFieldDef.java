@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -47,7 +48,7 @@ import org.apache.lucene.util.BytesRef;
  * Base class for all text base field definitions. In addition to the properties from {@link
  * IndexableFieldDef}, text fields have the option for {@link Analyzer}s and highlighting.
  */
-public abstract class TextBaseFieldDef extends TermQueryableIndexableFieldDef {
+public abstract class TextBaseFieldDef extends IndexableFieldDef implements TermQueryable {
 
   private final boolean isHighlighted;
   private final Analyzer indexAnalyzer;
