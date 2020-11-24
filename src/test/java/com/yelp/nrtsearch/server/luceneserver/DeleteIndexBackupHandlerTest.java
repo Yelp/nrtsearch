@@ -60,31 +60,70 @@ public class DeleteIndexBackupHandlerTest {
 
     String versionHash1 = "hash_1";
     String versionHash2 = "hash_2";
-    VersionedResource testVersionedResource1 =
-        VersionedResource.builder()
-            .setServiceName(serviceName)
-            .setResourceName(resourceName + "_data")
-            .setCreationTimestamp(date1)
-            .setVersionHash(versionHash1)
-            .createVersionedResource();
 
-    VersionedResource testVersionedResource2 =
-        VersionedResource.builder()
-            .setServiceName(serviceName)
-            .setResourceName(resourceName + "_data")
-            .setCreationTimestamp(date2)
-            .setVersionHash(versionHash2)
-            .createVersionedResource();
+    String resourceData = IndexBackupUtils.getResourceData(resourceName);
+    String resourceMetadata = IndexBackupUtils.getResourceMetadata(resourceName);
+    String resourceVersionData = IndexBackupUtils.getResourceVersionData(resourceName);
+    String resourceVersionMetadata = IndexBackupUtils.getResourceVersionMetadata(resourceName);
 
-    when(archiver.getVersionedResource(serviceName, resourceName + "_data"))
-        .thenReturn(Arrays.asList(testVersionedResource1, testVersionedResource2));
+    VersionedResource resourceData1 =
+        buildVersionedResource(serviceName, resourceData, date1, versionHash1);
+    VersionedResource resourceMetadata1 =
+        buildVersionedResource(serviceName, resourceMetadata, date1, versionHash1);
+    VersionedResource resourceVersionData1 =
+        buildVersionedResource(serviceName, resourceVersionData, date1, versionHash1);
+    VersionedResource resourceVersionMetadata1 =
+        buildVersionedResource(serviceName, resourceVersionMetadata, date1, versionHash1);
+
+    VersionedResource resourceData2 =
+        buildVersionedResource(serviceName, resourceData, date2, versionHash2);
+    VersionedResource resourceMetadata2 =
+        buildVersionedResource(serviceName, resourceMetadata, date2, versionHash2);
+    VersionedResource resourceVersionData2 =
+        buildVersionedResource(serviceName, resourceVersionData, date2, versionHash2);
+    VersionedResource resourceVersionMetadata2 =
+        buildVersionedResource(serviceName, resourceVersionMetadata, date2, versionHash2);
+
+    // data from {resource}_data folder
+    when(archiver.getVersionedResource(serviceName, resourceData))
+        .thenReturn(Arrays.asList(resourceData1, resourceData2));
+
+    // data from {resource}_metadata folder
+    when(archiver.getVersionedResource(serviceName, resourceMetadata))
+        .thenReturn(Arrays.asList(resourceMetadata1, resourceMetadata2));
+
+    // data from _version/{resource}_data folder
+    when(archiver.getVersionedResource(serviceName, resourceVersionData))
+        .thenReturn(Arrays.asList(resourceVersionData1, resourceVersionData2));
+
+    // data from _version/{resource}_metadata folder
+    when(archiver.getVersionedResource(serviceName, resourceVersionMetadata))
+        .thenReturn(Arrays.asList(resourceVersionMetadata1, resourceVersionMetadata2));
 
     DeleteIndexBackupResponse response = handler.handle(testIndex, request);
 
-    verify(archiver, never()).deleteVersion(serviceName, resourceName + "_data", versionHash1);
-    verify(archiver).deleteVersion(serviceName, resourceName + "_data", versionHash2);
+    // verify that a 20 days old backup doesn't get deleted
+    verify(archiver, never()).deleteVersion(serviceName, resourceData, versionHash1);
+    verify(archiver, never()).deleteVersion(serviceName, resourceMetadata, versionHash1);
+    verify(archiver, never()).deleteVersion(serviceName, resourceVersionData, versionHash1);
+    verify(archiver, never()).deleteVersion(serviceName, resourceVersionMetadata, versionHash1);
 
+    // verify that a 40 days old backup gets deleted completely
+    verify(archiver).deleteVersion(serviceName, resourceData, versionHash2);
+    verify(archiver).deleteVersion(serviceName, resourceMetadata, versionHash2);
+    verify(archiver).deleteVersion(serviceName, resourceVersionData, versionHash2);
+    verify(archiver).deleteVersion(serviceName, resourceVersionMetadata, versionHash2);
+
+    // verify the response format: data from all four locations should be deleted. The locations:
+    // {resource}_data
     Assert.assertEquals(response.getDeletedResourceDataHashesList(), Arrays.asList(versionHash2));
+    // {resource}_metadata
+    Assert.assertEquals(
+        response.getDeletedResourceMetadataHashesList(), Arrays.asList(versionHash2));
+    // _version/{resource}_data
+    Assert.assertEquals(response.getDeletedDataVersionsList(), Arrays.asList(versionHash2));
+    // _version/{resource}_metadata
+    Assert.assertEquals(response.getDeletedMetadataVersionsList(), Arrays.asList(versionHash2));
   }
 
   @Test
@@ -105,5 +144,18 @@ public class DeleteIndexBackupHandlerTest {
         VersionedResource.builder().setCreationTimestamp(date2).createVersionedResource();
 
     Assert.assertEquals(true, DeleteIndexBackupHandler.isOlderThanNDays(testObj2, now, nDays));
+  }
+
+  private VersionedResource buildVersionedResource(
+      String serviceName, String resourceName, Instant timestamp, String versionHash) {
+    VersionedResource versionedResource =
+        VersionedResource.builder()
+            .setServiceName(serviceName)
+            .setResourceName(resourceName)
+            .setCreationTimestamp(timestamp)
+            .setVersionHash(versionHash)
+            .createVersionedResource();
+
+    return versionedResource;
   }
 }
