@@ -122,7 +122,7 @@ public class IntFieldDef extends NumberFieldDef {
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
-    List<Integer> intTerms = new ArrayList();
+    List<Integer> intTerms = new ArrayList(textValues.size());
     textValues.forEach((s) -> intTerms.add(Integer.parseInt(s)));
     return IntPoint.newSetQuery(getName(), intTerms);
   }

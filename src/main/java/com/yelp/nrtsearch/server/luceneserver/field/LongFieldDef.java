@@ -126,7 +126,7 @@ public class LongFieldDef extends NumberFieldDef {
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
-    List<Long> longTerms = new ArrayList();
+    List<Long> longTerms = new ArrayList(textValues.size());
     textValues.forEach((s) -> longTerms.add(Long.parseLong(s)));
     return LongPoint.newSetQuery(getName(), longTerms);
   }

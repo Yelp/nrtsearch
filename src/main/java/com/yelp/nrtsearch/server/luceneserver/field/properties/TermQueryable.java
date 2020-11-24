@@ -26,12 +26,13 @@ import org.apache.lucene.search.Query;
  */
 public interface TermQueryable {
   /**
-   * Performs type validation. Do not @Override in subclasses.
+   * <p>Build a term query for this field type with the given configuration.</p>
    *
-   * <p>Build a term query for this field type with the given configuration.
+   * <p>Performs type validation. Do not @Override in subclasses.</p>
    *
    * @param termQuery term query configuration
    * @return lucene term query
+   * @throws UnsupportedOperationException if field does not support term type
    */
   default Query getTermQuery(TermQuery termQuery) {
     Query query;
@@ -59,7 +60,7 @@ public interface TermQueryable {
         break;
     }
 
-    if (query.equals(null)) {
+    if (query == null) {
       throw new UnsupportedOperationException(
           String.format(
               "%s field does not support term type: %s",
@@ -69,37 +70,110 @@ public interface TermQueryable {
     }
   }
 
+  /**
+   * <p>Build a term query with a boolean value.</p>
+   *
+   * <p>@Override in subclasses if boolean is an acceptable type for the FieldDef's term query.</p>
+   * <p>
+   * If not overridden, this method will return null and
+   * getTermQuery(termQuery) will throw UnsupportedOperationException.
+   * </p>
+   *
+   * @param booleanValue boolean value for term query
+   * @return null, should be overridden in subclasses to return lucene term query
+   */
   default Query getTermQueryFromBooleanValue(boolean booleanValue) {
     return null;
   }
 
+  /**
+   * <p>Build a term query with a double value.</p>
+   *
+   * <p>@Override in subclasses if double is an acceptable type for the FieldDef's term query.</p>
+   * <p>
+   * If not overridden, this method will return null and
+   * getTermQuery(termQuery) will throw UnsupportedOperationException.
+   * </p>
+   *
+   * @param doubleValue double value for term query
+   * @return null, should be overridden in subclasses to return lucene term query
+   */
   default Query getTermQueryFromDoubleValue(double doubleValue) {
     return null;
   }
 
+  /**
+   * <p>Build a term query with a float value.</p>
+   *
+   * <p>@Override in subclasses if float is an acceptable type for the FieldDef's term query.</p>
+   * <p>
+   * If not overridden, this method will return null and
+   * getTermQuery(termQuery) will throw UnsupportedOperationException.
+   * </p>
+   *
+   * @param floatValue float value for term query
+   * @return null, should be overridden in subclasses to return lucene term query
+   */
   default Query getTermQueryFromFloatValue(float floatValue) {
     return null;
   }
 
+  /**
+   * <p>Build a term query with a integer value.</p>
+   *
+   * <p>@Override in subclasses if integer is an acceptable type for the FieldDef's term query.</p>
+   * <p>
+   * If not overridden, this method will return null and
+   * getTermQuery(termQuery) will throw UnsupportedOperationException.
+   * </p>
+   *
+   * @param intValue integer value for term query
+   * @return null, should be overridden in subclasses to return lucene term query
+   */
   default Query getTermQueryFromIntValue(int intValue) {
     return null;
   }
 
+  /**
+   * <p>Build a term query with a long value.</p>
+   *
+   * <p>@Override in subclasses if long is an acceptable type for the FieldDef's term query.</p>
+   * <p>
+   * If not overridden, this method will return null and
+   * getTermQuery(termQuery) will throw UnsupportedOperationException.
+   * </p>
+   *
+   * @param longValue long value for term query
+   * @return null, should be overridden in subclasses to return lucene term query
+   */
   default Query getTermQueryFromLongValue(long longValue) {
     return null;
   }
 
+  /**
+   * <p>Build a term query with a String value.</p>
+   *
+   * <p>@Override in subclasses if String is an acceptable type for the FieldDef's term query.</p>
+   * <p>
+   * If not overridden, this method will return null and
+   * getTermQuery(termQuery) will throw UnsupportedOperationException.
+   * </p>
+   *
+   * @param textValue String value for term query
+   * @return null, should be overridden in subclasses to return lucene term query
+   */
   default Query getTermQueryFromTextValue(String textValue) {
     return null;
   }
 
   /**
-   * Performs type validation. Do not @Override in subclasses.
+   * <p>Build a term in set query for this field type with the given configuration.</p>
    *
-   * <p>Build a term in set query for this field type with the given configuration.
+   * <p>Performs type validation. Do not @Override in subclasses.</p>
    *
    * @param termInSetQuery term in set query configuration
    * @return lucene term in set query
+   * @throws UnsupportedOperationException if field does not support term type
    */
   default Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
     Query query;
@@ -123,7 +197,7 @@ public interface TermQueryable {
         query = null;
         break;
     }
-    if (query.equals(null)) {
+    if (query == null) {
       throw new UnsupportedOperationException(
           String.format(
               "%s field does not support term type: %s",
@@ -133,22 +207,82 @@ public interface TermQueryable {
     }
   }
 
+  /**
+   * <p>Build a term in set query with a list of double values.</p>
+   *
+   * <p>@Override in subclasses if a list of doubles is an acceptable type for the FieldDef's term in set query.</p>
+   * <p>
+   * If not overridden, this method will return null and
+   * getTermInSetQuery(termInSetQuery) will throw UnsupportedOperationException.
+   * </p>
+   *
+   * @param doubleValues List of double values for term query
+   * @return null, should be overridden in subclasses to return lucene term in set query
+   */
   default Query getTermInSetQueryFromDoubleValues(List<Double> doubleValues) {
     return null;
   }
 
+  /**
+   * <p>Build a term in set query with a list of float values.</p>
+   *
+   * <p>@Override in subclasses if a list of floats is an acceptable type for the FieldDef's term in set query.</p>
+   * <p>
+   * If not overridden, this method will return null and
+   * getTermInSetQuery(termInSetQuery) will throw UnsupportedOperationException.
+   * </p>
+   *
+   * @param floatValues List of float values for term query
+   * @return null, should be overridden in subclasses to return lucene term in set query
+   */
   default Query getTermInSetQueryFromFloatValues(List<Float> floatValues) {
     return null;
   }
 
+  /**
+   * <p>Build a term in set query with a list of integer values.</p>
+   *
+   * <p>@Override in subclasses if a list of integers is an acceptable type for the FieldDef's term in set query.</p>
+   * <p>
+   * If not overridden, this method will return null and
+   * getTermInSetQuery(termInSetQuery) will throw UnsupportedOperationException.
+   * </p>
+   *
+   * @param intValues List of integer values for term query
+   * @return null, should be overridden in subclasses to return lucene term in set query
+   */
   default Query getTermInSetQueryFromIntValues(List<Integer> intValues) {
     return null;
   }
 
+  /**
+   * <p>Build a term in set query with a list of long values.</p>
+   *
+   * <p>@Override in subclasses if a list of longs is an acceptable type for the FieldDef's term in set query.</p>
+   * <p>
+   * If not overridden, this method will return null and
+   * getTermInSetQuery(termInSetQuery) will throw UnsupportedOperationException.
+   * </p>
+   *
+   * @param longValues List of long values for term query
+   * @return null, should be overridden in subclasses to return lucene term in set query
+   */
   default Query getTermInSetQueryFromLongValues(List<Long> longValues) {
     return null;
   }
 
+  /**
+   * <p>Build a term in set query with a list of String values.</p>
+   *
+   * <p>@Override in subclasses if a list of Strings is an acceptable type for the FieldDef's term in set query.</p>
+   * <p>
+   * If not overridden, this method will return null and
+   * getTermInSetQuery(termInSetQuery) will throw UnsupportedOperationException.
+   * </p>
+   *
+   * @param textValues List of String values for term query
+   * @return null, should be overridden in subclasses to return lucene term in set query
+   */
   default Query getTermInSetQueryFromTextValues(List<String> textValues) {
     return null;
   }

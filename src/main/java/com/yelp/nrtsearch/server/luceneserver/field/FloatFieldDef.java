@@ -135,7 +135,7 @@ public class FloatFieldDef extends NumberFieldDef {
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
-    List<Float> floatTerms = new ArrayList();
+    List<Float> floatTerms = new ArrayList(textValues.size());
     textValues.forEach((s) -> floatTerms.add(Float.parseFloat(s)));
     return FloatPoint.newSetQuery(getName(), floatTerms);
   }

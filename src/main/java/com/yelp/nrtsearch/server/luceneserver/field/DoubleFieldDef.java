@@ -139,7 +139,7 @@ public class DoubleFieldDef extends NumberFieldDef {
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
-    List<Double> doubleTerms = new ArrayList();
+    List<Double> doubleTerms = new ArrayList(textValues.size());
     textValues.forEach((s) -> doubleTerms.add(Double.parseDouble(s)));
     return DoublePoint.newSetQuery(getName(), doubleTerms);
   }
