@@ -26,9 +26,9 @@ import org.apache.lucene.search.Query;
  */
 public interface TermQueryable {
   /**
-   * <p>Build a term query for this field type with the given configuration.</p>
+   * Build a term query for this field type with the given configuration.
    *
-   * <p>Performs type validation. Do not @Override in subclasses.</p>
+   * <p>Performs type validation. Do not @Override in subclasses.
    *
    * @param termQuery term query configuration
    * @return lucene term query
@@ -71,13 +71,12 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term query with a boolean value.</p>
+   * Build a term query with a boolean value.
    *
-   * <p>@Override in subclasses if boolean is an acceptable type for the FieldDef's term query.</p>
-   * <p>
-   * If not overridden, this method will return null and
-   * getTermQuery(termQuery) will throw UnsupportedOperationException.
-   * </p>
+   * <p>@Override in subclasses if boolean is an acceptable type for the FieldDef's term query.
+   *
+   * <p>If not overridden, this method will return null and getTermQuery(termQuery) will throw
+   * UnsupportedOperationException.
    *
    * @param booleanValue boolean value for term query
    * @return null, should be overridden in subclasses to return lucene term query
@@ -87,13 +86,12 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term query with a double value.</p>
+   * Build a term query with a double value.
    *
-   * <p>@Override in subclasses if double is an acceptable type for the FieldDef's term query.</p>
-   * <p>
-   * If not overridden, this method will return null and
-   * getTermQuery(termQuery) will throw UnsupportedOperationException.
-   * </p>
+   * <p>@Override in subclasses if double is an acceptable type for the FieldDef's term query.
+   *
+   * <p>If not overridden, this method will return null and getTermQuery(termQuery) will throw
+   * UnsupportedOperationException.
    *
    * @param doubleValue double value for term query
    * @return null, should be overridden in subclasses to return lucene term query
@@ -103,13 +101,12 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term query with a float value.</p>
+   * Build a term query with a float value.
    *
-   * <p>@Override in subclasses if float is an acceptable type for the FieldDef's term query.</p>
-   * <p>
-   * If not overridden, this method will return null and
-   * getTermQuery(termQuery) will throw UnsupportedOperationException.
-   * </p>
+   * <p>@Override in subclasses if float is an acceptable type for the FieldDef's term query.
+   *
+   * <p>If not overridden, this method will return null and getTermQuery(termQuery) will throw
+   * UnsupportedOperationException.
    *
    * @param floatValue float value for term query
    * @return null, should be overridden in subclasses to return lucene term query
@@ -119,13 +116,12 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term query with a integer value.</p>
+   * Build a term query with a integer value.
    *
-   * <p>@Override in subclasses if integer is an acceptable type for the FieldDef's term query.</p>
-   * <p>
-   * If not overridden, this method will return null and
-   * getTermQuery(termQuery) will throw UnsupportedOperationException.
-   * </p>
+   * <p>@Override in subclasses if integer is an acceptable type for the FieldDef's term query.
+   *
+   * <p>If not overridden, this method will return null and getTermQuery(termQuery) will throw
+   * UnsupportedOperationException.
    *
    * @param intValue integer value for term query
    * @return null, should be overridden in subclasses to return lucene term query
@@ -135,13 +131,12 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term query with a long value.</p>
+   * Build a term query with a long value.
    *
-   * <p>@Override in subclasses if long is an acceptable type for the FieldDef's term query.</p>
-   * <p>
-   * If not overridden, this method will return null and
-   * getTermQuery(termQuery) will throw UnsupportedOperationException.
-   * </p>
+   * <p>@Override in subclasses if long is an acceptable type for the FieldDef's term query.
+   *
+   * <p>If not overridden, this method will return null and getTermQuery(termQuery) will throw
+   * UnsupportedOperationException.
    *
    * @param longValue long value for term query
    * @return null, should be overridden in subclasses to return lucene term query
@@ -151,13 +146,12 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term query with a String value.</p>
+   * Build a term query with a String value.
    *
-   * <p>@Override in subclasses if String is an acceptable type for the FieldDef's term query.</p>
-   * <p>
-   * If not overridden, this method will return null and
-   * getTermQuery(termQuery) will throw UnsupportedOperationException.
-   * </p>
+   * <p>@Override in subclasses if String is an acceptable type for the FieldDef's term query.
+   *
+   * <p>If not overridden, this method will return null and getTermQuery(termQuery) will throw
+   * UnsupportedOperationException.
    *
    * @param textValue String value for term query
    * @return null, should be overridden in subclasses to return lucene term query
@@ -167,9 +161,9 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term in set query for this field type with the given configuration.</p>
+   * Build a term in set query for this field type with the given configuration.
    *
-   * <p>Performs type validation. Do not @Override in subclasses.</p>
+   * <p>Performs type validation. Do not @Override in subclasses.
    *
    * @param termInSetQuery term in set query configuration
    * @return lucene term in set query
@@ -208,13 +202,13 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term in set query with a list of double values.</p>
+   * Build a term in set query with a list of double values.
    *
-   * <p>@Override in subclasses if a list of doubles is an acceptable type for the FieldDef's term in set query.</p>
-   * <p>
-   * If not overridden, this method will return null and
-   * getTermInSetQuery(termInSetQuery) will throw UnsupportedOperationException.
-   * </p>
+   * <p>@Override in subclasses if a list of doubles is an acceptable type for the FieldDef's term
+   * in set query.
+   *
+   * <p>If not overridden, this method will return null and getTermInSetQuery(termInSetQuery) will
+   * throw UnsupportedOperationException.
    *
    * @param doubleValues List of double values for term query
    * @return null, should be overridden in subclasses to return lucene term in set query
@@ -224,13 +218,13 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term in set query with a list of float values.</p>
+   * Build a term in set query with a list of float values.
    *
-   * <p>@Override in subclasses if a list of floats is an acceptable type for the FieldDef's term in set query.</p>
-   * <p>
-   * If not overridden, this method will return null and
-   * getTermInSetQuery(termInSetQuery) will throw UnsupportedOperationException.
-   * </p>
+   * <p>@Override in subclasses if a list of floats is an acceptable type for the FieldDef's term in
+   * set query.
+   *
+   * <p>If not overridden, this method will return null and getTermInSetQuery(termInSetQuery) will
+   * throw UnsupportedOperationException.
    *
    * @param floatValues List of float values for term query
    * @return null, should be overridden in subclasses to return lucene term in set query
@@ -240,13 +234,13 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term in set query with a list of integer values.</p>
+   * Build a term in set query with a list of integer values.
    *
-   * <p>@Override in subclasses if a list of integers is an acceptable type for the FieldDef's term in set query.</p>
-   * <p>
-   * If not overridden, this method will return null and
-   * getTermInSetQuery(termInSetQuery) will throw UnsupportedOperationException.
-   * </p>
+   * <p>@Override in subclasses if a list of integers is an acceptable type for the FieldDef's term
+   * in set query.
+   *
+   * <p>If not overridden, this method will return null and getTermInSetQuery(termInSetQuery) will
+   * throw UnsupportedOperationException.
    *
    * @param intValues List of integer values for term query
    * @return null, should be overridden in subclasses to return lucene term in set query
@@ -256,13 +250,13 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term in set query with a list of long values.</p>
+   * Build a term in set query with a list of long values.
    *
-   * <p>@Override in subclasses if a list of longs is an acceptable type for the FieldDef's term in set query.</p>
-   * <p>
-   * If not overridden, this method will return null and
-   * getTermInSetQuery(termInSetQuery) will throw UnsupportedOperationException.
-   * </p>
+   * <p>@Override in subclasses if a list of longs is an acceptable type for the FieldDef's term in
+   * set query.
+   *
+   * <p>If not overridden, this method will return null and getTermInSetQuery(termInSetQuery) will
+   * throw UnsupportedOperationException.
    *
    * @param longValues List of long values for term query
    * @return null, should be overridden in subclasses to return lucene term in set query
@@ -272,13 +266,13 @@ public interface TermQueryable {
   }
 
   /**
-   * <p>Build a term in set query with a list of String values.</p>
+   * Build a term in set query with a list of String values.
    *
-   * <p>@Override in subclasses if a list of Strings is an acceptable type for the FieldDef's term in set query.</p>
-   * <p>
-   * If not overridden, this method will return null and
-   * getTermInSetQuery(termInSetQuery) will throw UnsupportedOperationException.
-   * </p>
+   * <p>@Override in subclasses if a list of Strings is an acceptable type for the FieldDef's term
+   * in set query.
+   *
+   * <p>If not overridden, this method will return null and getTermInSetQuery(termInSetQuery) will
+   * throw UnsupportedOperationException.
    *
    * @param textValues List of String values for term query
    * @return null, should be overridden in subclasses to return lucene term in set query
