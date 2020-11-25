@@ -20,6 +20,7 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.is
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.PolygonQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
@@ -137,6 +138,7 @@ public class QueryNodeMapper {
     FieldDef fieldDef = state.getField(fieldName);
 
     if (fieldDef instanceof TermQueryable) {
+      validateTermQueryIsSearchable(fieldDef);
       return ((TermQueryable) fieldDef).getTermQuery(termQuery);
     }
 
@@ -145,12 +147,22 @@ public class QueryNodeMapper {
     throw new IllegalArgumentException(String.format(message, termQuery, fieldDef.getType()));
   }
 
+  private void validateTermQueryIsSearchable(FieldDef fieldDef) {
+    if (fieldDef instanceof IndexableFieldDef && !((IndexableFieldDef) fieldDef).isSearchable()) {
+      throw new IllegalStateException(
+          "Field "
+              + fieldDef.getName()
+              + " is not searchable, which is required for TermQuery / TermInSetQuery");
+    }
+  }
+
   private Query getTermInSetQuery(
       com.yelp.nrtsearch.server.grpc.TermInSetQuery termInSetQuery, IndexState state) {
     String fieldName = termInSetQuery.getField();
     FieldDef fieldDef = state.getField(fieldName);
 
     if (fieldDef instanceof TermQueryable) {
+      validateTermQueryIsSearchable(fieldDef);
       return ((TermQueryable) fieldDef).getTermInSetQuery(termInSetQuery);
     }
 

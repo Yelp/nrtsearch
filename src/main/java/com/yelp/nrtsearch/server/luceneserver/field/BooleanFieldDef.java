@@ -20,7 +20,6 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.ha
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
@@ -140,24 +139,14 @@ public class BooleanFieldDef extends IndexableFieldDef implements TermQueryable 
   }
 
   @Override
-  public Query getTermQuery(TermQuery termQuery) {
-    if (!isSearchable()) {
-      throw new IllegalStateException(
-          "Field " + getName() + " is not searchable, which is required for TermQuery");
-    }
+  public Query getTermQueryFromBooleanValue(boolean booleanValue) {
+    String indexTermValue = booleanValue ? "1" : "0";
+    return new org.apache.lucene.search.TermQuery(new Term(getName(), indexTermValue));
+  }
 
-    boolean termValue;
-    switch (termQuery.getTermTypesCase()) {
-      case TEXTVALUE:
-        termValue = parseBooleanOrThrow(termQuery.getTextValue());
-        break;
-      case BOOLEANVALUE:
-        termValue = termQuery.getBooleanValue();
-        break;
-      default:
-        throw new IllegalArgumentException(
-            "BOOLEAN field does not support term type: " + termQuery.getTermTypesCase());
-    }
+  @Override
+  public Query getTermQueryFromTextValue(String textValue) {
+    boolean termValue = parseBooleanOrThrow(textValue);
     String indexTermValue = termValue ? "1" : "0";
     return new org.apache.lucene.search.TermQuery(new Term(getName(), indexTermValue));
   }

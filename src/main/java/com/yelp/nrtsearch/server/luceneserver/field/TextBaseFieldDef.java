@@ -17,9 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
-import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery.TermTypesCase;
 import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
@@ -327,24 +324,13 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef implements Term
   }
 
   @Override
-  public Query getTermQuery(TermQuery termQuery) {
-    if (termQuery.getTermTypesCase() != TermTypesCase.TEXTVALUE) {
-      throw new IllegalArgumentException(
-          "Cannot query for term type: " + termQuery.getTermTypesCase());
-    }
-    return new org.apache.lucene.search.TermQuery(new Term(getName(), termQuery.getTextValue()));
+  public Query getTermQueryFromTextValue(String textValue) {
+    return new org.apache.lucene.search.TermQuery(new Term(getName(), textValue));
   }
 
   @Override
-  public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
-    if (termInSetQuery.getTermTypesCase() != TermInSetQuery.TermTypesCase.TEXTTERMS) {
-      throw new IllegalArgumentException(
-          "Cannot query for terms type: " + termInSetQuery.getTermTypesCase());
-    }
-    List<BytesRef> textTerms =
-        termInSetQuery.getTextTerms().getTermsList().stream()
-            .map(BytesRef::new)
-            .collect(Collectors.toList());
-    return new org.apache.lucene.search.TermInSetQuery(termInSetQuery.getField(), textTerms);
+  public Query getTermInSetQueryFromTextValues(List<String> textValues) {
+    List<BytesRef> textTerms = textValues.stream().map(BytesRef::new).collect(Collectors.toList());
+    return new org.apache.lucene.search.TermInSetQuery(getName(), textTerms);
   }
 }
