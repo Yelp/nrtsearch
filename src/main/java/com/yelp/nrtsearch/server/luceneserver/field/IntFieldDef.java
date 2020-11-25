@@ -17,9 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
-import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.LongToDoubleFunction;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -106,12 +106,24 @@ public class IntFieldDef extends NumberFieldDef {
   }
 
   @Override
-  public Query getTermQuery(TermQuery termQuery) {
-    return IntPoint.newExactQuery(getName(), termQuery.getIntValue());
+  public Query getTermQueryFromIntValue(int intValue) {
+    return IntPoint.newExactQuery(getName(), intValue);
   }
 
   @Override
-  public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
-    return IntPoint.newSetQuery(getName(), termInSetQuery.getIntTerms().getTermsList());
+  public Query getTermInSetQueryFromIntValues(List<Integer> intValues) {
+    return IntPoint.newSetQuery(getName(), intValues);
+  }
+
+  @Override
+  public Query getTermQueryFromTextValue(String textValue) {
+    return IntPoint.newExactQuery(getName(), Integer.parseInt(textValue));
+  }
+
+  @Override
+  public Query getTermInSetQueryFromTextValues(List<String> textValues) {
+    List<Integer> intTerms = new ArrayList(textValues.size());
+    textValues.forEach((s) -> intTerms.add(Integer.parseInt(s)));
+    return IntPoint.newSetQuery(getName(), intTerms);
   }
 }

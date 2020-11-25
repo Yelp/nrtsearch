@@ -19,6 +19,7 @@ import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import com.google.protobuf.ByteString;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
@@ -130,10 +131,17 @@ public class SuggestTest {
   public void testCompletionInfixSuggest() throws Exception {
     GrpcServer.TestServer testAddDocs =
         new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    Writer fstream = new OutputStreamWriter(new FileOutputStream(tempFile.toFile()), "UTF-8");
-    BufferedWriter out = new BufferedWriter(fstream);
-    out.write("home depot\u001fhome depot\u001edepot\u001f1\u001fpayload\u001fc1\u001ec2");
-    out.close();
+
+    try (FileOutputStream fos = new FileOutputStream(tempFile.toFile())) {
+      NrtsearchIndex.newBuilder()
+          .setUniqueId(1)
+          .addAllSearchTexts(List.of("home depot", "depot"))
+          .setScore(1L)
+          .setPayload(ByteString.copyFrom("payload".getBytes()))
+          .addAllContexts(List.of("c1", "c2"))
+          .build()
+          .writeDelimitedTo(fos);
+    }
 
     BuildSuggestResponse response =
         sendBuildSuggest("suggest2", true, true, true, false, Suggester.COMPLETION_INFIX);
@@ -152,7 +160,7 @@ public class SuggestTest {
       assertNotNull(results);
       assertEquals(1, results.size());
       assertEquals(1, results.get(0).getWeight());
-      assertEquals("home depot", results.get(0).getKey());
+      assertEquals("1", results.get(0).getKey());
       assertEquals("payload", results.get(0).getPayload());
 
       // commit state and indexes
@@ -173,10 +181,17 @@ public class SuggestTest {
   public void testFuzzyInfixSuggest() throws Exception {
     GrpcServer.TestServer testAddDocs =
         new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    Writer fstream = new OutputStreamWriter(new FileOutputStream(tempFile.toFile()), "UTF-8");
-    BufferedWriter out = new BufferedWriter(fstream);
-    out.write("home depot\u001fhome depot\u001edepot\u001f1\u001fpayload\u001fc1\u001ec2");
-    out.close();
+
+    try (FileOutputStream fos = new FileOutputStream(tempFile.toFile())) {
+      NrtsearchIndex.newBuilder()
+          .setUniqueId(1)
+          .addAllSearchTexts(List.of("home depot", "depot"))
+          .setScore(1L)
+          .setPayload(ByteString.copyFrom("payload".getBytes()))
+          .addAllContexts(List.of("c1", "c2"))
+          .build()
+          .writeDelimitedTo(fos);
+    }
 
     BuildSuggestResponse response =
         sendBuildSuggest("suggest2", true, true, true, false, Suggester.FUZZY_INFIX);
@@ -195,7 +210,7 @@ public class SuggestTest {
       assertNotNull(results);
       assertEquals(1, results.size());
       assertEquals(1, results.get(0).getWeight());
-      assertEquals("home depot", results.get(0).getKey());
+      assertEquals("1", results.get(0).getKey());
       assertEquals("payload", results.get(0).getPayload());
 
       // commit state and indexes

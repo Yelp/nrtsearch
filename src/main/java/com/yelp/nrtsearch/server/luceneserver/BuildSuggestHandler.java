@@ -30,7 +30,7 @@ import com.yelp.nrtsearch.server.grpc.SuggestLookupHighlight;
 import com.yelp.nrtsearch.server.grpc.SuggestNonLocalSource;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.suggest.CompletionInfixSuggester;
-import com.yelp.nrtsearch.server.luceneserver.suggest.FromFileSuggestItemIterator;
+import com.yelp.nrtsearch.server.luceneserver.suggest.FromProtobufFileSuggestItemIterator;
 import com.yelp.nrtsearch.server.luceneserver.suggest.FuzzyInfixSuggester;
 import java.io.Closeable;
 import java.io.File;
@@ -498,7 +498,7 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
       // Pull suggestions from local file:
       try {
         if (hasMultiSearchTexts) {
-          iterator = new FromFileSuggestItemIterator(localFile, hasContexts, hasPayload);
+          iterator = new FromProtobufFileSuggestItemIterator(localFile, hasContexts, hasPayload);
         } else {
           iterator = new FromFileTermFreqIterator(localFile, hasContexts);
         }

@@ -271,8 +271,8 @@ public class YelpReviewsTest {
 
     try {
       // create indexes
-      createIndex(primaryServerClient, primaryDir);
-      createIndex(secondaryServerClient, replicaDir);
+      createIndex(primaryServerClient);
+      createIndex(secondaryServerClient);
       // live settings -- only primary
       liveSettings(primaryServerClient);
       // register
@@ -413,15 +413,11 @@ public class YelpReviewsTest {
     logger.info(liveSettingsResponse.getResponse());
   }
 
-  private static void createIndex(LuceneServerClient serverClient, Path dir) {
+  private static void createIndex(LuceneServerClient serverClient) {
     CreateIndexResponse response =
         serverClient
             .getBlockingStub()
-            .createIndex(
-                CreateIndexRequest.newBuilder()
-                    .setIndexName(INDEX_NAME)
-                    .setRootDir(dir.resolve("index").toString())
-                    .build());
+            .createIndex(CreateIndexRequest.newBuilder().setIndexName(INDEX_NAME).build());
     logger.info(response.getResponse());
   }
 
