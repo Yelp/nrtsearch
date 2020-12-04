@@ -2908,6 +2908,9 @@
           "items": {
             "$ref": "#/definitions/luceneserverFetchTask"
           }
+        },
+        "disallowPartialResults": {
+          "type": "boolean"
         }
       }
     },

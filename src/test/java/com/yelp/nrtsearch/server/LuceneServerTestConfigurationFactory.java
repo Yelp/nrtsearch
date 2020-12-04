@@ -26,6 +26,11 @@ public class LuceneServerTestConfigurationFactory {
   static AtomicLong atomicLong = new AtomicLong();
 
   public static LuceneServerConfiguration getConfig(Mode mode, File dataRootDir) {
+    return getConfig(mode, dataRootDir, "");
+  }
+
+  public static LuceneServerConfiguration getConfig(
+      Mode mode, File dataRootDir, String extraConfig) {
     String dirNum = String.valueOf(atomicLong.addAndGet(1));
     if (mode.equals(Mode.STANDALONE)) {
       String stateDir =
@@ -39,7 +44,8 @@ public class LuceneServerTestConfigurationFactory {
               "stateDir: " + stateDir,
               "indexDir: " + indexDir,
               "port: " + 9000,
-              "replicationPort: " + 9000);
+              "replicationPort: " + 9000,
+              extraConfig);
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     } else if (mode.equals(Mode.PRIMARY)) {
       String stateDir =
@@ -53,7 +59,8 @@ public class LuceneServerTestConfigurationFactory {
               "stateDir: " + stateDir,
               "indexDir: " + indexDir,
               "port: " + 9900,
-              "replicationPort: " + 9001);
+              "replicationPort: " + 9001,
+              extraConfig);
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     } else if (mode.equals(Mode.REPLICA)) {
       String stateDir =
@@ -67,7 +74,8 @@ public class LuceneServerTestConfigurationFactory {
               "stateDir: " + stateDir,
               "indexDir: " + indexDir,
               "port: " + 9902,
-              "replicationPort: " + 9003);
+              "replicationPort: " + 9003,
+              extraConfig);
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     }
     throw new RuntimeException("Invalid mode %s, cannot build config" + mode);
