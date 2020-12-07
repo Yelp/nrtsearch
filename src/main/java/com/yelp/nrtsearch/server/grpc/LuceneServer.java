@@ -590,7 +590,7 @@ public class LuceneServer {
 
         @Override
         public void onError(Throwable t) {
-          logger.warn("addDocuments Cancelled");
+          logger.warn("addDocuments Cancelled", t);
           responseObserver.onError(t);
         }
 
