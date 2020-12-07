@@ -19,8 +19,8 @@ repositories {
     mavenCentral()
 }
 
-sourceCompatibility = 1.12
-targetCompatibility = 1.12
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
 startScripts.enabled = false
 
 // groupId, artifactId and version for the generated pom
