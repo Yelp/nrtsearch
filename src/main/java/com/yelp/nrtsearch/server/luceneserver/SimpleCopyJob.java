@@ -32,7 +32,6 @@ import org.apache.lucene.replicator.nrt.NodeCommunicationException;
 import org.apache.lucene.replicator.nrt.ReplicaNode;
 
 public class SimpleCopyJob extends CopyJob {
-  final byte[] copyBuffer = new byte[65536];
   private final CopyState copyState;
   private final ReplicationServerClient primaryAddres;
   private final String indexName;
@@ -56,19 +55,8 @@ public class SimpleCopyJob extends CopyJob {
 
   @Override
   protected CopyOneFile newCopyOneFile(CopyOneFile prev) {
-    Iterator<RawFileChunk> rawFileChunkIterator;
-    try {
-      rawFileChunkIterator = primaryAddres.recvRawFile(prev.name, prev.getBytesCopied(), indexName);
-    } catch (Throwable t) {
-      try {
-        cancel("exc during start", t);
-      } catch (IOException e) {
-        throw new NodeCommunicationException("cancel IOException during newCopyOneFile", e);
-      }
-      throw new NodeCommunicationException("exc during start", t);
-    }
-
-    return new CopyOneFile(prev, rawFileChunkIterator);
+    // no state needs to be changed when transferring to a new job
+    return prev;
   }
 
   @Override
@@ -229,7 +217,7 @@ public class SimpleCopyJob extends CopyJob {
         cancel("exc during start", t);
         throw new NodeCommunicationException("exc during start", t);
       }
-      current = new CopyOneFile(rawFileChunkIterator, dest, fileName, metaData, copyBuffer);
+      current = new CopyOneFile(rawFileChunkIterator, dest, fileName, metaData);
     }
     if (current.visit()) {
       // This file is done copying
