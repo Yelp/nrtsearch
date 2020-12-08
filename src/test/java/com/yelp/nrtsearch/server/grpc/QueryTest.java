@@ -613,9 +613,9 @@ public class QueryTest {
   }
 
   private void verifyDiagnostics(SearchResponse.Diagnostics diagnostics) {
-      assertFalse(diagnostics.getParsedQuery().isEmpty());
-      assertFalse(diagnostics.getRewrittenQuery().isEmpty());
-      assertTrue(diagnostics.getFirstPassSearchTimeMs() > 0);
-      assertTrue(diagnostics.getGetFieldsTimeMs() > 0);
+    assertFalse(diagnostics.getParsedQuery().isEmpty());
+    assertFalse(diagnostics.getRewrittenQuery().isEmpty());
+    assertTrue(diagnostics.getFirstPassSearchTimeMs() > 0);
+    assertTrue(diagnostics.getGetFieldsTimeMs() > 0);
   }
 }
