@@ -1440,28 +1440,29 @@ public class LuceneServer {
       try {
         IndexState indexState = globalState.getIndex(fileInfoRequest.getIndexName());
         ShardState shardState = indexState.getShard(0);
-        IndexInput luceneFile =
-            shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT);
-        long len = luceneFile.length();
-        long pos = fileInfoRequest.getFpStart();
-        luceneFile.seek(pos);
-        byte[] buffer = new byte[1024 * 64];
-        long totalRead;
-        totalRead = pos;
-        Random random = new Random();
-        while (totalRead < len) {
-          int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
-          luceneFile.readBytes(buffer, 0, chunkSize);
-          RawFileChunk rawFileChunk =
-              RawFileChunk.newBuilder()
-                  .setContent(ByteString.copyFrom(buffer, 0, chunkSize))
-                  .build();
-          rawFileChunkStreamObserver.onNext(rawFileChunk);
-          totalRead += chunkSize;
-          randomDelay(random);
+        try (IndexInput luceneFile =
+            shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT)) {
+          long len = luceneFile.length();
+          long pos = fileInfoRequest.getFpStart();
+          luceneFile.seek(pos);
+          byte[] buffer = new byte[1024 * 64];
+          long totalRead;
+          totalRead = pos;
+          Random random = new Random();
+          while (totalRead < len) {
+            int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
+            luceneFile.readBytes(buffer, 0, chunkSize);
+            RawFileChunk rawFileChunk =
+                RawFileChunk.newBuilder()
+                    .setContent(ByteString.copyFrom(buffer, 0, chunkSize))
+                    .build();
+            rawFileChunkStreamObserver.onNext(rawFileChunk);
+            totalRead += chunkSize;
+            randomDelay(random);
+          }
+          // EOF
+          rawFileChunkStreamObserver.onCompleted();
         }
-        // EOF
-        rawFileChunkStreamObserver.onCompleted();
       } catch (Exception e) {
         logger.warn("error on recvRawFile " + fileInfoRequest.getFileName(), e);
         rawFileChunkStreamObserver.onError(
