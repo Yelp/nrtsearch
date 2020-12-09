@@ -33,7 +33,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
 
   @Override
   public String getType() {
-    return "object";
+    return "OBJECT";
   }
 
   @Override
@@ -53,7 +53,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
       Document document,
       List<Map<String, Object>> fieldValues,
       List<List<String>> facetHierarchyPaths) {
-    for (Map.Entry<String, IndexableFieldDef> childField : childFields.entrySet()) {
+    for (Map.Entry<String, IndexableFieldDef> childField : this.getChildFields().entrySet()) {
       String[] keys = childField.getKey().split("\\.");
       String key = keys[keys.length - 1];
       if (childField.getValue().getType().equals("object")) {
@@ -76,10 +76,6 @@ public class ObjectFieldDef extends IndexableFieldDef {
         List<String> childrenValues = new ArrayList<>();
         for (Map<String, Object> fieldValue : fieldValues) {
           Object childValue = fieldValue.get(key);
-          /**
-           * if (true) { throw new RuntimeException("key: " + key + ", " + gson.toJson(fieldValue));
-           * }
-           */
           if (childValue != null) {
             if (childValue instanceof List) {
               ((List<Object>) childValue)

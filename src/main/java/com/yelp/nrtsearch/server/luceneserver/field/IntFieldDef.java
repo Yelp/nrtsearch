@@ -117,6 +117,10 @@ public class IntFieldDef extends NumberFieldDef {
 
   @Override
   protected Number parseNumberString(String numberString) {
-    return DOUBLE_PARSER.apply(numberString).intValue();
+    if (numberString.indexOf('.') == -1) {
+      return super.parseNumberString(numberString);
+    } else {
+      return DOUBLE_PARSER.apply(numberString).intValue();
+    }
   }
 }

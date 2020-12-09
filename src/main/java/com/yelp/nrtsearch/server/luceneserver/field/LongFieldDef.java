@@ -120,6 +120,10 @@ public class LongFieldDef extends NumberFieldDef {
   }
 
   protected Number parseNumberString(String numberString) {
-    return DOUBLE_PARSER.apply(numberString).longValue();
+    if (numberString.indexOf('.') == -1) {
+      return super.parseNumberString(numberString);
+    } else {
+      return DOUBLE_PARSER.apply(numberString).longValue();
+    }
   }
 }
