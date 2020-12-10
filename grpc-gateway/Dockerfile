@@ -1,7 +1,7 @@
-FROM ubuntu:19.10
+FROM ubuntu:20.04
 
 RUN apt-get update && \
-    apt-get install -y wget unzip htop \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y wget unzip htop \
     openjdk-14-jdk \
     golang-go \
     git
@@ -36,7 +36,6 @@ ENV GO111MODULE=on
 ENV GRPC_GATEWAY_VERSION=1.15.2
 
 #install required go protoc plugins to build grpc-gateway server
-RUN go mod init
 RUN go get \
     github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
     github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION} \
