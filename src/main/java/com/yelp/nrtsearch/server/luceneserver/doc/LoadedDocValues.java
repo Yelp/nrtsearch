@@ -296,6 +296,10 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
           LatLng.newBuilder().setLatitude(point.getLat()).setLongitude(point.getLon()).build();
       return SearchResponse.Hit.FieldValue.newBuilder().setLatLngValue(latLon).build();
     }
+
+    public double arcDistance(double lat, double lon) {
+      return getValue().arcDistance(lat, lon);
+    }
   }
 
   public static final class Locations extends SortedNumericValues<GeoPoint> {
@@ -309,6 +313,11 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
       LatLng latLon =
           LatLng.newBuilder().setLatitude(point.getLat()).setLongitude(point.getLon()).build();
       return SearchResponse.Hit.FieldValue.newBuilder().setLatLngValue(latLon).build();
+    }
+
+    public double arcDistance(double lat, double lon) {
+      throw new IllegalArgumentException(
+          "Cannot determine the arcDistance of a multi-valued location");
     }
   }
 
