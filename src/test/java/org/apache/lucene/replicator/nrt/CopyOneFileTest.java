@@ -85,7 +85,7 @@ public class CopyOneFileTest {
     // copy does not use header or footer
     FileMetaData fileMetaData = new FileMetaData(new byte[0], new byte[0], length, checksum);
     CopyOneFile copyOneFile =
-        new CopyOneFile(chunks.listIterator(), mockNode, "test_copy", fileMetaData, null);
+        new CopyOneFile(chunks.listIterator(), mockNode, "test_copy", fileMetaData);
 
     for (int i = 0; i < chunks.size(); ++i) {
       assertFalse(copyOneFile.visit());

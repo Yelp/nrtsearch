@@ -34,7 +34,6 @@ public class CopyOneFile implements Closeable {
   public final FileMetaData metaData;
   public final long bytesToCopy;
   private final long copyStartNS;
-  private final byte[] buffer;
   private final ByteBuffer checksumBuffer = ByteBuffer.allocate(Long.BYTES);
 
   private long bytesCopied;
@@ -44,14 +43,12 @@ public class CopyOneFile implements Closeable {
       Iterator<RawFileChunk> rawFileChunkIterator,
       ReplicaNode dest,
       String name,
-      FileMetaData metaData,
-      byte[] buffer)
+      FileMetaData metaData)
       throws IOException {
 
     this.rawFileChunkIterator = rawFileChunkIterator;
     this.name = name;
     this.dest = dest;
-    this.buffer = buffer;
     // TODO: pass correct IOCtx, e.g. seg total size
     out = dest.createTempOutput(name, "copy", IOContext.DEFAULT);
     tmpName = out.getName();
@@ -71,20 +68,6 @@ public class CopyOneFile implements Closeable {
     dest.startCopyFile(name);
   }
 
-  /** Transfers this file copy to another input, continuing where the first one left off */
-  public CopyOneFile(CopyOneFile other, Iterator<RawFileChunk> rawFileChunkIterator) {
-    this.rawFileChunkIterator = rawFileChunkIterator;
-    this.dest = other.dest;
-    this.name = other.name;
-    this.out = other.out;
-    this.tmpName = other.tmpName;
-    this.metaData = other.metaData;
-    this.bytesCopied = other.bytesCopied;
-    this.bytesToCopy = other.bytesToCopy;
-    this.copyStartNS = other.copyStartNS;
-    this.buffer = other.buffer;
-  }
-
   /**
    * Closes this stream and releases any system resources associated with it. If the stream is
    * already closed then invoking this method has no effect.
@@ -99,6 +82,11 @@ public class CopyOneFile implements Closeable {
   public void close() throws IOException {
     out.close();
     dest.finishCopyFile(name);
+    // This job may have been canceled before being completed, meaning the replica no longer needs
+    // it. Drain the iterator to not leak direct memory.
+    while (rawFileChunkIterator.hasNext()) {
+      rawFileChunkIterator.next();
+    }
   }
 
   public long getBytesCopied() {
