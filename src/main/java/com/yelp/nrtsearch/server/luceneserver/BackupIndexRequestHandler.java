@@ -16,12 +16,14 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.gson.Gson;
-import com.yelp.nrtsearch.server.grpc.*;
+import com.yelp.nrtsearch.server.grpc.BackupIndexRequest;
+import com.yelp.nrtsearch.server.grpc.BackupIndexResponse;
+import com.yelp.nrtsearch.server.grpc.CreateSnapshotRequest;
+import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotRequest;
+import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotResponse;
+import com.yelp.nrtsearch.server.grpc.SnapshotId;
 import com.yelp.nrtsearch.server.utils.Archiver;
-import java.io.BufferedWriter;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,7 +31,6 @@ import java.nio.file.Paths;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
 import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,7 +144,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
               snapshotId.getTaxonomyGen());
       writer.write(new Gson().toJson(backupInfo));
       writer.flush();
-      IOUtils.fsync(backupIndicatorFilePath.getParent(), false);
+      IOUtils.fsync(backupIndicatorFilePath, false);
     } catch (IOException e) {
       throw new IllegalStateException("Unable to create backup indicator file", e);
     }
