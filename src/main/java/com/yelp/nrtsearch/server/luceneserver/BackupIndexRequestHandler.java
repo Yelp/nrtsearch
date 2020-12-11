@@ -29,6 +29,8 @@ import java.nio.file.Paths;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -123,6 +125,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     if (!Files.exists(backupIndicatorFilePath.getParent())) {
       try {
         Files.createDirectories(backupIndicatorFilePath.getParent());
+        IOUtils.fsync(backupIndicatorFilePath.getParent(), true);
       } catch (IOException e) {
         throw new IllegalStateException(
             "Unable to create parent directories for backup indicator file "
@@ -131,9 +134,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       }
     }
 
-    try (FileOutputStream outputStream = new FileOutputStream(backupIndicatorFilePath.toFile());
-        OutputStreamWriter outputStreamWriter = new OutputStreamWriter(outputStream);
-        Writer writer = new BufferedWriter(outputStreamWriter)) {
+    try (Writer writer = Files.newBufferedWriter(backupIndicatorFilePath)) {
       BackupIndicatorDetails backupInfo =
           new BackupIndicatorDetails(
               indexName,
@@ -142,7 +143,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
               snapshotId.getTaxonomyGen());
       writer.write(new Gson().toJson(backupInfo));
       writer.flush();
-      outputStream.getFD().sync();
+      IOUtils.fsync(backupIndicatorFilePath.getParent(), false);
     } catch (IOException e) {
       throw new IllegalStateException("Unable to create backup indicator file", e);
     }
