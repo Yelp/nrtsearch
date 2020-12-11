@@ -19,11 +19,16 @@ import com.google.gson.Gson;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.utils.Archiver;
 import java.io.BufferedWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +38,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
   private final Archiver archiver;
   private final Path archiveDirectory;
   private final Path backupIndicatorFilePath;
+  private final Lock lock = new ReentrantLock();
 
   public BackupIndexRequestHandler(Archiver archiver, String archiveDirectory) {
     this.archiver = archiver;
@@ -44,7 +50,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
   public BackupIndexResponse handle(IndexState indexState, BackupIndexRequest backupIndexRequest)
       throws HandlerException {
     BackupIndexResponse.Builder backupIndexResponseBuilder = BackupIndexResponse.newBuilder();
-    if (wasBackupPotentiallyInterrupted()) {
+    if (!lock.tryLock()) {
       throw new IllegalStateException(
           String.format(
               "A backup is ongoing for index %s, please try again after the current backup is finished",
@@ -92,6 +98,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
         releaseSnapshot(indexState, indexName, snapshotId);
         deleteBackupIndicator();
       }
+      lock.unlock();
     }
 
     return backupIndexResponseBuilder.build();
@@ -105,7 +112,14 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     return readBackupIndicatorDetails().indexName;
   }
 
-  private void createBackupIndicator(String indexName, SnapshotId snapshotId) {
+  private synchronized void createBackupIndicator(String indexName, SnapshotId snapshotId) {
+    if (wasBackupPotentiallyInterrupted()) {
+      throw new IllegalStateException(
+          String.format(
+              "A backup is ongoing for index %s, please try again after the current backup is finished",
+              getIndexNameOfInterruptedBackup()));
+    }
+
     if (!Files.exists(backupIndicatorFilePath.getParent())) {
       try {
         Files.createDirectories(backupIndicatorFilePath.getParent());
@@ -116,7 +130,10 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
             e);
       }
     }
-    try (BufferedWriter writer = Files.newBufferedWriter(backupIndicatorFilePath)) {
+
+    try (FileOutputStream outputStream = new FileOutputStream(backupIndicatorFilePath.toFile());
+        OutputStreamWriter outputStreamWriter = new OutputStreamWriter(outputStream);
+        Writer writer = new BufferedWriter(outputStreamWriter)) {
       BackupIndicatorDetails backupInfo =
           new BackupIndicatorDetails(
               indexName,
@@ -124,6 +141,8 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
               snapshotId.getStateGen(),
               snapshotId.getTaxonomyGen());
       writer.write(new Gson().toJson(backupInfo));
+      writer.flush();
+      outputStream.getFD().sync();
     } catch (IOException e) {
       throw new IllegalStateException("Unable to create backup indicator file", e);
     }
