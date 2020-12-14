@@ -356,42 +356,38 @@ public class NRTPrimaryNode extends PrimaryNode {
         }
 
         // Because a replica can suddenly start up and "join" into this merge pre-copy:
-        synchronized (preCopy.connections) {
-          Iterator<ReplicationServerClient> it = preCopy.connections.iterator();
-          while (it.hasNext()) {
-            ReplicationServerClient currentReplicationServerClient = it.next();
-            try {
-              Iterator<TransferStatus> transferStatusIterator =
-                  allCopyStatus.get(currentReplicationServerClient);
-              while (transferStatusIterator.hasNext()) {
-                TransferStatus transferStatus = transferStatusIterator.next();
-                logger.debug(
-                    "transferStatus for replicationServerClient="
-                        + currentReplicationServerClient
-                        + " merge files="
-                        + files.keySet()
-                        + " code: "
-                        + transferStatus.getCode()
-                        + " message: "
-                        + transferStatus.getMessage());
-              }
-              it.remove();
-            } catch (Throwable t) {
-              String msg =
-                  "top: ignore exception trying to read byte during warm for segment="
-                      + info
-                      + " to replica="
+        List<ReplicationServerClient> currentConnections = new ArrayList<>(preCopy.connections);
+        for (ReplicationServerClient currentReplicationServerClient : currentConnections) {
+          try {
+            Iterator<TransferStatus> transferStatusIterator =
+                allCopyStatus.get(currentReplicationServerClient);
+            while (transferStatusIterator.hasNext()) {
+              TransferStatus transferStatus = transferStatusIterator.next();
+              logger.debug(
+                  "transferStatus for replicationServerClient="
                       + currentReplicationServerClient
-                      + ": "
-                      + t
-                      + " files="
-                      + files.keySet();
-              logger.warn(msg, t);
-              message(msg);
-              it.remove();
+                      + " merge files="
+                      + files.keySet()
+                      + " code: "
+                      + transferStatus.getCode()
+                      + " message: "
+                      + transferStatus.getMessage());
             }
+          } catch (Throwable t) {
+            String msg =
+                "top: ignore exception trying to read byte during warm for segment="
+                    + info
+                    + " to replica="
+                    + currentReplicationServerClient
+                    + ": "
+                    + t
+                    + " files="
+                    + files.keySet();
+            logger.warn(msg, t);
+            message(msg);
           }
         }
+        preCopy.connections.removeAll(currentConnections);
       }
       String msg = "top: done warming merge " + info;
       logger.info(msg);
