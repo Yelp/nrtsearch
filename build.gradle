@@ -50,6 +50,7 @@ dependencies {
 
     //prometheus (metrics) deps
     implementation "io.prometheus:simpleclient_servlet:${prometheusClientVersion}"
+    implementation "io.prometheus:simpleclient_hotspot:${prometheusClientVersion}"
 
     //
     implementation "org.slf4j:slf4j-api:${slf4jVersion}"

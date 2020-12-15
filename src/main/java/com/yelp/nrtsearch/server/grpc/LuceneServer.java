@@ -77,6 +77,7 @@ import io.grpc.ServerInterceptors;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.hotspot.DefaultExports;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -119,6 +120,10 @@ public class LuceneServer {
 
   private void start() throws IOException {
     GlobalState globalState = new GlobalState(luceneServerConfiguration);
+
+    if (luceneServerConfiguration.getPublishJvmMetrics()) {
+      DefaultExports.register(collectorRegistry);
+    }
 
     List<Plugin> plugins = pluginsService.loadPlugins();
 
