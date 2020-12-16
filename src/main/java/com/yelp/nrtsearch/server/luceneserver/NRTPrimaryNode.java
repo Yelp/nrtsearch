@@ -363,7 +363,7 @@ public class NRTPrimaryNode extends PrimaryNode {
                 allCopyStatus.get(currentReplicationServerClient);
             while (transferStatusIterator.hasNext()) {
               TransferStatus transferStatus = transferStatusIterator.next();
-              logger.info(
+              logger.debug(
                   "transferStatus for replicationServerClient="
                       + currentReplicationServerClient
                       + " merge files="

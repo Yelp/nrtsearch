@@ -255,6 +255,7 @@ public class LuceneServer {
     private final Archiver archiver;
     private final CollectorRegistry collectorRegistry;
     private final ThreadPoolExecutor searchThreadPoolExecutor;
+    private final String archiveDirectory;
 
     LuceneServerImpl(
         GlobalState globalState,
@@ -264,6 +265,7 @@ public class LuceneServer {
         List<Plugin> plugins) {
       this.globalState = globalState;
       this.archiver = archiver;
+      this.archiveDirectory = configuration.getArchiveDirectory();
       this.collectorRegistry = collectorRegistry;
       this.searchThreadPoolExecutor =
           ThreadPoolExecutorFactory.getThreadPoolExecutor(
@@ -479,7 +481,7 @@ public class LuceneServer {
         StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
       try {
         IndexState indexState = null;
-        StartIndexHandler startIndexHandler = new StartIndexHandler(archiver);
+        StartIndexHandler startIndexHandler = new StartIndexHandler(archiver, archiveDirectory);
         indexState =
             globalState.getIndex(startIndexRequest.getIndexName(), startIndexRequest.hasRestore());
         StartIndexResponse reply = startIndexHandler.handle(indexState, startIndexRequest);
@@ -1182,7 +1184,7 @@ public class LuceneServer {
       try {
         IndexState indexState = globalState.getIndex(backupIndexRequest.getIndexName());
         BackupIndexRequestHandler backupIndexRequestHandler =
-            new BackupIndexRequestHandler(archiver);
+            new BackupIndexRequestHandler(archiver, archiveDirectory);
         BackupIndexResponse reply =
             backupIndexRequestHandler.handle(indexState, backupIndexRequest);
         logger.info(String.format("BackupRequestHandler returned results %s", reply.toString()));
