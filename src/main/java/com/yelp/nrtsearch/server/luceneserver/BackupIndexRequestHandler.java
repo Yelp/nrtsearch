@@ -29,7 +29,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Set;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
@@ -37,11 +36,12 @@ import org.slf4j.LoggerFactory;
 
 public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, BackupIndexResponse> {
   private static final String BACKUP_INDICATOR_FILE_NAME = "backup.txt";
+  private static final ReentrantLock LOCK = new ReentrantLock();
+  private static String LAST_BACKED_UP_INDEX = "";
   Logger logger = LoggerFactory.getLogger(BackupIndexRequestHandler.class);
   private final Archiver archiver;
   private final Path archiveDirectory;
   private final Path backupIndicatorFilePath;
-  private final Lock lock = new ReentrantLock();
 
   public BackupIndexRequestHandler(Archiver archiver, String archiveDirectory) {
     this.archiver = archiver;
@@ -53,15 +53,25 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
   public BackupIndexResponse handle(IndexState indexState, BackupIndexRequest backupIndexRequest)
       throws HandlerException {
     BackupIndexResponse.Builder backupIndexResponseBuilder = BackupIndexResponse.newBuilder();
-    if (!lock.tryLock()) {
+    if (!LOCK.tryLock()) {
       throw new IllegalStateException(
           String.format(
               "A backup is ongoing for index %s, please try again after the current backup is finished",
-              getIndexNameOfInterruptedBackup()));
+                  LAST_BACKED_UP_INDEX));
     }
     String indexName = backupIndexRequest.getIndexName();
     SnapshotId snapshotId = null;
     try {
+      if (wasBackupPotentiallyInterrupted()) {
+        LOCK.unlock();
+        throw new IllegalStateException(
+            String.format(
+                "A backup is ongoing for index %s, please try again after the current backup is finished",
+                readBackupIndicatorDetails().indexName));
+      }
+
+      LAST_BACKED_UP_INDEX = indexName;
+
       // only upload metadata in case we are replica
       if (indexState.getShard(0).isReplica()) {
         uploadMetadata(
@@ -81,6 +91,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
                 .getSnapshotId();
 
         createBackupIndicator(indexName, snapshotId);
+        LOCK.unlock();
 
         uploadArtifacts(
             backupIndexRequest.getServiceName(),
@@ -97,11 +108,13 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
           e);
       return backupIndexResponseBuilder.build();
     } finally {
+      if (LOCK.isHeldByCurrentThread()) {
+        LOCK.unlock();
+      }
       if (snapshotId != null) {
         releaseSnapshot(indexState, indexName, snapshotId);
         deleteBackupIndicator();
       }
-      lock.unlock();
     }
 
     return backupIndexResponseBuilder.build();
