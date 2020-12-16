@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, BackupIndexResponse> {
   private static final String BACKUP_INDICATOR_FILE_NAME = "backup.txt";
   private static final ReentrantLock LOCK = new ReentrantLock();
-  private static String LAST_BACKED_UP_INDEX = "";
+  private static String lastBackedUpIndex = "";
   Logger logger = LoggerFactory.getLogger(BackupIndexRequestHandler.class);
   private final Archiver archiver;
   private final Path archiveDirectory;
@@ -57,7 +57,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       throw new IllegalStateException(
           String.format(
               "A backup is ongoing for index %s, please try again after the current backup is finished",
-                  LAST_BACKED_UP_INDEX));
+                  lastBackedUpIndex));
     }
     String indexName = backupIndexRequest.getIndexName();
     SnapshotId snapshotId = null;
@@ -70,7 +70,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
                 readBackupIndicatorDetails().indexName));
       }
 
-      LAST_BACKED_UP_INDEX = indexName;
+      lastBackedUpIndex = indexName;
 
       // only upload metadata in case we are replica
       if (indexState.getShard(0).isReplica()) {
