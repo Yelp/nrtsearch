@@ -115,7 +115,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     return readBackupIndicatorDetails().indexName;
   }
 
-  private synchronized void createBackupIndicator(String indexName, SnapshotId snapshotId) {
+  private void createBackupIndicator(String indexName, SnapshotId snapshotId) {
     if (wasBackupPotentiallyInterrupted()) {
       throw new IllegalStateException(
           String.format(
@@ -126,7 +126,6 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     if (!Files.exists(backupIndicatorFilePath.getParent())) {
       try {
         Files.createDirectories(backupIndicatorFilePath.getParent());
-        IOUtils.fsync(backupIndicatorFilePath.getParent(), true);
       } catch (IOException e) {
         throw new IllegalStateException(
             "Unable to create parent directories for backup indicator file "
@@ -145,6 +144,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       writer.write(new Gson().toJson(backupInfo));
       writer.flush();
       IOUtils.fsync(backupIndicatorFilePath, false);
+      IOUtils.fsync(backupIndicatorFilePath.getParent(), true);
     } catch (IOException e) {
       throw new IllegalStateException("Unable to create backup indicator file", e);
     }
