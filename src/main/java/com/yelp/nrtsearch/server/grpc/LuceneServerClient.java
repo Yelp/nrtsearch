@@ -23,14 +23,13 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** A simple client that requests a greeting from the {@link LuceneServer}. */
 public class LuceneServerClient {
@@ -322,8 +321,10 @@ public class LuceneServerClient {
     System.exit(1);
   }
 
-  public void deleteIndexBackup(String indexName, String serviceName, String resourceName, int nDays) {
-    DeleteIndexBackupRequest request = DeleteIndexBackupRequest.newBuilder()
+  public void deleteIndexBackup(
+      String indexName, String serviceName, String resourceName, int nDays) {
+    DeleteIndexBackupRequest request =
+        DeleteIndexBackupRequest.newBuilder()
             .setIndexName(indexName)
             .setServiceName(serviceName)
             .setResourceName(resourceName)
