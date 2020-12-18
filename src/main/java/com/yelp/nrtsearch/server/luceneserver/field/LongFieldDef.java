@@ -120,6 +120,9 @@ public class LongFieldDef extends NumberFieldDef {
   }
 
   protected Number parseNumberString(String numberString) {
+    // Long::valueOf will fail for cases like 1.0
+    // GSON will convert all numbers to float during deserialization
+    // for cases like 1.0, use double parser to parse the value
     if (numberString.indexOf('.') == -1) {
       return super.parseNumberString(numberString);
     } else {

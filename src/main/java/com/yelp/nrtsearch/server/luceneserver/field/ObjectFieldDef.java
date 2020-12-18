@@ -56,7 +56,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
     for (Map.Entry<String, IndexableFieldDef> childField : this.getChildFields().entrySet()) {
       String[] keys = childField.getKey().split("\\.");
       String key = keys[keys.length - 1];
-      if (childField.getValue().getType().equals("object")) {
+      if (childField.getValue().getType().equals("OBJECT")) {
         List<Map<String, Object>> childrenValues = new ArrayList<>();
         for (Map<String, Object> fieldValue : fieldValues) {
           Object childValue = fieldValue.get(key);

@@ -44,6 +44,10 @@ public class ObjectFieldDefTest extends ServerTestCase {
     Map<String, Object> map = new HashMap<>();
     map.put("hours", List.of(1));
     map.put("zipcode", List.of("94105"));
+    Map<String, Object> innerMap = new HashMap<>();
+    innerMap.put("partner_id", "abcd");
+    innerMap.put("partner_name", "efg");
+    map.put("partner", innerMap);
     AddDocumentRequest request =
         AddDocumentRequest.newBuilder()
             .setIndexName(name)
@@ -66,6 +70,21 @@ public class ObjectFieldDefTest extends ServerTestCase {
                     TermQuery.newBuilder()
                         .setField("delivery_areas.zipcode")
                         .setTextValue("94105")
+                        .build())
+                .build(),
+            List.of("doc_id"));
+    assertFields(response, "1");
+  }
+
+  @Test
+  public void testFlattenedNestedObjectChildFields() {
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setTermQuery(
+                    TermQuery.newBuilder()
+                        .setField("delivery_areas.partner.partner_name")
+                        .setTextValue("efg")
                         .build())
                 .build(),
             List.of("doc_id"));

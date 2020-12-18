@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -40,35 +41,56 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
   @Override
   public Any handle(IndexState indexState, AddDocumentRequest addDocumentRequest)
       throws AddDocumentHandlerException {
-    Document document = LuceneDocumentBuilder.getDocument(addDocumentRequest, indexState);
     // this is silly we dont really about about the return value here
     return Any.newBuilder().build();
   }
 
+  public static class DocumentsContext {
+    private final Document rootDocument;
+    private final Map<String, List<Document>> childDocuments;
+
+    public DocumentsContext() {
+      this.rootDocument = new Document();
+      this.childDocuments = new HashMap<>();
+    }
+
+    public Document getRootDocument() {
+      return rootDocument;
+    }
+
+    public Map<String, List<Document>> getChildDocuments() {
+      return childDocuments;
+    }
+  }
+
   public static class LuceneDocumentBuilder {
-    public static Document getDocument(AddDocumentRequest addDocumentRequest, IndexState indexState)
+
+    public static DocumentsContext getDocumentsContext(
+        AddDocumentRequest addDocumentRequest, IndexState indexState)
         throws AddDocumentHandlerException {
-      Document document = new Document();
+      DocumentsContext documentsContext = new DocumentsContext();
       Map<String, AddDocumentRequest.MultiValuedField> fields = addDocumentRequest.getFieldsMap();
       for (Map.Entry<String, AddDocumentRequest.MultiValuedField> entry : fields.entrySet()) {
-        parseOneField(entry.getKey(), entry.getValue(), document, indexState);
+        parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
       }
-      return document;
+      return documentsContext;
     }
 
     /** Parses a field's value, which is a MultiValuedField in all cases */
     private static void parseOneField(
         String fieldName,
         AddDocumentRequest.MultiValuedField value,
-        Document document,
+        DocumentsContext documentsContext,
         IndexState indexState)
         throws AddDocumentHandlerException {
-      parseMultiValueField(indexState.getField(fieldName), value, document);
+      parseMultiValueField(indexState.getField(fieldName), value, documentsContext);
     }
 
     /** Parse MultiValuedField for a single field, which is always a List<String>. */
     private static void parseMultiValueField(
-        FieldDef field, AddDocumentRequest.MultiValuedField value, Document document)
+        FieldDef field,
+        AddDocumentRequest.MultiValuedField value,
+        DocumentsContext documentsContext)
         throws AddDocumentHandlerException {
       ProtocolStringList fieldValues = value.getValueList();
       List<FacetHierarchyPath> facetHierarchyPaths = value.getFaceHierarchyPathsList();
@@ -89,7 +111,8 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
             String.format("Field: %s is not indexable", field.getName()));
       }
       IndexableFieldDef indexableFieldDef = (IndexableFieldDef) field;
-      indexableFieldDef.parseFieldWithChildren(document, fieldValues, facetHierarchyPathValues);
+      indexableFieldDef.parseFieldWithChildren(
+          documentsContext, fieldValues, facetHierarchyPathValues);
     }
   }
 
@@ -127,9 +150,14 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
       for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {
         try {
           indexState = globalState.getIndex(addDocumentRequest.getIndexName());
-          Document document =
-              AddDocumentHandler.LuceneDocumentBuilder.getDocument(addDocumentRequest, indexState);
-          documents.add(document);
+          DocumentsContext documentsContext =
+              AddDocumentHandler.LuceneDocumentBuilder.getDocumentsContext(
+                  addDocumentRequest, indexState);
+          for (Map.Entry<String, List<Document>> childDocuments :
+              documentsContext.getChildDocuments().entrySet()) {
+            documents.addAll(childDocuments.getValue());
+          }
+          documents.add(documentsContext.rootDocument);
         } catch (Exception e) {
           logger.warn("addDocuments Cancelled", e);
           throw new Exception(e); // parent thread should catch and send error back to client

@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ServerCodec;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
@@ -262,6 +263,12 @@ public abstract class IndexableFieldDef extends FieldDef {
     return document.getValues(getName());
   }
 
+  public void parseFieldWithChildren(
+      AddDocumentHandler.DocumentsContext documentsContext,
+      List<String> fieldValues,
+      List<List<String>> facetHierarchyPaths) {
+    parseFieldWithChildren(documentsContext.getRootDocument(), fieldValues, facetHierarchyPaths);
+  }
   /**
    * Parse a list of field values for this field and its children. The values will be those present
    * in a {@link com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField}.
