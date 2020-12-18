@@ -27,8 +27,7 @@ public class ReleaseSnapshotHandler
 
   @Override
   public ReleaseSnapshotResponse handle(
-      IndexState indexState, ReleaseSnapshotRequest releaseSnapshotRequest)
-      throws HandlerException {
+      IndexState indexState, ReleaseSnapshotRequest releaseSnapshotRequest) {
     final ShardState shardState = indexState.getShard(0);
     final IndexState.Gens gens =
         new IndexState.Gens(

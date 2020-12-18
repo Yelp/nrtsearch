@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -26,11 +27,21 @@ public class LuceneServerTestConfigurationFactory {
   static AtomicLong atomicLong = new AtomicLong();
 
   public static LuceneServerConfiguration getConfig(Mode mode, File dataRootDir) {
-    return getConfig(mode, dataRootDir, "");
+    return getConfig(mode, dataRootDir, Paths.get(dataRootDir.toString(), "archiver"), "");
   }
 
   public static LuceneServerConfiguration getConfig(
       Mode mode, File dataRootDir, String extraConfig) {
+    return getConfig(mode, dataRootDir, Paths.get(dataRootDir.toString(), "archiver"), extraConfig);
+  }
+
+  public static LuceneServerConfiguration getConfig(
+      Mode mode, File dataRootDir, Path archiverDirectory) {
+    return getConfig(mode, dataRootDir, archiverDirectory, "");
+  }
+
+  public static LuceneServerConfiguration getConfig(
+      Mode mode, File dataRootDir, Path archiverDirectory, String extraConfig) {
     String dirNum = String.valueOf(atomicLong.addAndGet(1));
     if (mode.equals(Mode.STANDALONE)) {
       String stateDir =
@@ -45,6 +56,7 @@ public class LuceneServerTestConfigurationFactory {
               "indexDir: " + indexDir,
               "port: " + 9000,
               "replicationPort: " + 9000,
+              "archiveDirectory: " + archiverDirectory.toString(),
               extraConfig);
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     } else if (mode.equals(Mode.PRIMARY)) {
@@ -60,6 +72,7 @@ public class LuceneServerTestConfigurationFactory {
               "indexDir: " + indexDir,
               "port: " + 9900,
               "replicationPort: " + 9001,
+              "archiveDirectory: " + archiverDirectory.toString(),
               extraConfig);
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     } else if (mode.equals(Mode.REPLICA)) {

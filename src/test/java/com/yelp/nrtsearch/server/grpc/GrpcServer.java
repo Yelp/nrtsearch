@@ -184,6 +184,21 @@ public class GrpcServer {
     }
   }
 
+  public void forceShutdown() {
+    if (luceneServer != null && luceneServerManagedChannel != null) {
+      luceneServer.shutdownNow();
+      luceneServerManagedChannel.shutdownNow();
+      luceneServer = null;
+      luceneServerManagedChannel = null;
+    }
+    if (replicationServer != null && replicationServerManagedChannel != null) {
+      replicationServer.shutdownNow();
+      replicationServerManagedChannel.shutdownNow();
+      replicationServer = null;
+      replicationServerStub = null;
+    }
+  }
+
   /**
    * To test the server, make calls with a real stub using the in-process channel, and verify
    * behaviors or state changes from the client side.

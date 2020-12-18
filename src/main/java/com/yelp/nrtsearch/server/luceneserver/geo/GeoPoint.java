@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.geo;
 
+import org.apache.lucene.util.SloppyMath;
+
 /**
  * Class to encapsulate a geo location loaded out of a doc value. Currently represents a lat/lon
  * value.
@@ -34,6 +36,10 @@ public final class GeoPoint {
 
   public double getLon() {
     return longitude;
+  }
+
+  public double arcDistance(double lat, double lon) {
+    return SloppyMath.haversinMeters(latitude, longitude, lat, lon);
   }
 
   @Override

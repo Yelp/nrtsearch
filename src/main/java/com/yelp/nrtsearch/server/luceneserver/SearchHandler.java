@@ -87,8 +87,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           SearchRequestProcessor.buildContextForRequest(
               searchRequest, indexState, shardState, s, diagnostics);
 
-      searchContext.getResponseBuilder().setDiagnostics(diagnostics);
-
       long searchStartTime = System.nanoTime();
 
       TopDocs hits;
@@ -195,6 +193,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
 
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
+      searchContext.getResponseBuilder().setDiagnostics(diagnostics);
     } catch (IOException | InterruptedException e) {
       logger.warn(e.getMessage(), e);
       throw new SearchHandlerException(e);

@@ -77,6 +77,7 @@ import io.grpc.ServerInterceptors;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.hotspot.DefaultExports;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -119,6 +120,10 @@ public class LuceneServer {
 
   private void start() throws IOException {
     GlobalState globalState = new GlobalState(luceneServerConfiguration);
+
+    if (luceneServerConfiguration.getPublishJvmMetrics()) {
+      DefaultExports.register(collectorRegistry);
+    }
 
     List<Plugin> plugins = pluginsService.loadPlugins();
 
@@ -250,6 +255,7 @@ public class LuceneServer {
     private final Archiver archiver;
     private final CollectorRegistry collectorRegistry;
     private final ThreadPoolExecutor searchThreadPoolExecutor;
+    private final String archiveDirectory;
 
     LuceneServerImpl(
         GlobalState globalState,
@@ -259,6 +265,7 @@ public class LuceneServer {
         List<Plugin> plugins) {
       this.globalState = globalState;
       this.archiver = archiver;
+      this.archiveDirectory = configuration.getArchiveDirectory();
       this.collectorRegistry = collectorRegistry;
       this.searchThreadPoolExecutor =
           ThreadPoolExecutorFactory.getThreadPoolExecutor(
@@ -474,7 +481,7 @@ public class LuceneServer {
         StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
       try {
         IndexState indexState = null;
-        StartIndexHandler startIndexHandler = new StartIndexHandler(archiver);
+        StartIndexHandler startIndexHandler = new StartIndexHandler(archiver, archiveDirectory);
         indexState =
             globalState.getIndex(startIndexRequest.getIndexName(), startIndexRequest.hasRestore());
         StartIndexResponse reply = startIndexHandler.handle(indexState, startIndexRequest);
@@ -590,7 +597,7 @@ public class LuceneServer {
 
         @Override
         public void onError(Throwable t) {
-          logger.warn("addDocuments Cancelled");
+          logger.warn("addDocuments Cancelled", t);
           responseObserver.onError(t);
         }
 
@@ -1177,7 +1184,7 @@ public class LuceneServer {
       try {
         IndexState indexState = globalState.getIndex(backupIndexRequest.getIndexName());
         BackupIndexRequestHandler backupIndexRequestHandler =
-            new BackupIndexRequestHandler(archiver);
+            new BackupIndexRequestHandler(archiver, archiveDirectory);
         BackupIndexResponse reply =
             backupIndexRequestHandler.handle(indexState, backupIndexRequest);
         logger.info(String.format("BackupRequestHandler returned results %s", reply.toString()));
@@ -1440,28 +1447,29 @@ public class LuceneServer {
       try {
         IndexState indexState = globalState.getIndex(fileInfoRequest.getIndexName());
         ShardState shardState = indexState.getShard(0);
-        IndexInput luceneFile =
-            shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT);
-        long len = luceneFile.length();
-        long pos = fileInfoRequest.getFpStart();
-        luceneFile.seek(pos);
-        byte[] buffer = new byte[1024 * 64];
-        long totalRead;
-        totalRead = pos;
-        Random random = new Random();
-        while (totalRead < len) {
-          int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
-          luceneFile.readBytes(buffer, 0, chunkSize);
-          RawFileChunk rawFileChunk =
-              RawFileChunk.newBuilder()
-                  .setContent(ByteString.copyFrom(buffer, 0, chunkSize))
-                  .build();
-          rawFileChunkStreamObserver.onNext(rawFileChunk);
-          totalRead += chunkSize;
-          randomDelay(random);
+        try (IndexInput luceneFile =
+            shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT)) {
+          long len = luceneFile.length();
+          long pos = fileInfoRequest.getFpStart();
+          luceneFile.seek(pos);
+          byte[] buffer = new byte[1024 * 64];
+          long totalRead;
+          totalRead = pos;
+          Random random = new Random();
+          while (totalRead < len) {
+            int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
+            luceneFile.readBytes(buffer, 0, chunkSize);
+            RawFileChunk rawFileChunk =
+                RawFileChunk.newBuilder()
+                    .setContent(ByteString.copyFrom(buffer, 0, chunkSize))
+                    .build();
+            rawFileChunkStreamObserver.onNext(rawFileChunk);
+            totalRead += chunkSize;
+            randomDelay(random);
+          }
+          // EOF
+          rawFileChunkStreamObserver.onCompleted();
         }
-        // EOF
-        rawFileChunkStreamObserver.onCompleted();
       } catch (Exception e) {
         logger.warn("error on recvRawFile " + fileInfoRequest.getFileName(), e);
         rawFileChunkStreamObserver.onError(

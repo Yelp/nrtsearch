@@ -33,6 +33,7 @@ import picocli.CommandLine;
       GetCurrentSearcherVersion.class,
       DeleteDocumentsCommand.class,
       DeleteAllDocumentsCommand.class,
+      DeleteIndexBackupCommand.class,
       DeleteIndexCommand.class,
       LiveSettingsCommand.class,
       RefreshCommand.class,
@@ -60,7 +61,7 @@ public class LuceneClientCommand implements Runnable {
   }
 
   @CommandLine.Option(
-      names = {"-h", "--hostname"},
+      names = {"-h", "--hostname", "--host"},
       description = "Host name of server to connect to (default: ${DEFAULT-VALUE})",
       defaultValue = "localhost")
   private String hostname;
