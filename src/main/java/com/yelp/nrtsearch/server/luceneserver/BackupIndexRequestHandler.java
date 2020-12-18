@@ -57,7 +57,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       throw new IllegalStateException(
           String.format(
               "A backup is ongoing for index %s, please try again after the current backup is finished",
-                  lastBackedUpIndex));
+              lastBackedUpIndex));
     }
     String indexName = backupIndexRequest.getIndexName();
     SnapshotId snapshotId = null;
