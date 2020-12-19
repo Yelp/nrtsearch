@@ -481,38 +481,7 @@ public class ShardState implements Closeable {
         openMode = IndexWriterConfig.OpenMode.APPEND;
       }
 
-      Path taxoDirFile;
-      if (rootDir == null) {
-        taxoDirFile = null;
-      } else {
-        taxoDirFile = rootDir.resolve("taxonomy");
-      }
-      taxoDir = indexState.df.open(taxoDirFile);
-
-      taxoSnapshots =
-          new PersistentSnapshotDeletionPolicy(
-              new KeepOnlyLastCommitDeletionPolicy(),
-              taxoDir,
-              IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
-
-      taxoWriter =
-          new DirectoryTaxonomyWriter(taxoDir, openMode) {
-            @Override
-            protected IndexWriterConfig createIndexWriterConfig(
-                IndexWriterConfig.OpenMode openMode) {
-              IndexWriterConfig iwc = super.createIndexWriterConfig(openMode);
-              iwc.setIndexDeletionPolicy(taxoSnapshots);
-              return iwc;
-            }
-
-            @Override
-            protected IndexWriter openIndexWriter(Directory dir, IndexWriterConfig iwc)
-                throws IOException {
-              IndexWriter w = super.openIndexWriter(dir, iwc);
-              taxoInternalWriter = w;
-              return w;
-            }
-          };
+      initalizeTaxoWriter(openMode);
 
       writer =
           new IndexWriter(
@@ -628,6 +597,7 @@ public class ShardState implements Closeable {
       if (doCreate) {
         // nocommit shouldn't we set doCreate=false after we've done the create?
         openMode = IndexWriterConfig.OpenMode.CREATE;
+        initalizeTaxoWriter(openMode);
       } else {
         openMode = IndexWriterConfig.OpenMode.APPEND;
       }
@@ -711,6 +681,40 @@ public class ShardState implements Closeable {
         writer = null;
       }
     }
+  }
+
+  private void initalizeTaxoWriter(IndexWriterConfig.OpenMode openMode) throws IOException {
+    Path taxoDirFile;
+    if (rootDir == null) {
+      taxoDirFile = null;
+    } else {
+      taxoDirFile = rootDir.resolve("taxonomy");
+    }
+    taxoDir = indexState.df.open(taxoDirFile);
+
+    taxoSnapshots =
+        new PersistentSnapshotDeletionPolicy(
+            new KeepOnlyLastCommitDeletionPolicy(),
+            taxoDir,
+            IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
+
+    taxoWriter =
+        new DirectoryTaxonomyWriter(taxoDir, openMode) {
+          @Override
+          protected IndexWriterConfig createIndexWriterConfig(IndexWriterConfig.OpenMode openMode) {
+            IndexWriterConfig iwc = super.createIndexWriterConfig(openMode);
+            iwc.setIndexDeletionPolicy(taxoSnapshots);
+            return iwc;
+          }
+
+          @Override
+          protected IndexWriter openIndexWriter(Directory dir, IndexWriterConfig iwc)
+              throws IOException {
+            IndexWriter w = super.openIndexWriter(dir, iwc);
+            taxoInternalWriter = w;
+            return w;
+          }
+        };
   }
 
   private IndexReader.ClosedListener removeSSDVStates =
