@@ -62,6 +62,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PersistentSnapshotDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -663,7 +666,11 @@ public class ShardState implements Closeable {
       writer =
           new IndexWriter(
               indexDir, indexState.getIndexWriterConfig(openMode, origIndexDir, shardOrd));
-      snapshots = (PersistentSnapshotDeletionPolicy) writer.getConfig().getIndexDeletionPolicy();
+      LiveIndexWriterConfig writerConfig = writer.getConfig();
+      MergePolicy mergePolicy = writerConfig.getMergePolicy();
+      // Disable merges while NrtPrimaryNode isn't initalized (ISSUE-210)
+      writerConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+      snapshots = (PersistentSnapshotDeletionPolicy) writerConfig.getIndexDeletionPolicy();
 
       // NOTE: must do this after writer, because SDP only
       // loads its commits after writer calls .onInit:
@@ -689,6 +696,8 @@ public class ShardState implements Closeable {
               -1,
               new ShardSearcherFactory(false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()));
+      // Enable merges
+      writerConfig.setMergePolicy(mergePolicy);
 
       // nocommit this isn't used?
       searcherManager =

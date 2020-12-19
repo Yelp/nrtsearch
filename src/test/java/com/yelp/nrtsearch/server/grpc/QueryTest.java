@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
@@ -595,6 +597,8 @@ public class QueryTest {
         searchResponse.getTotalHits().getValue(), searchResponseBoosted.getTotalHits().getValue());
     assertEquals(searchResponse.getHitsList().size(), searchResponseBoosted.getHitsList().size());
 
+    verifyDiagnostics(searchResponse.getDiagnostics());
+
     for (int i = 0; i < searchResponse.getHitsCount(); i++) {
       SearchResponse.Hit hit = searchResponse.getHits(i);
       SearchResponse.Hit boostedHit = searchResponseBoosted.getHits(i);
@@ -606,5 +610,12 @@ public class QueryTest {
           SearchResponse.Hit.newBuilder(boostedHit).setScore(0).build();
       assertEquals(hitWithoutScore, boostedHitWithoutScore);
     }
+  }
+
+  private void verifyDiagnostics(SearchResponse.Diagnostics diagnostics) {
+    assertFalse(diagnostics.getParsedQuery().isEmpty());
+    assertFalse(diagnostics.getRewrittenQuery().isEmpty());
+    assertTrue(diagnostics.getFirstPassSearchTimeMs() > 0);
+    assertTrue(diagnostics.getGetFieldsTimeMs() > 0);
   }
 }

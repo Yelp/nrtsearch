@@ -1797,7 +1797,25 @@
     "luceneserverDeleteIndexBackupResponse": {
       "type": "object",
       "properties": {
-        "deletedVersionHashes": {
+        "deletedResourceDataHashes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletedResourceMetadataHashes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletedDataVersions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletedMetadataVersions": {
           "type": "array",
           "items": {
             "type": "string"

@@ -35,14 +35,12 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
   }
 
   private final Archiver archiver;
+  private final String archiveDirectory;
   Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
 
-  public StartIndexHandler(Archiver archiver) {
+  public StartIndexHandler(Archiver archiver, String archiveDirectory) {
     this.archiver = archiver;
-  }
-
-  public StartIndexHandler() {
-    this(null);
+    this.archiveDirectory = archiveDirectory;
   }
 
   @Override
@@ -90,6 +88,14 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
     try {
       if (mode.equals(Mode.PRIMARY)) {
         shardState.startPrimary(primaryGen, dataPath);
+        BackupIndexRequestHandler backupIndexRequestHandler =
+            new BackupIndexRequestHandler(archiver, archiveDirectory);
+        if (backupIndexRequestHandler.wasBackupPotentiallyInterrupted()) {
+          if (backupIndexRequestHandler.getIndexNameOfInterruptedBackup().equals(indexState.name)) {
+            backupIndexRequestHandler.interruptedBackupCleanup(
+                indexState, shardState.snapshotGenToVersion.keySet());
+          }
+        }
       } else if (mode.equals(Mode.REPLICA)) {
         // channel for replica to talk to primary on
         ReplicationServerClient primaryNodeClient =
