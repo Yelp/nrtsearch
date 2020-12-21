@@ -463,6 +463,11 @@ public class ShardState implements Closeable {
         if (entry.getValue().getFacetValueType() == FacetValueType.SORTED_SET_DOC_VALUES) {
           // get state to populate cache
           getSSDVStateForReader(reader, entry.getValue());
+        } else {
+          logger.warn(
+              String.format(
+                  "Field: %s, facet type: %s, does not support eager global ordinals",
+                  entry.getKey(), entry.getValue().getFacetValueType().toString()));
         }
       }
     }
