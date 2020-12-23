@@ -28,8 +28,15 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,11 +100,17 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
         createBackupIndicator(indexName, snapshotId);
         LOCK.unlock();
 
+        List<String> segmentFiles = getSegmentFilesInSnapshot(indexState, snapshotId);
+        List<String> stateDirectory =
+            Collections.singletonList(indexState.getStateDirectoryPath().toString());
+
         uploadArtifacts(
             backupIndexRequest.getServiceName(),
             backupIndexRequest.getResourceName(),
             indexState,
-            backupIndexResponseBuilder);
+            backupIndexResponseBuilder,
+            segmentFiles,
+            stateDirectory);
       }
 
     } catch (IOException e) {
@@ -118,6 +131,38 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     }
 
     return backupIndexResponseBuilder.build();
+  }
+
+  private List<String> getSegmentFilesInSnapshot(IndexState indexState, SnapshotId snapshotId)
+      throws IOException {
+    String snapshotIdAsString = CreateSnapshotHandler.getSnapshotIdAsString(snapshotId);
+    IndexState.Gens snapshot = new IndexState.Gens(snapshotIdAsString);
+    if (indexState.shards.size() != 1) {
+      throw new IllegalStateException(
+          String.format(
+              "%s shards found index %s instead of exactly 1",
+              indexState.shards.size(), indexState.name));
+    }
+    ShardState state = indexState.shards.entrySet().iterator().next().getValue();
+    SearcherTaxonomyManager.SearcherAndTaxonomy s = state.acquire();
+    IndexReader indexReader =
+        DirectoryReader.openIfChanged(
+            (DirectoryReader) s.searcher.getIndexReader(),
+            state.snapshots.getIndexCommit(snapshot.indexGen));
+    if (!(indexReader instanceof StandardDirectoryReader)) {
+      throw new IllegalStateException("Unable to find segments to backup");
+    }
+    StandardDirectoryReader standardDirectoryReader = (StandardDirectoryReader) indexReader;
+    return standardDirectoryReader.getSegmentInfos().asList().stream()
+        .flatMap(
+            segmentCommitInfo -> {
+              try {
+                return segmentCommitInfo.files().stream();
+              } catch (IOException e) {
+                throw new IllegalStateException("Unable to find segments to backup", e);
+              }
+            })
+        .collect(Collectors.toList());
   }
 
   public boolean wasBackupPotentiallyInterrupted() {
@@ -229,10 +274,18 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       String serviceName,
       String resourceName,
       IndexState indexState,
-      BackupIndexResponse.Builder backupIndexResponseBuilder)
+      BackupIndexResponse.Builder backupIndexResponseBuilder,
+      List<String> filesToInclude,
+      List<String> parentDirectoriesToInclude)
       throws IOException {
     String resourceData = IndexBackupUtils.getResourceData(resourceName);
-    String versionHash = archiver.upload(serviceName, resourceData, indexState.rootDir);
+    String versionHash =
+        archiver.upload(
+            serviceName,
+            resourceData,
+            indexState.rootDir,
+            filesToInclude,
+            parentDirectoriesToInclude);
     archiver.blessVersion(serviceName, resourceData, versionHash);
     backupIndexResponseBuilder.setDataVersionHash(versionHash);
 
@@ -247,7 +300,12 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       throws IOException {
     String resourceMetadata = IndexBackupUtils.getResourceMetadata(resourceName);
     String versionHash =
-        archiver.upload(serviceName, resourceMetadata, indexState.globalState.stateDir);
+        archiver.upload(
+            serviceName,
+            resourceMetadata,
+            indexState.globalState.stateDir,
+            Collections.emptyList(),
+            Collections.emptyList());
     archiver.blessVersion(serviceName, resourceMetadata, versionHash);
     backupIndexResponseBuilder.setMetadataVersionHash(versionHash);
   }

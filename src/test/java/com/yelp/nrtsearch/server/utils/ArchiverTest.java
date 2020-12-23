@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.utils;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
@@ -92,21 +93,39 @@ public class ArchiverTest {
     String service = "testservice";
     String resource = "testresource";
     Path sourceDir = createDirWithFiles(service, resource);
-    String versionHash = archiver.upload(service, resource, sourceDir);
+
+    testUploadWithParameters(service, resource, sourceDir, List.of(), List.of(), List.of());
+    testUploadWithParameters(
+        service, resource, sourceDir, List.of("test1"), List.of(), List.of("test2"));
+    testUploadWithParameters(
+        service, resource, sourceDir, List.of(), List.of("subDir"), List.of("test1"));
+    testUploadWithParameters(
+        service, resource, sourceDir, List.of("test1"), List.of("subDir"), List.of());
+  }
+
+  private void testUploadWithParameters(
+      String service,
+      String resource,
+      Path sourceDir,
+      List<String> includeFiles,
+      List<String> includeDirs,
+      List<String> ignoreVerifying)
+      throws IOException {
+    String versionHash = archiver.upload(service, resource, sourceDir, includeFiles, includeDirs);
 
     Path actualDownloadDir = Files.createDirectory(archiverDirectory.resolve("actualDownload"));
     try (S3Object s3Object =
             s3.getObject(BUCKET_NAME, String.format("%s/%s/%s", service, resource, versionHash));
-        final S3ObjectInputStream s3ObjectInputStream = s3Object.getObjectContent();
-        final LZ4FrameInputStream lz4CompressorInputStream =
+        S3ObjectInputStream s3ObjectInputStream = s3Object.getObjectContent();
+        LZ4FrameInputStream lz4CompressorInputStream =
             new LZ4FrameInputStream(s3ObjectInputStream);
-        final TarArchiveInputStream tarArchiveInputStream =
-            new TarArchiveInputStream(lz4CompressorInputStream); ) {
+        TarArchiveInputStream tarArchiveInputStream =
+            new TarArchiveInputStream(lz4CompressorInputStream)) {
       new TarImpl(TarImpl.CompressionMode.LZ4).extractTar(tarArchiveInputStream, actualDownloadDir);
     }
-    assertEquals(
-        true,
-        TarImplTest.dirsMatch(actualDownloadDir.resolve(resource).toFile(), sourceDir.toFile()));
+    assertTrue(
+        TarImplTest.dirsMatch(
+            actualDownloadDir.resolve(resource).toFile(), sourceDir.toFile(), ignoreVerifying));
   }
 
   @Test
@@ -114,12 +133,12 @@ public class ArchiverTest {
     String service = "testservice";
     String resource = "testresource";
     Path sourceDir = createDirWithFiles(service, resource);
-    String versionHash = archiver.upload(service, resource, sourceDir);
+    String versionHash = archiver.upload(service, resource, sourceDir, List.of(), List.of());
     archiver.blessVersion(service, resource, versionHash);
     Path downloadPath = archiver.download(service, resource);
     Path parentPath = downloadPath.getParent();
     Path path = parentPath.resolve(versionHash);
-    assertEquals(true, path.toFile().exists());
+    assertTrue(path.toFile().exists());
   }
 
   private Path createDirWithFiles(String service, String resource) throws IOException {
@@ -165,7 +184,7 @@ public class ArchiverTest {
     String service = "testservice";
     String[] resources = new String[] {"testresource"};
     Path sourceDir = createDirWithFiles(service, resources[0]);
-    String versionHash = archiver.upload(service, resources[0], sourceDir);
+    String versionHash = archiver.upload(service, resources[0], sourceDir, List.of(), List.of());
     archiver.blessVersion(service, resources[0], versionHash);
     List<String> actualResources = archiver.getResources(service);
     String[] actual = actualResources.toArray(new String[0]);
@@ -177,8 +196,8 @@ public class ArchiverTest {
     String service = "testservice";
     String resource = "testresource";
     Path sourceDir = createDirWithFiles(service, resource);
-    String versionHash1 = archiver.upload(service, resource, sourceDir);
-    String versionHash2 = archiver.upload(service, resource, sourceDir);
+    String versionHash1 = archiver.upload(service, resource, sourceDir, List.of(), List.of());
+    String versionHash2 = archiver.upload(service, resource, sourceDir, List.of(), List.of());
     List<VersionedResource> actualResources = archiver.getVersionedResource(service, resource);
 
     List<String> versionHashes =
@@ -196,8 +215,8 @@ public class ArchiverTest {
     String service = "testservice";
     String resource = "testresource";
     Path sourceDir = createDirWithFiles(service, resource);
-    String versionHash1 = archiver.upload(service, resource, sourceDir);
-    String versionHash2 = archiver.upload(service, resource, sourceDir);
+    String versionHash1 = archiver.upload(service, resource, sourceDir, List.of(), List.of());
+    String versionHash2 = archiver.upload(service, resource, sourceDir, List.of(), List.of());
 
     archiver.deleteVersion(service, resource, versionHash1);
 

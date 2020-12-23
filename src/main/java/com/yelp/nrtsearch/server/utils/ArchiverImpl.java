@@ -165,7 +165,12 @@ public class ArchiverImpl implements Archiver {
   }
 
   @Override
-  public String upload(final String serviceName, final String resource, Path sourceDir)
+  public String upload(
+      final String serviceName,
+      final String resource,
+      Path sourceDir,
+      List<String> filesToInclude,
+      List<String> parentDirectoriesToInclude)
       throws IOException {
     if (!Files.exists(sourceDir)) {
       throw new IOException(
@@ -180,7 +185,7 @@ public class ArchiverImpl implements Archiver {
     }
     Path destPath = archiverDirectory.resolve(getTmpName());
     try {
-      tar.buildTar(sourceDir, destPath);
+      tar.buildTar(sourceDir, destPath, filesToInclude, parentDirectoriesToInclude);
       String versionHash = UUID.randomUUID().toString();
       uploadTarWithMetadata(serviceName, resource, versionHash, destPath);
       return versionHash;

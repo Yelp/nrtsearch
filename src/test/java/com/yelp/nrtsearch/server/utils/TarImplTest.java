@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.utils;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.util.IOUtils;
 import java.io.ByteArrayInputStream;
@@ -83,20 +84,40 @@ public class TarImplTest {
       IOUtils.copy(test1content, fileOutputStream1);
       IOUtils.copy(test2content, fileOutputStream2);
     }
-    Path destTarFile = tarTestBaseDirectory.resolve("result.tar.gz");
-    new TarImpl(TarImpl.CompressionMode.LZ4).buildTar(sourceDir, destTarFile);
+    Path destTarFile_noIncludes = tarTestBaseDirectory.resolve("result_noIncludes.tar.gz");
+    Path destTarFile_includeFile = tarTestBaseDirectory.resolve("result_includeFile.tar.gz");
+    Path destTarFile_includeDir = tarTestBaseDirectory.resolve("result_includeDir.tar.gz");
+    Path destTarFile_includeFileAndDir =
+        tarTestBaseDirectory.resolve("result_includeFileAndDir.tar.gz");
 
+    TarImpl tar = new TarImpl(TarImpl.CompressionMode.LZ4);
+    tar.buildTar(sourceDir, destTarFile_noIncludes, List.of(), List.of());
+    tar.buildTar(sourceDir, destTarFile_includeFile, List.of("test1"), List.of());
+    tar.buildTar(sourceDir, destTarFile_includeDir, List.of(), List.of("subDir"));
+    tar.buildTar(sourceDir, destTarFile_includeFileAndDir, List.of("test1"), List.of("subDir"));
+
+    checkTarAndSourceDirMatch(sourceDir, destTarFile_noIncludes, List.of());
+    checkTarAndSourceDirMatch(sourceDir, destTarFile_includeFile, List.of("test2"));
+    checkTarAndSourceDirMatch(sourceDir, destTarFile_includeDir, List.of("test1"));
+    checkTarAndSourceDirMatch(sourceDir, destTarFile_includeFileAndDir, List.of());
+  }
+
+  private void checkTarAndSourceDirMatch(Path sourceDir, Path destTarFile, List<String> ignoreFiles)
+      throws IOException {
     try (final FileInputStream fileInputStream = new FileInputStream(destTarFile.toFile());
         final LZ4FrameInputStream compressorInputStream = new LZ4FrameInputStream(fileInputStream);
         final TarArchiveInputStream tarArchiveInputStream =
             new TarArchiveInputStream(compressorInputStream); ) {
       Path destDir = tarTestBaseDirectory.resolve("test_extract");
       new TarImpl(TarImpl.CompressionMode.LZ4).extractTar(tarArchiveInputStream, destDir);
-      assertEquals(true, dirsMatch(sourceDir.toFile(), destDir.resolve("dirToTar").toFile()));
+      assertTrue(dirsMatch(sourceDir.toFile(), destDir.resolve("dirToTar").toFile(), ignoreFiles));
     }
   }
 
-  static boolean dirsMatch(File file1, File file2) throws IOException {
+  static boolean dirsMatch(File file1, File file2, List<String> ignoreFiles) throws IOException {
+    if (ignoreFiles.contains(file1.getName()) || ignoreFiles.contains(file2.getName())) {
+      return true;
+    }
     if (file1.isDirectory() && file2.isDirectory()) {
       File[] files1 = file1.listFiles();
       File[] files2 = file2.listFiles();
@@ -104,7 +125,7 @@ public class TarImplTest {
         return false;
       }
       for (int i = 0; i < files1.length; i++) {
-        boolean isMatch = dirsMatch(files1[i], files2[i]);
+        boolean isMatch = dirsMatch(files1[i], files2[i], ignoreFiles);
         if (!isMatch) {
           return false;
         }
@@ -152,7 +173,7 @@ public class TarImplTest {
     // lz4
     TarImpl lz4Tar = new TarImpl(Tar.CompressionMode.LZ4);
     long t1 = System.nanoTime();
-    lz4Tar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".lz4"));
+    lz4Tar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".lz4"), List.of(), List.of());
     long t2 = System.nanoTime();
     System.out.println("buildTar with lz4 took " + (t2 - t1) / (1000 * 1000 * 1000) + " seconds");
 
@@ -163,7 +184,7 @@ public class TarImplTest {
     // gzip
     TarImpl gzipTar = new TarImpl(Tar.CompressionMode.GZIP);
     t1 = System.nanoTime();
-    gzipTar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".gzip"));
+    gzipTar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".gzip"), List.of(), List.of());
     t2 = System.nanoTime();
     System.out.println(
         "buildTar with with gzip took " + (t2 - t1) / (1000 * 1000 * 1000) + " seconds");

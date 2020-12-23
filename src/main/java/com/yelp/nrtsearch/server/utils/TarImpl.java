@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import net.jpountz.lz4.LZ4FrameInputStream;
 import net.jpountz.lz4.LZ4FrameOutputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
@@ -91,7 +92,12 @@ public class TarImpl implements Tar {
   }
 
   @Override
-  public void buildTar(Path sourceDir, Path destinationFile) throws IOException {
+  public void buildTar(
+      Path sourceDir,
+      Path destinationFile,
+      List<String> filesToInclude,
+      List<String> parentDirectoriesToInclude)
+      throws IOException {
     final FileOutputStream fileOutputStream = new FileOutputStream(destinationFile.toFile());
     final OutputStream compressorOutputStream;
     if (compressionMode.equals(CompressionMode.LZ4)) {
@@ -101,17 +107,26 @@ public class TarImpl implements Tar {
     }
     try (final TarArchiveOutputStream tarArchiveOutputStream =
         new TarArchiveOutputStream(compressorOutputStream)) {
-      buildTar(tarArchiveOutputStream, sourceDir);
+      buildTar(tarArchiveOutputStream, sourceDir, filesToInclude, parentDirectoriesToInclude);
     }
   }
 
   @Override
-  public void buildTar(TarArchiveOutputStream tarArchiveOutputStream, Path sourceDir)
+  public void buildTar(
+      TarArchiveOutputStream tarArchiveOutputStream,
+      Path sourceDir,
+      List<String> filesToInclude,
+      List<String> parentDirectoriesToInclude)
       throws IOException {
     if (!Files.exists(sourceDir)) {
       throw new IOException("source directory doesn't exist: " + sourceDir);
     }
-    addFilestoTarGz(sourceDir.toString(), "", tarArchiveOutputStream);
+    addFilestoTarGz(
+        sourceDir.toString(),
+        "",
+        tarArchiveOutputStream,
+        filesToInclude,
+        parentDirectoriesToInclude);
   }
 
   @Override
@@ -120,12 +135,16 @@ public class TarImpl implements Tar {
   }
 
   private static void addFilestoTarGz(
-      String filePath, String parent, TarArchiveOutputStream tarArchiveOutputStream)
+      String filePath,
+      String parent,
+      TarArchiveOutputStream tarArchiveOutputStream,
+      List<String> filesToInclude,
+      List<String> parentDirectoriesToInclude)
       throws IOException {
     File file = new File(filePath);
     String entryName = parent + file.getName();
     tarArchiveOutputStream.putArchiveEntry(new TarArchiveEntry(file, entryName));
-    if (file.isFile()) {
+    if (file.isFile() && shouldIncludeFile(file, filesToInclude, parentDirectoriesToInclude)) {
       try (FileInputStream fileInputStream = new FileInputStream(file);
           BufferedInputStream bufferedInputStream = new BufferedInputStream(fileInputStream)) {
         IOUtils.copy(bufferedInputStream, tarArchiveOutputStream);
@@ -134,8 +153,20 @@ public class TarImpl implements Tar {
     } else if (file.isDirectory()) {
       tarArchiveOutputStream.closeArchiveEntry();
       for (File f : file.listFiles()) {
-        addFilestoTarGz(f.getAbsolutePath(), entryName + File.separator, tarArchiveOutputStream);
+        addFilestoTarGz(
+            f.getAbsolutePath(),
+            entryName + File.separator,
+            tarArchiveOutputStream,
+            filesToInclude,
+            parentDirectoriesToInclude);
       }
     }
+  }
+
+  private static boolean shouldIncludeFile(
+      File file, List<String> filesToInclude, List<String> parentDirectoriesToInclude) {
+    return (filesToInclude.isEmpty() && parentDirectoriesToInclude.isEmpty())
+        || filesToInclude.contains(file.getName())
+        || parentDirectoriesToInclude.contains(file.getParent());
   }
 }
