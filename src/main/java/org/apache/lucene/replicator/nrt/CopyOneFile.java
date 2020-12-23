@@ -34,7 +34,7 @@ public class CopyOneFile implements Closeable {
   public final FileMetaData metaData;
   public final long bytesToCopy;
   private final long copyStartNS;
-  private final byte[] buffer;
+  private final ByteBuffer checksumBuffer = ByteBuffer.allocate(Long.BYTES);
 
   private long bytesCopied;
   private long remoteFileChecksum;
@@ -43,19 +43,17 @@ public class CopyOneFile implements Closeable {
       Iterator<RawFileChunk> rawFileChunkIterator,
       ReplicaNode dest,
       String name,
-      FileMetaData metaData,
-      byte[] buffer)
+      FileMetaData metaData)
       throws IOException {
 
     this.rawFileChunkIterator = rawFileChunkIterator;
     this.name = name;
     this.dest = dest;
-    this.buffer = buffer;
     // TODO: pass correct IOCtx, e.g. seg total size
     out = dest.createTempOutput(name, "copy", IOContext.DEFAULT);
     tmpName = out.getName();
     // last 8 bytes are checksum:
-    bytesToCopy = metaData.length - 8;
+    bytesToCopy = metaData.length - Long.BYTES;
     if (Node.VERBOSE_FILES) {
       dest.message(
           "file "
@@ -68,20 +66,6 @@ public class CopyOneFile implements Closeable {
     copyStartNS = System.nanoTime();
     this.metaData = metaData;
     dest.startCopyFile(name);
-  }
-
-  /** Transfers this file copy to another input, continuing where the first one left off */
-  public CopyOneFile(CopyOneFile other, Iterator<RawFileChunk> rawFileChunkIterator) {
-    this.rawFileChunkIterator = rawFileChunkIterator;
-    this.dest = other.dest;
-    this.name = other.name;
-    this.out = other.out;
-    this.tmpName = other.tmpName;
-    this.metaData = other.metaData;
-    this.bytesCopied = other.bytesCopied;
-    this.bytesToCopy = other.bytesToCopy;
-    this.copyStartNS = other.copyStartNS;
-    this.buffer = other.buffer;
   }
 
   /**
@@ -98,6 +82,11 @@ public class CopyOneFile implements Closeable {
   public void close() throws IOException {
     out.close();
     dest.finishCopyFile(name);
+    // This job may have been canceled before being completed, meaning the replica no longer needs
+    // it. Drain the iterator to not leak direct memory.
+    while (rawFileChunkIterator.hasNext()) {
+      rawFileChunkIterator.next();
+    }
   }
 
   public long getBytesCopied() {
@@ -112,13 +101,23 @@ public class CopyOneFile implements Closeable {
       bytesCopied += byteString.size();
       if (bytesCopied < bytesToCopy) {
         out.writeBytes(byteString.toByteArray(), 0, byteString.size());
-      } else { // last chunk, last 8 bytes are crc32 checksum
-        out.writeBytes(byteString.toByteArray(), 0, byteString.size() - 8);
-        remoteFileChecksum =
-            ByteBuffer.wrap(
-                    byteString.substring(byteString.size() - 8, byteString.size()).toByteArray())
-                .getLong();
-        bytesCopied -= 8;
+      } else {
+        int checksumBytesRead = (int) (bytesCopied - bytesToCopy);
+        if (byteString.size() > checksumBytesRead) {
+          // This chunk contains some data and some checksum
+          out.writeBytes(byteString.toByteArray(), 0, byteString.size() - checksumBytesRead);
+          checksumBuffer.put(
+              byteString.toByteArray(), byteString.size() - checksumBytesRead, checksumBytesRead);
+        } else {
+          // This chunk only contains checksum
+          checksumBuffer.put(byteString.toByteArray());
+        }
+        // Only get the checksum after it has been entirely read
+        if (checksumBytesRead == Long.BYTES) {
+          checksumBuffer.rewind();
+          remoteFileChecksum = checksumBuffer.getLong();
+          bytesCopied -= Long.BYTES;
+        }
       }
       return false;
     } else {

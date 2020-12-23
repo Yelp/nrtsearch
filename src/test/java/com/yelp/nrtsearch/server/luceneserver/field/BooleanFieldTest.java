@@ -83,34 +83,40 @@ public class BooleanFieldTest extends ServerTestCase {
 
   @Test
   public void testTermQuerySingleValue() {
-    TermQuery falseQuery = TermQuery.newBuilder().setField("single").setTextValue("false").build();
-    TermQuery trueQuery = TermQuery.newBuilder().setField("single").setTextValue("true").build();
     TermQuery falseBoolQuery =
         TermQuery.newBuilder().setField("single").setBooleanValue(false).build();
     TermQuery trueBoolQuery =
         TermQuery.newBuilder().setField("single").setBooleanValue(true).build();
 
-    queryAndVerifyIds(trueQuery, "1");
-    queryAndVerifyIds(falseQuery, "2");
     queryAndVerifyIds(trueBoolQuery, "1");
     queryAndVerifyIds(falseBoolQuery, "2");
   }
 
+  public void testTermQuerySingleValueBooleanStrings() {
+    TermQuery falseQuery = TermQuery.newBuilder().setField("single").setTextValue("false").build();
+    TermQuery trueQuery = TermQuery.newBuilder().setField("single").setTextValue("true").build();
+
+    queryAndVerifyIds(trueQuery, "1");
+    queryAndVerifyIds(falseQuery, "2");
+  }
+
   @Test
   public void testTermQuerySingleNoValue() {
-    TermQuery falseQuery =
-        TermQuery.newBuilder().setField("single_none").setTextValue("false").build();
-    TermQuery trueQuery =
-        TermQuery.newBuilder().setField("single_none").setTextValue("true").build();
     TermQuery falseBoolQuery =
         TermQuery.newBuilder().setField("single_none").setBooleanValue(false).build();
     TermQuery trueBoolQuery =
         TermQuery.newBuilder().setField("single_none").setBooleanValue(true).build();
-
-    queryAndVerifyIds(trueQuery);
-    queryAndVerifyIds(falseQuery);
     queryAndVerifyIds(trueBoolQuery);
     queryAndVerifyIds(falseBoolQuery);
+  }
+
+  public void testTermQuerySingleNoValueBooleanStrings() {
+    TermQuery falseQuery =
+        TermQuery.newBuilder().setField("single_none").setTextValue("false").build();
+    TermQuery trueQuery =
+        TermQuery.newBuilder().setField("single_none").setTextValue("true").build();
+    queryAndVerifyIds(trueQuery);
+    queryAndVerifyIds(falseQuery);
   }
 
   @Test(expected = StatusRuntimeException.class)
@@ -123,52 +129,64 @@ public class BooleanFieldTest extends ServerTestCase {
 
   @Test
   public void testTermQueryMultiOne() {
-    TermQuery falseQuery =
-        TermQuery.newBuilder().setField("multi_one").setTextValue("false").build();
-    TermQuery trueQuery = TermQuery.newBuilder().setField("multi_one").setTextValue("true").build();
     TermQuery falseBoolQuery =
         TermQuery.newBuilder().setField("multi_one").setBooleanValue(false).build();
     TermQuery trueBoolQuery =
         TermQuery.newBuilder().setField("multi_one").setBooleanValue(true).build();
 
-    queryAndVerifyIds(trueQuery, "2");
-    queryAndVerifyIds(falseQuery, "1");
     queryAndVerifyIds(trueBoolQuery, "2");
     queryAndVerifyIds(falseBoolQuery, "1");
   }
 
+  public void testTermQueryMultiOneBooleanStrings() {
+    TermQuery falseQuery =
+        TermQuery.newBuilder().setField("multi_one").setTextValue("false").build();
+    TermQuery trueQuery = TermQuery.newBuilder().setField("multi_one").setTextValue("true").build();
+
+    queryAndVerifyIds(trueQuery, "2");
+    queryAndVerifyIds(falseQuery, "1");
+  }
+
   @Test
   public void testTermQueryMultiBoth() {
-    TermQuery falseQuery =
-        TermQuery.newBuilder().setField("multi_both").setTextValue("false").build();
-    TermQuery trueQuery =
-        TermQuery.newBuilder().setField("multi_both").setTextValue("true").build();
     TermQuery falseBoolQuery =
         TermQuery.newBuilder().setField("multi_both").setBooleanValue(false).build();
     TermQuery trueBoolQuery =
         TermQuery.newBuilder().setField("multi_both").setBooleanValue(true).build();
 
-    queryAndVerifyIds(trueQuery, "1", "2");
-    queryAndVerifyIds(falseQuery, "1", "2");
     queryAndVerifyIds(trueBoolQuery, "1", "2");
     queryAndVerifyIds(falseBoolQuery, "1", "2");
   }
 
+  public void testTermQueryMultiBothBooleanStrings() {
+    TermQuery falseQuery =
+        TermQuery.newBuilder().setField("multi_both").setTextValue("false").build();
+    TermQuery trueQuery =
+        TermQuery.newBuilder().setField("multi_both").setTextValue("true").build();
+
+    queryAndVerifyIds(trueQuery, "1", "2");
+    queryAndVerifyIds(falseQuery, "1", "2");
+  }
+
   @Test
   public void testTermQueryMultiNone() {
-    TermQuery falseQuery =
-        TermQuery.newBuilder().setField("multi_none").setTextValue("false").build();
-    TermQuery trueQuery =
-        TermQuery.newBuilder().setField("multi_none").setTextValue("true").build();
     TermQuery falseBoolQuery =
         TermQuery.newBuilder().setField("multi_none").setBooleanValue(false).build();
     TermQuery trueBoolQuery =
         TermQuery.newBuilder().setField("multi_none").setBooleanValue(true).build();
 
-    queryAndVerifyIds(trueQuery);
-    queryAndVerifyIds(falseQuery);
     queryAndVerifyIds(trueBoolQuery);
     queryAndVerifyIds(falseBoolQuery);
+  }
+
+  public void testTermQueryMultiNoneBooleanStrings() {
+    TermQuery falseQuery =
+        TermQuery.newBuilder().setField("multi_none").setTextValue("false").build();
+    TermQuery trueQuery =
+        TermQuery.newBuilder().setField("multi_none").setTextValue("true").build();
+
+    queryAndVerifyIds(trueQuery);
+    queryAndVerifyIds(falseQuery);
   }
 
   @Test(expected = StatusRuntimeException.class)

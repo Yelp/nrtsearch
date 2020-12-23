@@ -27,13 +27,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** A simple client that requests a greeting from the {@link LuceneServer}. */
 public class LuceneServerClient {
-  private static final Logger logger = Logger.getLogger(LuceneServerClient.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(LuceneServerClient.class.getName());
 
   private final ManagedChannel channel;
 
@@ -83,7 +83,7 @@ public class LuceneServerClient {
     try {
       response = blockingStub.createIndex(request);
     } catch (StatusRuntimeException e) {
-      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
     logger.info("Server returned : " + response.getResponse());
@@ -120,7 +120,7 @@ public class LuceneServerClient {
     try {
       response = blockingStub.liveSettings(request);
     } catch (StatusRuntimeException e) {
-      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
     logger.info("Server returned : " + response.getResponse());
@@ -132,7 +132,7 @@ public class LuceneServerClient {
     try {
       response = blockingStub.registerFields(fieldDefRequest);
     } catch (StatusRuntimeException e) {
-      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
     logger.info("Server returned : " + response.getResponse());
@@ -145,7 +145,7 @@ public class LuceneServerClient {
     try {
       response = blockingStub.settings(settingsRequest);
     } catch (StatusRuntimeException e) {
-      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
     logger.info("Server returned : " + response.getResponse());
@@ -158,7 +158,7 @@ public class LuceneServerClient {
     try {
       response = blockingStub.startIndex(startIndexRequest);
     } catch (StatusRuntimeException e) {
-      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
     logger.info("Server returned : " + response.toString());
@@ -182,7 +182,7 @@ public class LuceneServerClient {
 
           @Override
           public void onError(Throwable t) {
-            logger.log(Level.SEVERE, t.getMessage(), t);
+            logger.error(t.getMessage(), t);
             finishLatch.countDown();
           }
 
@@ -211,7 +211,7 @@ public class LuceneServerClient {
 
     // Receiving happens asynchronously, so block here for 5 minutes
     if (!finishLatch.await(5, TimeUnit.MINUTES)) {
-      logger.log(Level.WARNING, "addDocuments can not finish within 5 minutes");
+      logger.warn("addDocuments can not finish within 5 minutes");
     }
   }
 
@@ -222,7 +222,7 @@ public class LuceneServerClient {
     try {
       response = blockingStub.refresh(request);
     } catch (StatusRuntimeException e) {
-      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
     logger.info("Server returned refreshTimeMS : " + response.getRefreshTimeMS());
@@ -235,7 +235,7 @@ public class LuceneServerClient {
     try {
       response = blockingStub.commit(request);
     } catch (StatusRuntimeException e) {
-      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
     logger.info("Server returned sequence id: " + response.getGen());
@@ -248,7 +248,7 @@ public class LuceneServerClient {
     try {
       response = blockingStub.stats(request);
     } catch (StatusRuntimeException e) {
-      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
     logger.info("Server returned sequence id: " + response);
@@ -261,7 +261,7 @@ public class LuceneServerClient {
     try {
       response = blockingStub.search(searchRequest);
     } catch (StatusRuntimeException e) {
-      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
     logger.info("Server returned : " + response.toString());
@@ -274,7 +274,7 @@ public class LuceneServerClient {
     try {
       response = blockingStub.delete(addDocumentRequest);
     } catch (StatusRuntimeException e) {
-      logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
+      logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
     logger.info("Server returned indexGen : " + response.getGenId());
@@ -319,6 +319,19 @@ public class LuceneServerClient {
     }
     this.shutdown();
     System.exit(1);
+  }
+
+  public void deleteIndexBackup(
+      String indexName, String serviceName, String resourceName, int nDays) {
+    DeleteIndexBackupRequest request =
+        DeleteIndexBackupRequest.newBuilder()
+            .setIndexName(indexName)
+            .setServiceName(serviceName)
+            .setResourceName(resourceName)
+            .setNDays(nDays)
+            .build();
+    DeleteIndexBackupResponse deleteIndexBackupResponse = blockingStub.deleteIndexBackup(request);
+    logger.info("Response: {}", deleteIndexBackupResponse);
   }
 
   private FieldDefRequest getFieldDefRequest(String jsonStr) {

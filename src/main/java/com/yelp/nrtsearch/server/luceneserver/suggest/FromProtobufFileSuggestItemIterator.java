@@ -26,10 +26,8 @@ import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.util.BytesRef;
 
 /**
- * An {@link org.apache.lucene.search.suggest.InputIterator} that pulls from a line file, using
- * U+001f to join the suggestion, including suggest text, suffix-gram terms, weight, and payload.
- *
- * <p>The format is expected to be: suggest_textterm1term2term3weightpayloadcontext1context2
+ * An {@link org.apache.lucene.search.suggest.InputIterator} that reads the binary file and parse
+ * the suggest index information based on the `NrtsearchIndex` proto
  */
 public class FromProtobufFileSuggestItemIterator implements InputIterator, Closeable {
 
@@ -106,6 +104,7 @@ public class FromProtobufFileSuggestItemIterator implements InputIterator, Close
     return text;
   }
 
+  /** Parse each protobuf object based on NrtsearchIndex proto schema */
   private boolean parseProtobufIndex(NrtsearchIndex suggestIndexInfo) {
     text = new BytesRef(String.valueOf(suggestIndexInfo.getUniqueId()));
     searchTexts.clear();

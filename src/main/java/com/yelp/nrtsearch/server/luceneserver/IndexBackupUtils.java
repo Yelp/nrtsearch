@@ -24,4 +24,12 @@ public class IndexBackupUtils {
   public static String getResourceData(String resourceName) {
     return String.format("%s_data", resourceName);
   }
+
+  public static String getResourceVersionMetadata(String resourceName) {
+    return String.format("_version/%s_metadata", resourceName);
+  }
+
+  public static String getResourceVersionData(String resourceName) {
+    return String.format("_version/%s_data", resourceName);
+  }
 }

@@ -15,12 +15,14 @@
  */
 package com.yelp.nrtsearch.server.suggest;
 
-import com.google.common.io.Resources;
+import com.google.protobuf.ByteString;
+import com.yelp.nrtsearch.server.grpc.NrtsearchIndex;
 import com.yelp.nrtsearch.server.luceneserver.suggest.CompletionInfixSuggester;
-import com.yelp.nrtsearch.server.luceneserver.suggest.FromFileSuggestItemIterator;
+import com.yelp.nrtsearch.server.luceneserver.suggest.FromProtobufFileSuggestItemIterator;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.URISyntaxException;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,16 +35,20 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class CompletionInfixSuggesterTest extends LuceneTestCase {
+
+  @Rule public TemporaryFolder folder = new TemporaryFolder();
 
   private CompletionInfixSuggester suggester;
 
   @Before
   public void before() throws Exception {
     Directory dir = newDirectory();
-    FromFileSuggestItemIterator iter = createIterator("suggest/suggest_item.file");
+    FromProtobufFileSuggestItemIterator iter = createIterator();
     Analyzer analyzer = new StandardAnalyzer();
     suggester = new CompletionInfixSuggester(dir, analyzer, analyzer);
     suggester.build(iter);
@@ -59,9 +65,9 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
 
     assertNotNull(actualResults);
     assertEquals(2, actualResults.size());
-    assertEquals("lowe's home improvement", actualResults.get(0).key);
+    assertEquals("1", actualResults.get(0).key);
     assertEquals(4, actualResults.get(0).value);
-    assertEquals("home decoration", actualResults.get(1).key);
+    assertEquals("2", actualResults.get(1).key);
     assertEquals(2, actualResults.get(1).value);
   }
 
@@ -71,7 +77,7 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
 
     assertNotNull(actualResults);
     assertEquals(1, actualResults.size());
-    assertEquals("home decoration", actualResults.get(0).key);
+    assertEquals("2", actualResults.get(0).key);
     assertEquals(2, actualResults.get(0).value);
   }
 
@@ -89,9 +95,9 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
 
     assertNotNull(actualResults);
     assertEquals(2, actualResults.size());
-    assertEquals("lowe's home improvement", actualResults.get(0).key);
+    assertEquals("1", actualResults.get(0).key);
     assertEquals(4, actualResults.get(0).value);
-    assertEquals("home depot", actualResults.get(1).key);
+    assertEquals("0", actualResults.get(1).key);
     assertEquals(1, actualResults.get(1).value);
   }
 
@@ -101,9 +107,9 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
 
     assertNotNull(actualResults);
     assertEquals(2, actualResults.size());
-    assertEquals("lowe's home improvement", actualResults.get(0).key);
+    assertEquals("1", actualResults.get(0).key);
     assertEquals(4, actualResults.get(0).value);
-    assertEquals("home decoration", actualResults.get(1).key);
+    assertEquals("2", actualResults.get(1).key);
     assertEquals(2, actualResults.get(1).value);
   }
 
@@ -114,13 +120,13 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
     assertEquals(3, actualResults.size());
 
     suggester.update(
-        new BytesRef("home decoration"),
+        new BytesRef("2"),
         Set.of(new BytesRef("home decoration"), new BytesRef("decoration")),
         Set.of(new BytesRef("9q9hfe"), new BytesRef("9q9hf")),
         10L,
         new BytesRef("new payload"));
     suggester.update(
-        new BytesRef("new home"),
+        new BytesRef("10"),
         Set.of(new BytesRef("new home"), new BytesRef("home")),
         Set.of(new BytesRef("9q9hfe"), new BytesRef("9q9hf")),
         20L,
@@ -135,13 +141,13 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
     actualResults = lookupHelper(suggester, "hom", Set.of(), 20);
     assertNotNull(actualResults);
     assertEquals(4, actualResults.size());
-    assertEquals("new home", actualResults.get(0).key);
+    assertEquals("10", actualResults.get(0).key);
     assertEquals(20, actualResults.get(0).value);
-    assertEquals("home decoration", actualResults.get(1).key);
+    assertEquals("2", actualResults.get(1).key);
     assertEquals(10, actualResults.get(1).value);
-    assertEquals("lowe's home improvement", actualResults.get(2).key);
+    assertEquals("1", actualResults.get(2).key);
     assertEquals(4, actualResults.get(2).value);
-    assertEquals("home depot", actualResults.get(3).key);
+    assertEquals("0", actualResults.get(3).key);
     assertEquals(1, actualResults.get(3).value);
   }
 
@@ -151,7 +157,7 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
     assertNotNull(actualResults);
     assertEquals(1, actualResults.size());
     assertEquals(3, actualResults.get(0).value);
-    assertEquals("shack shack", actualResults.get(0).key);
+    assertEquals("4", actualResults.get(0).key);
   }
 
   @Test(expected = RuntimeException.class)
@@ -176,9 +182,40 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
     return suggester.lookup(key, contextSet, true, count);
   }
 
-  private FromFileSuggestItemIterator createIterator(String pathString)
-      throws IOException, URISyntaxException {
-    File suggestItemFile = new File(Resources.getResource(pathString).toURI());
-    return new FromFileSuggestItemIterator(suggestItemFile, true, true);
+  private FromProtobufFileSuggestItemIterator createIterator() throws Exception {
+    File outputFile =
+        Paths.get(folder.newFolder("nrtsearch_file").toPath().toString(), "fuzzy_suggest_item.file")
+            .toFile();
+
+    List<List<String>> searchTextsList =
+        List.of(
+            List.of("home depot", "depot"),
+            List.of("lowe's home improvement", "home improvement", "improvement"),
+            List.of("home decoration", "decoration"),
+            List.of("gary danko restaurant", "danko restaurant", "restaurant"),
+            List.of("shack shack", "shack"));
+    List<String> payloads = List.of("payload1", "payload2", "payload3", "payload4", "payload5");
+    List<List<String>> contextsList =
+        List.of(
+            List.of("9q9hfe", "9q9hf"),
+            List.of("9q9hfe", "9q9hf"),
+            List.of("9q9hxb", "9q9hx"),
+            List.of("9q9hbw", "9q9hb"),
+            List.of("9q9hfe", "9q9hf"));
+    List<Long> scores = List.of(1L, 4L, 2L, 3L, 3L);
+
+    try (FileOutputStream protoFile = new FileOutputStream(outputFile)) {
+      for (int i = 0; i < searchTextsList.size(); i++) {
+        NrtsearchIndex.newBuilder()
+            .setUniqueId(i)
+            .addAllSearchTexts(searchTextsList.get(i))
+            .setScore(scores.get(i))
+            .setPayload(ByteString.copyFrom(payloads.get(i).getBytes()))
+            .addAllContexts(contextsList.get(i))
+            .build()
+            .writeDelimitedTo(protoFile);
+      }
+    }
+    return new FromProtobufFileSuggestItemIterator(outputFile, true, true);
   }
 }

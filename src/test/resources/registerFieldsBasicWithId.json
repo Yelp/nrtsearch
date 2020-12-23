@@ -4,6 +4,7 @@
     {
       "name": "doc_id",
       "type": "_ID",
+      "search": true,
       "store": true
     },
     {
