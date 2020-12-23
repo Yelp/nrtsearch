@@ -17,17 +17,21 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.google.gson.Gson;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
 
 public class ObjectFieldDef extends IndexableFieldDef {
 
   private final Gson gson;
+  private final boolean isNested;
 
   protected ObjectFieldDef(String name, Field requestField) {
     super(name, requestField);
+    this.isNested = requestField.getNested();
     gson = new Gson();
   }
 
@@ -39,6 +43,40 @@ public class ObjectFieldDef extends IndexableFieldDef {
   @Override
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {}
+
+  @Override
+  public void parseFieldWithChildren(
+      AddDocumentHandler.DocumentsContext documentsContext,
+      List<String> fieldValues,
+      List<List<String>> facetHierarchyPaths) {
+    if (!isNested) {
+      parseFieldWithChildren(documentsContext.getRootDocument(), fieldValues, facetHierarchyPaths);
+    } else {
+      List<Map<String, Object>> fieldValueMaps = new ArrayList<>();
+      fieldValues.stream()
+          .map(e -> gson.fromJson(e, Map.class))
+          .forEach(e -> fieldValueMaps.add(e));
+      List<Document> childDocuments =
+          fieldValueMaps.stream()
+              .map(e -> createChildDocument(e, facetHierarchyPaths))
+              .collect(Collectors.toList());
+      documentsContext.addChildDocuments(this.getName(), childDocuments);
+    }
+  }
+
+  /**
+   * create a new lucene document for each nested object
+   *
+   * @param fieldValue
+   * @param facetHierarchyPaths
+   * @return lucene document
+   */
+  private Document createChildDocument(
+      Map<String, Object> fieldValue, List<List<String>> facetHierarchyPaths) {
+    Document document = new Document();
+    parseFieldWithChildrenObject(document, List.of(fieldValue), facetHierarchyPaths);
+    return document;
+  }
 
   @Override
   @SuppressWarnings("unchecked")

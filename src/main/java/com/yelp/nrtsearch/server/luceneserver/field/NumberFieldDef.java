@@ -181,6 +181,12 @@ public abstract class NumberFieldDef extends IndexableFieldDef
    */
   protected abstract Number getSortMissingValue(boolean missingLast);
 
+  /**
+   * Convert the string to number
+   *
+   * @param numberString
+   * @return number value of the string
+   */
   protected Number parseNumberString(String numberString) {
     return fieldParser.apply(numberString);
   }

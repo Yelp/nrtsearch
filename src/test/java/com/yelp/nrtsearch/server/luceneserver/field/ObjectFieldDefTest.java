@@ -22,7 +22,14 @@ import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -48,6 +55,15 @@ public class ObjectFieldDefTest extends ServerTestCase {
     innerMap.put("partner_id", "abcd");
     innerMap.put("partner_name", "efg");
     map.put("partner", innerMap);
+
+    Map<String, Object> pickup1 = new HashMap<>();
+    pickup1.put("name", "AAA");
+    pickup1.put("hours", List.of(2));
+
+    Map<String, Object> pickup2 = new HashMap<>();
+    pickup2.put("name", "BBB");
+    pickup2.put("hours", List.of(3));
+
     AddDocumentRequest request =
         AddDocumentRequest.newBuilder()
             .setIndexName(name)
@@ -56,6 +72,12 @@ public class ObjectFieldDefTest extends ServerTestCase {
             .putFields(
                 "delivery_areas",
                 AddDocumentRequest.MultiValuedField.newBuilder().addValue(gson.toJson(map)).build())
+            .putFields(
+                "pickup_partners",
+                AddDocumentRequest.MultiValuedField.newBuilder()
+                    .addValue(gson.toJson(pickup1))
+                    .addValue(gson.toJson(pickup2))
+                    .build())
             .build();
     docs.add(request);
     addDocuments(docs.stream());

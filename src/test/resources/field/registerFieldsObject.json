@@ -8,6 +8,27 @@
       "storeDocValues": true
     },
     {
+      "name": "pickup_partners",
+      "type": "OBJECT",
+      "search": true,
+      "nested": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "name",
+          "type": "ATOM",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "hours",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        }
+      ]
+    },
+    {
       "name": "delivery_areas",
       "type": "OBJECT",
       "search": true,

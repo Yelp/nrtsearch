@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -45,6 +46,11 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
     return Any.newBuilder().build();
   }
 
+  /**
+   * DocumentsContext is created for each GRPC AddDocumentRequest It hold all lucene documents
+   * context for the AddDocumentRequest including root document and optional child documents if
+   * schema contains nested objects
+   */
   public static class DocumentsContext {
     private final Document rootDocument;
     private final Map<String, List<Document>> childDocuments;
@@ -60,6 +66,14 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
 
     public Map<String, List<Document>> getChildDocuments() {
       return childDocuments;
+    }
+
+    public void addChildDocuments(String key, List<Document> documents) {
+      childDocuments.put(key, documents);
+    }
+
+    public boolean hasNested() {
+      return !childDocuments.isEmpty();
     }
   }
 
@@ -147,24 +161,41 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
               Thread.currentThread().getName() + Thread.currentThread().getId()));
       Queue<Document> documents = new LinkedBlockingDeque<>();
       IndexState indexState = null;
+      ShardState shardState = null;
+      IdFieldDef idFieldDef = null;
       for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {
         try {
           indexState = globalState.getIndex(addDocumentRequest.getIndexName());
+          idFieldDef = indexState.getIdFieldDef();
+          shardState = indexState.getShard(0);
+
           DocumentsContext documentsContext =
               AddDocumentHandler.LuceneDocumentBuilder.getDocumentsContext(
                   addDocumentRequest, indexState);
-          for (Map.Entry<String, List<Document>> childDocuments :
-              documentsContext.getChildDocuments().entrySet()) {
-            documents.addAll(childDocuments.getValue());
+          if (documentsContext.hasNested()) {
+            try {
+              if (idFieldDef != null) {
+                updateNestedDocuments(documentsContext, idFieldDef, shardState);
+              } else {
+                addNestedDcouments(documentsContext, shardState);
+              }
+            } catch (IOException e) { // This exception should be caught in parent to and set
+              // responseObserver.onError(e) so client knows the job failed
+              logger.warn(
+                  String.format(
+                      "ThreadId: %s, IndexWriter.addDocuments failed",
+                      Thread.currentThread().getName() + Thread.currentThread().getId()));
+              throw new IOException(e);
+            }
+          } else {
+            documents.add(documentsContext.getRootDocument());
           }
-          documents.add(documentsContext.rootDocument);
         } catch (Exception e) {
           logger.warn("addDocuments Cancelled", e);
           throw new Exception(e); // parent thread should catch and send error back to client
         }
       }
-      ShardState shardState = indexState.getShard(0);
-      IdFieldDef idFieldDef = indexState.getIdFieldDef();
+
       try {
         if (idFieldDef != null) {
           updateDocuments(documents, idFieldDef, shardState);
@@ -185,6 +216,43 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
               Thread.currentThread().getName() + Thread.currentThread().getId(),
               shardState.writer.getMaxCompletedSequenceNumber()));
       return shardState.writer.getMaxCompletedSequenceNumber();
+    }
+
+    /**
+     * update documents with nested objects
+     *
+     * @param documentsContext
+     * @param idFieldDef
+     * @param shardState
+     * @throws IOException
+     */
+    private void updateNestedDocuments(
+        DocumentsContext documentsContext, IdFieldDef idFieldDef, ShardState shardState)
+        throws IOException {
+      List<Document> documents = new ArrayList<>();
+      for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
+        documents.addAll(e.getValue());
+      }
+      documents.add(documentsContext.getRootDocument());
+      shardState.writer.updateDocuments(
+          idFieldDef.getTerm(documentsContext.getRootDocument()), documents);
+    }
+
+    /**
+     * Add documents with nested object
+     *
+     * @param documentsContext
+     * @param shardState
+     * @throws IOException
+     */
+    private void addNestedDcouments(DocumentsContext documentsContext, ShardState shardState)
+        throws IOException {
+      List<Document> documents = new ArrayList<>();
+      for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
+        documents.addAll(e.getValue());
+      }
+      documents.add(documentsContext.getRootDocument());
+      shardState.writer.addDocuments(documents);
     }
 
     private void updateDocuments(
