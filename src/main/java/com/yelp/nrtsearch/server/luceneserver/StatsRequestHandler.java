@@ -52,14 +52,6 @@ public class StatsRequestHandler implements Handler<StatsRequest, StatsResponse>
 
   private StatsResponse process(IndexState indexState) throws IOException {
     StatsResponse.Builder statsResponseBuilder = StatsResponse.newBuilder();
-    if (indexState.shards.size() > 1) {
-      logger.error(
-          "{} shards present for index {}, unable to process more than 1 shard",
-          indexState.shards.size(),
-          indexState.name);
-      throw new IllegalStateException(
-          "Unable to get stats as more than 1 shard found for index " + indexState.name);
-    }
     for (Map.Entry<Integer, ShardState> entry : indexState.shards.entrySet()) {
       ShardState shardState = entry.getValue();
       statsResponseBuilder.setOrd(entry.getKey());
