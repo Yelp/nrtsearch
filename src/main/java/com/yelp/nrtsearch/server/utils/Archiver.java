@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.utils;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 
 public interface Archiver {
@@ -31,8 +32,8 @@ public interface Archiver {
       final String serviceName,
       final String resource,
       Path path,
-      List<String> filesToInclude,
-      List<String> parentDirectoriesToInclude)
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude)
       throws IOException;
 
   boolean blessVersion(final String serviceName, final String resource, String versionHash)

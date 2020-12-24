@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.utils;
 
+import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -93,14 +94,15 @@ public class ArchiverTest {
     String service = "testservice";
     String resource = "testresource";
     Path sourceDir = createDirWithFiles(service, resource);
+    String subDirPath = sourceDir.resolve("subDir").toString();
 
     testUploadWithParameters(service, resource, sourceDir, List.of(), List.of(), List.of());
     testUploadWithParameters(
-        service, resource, sourceDir, List.of("test1"), List.of(), List.of("test2"));
+        service, resource, sourceDir, List.of("test1"), List.of(), List.of("test2", "subDir"));
     testUploadWithParameters(
-        service, resource, sourceDir, List.of(), List.of("subDir"), List.of("test1"));
+        service, resource, sourceDir, List.of(), List.of(subDirPath), List.of("test1"));
     testUploadWithParameters(
-        service, resource, sourceDir, List.of("test1"), List.of("subDir"), List.of());
+        service, resource, sourceDir, List.of("test1"), List.of(subDirPath), List.of());
   }
 
   private void testUploadWithParameters(
@@ -126,6 +128,8 @@ public class ArchiverTest {
     assertTrue(
         TarImplTest.dirsMatch(
             actualDownloadDir.resolve(resource).toFile(), sourceDir.toFile(), ignoreVerifying));
+
+    rmDir(actualDownloadDir);
   }
 
   @Test

@@ -40,6 +40,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -169,8 +170,8 @@ public class ArchiverImpl implements Archiver {
       final String serviceName,
       final String resource,
       Path sourceDir,
-      List<String> filesToInclude,
-      List<String> parentDirectoriesToInclude)
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude)
       throws IOException {
     if (!Files.exists(sourceDir)) {
       throw new IOException(

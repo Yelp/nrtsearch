@@ -110,16 +110,45 @@ public class BackupRestoreIndexRequestHandlerTest {
   }
 
   @Test
+  public void testBackupRequestHandlerUpload_completeDirectoryBackup()
+      throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    testAddDocs.addDocuments();
+
+    backupIndex(true);
+    Path downloadPath = archiver.download("testservice", "testresource_data");
+    List<String> actual = getFiles(downloadPath);
+    List<String> expected = getFiles(Paths.get(grpcServer.getIndexDir()));
+    assertEquals(expected, actual);
+  }
+
+  @Test
   public void testBackupRequestHandlerUpload() throws IOException, InterruptedException {
     GrpcServer.TestServer testAddDocs =
         new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
     testAddDocs.addDocuments();
 
-    backupIndex();
+    backupIndex(false);
     Path downloadPath = archiver.download("testservice", "testresource_data");
     List<String> actual = getFiles(downloadPath);
     List<String> expected = getFiles(Paths.get(grpcServer.getIndexDir()));
+    expected.remove("write.lock");
+    expected.remove("write.lock");
     assertEquals(expected, actual);
+  }
+
+  @Test
+  public void testRestoreHandler_completeDirectoryBackup()
+      throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    testAddDocs.addDocuments();
+
+    backupIndex(true);
+    testAddDocs.addDocuments();
+
+    restartIndexWithRestoreAndVerify();
   }
 
   @Test
@@ -128,9 +157,13 @@ public class BackupRestoreIndexRequestHandlerTest {
         new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
     testAddDocs.addDocuments();
 
-    backupIndex();
+    backupIndex(false);
     testAddDocs.addDocuments();
 
+    restartIndexWithRestoreAndVerify();
+  }
+
+  private void restartIndexWithRestoreAndVerify() throws IOException {
     grpcServer
         .getBlockingStub()
         .stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
@@ -173,6 +206,10 @@ public class BackupRestoreIndexRequestHandlerTest {
     checkHits(secondHit);
   }
 
+  /**
+   * As compared to testRestoreHandler, this test does not add more documents after a backup and
+   * restarts index in a different way.
+   */
   @Test
   public void testSnapshotRestore() throws IOException, InterruptedException {
     GrpcServer.TestServer testAddDocs =
@@ -180,7 +217,7 @@ public class BackupRestoreIndexRequestHandlerTest {
     // 2 docs addDocuments
     testAddDocs.addDocuments();
     // Backup Index
-    backupIndex();
+    backupIndex(false);
     // stop server and remove data and state files.
     tearDownGrpcServer();
     // restart server and Index
@@ -231,7 +268,7 @@ public class BackupRestoreIndexRequestHandlerTest {
         .collect(Collectors.toList());
   }
 
-  private void backupIndex() {
+  private void backupIndex(boolean completeDirectory) {
     grpcServer
         .getBlockingStub()
         .backupIndex(
@@ -239,6 +276,7 @@ public class BackupRestoreIndexRequestHandlerTest {
                 .setIndexName("test_index")
                 .setServiceName("testservice")
                 .setResourceName("testresource")
+                .setCompleteDirectory(completeDirectory)
                 .build());
   }
 }

@@ -297,12 +297,14 @@ public class LuceneServerClient {
     blockingStub.stopIndex(StopIndexRequest.newBuilder().setIndexName(indexName).build());
   }
 
-  public void backupIndex(String indexName, String serviceName, String resourceName) {
+  public void backupIndex(
+      String indexName, String serviceName, String resourceName, boolean completeDirectory) {
     blockingStub.backupIndex(
         BackupIndexRequest.newBuilder()
             .setServiceName(serviceName)
             .setResourceName(resourceName)
             .setIndexName(indexName)
+            .setCompleteDirectory(completeDirectory)
             .build());
   }
 

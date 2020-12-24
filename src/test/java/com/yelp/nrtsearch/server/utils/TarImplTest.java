@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.utils;
 
+import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -31,6 +32,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import net.jpountz.lz4.LZ4FrameInputStream;
 import net.jpountz.lz4.LZ4FrameOutputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
@@ -93,11 +95,12 @@ public class TarImplTest {
     TarImpl tar = new TarImpl(TarImpl.CompressionMode.LZ4);
     tar.buildTar(sourceDir, destTarFile_noIncludes, List.of(), List.of());
     tar.buildTar(sourceDir, destTarFile_includeFile, List.of("test1"), List.of());
-    tar.buildTar(sourceDir, destTarFile_includeDir, List.of(), List.of("subDir"));
-    tar.buildTar(sourceDir, destTarFile_includeFileAndDir, List.of("test1"), List.of("subDir"));
+    tar.buildTar(sourceDir, destTarFile_includeDir, List.of(), List.of(subDir.toString()));
+    tar.buildTar(
+        sourceDir, destTarFile_includeFileAndDir, List.of("test1"), List.of(subDir.toString()));
 
     checkTarAndSourceDirMatch(sourceDir, destTarFile_noIncludes, List.of());
-    checkTarAndSourceDirMatch(sourceDir, destTarFile_includeFile, List.of("test2"));
+    checkTarAndSourceDirMatch(sourceDir, destTarFile_includeFile, List.of("test2", "subDir"));
     checkTarAndSourceDirMatch(sourceDir, destTarFile_includeDir, List.of("test1"));
     checkTarAndSourceDirMatch(sourceDir, destTarFile_includeFileAndDir, List.of());
   }
@@ -111,21 +114,26 @@ public class TarImplTest {
       Path destDir = tarTestBaseDirectory.resolve("test_extract");
       new TarImpl(TarImpl.CompressionMode.LZ4).extractTar(tarArchiveInputStream, destDir);
       assertTrue(dirsMatch(sourceDir.toFile(), destDir.resolve("dirToTar").toFile(), ignoreFiles));
+      rmDir(destDir);
     }
   }
 
-  static boolean dirsMatch(File file1, File file2, List<String> ignoreFiles) throws IOException {
-    if (ignoreFiles.contains(file1.getName()) || ignoreFiles.contains(file2.getName())) {
-      return true;
-    }
+  static boolean dirsMatch(File file1, File file2, List<String> ignoreFileNames)
+      throws IOException {
     if (file1.isDirectory() && file2.isDirectory()) {
-      File[] files1 = file1.listFiles();
-      File[] files2 = file2.listFiles();
-      if (files1.length != files2.length) {
+      List<File> files1 =
+          Arrays.stream(file1.listFiles())
+              .filter(file -> !ignoreFileNames.contains(file.getName()))
+              .collect(Collectors.toList());
+      List<File> files2 =
+          Arrays.stream(file2.listFiles())
+              .filter(file -> !ignoreFileNames.contains(file.getName()))
+              .collect(Collectors.toList());
+      if (files1.size() != files2.size()) {
         return false;
       }
-      for (int i = 0; i < files1.length; i++) {
-        boolean isMatch = dirsMatch(files1[i], files2[i], ignoreFiles);
+      for (int i = 0; i < files1.size(); i++) {
+        boolean isMatch = dirsMatch(files1.get(i), files2.get(i), ignoreFileNames);
         if (!isMatch) {
           return false;
         }

@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.utils;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
+import java.util.Collection;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 
@@ -35,8 +35,8 @@ public interface Tar {
   void buildTar(
       Path sourceDir,
       Path destinationFile,
-      List<String> filesToInclude,
-      List<String> parentDirectoriesToInclude)
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude)
       throws IOException;
 
   /**
@@ -47,8 +47,8 @@ public interface Tar {
   void buildTar(
       TarArchiveOutputStream tarArchiveOutputStream,
       Path sourceDir,
-      List<String> filesToInclude,
-      List<String> parentDirectoriesToInclude)
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude)
       throws IOException;
 
   CompressionMode getCompressionMode();

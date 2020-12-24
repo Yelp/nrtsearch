@@ -645,6 +645,7 @@ message BackupIndexRequest {
     string indexName = 1; //name of the index to backup
     string serviceName = 2; // remote storage namespace qualifier for service
     string resourceName = 3; //remote storage namespace qualifier for resource e.g. indexName
+    bool completeDirectory = 4; // backup complete directory including all current snapshots if true (may backup corrupt segments if backup is created while indexing is happening), otherwise only backup the required segments and segment files
 }
 
 message BackupIndexResponse {

@@ -28,11 +28,11 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Collectors;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -100,9 +100,16 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
         createBackupIndicator(indexName, snapshotId);
         LOCK.unlock();
 
-        List<String> segmentFiles = getSegmentFilesInSnapshot(indexState, snapshotId);
-        List<String> stateDirectory =
-            Collections.singletonList(indexState.getStateDirectoryPath().toString());
+        Collection<String> segmentFiles;
+        List<String> stateDirectory;
+
+        if (backupIndexRequest.getCompleteDirectory()) {
+          segmentFiles = Collections.emptyList();
+          stateDirectory = Collections.emptyList();
+        } else {
+          segmentFiles = getSegmentFilesInSnapshot(indexState, snapshotId);
+          stateDirectory = Collections.singletonList(indexState.getStateDirectoryPath().toString());
+        }
 
         uploadArtifacts(
             backupIndexRequest.getServiceName(),
@@ -133,7 +140,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     return backupIndexResponseBuilder.build();
   }
 
-  private List<String> getSegmentFilesInSnapshot(IndexState indexState, SnapshotId snapshotId)
+  private Collection<String> getSegmentFilesInSnapshot(IndexState indexState, SnapshotId snapshotId)
       throws IOException {
     String snapshotIdAsString = CreateSnapshotHandler.getSnapshotIdAsString(snapshotId);
     IndexState.Gens snapshot = new IndexState.Gens(snapshotIdAsString);
@@ -153,16 +160,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       throw new IllegalStateException("Unable to find segments to backup");
     }
     StandardDirectoryReader standardDirectoryReader = (StandardDirectoryReader) indexReader;
-    return standardDirectoryReader.getSegmentInfos().asList().stream()
-        .flatMap(
-            segmentCommitInfo -> {
-              try {
-                return segmentCommitInfo.files().stream();
-              } catch (IOException e) {
-                throw new IllegalStateException("Unable to find segments to backup", e);
-              }
-            })
-        .collect(Collectors.toList());
+    return standardDirectoryReader.getSegmentInfos().files(true);
   }
 
   public boolean wasBackupPotentiallyInterrupted() {
@@ -275,8 +273,8 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       String resourceName,
       IndexState indexState,
       BackupIndexResponse.Builder backupIndexResponseBuilder,
-      List<String> filesToInclude,
-      List<String> parentDirectoriesToInclude)
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude)
       throws IOException {
     String resourceData = IndexBackupUtils.getResourceData(resourceName);
     String versionHash =
