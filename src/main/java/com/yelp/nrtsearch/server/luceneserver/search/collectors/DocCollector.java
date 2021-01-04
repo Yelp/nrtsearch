@@ -18,20 +18,52 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 
-/** Interface for classes to manage the collection of documents when executing queries. */
-public interface DocCollector {
+/** Abstract base for classes that manage the collection of documents when executing queries. */
+public abstract class DocCollector {
+
+  private final SearchRequest request;
+  private final int numHitsToCollect;
+  private boolean hadTimeout = false;
+
+  public DocCollector(SearchRequest request) {
+    this.request = request;
+
+    // determine how many hits to collect based on request and facets
+    int collectHits = request.getTopHits();
+    for (Facet facet : request.getFacetsList()) {
+      int facetSample = facet.getSampleTopDocs();
+      if (facetSample > 0 && facetSample > collectHits) {
+        collectHits = facetSample;
+      }
+    }
+    numHitsToCollect = collectHits;
+  }
 
   /**
-   * Get a lucene level {@link CollectorManager}. This will be passed to {@link
-   * org.apache.lucene.search.IndexSearcher#search(Query, CollectorManager)}.
+   * Get the {@link CollectorManager} to use during search with any required wrapping, such as
+   * timeout handling.
    */
-  CollectorManager<? extends Collector, ? extends TopDocs> getManager();
+  public CollectorManager<? extends Collector, ? extends TopDocs> getWrappedManager() {
+    return wrapManager(getManager());
+  }
+
+  /**
+   * Get if the search operation performed with the last manager returned from {@link
+   * #getWrappedManager()} timed out. This flag is reset to false on each call to {@link
+   * #getWrappedManager()}.
+   */
+  public boolean hadTimeout() {
+    return hadTimeout;
+  }
+
+  /** Get a lucene level {@link CollectorManager} to rank document for search. */
+  public abstract CollectorManager<? extends Collector, ? extends TopDocs> getManager();
 
   /**
    * Fill the response hit for the given {@link ScoreDoc}. This method is expected to fill the
@@ -41,7 +73,7 @@ public interface DocCollector {
    * @param hitResponse hit response message
    * @param scoreDoc doc from lucene query
    */
-  void fillHitRanking(SearchResponse.Hit.Builder hitResponse, ScoreDoc scoreDoc);
+  public abstract void fillHitRanking(SearchResponse.Hit.Builder hitResponse, ScoreDoc scoreDoc);
 
   /**
    * Add information on the last hit into the search response.
@@ -49,24 +81,39 @@ public interface DocCollector {
    * @param stateBuilder state message returned in response
    * @param lastHit last hit document
    */
-  void fillLastHit(SearchResponse.SearchState.Builder stateBuilder, ScoreDoc lastHit);
+  public abstract void fillLastHit(
+      SearchResponse.SearchState.Builder stateBuilder, ScoreDoc lastHit);
 
   /**
    * Get the maximum number of hits that should be collected during ranking. This value will at
    * least be as large as the query specified top hits, and may be larger if doing a facet sample
    * aggregation requiring a greater number of top docs.
    *
-   * @param request search request
    * @return total top docs needed for query response and sample facets
    */
-  default int getNumHitsToCollect(SearchRequest request) {
-    int collectHits = request.getTopHits();
-    for (Facet facet : request.getFacetsList()) {
-      int facetSample = facet.getSampleTopDocs();
-      if (facetSample > 0 && facetSample > collectHits) {
-        collectHits = facetSample;
-      }
+  int getNumHitsToCollect() {
+    return numHitsToCollect;
+  }
+
+  /**
+   * Wrap a base {@link CollectorManager} with additional functionality, such as timeout handling.
+   *
+   * @param manager base manager
+   * @param <C> collector type for base manager
+   * @param <T> top docs type for base manager
+   * @return wrapped manager, or base manager if no wrapping is required
+   */
+  <C extends Collector, T extends TopDocs>
+      CollectorManager<? extends Collector, ? extends TopDocs> wrapManager(
+          CollectorManager<C, T> manager) {
+    if (request.getTimeoutSec() > 0.0) {
+      hadTimeout = false;
+      return new SearchCutoffWrapper<>(
+          manager,
+          request.getTimeoutSec(),
+          request.getDisallowPartialResults(),
+          () -> hadTimeout = true);
     }
-    return collectHits;
+    return manager;
   }
 }

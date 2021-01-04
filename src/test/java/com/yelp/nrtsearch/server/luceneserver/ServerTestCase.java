@@ -195,7 +195,8 @@ public class ServerTestCase {
   private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
+        LuceneServerTestConfigurationFactory.getConfig(
+            Mode.STANDALONE, folder.getRoot(), getExtraConfig());
     globalState = new GlobalState(luceneServerConfiguration);
     return new GrpcServer(
         collectorRegistry,
@@ -247,5 +248,9 @@ public class ServerTestCase {
 
   protected List<Plugin> getPlugins() {
     return Collections.emptyList();
+  }
+
+  protected String getExtraConfig() {
+    return "";
   }
 }

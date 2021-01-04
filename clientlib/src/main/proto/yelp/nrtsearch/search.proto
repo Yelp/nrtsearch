@@ -231,6 +231,7 @@ message SearchRequest {
     int32 totalHitsThreshold = 13; //By default we count hits accurately up to 1000. This makes sure that we don't spend most time on computing hit counts
     repeated Facet facets = 14; // Which facets to retrieve
     repeated FetchTask fetchTasks = 15; //Any custom tasks that should be performed on top documents after ranking
+    bool disallowPartialResults = 16; //Should partial result be a failure condition. Applies when a search request times out. If false, the top documents ranking at the point of timeout are used and the request continues. Also, hitTimeout is set to true in the response.
 }
 
 /* Virtual field used during search */

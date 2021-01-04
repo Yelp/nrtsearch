@@ -32,6 +32,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,7 +57,6 @@ import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -109,8 +109,20 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 grpcFacetResults,
                 threadPoolExecutor);
         DrillSideways.ConcurrentDrillSidewaysResult<? extends TopDocs>
-            concurrentDrillSidewaysResult =
-                drillS.search(ddq, searchContext.getCollector().getManager());
+            concurrentDrillSidewaysResult;
+        try {
+          concurrentDrillSidewaysResult =
+              drillS.search(ddq, searchContext.getCollector().getWrappedManager());
+        } catch (RuntimeException e) {
+          // Searching with DrillSideways wraps exceptions in a few layers.
+          // Try to find if this was caused by a timeout, if so, re-wrap
+          // so that the top level exception is the same as when not using facets.
+          CollectionTimeoutException timeoutException = findTimeoutException(e);
+          if (timeoutException != null) {
+            throw new CollectionTimeoutException(timeoutException.getMessage(), e);
+          }
+          throw e;
+        }
         hits = concurrentDrillSidewaysResult.collectorResult;
         searchContext.getResponseBuilder().addAllFacetResult(grpcFacetResults);
         searchContext
@@ -119,15 +131,12 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 FacetTopDocs.facetTopDocsSample(
                     hits, searchRequest.getFacetsList(), indexState, s.searcher));
       } else {
-        try {
-          hits =
-              s.searcher.search(
-                  searchContext.getQuery(), searchContext.getCollector().getManager());
-        } catch (TimeLimitingCollector.TimeExceededException tee) {
-          searchContext.getResponseBuilder().setHitTimeout(true);
-          return searchContext.getResponseBuilder().build();
-        }
+        hits =
+            s.searcher.search(
+                searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
       }
+
+      searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
 
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 
@@ -615,5 +624,20 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     public SearchHandlerException(String message, Throwable err) {
       super(message, err);
     }
+  }
+
+  /**
+   * Find an instance of {@link CollectionTimeoutException} in the cause path of an exception.
+   *
+   * @return found exception instance or null
+   */
+  private static CollectionTimeoutException findTimeoutException(Throwable e) {
+    if (e instanceof CollectionTimeoutException) {
+      return (CollectionTimeoutException) e;
+    }
+    if (e.getCause() != null) {
+      return findTimeoutException(e.getCause());
+    }
+    return null;
   }
 }
