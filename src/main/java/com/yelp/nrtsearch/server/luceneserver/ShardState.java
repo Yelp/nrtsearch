@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValueType;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.StatusRuntimeException;
 import java.io.Closeable;
@@ -429,6 +430,49 @@ public class ShardState implements Closeable {
     }
   }
 
+  /**
+   * Factory class that produces a new searcher for each {@link IndexReader} version. Sets field
+   * similarity and handles any eager global ordinal loading.
+   */
+  private class ShardSearcherFactory extends SearcherFactory {
+    private final boolean loadEagerOrdinals;
+
+    /**
+     * Constructor.
+     *
+     * @param loadEagerOrdinals is eager global ordinal loading enabled, not needed for primary
+     */
+    ShardSearcherFactory(boolean loadEagerOrdinals) {
+      this.loadEagerOrdinals = loadEagerOrdinals;
+    }
+
+    @Override
+    public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader)
+        throws IOException {
+      IndexSearcher searcher = new MyIndexSearcher(reader, searchExecutor);
+      searcher.setSimilarity(indexState.sim);
+      if (loadEagerOrdinals) {
+        loadEagerGlobalOrdinals(reader);
+      }
+      return searcher;
+    }
+
+    private void loadEagerGlobalOrdinals(IndexReader reader) throws IOException {
+      for (Map.Entry<String, FieldDef> entry : indexState.eagerGlobalOrdinalFields.entrySet()) {
+        // only sorted set doc values facet currently supported
+        if (entry.getValue().getFacetValueType() == FacetValueType.SORTED_SET_DOC_VALUES) {
+          // get state to populate cache
+          getSSDVStateForReader(reader, entry.getValue());
+        } else {
+          logger.warn(
+              String.format(
+                  "Field: %s, facet type: %s, does not support eager global ordinals",
+                  entry.getKey(), entry.getValue().getFacetValueType().toString()));
+        }
+      }
+    }
+  }
+
   /** Start this shard as standalone (not primary nor replica) */
   public synchronized void start() throws Exception {
 
@@ -533,19 +577,7 @@ public class ShardState implements Closeable {
       // nocommit must also pull snapshots for taxoReader?
 
       manager =
-          new SearcherTaxonomyManager(
-              writer,
-              true,
-              new SearcherFactory() {
-                @Override
-                public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader)
-                    throws IOException {
-                  IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
-                  searcher.setSimilarity(indexState.sim);
-                  return searcher;
-                }
-              },
-              taxoWriter);
+          new SearcherTaxonomyManager(writer, true, new ShardSearcherFactory(true), taxoWriter);
 
       restartReopenThread();
 
@@ -667,15 +699,7 @@ public class ShardState implements Closeable {
               0,
               primaryGen,
               -1,
-              new SearcherFactory() {
-                @Override
-                public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader)
-                    throws IOException {
-                  IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
-                  searcher.setSimilarity(indexState.sim);
-                  return searcher;
-                }
-              },
+              new ShardSearcherFactory(false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()));
       // Enable merges
       writerConfig.setMergePolicy(mergePolicy);
@@ -713,7 +737,7 @@ public class ShardState implements Closeable {
     }
   }
 
-  private IndexReader.ClosedListener removeSSDVStates =
+  private final IndexReader.ClosedListener removeSSDVStates =
       cacheKey -> {
         synchronized (ssdvStates) {
           ssdvStates.remove(cacheKey);
@@ -732,13 +756,18 @@ public class ShardState implements Closeable {
 
   public SortedSetDocValuesReaderState getSSDVState(
       SearcherTaxonomyManager.SearcherAndTaxonomy s, FieldDef fd) throws IOException {
+    return getSSDVStateForReader(s.searcher.getIndexReader(), fd);
+  }
+
+  public SortedSetDocValuesReaderState getSSDVStateForReader(IndexReader reader, FieldDef fd)
+      throws IOException {
     FacetsConfig.DimConfig dimConfig = indexState.facetsConfig.getDimConfig(fd.getName());
-    IndexReader reader = s.searcher.getIndexReader();
     synchronized (ssdvStates) {
-      Map<String, SortedSetDocValuesReaderState> readerSSDVStates = ssdvStates.get(reader);
+      IndexReader.CacheKey cacheKey = reader.getReaderCacheHelper().getKey();
+      Map<String, SortedSetDocValuesReaderState> readerSSDVStates = ssdvStates.get(cacheKey);
       if (readerSSDVStates == null) {
         readerSSDVStates = new HashMap<>();
-        ssdvStates.put(reader.getReaderCacheHelper().getKey(), readerSSDVStates);
+        ssdvStates.put(cacheKey, readerSSDVStates);
         reader.getReaderCacheHelper().addClosedListener(removeSSDVStates);
       }
 
@@ -875,15 +904,7 @@ public class ShardState implements Closeable {
               hostPort,
               REPLICA_ID,
               indexDir,
-              new SearcherFactory() {
-                @Override
-                public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader)
-                    throws IOException {
-                  IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
-                  searcher.setSimilarity(indexState.sim);
-                  return searcher;
-                }
-              },
+              new ShardSearcherFactory(true),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               primaryGen);
 

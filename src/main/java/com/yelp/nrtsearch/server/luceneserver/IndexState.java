@@ -532,6 +532,11 @@ public class IndexState implements Closeable, Restorable {
 
   public final FacetsConfig facetsConfig = new FacetsConfig();
 
+  /**
+   * Fields using facets with global ordinals that should be loaded up front with each new reader
+   */
+  public final Map<String, FieldDef> eagerGlobalOrdinalFields = new ConcurrentHashMap<>();
+
   /** {@link Bindings} to pass when evaluating expressions. */
   public final Bindings exprBindings = new FieldDefBindings(fields);
 
@@ -804,6 +809,10 @@ public class IndexState implements Closeable, Restorable {
           && facetValueType != IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
         internalFacetFieldNames.add(facetsConfig.getDimConfig(fd.getName()).indexFieldName);
       }
+    }
+    // register fields that need global ordinals created up front
+    if (fd.getEagerGlobalOrdinals()) {
+      eagerGlobalOrdinalFields.put(fd.getName(), fd);
     }
     if (fd instanceof IdFieldDef) {
       idFieldDef = (IdFieldDef) fd;

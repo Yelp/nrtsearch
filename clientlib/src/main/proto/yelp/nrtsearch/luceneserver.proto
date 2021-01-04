@@ -432,6 +432,7 @@ message Field {
     google.protobuf.Struct additionalProperties = 24; // Additional info needed to configure field, used for CUSTOM types.
     google.protobuf.Struct similarityParams = 25; // Parameters for similarity implementation.
     repeated Field childFields = 26; // Child fields accessible by dot notation, index same data as parent
+    bool eagerGlobalOrdinals = 27; // Compute facet global ordinals for this field up front, otherwise this is done lazily on first query. Currently only for SORTED_SET_DOC_VALUES facet type.
 }
 
 /* Input to registerFields */
