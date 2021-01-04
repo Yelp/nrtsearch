@@ -36,15 +36,16 @@ import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 
 /** Collector for getting documents ranked by sorting fields. */
-public class SortFieldCollector implements DocCollector {
+public class SortFieldCollector extends DocCollector {
 
   private final CollectorManager<TopFieldCollector, TopFieldDocs> manager;
   private final Sort sort;
   private final List<String> sortNames;
 
   public SortFieldCollector(Map<String, FieldDef> queryFields, SearchRequest searchRequest) {
+    super(searchRequest);
     FieldDoc searchAfter = null;
-    int topHits = getNumHitsToCollect(searchRequest);
+    int topHits = getNumHitsToCollect();
     int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
     if (searchRequest.getTotalHitsThreshold() != 0) {
       totalHitsThreshold = searchRequest.getTotalHitsThreshold();

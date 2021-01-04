@@ -25,12 +25,13 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 
 /** Collector for getting a large number of documents ranked by relevance score. */
-public class LargeNumHitsCollector implements DocCollector {
+public class LargeNumHitsCollector extends DocCollector {
 
   private final CollectorManager<LargeNumHitsTopDocsCollector, TopDocs> manager;
 
   public LargeNumHitsCollector(SearchRequest searchRequest) {
-    int topHits = getNumHitsToCollect(searchRequest);
+    super(searchRequest);
+    int topHits = getNumHitsToCollect();
     manager = LargeNumHitsTopDocsCollectorManagerCreator.createSharedManager(topHits);
   }
 

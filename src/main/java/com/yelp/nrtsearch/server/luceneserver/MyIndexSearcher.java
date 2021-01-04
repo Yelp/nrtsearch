@@ -117,7 +117,14 @@ public class MyIndexSearcher extends IndexSearcher {
       // we force the use of Scorer (not BulkScorer) to make sure
       // that the scorer passed to LeafCollector.setScorer supports
       // Scorer.getChildren
-      final LeafCollector leafCollector = collector.getLeafCollector(ctx);
+      final LeafCollector leafCollector;
+      try {
+        leafCollector = collector.getLeafCollector(ctx);
+      } catch (CollectionTerminatedException e) {
+        // there is no doc of interest in this reader context
+        // continue with the following leaf
+        continue;
+      }
       if (weight.getQuery().toString().contains("DrillSidewaysQuery")) {
         BulkScorer scorer = weight.bulkScorer(ctx);
         if (scorer != null) {
@@ -134,10 +141,15 @@ public class MyIndexSearcher extends IndexSearcher {
           leafCollector.setScorer(scorer);
           final Bits liveDocs = ctx.reader().getLiveDocs();
           final DocIdSetIterator it = scorer.iterator();
-          for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
-            if (liveDocs == null || liveDocs.get(doc)) {
-              leafCollector.collect(doc);
+          try {
+            for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
+              if (liveDocs == null || liveDocs.get(doc)) {
+                leafCollector.collect(doc);
+              }
             }
+          } catch (CollectionTerminatedException e) {
+            // collection was terminated prematurely
+            // continue with the following leaf
           }
         }
       }

@@ -2057,6 +2057,9 @@
             "$ref": "#/definitions/luceneserverField"
           }
         },
+        "eagerGlobalOrdinals": {
+          "type": "boolean"
+        },
         "nested": {
           "type": "boolean"
         }
@@ -2912,6 +2915,9 @@
           "items": {
             "$ref": "#/definitions/luceneserverFetchTask"
           }
+        },
+        "disallowPartialResults": {
+          "type": "boolean"
         }
       }
     },

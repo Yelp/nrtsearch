@@ -27,13 +27,14 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 
 /** Collector for getting documents ranked by relevance score. */
-public class RelevanceCollector implements DocCollector {
+public class RelevanceCollector extends DocCollector {
 
   private final CollectorManager<TopScoreDocCollector, TopDocs> manager;
 
   public RelevanceCollector(SearchRequest searchRequest) {
+    super(searchRequest);
     FieldDoc searchAfter = null;
-    int topHits = getNumHitsToCollect(searchRequest);
+    int topHits = getNumHitsToCollect();
     int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
     if (searchRequest.getTotalHitsThreshold() != 0) {
       totalHitsThreshold = searchRequest.getTotalHitsThreshold();

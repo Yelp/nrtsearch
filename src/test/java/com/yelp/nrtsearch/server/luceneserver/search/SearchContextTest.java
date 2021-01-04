@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.search;
 
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
@@ -38,7 +39,11 @@ public class SearchContextTest extends ServerTestCase {
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
-  public static class DummyCollector implements DocCollector {
+  public static class DummyCollector extends DocCollector {
+
+    public DummyCollector() {
+      super(SearchRequest.newBuilder().build());
+    }
 
     @Override
     public CollectorManager<? extends Collector, ? extends TopDocs> getManager() {

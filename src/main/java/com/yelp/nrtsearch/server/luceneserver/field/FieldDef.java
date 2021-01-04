@@ -45,6 +45,14 @@ public abstract class FieldDef implements Closeable {
    */
   public abstract IndexableFieldDef.FacetValueType getFacetValueType();
 
+  /**
+   * Get if the global ordinals for this field should be created up front with each new {@link
+   * org.apache.lucene.index.IndexReader}. Only supported for SORTED_SET_DOC_VALUES facet type.
+   */
+  public boolean getEagerGlobalOrdinals() {
+    return false;
+  }
+
   @Override
   public void close() {}
 }

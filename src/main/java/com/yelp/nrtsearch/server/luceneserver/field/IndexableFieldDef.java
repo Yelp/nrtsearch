@@ -54,6 +54,7 @@ public abstract class IndexableFieldDef extends FieldDef {
 
   protected final DocValuesType docValuesType;
   protected final IndexableFieldDef.FacetValueType facetValueType;
+  protected final boolean eagerGlobalOrdinals;
   protected final FieldType fieldType;
 
   /**
@@ -80,6 +81,7 @@ public abstract class IndexableFieldDef extends FieldDef {
     fieldType.freeze();
 
     facetValueType = parseFacetValueType(requestField);
+    eagerGlobalOrdinals = requestField.getEagerGlobalOrdinals();
 
     postingsFormat =
         requestField.getPostingsFormat().isEmpty()
@@ -228,6 +230,11 @@ public abstract class IndexableFieldDef extends FieldDef {
   @Override
   public FacetValueType getFacetValueType() {
     return facetValueType;
+  }
+
+  @Override
+  public boolean getEagerGlobalOrdinals() {
+    return eagerGlobalOrdinals;
   }
 
   /**
