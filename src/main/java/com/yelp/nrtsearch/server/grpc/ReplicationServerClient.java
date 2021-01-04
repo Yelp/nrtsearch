@@ -258,4 +258,9 @@ public class ReplicationServerClient implements Closeable {
       return null;
     }
   }
+
+  @Override
+  public String toString() {
+    return String.format("ReplicationServerClient(%s:%s)", host, port);
+  }
 }
