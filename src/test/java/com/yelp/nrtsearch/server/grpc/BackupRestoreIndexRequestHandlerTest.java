@@ -133,6 +133,8 @@ public class BackupRestoreIndexRequestHandlerTest {
     Path downloadPath = archiver.download("testservice", "testresource_data");
     List<String> actual = getFiles(downloadPath);
     List<String> expected = getFiles(Paths.get(grpcServer.getIndexDir()));
+    // There are two write.lock files, one under ../test_index/shard0/taxonomy and another one under
+    // ../test_index/shard0/index
     expected.remove("write.lock");
     expected.remove("write.lock");
     assertEquals(expected, actual);

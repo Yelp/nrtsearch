@@ -151,16 +151,23 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
               indexState.shards.size(), indexState.name));
     }
     ShardState state = indexState.shards.entrySet().iterator().next().getValue();
-    SearcherTaxonomyManager.SearcherAndTaxonomy s = state.acquire();
-    IndexReader indexReader =
-        DirectoryReader.openIfChanged(
-            (DirectoryReader) s.searcher.getIndexReader(),
-            state.snapshots.getIndexCommit(snapshot.indexGen));
-    if (!(indexReader instanceof StandardDirectoryReader)) {
-      throw new IllegalStateException("Unable to find segments to backup");
+    SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy = null;
+    try {
+      searcherAndTaxonomy = state.acquire();
+      IndexReader indexReader =
+          DirectoryReader.openIfChanged(
+              (DirectoryReader) searcherAndTaxonomy.searcher.getIndexReader(),
+              state.snapshots.getIndexCommit(snapshot.indexGen));
+      if (!(indexReader instanceof StandardDirectoryReader)) {
+        throw new IllegalStateException("Unable to find segments to backup");
+      }
+      StandardDirectoryReader standardDirectoryReader = (StandardDirectoryReader) indexReader;
+      return standardDirectoryReader.getSegmentInfos().files(true);
+    } finally {
+      if (searcherAndTaxonomy != null) {
+        state.release(searcherAndTaxonomy);
+      }
     }
-    StandardDirectoryReader standardDirectoryReader = (StandardDirectoryReader) indexReader;
-    return standardDirectoryReader.getSegmentInfos().files(true);
   }
 
   public boolean wasBackupPotentiallyInterrupted() {
