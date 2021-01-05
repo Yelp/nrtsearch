@@ -2059,6 +2059,9 @@
         },
         "eagerGlobalOrdinals": {
           "type": "boolean"
+        },
+        "nestedDoc": {
+          "type": "boolean"
         }
       }
     },
@@ -2102,7 +2105,8 @@
         "INTERNAL",
         "CUSTOM",
         "_ID",
-        "POLYGON"
+        "POLYGON",
+        "OBJECT"
       ],
       "default": "ATOM",
       "description": "- VIRTUAL: TODO name this \"dynamic\" instead of \"virtual\"?\n - INTERNAL: TODO need tests for internal:",

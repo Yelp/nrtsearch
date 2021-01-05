@@ -45,6 +45,7 @@ public class FieldDefCreator {
     register("LAT_LON", LatLonFieldDef::new);
     register("POLYGON", PolygonfieldDef::new);
     register("DATE_TIME", DateTimeFieldDef::new);
+    register("OBJECT", ObjectFieldDef::new);
     register("_ID", IdFieldDef::new);
     // It would be nice for this to be the factory for virtual fields too,
     // but javascript expression compilation depends on fields that are not

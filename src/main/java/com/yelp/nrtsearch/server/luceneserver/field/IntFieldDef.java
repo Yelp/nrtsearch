@@ -126,4 +126,16 @@ public class IntFieldDef extends NumberFieldDef {
     textValues.forEach((s) -> intTerms.add(Integer.parseInt(s)));
     return IntPoint.newSetQuery(getName(), intTerms);
   }
+
+  @Override
+  protected Number parseNumberString(String numberString) {
+    // Integer::valueOf will fail for cases like 1.0
+    // GSON will convert all numbers to float during deserialization
+    // for cases like 1.0, use double parser to parse the value
+    if (numberString.indexOf('.') == -1) {
+      return super.parseNumberString(numberString);
+    } else {
+      return DOUBLE_PARSER.apply(numberString).intValue();
+    }
+  }
 }

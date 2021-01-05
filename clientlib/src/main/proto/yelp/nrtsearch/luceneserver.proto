@@ -375,6 +375,7 @@ enum FieldType {
     CUSTOM = 11; // Field type specified by name.
     _ID = 12; // Field which will be used as document IDs
     POLYGON = 13; // Geojson string for polygon
+    OBJECT = 14; // JSON
 }
 
 //How the tokens should be indexed.
@@ -432,7 +433,9 @@ message Field {
     google.protobuf.Struct additionalProperties = 24; // Additional info needed to configure field, used for CUSTOM types.
     google.protobuf.Struct similarityParams = 25; // Parameters for similarity implementation.
     repeated Field childFields = 26; // Child fields accessible by dot notation, index same data as parent
+
     bool eagerGlobalOrdinals = 27; // Compute facet global ordinals for this field up front, otherwise this is done lazily on first query. Currently only for SORTED_SET_DOC_VALUES facet type.
+    bool nestedDoc = 28; // True if object data should be indexed as child documents
 }
 
 /* Input to registerFields */
