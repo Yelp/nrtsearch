@@ -40,6 +40,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -165,7 +166,12 @@ public class ArchiverImpl implements Archiver {
   }
 
   @Override
-  public String upload(final String serviceName, final String resource, Path sourceDir)
+  public String upload(
+      final String serviceName,
+      final String resource,
+      Path sourceDir,
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude)
       throws IOException {
     if (!Files.exists(sourceDir)) {
       throw new IOException(
@@ -180,7 +186,7 @@ public class ArchiverImpl implements Archiver {
     }
     Path destPath = archiverDirectory.resolve(getTmpName());
     try {
-      tar.buildTar(sourceDir, destPath);
+      tar.buildTar(sourceDir, destPath, filesToInclude, parentDirectoriesToInclude);
       String versionHash = UUID.randomUUID().toString();
       uploadTarWithMetadata(serviceName, resource, versionHash, destPath);
       return versionHash;

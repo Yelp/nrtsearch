@@ -17,12 +17,24 @@ package com.yelp.nrtsearch.server.utils;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 
 public interface Archiver {
   Path download(final String serviceName, final String resource) throws IOException;
 
-  String upload(final String serviceName, final String resource, Path path) throws IOException;
+  /**
+   * Upload the directory and files at the provided path. If either filesToInclude or
+   * parentDirectoriesToInclude or both are provided only the specified files or files in specified
+   * directories or both would be uploaded.
+   */
+  String upload(
+      final String serviceName,
+      final String resource,
+      Path path,
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude)
+      throws IOException;
 
   boolean blessVersion(final String serviceName, final String resource, String versionHash)
       throws IOException;

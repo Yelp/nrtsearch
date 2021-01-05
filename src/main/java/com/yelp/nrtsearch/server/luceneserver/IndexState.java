@@ -446,7 +446,7 @@ public class IndexState implements Closeable, Restorable {
   void initSaveLoadState() throws IOException {
     Path stateDirFile;
     if (rootDir != null) {
-      stateDirFile = rootDir.resolve("state");
+      stateDirFile = getStateDirectoryPath();
       // if (!stateDirFile.exists()) {
       // stateDirFile.mkdirs();
       // }
@@ -472,6 +472,10 @@ public class IndexState implements Closeable, Restorable {
     if (priorState != null) {
       load(priorState.getAsJsonObject("state"));
     }
+  }
+
+  public Path getStateDirectoryPath() {
+    return rootDir.resolve("state");
   }
 
   /** Load all previously saved state. */
@@ -1128,7 +1132,12 @@ public class IndexState implements Closeable, Restorable {
     /** Snapshot id. */
     public final String id;
 
-    /** Sole constructor. */
+    /** Initialize with an id * */
+    public Gens(String id) {
+      this(id, "id");
+    }
+
+    /** Initialize with a custom param (which is unused) */
     public Gens(String id, String param) {
       this.id = id;
       final String[] gens = id.split(":");
