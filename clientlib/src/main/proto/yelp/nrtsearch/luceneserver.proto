@@ -435,7 +435,7 @@ message Field {
     repeated Field childFields = 26; // Child fields accessible by dot notation, index same data as parent
 
     bool eagerGlobalOrdinals = 27; // Compute facet global ordinals for this field up front, otherwise this is done lazily on first query. Currently only for SORTED_SET_DOC_VALUES facet type.
-    bool nestedDoc = 28; // True if object data should be indexed as child documents
+    bool nested = 28; // True if object data should be indexed as child documents
 }
 
 /* Input to registerFields */
