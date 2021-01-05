@@ -27,11 +27,11 @@ import org.apache.lucene.document.Document;
 public class ObjectFieldDef extends IndexableFieldDef {
 
   private final Gson gson;
-  private final boolean isNested;
+  private final boolean isNestedDoc;
 
   protected ObjectFieldDef(String name, Field requestField) {
     super(name, requestField);
-    this.isNested = requestField.getNested();
+    this.isNestedDoc = requestField.getNestedDoc();
     gson = new Gson();
   }
 
@@ -49,7 +49,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
       AddDocumentHandler.DocumentsContext documentsContext,
       List<String> fieldValues,
       List<List<String>> facetHierarchyPaths) {
-    if (!isNested) {
+    if (!isNestedDoc) {
       parseFieldWithChildren(documentsContext.getRootDocument(), fieldValues, facetHierarchyPaths);
     } else {
       List<Map<String, Object>> fieldValueMaps = new ArrayList<>();

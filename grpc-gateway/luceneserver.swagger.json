@@ -2060,7 +2060,7 @@
         "eagerGlobalOrdinals": {
           "type": "boolean"
         },
-        "nested": {
+        "nestedDoc": {
           "type": "boolean"
         }
       }
