@@ -175,10 +175,15 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
           if (documentsContext.hasNested()) {
             try {
               if (idFieldDef != null) {
+                // update documents in the queue to keep order
+                updateDocuments(documents, idFieldDef, shardState);
                 updateNestedDocuments(documentsContext, idFieldDef, shardState);
               } else {
-                addNestedDcouments(documentsContext, shardState);
+                // add documents in the queue to keep order
+                addDocuments(documents, shardState);
+                addNestedDocuments(documentsContext, shardState);
               }
+              documents.clear();
             } catch (IOException e) { // This exception should be caught in parent to and set
               // responseObserver.onError(e) so client knows the job failed
               logger.warn(
@@ -231,11 +236,15 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
         throws IOException {
       List<Document> documents = new ArrayList<>();
       for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
-        documents.addAll(e.getValue());
+        documents.addAll(
+            e.getValue().stream()
+                .map(v -> handleFacets(shardState, v))
+                .collect(Collectors.toList()));
       }
-      documents.add(documentsContext.getRootDocument());
+      Document rootDoc = handleFacets(shardState, documentsContext.getRootDocument());
+      documents.add(rootDoc);
       shardState.writer.updateDocuments(
-          idFieldDef.getTerm(documentsContext.getRootDocument()), documents);
+          idFieldDef.getTerm(handleFacets(shardState, rootDoc)), documents);
     }
 
     /**
@@ -245,13 +254,17 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
      * @param shardState
      * @throws IOException
      */
-    private void addNestedDcouments(DocumentsContext documentsContext, ShardState shardState)
+    private void addNestedDocuments(DocumentsContext documentsContext, ShardState shardState)
         throws IOException {
       List<Document> documents = new ArrayList<>();
       for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
-        documents.addAll(e.getValue());
+        documents.addAll(
+            e.getValue().stream()
+                .map(v -> handleFacets(shardState, v))
+                .collect(Collectors.toList()));
       }
-      documents.add(documentsContext.getRootDocument());
+      Document rootDoc = handleFacets(shardState, documentsContext.getRootDocument());
+      documents.add(rootDoc);
       shardState.writer.addDocuments(documents);
     }
 

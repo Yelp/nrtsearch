@@ -11,7 +11,7 @@
       "name": "pickup_partners",
       "type": "OBJECT",
       "search": true,
-      "nested": true,
+      "nestedDoc": true,
       "multiValued": true,
       "childFields": [
         {
