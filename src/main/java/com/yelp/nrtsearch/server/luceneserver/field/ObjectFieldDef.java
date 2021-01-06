@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.StringField;
 
 public class ObjectFieldDef extends IndexableFieldDef {
 
@@ -75,6 +76,11 @@ public class ObjectFieldDef extends IndexableFieldDef {
       Map<String, Object> fieldValue, List<List<String>> facetHierarchyPaths) {
     Document document = new Document();
     parseFieldWithChildrenObject(document, List.of(fieldValue), facetHierarchyPaths);
+    document.add(
+        new StringField(
+            this.getName() + "._nested_path",
+            this.getName(),
+            org.apache.lucene.document.Field.Store.NO));
     return document;
   }
 
@@ -126,5 +132,9 @@ public class ObjectFieldDef extends IndexableFieldDef {
         childField.getValue().parseFieldWithChildren(document, childrenValues, facetHierarchyPaths);
       }
     }
+  }
+
+  public boolean isNestedDoc() {
+    return isNestedDoc;
   }
 }

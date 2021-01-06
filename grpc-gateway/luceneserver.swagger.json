@@ -1151,6 +1151,17 @@
         }
       }
     },
+    "NestedQueryScoreMode": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "AVG",
+        "MAX",
+        "MIN",
+        "SUM"
+      ],
+      "default": "NONE"
+    },
     "ScriptParamListValue": {
       "type": "object",
       "properties": {
@@ -1477,6 +1488,9 @@
         },
         "resourceName": {
           "type": "string"
+        },
+        "completeDirectory": {
+          "type": "boolean"
         }
       }
     },
@@ -2579,6 +2593,20 @@
         }
       }
     },
+    "luceneserverNestedQuery": {
+      "type": "object",
+      "properties": {
+        "QUERY": {
+          "$ref": "#/definitions/luceneserverQuery"
+        },
+        "path": {
+          "type": "string"
+        },
+        "scoreMode": {
+          "$ref": "#/definitions/NestedQueryScoreMode"
+        }
+      }
+    },
     "luceneserverNodeInfo": {
       "type": "object",
       "properties": {
@@ -2723,6 +2751,9 @@
         },
         "geoPointQuery": {
           "$ref": "#/definitions/luceneserverGeoPointQuery"
+        },
+        "nestedQuery": {
+          "$ref": "#/definitions/luceneserverNestedQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -2756,7 +2787,8 @@
         "MULTI_MATCH",
         "RANGE",
         "GEO_BOUNDING_BOX",
-        "GEO_POINT"
+        "GEO_POINT",
+        "NESTED"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."

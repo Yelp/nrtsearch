@@ -8,6 +8,11 @@
       "storeDocValues": true
     },
     {
+      "name": "_nested_type",
+      "type": "ATOM",
+      "search": true
+    },
+    {
       "name": "pickup_partners",
       "type": "OBJECT",
       "search": true,
@@ -19,6 +24,11 @@
           "type": "ATOM",
           "search": true,
           "storeDocValues": true
+        },
+        {
+          "name": "_nested_path",
+          "type": "ATOM",
+          "search": true
         },
         {
           "name": "hours",

@@ -33,6 +33,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -242,6 +244,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 .collect(Collectors.toList()));
       }
       Document rootDoc = handleFacets(shardState, documentsContext.getRootDocument());
+      rootDoc.add(new StringField("_nested_type", "parent", Field.Store.NO));
       documents.add(rootDoc);
       shardState.writer.updateDocuments(
           idFieldDef.getTerm(handleFacets(shardState, rootDoc)), documents);
@@ -264,6 +267,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 .collect(Collectors.toList()));
       }
       Document rootDoc = handleFacets(shardState, documentsContext.getRootDocument());
+      rootDoc.add(new StringField("_nested_type", "parent", Field.Store.NO));
       documents.add(rootDoc);
       shardState.writer.addDocuments(documents);
     }

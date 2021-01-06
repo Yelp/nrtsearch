@@ -60,6 +60,20 @@ message FunctionScoreQuery {
     Script script = 2; // script definition to compute a custom document score
 }
 
+//
+message NestedQuery {
+    enum ScoreMode {
+        NONE = 0;
+        AVG = 1;
+        MAX = 2;
+        MIN = 3;
+        SUM = 4;
+    }
+    Query QUERY = 1; // query for the child documents
+    string path = 2; // field name of the nested
+    ScoreMode scoreMode = 3; // how child documents score affects final score
+}
+
 // A query that matches documents containing a term.
 message TermQuery {
     // Field in the document to query.
@@ -188,6 +202,7 @@ enum QueryType {
     RANGE = 10;
     GEO_BOUNDING_BOX = 11;
     GEO_POINT = 12;
+    NESTED = 13;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -208,6 +223,7 @@ message Query {
         RangeQuery rangeQuery = 12;
         GeoBoundingBoxQuery geoBoundingBoxQuery = 13;
         GeoPointQuery geoPointQuery = 14;
+        NestedQuery nestedQuery = 15;
     }
 }
 

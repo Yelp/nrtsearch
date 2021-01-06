@@ -113,6 +113,27 @@ public class ObjectFieldDefTest extends ServerTestCase {
     assertFields(response, "1");
   }
 
+  @Test
+  public void testSimpleNestedDocs() {
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setNestedQuery(
+                    NestedQuery.newBuilder()
+                        .setPath("pickup_partners")
+                        .setQUERY(
+                            Query.newBuilder()
+                                .setTermQuery(
+                                    TermQuery.newBuilder()
+                                        .setField("pickup_partners.name")
+                                        .setTextValue("AAA")
+                                        .build()))
+                        .build())
+                .build(),
+            List.of("doc_id"));
+    assertFields(response, "1");
+  }
+
   private SearchResponse doQuery(Query query, List<String> fields) {
     return getGrpcServer()
         .getBlockingStub()
