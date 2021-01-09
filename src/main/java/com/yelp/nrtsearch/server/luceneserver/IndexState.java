@@ -32,6 +32,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import java.io.Closeable;
 import java.io.IOException;
@@ -690,6 +691,16 @@ public class IndexState implements Closeable, Restorable {
     }
 
     return lastGen;
+  }
+
+  /** Verifies if it has nested child object fields. */
+  public synchronized boolean hasNestedChildFields() {
+    for (FieldDef fieldDef : fields.values()) {
+      if (fieldDef instanceof ObjectFieldDef && ((ObjectFieldDef) fieldDef).isNestedDoc()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Verifies this name doesn't use any "exotic" characters. */

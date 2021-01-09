@@ -89,6 +89,11 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
       for (Map.Entry<String, AddDocumentRequest.MultiValuedField> entry : fields.entrySet()) {
         parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
       }
+      if (indexState.hasNestedChildFields()) {
+        documentsContext
+            .getRootDocument()
+            .add(new StringField("_nested_type", "parent", Field.Store.NO));
+      }
       return documentsContext;
     }
 
@@ -244,10 +249,13 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 .collect(Collectors.toList()));
       }
       Document rootDoc = handleFacets(shardState, documentsContext.getRootDocument());
-      rootDoc.add(new StringField("_nested_type", "parent", Field.Store.NO));
+
+      for (Document doc : documents) {
+        doc.add(rootDoc.getField(idFieldDef.getName()));
+      }
+
       documents.add(rootDoc);
-      shardState.writer.updateDocuments(
-          idFieldDef.getTerm(handleFacets(shardState, rootDoc)), documents);
+      shardState.writer.updateDocuments(idFieldDef.getTerm(rootDoc), documents);
     }
 
     /**
@@ -267,7 +275,6 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 .collect(Collectors.toList()));
       }
       Document rootDoc = handleFacets(shardState, documentsContext.getRootDocument());
-      rootDoc.add(new StringField("_nested_type", "parent", Field.Store.NO));
       documents.add(rootDoc);
       shardState.writer.addDocuments(documents);
     }

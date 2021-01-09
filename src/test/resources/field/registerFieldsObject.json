@@ -2,6 +2,12 @@
   "indexName": "test_index",
   "field": [
     {
+      "name": "real_id",
+      "type": "_ID",
+      "search": true,
+      "store": true
+    },
+    {
       "name": "doc_id",
       "type": "ATOM",
       "search": true,
