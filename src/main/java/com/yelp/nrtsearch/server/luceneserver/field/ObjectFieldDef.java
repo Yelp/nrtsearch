@@ -77,10 +77,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
     Document document = new Document();
     parseFieldWithChildrenObject(document, List.of(fieldValue), facetHierarchyPaths);
     document.add(
-        new StringField(
-            this.getName() + "._nested_path",
-            this.getName(),
-            org.apache.lucene.document.Field.Store.NO));
+        new StringField("_nested_path", this.getName(), org.apache.lucene.document.Field.Store.NO));
     return document;
   }
 

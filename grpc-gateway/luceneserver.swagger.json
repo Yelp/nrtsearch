@@ -1154,13 +1154,13 @@
     "NestedQueryScoreMode": {
       "type": "string",
       "enum": [
-        "NONE",
-        "AVG",
-        "MAX",
-        "MIN",
-        "SUM"
+        "none",
+        "avg",
+        "max",
+        "min",
+        "sum"
       ],
-      "default": "NONE"
+      "default": "none"
     },
     "ScriptParamListValue": {
       "type": "object",

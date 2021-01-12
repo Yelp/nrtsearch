@@ -89,11 +89,10 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
       for (Map.Entry<String, AddDocumentRequest.MultiValuedField> entry : fields.entrySet()) {
         parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
       }
-      if (indexState.hasNestedChildFields()) {
-        documentsContext
-            .getRootDocument()
-            .add(new StringField("_nested_type", "parent", Field.Store.NO));
-      }
+
+      documentsContext
+          .getRootDocument()
+          .add(new StringField("_nested_path", "_root", Field.Store.NO));
       return documentsContext;
     }
 

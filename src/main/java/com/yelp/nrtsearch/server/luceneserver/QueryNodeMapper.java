@@ -109,27 +109,27 @@ public class QueryNodeMapper {
     Query childQuery =
         new BooleanQuery.Builder()
             .add(
-                new TermQuery(
-                    new Term(nestedQuery.getPath() + "._nested_path", nestedQuery.getPath())),
+                new ConstantScoreQuery(
+                    new TermQuery(new Term("_nested_path", nestedQuery.getPath()))),
                 BooleanClause.Occur.MUST)
             .add(childRawQuery, BooleanClause.Occur.MUST)
             .build();
-    Query parentQuery = new TermQuery(new Term("_nested_type", "parent"));
+    Query parentQuery = new ConstantScoreQuery(new TermQuery(new Term("_nested_path", "_root")));
     return new ToParentBlockJoinQuery(
         childQuery, new QueryBitSetProducer(parentQuery), getScoreMode(nestedQuery));
   }
 
   private ScoreMode getScoreMode(com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery) {
     switch (nestedQuery.getScoreMode()) {
-      case NONE:
+      case none:
         return ScoreMode.None;
-      case AVG:
+      case avg:
         return ScoreMode.Avg;
-      case MAX:
+      case max:
         return ScoreMode.Max;
-      case MIN:
+      case min:
         return ScoreMode.Min;
-      case SUM:
+      case sum:
         return ScoreMode.Total;
       default:
         throw new UnsupportedOperationException(
