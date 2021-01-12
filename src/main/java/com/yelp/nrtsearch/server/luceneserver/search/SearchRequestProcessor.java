@@ -245,6 +245,11 @@ public class SearchRequestProcessor {
     } else {
       q = new MatchAllDocsQuery();
     }
+
+    if (searchRequest.getQueryNestedPath() != null
+        && searchRequest.getQueryNestedPath().length() > 0) {
+      return QUERY_NODE_MAPPER.applyQueryNestedPath(q, searchRequest.getQueryNestedPath());
+    }
     return q;
   }
 

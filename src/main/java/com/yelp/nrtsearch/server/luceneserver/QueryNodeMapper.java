@@ -69,6 +69,13 @@ public class QueryNodeMapper {
     return queryNode;
   }
 
+  public Query applyQueryNestedPath(Query query, String path) {
+    BooleanQuery.Builder builder = new BooleanQuery.Builder();
+    builder.add(new TermQuery(new Term("_nested_path", path)), BooleanClause.Occur.FILTER);
+    builder.add(query, BooleanClause.Occur.MUST);
+    return builder.build();
+  }
+
   private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
     switch (query.getQueryNodeCase()) {
       case BOOLEANQUERY:
@@ -109,12 +116,11 @@ public class QueryNodeMapper {
     Query childQuery =
         new BooleanQuery.Builder()
             .add(
-                new ConstantScoreQuery(
-                    new TermQuery(new Term("_nested_path", nestedQuery.getPath()))),
-                BooleanClause.Occur.MUST)
+                new TermQuery(new Term("_nested_path", nestedQuery.getPath())),
+                BooleanClause.Occur.FILTER)
             .add(childRawQuery, BooleanClause.Occur.MUST)
             .build();
-    Query parentQuery = new ConstantScoreQuery(new TermQuery(new Term("_nested_path", "_root")));
+    Query parentQuery = new TermQuery(new Term("_nested_path", "_root"));
     return new ToParentBlockJoinQuery(
         childQuery, new QueryBitSetProducer(parentQuery), getScoreMode(nestedQuery));
   }

@@ -467,7 +467,24 @@ public class ObjectFieldDefTest extends ServerTestCase {
     assertDataFields(childResponse2, "pickup_partners.name");
   }
 
+  @Test
+  public void testQueryNestedPath() {
+    SearchResponse response =
+        doQueryWithNestedPath(
+            Query.newBuilder()
+                .setTermQuery(TermQuery.newBuilder().setField("real_id").setTextValue("1").build())
+                .build(),
+            List.of("pickup_partners.name"),
+            "pickup_partners");
+    assertDataFields(response, "pickup_partners.name", "AAA", "BBB");
+  }
+
   private SearchResponse doQuery(Query query, List<String> fields) {
+    return doQueryWithNestedPath(query, fields, "");
+  }
+
+  private SearchResponse doQueryWithNestedPath(
+      Query query, List<String> fields, String queryNestedPath) {
     return getGrpcServer()
         .getBlockingStub()
         .search(
@@ -477,6 +494,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
                 .setTopHits(10)
                 .addAllRetrieveFields(fields)
                 .setQuery(query)
+                .setQueryNestedPath(queryNestedPath)
                 .build());
   }
 

@@ -248,6 +248,7 @@ message SearchRequest {
     repeated Facet facets = 14; // Which facets to retrieve
     repeated FetchTask fetchTasks = 15; //Any custom tasks that should be performed on top documents after ranking
     bool disallowPartialResults = 16; //Should partial result be a failure condition. Applies when a search request times out. If false, the top documents ranking at the point of timeout are used and the request continues. Also, hitTimeout is set to true in the response.
+    string queryNestedPath = 17; //nested path we want to query by if we want to query child documents.
 }
 
 /* Virtual field used during search */

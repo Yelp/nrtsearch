@@ -2950,6 +2950,9 @@
         },
         "disallowPartialResults": {
           "type": "boolean"
+        },
+        "queryNestedPath": {
+          "type": "string"
         }
       }
     },
