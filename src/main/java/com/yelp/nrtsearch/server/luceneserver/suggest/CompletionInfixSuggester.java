@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import com.yelp.nrtsearch.server.luceneserver.suggest.iterator.SuggestInputIterator;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -166,18 +168,21 @@ public class CompletionInfixSuggester extends AnalyzingInfixSuggester {
 
   @Override
   public void build(InputIterator iterator) throws IOException {
-    if (!(iterator instanceof FromProtobufFileSuggestItemIterator)) {
+    if (!(iterator instanceof SuggestInputIterator)) {
       throw new IllegalArgumentException(
-          "this suggester only works with FromProtobufFileSuggestItemIterator");
-    }
-    if (!iterator.hasPayloads()) {
-      throw new IllegalArgumentException("this suggester requires to have payload in index");
-    }
-    if (!iterator.hasContexts()) {
-      throw new IllegalArgumentException("this suggester requires to have context in index");
+          "this suggester only works with iterator that implementing SuggestInputIterator");
     }
 
-    FromProtobufFileSuggestItemIterator iter = (FromProtobufFileSuggestItemIterator) iterator;
+    SuggestInputIterator iter = (SuggestInputIterator) iterator;
+    if (!iter.hasPayloads()) {
+      throw new IllegalArgumentException("this suggester requires to have payload in index");
+    }
+    if (!iter.hasContexts()) {
+      throw new IllegalArgumentException("this suggester requires to have context in index");
+    }
+    if (!iter.hasSearchTexts()) {
+      throw new IllegalArgumentException("this suggester requires to have search texts in index");
+    }
 
     synchronized (searcherMgrLock) {
       if (searcherMgr != null) {
