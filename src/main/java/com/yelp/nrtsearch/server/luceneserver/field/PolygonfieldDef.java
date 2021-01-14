@@ -28,6 +28,7 @@ import java.util.List;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
@@ -48,10 +49,6 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
           String.format(
               "field: %s cannot have highlight=true. only type=text or type=atom fields can have highlight=true",
               getName()));
-    }
-
-    if (requestField.getStore()) {
-      throw new IllegalArgumentException("polygon fields cannot be stored");
     }
 
     if (hasAnalyzer(requestField)) {
@@ -94,6 +91,10 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
 
       Arrays.stream(LatLonShape.createIndexableFields(getName(), polygons[0]))
           .forEach(x -> document.add(x));
+
+      if (isStored()) {
+        document.add(new StoredField(this.getName(), fieldValue));
+      }
     }
   }
 

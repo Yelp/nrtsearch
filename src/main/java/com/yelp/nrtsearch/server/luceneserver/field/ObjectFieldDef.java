@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 
 public class ObjectFieldDef extends IndexableFieldDef {
@@ -57,6 +58,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
       fieldValues.stream()
           .map(e -> gson.fromJson(e, Map.class))
           .forEach(e -> fieldValueMaps.add(e));
+
       List<Document> childDocuments =
           fieldValueMaps.stream()
               .map(e -> createChildDocument(e, facetHierarchyPaths))
@@ -87,6 +89,11 @@ public class ObjectFieldDef extends IndexableFieldDef {
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     List<Map<String, Object>> fieldValueMaps = new ArrayList<>();
     fieldValues.stream().map(e -> gson.fromJson(e, Map.class)).forEach(e -> fieldValueMaps.add(e));
+    if (isStored()) {
+      for (String fieldValue : fieldValues) {
+        document.add(new StoredField(this.getName(), fieldValue));
+      }
+    }
     parseFieldWithChildrenObject(document, fieldValueMaps, facetHierarchyPaths);
   }
 

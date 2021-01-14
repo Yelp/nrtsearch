@@ -14,6 +14,12 @@
       "storeDocValues": true
     },
     {
+      "name": "dummy_object",
+      "type": "OBJECT",
+      "multiValued": true,
+      "store": true
+    },
+    {
       "name": "pickup_partners",
       "type": "OBJECT",
       "search": true,
@@ -38,6 +44,7 @@
       "name": "delivery_areas",
       "type": "OBJECT",
       "search": true,
+      "store": true,
       "childFields": [
         {
           "name": "hours",

@@ -18,6 +18,10 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 import static org.junit.Assert.assertEquals;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.protobuf.NullValue;
+import com.google.protobuf.Struct;
+import com.google.protobuf.Value;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
@@ -41,7 +45,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
     return Collections.singletonList(DEFAULT_TEST_INDEX);
   }
 
-  protected Gson gson = new Gson();
+  protected Gson gson = new GsonBuilder().serializeNulls().create();
 
   protected FieldDefRequest getIndexDef(String name) throws IOException {
     return getFieldsFromResourceFile("/field/registerFieldsObject.json");
@@ -65,6 +69,11 @@ public class ObjectFieldDefTest extends ServerTestCase {
     pickup2.put("name", "BBB");
     pickup2.put("hours", List.of(3));
 
+    Map<String, Object> dummy1 = new HashMap<>(pickup1);
+    dummy1.put("test_null", null);
+
+    Map<String, Object> dummy2 = new HashMap<>(pickup2);
+
     AddDocumentRequest request =
         AddDocumentRequest.newBuilder()
             .setIndexName(name)
@@ -80,6 +89,12 @@ public class ObjectFieldDefTest extends ServerTestCase {
                 AddDocumentRequest.MultiValuedField.newBuilder()
                     .addValue(gson.toJson(pickup1))
                     .addValue(gson.toJson(pickup2))
+                    .build())
+            .putFields(
+                "dummy_object",
+                AddDocumentRequest.MultiValuedField.newBuilder()
+                    .addValue(gson.toJson(dummy1))
+                    .addValue(gson.toJson(dummy2))
                     .build())
             .build();
     docs.add(request);
@@ -477,6 +492,40 @@ public class ObjectFieldDefTest extends ServerTestCase {
             List.of("pickup_partners.name"),
             "pickup_partners");
     assertDataFields(response, "pickup_partners.name", "AAA", "BBB");
+  }
+
+  @Test
+  public void testRetrieveObjectField() throws IOException {
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setTermQuery(TermQuery.newBuilder().setField("doc_id").setTextValue("1").build())
+                .build(),
+            List.of("dummy_object", "delivery_areas"));
+    assertEquals(1, response.getHitsCount());
+    SearchResponse.Hit hit = response.getHits(0);
+    assertEquals(2, hit.getFieldsOrThrow("dummy_object").getFieldValueCount());
+
+    assertEquals(
+        Value.newBuilder().setNullValue(NullValue.NULL_VALUE).build(),
+        hit.getFieldsOrThrow("dummy_object")
+            .getFieldValue(0)
+            .getStructValue()
+            .getFieldsOrThrow("test_null"));
+
+    Struct delivery_areas =
+        hit.getFieldsOrThrow("delivery_areas").getFieldValue(0).getStructValue();
+    assertEquals(
+        "94105",
+        delivery_areas.getFieldsOrThrow("zipcode").getListValue().getValues(0).getStringValue());
+    delivery_areas.getFieldsOrThrow("hours").getListValue().getValues(0).getNumberValue();
+    assertEquals(
+        "abcd",
+        delivery_areas
+            .getFieldsOrThrow("partner")
+            .getStructValue()
+            .getFieldsOrThrow("partner_id")
+            .getStringValue());
   }
 
   private SearchResponse doQuery(Query query, List<String> fields) {
