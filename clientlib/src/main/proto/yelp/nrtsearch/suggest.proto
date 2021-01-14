@@ -76,7 +76,7 @@ message SuggestLocalSource {
   string localFile = 1;
   bool hasContexts = 2; //True if this file provides per-suggestion contexts
   bool hasPayload = 3; //True if this file provides per-suggestion payload
-  bool hasMultiSearchText = 4; //True if this file is required to parsed by FromFileSuggestItemIterator
+  bool hasMultiSearchText = 4; //True if this file is required to parsed by SuggestInputIterator
 }
 
 message SuggestNonLocalSource {
