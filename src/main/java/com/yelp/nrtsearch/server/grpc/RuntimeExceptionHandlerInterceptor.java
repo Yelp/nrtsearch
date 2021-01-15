@@ -25,8 +25,10 @@ import io.grpc.Status;
 /** A {@link ServerInterceptor} which enriches Exception messages given to clients. */
 public class RuntimeExceptionHandlerInterceptor implements ServerInterceptor {
   @Override
-  public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> serverCall, Metadata metadata,
-                                                               ServerCallHandler<ReqT, RespT> serverCallHandler) {
+  public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+      ServerCall<ReqT, RespT> serverCall,
+      Metadata metadata,
+      ServerCallHandler<ReqT, RespT> serverCallHandler) {
     ServerCall.Listener<ReqT> listener = serverCallHandler.startCall(serverCall, metadata);
     return new RuntimeExceptionHandlingServerCallListener<>(listener, serverCall, metadata);
   }
@@ -36,8 +38,8 @@ public class RuntimeExceptionHandlerInterceptor implements ServerInterceptor {
     private ServerCall<ReqT, RespT> serverCall;
     private Metadata metadata;
 
-    RuntimeExceptionHandlingServerCallListener(ServerCall.Listener<ReqT> listener, ServerCall<ReqT, RespT> serverCall,
-                                               Metadata metadata) {
+    RuntimeExceptionHandlingServerCallListener(
+        ServerCall.Listener<ReqT> listener, ServerCall<ReqT, RespT> serverCall, Metadata metadata) {
       super(listener);
       this.serverCall = serverCall;
       this.metadata = metadata;
@@ -63,8 +65,10 @@ public class RuntimeExceptionHandlerInterceptor implements ServerInterceptor {
       }
     }
 
-    private void handleException(RuntimeException exception, ServerCall<ReqT, RespT> serverCall, Metadata metadata) {
-      serverCall.close(Status.fromThrowable(exception).withDescription(exception.getMessage()), metadata);
+    private void handleException(
+        RuntimeException exception, ServerCall<ReqT, RespT> serverCall, Metadata metadata) {
+      serverCall.close(
+          Status.fromThrowable(exception).withDescription(exception.getMessage()), metadata);
     }
   }
 }

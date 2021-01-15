@@ -145,13 +145,12 @@ public class LuceneServer {
     List<ServerInterceptor> serverInterceptorList = new ArrayList<>();
     serverInterceptorList.add(
         LuceneServerMonitoringServerInterceptor.create(
-          Configuration.allMetrics()
-              .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
-              .withCollectorRegistry(collectorRegistry),
-          serviceName,
-          nodeName)
-    );
-    if (luceneServerConfiguration.getRichClientExceptions()){
+            Configuration.allMetrics()
+                .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
+                .withCollectorRegistry(collectorRegistry),
+            serviceName,
+            nodeName));
+    if (luceneServerConfiguration.getRichClientExceptions()) {
       serverInterceptorList.add(new RuntimeExceptionHandlerInterceptor());
     }
 
@@ -165,11 +164,8 @@ public class LuceneServer {
                         luceneServerConfiguration,
                         archiver,
                         collectorRegistry,
-                        plugins
-                    ),
-                    serverInterceptorList.toArray(new ServerInterceptor[0])
-                )
-            )
+                        plugins),
+                    serverInterceptorList.toArray(new ServerInterceptor[0])))
             .executor(
                 ThreadPoolExecutorFactory.getThreadPoolExecutor(
                     ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,

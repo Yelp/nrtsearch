@@ -155,7 +155,7 @@ public class LuceneServerConfiguration {
   public boolean getPublishJvmMetrics() {
     return publishJvmMetrics;
   }
-  
+
   public boolean getRichClientExceptions() {
     return richClientExceptions;
   }
