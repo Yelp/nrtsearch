@@ -22,7 +22,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.util.BytesRef;
 
 /**
@@ -46,7 +45,8 @@ public class FromProtobufFileSuggestItemIterator implements SuggestInputIterator
   private BytesRef payload;
 
   public FromProtobufFileSuggestItemIterator(
-      File sourceFile, boolean hasContexts, boolean hasPayload, boolean hasSearchTexts) throws IOException {
+      File sourceFile, boolean hasContexts, boolean hasPayload, boolean hasSearchTexts)
+      throws IOException {
     this.sourceStream = new FileInputStream(sourceFile);
     this.hasPayload = hasPayload;
     this.hasContexts = hasContexts;
