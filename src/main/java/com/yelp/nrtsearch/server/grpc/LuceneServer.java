@@ -73,6 +73,7 @@ import com.yelp.nrtsearch.server.utils.Archiver;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptor;
 import io.grpc.ServerInterceptors;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -140,13 +141,20 @@ public class LuceneServer {
       }
     }
 
-    LuceneServerMonitoringServerInterceptor monitoringInterceptor =
+    /* Create interceptors */
+    List<ServerInterceptor> serverInterceptorList = new ArrayList<>();
+    serverInterceptorList.add(
         LuceneServerMonitoringServerInterceptor.create(
-            Configuration.allMetrics()
-                .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
-                .withCollectorRegistry(collectorRegistry),
-            serviceName,
-            nodeName);
+          Configuration.allMetrics()
+              .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
+              .withCollectorRegistry(collectorRegistry),
+          serviceName,
+          nodeName)
+    );
+    if (luceneServerConfiguration.getRichClientExceptions()){
+      serverInterceptorList.add(new RuntimeExceptionHandlerInterceptor());
+    }
+
     /* The port on which the server should run */
     server =
         ServerBuilder.forPort(luceneServerConfiguration.getPort())
@@ -157,8 +165,11 @@ public class LuceneServer {
                         luceneServerConfiguration,
                         archiver,
                         collectorRegistry,
-                        plugins),
-                    monitoringInterceptor))
+                        plugins
+                    ),
+                    serverInterceptorList.toArray(new ServerInterceptor[0])
+                )
+            )
             .executor(
                 ThreadPoolExecutorFactory.getThreadPoolExecutor(
                     ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,

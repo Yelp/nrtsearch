@@ -59,6 +59,7 @@ public class LuceneServerConfiguration {
   private final String bucketName;
   private final double[] metricsBuckets;
   private final boolean publishJvmMetrics;
+  private final boolean richClientExceptions;
   private final String[] plugins;
   private final String pluginSearchPath;
   private final String serviceName;
@@ -94,6 +95,7 @@ public class LuceneServerConfiguration {
     }
     this.metricsBuckets = metricsBuckets;
     publishJvmMetrics = configReader.getBoolean("publishJvmMetrics", false);
+    richClientExceptions = configReader.getBoolean("richClientExceptions", false);
     plugins = configReader.getStringList("plugins", DEFAULT_PLUGINS).toArray(new String[0]);
     pluginSearchPath =
         configReader.getString("pluginSearchPath", DEFAULT_PLUGIN_SEARCH_PATH.toString());
@@ -152,6 +154,10 @@ public class LuceneServerConfiguration {
 
   public boolean getPublishJvmMetrics() {
     return publishJvmMetrics;
+  }
+  
+  public boolean getRichClientExceptions() {
+    return richClientExceptions;
   }
 
   public int getReplicaReplicationPortPingInterval() {
