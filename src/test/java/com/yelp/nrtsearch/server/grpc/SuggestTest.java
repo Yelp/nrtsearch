@@ -654,51 +654,6 @@ public class SuggestTest {
   }
 
   @Test
-  public void testSuggesterWithPayloadContextsAndSearchTexts() throws Exception {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
-    new GrpcServer.IndexAndRoleManager(grpcServer)
-        .createStartIndexAndRegisterFields(
-            Mode.STANDALONE, 0, false, "registerFieldsSuggestGeohash.json");
-
-    AddDocumentResponse addDocumentResponse = new GeohashDocumentProducer().indexDocs(grpcServer);
-    BuildSuggestRequest.Builder buildSuggestRequestBuilder = BuildSuggestRequest.newBuilder();
-    buildSuggestRequestBuilder.setSuggestName("suggest");
-    buildSuggestRequestBuilder.setIndexName("test_index");
-    buildSuggestRequestBuilder.setInfixSuggester(
-        InfixSuggester.newBuilder().setAnalyzer("default").build());
-    buildSuggestRequestBuilder.setNonLocalSource(
-        SuggestNonLocalSource.newBuilder()
-            .setIndexGen(Long.valueOf(addDocumentResponse.getGenId()))
-            .setSuggestField("text")
-            .setWeightField("weight")
-            .setPayloadField("payload")
-            .setContextField("context")
-            .build());
-    BuildSuggestResponse response =
-        grpcServer.getBlockingStub().buildSuggest(buildSuggestRequestBuilder.build());
-    // nocommit count isn't returned for stored fields source:
-    assertEquals(2, response.getCount());
-
-    SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
-    suggestLookupBuilder.setText("the");
-    suggestLookupBuilder.setSuggestName("suggest");
-    suggestLookupBuilder.setIndexName("test_index");
-    suggestLookupBuilder.setHighlight(true);
-    // only need san fran Geohashes
-    List<String> geohashes = GeohashDocumentProducer.getGeoHashes(37.7749, -122.4194, 5, 7);
-    for (String geohash : geohashes) {
-      suggestLookupBuilder.addContexts(geohash);
-    }
-    SuggestLookupResponse suggestResponse =
-        grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
-    List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
-    assertEquals(1, results.size());
-    assertEquals(1, results.get(0).getWeight());
-    assertEquals("payload1", results.get(0).getPayload());
-  }
-
-  @Test
   public void testInfixSuggesterWithContextsFromField() throws Exception {
     GrpcServer.TestServer testAddDocs =
         new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
