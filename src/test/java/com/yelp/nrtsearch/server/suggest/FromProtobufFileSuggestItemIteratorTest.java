@@ -21,7 +21,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.google.common.io.Resources;
-import com.yelp.nrtsearch.server.luceneserver.suggest.FromProtobufFileSuggestItemIterator;
+import com.yelp.nrtsearch.server.luceneserver.suggest.iterator.FromProtobufFileSuggestItemIterator;
 import java.io.File;
 import java.util.Set;
 import org.apache.lucene.util.BytesRef;
@@ -40,7 +40,7 @@ public class FromProtobufFileSuggestItemIteratorTest {
   @Test
   public void testIteratorWithContextWithPayload() throws Exception {
     FromProtobufFileSuggestItemIterator iterator =
-        new FromProtobufFileSuggestItemIterator(indexFile, true, true);
+        new FromProtobufFileSuggestItemIterator(indexFile, true, true, true);
     assertEquals("1", iterator.next().utf8ToString());
     assertEquals(10, iterator.weight());
     assertExpectedSet(Set.of("en_CL"), iterator.contexts());
@@ -61,7 +61,7 @@ public class FromProtobufFileSuggestItemIteratorTest {
   @Test
   public void testIteratorWithoutContextWithoutPayload() throws Exception {
     FromProtobufFileSuggestItemIterator iterator =
-        new FromProtobufFileSuggestItemIterator(indexFile, false, false);
+        new FromProtobufFileSuggestItemIterator(indexFile, false, false, true);
     assertEquals("1", iterator.next().utf8ToString());
     assertEquals(10, iterator.weight());
     assertExpectedSet(Set.of("post offices", "offices"), iterator.searchTexts());
