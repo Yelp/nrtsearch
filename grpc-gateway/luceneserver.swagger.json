@@ -1477,6 +1477,9 @@
         },
         "resourceName": {
           "type": "string"
+        },
+        "completeDirectory": {
+          "type": "boolean"
         }
       }
     },
@@ -3317,6 +3320,9 @@
           "type": "string"
         },
         "contextField": {
+          "type": "string"
+        },
+        "searchTextField": {
           "type": "string"
         }
       }

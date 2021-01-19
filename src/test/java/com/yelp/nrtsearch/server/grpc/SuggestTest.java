@@ -654,6 +654,51 @@ public class SuggestTest {
   }
 
   @Test
+  public void testSuggesterWithPayloadContextsAndSearchTexts() throws Exception {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+    new GrpcServer.IndexAndRoleManager(grpcServer)
+        .createStartIndexAndRegisterFields(
+            Mode.STANDALONE, 0, false, "registerFieldsSuggestGeohash.json");
+
+    AddDocumentResponse addDocumentResponse = new GeohashDocumentProducer().indexDocs(grpcServer);
+    BuildSuggestRequest.Builder buildSuggestRequestBuilder = BuildSuggestRequest.newBuilder();
+    buildSuggestRequestBuilder.setSuggestName("suggest");
+    buildSuggestRequestBuilder.setIndexName("test_index");
+    buildSuggestRequestBuilder.setInfixSuggester(
+        InfixSuggester.newBuilder().setAnalyzer("default").build());
+    buildSuggestRequestBuilder.setNonLocalSource(
+        SuggestNonLocalSource.newBuilder()
+            .setIndexGen(Long.valueOf(addDocumentResponse.getGenId()))
+            .setSuggestField("text")
+            .setWeightField("weight")
+            .setPayloadField("payload")
+            .setContextField("context")
+            .build());
+    BuildSuggestResponse response =
+        grpcServer.getBlockingStub().buildSuggest(buildSuggestRequestBuilder.build());
+    // nocommit count isn't returned for stored fields source:
+    assertEquals(2, response.getCount());
+
+    SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+    suggestLookupBuilder.setText("the");
+    suggestLookupBuilder.setSuggestName("suggest");
+    suggestLookupBuilder.setIndexName("test_index");
+    suggestLookupBuilder.setHighlight(true);
+    // only need san fran Geohashes
+    List<String> geohashes = GeohashDocumentProducer.getGeoHashes(37.7749, -122.4194, 5, 7);
+    for (String geohash : geohashes) {
+      suggestLookupBuilder.addContexts(geohash);
+    }
+    SuggestLookupResponse suggestResponse =
+        grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+    List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+    assertEquals(1, results.size());
+    assertEquals(1, results.get(0).getWeight());
+    assertEquals("payload1", results.get(0).getPayload());
+  }
+
+  @Test
   public void testInfixSuggesterWithContextsFromField() throws Exception {
     GrpcServer.TestServer testAddDocs =
         new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
@@ -705,6 +750,86 @@ public class SuggestTest {
           .getBlockingStub()
           .startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
     }
+  }
+
+  @Test
+  public void testInfixSuggesterWithPayloadContextsAndSearchTexts() throws Exception {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+    new GrpcServer.IndexAndRoleManager(grpcServer)
+        .createStartIndexAndRegisterFields(
+            Mode.STANDALONE, 0, false, "registerFieldsSuggestWithContextAndSearchTexts.json");
+    AddDocumentResponse addDocumentResponse =
+        testAddDocs.addDocuments("addSuggestDocsWithContextsAndSearchTexts.csv");
+    BuildSuggestRequest.Builder buildSuggestRequestBuilder = BuildSuggestRequest.newBuilder();
+    buildSuggestRequestBuilder.setSuggestName("suggest");
+    buildSuggestRequestBuilder.setIndexName("test_index");
+    buildSuggestRequestBuilder.setCompletionInfixSuggester(
+        CompletionInfixSuggester.newBuilder().setAnalyzer("default").build());
+    buildSuggestRequestBuilder.setNonLocalSource(
+        SuggestNonLocalSource.newBuilder()
+            .setIndexGen(Long.valueOf(addDocumentResponse.getGenId()))
+            .setSuggestField("text")
+            .setWeightField("weight")
+            .setPayloadField("payload")
+            .setContextField("context")
+            .setSearchTextField("search_text")
+            .build());
+    BuildSuggestResponse response =
+        grpcServer.getBlockingStub().buildSuggest(buildSuggestRequestBuilder.build());
+    // nocommit count isn't returned for stored fields source:
+    assertEquals(2, response.getCount());
+
+    for (int i = 0; i < 2; i++) {
+      // Only one result is expected to return, given only one suggest item contains c2 context
+      SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+      suggestLookupBuilder.setText("dog");
+      suggestLookupBuilder.setSuggestName("suggest");
+      suggestLookupBuilder.setIndexName("test_index");
+      suggestLookupBuilder.addContexts("c2");
+      SuggestLookupResponse suggestResponse =
+          grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+      List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+      assertEquals(1, results.size());
+      assertEquals(2, results.get(0).getWeight());
+      assertEquals("payload2", results.get(0).getPayload());
+      assertEquals("dog barks", results.get(0).getKey());
+      // commit state and indexes
+      grpcServer
+          .getBlockingStub()
+          .commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+      // mimic bounce server to make sure suggestions survive restart
+      grpcServer
+          .getBlockingStub()
+          .stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
+      grpcServer
+          .getBlockingStub()
+          .startIndex(StartIndexRequest.newBuilder().setIndexName("test_index").build());
+    }
+
+    // All results are expected to return, given only one suggest item contains c2 context
+    SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+    suggestLookupBuilder.setText("dog");
+    suggestLookupBuilder.setSuggestName("suggest");
+    suggestLookupBuilder.setIndexName("test_index");
+    suggestLookupBuilder.addContexts("c1");
+    SuggestLookupResponse suggestResponse =
+        grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+    List<OneSuggestLookupResponse> results = suggestResponse.getResultsList();
+    assertEquals(2, results.size());
+
+    // Only one results with highest weight is expected to return
+    // In this case, "dog barks" suggestion with weight of 2 is returned.
+    suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+    suggestLookupBuilder.setText("dog");
+    suggestLookupBuilder.setSuggestName("suggest");
+    suggestLookupBuilder.setIndexName("test_index");
+    suggestLookupBuilder.setCount(1);
+    suggestResponse = grpcServer.getBlockingStub().suggestLookup(suggestLookupBuilder.build());
+    results = suggestResponse.getResultsList();
+    assertEquals(1, results.size());
+    assertEquals(2, results.get(0).getWeight());
+    assertEquals("dog barks", results.get(0).getKey());
   }
 
   @Test
