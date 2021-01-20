@@ -802,15 +802,15 @@ public class LuceneServer {
       } catch (Exception e) {
         logger.warn(
             String.format(
-                "error while trying to execute search %s for index %s",
+                "error while trying to execute search for index %s: %n%s",
                 searchRequest.getIndexName(), searchRequest.toString()),
             e);
         searchResponseStreamObserver.onError(
             Status.UNKNOWN
                 .withDescription(
                     String.format(
-                        "error while trying to execute search %s for index %s",
-                        searchRequest.getIndexName(), searchRequest.toString()))
+                        "error while trying to execute search for index %s. check logs for full searchRequest.",
+                        searchRequest.getIndexName()))
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
       }
