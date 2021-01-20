@@ -812,7 +812,7 @@ public class LuceneServer {
         }
         logger.warn(
             String.format(
-                "error while trying to execute search for index %s: request: %n%s",
+                "error while trying to execute search for index %s: request: %s",
                 searchRequest.getIndexName(), searchRequestJson),
             e);
         searchResponseStreamObserver.onError(
