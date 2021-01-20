@@ -20,6 +20,8 @@ import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE
 import com.google.api.HttpBody;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Sets;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
@@ -251,6 +253,7 @@ public class LuceneServer {
   }
 
   static class LuceneServerImpl extends LuceneServerGrpc.LuceneServerImplBase {
+    private final Gson gson = new GsonBuilder().create();
     private final GlobalState globalState;
     private final Archiver archiver;
     private final CollectorRegistry collectorRegistry;
@@ -802,8 +805,8 @@ public class LuceneServer {
       } catch (Exception e) {
         logger.warn(
             String.format(
-                "error while trying to execute search for index %s: %n%s",
-                searchRequest.getIndexName(), searchRequest.toString()),
+                "error while trying to execute search for index %s: request: %n%s",
+                searchRequest.getIndexName(), gson.toJson(searchRequest)),
             e);
         searchResponseStreamObserver.onError(
             Status.UNKNOWN
