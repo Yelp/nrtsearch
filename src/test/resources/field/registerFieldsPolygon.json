@@ -10,8 +10,8 @@
       "name": "polygon",
       "type": "POLYGON",
       "search": true,
-      "store": true,
-      "storeDocValues": false,
+      "store": false,
+      "storeDocValues": true,
       "multiValued": true
     }
   ]

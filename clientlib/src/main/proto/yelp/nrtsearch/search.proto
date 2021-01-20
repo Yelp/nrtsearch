@@ -63,13 +63,13 @@ message FunctionScoreQuery {
 //
 message NestedQuery {
     enum ScoreMode {
-        none = 0;
-        avg = 1;
-        max = 2;
-        min = 3;
-        sum = 4;
+        NONE = 0;
+        AVG = 1;
+        MAX = 2;
+        MIN = 3;
+        SUM = 4;
     }
-    Query QUERY = 1; // query for the child documents
+    Query query = 1; // query for the child documents
     string path = 2; // field name of the nested
     ScoreMode scoreMode = 3; // how child documents score affects final score
 }

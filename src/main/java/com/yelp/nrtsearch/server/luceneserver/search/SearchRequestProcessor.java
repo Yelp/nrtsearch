@@ -246,8 +246,7 @@ public class SearchRequestProcessor {
       q = new MatchAllDocsQuery();
     }
 
-    if (searchRequest.getQueryNestedPath() != null
-        && searchRequest.getQueryNestedPath().length() > 0) {
+    if (state.hasNestedChildFields()) {
       return QUERY_NODE_MAPPER.applyQueryNestedPath(q, searchRequest.getQueryNestedPath());
     }
     return q;

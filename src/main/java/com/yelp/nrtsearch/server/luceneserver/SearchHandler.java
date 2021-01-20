@@ -16,10 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.gson.Gson;
-import com.google.protobuf.ListValue;
-import com.google.protobuf.NullValue;
 import com.google.protobuf.Struct;
-import com.google.protobuf.Value;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -41,6 +38,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
+import com.yelp.nrtsearch.server.utils.StructJsonUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -557,7 +555,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           for (String fieldValue : values) {
             if (fd instanceof ObjectFieldDef || fd instanceof PolygonfieldDef) {
               Map<String, Object> map = gson.fromJson(fieldValue, Map.class);
-              Struct struct = convertMapToStruct(map);
+              Struct struct = StructJsonUtils.convertMapToStruct(map);
               compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(struct));
             } else {
               compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
@@ -654,36 +652,5 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       return findTimeoutException(e.getCause());
     }
     return null;
-  }
-
-  private static Struct convertMapToStruct(Map<String, Object> map) {
-    Struct.Builder builder = Struct.newBuilder();
-    for (Map.Entry<String, Object> e : map.entrySet()) {
-      builder.putFields(e.getKey(), convertObjectToValue(e.getValue()));
-    }
-    return builder.build();
-  }
-
-  private static Value convertObjectToValue(Object object) {
-    if (object == null) {
-      return Value.newBuilder().setNullValue(NullValue.NULL_VALUE).build();
-    } else if (object instanceof List) {
-      List<Value> valueList = new ArrayList<>();
-      for (Object e : (List<Object>) object) {
-        valueList.add(convertObjectToValue(e));
-      }
-      ListValue listValue = ListValue.newBuilder().addAllValues(valueList).build();
-      return Value.newBuilder().setListValue(listValue).build();
-    } else if (object instanceof Map) {
-      Struct struct = convertMapToStruct((Map<String, Object>) object);
-      return Value.newBuilder().setStructValue(struct).build();
-    } else if (object instanceof Boolean) {
-      return Value.newBuilder().setBoolValue((Boolean) object).build();
-    } else if (object instanceof String) {
-      return Value.newBuilder().setStringValue((String) object).build();
-    } else if (object instanceof Number) {
-      return Value.newBuilder().setNumberValue(((Number) object).doubleValue()).build();
-    }
-    throw new RuntimeException("Cannot convert to protobuf value, object: " + object);
   }
 }

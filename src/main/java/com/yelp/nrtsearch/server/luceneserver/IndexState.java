@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -24,14 +25,18 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import java.io.Closeable;
 import java.io.IOException;
@@ -102,6 +107,9 @@ import org.slf4j.LoggerFactory;
  */
 public class IndexState implements Closeable, Restorable {
   public static final String CHILD_FIELD_SEPARATOR = ".";
+
+  public static final String NESTED_PATH = "_nested_path";
+  public static final String ROOT = "_root";
 
   Logger logger = LoggerFactory.getLogger(IndexState.class);
   public final GlobalState globalState;
@@ -441,6 +449,9 @@ public class IndexState implements Closeable, Restorable {
       initSaveLoadState();
     }
     searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
+
+    // add meta data fields
+    metaFields = getPredefinedMetaFields();
   }
 
   void initSaveLoadState() throws IOException {
@@ -529,6 +540,9 @@ public class IndexState implements Closeable, Restorable {
 
   /** The field definitions (registerField) */
   private final Map<String, FieldDef> fields = new ConcurrentHashMap<String, FieldDef>();
+
+  /** The meta field definitions */
+  public static Map<String, FieldDef> metaFields;
 
   /** Contains fields set as facetIndexFieldName. */
   public final Set<String> internalFacetFieldNames =
@@ -664,10 +678,28 @@ public class IndexState implements Closeable, Restorable {
    * @throws IllegalArgumentException if the field was not registered.
    */
   public FieldDef getField(String fieldName) {
-    FieldDef fd = fields.get(fieldName);
+    FieldDef fd = metaFields.get(fieldName);
+    if (fd != null) {
+      return fd;
+    }
+    fd = fields.get(fieldName);
     if (fd == null) {
       String message =
           "field \"" + fieldName + "\" is unknown: it was not registered with registerField";
+      throw new IllegalArgumentException(message);
+    }
+    return fd;
+  }
+
+  /**
+   * Retrieve the meta field's type.
+   *
+   * @throws IllegalArgumentException if the field was not valid.
+   */
+  public static FieldDef getMetaField(String fieldName) {
+    FieldDef fd = metaFields.get(fieldName);
+    if (fd == null) {
+      String message = "field \"" + fieldName + "\" is unknown: it was not a valid meta field";
       throw new IllegalArgumentException(message);
     }
     return fd;
@@ -690,6 +722,16 @@ public class IndexState implements Closeable, Restorable {
     }
 
     return lastGen;
+  }
+
+  /** Verifies if it has nested child object fields. */
+  public synchronized boolean hasNestedChildFields() {
+    for (FieldDef fieldDef : fields.values()) {
+      if (fieldDef instanceof ObjectFieldDef && ((ObjectFieldDef) fieldDef).isNestedDoc()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Verifies this name doesn't use any "exotic" characters. */
@@ -1013,6 +1055,20 @@ public class IndexState implements Closeable, Restorable {
     logger.info(
         String.format("jsonStr converted to proto FieldDefRequest %s", fieldDefRequest.toString()));
     return fieldDefRequest;
+  }
+
+  // Get all predifined meta fields
+  private Map<String, FieldDef> getPredefinedMetaFields() {
+    return ImmutableMap.of(
+        NESTED_PATH,
+        FieldDefCreator.getInstance()
+            .createFieldDef(
+                NESTED_PATH,
+                Field.newBuilder()
+                    .setName(IndexState.NESTED_PATH)
+                    .setType(FieldType.ATOM)
+                    .setSearch(true)
+                    .build()));
   }
 
   // Builds the valid Json format for FieldDefRequest from fieldsState json

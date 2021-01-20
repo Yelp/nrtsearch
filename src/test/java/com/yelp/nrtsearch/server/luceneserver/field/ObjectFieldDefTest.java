@@ -217,7 +217,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
                 .setNestedQuery(
                     NestedQuery.newBuilder()
                         .setPath("pickup_partners")
-                        .setQUERY(
+                        .setQuery(
                             Query.newBuilder()
                                 .setTermQuery(
                                     TermQuery.newBuilder()
@@ -237,7 +237,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
             .setNestedQuery(
                 NestedQuery.newBuilder()
                     .setPath("pickup_partners")
-                    .setQUERY(
+                    .setQuery(
                         Query.newBuilder()
                             .setTermQuery(
                                 TermQuery.newBuilder()
@@ -283,7 +283,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
                 .setNestedQuery(
                     NestedQuery.newBuilder()
                         .setPath("pickup_partners")
-                        .setQUERY(
+                        .setQuery(
                             Query.newBuilder()
                                 .setTermQuery(
                                     TermQuery.newBuilder()
@@ -296,7 +296,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
     assertFields(response, "3");
 
     SearchResponse childResponse =
-        doQuery(
+        doQueryWithNestedPath(
             Query.newBuilder()
                 .setTermQuery(
                     TermQuery.newBuilder()
@@ -304,7 +304,8 @@ public class ObjectFieldDefTest extends ServerTestCase {
                         .setTextValue("EEE")
                         .build())
                 .build(),
-            List.of("pickup_partners.name"));
+            List.of("pickup_partners.name"),
+            "pickup_partners");
     assertDataFields(childResponse, "pickup_partners.name", "EEE");
 
     // add this document with same id to test update
@@ -337,7 +338,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
                 .setNestedQuery(
                     NestedQuery.newBuilder()
                         .setPath("pickup_partners")
-                        .setQUERY(
+                        .setQuery(
                             Query.newBuilder()
                                 .setTermQuery(
                                     TermQuery.newBuilder()
@@ -352,7 +353,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
 
     // query child doc with previous child doc value
     childResponse =
-        doQuery(
+        doQueryWithNestedPath(
             Query.newBuilder()
                 .setTermQuery(
                     TermQuery.newBuilder()
@@ -360,7 +361,8 @@ public class ObjectFieldDefTest extends ServerTestCase {
                         .setTextValue("EEE")
                         .build())
                 .build(),
-            List.of("pickup_partners.name"));
+            List.of("pickup_partners.name"),
+            "pickup_partners");
     // no result
     assertDataFields(childResponse, "pickup_partners.name");
 
@@ -371,7 +373,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
                 .setNestedQuery(
                     NestedQuery.newBuilder()
                         .setPath("pickup_partners")
-                        .setQUERY(
+                        .setQuery(
                             Query.newBuilder()
                                 .setTermQuery(
                                     TermQuery.newBuilder()
@@ -385,7 +387,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
     assertFields(response, "5");
     // query parent doc with new child doc value
     childResponse =
-        doQuery(
+        doQueryWithNestedPath(
             Query.newBuilder()
                 .setTermQuery(
                     TermQuery.newBuilder()
@@ -393,7 +395,8 @@ public class ObjectFieldDefTest extends ServerTestCase {
                         .setTextValue("FFF")
                         .build())
                 .build(),
-            List.of("pickup_partners.name"));
+            List.of("pickup_partners.name"),
+            "pickup_partners");
     // get new child doc
     assertDataFields(childResponse, "pickup_partners.name", "FFF");
   }
@@ -407,7 +410,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
                 .setNestedQuery(
                     NestedQuery.newBuilder()
                         .setPath("pickup_partners")
-                        .setQUERY(
+                        .setQuery(
                             Query.newBuilder()
                                 .setTermQuery(
                                     TermQuery.newBuilder()
@@ -422,7 +425,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
 
     // query child doc by child doc value
     SearchResponse childResponse =
-        doQuery(
+        doQueryWithNestedPath(
             Query.newBuilder()
                 .setTermQuery(
                     TermQuery.newBuilder()
@@ -430,7 +433,8 @@ public class ObjectFieldDefTest extends ServerTestCase {
                         .setTextValue("GGG")
                         .build())
                 .build(),
-            List.of("pickup_partners.name"));
+            List.of("pickup_partners.name"),
+            "pickup_partners");
     // get matching child doc
     assertDataFields(childResponse, "pickup_partners.name", "GGG");
 
@@ -455,7 +459,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
                 .setNestedQuery(
                     NestedQuery.newBuilder()
                         .setPath("pickup_partners")
-                        .setQUERY(
+                        .setQuery(
                             Query.newBuilder()
                                 .setTermQuery(
                                     TermQuery.newBuilder()
@@ -469,7 +473,7 @@ public class ObjectFieldDefTest extends ServerTestCase {
     assertFields(response2);
     // query child doc by child doc value
     SearchResponse childResponse2 =
-        doQuery(
+        doQueryWithNestedPath(
             Query.newBuilder()
                 .setTermQuery(
                     TermQuery.newBuilder()
@@ -477,7 +481,8 @@ public class ObjectFieldDefTest extends ServerTestCase {
                         .setTextValue("GGG")
                         .build())
                 .build(),
-            List.of("pickup_partners.name"));
+            List.of("pickup_partners.name"),
+            "pickup_partners");
     // no result
     assertDataFields(childResponse2, "pickup_partners.name");
   }

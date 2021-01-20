@@ -15,13 +15,18 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.doc;
 
+import com.google.gson.Gson;
+import com.google.protobuf.Struct;
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
+import com.yelp.nrtsearch.server.utils.StructJsonUtils;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.AbstractList;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 import org.apache.lucene.geo.GeoEncodingUtils;
@@ -75,6 +80,9 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
   // copy the target buffer, as the original BytesRef buffer will be reused
   private static final Function<BytesRef, BytesRef> BYTES_REF_DECODER = BytesRef::deepCopyOf;
   private static final Function<BytesRef, String> STRING_DECODER = BytesRef::utf8ToString;
+
+  // Gson decoder to deserilize string to objects
+  private static final Gson gson = new Gson();
 
   public abstract void setDocId(int docID) throws IOException;
 
@@ -330,6 +338,44 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     public SearchResponse.Hit.FieldValue toFieldValue(int index) {
       long epochMs = get(index).toEpochMilli();
       return SearchResponse.Hit.FieldValue.newBuilder().setLongValue(epochMs).build();
+    }
+  }
+
+  public static final class ObjectJsonDocValues extends LoadedDocValues<Map<String, Object>> {
+    private final BinaryDocValues docValues;
+    private List<Map<String, Object>> value;
+
+    public ObjectJsonDocValues(BinaryDocValues docValues) {
+      this.docValues = docValues;
+    }
+
+    @Override
+    public void setDocId(int docID) throws IOException {
+      if (docValues.advanceExact(docID)) {
+        String jsonString = STRING_DECODER.apply(docValues.binaryValue());
+        value = gson.fromJson(jsonString, List.class);
+      } else {
+        value = null;
+      }
+    }
+
+    @Override
+    public Map<String, Object> get(int index) {
+      if (value == null) {
+        throw new IllegalStateException("No doc values for document");
+      }
+      return value.get(index);
+    }
+
+    @Override
+    public SearchResponse.Hit.FieldValue toFieldValue(int index) {
+      Struct struct = StructJsonUtils.convertMapToStruct(get(index));
+      return SearchResponse.Hit.FieldValue.newBuilder().setStructValue(struct).build();
+    }
+
+    @Override
+    public int size() {
+      return value == null ? 0 : value.size();
     }
   }
 

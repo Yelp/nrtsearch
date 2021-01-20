@@ -23,7 +23,6 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefResponse;
 import com.yelp.nrtsearch.server.grpc.FieldType;
-import com.yelp.nrtsearch.server.luceneserver.field.AtomFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
@@ -131,26 +130,6 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
         JsonObject fieldAsJsonObject =
             jsonParser.parse(saveStates.get(ent.getKey())).getAsJsonObject();
         indexState.addField(ent.getValue(), fieldAsJsonObject);
-      }
-    }
-
-    if (!indexState.getAllFields().containsKey("_nested_path")) {
-      // register _nested_path field to every index to differentiate root
-      // and child documents
-      Field _nestedPathField =
-          Field.newBuilder()
-              .setName("_nested_path")
-              .setType(FieldType.ATOM)
-              .setSearch(true)
-              .build();
-      AtomFieldDef _nestedPathFieldDef =
-          new AtomFieldDef(_nestedPathField.getName(), _nestedPathField);
-      try {
-        JsonObject nestedFieldAsJsonObject =
-            jsonParser.parse(JsonFormat.printer().print(_nestedPathField)).getAsJsonObject();
-        indexState.addField(_nestedPathFieldDef, nestedFieldAsJsonObject);
-      } catch (InvalidProtocolBufferException e) {
-        throw new RuntimeException(e);
       }
     }
 

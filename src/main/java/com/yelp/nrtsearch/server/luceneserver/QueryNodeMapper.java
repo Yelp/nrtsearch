@@ -70,8 +70,11 @@ public class QueryNodeMapper {
   }
 
   public Query applyQueryNestedPath(Query query, String path) {
+    if (path == null || path.length() == 0) {
+      path = IndexState.ROOT;
+    }
     BooleanQuery.Builder builder = new BooleanQuery.Builder();
-    builder.add(new TermQuery(new Term("_nested_path", path)), BooleanClause.Occur.FILTER);
+    builder.add(new TermQuery(new Term(IndexState.NESTED_PATH, path)), BooleanClause.Occur.FILTER);
     builder.add(query, BooleanClause.Occur.MUST);
     return builder.build();
   }
@@ -112,30 +115,30 @@ public class QueryNodeMapper {
 
   private Query getNestedQuery(
       com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery, IndexState state) {
-    Query childRawQuery = getQuery(nestedQuery.getQUERY(), state);
+    Query childRawQuery = getQuery(nestedQuery.getQuery(), state);
     Query childQuery =
         new BooleanQuery.Builder()
             .add(
-                new TermQuery(new Term("_nested_path", nestedQuery.getPath())),
+                new TermQuery(new Term(IndexState.NESTED_PATH, nestedQuery.getPath())),
                 BooleanClause.Occur.FILTER)
             .add(childRawQuery, BooleanClause.Occur.MUST)
             .build();
-    Query parentQuery = new TermQuery(new Term("_nested_path", "_root"));
+    Query parentQuery = new TermQuery(new Term(IndexState.NESTED_PATH, IndexState.ROOT));
     return new ToParentBlockJoinQuery(
         childQuery, new QueryBitSetProducer(parentQuery), getScoreMode(nestedQuery));
   }
 
   private ScoreMode getScoreMode(com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery) {
     switch (nestedQuery.getScoreMode()) {
-      case none:
+      case NONE:
         return ScoreMode.None;
-      case avg:
+      case AVG:
         return ScoreMode.Avg;
-      case max:
+      case MAX:
         return ScoreMode.Max;
-      case min:
+      case MIN:
         return ScoreMode.Min;
-      case sum:
+      case SUM:
         return ScoreMode.Total;
       default:
         throw new UnsupportedOperationException(

@@ -1154,13 +1154,13 @@
     "NestedQueryScoreMode": {
       "type": "string",
       "enum": [
-        "none",
-        "avg",
-        "max",
-        "min",
-        "sum"
+        "NONE",
+        "AVG",
+        "MAX",
+        "MIN",
+        "SUM"
       ],
-      "default": "none"
+      "default": "NONE"
     },
     "ScriptParamListValue": {
       "type": "object",
@@ -2596,7 +2596,7 @@
     "luceneserverNestedQuery": {
       "type": "object",
       "properties": {
-        "QUERY": {
+        "query": {
           "$ref": "#/definitions/luceneserverQuery"
         },
         "path": {
