@@ -25,6 +25,8 @@ import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.LuceneServerModule;
 import com.yelp.nrtsearch.server.MetricsRequestHandler;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
@@ -251,6 +253,8 @@ public class LuceneServer {
   }
 
   static class LuceneServerImpl extends LuceneServerGrpc.LuceneServerImplBase {
+    private final JsonFormat.Printer protoMessagePrinter =
+        JsonFormat.printer().omittingInsignificantWhitespace();
     private final GlobalState globalState;
     private final Archiver archiver;
     private final CollectorRegistry collectorRegistry;
@@ -800,10 +804,16 @@ public class LuceneServer {
                 .withCause(e)
                 .asRuntimeException());
       } catch (Exception e) {
+        String searchRequestJson = null;
+        try {
+          searchRequestJson = protoMessagePrinter.print(searchRequest);
+        } catch (InvalidProtocolBufferException ignored) {
+          // Ignore as invalid proto would have thrown an exception earlier
+        }
         logger.warn(
             String.format(
-                "error while trying to execute search for index %s: %n%s",
-                searchRequest.getIndexName(), searchRequest.toString()),
+                "error while trying to execute search for index %s: request: %s",
+                searchRequest.getIndexName(), searchRequestJson),
             e);
         searchResponseStreamObserver.onError(
             Status.UNKNOWN

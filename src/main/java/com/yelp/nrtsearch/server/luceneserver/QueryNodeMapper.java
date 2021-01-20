@@ -57,7 +57,7 @@ public class QueryNodeMapper {
     Query queryNode = getQueryNode(query, state);
 
     if (query.getBoost() < 0) {
-      throw new IllegalArgumentException("Boost must be a positive number, query: " + query);
+      throw new IllegalArgumentException("Boost must be a positive number");
     }
 
     if (query.getBoost() > 0) {
