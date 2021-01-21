@@ -91,7 +91,7 @@ public class FacetTopDocs {
       LeafReaderContext context = leaves.get(ReaderUtil.subIndex(topDocs.scoreDocs[i].doc, leaves));
 
       LoadedDocValues<?> docValues = indexableFieldDef.getDocValues(context);
-      docValues.setDocId(topDocs.scoreDocs[i].doc);
+      docValues.setDocId(topDocs.scoreDocs[i].doc - context.docBase);
       if (docValues.isEmpty()) {
         continue;
       }
