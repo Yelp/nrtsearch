@@ -383,11 +383,9 @@ public class IndexState implements Closeable, Restorable {
 
         @Override
         public Similarity get(String name) {
-          if (fields.containsKey(name)) {
-            FieldDef fd = getField(name);
-            if (fd instanceof IndexableFieldDef) {
-              return ((IndexableFieldDef) fd).getSimilarity();
-            }
+          FieldDef fd = getField(name);
+          if (fd instanceof IndexableFieldDef) {
+            return ((IndexableFieldDef) fd).getSimilarity();
           }
           return defaultSim;
         }
@@ -834,6 +832,10 @@ public class IndexState implements Closeable, Restorable {
     if (fields.containsKey(fd.getName())) {
       throw new IllegalArgumentException("field \"" + fd.getName() + "\" was already registered");
     }
+    if (metaFields.containsKey(fd.getName())) {
+      throw new IllegalArgumentException(
+          "field \"" + fd.getName() + "\" is a predefined meta field");
+    }
     // only json for top level fields needs to be added to the save state
     if (!isChildName(fd.getName())) {
       if (jsonObject == null) {
@@ -1058,7 +1060,7 @@ public class IndexState implements Closeable, Restorable {
   }
 
   // Get all predifined meta fields
-  private Map<String, FieldDef> getPredefinedMetaFields() {
+  private static Map<String, FieldDef> getPredefinedMetaFields() {
     return ImmutableMap.of(
         NESTED_PATH,
         FieldDefCreator.getInstance()

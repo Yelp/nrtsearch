@@ -364,7 +364,11 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
       if (value == null) {
         throw new IllegalStateException("No doc values for document");
       }
-      return value.get(index);
+      try {
+        return value.get(index);
+      } catch (IndexOutOfBoundsException e) {
+        throw new RuntimeException(e);
+      }
     }
 
     @Override
