@@ -432,7 +432,7 @@ public class LuceneServerTest {
     assertEquals(0, statsResponse.getOrd());
     assertEquals(2, statsResponse.getCurrentSearcher().getNumDocs());
     assertEquals(1, statsResponse.getCurrentSearcher().getNumSegments());
-    assertEquals(6610, statsResponse.getDirSize(), 1000);
+    assertEquals(6610, statsResponse.getDirSize(), 1500);
     assertEquals("started", statsResponse.getState());
   }
 
