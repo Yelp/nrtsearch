@@ -79,6 +79,7 @@ dependencies {
     implementation "org.apache.lucene:lucene-highlighter:${luceneVersion}"
     implementation "org.apache.lucene:lucene-grouping:${luceneVersion}"
     implementation "org.apache.lucene:lucene-queries:${luceneVersion}"
+    implementation "org.apache.lucene:lucene-join:${luceneVersion}"
 
     //cli deps
     implementation 'info.picocli:picocli:4.0.4'

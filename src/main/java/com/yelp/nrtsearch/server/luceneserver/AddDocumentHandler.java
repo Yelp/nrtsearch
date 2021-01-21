@@ -33,6 +33,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexableField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,6 +88,10 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
       for (Map.Entry<String, AddDocumentRequest.MultiValuedField> entry : fields.entrySet()) {
         parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
       }
+
+      ((IndexableFieldDef) (IndexState.getMetaField(IndexState.NESTED_PATH)))
+          .parseDocumentField(
+              documentsContext.getRootDocument(), List.of(IndexState.ROOT), List.of());
       return documentsContext;
     }
 
@@ -242,9 +247,15 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
                 .collect(Collectors.toList()));
       }
       Document rootDoc = handleFacets(shardState, documentsContext.getRootDocument());
+
+      for (Document doc : documents) {
+        for (IndexableField f : rootDoc.getFields(idFieldDef.getName())) {
+          doc.add(f);
+        }
+      }
+
       documents.add(rootDoc);
-      shardState.writer.updateDocuments(
-          idFieldDef.getTerm(handleFacets(shardState, rootDoc)), documents);
+      shardState.writer.updateDocuments(idFieldDef.getTerm(rootDoc), documents);
     }
 
     /**

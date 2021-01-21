@@ -40,6 +40,9 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.QueryBuilder;
 
 /** This class maps our GRPC Query object to a Lucene Query object. */
@@ -64,6 +67,16 @@ public class QueryNodeMapper {
       return new BoostQuery(queryNode, query.getBoost());
     }
     return queryNode;
+  }
+
+  public Query applyQueryNestedPath(Query query, String path) {
+    if (path == null || path.length() == 0) {
+      path = IndexState.ROOT;
+    }
+    BooleanQuery.Builder builder = new BooleanQuery.Builder();
+    builder.add(new TermQuery(new Term(IndexState.NESTED_PATH, path)), BooleanClause.Occur.FILTER);
+    builder.add(query, BooleanClause.Occur.MUST);
+    return builder.build();
   }
 
   private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
@@ -92,9 +105,44 @@ public class QueryNodeMapper {
         return getGeoBoundingBoxQuery(query.getGeoBoundingBoxQuery(), state);
       case GEOPOINTQUERY:
         return getGeoPointQuery(query.getGeoPointQuery(), state);
+      case NESTEDQUERY:
+        return getNestedQuery(query.getNestedQuery(), state);
       default:
         throw new UnsupportedOperationException(
             "Unsupported query type received: " + query.getQueryNodeCase());
+    }
+  }
+
+  private Query getNestedQuery(
+      com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery, IndexState state) {
+    Query childRawQuery = getQuery(nestedQuery.getQuery(), state);
+    Query childQuery =
+        new BooleanQuery.Builder()
+            .add(
+                new TermQuery(new Term(IndexState.NESTED_PATH, nestedQuery.getPath())),
+                BooleanClause.Occur.FILTER)
+            .add(childRawQuery, BooleanClause.Occur.MUST)
+            .build();
+    Query parentQuery = new TermQuery(new Term(IndexState.NESTED_PATH, IndexState.ROOT));
+    return new ToParentBlockJoinQuery(
+        childQuery, new QueryBitSetProducer(parentQuery), getScoreMode(nestedQuery));
+  }
+
+  private ScoreMode getScoreMode(com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery) {
+    switch (nestedQuery.getScoreMode()) {
+      case NONE:
+        return ScoreMode.None;
+      case AVG:
+        return ScoreMode.Avg;
+      case MAX:
+        return ScoreMode.Max;
+      case MIN:
+        return ScoreMode.Min;
+      case SUM:
+        return ScoreMode.Total;
+      default:
+        throw new UnsupportedOperationException(
+            "Unsupported score mode received: " + nestedQuery.getScoreMode());
     }
   }
 

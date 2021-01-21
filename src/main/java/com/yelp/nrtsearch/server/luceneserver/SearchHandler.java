@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.google.gson.Gson;
+import com.google.protobuf.Struct;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -30,10 +32,13 @@ import com.yelp.nrtsearch.server.luceneserver.field.BooleanFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.PolygonfieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
+import com.yelp.nrtsearch.server.utils.StructJsonUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -65,6 +70,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
   private final ThreadPoolExecutor threadPoolExecutor;
   Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
+
+  private final Gson gson = new Gson();
 
   public SearchHandler(ThreadPoolExecutor threadPoolExecutor) {
     this.threadPoolExecutor = threadPoolExecutor;
@@ -546,7 +553,13 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
           String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.getLuceneDocId()));
           for (String fieldValue : values) {
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
+            if (fd instanceof ObjectFieldDef || fd instanceof PolygonfieldDef) {
+              Map<String, Object> map = gson.fromJson(fieldValue, Map.class);
+              Struct struct = StructJsonUtils.convertMapToStruct(map);
+              compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(struct));
+            } else {
+              compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
+            }
           }
         } else {
           Object v = doc.get(name); // FIXME: doc is never updated, not sure if this is correct

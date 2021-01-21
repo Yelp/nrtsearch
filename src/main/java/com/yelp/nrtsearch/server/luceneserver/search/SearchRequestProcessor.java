@@ -245,6 +245,10 @@ public class SearchRequestProcessor {
     } else {
       q = new MatchAllDocsQuery();
     }
+
+    if (state.hasNestedChildFields()) {
+      return QUERY_NODE_MAPPER.applyQueryNestedPath(q, searchRequest.getQueryNestedPath());
+    }
     return q;
   }
 

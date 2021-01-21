@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
+import com.google.protobuf.Struct;
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
@@ -88,19 +89,37 @@ public class PolygonFieldDefTest extends ServerTestCase {
     queryAndVerifyIds(outGeoPolygonQuery);
   }
 
+  @Test
+  public void testRetrievePolygon() {
+    GeoPointQuery inGeoPolygonQuery =
+        GeoPointQuery.newBuilder()
+            .setField("polygon")
+            .setPoint(LatLng.newBuilder().setLatitude(0.9).setLongitude(100.9).build())
+            .build();
+    Query query = Query.newBuilder().setGeoPointQuery(inGeoPolygonQuery).build();
+    SearchResponse response = doQuery(query, "polygon");
+    for (SearchResponse.Hit hit : response.getHitsList()) {
+      Struct struct = hit.getFieldsOrThrow("polygon").getFieldValue(0).getStructValue();
+      assertEquals("Polygon", struct.getFieldsOrThrow("type").getStringValue());
+    }
+  }
+
+  private SearchResponse doQuery(Query query, String retrieveFields) {
+    return getGrpcServer()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName(DEFAULT_TEST_INDEX)
+                .setStartHit(0)
+                .setTopHits(10)
+                .setQuery(query)
+                .addRetrieveFields(retrieveFields)
+                .build());
+  }
+
   private void queryAndVerifyIds(GeoPointQuery geoPolygonQuery, String... expectedIds) {
     Query query = Query.newBuilder().setGeoPointQuery(geoPolygonQuery).build();
-    SearchResponse response =
-        getGrpcServer()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName(DEFAULT_TEST_INDEX)
-                    .setStartHit(0)
-                    .setTopHits(10)
-                    .setQuery(query)
-                    .addRetrieveFields("doc_id")
-                    .build());
+    SearchResponse response = doQuery(query, "doc_id");
     List<String> idList = Arrays.asList(expectedIds);
     assertEquals(idList.size(), response.getHitsCount());
     for (SearchResponse.Hit hit : response.getHitsList()) {

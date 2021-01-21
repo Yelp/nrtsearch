@@ -16,13 +16,24 @@
 package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler;
+import com.yelp.nrtsearch.server.luceneserver.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 
 public class ObjectFieldDef extends IndexableFieldDef {
 
@@ -32,7 +43,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
   protected ObjectFieldDef(String name, Field requestField) {
     super(name, requestField);
     this.isNestedDoc = requestField.getNestedDoc();
-    gson = new Gson();
+    gson = new GsonBuilder().serializeNulls().create();
   }
 
   @Override
@@ -56,6 +67,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
       fieldValues.stream()
           .map(e -> gson.fromJson(e, Map.class))
           .forEach(e -> fieldValueMaps.add(e));
+
       List<Document> childDocuments =
           fieldValueMaps.stream()
               .map(e -> createChildDocument(e, facetHierarchyPaths))
@@ -75,6 +87,8 @@ public class ObjectFieldDef extends IndexableFieldDef {
       Map<String, Object> fieldValue, List<List<String>> facetHierarchyPaths) {
     Document document = new Document();
     parseFieldWithChildrenObject(document, List.of(fieldValue), facetHierarchyPaths);
+    ((IndexableFieldDef) (IndexState.getMetaField(IndexState.NESTED_PATH)))
+        .parseDocumentField(document, List.of(this.getName()), List.of());
     return document;
   }
 
@@ -84,6 +98,15 @@ public class ObjectFieldDef extends IndexableFieldDef {
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     List<Map<String, Object>> fieldValueMaps = new ArrayList<>();
     fieldValues.stream().map(e -> gson.fromJson(e, Map.class)).forEach(e -> fieldValueMaps.add(e));
+    if (isStored()) {
+      for (String fieldValue : fieldValues) {
+        document.add(new StoredField(this.getName(), fieldValue));
+      }
+    }
+    if (hasDocValues()) {
+      document.add(
+          new BinaryDocValuesField(getName(), new BytesRef(wrapJsonStringList(fieldValues))));
+    }
     parseFieldWithChildrenObject(document, fieldValueMaps, facetHierarchyPaths);
   }
 
@@ -126,5 +149,40 @@ public class ObjectFieldDef extends IndexableFieldDef {
         childField.getValue().parseFieldWithChildren(document, childrenValues, facetHierarchyPaths);
       }
     }
+  }
+
+  public boolean isNestedDoc() {
+    return isNestedDoc;
+  }
+
+  @Override
+  protected DocValuesType parseDocValuesType(Field requestField) {
+    if (requestField.getStoreDocValues()) {
+      return DocValuesType.BINARY;
+    }
+    return DocValuesType.NONE;
+  }
+
+  @Override
+  public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+    if (docValuesType == DocValuesType.BINARY) {
+      BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
+      return new LoadedDocValues.ObjectJsonDocValues(binaryDocValues);
+    }
+    throw new IllegalStateException("Unsupported doc value type: " + docValuesType);
+  }
+
+  /**
+   * wrap list of json string to a single string
+   *
+   * @param jsonStringList
+   * @return
+   */
+  public static String wrapJsonStringList(List<String> jsonStringList) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("[");
+    sb.append(String.join(",", jsonStringList));
+    sb.append("]");
+    return sb.toString();
   }
 }

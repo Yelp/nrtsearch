@@ -132,6 +132,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
         indexState.addField(ent.getValue(), fieldAsJsonObject);
       }
     }
+
     String response = indexState.getAllFieldsJSON();
     FieldDefResponse reply = FieldDefResponse.newBuilder().setResponse(response).build();
     return reply;
