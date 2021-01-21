@@ -3353,6 +3353,9 @@
         },
         "contextField": {
           "type": "string"
+        },
+        "searchTextField": {
+          "type": "string"
         }
       }
     },

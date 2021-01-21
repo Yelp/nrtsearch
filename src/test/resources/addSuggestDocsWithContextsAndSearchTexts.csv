@@ -1,0 +1,3 @@
+text,weight,payload,context,search_text
+dog meows,1,payload1,c1,dog;dog meows
+dog barks,2,payload2,c1;c2,dog;dog barks

@@ -1,0 +1,37 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "text",
+      "type": "TEXT",
+      "store": true,
+      "search": false
+    },
+    {
+      "name": "weight",
+      "type": "FLOAT",
+      "store": true,
+      "search": false
+    },
+    {
+      "name": "payload",
+      "type": "TEXT",
+      "store": true,
+      "search": false
+    },
+    {
+      "name": "context",
+      "type": "TEXT",
+      "store": true,
+      "search": false,
+      "multiValued": true
+    },
+    {
+      "name": "search_text",
+      "type": "TEXT",
+      "store": true,
+      "search": true,
+      "multiValued": true
+    }
+  ]
+}

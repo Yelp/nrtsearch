@@ -32,6 +32,7 @@ import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.suggest.CompletionInfixSuggester;
 import com.yelp.nrtsearch.server.luceneserver.suggest.FuzzyInfixSuggester;
 import com.yelp.nrtsearch.server.luceneserver.suggest.iterator.FromProtobufFileSuggestItemIterator;
+import com.yelp.nrtsearch.server.luceneserver.suggest.iterator.SuggestDocumentDictionary;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -543,13 +544,23 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
       String payloadField = nonLocalSource.getPayloadField();
       String contextField = nonLocalSource.getContextField();
+      String searchTextField = nonLocalSource.getSearchTextField();
 
       DocumentDictionary dict;
 
       if (weightCase.equals(SuggestNonLocalSource.WeightCase.WEIGHTFIELD)) {
         // Weight is a field
         String weightField = nonLocalSource.getWeightField();
-        if (contextField.isEmpty()) {
+        if (!payloadField.isEmpty() && !contextField.isEmpty() && !searchTextField.isEmpty()) {
+          dict =
+              new SuggestDocumentDictionary(
+                  searcher.searcher.getIndexReader(),
+                  suggestField,
+                  weightField,
+                  payloadField,
+                  contextField,
+                  searchTextField);
+        } else if (contextField.isEmpty()) {
           dict =
               new DocumentDictionary(
                   searcher.searcher.getIndexReader(), suggestField, weightField, payloadField);
