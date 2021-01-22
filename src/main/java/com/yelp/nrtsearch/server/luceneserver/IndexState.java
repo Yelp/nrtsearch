@@ -429,6 +429,10 @@ public class IndexState implements Closeable, Restorable {
     this.globalState = globalState;
     this.name = name;
     this.rootDir = rootDir;
+
+    // add meta data fields
+    metaFields = getPredefinedMetaFields();
+
     // nocommit require rootDir != null!  no RAMDirectory!
     if (rootDir != null) {
       if (Files.exists(rootDir) == false) {
@@ -447,9 +451,6 @@ public class IndexState implements Closeable, Restorable {
       initSaveLoadState();
     }
     searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
-
-    // add meta data fields
-    metaFields = getPredefinedMetaFields();
   }
 
   void initSaveLoadState() throws IOException {
