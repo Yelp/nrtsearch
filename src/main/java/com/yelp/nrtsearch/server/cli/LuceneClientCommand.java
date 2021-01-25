@@ -26,15 +26,18 @@ import picocli.CommandLine;
     name = "lucene-client",
     synopsisSubcommandLabel = "COMMAND",
     subcommands = {
+      BuildSuggestCommand.class,
+      SuggestLookupCommand.class,
       AddDocumentsCommand.class,
       BackupIndexCommand.class,
+      CommandLine.HelpCommand.class,
       CommitCommand.class,
       CreateIndexCommand.class,
-      GetCurrentSearcherVersion.class,
-      DeleteDocumentsCommand.class,
       DeleteAllDocumentsCommand.class,
+      DeleteDocumentsCommand.class,
       DeleteIndexBackupCommand.class,
       DeleteIndexCommand.class,
+      GetCurrentSearcherVersion.class,
       LiveSettingsCommand.class,
       RefreshCommand.class,
       RegisterFieldsCommand.class,
@@ -44,8 +47,7 @@ import picocli.CommandLine;
       StatsCommand.class,
       StatusCommand.class,
       StopIndexCommand.class,
-      WriteNRTPointCommand.class,
-      CommandLine.HelpCommand.class
+      WriteNRTPointCommand.class
     })
 public class LuceneClientCommand implements Runnable {
   public static final Logger logger = LoggerFactory.getLogger(LuceneClientCommand.class.getName());

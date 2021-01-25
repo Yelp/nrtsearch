@@ -25,6 +25,7 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -306,6 +307,58 @@ public class LuceneServerClient {
             .setIndexName(indexName)
             .setCompleteDirectory(completeDirectory)
             .build());
+  }
+
+  public void buildSuggestIndex(
+      String suggestIndexName,
+      String indexName,
+      String analyzer,
+      long indexGen,
+      String suggestFieldName,
+      String weightFieldName,
+      String payloadFieldName,
+      String contextFieldName,
+      String searchTextFieldName) {
+    BuildSuggestRequest.Builder buildSuggestRequestBuilder = BuildSuggestRequest.newBuilder();
+    BuildSuggestRequest request =
+        buildSuggestRequestBuilder
+            .setSuggestName(suggestIndexName)
+            .setIndexName(indexName)
+            .setCompletionInfixSuggester(
+                CompletionInfixSuggester.newBuilder().setAnalyzer(analyzer).build())
+            .setNonLocalSource(
+                SuggestNonLocalSource.newBuilder()
+                    .setIndexGen(indexGen)
+                    .setSuggestField(suggestFieldName)
+                    .setWeightField(weightFieldName)
+                    .setPayloadField(payloadFieldName)
+                    .setContextField(contextFieldName)
+                    .setSearchTextField(searchTextFieldName)
+                    .build())
+            .build();
+
+    BuildSuggestResponse response = blockingStub.buildSuggest(request);
+    logger.info("Suggest index build info: " + response.toString());
+  }
+
+  public void suggestLookup(
+      String indexName, String suggestName, String suggestText, List<String> contexts, int count) {
+
+    SuggestLookupRequest.Builder suggestLookupBuilder = SuggestLookupRequest.newBuilder();
+    suggestLookupBuilder
+        .setIndexName(indexName)
+        .setSuggestName(suggestName)
+        .setText(suggestText)
+        .setCount(count);
+
+    for (String context : contexts) {
+      suggestLookupBuilder.addContexts(context);
+    }
+    SuggestLookupRequest request = suggestLookupBuilder.build();
+
+    SuggestLookupResponse response = blockingStub.suggestLookup(request);
+
+    logger.info("Suggest returned result: " + response.toString());
   }
 
   public void status() throws InterruptedException {
