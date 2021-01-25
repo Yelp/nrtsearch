@@ -1877,6 +1877,15 @@
         }
       }
     },
+    "luceneserverExistsQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        }
+      },
+      "description": "A query that matches documents which contain an value for a field."
+    },
     "luceneserverFacet": {
       "type": "object",
       "properties": {
@@ -2754,6 +2763,9 @@
         },
         "nestedQuery": {
           "$ref": "#/definitions/luceneserverNestedQuery"
+        },
+        "existsQuery": {
+          "$ref": "#/definitions/luceneserverExistsQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -2788,7 +2800,8 @@
         "RANGE",
         "GEO_BOUNDING_BOX",
         "GEO_POINT",
-        "NESTED"
+        "NESTED",
+        "EXISTS"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."
