@@ -69,6 +69,8 @@ import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
+import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
+import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.utils.Archiver;
@@ -126,6 +128,9 @@ public class LuceneServer {
     if (luceneServerConfiguration.getPublishJvmMetrics()) {
       DefaultExports.register(collectorRegistry);
     }
+    // register thread pool metrics
+    new ThreadPoolCollector().register(collectorRegistry);
+    collectorRegistry.register(RejectionCounterWrapper.rejectionCounter);
 
     List<Plugin> plugins = pluginsService.loadPlugins();
 
