@@ -107,6 +107,8 @@ public class QueryNodeMapper {
         return getGeoPointQuery(query.getGeoPointQuery(), state);
       case NESTEDQUERY:
         return getNestedQuery(query.getNestedQuery(), state);
+      case EXISTSQUERY:
+        return getExistsQuery(query.getExistsQuery(), state);
       default:
         throw new UnsupportedOperationException(
             "Unsupported query type received: " + query.getQueryNodeCase());
@@ -371,5 +373,10 @@ public class QueryNodeMapper {
             () -> new EnumMap<>(com.yelp.nrtsearch.server.grpc.BooleanClause.Occur.class),
             (map, v) -> map.put(v, BooleanClause.Occur.valueOf(v.name())),
             EnumMap::putAll);
+  }
+
+  private Query getExistsQuery(ExistsQuery existsQuery, IndexState state) {
+    String fieldName = existsQuery.getField();
+    return new ConstantScoreQuery(new TermQuery(new Term(IndexState.FIELD_NAMES, fieldName)));
   }
 }

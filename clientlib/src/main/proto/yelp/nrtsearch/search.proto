@@ -187,6 +187,11 @@ message GeoPointQuery {
     google.type.LatLng point = 2; // point used to query whether the polygon contains it.
 }
 
+// A query that matches documents which contain an value for a field.
+message ExistsQuery {
+    string field = 1; // Field in the document to query
+}
+
 // Defines different types of QueryNodes.
 enum QueryType {
     NONE = 0;
@@ -203,6 +208,7 @@ enum QueryType {
     GEO_BOUNDING_BOX = 11;
     GEO_POINT = 12;
     NESTED = 13;
+    EXISTS = 14;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -224,6 +230,7 @@ message Query {
         GeoBoundingBoxQuery geoBoundingBoxQuery = 13;
         GeoPointQuery geoPointQuery = 14;
         NestedQuery nestedQuery = 15;
+        ExistsQuery existsQuery = 16;
     }
 }
 

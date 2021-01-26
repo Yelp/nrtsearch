@@ -1,0 +1,55 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "id",
+      "type": "_ID",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "name",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "multiValued": true
+    },
+    {
+      "name": "pickup_partners",
+      "type": "OBJECT",
+      "search": true,
+      "nestedDoc": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "hours",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        }
+      ]
+    },
+    {
+      "name": "delivery_areas",
+      "type": "OBJECT",
+      "search": true,
+      "store": false,
+      "multiValued": true,
+      "storeDocValues": true,
+      "childFields": [
+        {
+          "name": "partner",
+          "type": "OBJECT",
+          "search": true,
+          "childFields": [
+            {
+              "name": "partner_id",
+              "type": "ATOM",
+              "search": true,
+              "multiValued": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -110,6 +110,7 @@ public class IndexState implements Closeable, Restorable {
 
   public static final String NESTED_PATH = "_nested_path";
   public static final String ROOT = "_root";
+  public static final String FIELD_NAMES = "_field_names";
 
   Logger logger = LoggerFactory.getLogger(IndexState.class);
   public final GlobalState globalState;
@@ -1071,6 +1072,16 @@ public class IndexState implements Closeable, Restorable {
                     .setName(IndexState.NESTED_PATH)
                     .setType(FieldType.ATOM)
                     .setSearch(true)
+                    .build()),
+        FIELD_NAMES,
+        FieldDefCreator.getInstance()
+            .createFieldDef(
+                FIELD_NAMES,
+                Field.newBuilder()
+                    .setName(FIELD_NAMES)
+                    .setType(FieldType.ATOM)
+                    .setSearch(true)
+                    .setMultiValued(true)
                     .build()));
   }
 
