@@ -23,8 +23,10 @@ import com.yelp.nrtsearch.server.grpc.FacetHierarchyPath;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.LabelAndValue;
+import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -217,6 +219,33 @@ public class TextFieldFacetsTest extends ServerTestCase {
         3,
         1L,
         expectedLabelAndValues);
+  }
+
+  @Test
+  public void testSortedDocValuesEmpty() {
+    Facet.Builder facetBuilder =
+        Facet.newBuilder().setName("test_name").setDim("sorted_doc_values_facet_field").setTopN(10);
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setTopHits(10)
+                    .addFacets(facetBuilder.build())
+                    .setQuery(
+                        Query.newBuilder()
+                            .setTermQuery(
+                                TermQuery.newBuilder()
+                                    .setField("sorted_doc_values_facet_field")
+                                    .setTextValue("unknown")
+                                    .build())
+                            .build())
+                    .build());
+    assertEquals(1, response.getFacetResultCount());
+    FacetResult result = response.getFacetResult(0);
+    assertEquals("test_name", result.getName());
+    assertEquals(0, result.getLabelValuesCount());
   }
 
   @Test
