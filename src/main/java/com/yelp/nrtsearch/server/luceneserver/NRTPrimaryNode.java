@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
+import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -156,6 +157,8 @@ public class NRTPrimaryNode extends PrimaryNode {
     String msg = "send flushed version=" + version + " replica count " + replicasInfos.size();
     message(msg);
     logger.info(msg);
+    NrtMetrics.searcherVersion.labels(indexName).set(version);
+    NrtMetrics.nrtPrimaryPointCount.labels(indexName).inc();
 
     // Notify current replicas:
     Iterator<ReplicaDetails> it = replicasInfos.iterator();
@@ -241,6 +244,7 @@ public class NRTPrimaryNode extends PrimaryNode {
   @Override
   protected void preCopyMergedSegmentFiles(SegmentCommitInfo info, Map<String, FileMetaData> files)
       throws IOException {
+    long mergeStartNS = System.nanoTime();
     if (replicasInfos.isEmpty()) {
       logger.info("no replicas, skip warming " + info);
       message("no replicas; skip warming " + info);
@@ -394,6 +398,11 @@ public class NRTPrimaryNode extends PrimaryNode {
       message(msg);
     } finally {
       warmingSegments.remove(preCopy);
+
+      // record metrics for this merge
+      NrtMetrics.nrtPrimaryMergeTime
+          .labels(indexName)
+          .observe((System.nanoTime() - mergeStartNS) / 1000000.0);
     }
   }
 

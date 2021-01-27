@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.CopyFiles;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
+import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.Map;
@@ -50,8 +51,10 @@ public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
         NRTReplicaNode.readFilesMetaData(copyFilesRequest.getFilesMetadata());
 
     AtomicBoolean finished = new AtomicBoolean();
+    CopyJob job;
+    long startNS = System.nanoTime();
     try {
-      CopyJob job = shardState.nrtReplicaNode.launchPreCopyFiles(finished, primaryGen, files);
+      job = shardState.nrtReplicaNode.launchPreCopyFiles(finished, primaryGen, files);
     } catch (IOException e) {
       responseObserver.onNext(
           TransferStatus.newBuilder()
@@ -91,6 +94,14 @@ public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
         // caller must set; //responseObserver.onError(e);
         throw new RuntimeException(e);
       }
+    }
+
+    // record metrics for merge copy
+    if (job.getFailed()) {
+      NrtMetrics.nrtMergeFailure.labels(indexName).inc();
+    } else {
+      NrtMetrics.nrtMergeTime.labels(indexName).observe((System.nanoTime() - startNS) / 1000000.0);
+      NrtMetrics.nrtMergeSize.labels(indexName).observe(job.getTotalBytesCopied());
     }
   }
 
