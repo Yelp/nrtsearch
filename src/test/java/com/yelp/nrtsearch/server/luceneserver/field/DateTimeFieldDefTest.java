@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -109,12 +110,67 @@ public class DateTimeFieldDefTest extends ServerTestCase {
     assertFields(response, "1");
   }
 
-  private SearchResponse doQuery(Query query, List<String> fields) {
-    return doQueryWithNestedPath(query, fields, "");
+  @Test(expected = RuntimeException.class)
+  public void testIndexInvalidEpochMillisDateTime() throws Exception {
+    List<AddDocumentRequest> docs = new ArrayList<>();
+    AddDocumentRequest docWithTimestamp =
+        AddDocumentRequest.newBuilder()
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
+            .putFields(
+                "timestamp_epoch_millis",
+                MultiValuedField.newBuilder().addValue("definitely not a long").build())
+            .build();
+
+    docs.add(docWithTimestamp);
+    addDocuments(docs.stream());
   }
 
-  private SearchResponse doQueryWithNestedPath(
-      Query query, List<String> fields, String queryNestedPath) {
+  @Test(expected = RuntimeException.class)
+  public void testIndexInvalidStringDateTime() throws Exception {
+    List<AddDocumentRequest> docs = new ArrayList<>();
+    AddDocumentRequest docWithTimestamp =
+        AddDocumentRequest.newBuilder()
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
+            .putFields(
+                "timestamp_string_format",
+                MultiValuedField.newBuilder().addValue("1610742000").build())
+            .build();
+
+    docs.add(docWithTimestamp);
+    addDocuments(docs.stream());
+  }
+
+  @Test(expected = StatusRuntimeException.class)
+  public void testRangeQueryEpochMillisInvalidFormat() {
+    doQuery(
+        Query.newBuilder()
+            .setRangeQuery(
+                RangeQuery.newBuilder()
+                    .setField("timestamp_epoch_millis")
+                    .setLower("I'm not a long")
+                    .setUpper("34234234.4234234")
+                    .build())
+            .build(),
+        List.of("doc_id"));
+  }
+
+  @Test(expected = StatusRuntimeException.class)
+  public void testRangeQueryStringDateTimeInvalidFormat() {
+    doQuery(
+        Query.newBuilder()
+            .setRangeQuery(
+                RangeQuery.newBuilder()
+                    .setField("timestamp_string_format")
+                    .setLower("34234234.4234234")
+                    .setUpper("I'm not a correct date format string")
+                    .build())
+            .build(),
+        List.of("doc_id"));
+  }
+
+  private SearchResponse doQuery(Query query, List<String> fields) {
     return getGrpcServer()
         .getBlockingStub()
         .search(
@@ -124,7 +180,6 @@ public class DateTimeFieldDefTest extends ServerTestCase {
                 .setTopHits(10)
                 .addAllRetrieveFields(fields)
                 .setQuery(query)
-                .setQueryNestedPath(queryNestedPath)
                 .build());
   }
 

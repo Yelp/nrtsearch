@@ -27,8 +27,6 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import java.io.IOException;
 import java.text.ParsePosition;
 import java.text.SimpleDateFormat;
-import java.time.DateTimeException;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -102,14 +100,13 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
   }
 
   private static long convertDateStringToMillis(String dateString, String dateTimeFormat) {
-    switch (dateTimeFormat) {
-      case EPOCH_MILLIS:
-        return Long.parseLong(dateString);
-      default:
-        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(dateTimeFormat);
-        return LocalDateTime.parse(dateString, dateTimeFormatter)
-            .toInstant(ZoneOffset.UTC)
-            .toEpochMilli();
+    if (dateTimeFormat.equals(EPOCH_MILLIS)) {
+      return Long.parseLong(dateString);
+    } else {
+      DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(dateTimeFormat);
+      return LocalDateTime.parse(dateString, dateTimeFormatter)
+          .toInstant(ZoneOffset.UTC)
+          .toEpochMilli();
     }
   }
 
@@ -160,12 +157,8 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
     // make sure the format is valid:
     try {
       String dateTimeFormat = requestField.getDateTimeFormat();
-      switch (dateTimeFormat) {
-        case EPOCH_MILLIS:
-          // do nothing
-          break;
-        default:
-          new SimpleDateFormat(dateTimeFormat);
+      if (!dateTimeFormat.equals(EPOCH_MILLIS)) {
+        new SimpleDateFormat(dateTimeFormat);
       }
     } catch (IllegalArgumentException iae) {
       throw new IllegalArgumentException("dateTimeFormat could not parse pattern", iae);
@@ -243,11 +236,10 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
   }
 
   private long getTimeToIndex(String dateString) {
-    switch (getDateTimeFormat()) {
-      case EPOCH_MILLIS:
-        return getTimeFromEpochMillisString(dateString);
-      default:
-        return getTimeFromDateTimeString(dateString);
+    if (getDateTimeFormat().equals(EPOCH_MILLIS)) {
+      return getTimeFromEpochMillisString(dateString);
+    } else {
+      return getTimeFromDateTimeString(dateString);
     }
   }
 
@@ -274,10 +266,9 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
             "%s could not parse %s as date_time with format %s",
             getName(), epochMillisString, dateTimeFormat);
     try {
-      long epochMillisLong = Long.parseLong(epochMillisString);
-      Instant epochMillisInstant = Instant.ofEpochMilli(epochMillisLong);
-      return epochMillisInstant.toEpochMilli();
-    } catch (NumberFormatException | DateTimeException e) {
+      long epochMillis = Long.parseLong(epochMillisString);
+      return epochMillis;
+    } catch (NumberFormatException e) {
       throw new IllegalArgumentException(format, e);
     }
   }

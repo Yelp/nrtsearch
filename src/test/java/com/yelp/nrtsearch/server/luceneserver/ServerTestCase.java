@@ -112,10 +112,11 @@ public class ServerTestCase {
   }
 
   public static AddDocumentResponse addDocuments(Stream<AddDocumentRequest> requestStream)
-      throws InterruptedException {
+      throws Exception {
     CountDownLatch finishLatch = new CountDownLatch(1);
     // observers responses from Server(should get one onNext and oneCompleted)
     final AtomicReference<AddDocumentResponse> response = new AtomicReference<>();
+    final AtomicReference<Exception> exception = new AtomicReference<>();
     StreamObserver<AddDocumentResponse> responseStreamObserver =
         new StreamObserver<>() {
           @Override
@@ -125,6 +126,7 @@ public class ServerTestCase {
 
           @Override
           public void onError(Throwable t) {
+            exception.set(new RuntimeException(t));
             finishLatch.countDown();
           }
 
@@ -150,6 +152,10 @@ public class ServerTestCase {
     // Receiving happens asynchronously, so block here 20 seconds
     if (!finishLatch.await(20, TimeUnit.SECONDS)) {
       throw new RuntimeException("addDocuments can not finish within 20 seconds");
+    }
+    // Re-throw exception
+    if (exception.get() != null) {
+      throw exception.get();
     }
     return response.get();
   }
