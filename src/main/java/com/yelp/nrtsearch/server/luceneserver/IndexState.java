@@ -384,9 +384,15 @@ public class IndexState implements Closeable, Restorable {
 
         @Override
         public Similarity get(String name) {
-          FieldDef fd = getField(name);
-          if (fd instanceof IndexableFieldDef) {
-            return ((IndexableFieldDef) fd).getSimilarity();
+          try {
+            FieldDef fd = getField(name);
+            if (fd instanceof IndexableFieldDef) {
+              return ((IndexableFieldDef) fd).getSimilarity();
+            }
+          } catch (IllegalArgumentException ignored) {
+            // ReplicaNode tries to do a Term query for a field called 'marker'
+            // in finishNRTCopy. Since the field is not in the index, we want
+            // to ignore the exception.
           }
           return defaultSim;
         }
