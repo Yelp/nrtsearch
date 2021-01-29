@@ -25,7 +25,6 @@ import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
-import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -110,64 +109,108 @@ public class DateTimeFieldDefTest extends ServerTestCase {
     assertFields(response, "1");
   }
 
-  @Test(expected = RuntimeException.class)
+  @Test
   public void testIndexInvalidEpochMillisDateTime() throws Exception {
+
+    String dateTimeField = "timestamp_epoch_millis";
+    String dateTimeValue = "definitely not a long";
+    String dateTimeFormat = "epoch_millis";
+
     List<AddDocumentRequest> docs = new ArrayList<>();
     AddDocumentRequest docWithTimestamp =
         AddDocumentRequest.newBuilder()
             .setIndexName(DEFAULT_TEST_INDEX)
             .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
-            .putFields(
-                "timestamp_epoch_millis",
-                MultiValuedField.newBuilder().addValue("definitely not a long").build())
+            .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
             .build();
 
     docs.add(docWithTimestamp);
-    addDocuments(docs.stream());
+    try {
+      addDocuments(docs.stream());
+    } catch (Exception e) {
+      assertEquals(
+          e.getMessage(),
+          formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat));
+    }
   }
 
-  @Test(expected = RuntimeException.class)
+  @Test
   public void testIndexInvalidStringDateTime() throws Exception {
+
+    String dateTimeField = "timestamp_string_format";
+    String dateTimeValue = "1610742000";
+    String dateTimeFormat = "yyyy-MM-dd HH:mm:ss";
+
     List<AddDocumentRequest> docs = new ArrayList<>();
     AddDocumentRequest docWithTimestamp =
         AddDocumentRequest.newBuilder()
             .setIndexName(DEFAULT_TEST_INDEX)
             .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
-            .putFields(
-                "timestamp_string_format",
-                MultiValuedField.newBuilder().addValue("1610742000").build())
+            .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
             .build();
 
     docs.add(docWithTimestamp);
-    addDocuments(docs.stream());
+    try {
+      addDocuments(docs.stream());
+    } catch (RuntimeException e) {
+      assertEquals(
+          e.getMessage(),
+          formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat));
+    }
   }
 
-  @Test(expected = StatusRuntimeException.class)
+  @Test
   public void testRangeQueryEpochMillisInvalidFormat() {
-    doQuery(
-        Query.newBuilder()
-            .setRangeQuery(
-                RangeQuery.newBuilder()
-                    .setField("timestamp_epoch_millis")
-                    .setLower("I'm not a long")
-                    .setUpper("34234234.4234234")
-                    .build())
-            .build(),
-        List.of("doc_id"));
+
+    String dateTimeValueLower = "I'm not a long";
+    String dateTimeValueUpper = "34234234.4234234";
+
+    try {
+      doQuery(
+          Query.newBuilder()
+              .setRangeQuery(
+                  RangeQuery.newBuilder()
+                      .setField("timestamp_epoch_millis")
+                      .setLower(dateTimeValueLower)
+                      .setUpper(dateTimeValueUpper)
+                      .build())
+              .build(),
+          List.of("doc_id"));
+    } catch (RuntimeException e) {
+      assertEquals(
+          e.getMessage(),
+          String.format(
+              "UNKNOWN: error while trying to execute search for index test_index. check logs for full searchRequest.\n"
+                  + "For input string: \"%s\"",
+              dateTimeValueLower));
+    }
   }
 
-  @Test(expected = StatusRuntimeException.class)
+  @Test
   public void testRangeQueryStringDateTimeInvalidFormat() {
-    doQuery(
-        Query.newBuilder()
-            .setRangeQuery(
-                RangeQuery.newBuilder()
-                    .setField("timestamp_string_format")
-                    .setLower("34234234.4234234")
-                    .setUpper("I'm not a correct date format string")
-                    .build())
-            .build(),
-        List.of("doc_id"));
+
+    String dateTimeValueLower = "34234234.4234234";
+    String dateTimeValueUpepr = "I'm not a correct date string";
+
+    try {
+      doQuery(
+          Query.newBuilder()
+              .setRangeQuery(
+                  RangeQuery.newBuilder()
+                      .setField("timestamp_string_format")
+                      .setLower(dateTimeValueLower)
+                      .setUpper(dateTimeValueUpepr)
+                      .build())
+              .build(),
+          List.of("doc_id"));
+    } catch (RuntimeException e) {
+      assertEquals(
+          e.getMessage(),
+          String.format(
+              "UNKNOWN: error while trying to execute search for index test_index. check logs for full searchRequest.\n"
+                  + "Text '%s' could not be parsed at index 0",
+              dateTimeValueLower));
+    }
   }
 
   private SearchResponse doQuery(Query query, List<String> fields) {
@@ -196,5 +239,14 @@ public class DateTimeFieldDefTest extends ServerTestCase {
     }
     Set<String> expectedSet = new HashSet<>(Arrays.asList(expectedValues));
     assertEquals(seenSet, expectedSet);
+  }
+
+  private String formatAddDocumentsExceptionMessage(
+      String dateTimeField, String dateTimeValue, String dateTimeFormat) {
+    return String.format(
+        "io.grpc.StatusRuntimeException: INTERNAL: error while trying to addDocuments \n"
+            + "java.lang.Exception: java.lang.IllegalArgumentException: %s "
+            + "could not parse %s as date_time with format %s",
+        dateTimeField, dateTimeValue, dateTimeFormat);
   }
 }
