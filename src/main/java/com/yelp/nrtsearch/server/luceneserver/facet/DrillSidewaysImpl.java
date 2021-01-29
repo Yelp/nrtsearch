@@ -512,30 +512,29 @@ public class DrillSidewaysImpl extends DrillSideways {
       }
       return getDocValuesFacetResult(facet, drillDowns, indexableFieldDef);
     }
-    if (facetResult != null) {
-      return buildFacetResultGrpc(facetResult, facet.getName());
-    }
-    return null;
+    return buildFacetResultGrpc(facetResult, facet.getName());
   }
 
   private static com.yelp.nrtsearch.server.grpc.FacetResult buildFacetResultGrpc(
       FacetResult facetResult, String name) {
     var builder = com.yelp.nrtsearch.server.grpc.FacetResult.newBuilder();
     builder.setName(name);
-    builder.setDim(facetResult.dim);
-    builder.addAllPath(Arrays.asList(facetResult.path));
-    builder.setValue(facetResult.value.doubleValue());
-    builder.setChildCount(facetResult.childCount);
-    List<com.yelp.nrtsearch.server.grpc.LabelAndValue> labelAndValues = new ArrayList<>();
-    for (LabelAndValue labelValue : facetResult.labelValues) {
-      var labelAndValue =
-          com.yelp.nrtsearch.server.grpc.LabelAndValue.newBuilder()
-              .setLabel(labelValue.label)
-              .setValue(labelValue.value.doubleValue())
-              .build();
-      labelAndValues.add(labelAndValue);
+    if (facetResult != null) {
+      builder.setDim(facetResult.dim);
+      builder.addAllPath(Arrays.asList(facetResult.path));
+      builder.setValue(facetResult.value.doubleValue());
+      builder.setChildCount(facetResult.childCount);
+      List<com.yelp.nrtsearch.server.grpc.LabelAndValue> labelAndValues = new ArrayList<>();
+      for (LabelAndValue labelValue : facetResult.labelValues) {
+        var labelAndValue =
+            com.yelp.nrtsearch.server.grpc.LabelAndValue.newBuilder()
+                .setLabel(labelValue.label)
+                .setValue(labelValue.value.doubleValue())
+                .build();
+        labelAndValues.add(labelAndValue);
+      }
+      builder.addAllLabelValues(labelAndValues);
     }
-    builder.addAllLabelValues(labelAndValues);
     return builder.build();
   }
 }

@@ -1,0 +1,12 @@
+{
+    "indexName": "test_index",
+    "field": [
+        {
+            "name": "float_field",
+            "type": "FLOAT",
+            "storeDocValues": true,
+            "multiValued": false,
+            "search": true
+        }
+    ]
+}

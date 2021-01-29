@@ -1877,6 +1877,15 @@
         }
       }
     },
+    "luceneserverExistsQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        }
+      },
+      "description": "A query that matches documents which contain an value for a field."
+    },
     "luceneserverFacet": {
       "type": "object",
       "properties": {
@@ -2754,6 +2763,9 @@
         },
         "nestedQuery": {
           "$ref": "#/definitions/luceneserverNestedQuery"
+        },
+        "existsQuery": {
+          "$ref": "#/definitions/luceneserverExistsQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -2788,7 +2800,8 @@
         "RANGE",
         "GEO_BOUNDING_BOX",
         "GEO_POINT",
-        "NESTED"
+        "NESTED",
+        "EXISTS"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."
@@ -2804,6 +2817,12 @@
         },
         "upper": {
           "type": "string"
+        },
+        "lowerExclusive": {
+          "type": "boolean"
+        },
+        "upperExclusive": {
+          "type": "boolean"
         }
       },
       "description": "A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types."

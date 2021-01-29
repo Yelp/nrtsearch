@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
 import com.yelp.nrtsearch.server.grpc.NodeInfo;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -167,6 +168,20 @@ public class NRTReplicaNode extends ReplicaNode {
       AtomicBoolean finished, long curPrimaryGen, Map<String, FileMetaData> files)
       throws IOException {
     return launchPreCopyMerge(finished, curPrimaryGen, files);
+  }
+
+  @Override
+  protected void finishNRTCopy(CopyJob job, long startNS) throws IOException {
+    super.finishNRTCopy(job, startNS);
+
+    // record metrics for this nrt point
+    if (job.getFailed()) {
+      NrtMetrics.nrtPointFailure.labels(indexName).inc();
+    } else {
+      NrtMetrics.nrtPointTime.labels(indexName).observe((System.nanoTime() - startNS) / 1000000.0);
+      NrtMetrics.nrtPointSize.labels(indexName).observe(job.getTotalBytesCopied());
+      NrtMetrics.searcherVersion.labels(indexName).set(job.getCopyState().version);
+    }
   }
 
   @Override

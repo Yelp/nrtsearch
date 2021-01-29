@@ -92,7 +92,32 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
       ((IndexableFieldDef) (IndexState.getMetaField(IndexState.NESTED_PATH)))
           .parseDocumentField(
               documentsContext.getRootDocument(), List.of(IndexState.ROOT), List.of());
+
+      // Include all fields and meta-fields in field names
+      extractFieldNames(documentsContext);
       return documentsContext;
+    }
+
+    /** Extract all field names for each document and stores it into a hidden field */
+    private static void extractFieldNames(DocumentsContext documentsContext) {
+      extractFieldNamesForDocument(documentsContext.getRootDocument());
+      documentsContext.getChildDocuments().values().stream()
+          .flatMap(List::stream)
+          .forEach(LuceneDocumentBuilder::extractFieldNamesForDocument);
+    }
+
+    /** Extract all field names in the document and stores it into a hidden field */
+    private static void extractFieldNamesForDocument(Document document) {
+      IndexableFieldDef fieldNamesFieldDef =
+          (IndexableFieldDef) IndexState.getMetaField(IndexState.FIELD_NAMES);
+
+      List<String> fieldNames =
+          document.getFields().stream()
+              .map(IndexableField::name)
+              .distinct()
+              .collect(Collectors.toList());
+
+      fieldNamesFieldDef.parseDocumentField(document, fieldNames, List.of());
     }
 
     /** Parses a field's value, which is a MultiValuedField in all cases */

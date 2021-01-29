@@ -69,6 +69,9 @@ import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
+import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
+import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
+import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.utils.Archiver;
@@ -123,9 +126,7 @@ public class LuceneServer {
   private void start() throws IOException {
     GlobalState globalState = new GlobalState(luceneServerConfiguration);
 
-    if (luceneServerConfiguration.getPublishJvmMetrics()) {
-      DefaultExports.register(collectorRegistry);
-    }
+    registerMetrics();
 
     List<Plugin> plugins = pluginsService.loadPlugins();
 
@@ -218,6 +219,19 @@ public class LuceneServer {
     if (replicationServer != null) {
       replicationServer.awaitTermination();
     }
+  }
+
+  /** Register prometheus metrics exposed by /status/metrics */
+  private void registerMetrics() {
+    // register jvm metrics
+    if (luceneServerConfiguration.getPublishJvmMetrics()) {
+      DefaultExports.register(collectorRegistry);
+    }
+    // register thread pool metrics
+    new ThreadPoolCollector().register(collectorRegistry);
+    collectorRegistry.register(RejectionCounterWrapper.rejectionCounter);
+    // register nrt metrics
+    NrtMetrics.register(collectorRegistry);
   }
 
   /** Main launches the server from the command line. */

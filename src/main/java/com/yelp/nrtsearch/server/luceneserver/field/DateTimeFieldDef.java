@@ -86,6 +86,13 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
         rangeQuery.getUpper().isEmpty()
             ? Long.MAX_VALUE
             : convertDateStringToMillis(rangeQuery.getUpper(), dateTimeFormat);
+
+    if (rangeQuery.getLowerExclusive()) {
+      lower = Math.addExact(lower, 1);
+    }
+    if (rangeQuery.getUpperExclusive()) {
+      upper = Math.addExact(upper, -1);
+    }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
     Query pointQuery = LongPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
