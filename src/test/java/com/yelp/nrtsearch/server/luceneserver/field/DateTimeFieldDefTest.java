@@ -129,8 +129,8 @@ public class DateTimeFieldDefTest extends ServerTestCase {
       addDocuments(docs.stream());
     } catch (Exception e) {
       assertEquals(
-          e.getMessage(),
-          formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat));
+          formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
+          e.getMessage());
     }
   }
 
@@ -154,8 +154,8 @@ public class DateTimeFieldDefTest extends ServerTestCase {
       addDocuments(docs.stream());
     } catch (RuntimeException e) {
       assertEquals(
-          e.getMessage(),
-          formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat));
+          formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
+          e.getMessage());
     }
   }
 
@@ -178,11 +178,11 @@ public class DateTimeFieldDefTest extends ServerTestCase {
           List.of("doc_id"));
     } catch (RuntimeException e) {
       assertEquals(
-          e.getMessage(),
           String.format(
               "UNKNOWN: error while trying to execute search for index test_index. check logs for full searchRequest.\n"
                   + "For input string: \"%s\"",
-              dateTimeValueLower));
+              dateTimeValueLower),
+          e.getMessage());
     }
   }
 
@@ -205,11 +205,11 @@ public class DateTimeFieldDefTest extends ServerTestCase {
           List.of("doc_id"));
     } catch (RuntimeException e) {
       assertEquals(
-          e.getMessage(),
           String.format(
               "UNKNOWN: error while trying to execute search for index test_index. check logs for full searchRequest.\n"
                   + "Text '%s' could not be parsed at index 0",
-              dateTimeValueLower));
+              dateTimeValueLower),
+          e.getMessage());
     }
   }
 
