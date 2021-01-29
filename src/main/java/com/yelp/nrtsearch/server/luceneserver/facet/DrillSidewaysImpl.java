@@ -399,12 +399,22 @@ public class DrillSidewaysImpl extends DrillSideways {
       if (c == null) {
         c = drillDowns;
       }
-      SortedSetDocValuesFacetCounts sortedSetDocValuesFacetCounts =
-          new SortedSetDocValuesFacetCounts(
-              shardState.getSSDVState(searcherAndTaxonomyManager, fieldDef), c);
-      facetResult =
-          sortedSetDocValuesFacetCounts.getTopChildren(
-              facet.getTopN(), fieldDef.getName(), new String[0]);
+      if (facet.getLabelsCount() > 0) {
+        // filter facet if a label list is provided
+        FilteredSSDVFacetCounts filteredSSDVFacetCounts =
+            new FilteredSSDVFacetCounts(
+                facet.getLabelsList(),
+                fieldDef.getName(),
+                shardState.getSSDVState(searcherAndTaxonomyManager, fieldDef),
+                c);
+        facetResult = filteredSSDVFacetCounts.getTopChildren(facet.getTopN(), fieldDef.getName());
+      } else {
+        SortedSetDocValuesFacetCounts sortedSetDocValuesFacetCounts =
+            new SortedSetDocValuesFacetCounts(
+                shardState.getSSDVState(searcherAndTaxonomyManager, fieldDef), c);
+        facetResult =
+            sortedSetDocValuesFacetCounts.getTopChildren(facet.getTopN(), fieldDef.getName());
+      }
     } else if (fieldDef.getFacetValueType() != IndexableFieldDef.FacetValueType.NO_FACETS) {
 
       // Taxonomy  facets
