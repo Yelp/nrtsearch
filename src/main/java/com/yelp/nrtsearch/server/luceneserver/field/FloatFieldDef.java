@@ -92,9 +92,20 @@ public class FloatFieldDef extends NumberFieldDef {
   @Override
   public Query getRangeQuery(RangeQuery rangeQuery) {
     float lower =
-        rangeQuery.getLower().isEmpty() ? Float.MIN_VALUE : Float.parseFloat(rangeQuery.getLower());
+        rangeQuery.getLower().isEmpty()
+            ? Float.NEGATIVE_INFINITY
+            : Float.parseFloat(rangeQuery.getLower());
     float upper =
-        rangeQuery.getUpper().isEmpty() ? Float.MAX_VALUE : Float.parseFloat(rangeQuery.getUpper());
+        rangeQuery.getUpper().isEmpty()
+            ? Float.POSITIVE_INFINITY
+            : Float.parseFloat(rangeQuery.getUpper());
+
+    if (rangeQuery.getLowerExclusive()) {
+      lower = FloatPoint.nextUp(lower);
+    }
+    if (rangeQuery.getUpperExclusive()) {
+      upper = FloatPoint.nextDown(upper);
+    }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
     Query pointQuery = FloatPoint.newRangeQuery(rangeQuery.getField(), lower, upper);

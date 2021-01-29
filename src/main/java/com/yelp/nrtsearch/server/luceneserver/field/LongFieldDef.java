@@ -89,6 +89,13 @@ public class LongFieldDef extends NumberFieldDef {
         rangeQuery.getLower().isEmpty() ? Long.MIN_VALUE : Long.parseLong(rangeQuery.getLower());
     long upper =
         rangeQuery.getUpper().isEmpty() ? Long.MAX_VALUE : Long.parseLong(rangeQuery.getUpper());
+
+    if (rangeQuery.getLowerExclusive()) {
+      lower = Math.addExact(lower, 1);
+    }
+    if (rangeQuery.getUpperExclusive()) {
+      upper = Math.addExact(upper, -1);
+    }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
     Query pointQuery = LongPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
