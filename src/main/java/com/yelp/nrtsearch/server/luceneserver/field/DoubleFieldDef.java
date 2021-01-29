@@ -93,12 +93,18 @@ public class DoubleFieldDef extends NumberFieldDef {
   public Query getRangeQuery(RangeQuery rangeQuery) {
     double lower =
         rangeQuery.getLower().isEmpty()
-            ? Double.MIN_VALUE
+            ? Double.NEGATIVE_INFINITY
             : Double.parseDouble(rangeQuery.getLower());
     double upper =
         rangeQuery.getUpper().isEmpty()
-            ? Double.MAX_VALUE
+            ? Double.POSITIVE_INFINITY
             : Double.parseDouble(rangeQuery.getUpper());
+    if (rangeQuery.getLowerExclusive()) {
+      lower = DoublePoint.nextUp(lower);
+    }
+    if (rangeQuery.getUpperExclusive()) {
+      upper = DoublePoint.nextDown(upper);
+    }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
     Query pointQuery = DoublePoint.newRangeQuery(rangeQuery.getField(), lower, upper);

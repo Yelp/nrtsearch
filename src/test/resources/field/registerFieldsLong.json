@@ -1,0 +1,12 @@
+{
+    "indexName": "test_index",
+    "field": [
+        {
+            "name": "long_field",
+            "type": "LONG",
+            "storeDocValues": true,
+            "multiValued": false,
+            "search": true
+        }
+    ]
+}

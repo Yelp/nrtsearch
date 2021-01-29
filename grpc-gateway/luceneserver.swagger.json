@@ -2817,6 +2817,12 @@
         },
         "upper": {
           "type": "string"
+        },
+        "lowerExclusive": {
+          "type": "boolean"
+        },
+        "upperExclusive": {
+          "type": "boolean"
         }
       },
       "description": "A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types."

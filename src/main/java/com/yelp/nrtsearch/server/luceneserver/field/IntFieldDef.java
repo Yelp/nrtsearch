@@ -94,6 +94,14 @@ public class IntFieldDef extends NumberFieldDef {
             ? Integer.MAX_VALUE
             : Integer.parseInt(rangeQuery.getUpper());
 
+    if (rangeQuery.getLowerExclusive()) {
+      lower = Math.addExact(lower, 1);
+    }
+    if (rangeQuery.getUpperExclusive()) {
+      upper = Math.addExact(upper, -1);
+    }
+    ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
+
     Query pointQuery = IntPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
 
     if (!hasDocValues()) {
@@ -103,6 +111,13 @@ public class IntFieldDef extends NumberFieldDef {
     Query dvQuery =
         SortedNumericDocValuesField.newSlowRangeQuery(rangeQuery.getField(), lower, upper);
     return new IndexOrDocValuesQuery(pointQuery, dvQuery);
+  }
+
+  private void ensureUpperIsMoreThanLower(RangeQuery rangeQuery, int lower, int upper) {
+    if (lower > upper) {
+      throw new IllegalArgumentException(
+          "Lower value is higher than upper value for RangeQuery: " + rangeQuery);
+    }
   }
 
   @Override

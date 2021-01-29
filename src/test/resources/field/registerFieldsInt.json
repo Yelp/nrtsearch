@@ -1,0 +1,12 @@
+{
+    "indexName": "test_index",
+    "field": [
+        {
+            "name": "int_field",
+            "type": "INT",
+            "storeDocValues": true,
+            "multiValued": false,
+            "search": true
+        }
+    ]
+}
