@@ -53,8 +53,6 @@ import org.apache.lucene.util.CloseableThreadLocal;
 
 /** Field class for 'DATE_TIME' field type. */
 public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, RangeQueryable {
-  private static final long MIN_DATE_TIME = 0;
-
   private static final String EPOCH_MILLIS = "epoch_millis";
 
   private final CloseableThreadLocal<DateTimeParser> dateTimeParsers;
@@ -80,7 +78,7 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
 
     long lower =
         rangeQuery.getLower().isEmpty()
-            ? MIN_DATE_TIME
+            ? Long.MIN_VALUE
             : convertDateStringToMillis(rangeQuery.getLower(), dateTimeFormat);
     long upper =
         rangeQuery.getUpper().isEmpty()
