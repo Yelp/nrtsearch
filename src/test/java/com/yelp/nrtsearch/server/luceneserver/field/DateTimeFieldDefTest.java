@@ -30,9 +30,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -48,33 +51,29 @@ public class DateTimeFieldDefTest extends ServerTestCase {
     return getFieldsFromResourceFile("/field/registerFieldsDateTime.json");
   }
 
-  protected void initIndex(String name) throws Exception {
+  protected void initIndex(String indexName) throws Exception {
     List<AddDocumentRequest> docs = new ArrayList<>();
-    AddDocumentRequest docWithTimestamp1 =
-        AddDocumentRequest.newBuilder()
-            .setIndexName(name)
-            .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
-            .putFields(
-                "timestamp_epoch_millis",
-                MultiValuedField.newBuilder().addValue("1611742000").build())
-            .putFields(
-                "timestamp_string_format",
-                MultiValuedField.newBuilder().addValue("2021-01-27 10:06:40").build())
-            .build();
-    AddDocumentRequest docWithTimestamp2 =
-        AddDocumentRequest.newBuilder()
-            .setIndexName(name)
-            .putFields("doc_id", MultiValuedField.newBuilder().addValue("2").build())
-            .putFields(
-                "timestamp_epoch_millis",
-                MultiValuedField.newBuilder().addValue("1610742000").build())
-            .putFields(
-                "timestamp_string_format",
-                MultiValuedField.newBuilder().addValue("2021-01-15 20:20:00").build())
-            .build();
-    docs.add(docWithTimestamp1);
-    docs.add(docWithTimestamp2);
+    docs.add(buildDocument(indexName, "0", String.valueOf(Long.MIN_VALUE), "1900-01-27 10:06:40"));
+    docs.add(buildDocument(indexName, "1", "1611742000", "2021-01-27 10:06:40"));
+    docs.add(buildDocument(indexName, "2", "1610742000", "2021-01-15 20:20:00"));
+    docs.add(buildDocument(indexName, "3", "1612742000", "2021-02-15 20:20:00"));
+    docs.add(buildDocument(indexName, "4", "1613742000", "2021-03-15 20:20:00"));
+    docs.add(buildDocument(indexName, "5", String.valueOf(Long.MAX_VALUE), "2099-01-15 20:20:00"));
     addDocuments(docs.stream());
+  }
+
+  private AddDocumentRequest buildDocument(
+      String indexName, String docId, String timestampMillis, String timestampFormatted) {
+    return AddDocumentRequest.newBuilder()
+        .setIndexName(indexName)
+        .putFields("doc_id", MultiValuedField.newBuilder().addValue(docId).build())
+        .putFields(
+            "timestamp_epoch_millis",
+            MultiValuedField.newBuilder().addValue(timestampMillis).build())
+        .putFields(
+            "timestamp_string_format",
+            MultiValuedField.newBuilder().addValue(timestampFormatted).build())
+        .build();
   }
 
   @Test
@@ -211,6 +210,138 @@ public class DateTimeFieldDefTest extends ServerTestCase {
               dateTimeValueLower),
           e.getMessage());
     }
+  }
+
+  @Test
+  public void testRangeQueryWithCombinationOfSpecifiedBoundsAndExclusive() {
+    String dateFieldName = "timestamp_epoch_millis";
+
+    // Both bounds defined
+
+    // Both inclusive
+    RangeQuery rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(dateFieldName)
+            .setLower("1610742000")
+            .setUpper("1613742000")
+            .build();
+    assertRangeQuery(rangeQuery, "2", "1", "3", "4");
+
+    // Lower exclusive, upper inclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(dateFieldName)
+            .setLower("1610742000")
+            .setUpper("1613742000")
+            .setLowerExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "1", "3", "4");
+
+    // Lower inclusive, upper exclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(dateFieldName)
+            .setLower("1610742000")
+            .setUpper("1613742000")
+            .setUpperExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "2", "1", "3");
+
+    // Both exclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(dateFieldName)
+            .setLower("1610742000")
+            .setUpper("1613742000")
+            .setLowerExclusive(true)
+            .setUpperExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "1", "3");
+
+    // Only upper bound defined
+
+    // Both inclusive
+    rangeQuery = RangeQuery.newBuilder().setField(dateFieldName).setUpper("1612742000").build();
+    assertRangeQuery(rangeQuery, "0", "2", "1", "3");
+
+    // Lower exclusive, upper inclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(dateFieldName)
+            .setUpper("1612742000")
+            .setLowerExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "2", "1", "3");
+
+    // Lower inclusive, upper exclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(dateFieldName)
+            .setUpper("1612742000")
+            .setUpperExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "0", "2", "1");
+
+    // Both exclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(dateFieldName)
+            .setUpper("1612742000")
+            .setLowerExclusive(true)
+            .setUpperExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "2", "1");
+
+    // Only lower bound defined
+
+    // Both inclusive
+    rangeQuery = RangeQuery.newBuilder().setField(dateFieldName).setLower("1611742000").build();
+    assertRangeQuery(rangeQuery, "1", "3", "4", "5");
+
+    // Lower exclusive, upper inclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(dateFieldName)
+            .setLower("1611742000")
+            .setLowerExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "3", "4", "5");
+
+    // Lower inclusive, upper exclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(dateFieldName)
+            .setLower("1611742000")
+            .setUpperExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "1", "3", "4");
+
+    // Both exclusive
+    rangeQuery =
+        RangeQuery.newBuilder()
+            .setField(dateFieldName)
+            .setLower("1611742000")
+            .setLowerExclusive(true)
+            .setUpperExclusive(true)
+            .build();
+    assertRangeQuery(rangeQuery, "3", "4");
+  }
+
+  private void assertRangeQuery(RangeQuery rangeQuery, String... expectedIds) {
+    String idFieldName = "doc_id";
+    Query query = Query.newBuilder().setRangeQuery(rangeQuery).build();
+    SearchResponse searchResponse = doQuery(query, List.of(idFieldName));
+    assertEquals(expectedIds.length, searchResponse.getHitsCount());
+    List<String> actualValues =
+        searchResponse.getHitsList().stream()
+            .map(
+                hit ->
+                    hit.getFieldsMap().get(idFieldName).getFieldValueList().get(0).getTextValue())
+            .sorted()
+            .collect(Collectors.toList());
+    List<String> expected = Arrays.asList(expectedIds);
+    expected.sort(Comparator.comparing(Function.identity()));
+    assertEquals(expected, actualValues);
   }
 
   private SearchResponse doQuery(Query query, List<String> fields) {
