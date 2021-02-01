@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValueType;
+import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.StatusRuntimeException;
 import java.io.Closeable;
@@ -436,14 +437,17 @@ public class ShardState implements Closeable {
    */
   private class ShardSearcherFactory extends SearcherFactory {
     private final boolean loadEagerOrdinals;
+    private final boolean collectMetrics;
 
     /**
      * Constructor.
      *
      * @param loadEagerOrdinals is eager global ordinal loading enabled, not needed for primary
+     * @param collectMetrics if metrics should be collected for each new index searcher
      */
-    ShardSearcherFactory(boolean loadEagerOrdinals) {
+    ShardSearcherFactory(boolean loadEagerOrdinals, boolean collectMetrics) {
       this.loadEagerOrdinals = loadEagerOrdinals;
+      this.collectMetrics = collectMetrics;
     }
 
     @Override
@@ -453,6 +457,10 @@ public class ShardState implements Closeable {
       searcher.setSimilarity(indexState.sim);
       if (loadEagerOrdinals) {
         loadEagerGlobalOrdinals(reader);
+      }
+      if (collectMetrics) {
+        IndexMetrics.updateReaderStats(indexState.name, reader);
+        IndexMetrics.updateSearcherStats(indexState.name, searcher);
       }
       return searcher;
     }
@@ -577,7 +585,8 @@ public class ShardState implements Closeable {
       // nocommit must also pull snapshots for taxoReader?
 
       manager =
-          new SearcherTaxonomyManager(writer, true, new ShardSearcherFactory(true), taxoWriter);
+          new SearcherTaxonomyManager(
+              writer, true, new ShardSearcherFactory(true, true), taxoWriter);
 
       restartReopenThread();
 
@@ -699,7 +708,7 @@ public class ShardState implements Closeable {
               0,
               primaryGen,
               -1,
-              new ShardSearcherFactory(false),
+              new ShardSearcherFactory(false, true),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()));
       // Enable merges
       writerConfig.setMergePolicy(mergePolicy);
@@ -904,7 +913,7 @@ public class ShardState implements Closeable {
               hostPort,
               REPLICA_ID,
               indexDir,
-              new ShardSearcherFactory(true),
+              new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               primaryGen);
 

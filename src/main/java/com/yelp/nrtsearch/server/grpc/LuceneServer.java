@@ -68,6 +68,7 @@ import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
+import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
@@ -232,6 +233,8 @@ public class LuceneServer {
     collectorRegistry.register(RejectionCounterWrapper.rejectionCounter);
     // register nrt metrics
     NrtMetrics.register(collectorRegistry);
+    // register index metrics
+    IndexMetrics.register(collectorRegistry);
   }
 
   /** Main launches the server from the command line. */
