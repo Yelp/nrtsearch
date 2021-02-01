@@ -2344,6 +2344,21 @@
       },
       "description": "A query that matches documents with polygon that contains the geo point."
     },
+    "luceneserverGeoRadiusQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "center": {
+          "$ref": "#/definitions/typeLatLng"
+        },
+        "radius": {
+          "type": "string"
+        }
+      },
+      "title": "A query that matches documents with geo point within the radius of target geo point"
+    },
     "luceneserverGetAllSnapshotGenResponse": {
       "type": "object",
       "properties": {
@@ -2766,6 +2781,9 @@
         },
         "existsQuery": {
           "$ref": "#/definitions/luceneserverExistsQuery"
+        },
+        "geoRadiusQuery": {
+          "$ref": "#/definitions/luceneserverGeoRadiusQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -2801,7 +2819,8 @@
         "GEO_BOUNDING_BOX",
         "GEO_POINT",
         "NESTED",
-        "EXISTS"
+        "EXISTS",
+        "GEO_RADIUS"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."

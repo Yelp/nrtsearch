@@ -109,6 +109,8 @@ public class QueryNodeMapper {
         return getNestedQuery(query.getNestedQuery(), state);
       case EXISTSQUERY:
         return getExistsQuery(query.getExistsQuery(), state);
+      case GEORADIUSQUERY:
+        return getGeoRadiusQuery(query.getGeoRadiusQuery(), state);
       default:
         throw new UnsupportedOperationException(
             "Unsupported query type received: " + query.getQueryNodeCase());
@@ -353,6 +355,16 @@ public class QueryNodeMapper {
     }
 
     return ((GeoQueryable) field).getGeoBoundingBoxQuery(geoBoundingBoxQuery);
+  }
+
+  private Query getGeoRadiusQuery(GeoRadiusQuery geoRadiusQuery, IndexState state) {
+    String fieldName = geoRadiusQuery.getField();
+    FieldDef field = state.getField(fieldName);
+    if (!(field instanceof GeoQueryable)) {
+      throw new IllegalArgumentException(
+          "Field: " + fieldName + " does not support GeoRadiusQuery");
+    }
+    return ((GeoQueryable) field).getGeoRadiusQuery(geoRadiusQuery);
   }
 
   private Query getGeoPointQuery(GeoPointQuery geoPolygonQuery, IndexState state) {

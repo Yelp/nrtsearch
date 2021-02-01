@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.field.properties;
 
 import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
+import com.yelp.nrtsearch.server.grpc.GeoRadiusQuery;
 import org.apache.lucene.search.Query;
 
 /**
@@ -30,4 +31,12 @@ public interface GeoQueryable {
    * @return lucene box query
    */
   Query getGeoBoundingBoxQuery(GeoBoundingBoxQuery geoBoundingBoxQuery);
+
+  /**
+   * Build a geo radius query for this field type with the given configuration.
+   *
+   * @param geoRadiusQuery geo radius query configuration
+   * @return
+   */
+  Query getGeoRadiusQuery(GeoRadiusQuery geoRadiusQuery);
 }
