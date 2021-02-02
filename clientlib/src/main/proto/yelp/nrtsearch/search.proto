@@ -364,6 +364,7 @@ message SearchResponse {
         double getFieldsTimeMs = 6;
         double newSnapshotSearcherOpenMs = 7;
         double nrtWaitTimeMs = 8;
+        map<string, double> facetTimeMs = 9;
     }
 
     message Hit {

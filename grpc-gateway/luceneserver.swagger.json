@@ -1262,6 +1262,13 @@
         "nrtWaitTimeMs": {
           "type": "number",
           "format": "double"
+        },
+        "facetTimeMs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          }
         }
       }
     },
