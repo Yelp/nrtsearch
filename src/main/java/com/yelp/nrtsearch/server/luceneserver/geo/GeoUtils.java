@@ -17,6 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver.geo;
 
 public class GeoUtils {
 
+  private static final double KM_TO_M = 1000.0;
+  private static final double MI_TO_M = 1609.344;
+
   /**
    * convert raw distance like "12 km", "12 mi" to meters
    *
@@ -38,9 +41,9 @@ public class GeoUtils {
       if (distanceUnit.equals("m")) {
         return distanceNumber;
       } else if (distanceUnit.equals("km")) {
-        return distanceNumber * 1000;
+        return distanceNumber * KM_TO_M;
       } else if (distanceUnit.equals("mi")) {
-        return distanceNumber * 1609.344;
+        return distanceNumber * MI_TO_M;
       } else {
         throw new IllegalArgumentException("Invalid distance " + rawDistance);
       }

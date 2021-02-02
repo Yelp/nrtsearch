@@ -144,6 +144,10 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQu
 
   @Override
   public Query getGeoRadiusQuery(GeoRadiusQuery geoRadiusQuery) {
+    if (!this.isSearchable()) {
+      throw new IllegalArgumentException(
+          String.format("field %s is not searchable", this.getName()));
+    }
     double radius = GeoUtils.getDistance(geoRadiusQuery.getRadius());
     return LatLonPoint.newDistanceQuery(
         geoRadiusQuery.getField(),
