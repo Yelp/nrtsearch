@@ -688,7 +688,7 @@ type Field struct {
 	MultiValued     bool         `protobuf:"varint,9,opt,name=multiValued,proto3" json:"multiValued,omitempty"`                                   // True if this field may sometimes have more than one value.
 	Highlight       bool         `protobuf:"varint,10,opt,name=highlight,proto3" json:"highlight,omitempty"`                                      // True if the value should be indexed for highlighting.
 	OmitNorms       bool         `protobuf:"varint,11,opt,name=omitNorms,proto3" json:"omitNorms,omitempty"`                                      // True if norms are omitted.
-	DateTimeFormat  string       `protobuf:"bytes,12,opt,name=dateTimeFormat,proto3" json:"dateTimeFormat,omitempty"`                             // Format string used to parse datetime fields
+	DateTimeFormat  string       `protobuf:"bytes,12,opt,name=dateTimeFormat,proto3" json:"dateTimeFormat,omitempty"`                             // Format string used to parse datetime fields, supported values are: 1) DateTimeFormatter format 2) "epoch_millis" (datetime value is epoch timestamp)
 	PostingsFormat  string       `protobuf:"bytes,13,opt,name=postingsFormat,proto3" json:"postingsFormat,omitempty"`                             // Which PostingsFormat should be used to index this field.
 	DocValuesFormat string       `protobuf:"bytes,14,opt,name=docValuesFormat,proto3" json:"docValuesFormat,omitempty"`                           // Which DocValuesFormat should be used to index this field.
 	IndexOptions    IndexOptions `protobuf:"varint,15,opt,name=indexOptions,proto3,enum=luceneserver.IndexOptions" json:"indexOptions,omitempty"` //How the tokens should be indexed.

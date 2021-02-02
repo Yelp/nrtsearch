@@ -19,11 +19,13 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.ha
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
+import com.yelp.nrtsearch.server.grpc.GeoRadiusQuery;
 import com.yelp.nrtsearch.server.grpc.Point;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
+import com.yelp.nrtsearch.server.luceneserver.geo.GeoUtils;
 import java.io.IOException;
 import java.util.List;
 import org.apache.lucene.document.Document;
@@ -138,5 +140,19 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQu
         geoBoundingBoxQuery.getTopLeft().getLatitude(),
         geoBoundingBoxQuery.getTopLeft().getLongitude(),
         geoBoundingBoxQuery.getBottomRight().getLongitude());
+  }
+
+  @Override
+  public Query getGeoRadiusQuery(GeoRadiusQuery geoRadiusQuery) {
+    if (!this.isSearchable()) {
+      throw new IllegalArgumentException(
+          String.format("field %s is not searchable", this.getName()));
+    }
+    double radius = GeoUtils.getDistance(geoRadiusQuery.getRadius());
+    return LatLonPoint.newDistanceQuery(
+        geoRadiusQuery.getField(),
+        geoRadiusQuery.getCenter().getLatitude(),
+        geoRadiusQuery.getCenter().getLongitude(),
+        radius);
   }
 }
