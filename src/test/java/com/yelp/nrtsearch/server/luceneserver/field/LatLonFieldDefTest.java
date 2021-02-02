@@ -19,13 +19,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.google.type.LatLng;
-import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
-import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
-import com.yelp.nrtsearch.server.grpc.Query;
-import com.yelp.nrtsearch.server.grpc.SearchRequest;
-import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.StatusRuntimeException;
@@ -90,7 +85,7 @@ public class LatLonFieldDefTest extends ServerTestCase {
             .setBottomRight(
                 LatLng.newBuilder().setLatitude(37.419254).setLongitude(-121.836704).build())
             .build();
-    queryAndVerifyIds(fremontGeoBoundingBoxQuery, "1");
+    geoBoundingBoxQueryAndVerifyIds(fremontGeoBoundingBoxQuery, "1");
 
     GeoBoundingBoxQuery sfGeoBoundingBoxQuery =
         GeoBoundingBoxQuery.newBuilder()
@@ -100,7 +95,7 @@ public class LatLonFieldDefTest extends ServerTestCase {
             .setBottomRight(
                 LatLng.newBuilder().setLatitude(37.759250).setLongitude(-122.383569).build())
             .build();
-    queryAndVerifyIds(sfGeoBoundingBoxQuery, "2");
+    geoBoundingBoxQueryAndVerifyIds(sfGeoBoundingBoxQuery, "2");
 
     // No results in Mountain View
     GeoBoundingBoxQuery mountainViewGeoBoxQuery =
@@ -111,7 +106,7 @@ public class LatLonFieldDefTest extends ServerTestCase {
             .setBottomRight(
                 LatLng.newBuilder().setLatitude(37.346484).setLongitude(-121.984961).build())
             .build();
-    queryAndVerifyIds(mountainViewGeoBoxQuery);
+    geoBoundingBoxQueryAndVerifyIds(mountainViewGeoBoxQuery);
   }
 
   @Test(expected = StatusRuntimeException.class)
@@ -124,11 +119,42 @@ public class LatLonFieldDefTest extends ServerTestCase {
             .setBottomRight(
                 LatLng.newBuilder().setLatitude(37.419254).setLongitude(-121.836704).build())
             .build();
-    queryAndVerifyIds(fremontGeoBoundingBoxQuery);
+    geoBoundingBoxQueryAndVerifyIds(fremontGeoBoundingBoxQuery);
   }
 
-  private void queryAndVerifyIds(GeoBoundingBoxQuery geoBoundingBoxQuery, String... expectedIds) {
+  @Test
+  public void testGeoRadiusQuery() {
+    GeoRadiusQuery sfGeoRadiusQuery =
+        GeoRadiusQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .setRadius("5 mi")
+            .setCenter(
+                LatLng.newBuilder().setLatitude(37.7789847).setLongitude(-122.4166709).build())
+            .build();
+    geoRadiusQueryAndVerifyIds(sfGeoRadiusQuery, "2");
+
+    GeoRadiusQuery fremontGeoRadiusQuery =
+        GeoRadiusQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .setRadius("5 mi")
+            .setCenter(
+                LatLng.newBuilder().setLatitude(37.4766153).setLongitude(-121.9124278).build())
+            .build();
+    geoRadiusQueryAndVerifyIds(fremontGeoRadiusQuery, "1");
+  }
+
+  private void geoBoundingBoxQueryAndVerifyIds(
+      GeoBoundingBoxQuery geoBoundingBoxQuery, String... expectedIds) {
     Query query = Query.newBuilder().setGeoBoundingBoxQuery(geoBoundingBoxQuery).build();
+    queryAndVerifyIds(query, expectedIds);
+  }
+
+  private void geoRadiusQueryAndVerifyIds(GeoRadiusQuery geoRadiusQuery, String... expectedIds) {
+    Query query = Query.newBuilder().setGeoRadiusQuery(geoRadiusQuery).build();
+    queryAndVerifyIds(query, expectedIds);
+  }
+
+  private void queryAndVerifyIds(Query query, String... expectedIds) {
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
