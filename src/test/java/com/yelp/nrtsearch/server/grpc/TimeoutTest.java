@@ -136,7 +136,7 @@ public class TimeoutTest extends ServerTestCase {
     }
 
     @Override
-    public long getTimeMs() {
+    public synchronized long getTimeMs() {
       // advance time on each call
       long now = currentTime;
       currentTime += 2000;
