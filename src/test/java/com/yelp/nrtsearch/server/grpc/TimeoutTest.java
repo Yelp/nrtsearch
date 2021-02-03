@@ -136,7 +136,7 @@ public class TimeoutTest extends ServerTestCase {
     }
 
     @Override
-    public long getTimeMs() {
+    public synchronized long getTimeMs() {
       // advance time on each call
       long now = currentTime;
       currentTime += 2000;
@@ -383,7 +383,8 @@ public class TimeoutTest extends ServerTestCase {
               context.getIndexState().getShard(0),
               context.getQueryFields(),
               grpcFacetResults,
-              searchThreadPoolExecutor);
+              searchThreadPoolExecutor,
+              Diagnostics.newBuilder());
       DrillSideways.ConcurrentDrillSidewaysResult<? extends TopDocs> concurrentDrillSidewaysResult =
           drillS.search((DrillDownQuery) context.getQuery(), manager);
       topDocs = concurrentDrillSidewaysResult.collectorResult;

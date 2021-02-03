@@ -114,7 +114,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 shardState,
                 searchContext.getQueryFields(),
                 grpcFacetResults,
-                threadPoolExecutor);
+                threadPoolExecutor,
+                diagnostics);
         DrillSideways.ConcurrentDrillSidewaysResult<? extends TopDocs>
             concurrentDrillSidewaysResult;
         try {
@@ -136,7 +137,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             .getResponseBuilder()
             .addAllFacetResult(
                 FacetTopDocs.facetTopDocsSample(
-                    hits, searchRequest.getFacetsList(), indexState, s.searcher));
+                    hits, searchRequest.getFacetsList(), indexState, s.searcher, diagnostics));
       } else {
         hits =
             s.searcher.search(

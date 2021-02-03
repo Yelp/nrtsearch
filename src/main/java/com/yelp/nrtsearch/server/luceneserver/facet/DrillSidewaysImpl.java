@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.facet;
 import com.google.protobuf.ProtocolStringList;
 import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.NumericRangeType;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
@@ -65,6 +66,7 @@ public class DrillSidewaysImpl extends DrillSideways {
   private final ShardState shardState;
   private final Map<String, FieldDef> dynamicFields;
   private final List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults;
+  private final Diagnostics.Builder diagnostics;
 
   /**
    * @param searcher
@@ -74,6 +76,7 @@ public class DrillSidewaysImpl extends DrillSideways {
    * @param searcherAndTaxonomyManager
    * @param shardState
    * @param dynamicFields
+   * @param diagnostics diagnostics builder for storing facet timing
    */
   public DrillSidewaysImpl(
       IndexSearcher searcher,
@@ -84,13 +87,15 @@ public class DrillSidewaysImpl extends DrillSideways {
       ShardState shardState,
       Map<String, FieldDef> dynamicFields,
       List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults,
-      ExecutorService executorService) {
+      ExecutorService executorService,
+      Diagnostics.Builder diagnostics) {
     super(searcher, config, taxoReader, null, executorService);
     this.grpcFacets = grpcFacets;
     this.searcherAndTaxonomyManager = searcherAndTaxonomyManager;
     this.shardState = shardState;
     this.dynamicFields = dynamicFields;
     this.grpcFacetResults = grpcFacetResults;
+    this.diagnostics = diagnostics;
   }
 
   protected Facets buildFacetsResult(
@@ -104,7 +109,8 @@ public class DrillSidewaysImpl extends DrillSideways {
         grpcFacets,
         dynamicFields,
         searcherAndTaxonomyManager,
-        grpcFacetResults);
+        grpcFacetResults,
+        diagnostics);
     return null;
   }
 
@@ -116,7 +122,8 @@ public class DrillSidewaysImpl extends DrillSideways {
       List<Facet> grpcFacets,
       Map<String, FieldDef> dynamicFields,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomyManager,
-      List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults)
+      List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults,
+      Diagnostics.Builder diagnostics)
       throws IOException {
 
     IndexState indexState = shardState.indexState;
@@ -142,6 +149,8 @@ public class DrillSidewaysImpl extends DrillSideways {
         continue;
       }
 
+      long startNS = System.nanoTime();
+
       com.yelp.nrtsearch.server.grpc.FacetResult facetResult;
       if (facet.hasScript()) {
         // this facet is a FacetScript, run script against all matching documents
@@ -160,6 +169,8 @@ public class DrillSidewaysImpl extends DrillSideways {
       if (facetResult != null) {
         grpcFacetResults.add(facetResult);
       }
+      long endNS = System.nanoTime();
+      diagnostics.putFacetTimeMs(facet.getName(), (endNS - startNS) / 1000000.0);
     }
   }
 

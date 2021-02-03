@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.facet;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.Facet;
@@ -586,6 +587,7 @@ public class FacetTopHitsTest extends ServerTestCase {
       ExpectedValues... expectedValues) {
     assertEquals(1, response.getFacetResultCount());
     FacetResult result = response.getFacetResult(0);
+    assertTrue(response.getDiagnostics().containsFacetTimeMs("top_hits_facet"));
     assertFacetResult(result, "top_hits_facet", value, childCount, valuesCount, expectedValues);
   }
 
