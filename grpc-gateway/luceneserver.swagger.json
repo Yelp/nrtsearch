@@ -2212,6 +2212,18 @@
         }
       }
     },
+    "luceneserverFunctionFilterQuery": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery"
+        },
+        "script": {
+          "$ref": "#/definitions/luceneserverScript"
+        }
+      },
+      "description": "A query that wraps another query and uses custom scoring logic to filter out the the wrapped query's results."
+    },
     "luceneserverFunctionScoreQuery": {
       "type": "object",
       "properties": {
@@ -2791,6 +2803,9 @@
         },
         "geoRadiusQuery": {
           "$ref": "#/definitions/luceneserverGeoRadiusQuery"
+        },
+        "functionFilterQuery": {
+          "$ref": "#/definitions/luceneserverFunctionFilterQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."

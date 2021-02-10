@@ -60,6 +60,12 @@ message FunctionScoreQuery {
     Script script = 2; // script definition to compute a custom document score
 }
 
+// A query that retrieves all documents with a positive score calculated by the script
+message FunctionFilterQuery {
+    Query query = 1; // Input query
+    Script script = 2; // script definition to compute a custom document score
+}
+
 //
 message NestedQuery {
     enum ScoreMode {
@@ -242,6 +248,7 @@ message Query {
         NestedQuery nestedQuery = 15;
         ExistsQuery existsQuery = 16;
         GeoRadiusQuery geoRadiusQuery = 17;
+        FunctionFilterQuery functionFilterQuery = 18;
     }
 }
 
