@@ -5,11 +5,11 @@ core functionality over a simple gRPC based API.
 # Features
 * Relies on Lucene's [near-real-time segment replication](http://blog.mikemccandless.com/2017/09/lucenes-near-real-time-segment-index.html) for data replication. This means, a dedicated primary/writer node takes care of indexing operations and expensive operations like [segment merges](http://blog.mikemccandless.com/2011/02/visualizing-lucenes-segment-merges.html). This allows the replicas' system resources to be dedicated entirely for search queries. This behavior is in contrast to the document replication approach taken by some other popular seach engines based on lucene like elasticsearch where every node is a writer and a reader.
 * [Supports concurrent query execution](http://blog.mikemccandless.com/2019/10/concurrent-query-execution-in-apache.html). This is another feature missing from popular search engines based on lucene like elasticsearch.
-* Can be deployed as a "stateless microservice". Indexes are backed up in s3. Clients can choose to commit data outside of this system once their backup is complete. Upon restarts e.g if you bring up a new container clients can choose to bootstrap indexes from their previous backed up state. Ability to deploy in a stateless manner allows for easy scalibility using container tools like kubernetes, mesos etc.
+* Can be deployed as a "stateless microservice". Indexes are backed up in s3. Clients can choose to commit data outside of this system once their backup is complete. Upon restarts e.g. if you bring up a new container clients can choose to bootstrap indexes from their previous backed up state. Ability to deploy in a stateless manner allows for easy scalibility using container tools like kubernetes, mesos etc.
 * Provides gRPC streaming APIs for indexing and searching. Also supports REST APIs.
 
 # Design
-The design goals are mostly similar to the ones mentioned in the [Lucene Server](https://github.com/mikemccand/luceneserver#design) project. This project uses ideads and code from luceneserver and builds on them.
+The design goals are mostly similar to the ones mentioned in the [Lucene Server](https://github.com/mikemccand/luceneserver#design) project. This project uses ideas and code from luceneserver and builds on them.
 
 A single node can index a *stream* of documents, run near-real-time searches via a parsed query string, including "scrolled" searches, sorting, index-time sorting, etc.
 
@@ -147,7 +147,7 @@ This should create a src/main/docs/index.html file that can be seen in your loca
 
 # Reviews
 
-This tool indexes yelp reviews available at [Yelp dataset challenge](https://www.yelp.com/dataset/challenge). It runs a default version with only 1k reviews of the `reviews.json` or you could download the yelp dataset and place the review.json in the user.home dir and the tool will use that instead. The complete review.json should have close to 7Million reviews. The tool runs multi-threaded indexing and a search thread in parallel reporting the `totalHits`.  Command to run this specific test:
+This tool indexes yelp reviews available at [Yelp dataset challenge](https://www.yelp.com/dataset). It runs a default version with only 1k reviews of the `reviews.json` or you could download the yelp dataset and place the review.json in the user.home dir and the tool will use that instead. The complete review.json should have close to 7Million reviews. The tool runs multi-threaded indexing and a search thread in parallel reporting the `totalHits`.  Command to run this specific test:
 
 ```
 ./gradlew clean && ./gradlew installDist && ./gradlew :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
