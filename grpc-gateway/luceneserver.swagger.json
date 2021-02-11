@@ -2215,14 +2215,11 @@
     "luceneserverFunctionFilterQuery": {
       "type": "object",
       "properties": {
-        "query": {
-          "$ref": "#/definitions/luceneserverQuery"
-        },
         "script": {
           "$ref": "#/definitions/luceneserverScript"
         }
       },
-      "description": "A query that wraps another query and uses custom scoring logic to filter out the the wrapped query's results."
+      "title": "A query that retrieves all documents with a positive score calculated by the script"
     },
     "luceneserverFunctionScoreQuery": {
       "type": "object",

@@ -211,17 +211,7 @@ public class QueryTest {
         Query.newBuilder()
             .setFunctionFilterQuery(
                 FunctionFilterQuery.newBuilder()
-                    .setScript(Script.newBuilder().setLang("js").setSource("count - 4").build())
-                    .setQuery(
-                        Query.newBuilder()
-                            .setPhraseQuery(
-                                PhraseQuery.newBuilder()
-                                    .setSlop(0)
-                                    .setField("vendor_name")
-                                    .addTerms("second")
-                                    .addTerms("again")
-                                    .build()))
-                    .build())
+                    .setScript(Script.newBuilder().setLang("js").setSource("count - 4").build()))
             .build();
 
     Consumer<SearchResponse> responseTester =

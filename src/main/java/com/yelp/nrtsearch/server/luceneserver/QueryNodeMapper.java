@@ -194,7 +194,8 @@ public class QueryNodeMapper {
         ScriptService.getInstance().compile(functionFilterQuery.getScript(), ScoreScript.CONTEXT);
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionFilterQuery.getScript().getParamsMap());
-    return new FunctionMatchQuery(scriptFactory.newFactory(params, state.docLookup), x -> x > 0);
+    return new FunctionMatchQuery(
+        scriptFactory.newFactory(params, state.docLookup), score -> score > 0);
   }
 
   private Query getTermQuery(com.yelp.nrtsearch.server.grpc.TermQuery termQuery, IndexState state) {

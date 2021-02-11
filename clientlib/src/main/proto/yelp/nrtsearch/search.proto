@@ -62,8 +62,7 @@ message FunctionScoreQuery {
 
 // A query that retrieves all documents with a positive score calculated by the script
 message FunctionFilterQuery {
-    Query query = 1; // Input query
-    Script script = 2; // script definition to compute a custom document score
+    Script script = 1; // script definition to compute a custom document score
 }
 
 //
