@@ -32,6 +32,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.function.FunctionMatchQuery;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause;
@@ -111,6 +112,8 @@ public class QueryNodeMapper {
         return getExistsQuery(query.getExistsQuery(), state);
       case GEORADIUSQUERY:
         return getGeoRadiusQuery(query.getGeoRadiusQuery(), state);
+      case FUNCTIONFILTERQUERY:
+        return getFunctionFilterQuery(query.getFunctionFilterQuery(), state);
       default:
         throw new UnsupportedOperationException(
             "Unsupported query type received: " + query.getQueryNodeCase());
@@ -183,6 +186,16 @@ public class QueryNodeMapper {
     return new FunctionScoreQuery(
         getQuery(functionScoreQuery.getQuery(), state),
         scriptFactory.newFactory(params, state.docLookup));
+  }
+
+  private FunctionMatchQuery getFunctionFilterQuery(
+      FunctionFilterQuery functionFilterQuery, IndexState state) {
+    ScoreScript.Factory scriptFactory =
+        ScriptService.getInstance().compile(functionFilterQuery.getScript(), ScoreScript.CONTEXT);
+    Map<String, Object> params =
+        ScriptParamsUtils.decodeParams(functionFilterQuery.getScript().getParamsMap());
+    return new FunctionMatchQuery(
+        scriptFactory.newFactory(params, state.docLookup), score -> score > 0);
   }
 
   private Query getTermQuery(com.yelp.nrtsearch.server.grpc.TermQuery termQuery, IndexState state) {
