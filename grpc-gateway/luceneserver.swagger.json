@@ -1231,6 +1231,17 @@
       },
       "title": "script parameter entry"
     },
+    "SearchRequestRescorer": {
+      "type": "object",
+      "properties": {
+        "queryRescorer": {
+          "$ref": "#/definitions/luceneserverQueryRescorer"
+        },
+        "scriptRescorer": {
+          "$ref": "#/definitions/luceneserverScriptRescorer"
+        }
+      }
+    },
     "SearchResponseDiagnostics": {
       "type": "object",
       "properties": {
@@ -1269,6 +1280,10 @@
             "type": "number",
             "format": "double"
           }
+        },
+        "rescoreTimeMs": {
+          "type": "number",
+          "format": "double"
         }
       }
     },
@@ -2795,6 +2810,26 @@
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
     },
+    "luceneserverQueryRescorer": {
+      "type": "object",
+      "properties": {
+        "windowSize": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "rescoreQuery": {
+          "$ref": "#/definitions/luceneserverQuery"
+        },
+        "queryWeight": {
+          "type": "number",
+          "format": "double"
+        },
+        "rescoreQueryWeight": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
     "luceneserverQuerySortField": {
       "type": "object",
       "properties": {
@@ -2926,6 +2961,18 @@
         }
       }
     },
+    "luceneserverScriptRescorer": {
+      "type": "object",
+      "properties": {
+        "windowSize": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "script": {
+          "$ref": "#/definitions/luceneserverScript"
+        }
+      }
+    },
     "luceneserverSearchRequest": {
       "type": "object",
       "properties": {
@@ -2998,6 +3045,12 @@
         },
         "queryNestedPath": {
           "type": "string"
+        },
+        "rescorers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SearchRequestRescorer"
+          }
         }
       }
     },

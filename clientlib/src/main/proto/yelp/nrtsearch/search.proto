@@ -245,6 +245,19 @@ message Query {
     }
 }
 
+message ScriptRescorer {
+    int32 windowSize = 1;
+    Script script = 2;
+}
+
+message QueryRescorer {
+    int32 windowSize = 1;
+    Query rescoreQuery = 2;
+    double queryWeight = 3;
+    double rescoreQueryWeight = 4;
+
+}
+
 message SearchRequest {
     string indexName = 1; //index to search against
     int32 startHit = 2; // Which hit to start from (for pagination); default: 0
@@ -267,6 +280,13 @@ message SearchRequest {
     repeated FetchTask fetchTasks = 15; //Any custom tasks that should be performed on top documents after ranking
     bool disallowPartialResults = 16; //Should partial result be a failure condition. Applies when a search request times out. If false, the top documents ranking at the point of timeout are used and the request continues. Also, hitTimeout is set to true in the response.
     string queryNestedPath = 17; //nested path we want to query by if we want to query child documents.
+    message Rescorer {
+        oneof Rescorers {
+            QueryRescorer queryRescorer = 1;
+            ScriptRescorer scriptRescorer = 2;
+        }
+    }
+    repeated Rescorer rescorers = 18;
 }
 
 /* Virtual field used during search */
@@ -374,6 +394,7 @@ message SearchResponse {
         double newSnapshotSearcherOpenMs = 7;
         double nrtWaitTimeMs = 8;
         map<string, double> facetTimeMs = 9;
+        double rescoreTimeMs = 10;
     }
 
     message Hit {
