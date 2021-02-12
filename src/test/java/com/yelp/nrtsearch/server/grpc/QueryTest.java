@@ -206,6 +206,28 @@ public class QueryTest {
   }
 
   @Test
+  public void testSearchFunctionFilterQuery() {
+    Query query =
+        Query.newBuilder()
+            .setFunctionFilterQuery(
+                FunctionFilterQuery.newBuilder()
+                    .setScript(Script.newBuilder().setLang("js").setSource("count - 4").build()))
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(1, searchResponse.getTotalHits().getValue());
+          assertEquals(1, searchResponse.getHitsList().size());
+          SearchResponse.Hit hit = searchResponse.getHits(0);
+          String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("2", docId);
+          LuceneServerTest.checkHits(hit);
+        };
+
+    testQuery(query, responseTester);
+  }
+
+  @Test
   public void testSearchTermQuery() {
     TermQuery textQuery =
         TermQuery.newBuilder().setField("vendor_name").setTextValue("second").build();

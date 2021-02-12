@@ -2212,6 +2212,15 @@
         }
       }
     },
+    "luceneserverFunctionFilterQuery": {
+      "type": "object",
+      "properties": {
+        "script": {
+          "$ref": "#/definitions/luceneserverScript"
+        }
+      },
+      "title": "A query that retrieves all documents with a positive score calculated by the script"
+    },
     "luceneserverFunctionScoreQuery": {
       "type": "object",
       "properties": {
@@ -2791,6 +2800,9 @@
         },
         "geoRadiusQuery": {
           "$ref": "#/definitions/luceneserverGeoRadiusQuery"
+        },
+        "functionFilterQuery": {
+          "$ref": "#/definitions/luceneserverFunctionFilterQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
