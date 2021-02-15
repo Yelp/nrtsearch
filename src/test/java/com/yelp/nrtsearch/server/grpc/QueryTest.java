@@ -21,6 +21,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.SearchRequest.Rescorer;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -225,6 +226,60 @@ public class QueryTest {
         };
 
     testQuery(query, responseTester);
+  }
+
+  @Test
+  public void testSearchQueryRescorer() {
+    Query firstPassQuery =
+        Query.newBuilder()
+            .setFunctionScoreQuery(
+                FunctionScoreQuery.newBuilder()
+                    .setScript(
+                        Script.newBuilder().setLang("js").setSource("sqrt(4) * count").build())
+                    .setQuery(
+                        Query.newBuilder()
+                            .setPhraseQuery(
+                                PhraseQuery.newBuilder()
+                                    .setSlop(0)
+                                    .setField("vendor_name")
+                                    .addTerms("second")
+                                    .addTerms("again")
+                                    .build()))
+                    .build())
+            .build();
+
+    Query rescoreQuery =
+        Query.newBuilder()
+            .setPhraseQuery(
+                PhraseQuery.newBuilder()
+                    .setSlop(0)
+                    .setField("vendor_name")
+                    .addTerms("second")
+                    .build())
+            .build();
+
+    Rescorer queryRescorer =
+        Rescorer.newBuilder()
+            .setQueryRescorer(
+                QueryRescorer.newBuilder()
+                    .setWindowSize(2)
+                    .setQueryWeight(1.0)
+                    .setRescoreQueryWeight(10.0)
+                    .setRescoreQuery(rescoreQuery))
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(1, searchResponse.getTotalHits().getValue());
+          assertEquals(1, searchResponse.getHitsList().size());
+          SearchResponse.Hit hit = searchResponse.getHits(0);
+          String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("2", docId);
+          assertEquals(18.33, hit.getScore(), 0.01);
+          LuceneServerTest.checkHits(hit);
+        };
+
+    testQueryWithRescorers(firstPassQuery, List.of(queryRescorer), responseTester);
   }
 
   @Test
@@ -588,6 +643,13 @@ public class QueryTest {
     testWithBoost(query, searchResponse);
   }
 
+  private void testQueryWithRescorers(
+      Query query, List<Rescorer> rescorers, Consumer<SearchResponse> responseTester) {
+    SearchResponse searchResponse =
+        grpcServer.getBlockingStub().search(buildSearchRequestWithRescorers(query, rescorers));
+    responseTester.accept(searchResponse);
+  }
+
   private Analyzer getTestAnalyzer() {
     return Analyzer.newBuilder()
         .setCustom(
@@ -606,6 +668,17 @@ public class QueryTest {
         .setTopHits(10)
         .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
         .setQuery(query)
+        .build();
+  }
+
+  private SearchRequest buildSearchRequestWithRescorers(Query query, List<Rescorer> rescorers) {
+    return SearchRequest.newBuilder()
+        .setIndexName(grpcServer.getTestIndex())
+        .setStartHit(0)
+        .setTopHits(10)
+        .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+        .setQuery(query)
+        .addAllRescorers(rescorers)
         .build();
   }
 

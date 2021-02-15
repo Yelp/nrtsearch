@@ -33,6 +33,6 @@ public final class QueryRescore extends org.apache.lucene.search.QueryRescorer {
     if (!secondPassMatches) {
       return firstPassScore;
     }
-    return (float) (firstPassScore * queryWeight + secondQueryWeight * secondPassScore);
+    return (float) (queryWeight * firstPassScore + secondQueryWeight * secondPassScore);
   }
 }
