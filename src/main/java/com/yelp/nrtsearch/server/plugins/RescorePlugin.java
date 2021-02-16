@@ -15,4 +15,7 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-public interface RescorePlugin {}
+public interface RescorePlugin {
+
+  default void getRescorers() {}
+}

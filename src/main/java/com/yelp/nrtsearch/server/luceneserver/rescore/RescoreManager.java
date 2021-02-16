@@ -16,11 +16,17 @@
 package com.yelp.nrtsearch.server.luceneserver.rescore;
 
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
+import com.yelp.nrtsearch.server.grpc.ScriptRescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest.Rescorer;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
+import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
+import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
@@ -48,7 +54,16 @@ public class RescoreManager {
         hits = queryRescore.rescore(searcher, hits, queryRescorer.getWindowSize());
       }
       if (rescorer.hasScriptRescorer()) {
-        // do script rescoring here
+        ScriptRescorer scriptRescorer = rescorer.getScriptRescorer();
+        ScoreScript.Factory scriptFactory =
+            ScriptService.getInstance().compile(scriptRescorer.getScript(), ScoreScript.CONTEXT);
+        Map<String, Object> params =
+            ScriptParamsUtils.decodeParams(scriptRescorer.getScript().getParamsMap());
+        DoubleValuesSource doubleValuesSource =
+            scriptFactory.newFactory(params, indexState.docLookup);
+
+        ScriptRescore scriptRescore = new ScriptRescore(doubleValuesSource);
+        hits = scriptRescore.rescore(searcher, hits, scriptRescorer.getWindowSize());
       }
     }
 

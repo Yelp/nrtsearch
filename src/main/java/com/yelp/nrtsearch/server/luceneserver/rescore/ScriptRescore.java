@@ -15,25 +15,19 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.rescore;
 
-import org.apache.lucene.search.Query;
+import org.apache.lucene.queries.function.FunctionScoreQuery;
+import org.apache.lucene.search.DoubleValuesSource;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.QueryRescorer;
 
-public final class QueryRescore extends QueryRescorer {
+public class ScriptRescore extends QueryRescorer {
 
-  private double queryWeight;
-  private double secondQueryWeight;
-
-  public QueryRescore(Query rescoreQuery, double queryWeight, double secondQueryWeight) {
-    super(rescoreQuery);
-    this.queryWeight = queryWeight;
-    this.secondQueryWeight = secondQueryWeight;
+  public ScriptRescore(DoubleValuesSource doubleValuesSource) {
+    super(new FunctionScoreQuery(new MatchAllDocsQuery(), doubleValuesSource));
   }
 
   @Override
   protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
-    if (!secondPassMatches) {
-      return (float) (queryWeight * firstPassScore);
-    }
-    return (float) (queryWeight * firstPassScore + secondQueryWeight * secondPassScore);
+    return secondPassScore;
   }
 }
