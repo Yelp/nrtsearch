@@ -1237,8 +1237,8 @@
         "queryRescorer": {
           "$ref": "#/definitions/luceneserverQueryRescorer"
         },
-        "scriptRescorer": {
-          "$ref": "#/definitions/luceneserverScriptRescorer"
+        "pluginRescorer": {
+          "$ref": "#/definitions/luceneserverPluginRescorer"
         }
       }
     },
@@ -2747,6 +2747,18 @@
       },
       "description": "A Query that matches documents containing a particular sequence of terms."
     },
+    "luceneserverPluginRescorer": {
+      "type": "object",
+      "properties": {
+        "windowSize": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "script": {
+          "$ref": "#/definitions/luceneserverScript"
+        }
+      }
+    },
     "luceneserverPoint": {
       "type": "object",
       "properties": {
@@ -2970,18 +2982,6 @@
           "additionalProperties": {
             "$ref": "#/definitions/ScriptParamValue"
           }
-        }
-      }
-    },
-    "luceneserverScriptRescorer": {
-      "type": "object",
-      "properties": {
-        "windowSize": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "script": {
-          "$ref": "#/definitions/luceneserverScript"
         }
       }
     },

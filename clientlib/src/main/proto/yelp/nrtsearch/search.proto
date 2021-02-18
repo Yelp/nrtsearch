@@ -251,7 +251,7 @@ message Query {
     }
 }
 
-message ScriptRescorer {
+message PluginRescorer {
     int32 windowSize = 1;
     Script script = 2;
 }
@@ -289,7 +289,7 @@ message SearchRequest {
     message Rescorer {
         oneof Rescorers {
             QueryRescorer queryRescorer = 1;
-            ScriptRescorer scriptRescorer = 2;
+            PluginRescorer pluginRescorer = 2;
         }
     }
     repeated Rescorer rescorers = 18;

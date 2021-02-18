@@ -13,9 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.plugins;
+package com.yelp.nrtsearch.server.luceneserver.rescore;
 
-public interface RescorePlugin {
+import java.util.Map;
+import org.apache.lucene.search.Rescorer;
 
-  default void getRescorers() {}
+public interface RescorerProvider<T extends Rescorer> {
+
+  T get(Map<String, Object> params);
 }

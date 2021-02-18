@@ -2052,7 +2052,7 @@ func (*Query_GeoRadiusQuery) isQuery_QueryNode() {}
 
 func (*Query_FunctionFilterQuery) isQuery_QueryNode() {}
 
-type ScriptRescorer struct {
+type PluginRescorer struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -2061,8 +2061,8 @@ type ScriptRescorer struct {
 	Script     *Script `protobuf:"bytes,2,opt,name=script,proto3" json:"script,omitempty"`
 }
 
-func (x *ScriptRescorer) Reset() {
-	*x = ScriptRescorer{}
+func (x *PluginRescorer) Reset() {
+	*x = PluginRescorer{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_yelp_nrtsearch_search_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2070,13 +2070,13 @@ func (x *ScriptRescorer) Reset() {
 	}
 }
 
-func (x *ScriptRescorer) String() string {
+func (x *PluginRescorer) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ScriptRescorer) ProtoMessage() {}
+func (*PluginRescorer) ProtoMessage() {}
 
-func (x *ScriptRescorer) ProtoReflect() protoreflect.Message {
+func (x *PluginRescorer) ProtoReflect() protoreflect.Message {
 	mi := &file_yelp_nrtsearch_search_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2088,19 +2088,19 @@ func (x *ScriptRescorer) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ScriptRescorer.ProtoReflect.Descriptor instead.
-func (*ScriptRescorer) Descriptor() ([]byte, []int) {
+// Deprecated: Use PluginRescorer.ProtoReflect.Descriptor instead.
+func (*PluginRescorer) Descriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{19}
 }
 
-func (x *ScriptRescorer) GetWindowSize() int32 {
+func (x *PluginRescorer) GetWindowSize() int32 {
 	if x != nil {
 		return x.WindowSize
 	}
 	return 0
 }
 
-func (x *ScriptRescorer) GetScript() *Script {
+func (x *PluginRescorer) GetScript() *Script {
 	if x != nil {
 		return x.Script
 	}
@@ -3536,7 +3536,7 @@ type SearchRequest_Rescorer struct {
 
 	// Types that are assignable to Rescorers:
 	//	*SearchRequest_Rescorer_QueryRescorer
-	//	*SearchRequest_Rescorer_ScriptRescorer
+	//	*SearchRequest_Rescorer_PluginRescorer
 	Rescorers isSearchRequest_Rescorer_Rescorers `protobuf_oneof:"Rescorers"`
 }
 
@@ -3586,9 +3586,9 @@ func (x *SearchRequest_Rescorer) GetQueryRescorer() *QueryRescorer {
 	return nil
 }
 
-func (x *SearchRequest_Rescorer) GetScriptRescorer() *ScriptRescorer {
-	if x, ok := x.GetRescorers().(*SearchRequest_Rescorer_ScriptRescorer); ok {
-		return x.ScriptRescorer
+func (x *SearchRequest_Rescorer) GetPluginRescorer() *PluginRescorer {
+	if x, ok := x.GetRescorers().(*SearchRequest_Rescorer_PluginRescorer); ok {
+		return x.PluginRescorer
 	}
 	return nil
 }
@@ -3601,13 +3601,13 @@ type SearchRequest_Rescorer_QueryRescorer struct {
 	QueryRescorer *QueryRescorer `protobuf:"bytes,1,opt,name=queryRescorer,proto3,oneof"`
 }
 
-type SearchRequest_Rescorer_ScriptRescorer struct {
-	ScriptRescorer *ScriptRescorer `protobuf:"bytes,2,opt,name=scriptRescorer,proto3,oneof"`
+type SearchRequest_Rescorer_PluginRescorer struct {
+	PluginRescorer *PluginRescorer `protobuf:"bytes,2,opt,name=pluginRescorer,proto3,oneof"`
 }
 
 func (*SearchRequest_Rescorer_QueryRescorer) isSearchRequest_Rescorer_Rescorers() {}
 
-func (*SearchRequest_Rescorer_ScriptRescorer) isSearchRequest_Rescorer_Rescorers() {}
+func (*SearchRequest_Rescorer_PluginRescorer) isSearchRequest_Rescorer_Rescorers() {}
 
 // script parameter entry
 type Script_ParamValue struct {
@@ -4663,7 +4663,7 @@ var file_yelp_nrtsearch_search_proto_rawDesc = []byte{
 	0x6f, 0x6e, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x51, 0x75, 0x65, 0x72, 0x79, 0x48, 0x00, 0x52,
 	0x13, 0x66, 0x75, 0x6e, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x51,
 	0x75, 0x65, 0x72, 0x79, 0x42, 0x0b, 0x0a, 0x09, 0x51, 0x75, 0x65, 0x72, 0x79, 0x4e, 0x6f, 0x64,
-	0x65, 0x22, 0x5e, 0x0a, 0x0e, 0x53, 0x63, 0x72, 0x69, 0x70, 0x74, 0x52, 0x65, 0x73, 0x63, 0x6f,
+	0x65, 0x22, 0x5e, 0x0a, 0x0e, 0x50, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x63, 0x6f,
 	0x72, 0x65, 0x72, 0x12, 0x1e, 0x0a, 0x0a, 0x77, 0x69, 0x6e, 0x64, 0x6f, 0x77, 0x53, 0x69, 0x7a,
 	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0a, 0x77, 0x69, 0x6e, 0x64, 0x6f, 0x77, 0x53,
 	0x69, 0x7a, 0x65, 0x12, 0x2c, 0x0a, 0x06, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x18, 0x02, 0x20,
@@ -4734,11 +4734,11 @@ var file_yelp_nrtsearch_search_proto_rawDesc = []byte{
 	0x63, 0x6f, 0x72, 0x65, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1b, 0x2e, 0x6c, 0x75,
 	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x51, 0x75, 0x65, 0x72, 0x79,
 	0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72, 0x48, 0x00, 0x52, 0x0d, 0x71, 0x75, 0x65, 0x72,
-	0x79, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72, 0x12, 0x46, 0x0a, 0x0e, 0x73, 0x63, 0x72,
-	0x69, 0x70, 0x74, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28,
+	0x79, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72, 0x12, 0x46, 0x0a, 0x0e, 0x70, 0x6c, 0x75,
+	0x67, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28,
 	0x0b, 0x32, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2e, 0x53, 0x63, 0x72, 0x69, 0x70, 0x74, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72, 0x48,
-	0x00, 0x52, 0x0e, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65,
+	0x2e, 0x50, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72, 0x48,
+	0x00, 0x52, 0x0e, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65,
 	0x72, 0x42, 0x0b, 0x0a, 0x09, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72, 0x73, 0x42, 0x0a,
 	0x0a, 0x08, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x65, 0x72, 0x22, 0x50, 0x0a, 0x0c, 0x56, 0x69,
 	0x72, 0x74, 0x75, 0x61, 0x6c, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x12, 0x2c, 0x0a, 0x06, 0x73, 0x63,
@@ -5092,7 +5092,7 @@ var file_yelp_nrtsearch_search_proto_goTypes = []interface{}{
 	(*GeoPointQuery)(nil),                          // 23: luceneserver.GeoPointQuery
 	(*ExistsQuery)(nil),                            // 24: luceneserver.ExistsQuery
 	(*Query)(nil),                                  // 25: luceneserver.Query
-	(*ScriptRescorer)(nil),                         // 26: luceneserver.ScriptRescorer
+	(*PluginRescorer)(nil),                         // 26: luceneserver.PluginRescorer
 	(*QueryRescorer)(nil),                          // 27: luceneserver.QueryRescorer
 	(*SearchRequest)(nil),                          // 28: luceneserver.SearchRequest
 	(*VirtualField)(nil),                           // 29: luceneserver.VirtualField
@@ -5176,7 +5176,7 @@ var file_yelp_nrtsearch_search_proto_depIdxs = []int32{
 	24, // 40: luceneserver.Query.existsQuery:type_name -> luceneserver.ExistsQuery
 	22, // 41: luceneserver.Query.geoRadiusQuery:type_name -> luceneserver.GeoRadiusQuery
 	12, // 42: luceneserver.Query.functionFilterQuery:type_name -> luceneserver.FunctionFilterQuery
-	30, // 43: luceneserver.ScriptRescorer.script:type_name -> luceneserver.Script
+	30, // 43: luceneserver.PluginRescorer.script:type_name -> luceneserver.Script
 	25, // 44: luceneserver.QueryRescorer.rescoreQuery:type_name -> luceneserver.Query
 	29, // 45: luceneserver.SearchRequest.virtualFields:type_name -> luceneserver.VirtualField
 	25, // 46: luceneserver.SearchRequest.query:type_name -> luceneserver.Query
@@ -5201,7 +5201,7 @@ var file_yelp_nrtsearch_search_proto_depIdxs = []int32{
 	40, // 65: luceneserver.FacetResult.labelValues:type_name -> luceneserver.LabelAndValue
 	64, // 66: luceneserver.FetchTask.params:type_name -> google.protobuf.Struct
 	27, // 67: luceneserver.SearchRequest.Rescorer.queryRescorer:type_name -> luceneserver.QueryRescorer
-	26, // 68: luceneserver.SearchRequest.Rescorer.scriptRescorer:type_name -> luceneserver.ScriptRescorer
+	26, // 68: luceneserver.SearchRequest.Rescorer.pluginRescorer:type_name -> luceneserver.PluginRescorer
 	5,  // 69: luceneserver.Script.ParamValue.nullValue:type_name -> luceneserver.Script.ParamNullValue
 	51, // 70: luceneserver.Script.ParamValue.listValue:type_name -> luceneserver.Script.ParamListValue
 	50, // 71: luceneserver.Script.ParamValue.structValue:type_name -> luceneserver.Script.ParamStructValue
@@ -5460,7 +5460,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ScriptRescorer); i {
+			switch v := v.(*PluginRescorer); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -5860,7 +5860,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 	}
 	file_yelp_nrtsearch_search_proto_msgTypes[41].OneofWrappers = []interface{}{
 		(*SearchRequest_Rescorer_QueryRescorer)(nil),
-		(*SearchRequest_Rescorer_ScriptRescorer)(nil),
+		(*SearchRequest_Rescorer_PluginRescorer)(nil),
 	}
 	file_yelp_nrtsearch_search_proto_msgTypes[42].OneofWrappers = []interface{}{
 		(*Script_ParamValue_TextValue)(nil),

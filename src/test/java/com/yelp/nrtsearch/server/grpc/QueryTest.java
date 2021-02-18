@@ -232,22 +232,35 @@ public class QueryTest {
   public void testSearchQueryRescorer() {
     Query firstPassQuery =
         Query.newBuilder()
-            .setPhraseQuery(
-                PhraseQuery.newBuilder()
-                    .setSlop(0)
-                    .setField("vendor_name")
-                    .addTerms("second")
-                    .addTerms("again")
+            .setFunctionScoreQuery(
+                FunctionScoreQuery.newBuilder()
+                    .setScript(Script.newBuilder().setLang("js").setSource("5").build())
+                    .setQuery(
+                        Query.newBuilder()
+                            .setPhraseQuery(
+                                PhraseQuery.newBuilder()
+                                    .setSlop(0)
+                                    .setField("vendor_name")
+                                    .addTerms("second")
+                                    .addTerms("again")
+                                    .build()))
                     .build())
             .build();
 
     Query rescoreQuery =
         Query.newBuilder()
-            .setPhraseQuery(
-                PhraseQuery.newBuilder()
-                    .setSlop(0)
-                    .setField("vendor_name")
-                    .addTerms("second")
+            .setFunctionScoreQuery(
+                FunctionScoreQuery.newBuilder()
+                    .setScript(Script.newBuilder().setLang("js").setSource("10").build())
+                    .setQuery(
+                        Query.newBuilder()
+                            .setPhraseQuery(
+                                PhraseQuery.newBuilder()
+                                    .setSlop(0)
+                                    .setField("vendor_name")
+                                    .addTerms("second")
+                                    .addTerms("again")
+                                    .build()))
                     .build())
             .build();
 
@@ -257,7 +270,7 @@ public class QueryTest {
                 QueryRescorer.newBuilder()
                     .setWindowSize(2)
                     .setQueryWeight(1.0)
-                    .setRescoreQueryWeight(10.0)
+                    .setRescoreQueryWeight(4.0)
                     .setRescoreQuery(rescoreQuery))
             .build();
 
@@ -268,46 +281,13 @@ public class QueryTest {
           SearchResponse.Hit hit = searchResponse.getHits(0);
           String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
           assertEquals("2", docId);
-          assertEquals(4.73, hit.getScore(), 0.01);
+          // score should be equal 1.0 * firstPassScore + 4.0 * secondPassScore = 45
+          // the scores are hardcoded in query. firstPass: 5, secondsPass: 10
+          assertEquals(45, hit.getScore(), 0);
           LuceneServerTest.checkHits(hit);
         };
 
     testQueryWithRescorers(firstPassQuery, List.of(queryRescorer), responseTester);
-  }
-
-  @Test
-  public void testSearchScriptRescorer() {
-    Query firstPassQuery =
-        Query.newBuilder()
-            .setPhraseQuery(
-                PhraseQuery.newBuilder()
-                    .setSlop(0)
-                    .setField("vendor_name")
-                    .addTerms("second")
-                    .addTerms("again")
-                    .build())
-            .build();
-
-    Rescorer scriptRescorer =
-        Rescorer.newBuilder()
-            .setScriptRescorer(
-                ScriptRescorer.newBuilder()
-                    .setWindowSize(2)
-                    .setScript(Script.newBuilder().setLang("js").setSource("count * 100").build()))
-            .build();
-
-    Consumer<SearchResponse> responseTester =
-        searchResponse -> {
-          assertEquals(1, searchResponse.getTotalHits().getValue());
-          assertEquals(1, searchResponse.getHitsList().size());
-          SearchResponse.Hit hit = searchResponse.getHits(0);
-          String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
-          assertEquals("2", docId);
-          assertEquals(700, hit.getScore(), 0);
-          LuceneServerTest.checkHits(hit);
-        };
-
-    testQueryWithRescorers(firstPassQuery, List.of(scriptRescorer), responseTester);
   }
 
   @Test
