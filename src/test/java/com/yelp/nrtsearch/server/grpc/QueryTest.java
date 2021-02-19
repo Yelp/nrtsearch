@@ -21,7 +21,6 @@ import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.SearchRequest.Rescorer;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -266,9 +265,9 @@ public class QueryTest {
 
     Rescorer queryRescorer =
         Rescorer.newBuilder()
+            .setWindowSize(2)
             .setQueryRescorer(
                 QueryRescorer.newBuilder()
-                    .setWindowSize(2)
                     .setQueryWeight(1.0)
                     .setRescoreQueryWeight(4.0)
                     .setRescoreQuery(rescoreQuery))

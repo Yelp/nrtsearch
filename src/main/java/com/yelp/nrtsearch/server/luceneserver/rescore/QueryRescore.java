@@ -21,12 +21,12 @@ import org.apache.lucene.search.QueryRescorer;
 public final class QueryRescore extends QueryRescorer {
 
   private double queryWeight;
-  private double secondQueryWeight;
+  private double rescoreQueryWeight;
 
-  public QueryRescore(Query rescoreQuery, double queryWeight, double secondQueryWeight) {
-    super(rescoreQuery);
-    this.queryWeight = queryWeight;
-    this.secondQueryWeight = secondQueryWeight;
+  private QueryRescore(Builder builder) {
+    super(builder.query);
+    this.queryWeight = builder.queryWeight;
+    this.rescoreQueryWeight = builder.rescoreQueryWeight;
   }
 
   @Override
@@ -34,6 +34,38 @@ public final class QueryRescore extends QueryRescorer {
     if (!secondPassMatches) {
       return (float) (queryWeight * firstPassScore);
     }
-    return (float) (queryWeight * firstPassScore + secondQueryWeight * secondPassScore);
+    return (float) (queryWeight * firstPassScore + rescoreQueryWeight * secondPassScore);
+  }
+
+  public static Builder newBuilder() {
+    return new Builder();
+  }
+
+  public static class Builder {
+
+    private Query query;
+    private double queryWeight;
+    private double rescoreQueryWeight;
+
+    private Builder() {}
+
+    public Builder setQuery(Query query) {
+      this.query = query;
+      return this;
+    }
+
+    public Builder setQueryWeight(double queryWeight) {
+      this.queryWeight = queryWeight;
+      return this;
+    }
+
+    public Builder setRescoreQueryWeight(double rescoreQueryWeight) {
+      this.rescoreQueryWeight = rescoreQueryWeight;
+      return this;
+    }
+
+    public QueryRescore build() {
+      return new QueryRescore(this);
+    }
   }
 }

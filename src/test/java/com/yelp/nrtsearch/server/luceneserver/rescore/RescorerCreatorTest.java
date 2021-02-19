@@ -18,7 +18,10 @@ package com.yelp.nrtsearch.server.luceneserver.rescore;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.google.protobuf.Struct;
+import com.google.protobuf.Value;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.RescorerPlugin;
 import java.io.ByteArrayInputStream;
@@ -83,25 +86,40 @@ public class RescorerCreatorTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testPluginRescorerNotDefined() {
-    RescorerCreator.getInstance().createRescorer("plugin_rescorer", Collections.emptyMap());
+    RescorerCreator.getInstance()
+        .createRescorer(PluginRescorer.newBuilder().setName("plugin_rescorer").build());
   }
 
   @Test
   public void testPluginProvidesRescorer() {
     init(Collections.singletonList(new TestRescorerPlugin()));
     Rescorer rescorer =
-        RescorerCreator.getInstance().createRescorer("plugin_rescorer", Collections.emptyMap());
+        RescorerCreator.getInstance()
+            .createRescorer(PluginRescorer.newBuilder().setName("plugin_rescorer").build());
     assertTrue(rescorer instanceof TestRescorerPlugin.CustomRescorer);
   }
 
   @Test
   public void testRescorerParams() {
     init(Collections.singletonList(new TestRescorerPlugin()));
-    Map<String, Object> params = new HashMap<>();
-    params.put("p1", 100);
-    params.put("p2", "param2");
-    Rescorer rescorer = RescorerCreator.getInstance().createRescorer("plugin_rescorer", params);
+    Rescorer rescorer =
+        RescorerCreator.getInstance()
+            .createRescorer(
+                PluginRescorer.newBuilder()
+                    .setName("plugin_rescorer")
+                    .setParams(
+                        Struct.newBuilder()
+                            .putFields(
+                                "number_param", Value.newBuilder().setNumberValue(100).build())
+                            .putFields(
+                                "text_param", Value.newBuilder().setStringValue("param2").build())
+                            .build())
+                    .build());
     assertTrue(rescorer instanceof TestRescorerPlugin.CustomRescorer);
-    assertEquals(params, ((TestRescorerPlugin.CustomRescorer) rescorer).params);
+
+    TestRescorerPlugin.CustomRescorer testRescorer = (TestRescorerPlugin.CustomRescorer) rescorer;
+    assertEquals(2, testRescorer.params.size());
+    assertEquals(100.0, testRescorer.params.get("number_param"));
+    assertEquals("param2", testRescorer.params.get("text_param"));
   }
 }

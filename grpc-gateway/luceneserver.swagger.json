@@ -1231,17 +1231,6 @@
       },
       "title": "script parameter entry"
     },
-    "SearchRequestRescorer": {
-      "type": "object",
-      "properties": {
-        "queryRescorer": {
-          "$ref": "#/definitions/luceneserverQueryRescorer"
-        },
-        "pluginRescorer": {
-          "$ref": "#/definitions/luceneserverPluginRescorer"
-        }
-      }
-    },
     "SearchResponseDiagnostics": {
       "type": "object",
       "properties": {
@@ -2750,14 +2739,14 @@
     "luceneserverPluginRescorer": {
       "type": "object",
       "properties": {
-        "windowSize": {
-          "type": "integer",
-          "format": "int32"
+        "name": {
+          "type": "string"
         },
-        "script": {
-          "$ref": "#/definitions/luceneserverScript"
+        "params": {
+          "type": "object"
         }
-      }
+      },
+      "title": "Defines an entry point for using a rescorer from plugin"
     },
     "luceneserverPoint": {
       "type": "object",
@@ -2837,10 +2826,6 @@
     "luceneserverQueryRescorer": {
       "type": "object",
       "properties": {
-        "windowSize": {
-          "type": "integer",
-          "format": "int32"
-        },
         "rescoreQuery": {
           "$ref": "#/definitions/luceneserverQuery"
         },
@@ -2852,7 +2837,8 @@
           "type": "number",
           "format": "double"
         }
-      }
+      },
+      "title": "Defines a rescorer which uses query to rescore documents in the second pass"
     },
     "luceneserverQuerySortField": {
       "type": "object",
@@ -2956,6 +2942,22 @@
           "type": "boolean"
         }
       }
+    },
+    "luceneserverRescorer": {
+      "type": "object",
+      "properties": {
+        "windowSize": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "queryRescorer": {
+          "$ref": "#/definitions/luceneserverQueryRescorer"
+        },
+        "pluginRescorer": {
+          "$ref": "#/definitions/luceneserverPluginRescorer"
+        }
+      },
+      "title": "Defines a rescorer which is executed after the first search pass"
     },
     "luceneserverRestoreIndex": {
       "type": "object",
@@ -3061,7 +3063,7 @@
         "rescorers": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/SearchRequestRescorer"
+            "$ref": "#/definitions/luceneserverRescorer"
           }
         }
       }

@@ -16,8 +16,10 @@
 package com.yelp.nrtsearch.server.luceneserver.rescore;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.RescorerPlugin;
+import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.search.Rescorer;
@@ -30,17 +32,16 @@ public class RescorerCreator {
 
   public RescorerCreator(LuceneServerConfiguration configuration) {}
 
-  public Rescorer createRescorer(String name, Map<String, Object> params) {
-    if (name.isEmpty()) {
-      throw new IllegalArgumentException(
-          "Rescorer name cannot be empty, must be one of: " + rescorersMap.keySet());
-    }
-    RescorerProvider<?> provider = rescorersMap.get(name);
+  public Rescorer createRescorer(PluginRescorer grpcPluginRescorer) {
+    RescorerProvider<?> provider = rescorersMap.get(grpcPluginRescorer.getName());
     if (provider == null) {
       throw new IllegalArgumentException(
-          "Invalid rescorer name: " + name + ", must be one of: " + rescorersMap.keySet());
+          "Invalid rescorer name: "
+              + grpcPluginRescorer.getName()
+              + ", must be one of: "
+              + rescorersMap.keySet());
     }
-    return provider.get(params);
+    return provider.get(StructValueTransformer.transformStruct(grpcPluginRescorer.getParams()));
   }
 
   private void register(Map<String, RescorerProvider<? extends Rescorer>> rescorers) {
