@@ -228,6 +228,68 @@ public class QueryTest {
   }
 
   @Test
+  public void testSearchQueryRescorer() {
+    Query firstPassQuery =
+        Query.newBuilder()
+            .setFunctionScoreQuery(
+                FunctionScoreQuery.newBuilder()
+                    .setScript(Script.newBuilder().setLang("js").setSource("5").build())
+                    .setQuery(
+                        Query.newBuilder()
+                            .setPhraseQuery(
+                                PhraseQuery.newBuilder()
+                                    .setSlop(0)
+                                    .setField("vendor_name")
+                                    .addTerms("second")
+                                    .addTerms("again")
+                                    .build()))
+                    .build())
+            .build();
+
+    Query rescoreQuery =
+        Query.newBuilder()
+            .setFunctionScoreQuery(
+                FunctionScoreQuery.newBuilder()
+                    .setScript(Script.newBuilder().setLang("js").setSource("10").build())
+                    .setQuery(
+                        Query.newBuilder()
+                            .setPhraseQuery(
+                                PhraseQuery.newBuilder()
+                                    .setSlop(0)
+                                    .setField("vendor_name")
+                                    .addTerms("second")
+                                    .addTerms("again")
+                                    .build()))
+                    .build())
+            .build();
+
+    Rescorer queryRescorer =
+        Rescorer.newBuilder()
+            .setWindowSize(2)
+            .setQueryRescorer(
+                QueryRescorer.newBuilder()
+                    .setQueryWeight(1.0)
+                    .setRescoreQueryWeight(4.0)
+                    .setRescoreQuery(rescoreQuery))
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(1, searchResponse.getTotalHits().getValue());
+          assertEquals(1, searchResponse.getHitsList().size());
+          SearchResponse.Hit hit = searchResponse.getHits(0);
+          String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("2", docId);
+          // score should be equal 1.0 * firstPassScore + 4.0 * secondPassScore = 45
+          // the scores are hardcoded in query. firstPass: 5, secondsPass: 10
+          assertEquals(45, hit.getScore(), 0);
+          LuceneServerTest.checkHits(hit);
+        };
+
+    testQueryWithRescorers(firstPassQuery, List.of(queryRescorer), responseTester);
+  }
+
+  @Test
   public void testSearchTermQuery() {
     TermQuery textQuery =
         TermQuery.newBuilder().setField("vendor_name").setTextValue("second").build();
@@ -588,6 +650,13 @@ public class QueryTest {
     testWithBoost(query, searchResponse);
   }
 
+  private void testQueryWithRescorers(
+      Query query, List<Rescorer> rescorers, Consumer<SearchResponse> responseTester) {
+    SearchResponse searchResponse =
+        grpcServer.getBlockingStub().search(buildSearchRequestWithRescorers(query, rescorers));
+    responseTester.accept(searchResponse);
+  }
+
   private Analyzer getTestAnalyzer() {
     return Analyzer.newBuilder()
         .setCustom(
@@ -606,6 +675,17 @@ public class QueryTest {
         .setTopHits(10)
         .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
         .setQuery(query)
+        .build();
+  }
+
+  private SearchRequest buildSearchRequestWithRescorers(Query query, List<Rescorer> rescorers) {
+    return SearchRequest.newBuilder()
+        .setIndexName(grpcServer.getTestIndex())
+        .setStartHit(0)
+        .setTopHits(10)
+        .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+        .setQuery(query)
+        .addAllRescorers(rescorers)
         .build();
   }
 

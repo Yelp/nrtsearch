@@ -273,6 +273,7 @@ message SearchRequest {
     repeated FetchTask fetchTasks = 15; //Any custom tasks that should be performed on top documents after ranking
     bool disallowPartialResults = 16; //Should partial result be a failure condition. Applies when a search request times out. If false, the top documents ranking at the point of timeout are used and the request continues. Also, hitTimeout is set to true in the response.
     string queryNestedPath = 17; //nested path we want to query by if we want to query child documents.
+    repeated Rescorer rescorers = 18; // Rescorers which are executed in-order after the first pass
 }
 
 /* Virtual field used during search */
@@ -380,6 +381,7 @@ message SearchResponse {
         double newSnapshotSearcherOpenMs = 7;
         double nrtWaitTimeMs = 8;
         map<string, double> facetTimeMs = 9;
+        double rescoreTimeMs = 10;
     }
 
     message Hit {
@@ -460,4 +462,27 @@ message LabelAndValue {
 message FetchTask {
     string name = 1; //Name of task, as registered by a FetchTaskPlugin
     google.protobuf.Struct params = 2; //Optional task parameters
+}
+
+// Defines an entry point for using a rescorer from plugin
+message PluginRescorer {
+    string name = 1;
+    google.protobuf.Struct params = 2; // arguments passed to the plugin
+}
+
+// Defines a rescorer which uses query to rescore documents in the second pass
+message QueryRescorer {
+    Query rescoreQuery = 1;
+    double queryWeight = 2;
+    double rescoreQueryWeight = 3;
+
+}
+
+// Defines a rescorer which is executed after the first search pass
+message Rescorer {
+    int32 windowSize = 1;
+    oneof Rescorers {
+        QueryRescorer queryRescorer = 2;
+        PluginRescorer pluginRescorer = 3;
+    }
 }

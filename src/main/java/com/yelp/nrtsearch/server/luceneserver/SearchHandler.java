@@ -35,6 +35,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.PolygonfieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
@@ -147,6 +148,15 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
 
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
+
+      long rescoreStartTime = System.nanoTime();
+
+      if (!searchContext.getRescorers().isEmpty()) {
+        for (RescoreTask rescorer : searchContext.getRescorers()) {
+          hits = rescorer.rescore(s.searcher, hits);
+        }
+        diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
+      }
 
       long t0 = System.nanoTime();
 

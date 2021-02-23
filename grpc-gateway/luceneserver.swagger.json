@@ -1269,6 +1269,10 @@
             "type": "number",
             "format": "double"
           }
+        },
+        "rescoreTimeMs": {
+          "type": "number",
+          "format": "double"
         }
       }
     },
@@ -2732,6 +2736,18 @@
       },
       "description": "A Query that matches documents containing a particular sequence of terms."
     },
+    "luceneserverPluginRescorer": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object"
+        }
+      },
+      "title": "Defines an entry point for using a rescorer from plugin"
+    },
     "luceneserverPoint": {
       "type": "object",
       "properties": {
@@ -2806,6 +2822,23 @@
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
+    },
+    "luceneserverQueryRescorer": {
+      "type": "object",
+      "properties": {
+        "rescoreQuery": {
+          "$ref": "#/definitions/luceneserverQuery"
+        },
+        "queryWeight": {
+          "type": "number",
+          "format": "double"
+        },
+        "rescoreQueryWeight": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "title": "Defines a rescorer which uses query to rescore documents in the second pass"
     },
     "luceneserverQuerySortField": {
       "type": "object",
@@ -2910,6 +2943,22 @@
         }
       }
     },
+    "luceneserverRescorer": {
+      "type": "object",
+      "properties": {
+        "windowSize": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "queryRescorer": {
+          "$ref": "#/definitions/luceneserverQueryRescorer"
+        },
+        "pluginRescorer": {
+          "$ref": "#/definitions/luceneserverPluginRescorer"
+        }
+      },
+      "title": "Defines a rescorer which is executed after the first search pass"
+    },
     "luceneserverRestoreIndex": {
       "type": "object",
       "properties": {
@@ -3010,6 +3059,12 @@
         },
         "queryNestedPath": {
           "type": "string"
+        },
+        "rescorers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverRescorer"
+          }
         }
       }
     },
