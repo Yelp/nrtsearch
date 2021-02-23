@@ -147,7 +147,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
 
-      diagnostics.setFirstPassSearchTimeMs((System.nanoTime() - searchStartTime / 1000000.0));
+      diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 
       long rescoreStartTime = System.nanoTime();
 
@@ -155,7 +155,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         for (RescoreTask rescorer : searchContext.getRescorers()) {
           hits = rescorer.rescore(s.searcher, hits);
         }
-        diagnostics.setRescoreTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
+        diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
       }
 
       long t0 = System.nanoTime();

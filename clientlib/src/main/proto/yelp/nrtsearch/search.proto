@@ -251,7 +251,6 @@ message Query {
     }
 }
 
-
 message SearchRequest {
     string indexName = 1; //index to search against
     int32 startHit = 2; // Which hit to start from (for pagination); default: 0
