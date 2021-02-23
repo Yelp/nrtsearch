@@ -20,7 +20,7 @@ sourceCompatibility = 1.14
 targetCompatibility = 1.14
 
 allprojects {
-    version = '0.6.6'
+    version = '0.6.7'
     group = 'com.yelp.nrtsearch'
 }
 
