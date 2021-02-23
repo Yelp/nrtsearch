@@ -24,6 +24,10 @@ import java.util.HashMap;
 import java.util.Map;
 import org.apache.lucene.search.Rescorer;
 
+/**
+ * Class to handle the creation of {@link Rescorer} instances. Type strings are mapped to {@link
+ * RescorerProvider}s to produce concrete {@link Rescorer}s.
+ */
 public class RescorerCreator {
 
   private static RescorerCreator instance;
@@ -32,6 +36,13 @@ public class RescorerCreator {
 
   public RescorerCreator(LuceneServerConfiguration configuration) {}
 
+  /**
+   * Get a {@link Rescorer} implementation by name, and with the given parameters. Valid names are
+   * any custom type registered by a {@link RescorerPlugin}.
+   *
+   * @param grpcPluginRescorer grpc message with plugin name and params map
+   * @return rescorer instance
+   */
   public Rescorer createRescorer(PluginRescorer grpcPluginRescorer) {
     RescorerProvider<?> provider = rescorersMap.get(grpcPluginRescorer.getName());
     if (provider == null) {
@@ -55,6 +66,13 @@ public class RescorerCreator {
     rescorersMap.put(name, rescorer);
   }
 
+  /**
+   * Initialize singleton instance of {@link RescorerCreator}. Registers any additional {@link
+   * Rescorer} implementations provided by {@link RescorerPlugin}s.
+   *
+   * @param configuration service configuration
+   * @param plugins list of loaded plugins
+   */
   public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
     instance = new RescorerCreator(configuration);
     for (Plugin plugin : plugins) {
@@ -65,6 +83,7 @@ public class RescorerCreator {
     }
   }
 
+  /** Get singleton instance. */
   public static RescorerCreator getInstance() {
     return instance;
   }

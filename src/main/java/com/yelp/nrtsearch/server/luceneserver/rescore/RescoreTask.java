@@ -20,6 +20,11 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.TopDocs;
 
+/**
+ * A wrapper component for {@link Rescorer} and <i>int windowSize</i>. It has a public
+ * <i>rescore</i> method which is called by the {@link
+ * com.yelp.nrtsearch.server.luceneserver.SearchHandler} to rescore the first-pass hits.
+ */
 public class RescoreTask {
 
   private final Rescorer rescorer;
@@ -30,6 +35,15 @@ public class RescoreTask {
     windowSize = builder.windowSize;
   }
 
+  /**
+   * This wrapper method calls {@link Rescorer} <i>rescore</i> method with <i>windowSize</i>
+   * parameter passed from {@link RescoreTask} class field.
+   *
+   * @param searcher index searcher instance
+   * @param hits results from the previous search pass
+   * @return rescored documents
+   * @throws IOException
+   */
   public TopDocs rescore(IndexSearcher searcher, TopDocs hits) throws IOException {
     return rescorer.rescore(searcher, hits, windowSize);
   }

@@ -302,9 +302,9 @@ public class LuceneServer {
       AnalyzerCreator.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);
       FieldDefCreator.initialize(configuration, plugins);
+      RescorerCreator.initialize(configuration, plugins);
       ScriptService.initialize(configuration, plugins);
       SimilarityCreator.initialize(configuration, plugins);
-      RescorerCreator.initialize(configuration, plugins);
     }
 
     @Override

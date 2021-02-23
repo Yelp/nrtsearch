@@ -18,7 +18,20 @@ package com.yelp.nrtsearch.server.luceneserver.rescore;
 import java.util.Map;
 import org.apache.lucene.search.Rescorer;
 
+/**
+ * Interface for getting a {@link Rescorer} implementation initialized with the given parameters
+ * map.
+ *
+ * @param <T> rescorer type
+ */
 public interface RescorerProvider<T extends Rescorer> {
 
+  /**
+   * Get a {@link Rescorer} implementation initialized with the given parameters.
+   *
+   * @param params rescorer parameters decoded from {@link
+   *     com.yelp.nrtsearch.server.grpc.PluginRescorer}
+   * @return {@link Rescorer} instance
+   */
   T get(Map<String, Object> params);
 }

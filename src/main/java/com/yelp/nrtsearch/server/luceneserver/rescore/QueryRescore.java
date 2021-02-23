@@ -18,6 +18,11 @@ package com.yelp.nrtsearch.server.luceneserver.rescore;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryRescorer;
 
+/**
+ * A implementation of {@link QueryRescorer} that uses a provided Query to assign scores to the
+ * first-pass hits. The final score is defined by the combine function and is calculated as follows:
+ * <i>final_score = queryWeight * firstPassScore + rescoreQueryWeight * secondPassScore</i>
+ */
 public final class QueryRescore extends QueryRescorer {
 
   private double queryWeight;
