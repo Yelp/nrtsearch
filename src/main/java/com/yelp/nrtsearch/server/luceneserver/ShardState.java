@@ -489,7 +489,6 @@ public class ShardState implements Closeable {
     }
 
     boolean success = false;
-
     try {
 
       if (indexState.saveLoadState == null) {
@@ -502,7 +501,9 @@ public class ShardState implements Closeable {
       } else {
         indexDirFile = rootDir.resolve("index");
       }
-      origIndexDir = indexState.df.open(indexDirFile);
+      origIndexDir =
+          indexState.df.open(
+              indexDirFile, indexState.globalState.configuration.getPreloadIndexData());
 
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
@@ -539,7 +540,9 @@ public class ShardState implements Closeable {
       } else {
         taxoDirFile = rootDir.resolve("taxonomy");
       }
-      taxoDir = indexState.df.open(taxoDirFile);
+      taxoDir =
+          indexState.df.open(
+              taxoDirFile, indexState.globalState.configuration.getPreloadIndexData());
 
       taxoSnapshots =
           new PersistentSnapshotDeletionPolicy(
@@ -620,7 +623,6 @@ public class ShardState implements Closeable {
     // nocommit share code better w/ start and startReplica!
 
     boolean success = false;
-
     try {
       // we have backups and are not creating a new index
       // use that to load indexes and other state (registeredFields, settings)
@@ -644,7 +646,9 @@ public class ShardState implements Closeable {
       } else {
         indexDirFile = rootDir.resolve("index");
       }
-      origIndexDir = indexState.df.open(indexDirFile);
+      origIndexDir =
+          indexState.df.open(
+              indexDirFile, indexState.globalState.configuration.getPreloadIndexData());
 
       if ((origIndexDir instanceof MMapDirectory) == false) {
         double maxMergeSizeMB =
@@ -882,7 +886,9 @@ public class ShardState implements Closeable {
       } else {
         indexDirFile = rootDir.resolve("index");
       }
-      origIndexDir = indexState.df.open(indexDirFile);
+      origIndexDir =
+          indexState.df.open(
+              indexDirFile, indexState.globalState.configuration.getPreloadIndexData());
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
       if ((origIndexDir instanceof MMapDirectory) == false) {

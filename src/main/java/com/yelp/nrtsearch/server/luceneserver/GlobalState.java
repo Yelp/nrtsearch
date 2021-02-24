@@ -64,6 +64,8 @@ public class GlobalState implements Closeable, Restorable {
 
   public final List<RemoteNodeConnection> remoteNodes = new CopyOnWriteArrayList<>();
 
+  public final LuceneServerConfiguration configuration;
+
   /** Current indices. */
   final Map<String, IndexState> indices = new ConcurrentHashMap<String, IndexState>();
 
@@ -100,6 +102,7 @@ public class GlobalState implements Closeable, Restorable {
         ThreadPoolExecutorFactory.getThreadPoolExecutor(
             ThreadPoolExecutorFactory.ExecutorType.SEARCH,
             luceneServerConfiguration.getThreadPoolConfiguration());
+    this.configuration = luceneServerConfiguration;
     loadIndexNames();
   }
 

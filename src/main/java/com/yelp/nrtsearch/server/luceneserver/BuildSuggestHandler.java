@@ -226,7 +226,8 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
       suggester =
           new AnalyzingInfixSuggester(
-              indexState.df.open(indexState.rootDir.resolve("suggest." + suggestName + ".infix")),
+              indexState.df.open(
+                  indexState.rootDir.resolve("suggest." + suggestName + ".infix"), true),
               indexAnalyzer,
               queryAnalyzer,
               AnalyzingInfixSuggester.DEFAULT_MIN_PREFIX_CHARS,
@@ -317,7 +318,8 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
       suggester =
           new CompletionInfixSuggester(
-              indexState.df.open(indexState.rootDir.resolve("suggest." + suggestName + ".infix")),
+              indexState.df.open(
+                  indexState.rootDir.resolve("suggest." + suggestName + ".infix"), true),
               indexAnalyzer,
               queryAnalyzer);
     } else if (buildSuggestRequest.hasFuzzyInfixSuggester()) {
@@ -354,7 +356,8 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
       suggester =
           new FuzzyInfixSuggester(
-              indexState.df.open(indexState.rootDir.resolve("suggest." + suggestName + ".infix")),
+              indexState.df.open(
+                  indexState.rootDir.resolve("suggest." + suggestName + ".infix"), true),
               indexAnalyzer,
               queryAnalyzer,
               maxEdits,
