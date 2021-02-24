@@ -84,7 +84,6 @@ import org.slf4j.LoggerFactory;
 
 public class ShardState implements Closeable {
   public static final int REPLICA_ID = 0;
-  private static final String PRELOAD_CONFIG_KEY = "preloadIndexData";
   private final ThreadPoolExecutor searchExecutor;
   Logger logger = LoggerFactory.getLogger(ShardState.class);
 
@@ -490,7 +489,6 @@ public class ShardState implements Closeable {
     }
 
     boolean success = false;
-    boolean preloadData = indexState.globalState.configReader.getBoolean(PRELOAD_CONFIG_KEY, true);
     try {
 
       if (indexState.saveLoadState == null) {
@@ -503,7 +501,9 @@ public class ShardState implements Closeable {
       } else {
         indexDirFile = rootDir.resolve("index");
       }
-      origIndexDir = indexState.df.open(indexDirFile, preloadData);
+      origIndexDir =
+          indexState.df.open(
+              indexDirFile, indexState.globalState.configuration.getPreloadIndexData());
 
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
@@ -540,7 +540,9 @@ public class ShardState implements Closeable {
       } else {
         taxoDirFile = rootDir.resolve("taxonomy");
       }
-      taxoDir = indexState.df.open(taxoDirFile, preloadData);
+      taxoDir =
+          indexState.df.open(
+              taxoDirFile, indexState.globalState.configuration.getPreloadIndexData());
 
       taxoSnapshots =
           new PersistentSnapshotDeletionPolicy(
@@ -621,9 +623,6 @@ public class ShardState implements Closeable {
     // nocommit share code better w/ start and startReplica!
 
     boolean success = false;
-    // It may be better to default this to false for primaries, but leaving as true for now to
-    // maintain status quo
-    boolean preloadData = indexState.globalState.configReader.getBoolean(PRELOAD_CONFIG_KEY, true);
     try {
       // we have backups and are not creating a new index
       // use that to load indexes and other state (registeredFields, settings)
@@ -647,7 +646,9 @@ public class ShardState implements Closeable {
       } else {
         indexDirFile = rootDir.resolve("index");
       }
-      origIndexDir = indexState.df.open(indexDirFile, preloadData);
+      origIndexDir =
+          indexState.df.open(
+              indexDirFile, indexState.globalState.configuration.getPreloadIndexData());
 
       if ((origIndexDir instanceof MMapDirectory) == false) {
         double maxMergeSizeMB =
@@ -875,7 +876,6 @@ public class ShardState implements Closeable {
 
     // nocommit share code better w/ start and startPrimary!
     boolean success = false;
-    boolean preloadData = indexState.globalState.configReader.getBoolean(PRELOAD_CONFIG_KEY, true);
     try {
       if (indexState.saveLoadState == null) {
         indexState.initSaveLoadState();
@@ -886,7 +886,9 @@ public class ShardState implements Closeable {
       } else {
         indexDirFile = rootDir.resolve("index");
       }
-      origIndexDir = indexState.df.open(indexDirFile, preloadData);
+      origIndexDir =
+          indexState.df.open(
+              indexDirFile, indexState.globalState.configuration.getPreloadIndexData());
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
       if ((origIndexDir instanceof MMapDirectory) == false) {
