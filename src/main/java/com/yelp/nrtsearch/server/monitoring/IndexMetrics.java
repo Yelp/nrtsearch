@@ -23,6 +23,9 @@ import java.util.Comparator;
 import java.util.List;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSearcher.LeafSlice;
 
@@ -38,6 +41,12 @@ public class IndexMetrics {
       Gauge.build()
           .name("nrt_index_num_deleted_docs")
           .help("Number of deleted index documents.")
+          .labelNames("index")
+          .create();
+  public static final Gauge sizeBytes =
+      Gauge.build()
+          .name("nrt_index_size_bytes")
+          .help("Index size in bytes.")
           .labelNames("index")
           .create();
   public static final Gauge numSegments =
@@ -87,6 +96,18 @@ public class IndexMetrics {
       segmentDocs
           .labels(index, "max")
           .set(sortedLeaves.get(sortedLeaves.size() - 1).reader().maxDoc());
+
+      try {
+        // This type assumption is the same made by the nrt PrimaryNode class
+        SegmentInfos infos = ((StandardDirectoryReader) reader).getSegmentInfos();
+        long indexSize = 0;
+        for (SegmentCommitInfo info : infos) {
+          indexSize += info.sizeInBytes();
+        }
+        sizeBytes.labels(index).set(indexSize);
+      } catch (Exception ignored) {
+        // don't let an exception here stop creation of a new searcher
+      }
     }
   }
 
@@ -133,6 +154,7 @@ public class IndexMetrics {
   public static void register(CollectorRegistry registry) {
     registry.register(numDocs);
     registry.register(numDeletedDocs);
+    registry.register(sizeBytes);
     registry.register(numSegments);
     registry.register(segmentDocs);
     registry.register(numSlices);
