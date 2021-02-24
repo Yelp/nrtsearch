@@ -139,8 +139,13 @@ public class ObjectFieldDef extends IndexableFieldDef {
           Object childValue = fieldValue.get(key);
           if (childValue != null) {
             if (childValue instanceof List) {
-              ((List<Object>) childValue)
-                  .stream().forEach(e -> childrenValues.add(String.valueOf(e)));
+              for (Object e : (List<Object>) childValue) {
+                if (e instanceof List || e instanceof Map) {
+                  childrenValues.add(gson.toJson(e));
+                } else {
+                  childrenValues.add(String.valueOf(e));
+                }
+              }
             } else {
               childrenValues.add(String.valueOf(childValue));
             }
