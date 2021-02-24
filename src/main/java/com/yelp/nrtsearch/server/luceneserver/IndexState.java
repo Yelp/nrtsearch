@@ -473,7 +473,7 @@ public class IndexState implements Closeable, Restorable {
 
     // nocommit who closes this?
     // nocommit can't this be in the rootDir directly?
-    Directory stateDir = df.open(stateDirFile);
+    Directory stateDir = df.open(stateDirFile, true);
 
     saveLoadGenRefCounts = new SaveLoadRefCounts(stateDir);
 

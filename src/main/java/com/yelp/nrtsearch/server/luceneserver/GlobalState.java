@@ -21,6 +21,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
+import com.yelp.nrtsearch.server.config.YamlConfigReader;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.io.Closeable;
 import java.io.IOException;
@@ -64,6 +65,8 @@ public class GlobalState implements Closeable, Restorable {
 
   public final List<RemoteNodeConnection> remoteNodes = new CopyOnWriteArrayList<>();
 
+  public final YamlConfigReader configReader;
+
   /** Current indices. */
   final Map<String, IndexState> indices = new ConcurrentHashMap<String, IndexState>();
 
@@ -100,6 +103,7 @@ public class GlobalState implements Closeable, Restorable {
         ThreadPoolExecutorFactory.getThreadPoolExecutor(
             ThreadPoolExecutorFactory.ExecutorType.SEARCH,
             luceneServerConfiguration.getThreadPoolConfiguration());
+    this.configReader = luceneServerConfiguration.getConfigReader();
     loadIndexNames();
   }
 

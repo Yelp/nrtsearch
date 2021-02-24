@@ -34,8 +34,13 @@ public abstract class DirectoryFactory {
   /** Sole constructor. */
   public DirectoryFactory() {}
 
-  /** Open a new {@link Directory} at the specified path. */
-  public abstract Directory open(Path path) throws IOException;
+  /**
+   * Open a new {@link Directory} at the specified path.
+   *
+   * @param path directory path
+   * @param preload if index data should be preloaded into memory (only for MMapDirectory type)
+   */
+  public abstract Directory open(Path path, boolean preload) throws IOException;
 
   /**
    * Returns an instance, using the specified implementation {FSDirectory, MMapDirectory,
@@ -45,37 +50,37 @@ public abstract class DirectoryFactory {
     if (dirImpl.equals("FSDirectory")) {
       return new DirectoryFactory() {
         @Override
-        public Directory open(Path path) throws IOException {
+        public Directory open(Path path, boolean preload) throws IOException {
           return FSDirectory.open(path);
         }
       };
     } else if (dirImpl.equals("MMapDirectory")) {
       return new DirectoryFactory() {
         @Override
-        public Directory open(Path path) throws IOException {
+        public Directory open(Path path, boolean preload) throws IOException {
           MMapDirectory mMapDirectory = new MMapDirectory(path);
-          mMapDirectory.setPreload(true);
+          mMapDirectory.setPreload(preload);
           return mMapDirectory;
         }
       };
     } else if (dirImpl.equals("NIOFSDirectory")) {
       return new DirectoryFactory() {
         @Override
-        public Directory open(Path path) throws IOException {
+        public Directory open(Path path, boolean preload) throws IOException {
           return new NIOFSDirectory(path);
         }
       };
     } else if (dirImpl.equals("SimpleFSDirectory")) {
       return new DirectoryFactory() {
         @Override
-        public Directory open(Path path) throws IOException {
+        public Directory open(Path path, boolean preload) throws IOException {
           return new SimpleFSDirectory(path);
         }
       };
     } else if (dirImpl.equals("RAMDirectory")) {
       return new DirectoryFactory() {
         @Override
-        public Directory open(Path path) throws IOException {
+        public Directory open(Path path, boolean preload) throws IOException {
           return new RAMDirectory();
         }
       };
@@ -87,19 +92,32 @@ public abstract class DirectoryFactory {
         throw new IllegalArgumentException(
             "could not locate Directory sub-class \"" + dirImpl + "\"; verify CLASSPATH");
       }
-      final Constructor<? extends Directory> ctor;
+      Constructor<? extends Directory> ctor = null;
       try {
         ctor = dirClass.getConstructor(Path.class);
-      } catch (NoSuchMethodException nsme) {
+      } catch (NoSuchMethodException ignored) {
+      }
+      try {
+        ctor = dirClass.getConstructor(Path.class, boolean.class);
+      } catch (NoSuchMethodException ignored) {
+      }
+      if (ctor == null) {
         throw new IllegalArgumentException(
-            "class \"" + dirImpl + "\" does not have a constructor taking a single Path argument");
+            "class \""
+                + dirImpl
+                + "\" does not have a constructor taking a single Path argument, or a Path and a boolean");
       }
 
+      final Constructor<? extends Directory> finalCtor = ctor;
       return new DirectoryFactory() {
         @Override
-        public Directory open(Path path) throws IOException {
+        public Directory open(Path path, boolean preload) throws IOException {
           try {
-            return ctor.newInstance(path);
+            if (finalCtor.getParameterCount() == 1) {
+              return finalCtor.newInstance(path);
+            } else {
+              return finalCtor.newInstance(path, preload);
+            }
           } catch (InstantiationException ie) {
             throw new RuntimeException(
                 "failed to instantiate directory class \""
