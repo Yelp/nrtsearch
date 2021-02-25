@@ -624,7 +624,7 @@ public class LuceneServer {
           responseObserver.onError(t);
         }
 
-        private void onCompletedForIndex(String indexName) {
+        private String onCompletedForIndex(String indexName) {
           ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue =
               getAddDocumentRequestQueue(indexName);
           logger.debug(
@@ -653,22 +653,18 @@ public class LuceneServer {
               pq.offer(gen);
             }
             long t1 = System.nanoTime();
-            responseObserver.onNext(
-                AddDocumentResponse.newBuilder().setGenId(String.valueOf(pq.peek())).build());
-            responseObserver.onCompleted();
             logger.debug(
                 String.format(
                     "Indexing job completed for %s docs, in %s chunks, with latest sequence number: %s, took: %s micro seconds",
                     getCount(indexName), numIndexingChunks, pq.peek(), ((t1 - t0) / 1000)));
+            return String.valueOf(pq.peek());
           } catch (Exception e) {
             logger.warn("error while trying to addDocuments", e);
-            responseObserver.onError(
-                Status.INTERNAL
-                    .withDescription("error while trying to addDocuments ")
-                    .augmentDescription(e.getMessage())
-                    .withCause(e)
-                    .asRuntimeException());
-
+            throw Status.INTERNAL
+                .withDescription("error while trying to addDocuments ")
+                .augmentDescription(e.getMessage())
+                .withCause(e)
+                .asRuntimeException();
           } finally {
             addDocumentRequestQueue.clear();
             countMap.put(indexName, 0L);
@@ -677,8 +673,16 @@ public class LuceneServer {
 
         @Override
         public void onCompleted() {
-          for (String indexName : addDocumentRequestQueueMap.keySet()) {
-            onCompletedForIndex(indexName);
+          try {
+            // TODO: this should return a map on index to genId in the response
+            String genId = null;
+            for (String indexName : addDocumentRequestQueueMap.keySet()) {
+              genId = onCompletedForIndex(indexName);
+            }
+            responseObserver.onNext(AddDocumentResponse.newBuilder().setGenId(genId).build());
+            responseObserver.onCompleted();
+          } catch (Throwable t) {
+            responseObserver.onError(t);
           }
         }
       };
