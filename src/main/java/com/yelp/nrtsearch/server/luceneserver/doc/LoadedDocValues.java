@@ -324,8 +324,9 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
 
     public double arcDistance(double lat, double lon) {
-      throw new IllegalArgumentException(
-          "Cannot determine the arcDistance of a multi-valued location");
+      // backward compatible with ES
+      // assume we actually only have 1 location while declared as multivalued
+      return get(0).arcDistance(lat, lon);
     }
   }
 
