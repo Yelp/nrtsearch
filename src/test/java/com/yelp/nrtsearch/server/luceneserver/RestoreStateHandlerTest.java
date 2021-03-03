@@ -62,7 +62,7 @@ public class RestoreStateHandlerTest {
     s3.createBucket(BUCKET_NAME);
     archiver =
         new ArchiverImpl(
-            s3, BUCKET_NAME, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4));
+            s3, BUCKET_NAME, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4), false);
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     globalState = new GlobalState(luceneServerConfiguration);

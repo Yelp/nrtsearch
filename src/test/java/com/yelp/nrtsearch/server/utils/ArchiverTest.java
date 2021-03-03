@@ -68,7 +68,7 @@ public class ArchiverTest {
 
     archiver =
         new ArchiverImpl(
-            s3, BUCKET_NAME, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4));
+            s3, BUCKET_NAME, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4), false);
   }
 
   @After

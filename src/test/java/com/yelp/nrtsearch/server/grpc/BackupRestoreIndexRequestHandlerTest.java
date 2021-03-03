@@ -77,7 +77,8 @@ public class BackupRestoreIndexRequestHandlerTest {
     s3.setEndpoint("http://127.0.0.1:8011");
     s3.createBucket(BUCKET_NAME);
     archiver =
-        new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl(Tar.CompressionMode.LZ4));
+        new ArchiverImpl(
+            s3, BUCKET_NAME, archiverDirectory, new TarImpl(Tar.CompressionMode.LZ4), false);
     grpcServer = setUpGrpcServer();
   }
 
