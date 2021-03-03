@@ -101,6 +101,11 @@ public class ArchiverImpl implements Archiver {
     this.downloadAsStream = downloadAsStream;
   }
 
+  public ArchiverImpl(
+      final AmazonS3 s3, final String bucketName, final Path archiverDirectory, final Tar tar) {
+    this(s3, bucketName, archiverDirectory, tar, false);
+  }
+
   @Override
   public Path download(String serviceName, String resource) throws IOException {
     if (!Files.exists(archiverDirectory)) {

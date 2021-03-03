@@ -75,8 +75,7 @@ public class FailedBackupCleanupTest {
     s3TransferStartedLatch = new CountDownLatch(1);
     s3 = new DoNothingAndWaitAmazonS3(s3TransferStartedLatch);
     archiver =
-        new ArchiverImpl(
-            s3, BUCKET_NAME, archiverDirectory, new TarImpl(Tar.CompressionMode.LZ4), false);
+        new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl(Tar.CompressionMode.LZ4));
     luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.PRIMARY, folder.getRoot(), archiverDirectory);
