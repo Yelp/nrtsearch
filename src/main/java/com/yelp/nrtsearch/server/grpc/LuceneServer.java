@@ -1353,11 +1353,11 @@ public class LuceneServer {
       } catch (IOException e) {
         logger.warn("Error during force merge for index {} ", forceMergeRequest.getIndexName(), e);
         responseObserver.onError(
-                Status.INTERNAL
-                        .withDescription(
-                                "Error during force merge for index " + forceMergeRequest.getIndexName())
-                        .augmentDescription(e.getMessage())
-                        .asRuntimeException());
+            Status.INTERNAL
+                .withDescription(
+                    "Error during force merge for index " + forceMergeRequest.getIndexName())
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
         return;
       }
 
@@ -1373,7 +1373,8 @@ public class LuceneServer {
 
     @Override
     public void forceMergeDeletes(
-            ForceMergeDeletesRequest forceMergeRequest, StreamObserver<ForceMergeDeletesResponse> responseObserver) {
+        ForceMergeDeletesRequest forceMergeRequest,
+        StreamObserver<ForceMergeDeletesResponse> responseObserver) {
       if (forceMergeRequest.getIndexName().isEmpty()) {
         responseObserver.onError(new IllegalArgumentException("Index name in request is empty"));
         return;
@@ -1382,25 +1383,29 @@ public class LuceneServer {
       try {
         IndexState indexState = globalState.getIndex(forceMergeRequest.getIndexName());
         ShardState shardState = indexState.shards.get(0);
-        logger.info("Beginning force merge deletes for index: {}", forceMergeRequest.getIndexName());
+        logger.info(
+            "Beginning force merge deletes for index: {}", forceMergeRequest.getIndexName());
         shardState.writer.forceMergeDeletes(forceMergeRequest.getDoWait());
       } catch (IOException e) {
-        logger.warn("Error during force merge deletes for index {} ", forceMergeRequest.getIndexName(), e);
+        logger.warn(
+            "Error during force merge deletes for index {} ", forceMergeRequest.getIndexName(), e);
         responseObserver.onError(
-                Status.INTERNAL
-                        .withDescription(
-                                "Error during force merge deletes for index " + forceMergeRequest.getIndexName())
-                        .augmentDescription(e.getMessage())
-                        .asRuntimeException());
+            Status.INTERNAL
+                .withDescription(
+                    "Error during force merge deletes for index "
+                        + forceMergeRequest.getIndexName())
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
         return;
       }
 
       ForceMergeDeletesResponse.Status status =
-              forceMergeRequest.getDoWait()
-                      ? ForceMergeDeletesResponse.Status.FORCE_MERGE_DELETES_COMPLETED
-                      : ForceMergeDeletesResponse.Status.FORCE_MERGE_DELETES_SUBMITTED;
+          forceMergeRequest.getDoWait()
+              ? ForceMergeDeletesResponse.Status.FORCE_MERGE_DELETES_COMPLETED
+              : ForceMergeDeletesResponse.Status.FORCE_MERGE_DELETES_SUBMITTED;
       logger.info("Force merge deletes status: {}", status);
-      ForceMergeDeletesResponse response = ForceMergeDeletesResponse.newBuilder().setStatus(status).build();
+      ForceMergeDeletesResponse response =
+          ForceMergeDeletesResponse.newBuilder().setStatus(status).build();
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     }

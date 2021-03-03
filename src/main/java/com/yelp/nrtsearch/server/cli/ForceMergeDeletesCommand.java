@@ -18,13 +18,14 @@ package com.yelp.nrtsearch.server.cli;
 import com.yelp.nrtsearch.server.grpc.ForceMergeDeletesRequest;
 import com.yelp.nrtsearch.server.grpc.ForceMergeDeletesResponse;
 import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
-import java.util.concurrent.Callable;
-
-@CommandLine.Command(name = ForceMergeDeletesCommand.FORCE_MERGE_DELETES, description = "Force merge")
+@CommandLine.Command(
+    name = ForceMergeDeletesCommand.FORCE_MERGE_DELETES,
+    description = "Force merge")
 public class ForceMergeDeletesCommand implements Callable<Integer> {
   private static final Logger logger = LoggerFactory.getLogger(ForceMergeDeletesCommand.class);
   public static final String FORCE_MERGE_DELETES = "forceMergeDeletes";
@@ -56,12 +57,14 @@ public class ForceMergeDeletesCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
     try {
-      ForceMergeDeletesResponse response = client.getBlockingStub().forceMergeDeletes(
-              ForceMergeDeletesRequest.newBuilder()
+      ForceMergeDeletesResponse response =
+          client
+              .getBlockingStub()
+              .forceMergeDeletes(
+                  ForceMergeDeletesRequest.newBuilder()
                       .setIndexName(getIndexName())
                       .setDoWait(getDoWait())
-                      .build()
-      );
+                      .build());
       logger.info("Force merge deletes response: {}", response.getStatus());
     } finally {
       client.shutdown();

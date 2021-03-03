@@ -18,11 +18,10 @@ package com.yelp.nrtsearch.server.cli;
 import com.yelp.nrtsearch.server.grpc.ForceMergeRequest;
 import com.yelp.nrtsearch.server.grpc.ForceMergeResponse;
 import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
-
-import java.util.concurrent.Callable;
 
 @CommandLine.Command(name = ForceMergeCommand.FORCE_MERGE, description = "Force merge")
 public class ForceMergeCommand implements Callable<Integer> {
@@ -66,13 +65,15 @@ public class ForceMergeCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
     try {
-      ForceMergeResponse response = client.getBlockingStub().forceMerge(
-              ForceMergeRequest.newBuilder()
+      ForceMergeResponse response =
+          client
+              .getBlockingStub()
+              .forceMerge(
+                  ForceMergeRequest.newBuilder()
                       .setIndexName(getIndexName())
                       .setMaxNumSegments(getMaxNumSegments())
                       .setDoWait(getDoWait())
-                      .build()
-      );
+                      .build());
       logger.info("Force merge response: {}", response.getStatus());
     } finally {
       client.shutdown();
