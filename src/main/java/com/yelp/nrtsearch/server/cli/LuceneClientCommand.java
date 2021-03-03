@@ -35,6 +35,8 @@ import picocli.CommandLine;
       DeleteAllDocumentsCommand.class,
       DeleteIndexBackupCommand.class,
       DeleteIndexCommand.class,
+      ForceMergeCommand.class,
+      ForceMergeDeletesCommand.class,
       LiveSettingsCommand.class,
       RefreshCommand.class,
       RegisterFieldsCommand.class,

@@ -287,9 +287,30 @@ service LuceneServer {
     };
     }
 
+    /*
+    Forces merge policy to merge segments until there are <= maxNumSegments. The actual
+    merges to be executed are determined by the MergePolicy. This call will merge those
+    segments present in the index when the call started. If other threads are still
+    adding documents and flushing segments, those newly created segments will not be
+    merged unless you call forceMerge again.
+    */
     rpc forceMerge(ForceMergeRequest) returns (ForceMergeResponse) {
         option (google.api.http) = {
       post: "/v1/force_merge"
+      body: "*"
+    };
+    }
+
+    /*
+    Forces merging of all segments that have deleted documents. The actual merges to be
+    executed are determined by the MergePolicy. For example, the default TieredMergePolicy
+    will only pick a segment if the percentage of deleted docs is over 10%.
+    This method first flushes a new segment (if there are indexed documents), and applies
+    all buffered deletes.
+    */
+    rpc forceMergeDeletes(ForceMergeDeletesRequest) returns (ForceMergeDeletesResponse) {
+        option (google.api.http) = {
+      post: "/v1/force_merge_deletes"
       body: "*"
     };
     }
@@ -836,6 +857,19 @@ message ForceMergeResponse {
     enum Status {
         FORCE_MERGE_COMPLETED = 0;
         FORCE_MERGE_SUBMITTED = 1;
+    }
+    Status status = 1;
+}
+
+message ForceMergeDeletesRequest {
+    string indexName = 1; // Index whose segments having deletes must be force merged
+    bool doWait = 2; // If true, waits until the force merge is completed before returning a response. Otherwise starts force merging in async and returns a response.
+}
+
+message ForceMergeDeletesResponse {
+    enum Status {
+        FORCE_MERGE_DELETES_COMPLETED = 0;
+        FORCE_MERGE_DELETES_SUBMITTED = 1;
     }
     Status status = 1;
 }
