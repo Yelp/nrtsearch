@@ -17,8 +17,10 @@ package com.yelp.nrtsearch.server.utils;
 
 import com.amazonaws.event.ProgressEvent;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
@@ -32,6 +34,7 @@ import com.google.inject.Inject;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,10 +44,14 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Enumeration;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 import net.jpountz.lz4.LZ4FrameInputStream;
 import org.apache.commons.codec.DecoderException;
@@ -59,7 +66,7 @@ import org.slf4j.LoggerFactory;
 public class ArchiverImpl implements Archiver {
   private static final int NUM_S3_THREADS = 20;
   public static final String DELIMITER = "/";
-  private static Logger logger = LoggerFactory.getLogger(ArchiverImpl.class);
+  private static final Logger logger = LoggerFactory.getLogger(ArchiverImpl.class);
   private static final String CURRENT_VERSION_NAME = "current";
   private static final String TMP_SUFFIX = ".tmp";
 
@@ -69,20 +76,34 @@ public class ArchiverImpl implements Archiver {
   private final Tar tar;
   private final VersionManager versionManger;
   private final TransferManager transferManager;
+  private final ThreadPoolExecutor executor =
+      (ThreadPoolExecutor) Executors.newFixedThreadPool(NUM_S3_THREADS);
+  private final boolean downloadAsStream;
 
   @Inject
   public ArchiverImpl(
-      final AmazonS3 s3, final String bucketName, final Path archiverDirectory, final Tar tar) {
+      final AmazonS3 s3,
+      final String bucketName,
+      final Path archiverDirectory,
+      final Tar tar,
+      final boolean downloadAsStream) {
     this.s3 = s3;
     this.transferManager =
         TransferManagerBuilder.standard()
             .withS3Client(s3)
-            .withExecutorFactory(() -> Executors.newFixedThreadPool(NUM_S3_THREADS))
+            .withExecutorFactory(() -> executor)
+            .withShutDownThreadPools(false)
             .build();
     this.bucketName = bucketName;
     this.archiverDirectory = archiverDirectory;
     this.tar = tar;
     this.versionManger = new VersionManager(s3, bucketName);
+    this.downloadAsStream = downloadAsStream;
+  }
+
+  public ArchiverImpl(
+      final AmazonS3 s3, final String bucketName, final Path archiverDirectory, final Tar tar) {
+    this(s3, bucketName, archiverDirectory, tar, false);
   }
 
   @Override
@@ -221,10 +242,65 @@ public class ArchiverImpl implements Archiver {
       final String serviceName, final String resource, final String version) throws IOException {
     final String absoluteResourcePath =
         String.format("%s/_version/%s/%s", serviceName, resource, version);
-    try (final S3Object s3Object = s3.getObject(bucketName, absoluteResourcePath); ) {
-      final String versionPath = IOUtils.toString(s3Object.getObjectContent());
-      return versionPath;
+    try (final S3Object s3Object = s3.getObject(bucketName, absoluteResourcePath)) {
+      return IOUtils.toString(s3Object.getObjectContent());
     }
+  }
+
+  private InputStream getObjectStream(String key, int numParts) {
+    // enumerate the individual part streams and return a combined view
+    Enumeration<InputStream> objectEnum = getObjectEnum(key, numParts);
+    return new SequenceInputStream(objectEnum);
+  }
+
+  private Enumeration<InputStream> getObjectEnum(String key, int numParts) {
+    return new Enumeration<>() {
+      final long STATUS_INTERVAL_MS = 5000;
+      long lastStatusTimeMs = System.currentTimeMillis();
+      final LinkedList<Future<InputStream>> pendingParts = new LinkedList<>();
+      int currentPart = 1;
+      int queuedPart = 1;
+
+      @Override
+      public boolean hasMoreElements() {
+        return currentPart <= numParts;
+      }
+
+      @Override
+      public InputStream nextElement() {
+        // top off the work queue so parts can download in parallel
+        while (pendingParts.size() < NUM_S3_THREADS && queuedPart <= numParts) {
+          // set to final variable for use in lambda
+          final int finalPart = queuedPart;
+          pendingParts.add(
+              executor.submit(
+                  () -> {
+                    GetObjectRequest getRequest =
+                        new GetObjectRequest(bucketName, key).withPartNumber(finalPart);
+                    S3Object s3Object = transferManager.getAmazonS3Client().getObject(getRequest);
+                    return s3Object.getObjectContent();
+                  }));
+          queuedPart++;
+        }
+
+        // Periodically log progress
+        long currentTimeMs = System.currentTimeMillis();
+        if (currentTimeMs - lastStatusTimeMs > STATUS_INTERVAL_MS) {
+          double percentCompleted = 100.0 * (currentPart - 1) / ((double) numParts);
+          logger.info(String.format("Download status: %.2f%%", percentCompleted));
+          lastStatusTimeMs = currentTimeMs;
+        }
+
+        currentPart++;
+
+        // return stream for next part from fifo future queue
+        try {
+          return pendingParts.pollFirst().get();
+        } catch (Exception e) {
+          throw new RuntimeException("Error downloading file part", e);
+        }
+      }
+    };
   }
 
   private void getVersionContent(
@@ -234,24 +310,43 @@ public class ArchiverImpl implements Archiver {
     final Path parentDirectory = destDirectory.getParent();
     final Path tmpFile = parentDirectory.resolve(getTmpName());
 
-    Download download =
-        transferManager.download(
-            new GetObjectRequest(bucketName, absoluteResourcePath),
-            tmpFile.toFile(),
-            new S3ProgressListenerImpl(serviceName, resource, "download"));
-    try {
-      download.waitForCompletion();
-      logger.info("S3 Download complete");
-    } catch (InterruptedException e) {
-      throw new IOException("S3 Download failed", e);
+    final InputStream s3InputStream;
+    if (downloadAsStream) {
+      // Stream the file download from s3 instead of writing to a file first
+      GetObjectMetadataRequest metadataRequest =
+          new GetObjectMetadataRequest(bucketName, absoluteResourcePath);
+      ObjectMetadata fullMetadata =
+          transferManager.getAmazonS3Client().getObjectMetadata(metadataRequest);
+      logger.info("Full object size: " + fullMetadata.getContentLength());
+
+      // get metadata for the 1st file part, needed to find the total number of parts
+      ObjectMetadata partMetadata =
+          transferManager.getAmazonS3Client().getObjectMetadata(metadataRequest.withPartNumber(1));
+      int numParts = partMetadata.getPartCount() != null ? partMetadata.getPartCount() : 1;
+      logger.info("Object parts: " + numParts);
+      s3InputStream = getObjectStream(absoluteResourcePath, numParts);
+      logger.info("Object streaming started...");
+    } else {
+      Download download =
+          transferManager.download(
+              new GetObjectRequest(bucketName, absoluteResourcePath),
+              tmpFile.toFile(),
+              new S3ProgressListenerImpl(serviceName, resource, "download"));
+      try {
+        download.waitForCompletion();
+        logger.info("S3 Download complete");
+      } catch (InterruptedException e) {
+        throw new IOException("S3 Download failed", e);
+      }
+
+      s3InputStream = new FileInputStream(tmpFile.toFile());
     }
 
-    final InputStream s3InputStreem = new FileInputStream(tmpFile.toFile());
     final InputStream compressorInputStream;
     if (tar.getCompressionMode().equals(Tar.CompressionMode.LZ4)) {
-      compressorInputStream = new LZ4FrameInputStream(s3InputStreem);
+      compressorInputStream = new LZ4FrameInputStream(s3InputStream);
     } else {
-      compressorInputStream = new GzipCompressorInputStream(s3InputStreem, true);
+      compressorInputStream = new GzipCompressorInputStream(s3InputStream, true);
     }
     try (final TarArchiveInputStream tarArchiveInputStream =
         new TarArchiveInputStream(compressorInputStream); ) {
@@ -322,7 +417,7 @@ public class ArchiverImpl implements Archiver {
   }
 
   private static class S3ProgressListenerImpl implements S3ProgressListener {
-    private static Logger logger = LoggerFactory.getLogger(S3ProgressListenerImpl.class);
+    private static final Logger logger = LoggerFactory.getLogger(S3ProgressListenerImpl.class);
 
     private static final long LOG_THRESHOLD_BYTES = 1024 * 1024 * 500; // 500 MB
     private static final long LOG_THRESHOLD_SECONDS = 30;
