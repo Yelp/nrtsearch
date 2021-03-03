@@ -1362,6 +1362,33 @@ public class LuceneServer {
       responseObserver.onNext(response);
       responseObserver.onCompleted();
     }
+
+    @Override
+    public void forceMergeDeletes(
+            ForceMergeDeletesRequest forceMergeRequest, StreamObserver<ForceMergeDeletesResponse> responseObserver) {
+      if (forceMergeRequest.getIndexName().isEmpty()) {
+        responseObserver.onError(new IllegalArgumentException("Index name in request is empty"));
+        return;
+      }
+
+      try {
+        IndexState indexState = globalState.getIndex(forceMergeRequest.getIndexName());
+        ShardState shardState = indexState.shards.get(0);
+        logger.info("Beginning force merge deletes for index: {}", forceMergeRequest.getIndexName());
+        shardState.writer.forceMergeDeletes(forceMergeRequest.getDoWait());
+      } catch (IOException e) {
+        responseObserver.onError(e);
+        return;
+      }
+
+      ForceMergeDeletesResponse.Status status =
+              forceMergeRequest.getDoWait()
+                      ? ForceMergeDeletesResponse.Status.FORCE_MERGE_DELETES_COMPLETED
+                      : ForceMergeDeletesResponse.Status.FORCE_MERGE_DELETES_SUBMITTED;
+      ForceMergeDeletesResponse response = ForceMergeDeletesResponse.newBuilder().setStatus(status).build();
+      responseObserver.onNext(response);
+      responseObserver.onCompleted();
+    }
   }
 
   static class ReplicationServerImpl extends ReplicationServerGrpc.ReplicationServerImplBase {
