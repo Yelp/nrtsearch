@@ -366,6 +366,7 @@
     },
     "/v1/force_merge": {
       "post": {
+        "summary": "Forces merge policy to merge segments until there are \u003c= maxNumSegments. The actual\nmerges to be executed are determined by the MergePolicy. This call will merge those\nsegments present in the index when the call started. If other threads are still\nadding documents and flushing segments, those newly created segments will not be\nmerged unless you call forceMerge again.",
         "operationId": "LuceneServer_forceMerge",
         "responses": {
           "200": {
@@ -388,6 +389,39 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/luceneserverForceMergeRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/force_merge_deletes": {
+      "post": {
+        "summary": "Forces merging of all segments that have deleted documents. The actual merges to be\nexecuted are determined by the MergePolicy. For example, the default TieredMergePolicy\nwill only pick a segment if the percentage of deleted docs is over 10%.\nThis method first flushes a new segment (if there are indexed documents), and applies\nall buffered deletes.",
+        "operationId": "LuceneServer_forceMergeDeletes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverForceMergeDeletesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverForceMergeDeletesRequest"
             }
           }
         ],
@@ -1098,14 +1132,6 @@
       ],
       "default": "SHOULD",
       "description": "Defines how clauses may occur in matching documents. This will always be SHOULD by default."
-    },
-    "ForceMergeResponseStatus": {
-      "type": "string",
-      "enum": [
-        "FORCE_MERGE_COMPLETED",
-        "FORCE_MERGE_SUBMITTED"
-      ],
-      "default": "FORCE_MERGE_COMPLETED"
     },
     "HitCompositeFieldValue": {
       "type": "object",
@@ -2193,6 +2219,33 @@
         }
       }
     },
+    "luceneserverForceMergeDeletesRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "doWait": {
+          "type": "boolean"
+        }
+      }
+    },
+    "luceneserverForceMergeDeletesResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/luceneserverForceMergeDeletesResponseStatus"
+        }
+      }
+    },
+    "luceneserverForceMergeDeletesResponseStatus": {
+      "type": "string",
+      "enum": [
+        "FORCE_MERGE_DELETES_COMPLETED",
+        "FORCE_MERGE_DELETES_SUBMITTED"
+      ],
+      "default": "FORCE_MERGE_DELETES_COMPLETED"
+    },
     "luceneserverForceMergeRequest": {
       "type": "object",
       "properties": {
@@ -2212,9 +2265,17 @@
       "type": "object",
       "properties": {
         "status": {
-          "$ref": "#/definitions/ForceMergeResponseStatus"
+          "$ref": "#/definitions/luceneserverForceMergeResponseStatus"
         }
       }
+    },
+    "luceneserverForceMergeResponseStatus": {
+      "type": "string",
+      "enum": [
+        "FORCE_MERGE_COMPLETED",
+        "FORCE_MERGE_SUBMITTED"
+      ],
+      "default": "FORCE_MERGE_COMPLETED"
     },
     "luceneserverFunctionFilterQuery": {
       "type": "object",
