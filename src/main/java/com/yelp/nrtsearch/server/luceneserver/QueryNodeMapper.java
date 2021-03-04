@@ -186,7 +186,8 @@ public class QueryNodeMapper {
         ScriptParamsUtils.decodeParams(functionScoreQuery.getScript().getParamsMap());
     com.yelp.nrtsearch.server.grpc.Query q = functionScoreQuery.getQuery();
     Query query;
-    if (!q.toString().isEmpty()) {
+    if (q.getQueryNodeCase()
+        != com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET) {
       query = getQuery(q, state);
     } else {
       query = new MatchAllDocsQuery();
