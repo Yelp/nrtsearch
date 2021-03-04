@@ -502,8 +502,7 @@ public class ShardState implements Closeable {
         indexDirFile = rootDir.resolve("index");
       }
       origIndexDir =
-          indexState.df.open(
-              indexDirFile, indexState.globalState.configuration.getPreloadIndexData());
+          indexState.df.open(indexDirFile, indexState.globalState.configuration.getPreloadConfig());
 
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
@@ -541,8 +540,7 @@ public class ShardState implements Closeable {
         taxoDirFile = rootDir.resolve("taxonomy");
       }
       taxoDir =
-          indexState.df.open(
-              taxoDirFile, indexState.globalState.configuration.getPreloadIndexData());
+          indexState.df.open(taxoDirFile, indexState.globalState.configuration.getPreloadConfig());
 
       taxoSnapshots =
           new PersistentSnapshotDeletionPolicy(
@@ -647,8 +645,7 @@ public class ShardState implements Closeable {
         indexDirFile = rootDir.resolve("index");
       }
       origIndexDir =
-          indexState.df.open(
-              indexDirFile, indexState.globalState.configuration.getPreloadIndexData());
+          indexState.df.open(indexDirFile, indexState.globalState.configuration.getPreloadConfig());
 
       if ((origIndexDir instanceof MMapDirectory) == false) {
         double maxMergeSizeMB =
@@ -887,8 +884,7 @@ public class ShardState implements Closeable {
         indexDirFile = rootDir.resolve("index");
       }
       origIndexDir =
-          indexState.df.open(
-              indexDirFile, indexState.globalState.configuration.getPreloadIndexData());
+          indexState.df.open(indexDirFile, indexState.globalState.configuration.getPreloadConfig());
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
       if ((origIndexDir instanceof MMapDirectory) == false) {

@@ -25,6 +25,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldType;
@@ -473,7 +474,7 @@ public class IndexState implements Closeable, Restorable {
 
     // nocommit who closes this?
     // nocommit can't this be in the rootDir directly?
-    Directory stateDir = df.open(stateDirFile, true);
+    Directory stateDir = df.open(stateDirFile, IndexPreloadConfig.PRELOAD_ALL);
 
     saveLoadGenRefCounts = new SaveLoadRefCounts(stateDir);
 
