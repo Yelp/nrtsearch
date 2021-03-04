@@ -64,7 +64,7 @@ public class LuceneServerConfiguration {
   private final String serviceName;
   private final boolean restoreState;
   private final ThreadPoolConfiguration threadPoolConfiguration;
-  private final boolean preloadIndexData;
+  private final IndexPreloadConfig preloadConfig;
   private final boolean downloadAsStream;
 
   private final YamlConfigReader configReader;
@@ -101,7 +101,7 @@ public class LuceneServerConfiguration {
         configReader.getString("pluginSearchPath", DEFAULT_PLUGIN_SEARCH_PATH.toString());
     serviceName = configReader.getString("serviceName", DEFAULT_SERVICE_NAME);
     restoreState = configReader.getBoolean("restoreState", false);
-    preloadIndexData = configReader.getBoolean("preloadIndexData", true);
+    preloadConfig = IndexPreloadConfig.fromConfig(configReader);
     downloadAsStream = configReader.getBoolean("downloadAsStream", false);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
   }
@@ -174,8 +174,8 @@ public class LuceneServerConfiguration {
     return restoreState;
   }
 
-  public boolean getPreloadIndexData() {
-    return preloadIndexData;
+  public IndexPreloadConfig getPreloadConfig() {
+    return preloadConfig;
   }
 
   public boolean getDownloadAsStream() {
