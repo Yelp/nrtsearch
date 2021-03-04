@@ -181,11 +181,17 @@ public class QueryNodeMapper {
       com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery, IndexState state) {
     ScoreScript.Factory scriptFactory =
         ScriptService.getInstance().compile(functionScoreQuery.getScript(), ScoreScript.CONTEXT);
+
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionScoreQuery.getScript().getParamsMap());
-    return new FunctionScoreQuery(
-        getQuery(functionScoreQuery.getQuery(), state),
-        scriptFactory.newFactory(params, state.docLookup));
+    com.yelp.nrtsearch.server.grpc.Query q = functionScoreQuery.getQuery();
+    Query query;
+    if (!q.toString().isEmpty()) {
+      query = getQuery(q, state);
+    } else {
+      query = new MatchAllDocsQuery();
+    }
+    return new FunctionScoreQuery(query, scriptFactory.newFactory(params, state.docLookup));
   }
 
   private FunctionMatchQuery getFunctionFilterQuery(
