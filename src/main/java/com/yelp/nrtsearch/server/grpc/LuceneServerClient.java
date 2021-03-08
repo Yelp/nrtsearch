@@ -298,13 +298,18 @@ public class LuceneServerClient {
   }
 
   public void backupIndex(
-      String indexName, String serviceName, String resourceName, boolean completeDirectory) {
+      String indexName,
+      String serviceName,
+      String resourceName,
+      boolean completeDirectory,
+      boolean stream) {
     blockingStub.backupIndex(
         BackupIndexRequest.newBuilder()
             .setServiceName(serviceName)
             .setResourceName(resourceName)
             .setIndexName(indexName)
             .setCompleteDirectory(completeDirectory)
+            .setStream(stream)
             .build());
   }
 

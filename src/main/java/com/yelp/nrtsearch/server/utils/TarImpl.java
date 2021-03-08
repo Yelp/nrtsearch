@@ -99,11 +99,21 @@ public class TarImpl implements Tar {
       Collection<String> parentDirectoriesToInclude)
       throws IOException {
     final FileOutputStream fileOutputStream = new FileOutputStream(destinationFile.toFile());
+    buildTar(sourceDir, fileOutputStream, filesToInclude, parentDirectoriesToInclude);
+  }
+
+  @Override
+  public void buildTar(
+      Path sourceDir,
+      OutputStream destinationStream,
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude)
+      throws IOException {
     final OutputStream compressorOutputStream;
     if (compressionMode.equals(CompressionMode.LZ4)) {
-      compressorOutputStream = new LZ4FrameOutputStream(fileOutputStream);
+      compressorOutputStream = new LZ4FrameOutputStream(destinationStream);
     } else {
-      compressorOutputStream = new GzipCompressorOutputStream(fileOutputStream);
+      compressorOutputStream = new GzipCompressorOutputStream(destinationStream);
     }
     try (final TarArchiveOutputStream tarArchiveOutputStream =
         new TarArchiveOutputStream(compressorOutputStream)) {
@@ -164,7 +174,7 @@ public class TarImpl implements Tar {
     }
   }
 
-  private static boolean shouldIncludeFile(
+  public static boolean shouldIncludeFile(
       File file, Collection<String> filesToInclude, Collection<String> parentDirectoriesToInclude) {
     return (filesToInclude.isEmpty() && parentDirectoriesToInclude.isEmpty())
         || filesToInclude.contains(file.getName())

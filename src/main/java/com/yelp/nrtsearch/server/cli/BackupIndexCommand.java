@@ -65,12 +65,22 @@ public class BackupIndexCommand implements Callable<Integer> {
     return completeDirectory;
   }
 
+  @CommandLine.Option(
+      names = {"--stream"},
+      description =
+          "Stream the index archive directly to s3, instead of writing to a file first (experimental)")
+  private boolean stream;
+
+  public boolean getStream() {
+    return stream;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
     try {
       client.backupIndex(
-          getIndexName(), getServiceName(), getResourceName(), getCompleteDirectory());
+          getIndexName(), getServiceName(), getResourceName(), getCompleteDirectory(), getStream());
     } finally {
       client.shutdown();
     }
