@@ -58,6 +58,10 @@ public class QueryNodeMapper {
               MatchOperator.MUST, BooleanClause.Occur.MUST));
 
   public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
+    if (query.getQueryNodeCase()
+        == com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET) {
+      return new MatchAllDocsQuery();
+    }
     Query queryNode = getQueryNode(query, state);
 
     if (query.getBoost() < 0) {
@@ -184,15 +188,9 @@ public class QueryNodeMapper {
 
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionScoreQuery.getScript().getParamsMap());
-    com.yelp.nrtsearch.server.grpc.Query q = functionScoreQuery.getQuery();
-    Query query;
-    if (q.getQueryNodeCase()
-        != com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET) {
-      query = getQuery(q, state);
-    } else {
-      query = new MatchAllDocsQuery();
-    }
-    return new FunctionScoreQuery(query, scriptFactory.newFactory(params, state.docLookup));
+    return new FunctionScoreQuery(
+        getQuery(functionScoreQuery.getQuery(), state),
+        scriptFactory.newFactory(params, state.docLookup));
   }
 
   private FunctionMatchQuery getFunctionFilterQuery(
