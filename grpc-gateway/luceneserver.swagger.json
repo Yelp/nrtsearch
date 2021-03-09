@@ -1528,6 +1528,9 @@
         },
         "completeDirectory": {
           "type": "boolean"
+        },
+        "stream": {
+          "type": "boolean"
         }
       }
     },

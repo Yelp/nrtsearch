@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.utils;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.Collection;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -35,6 +36,18 @@ public interface Tar {
   void buildTar(
       Path sourceDir,
       Path destinationFile,
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude)
+      throws IOException;
+
+  /**
+   * Build a tar to the destination OutputStream with the directory and files at sourceDir. If
+   * either filesToInclude or parentDirectoriesToInclude or both are provided only the specified
+   * files or files in specified directories or both would be included in the tar.
+   */
+  void buildTar(
+      Path sourceDir,
+      OutputStream destinationStream,
       Collection<String> filesToInclude,
       Collection<String> parentDirectoriesToInclude)
       throws IOException;

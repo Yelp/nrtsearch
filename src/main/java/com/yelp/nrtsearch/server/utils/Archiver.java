@@ -33,7 +33,8 @@ public interface Archiver {
       final String resource,
       Path path,
       Collection<String> filesToInclude,
-      Collection<String> parentDirectoriesToInclude)
+      Collection<String> parentDirectoriesToInclude,
+      boolean stream)
       throws IOException;
 
   boolean blessVersion(final String serviceName, final String resource, String versionHash)

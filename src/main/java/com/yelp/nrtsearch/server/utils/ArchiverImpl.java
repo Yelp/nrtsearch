@@ -31,6 +31,7 @@ import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.amazonaws.services.s3.transfer.internal.S3ProgressListener;
 import com.google.inject.Inject;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -192,7 +193,8 @@ public class ArchiverImpl implements Archiver {
       final String resource,
       Path sourceDir,
       Collection<String> filesToInclude,
-      Collection<String> parentDirectoriesToInclude)
+      Collection<String> parentDirectoriesToInclude,
+      boolean stream)
       throws IOException {
     if (!Files.exists(sourceDir)) {
       throw new IOException(
@@ -200,7 +202,22 @@ public class ArchiverImpl implements Archiver {
               "Source directory %s, for service %s, and resource %s does not exist",
               sourceDir, serviceName, resource));
     }
+    if (stream) {
+      return uploadAsStream(
+          serviceName, resource, sourceDir, filesToInclude, parentDirectoriesToInclude);
+    } else {
+      return uploadAsFile(
+          serviceName, resource, sourceDir, filesToInclude, parentDirectoriesToInclude);
+    }
+  }
 
+  private String uploadAsFile(
+      final String serviceName,
+      final String resource,
+      Path sourceDir,
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude)
+      throws IOException {
     if (!Files.exists(archiverDirectory)) {
       logger.info("Archiver directory doesn't exist: " + archiverDirectory + " creating new ");
       Files.createDirectories(archiverDirectory);
@@ -230,6 +247,57 @@ public class ArchiverImpl implements Archiver {
     } catch (InterruptedException e) {
       throw new IOException("Error while uploading to s3. ", e);
     }
+  }
+
+  private String uploadAsStream(
+      final String serviceName,
+      final String resource,
+      Path sourceDir,
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude)
+      throws IOException {
+    String versionHash = UUID.randomUUID().toString();
+    final String absoluteResourcePath =
+        String.format("%s/%s/%s", serviceName, resource, versionHash);
+    long uncompressedSize =
+        getTotalSize(sourceDir.toString(), filesToInclude, parentDirectoriesToInclude);
+    logger.info("Uploading: " + absoluteResourcePath);
+    logger.info("Uncompressed total size: " + uncompressedSize);
+    TarUploadOutputStream uploadStream = null;
+    try {
+      uploadStream =
+          new TarUploadOutputStream(
+              bucketName,
+              absoluteResourcePath,
+              uncompressedSize,
+              transferManager.getAmazonS3Client(),
+              executor);
+      tar.buildTar(sourceDir, uploadStream, filesToInclude, parentDirectoriesToInclude);
+      uploadStream.complete();
+    } catch (Exception e) {
+      if (uploadStream != null) {
+        uploadStream.cancel();
+      }
+      throw new IOException("Error uploading tar to s3", e);
+    }
+    return versionHash;
+  }
+
+  private long getTotalSize(
+      String filePath,
+      Collection<String> filesToInclude,
+      Collection<String> parentDirectoriesToInclude) {
+    File file = new File(filePath);
+    long totalSize = 0;
+    if (file.isFile()
+        && TarImpl.shouldIncludeFile(file, filesToInclude, parentDirectoriesToInclude)) {
+      totalSize += file.length();
+    } else if (file.isDirectory()) {
+      for (File f : file.listFiles()) {
+        totalSize += getTotalSize(f.getAbsolutePath(), filesToInclude, parentDirectoriesToInclude);
+      }
+    }
+    return totalSize;
   }
 
   @Override
