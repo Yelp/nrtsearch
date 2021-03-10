@@ -58,10 +58,6 @@ public class QueryNodeMapper {
               MatchOperator.MUST, BooleanClause.Occur.MUST));
 
   public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
-    if (query.getQueryNodeCase()
-        == com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET) {
-      return new MatchAllDocsQuery();
-    }
     Query queryNode = getQueryNode(query, state);
 
     if (query.getBoost() < 0) {
@@ -118,6 +114,8 @@ public class QueryNodeMapper {
         return getGeoRadiusQuery(query.getGeoRadiusQuery(), state);
       case FUNCTIONFILTERQUERY:
         return getFunctionFilterQuery(query.getFunctionFilterQuery(), state);
+      case QUERYNODE_NOT_SET:
+        return new MatchAllDocsQuery();
       default:
         throw new UnsupportedOperationException(
             "Unsupported query type received: " + query.getQueryNodeCase());
