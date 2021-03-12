@@ -146,6 +146,42 @@ public class QueryTest {
   }
 
   @Test
+  public void testSearchBooleanQueryMustNotBeOne() {
+    Query query =
+        Query.newBuilder()
+            .setBooleanQuery(
+                BooleanQuery.newBuilder()
+                    .addClauses(
+                        BooleanClause.newBuilder()
+                            .setQuery(
+                                Query.newBuilder()
+                                    .setPhraseQuery(
+                                        PhraseQuery.newBuilder()
+                                            .setSlop(0)
+                                            .setField("vendor_name")
+                                            .addTerms("first")
+                                            .addTerms("again")
+                                            .build())
+                                    .build())
+                            .setOccur(BooleanClause.Occur.MUST_NOT)
+                            .build())
+                    .build())
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(1, searchResponse.getTotalHits().getValue());
+          assertEquals(1, searchResponse.getHitsList().size());
+          SearchResponse.Hit hit = searchResponse.getHits(0);
+          String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("2", docId);
+          LuceneServerTest.checkHits(hit);
+        };
+
+    testQuery(query, responseTester);
+  }
+
+  @Test
   public void testSearchPhraseQuery() {
     Query query =
         Query.newBuilder()
