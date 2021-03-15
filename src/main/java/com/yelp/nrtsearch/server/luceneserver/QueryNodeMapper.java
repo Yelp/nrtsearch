@@ -173,7 +173,7 @@ public class QueryNodeMapper {
             });
 
     if (allMustNot.get()) {
-      builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST);
+      builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER);
     }
     return builder.build();
   }
