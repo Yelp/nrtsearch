@@ -254,7 +254,7 @@ message Query {
 message SearchRequest {
     string indexName = 1; //index to search against
     int32 startHit = 2; // Which hit to start from (for pagination); default: 0
-    int32 topHits = 3; // How many top hits to retrieve; default: 10. For pagination: set it to startHit + window_size. 
+    int32 topHits = 3; // How many top hits to retrieve; default: 10. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
     /* Maximum number of seconds spent on each collection phase; note that for
      * multi-pass searches (e.g. query-time grouping), this timeout applies to each phase. */
     double timeoutSec = 4;

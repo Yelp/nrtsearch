@@ -2059,7 +2059,7 @@ type SearchRequest struct {
 
 	IndexName string `protobuf:"bytes,1,opt,name=indexName,proto3" json:"indexName,omitempty"` //index to search against
 	StartHit  int32  `protobuf:"varint,2,opt,name=startHit,proto3" json:"startHit,omitempty"`  // Which hit to start from (for pagination); default: 0
-	TopHits   int32  `protobuf:"varint,3,opt,name=topHits,proto3" json:"topHits,omitempty"`    // How many top hits to retrieve; default: 10
+	TopHits   int32  `protobuf:"varint,3,opt,name=topHits,proto3" json:"topHits,omitempty"`    // How many top hits to retrieve; default: 10. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
 	// Maximum number of seconds spent on each collection phase; note that for
 	// multi-pass searches (e.g. query-time grouping), this timeout applies to each phase.
 	TimeoutSec     float64         `protobuf:"fixed64,4,opt,name=timeoutSec,proto3" json:"timeoutSec,omitempty"`
