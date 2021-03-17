@@ -115,6 +115,8 @@ public class QueryNodeMapper {
         return getGeoRadiusQuery(query.getGeoRadiusQuery(), state);
       case FUNCTIONFILTERQUERY:
         return getFunctionFilterQuery(query.getFunctionFilterQuery(), state);
+      case QUERYNODE_NOT_SET:
+        return new MatchAllDocsQuery();
       default:
         throw new UnsupportedOperationException(
             "Unsupported query type received: " + query.getQueryNodeCase());
@@ -190,6 +192,7 @@ public class QueryNodeMapper {
       com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery, IndexState state) {
     ScoreScript.Factory scriptFactory =
         ScriptService.getInstance().compile(functionScoreQuery.getScript(), ScoreScript.CONTEXT);
+
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionScoreQuery.getScript().getParamsMap());
     return new FunctionScoreQuery(

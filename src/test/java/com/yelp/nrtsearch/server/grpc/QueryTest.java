@@ -242,6 +242,39 @@ public class QueryTest {
   }
 
   @Test
+  public void testSearchFunctionScoreQueryNoInnerQuery() {
+    Query query =
+        Query.newBuilder()
+            .setFunctionScoreQuery(
+                FunctionScoreQuery.newBuilder()
+                    .setScript(
+                        Script.newBuilder().setLang("js").setSource("sqrt(4) * count").build())
+                    .build())
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(2, searchResponse.getTotalHits().getValue());
+          assertEquals(2, searchResponse.getHitsList().size());
+
+          SearchResponse.Hit firstHit = searchResponse.getHits(0);
+          String firstDocId = firstHit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("2", firstDocId);
+          assertEquals(14.0, firstHit.getScore(), 0.0);
+          LuceneServerTest.checkHits(firstHit);
+
+          SearchResponse.Hit secondHit = searchResponse.getHits(1);
+          String secondDocId =
+              secondHit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("1", secondDocId);
+          assertEquals(6.0, secondHit.getScore(), 0.0);
+          LuceneServerTest.checkHits(secondHit);
+        };
+
+    testQuery(query, responseTester);
+  }
+
+  @Test
   public void testSearchFunctionFilterQuery() {
     Query query =
         Query.newBuilder()

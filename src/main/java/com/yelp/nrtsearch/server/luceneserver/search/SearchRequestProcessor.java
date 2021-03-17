@@ -48,7 +48,6 @@ import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.util.QueryBuilder;
@@ -251,11 +250,8 @@ public class SearchRequestProcessor {
         throw new IllegalArgumentException(
             String.format("could not parse queryText: %s", queryText));
       }
-    } else if (searchRequest.getQuery().getQueryNodeCase()
-        != com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET) {
-      q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery(), state);
     } else {
-      q = new MatchAllDocsQuery();
+      q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery(), state);
     }
 
     if (state.hasNestedChildFields()) {
