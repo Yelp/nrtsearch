@@ -270,7 +270,7 @@ public class LuceneServer {
     }
   }
 
-  static class LuceneServerImpl extends LuceneServerGrpc.LuceneServerImplBase {
+  public static class LuceneServerImpl extends LuceneServerGrpc.LuceneServerImplBase {
     private final JsonFormat.Printer protoMessagePrinter =
         JsonFormat.printer().omittingInsignificantWhitespace();
     private final GlobalState globalState;
@@ -279,7 +279,7 @@ public class LuceneServer {
     private final ThreadPoolExecutor searchThreadPoolExecutor;
     private final String archiveDirectory;
 
-    LuceneServerImpl(
+    public LuceneServerImpl(
         GlobalState globalState,
         LuceneServerConfiguration configuration,
         Archiver archiver,

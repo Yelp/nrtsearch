@@ -49,6 +49,10 @@ import org.apache.commons.csv.CSVParser;
 import org.junit.rules.TemporaryFolder;
 
 public class GrpcServer {
+  // TODO: use this everywhere instead of importing test index name from
+  // ReplicationTestFailureScenarios
+  public static final String TEST_INDEX = "test_index";
+
   private final GrpcCleanupRule grpcCleanup;
   private final TemporaryFolder temporaryFolder;
   private final Archiver archiver;
@@ -61,7 +65,6 @@ public class GrpcServer {
 
   private GlobalState globalState;
   private LuceneServerConfiguration configuration;
-  private LuceneServerClient luceneServerClient;
   private Server luceneServer;
   private ManagedChannel luceneServerManagedChannel;
   private Server replicationServer;
@@ -334,6 +337,14 @@ public class GrpcServer {
 
     public AddDocumentResponse addDocuments(String fileName)
         throws IOException, InterruptedException {
+      Stream<AddDocumentRequest> addDocumentRequestStream = getAddDocumentRequestStream(fileName);
+      addDocumentsFromStream(addDocumentRequestStream);
+      refresh();
+      return addDocumentResponse;
+    }
+
+    public void addDocumentsFromStream(Stream<AddDocumentRequest> addDocumentRequestStream)
+        throws InterruptedException {
       CountDownLatch finishLatch = new CountDownLatch(1);
       // observers responses from Server(should get one onNext and oneCompleted)
       StreamObserver<AddDocumentResponse> responseStreamObserver =
@@ -360,7 +371,6 @@ public class GrpcServer {
       StreamObserver<AddDocumentRequest> requestObserver =
           grpcServer.getStub().addDocuments(responseStreamObserver);
       // parse CSV into a stream of AddDocumentRequest
-      Stream<AddDocumentRequest> addDocumentRequestStream = getAddDocumentRequestStream(fileName);
       try {
         addDocumentRequestStream.forEach(
             addDocumentRequest -> requestObserver.onNext(addDocumentRequest));
@@ -375,8 +385,6 @@ public class GrpcServer {
       if (!finishLatch.await(20, TimeUnit.SECONDS)) {
         throw new RuntimeException("addDocuments can not finish within 20 seconds");
       }
-      refresh();
-      return addDocumentResponse;
     }
 
     public void refresh() {
@@ -422,8 +430,6 @@ public class GrpcServer {
     public FieldDefResponse createStartIndexAndRegisterFields(
         Mode mode, int primaryGen, boolean startOldIndex, String registerFieldsFileName)
         throws IOException {
-      String registerFields =
-          registerFieldsFileName == null ? "registerFieldsBasic.json" : registerFieldsFileName;
       String testIndex = grpcServer.getTestIndex();
       LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
       if (!startOldIndex) {
@@ -433,11 +439,7 @@ public class GrpcServer {
       // start the index
       StartIndexRequest.Builder startIndexBuilder =
           StartIndexRequest.newBuilder().setIndexName(testIndex);
-      RestoreIndex restoreIndex =
-          RestoreIndex.newBuilder()
-              .setServiceName("testservice")
-              .setResourceName("testresource")
-              .build();
+
       if (mode.equals(Mode.PRIMARY)) {
         startIndexBuilder.setMode(Mode.PRIMARY);
         startIndexBuilder.setPrimaryGen(primaryGen);
@@ -447,6 +449,11 @@ public class GrpcServer {
         startIndexBuilder.setPort(9001); // primary port for replication server
       }
       if (startOldIndex) {
+        RestoreIndex restoreIndex =
+            RestoreIndex.newBuilder()
+                .setServiceName("testservice")
+                .setResourceName("testresource")
+                .build();
         startIndexBuilder.setRestore(restoreIndex);
         RestoreStateHandler.restore(
             grpcServer.getArchiver(), grpcServer.getGlobalState(), "testservice");
@@ -454,6 +461,8 @@ public class GrpcServer {
       blockingStub.startIndex(startIndexBuilder.build());
 
       if (!startOldIndex) {
+        String registerFields =
+            registerFieldsFileName == null ? "registerFieldsBasic.json" : registerFieldsFileName;
         // register the fields
         FieldDefRequest fieldDefRequest =
             buildFieldDefRequest(Paths.get("src", "test", "resources", registerFields));

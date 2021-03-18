@@ -20,9 +20,7 @@ import io.grpc.NameResolver;
 import io.grpc.NameResolverProvider;
 import java.net.URI;
 
-/**
- * Provides a {@link NameResolver} which can resolve node addresses from a json file.
- */
+/** Provides a {@link NameResolver} which can resolve node addresses from a json file. */
 public class NodeAddressesFileNameResolverProvider extends NameResolverProvider {
 
   private final ObjectMapper objectMapper;

@@ -24,6 +24,7 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /** Easy entrypoint for clients to create a Lucene Server Stub. */
 public class LuceneServerStubBuilder implements Closeable {
@@ -78,7 +79,8 @@ public class LuceneServerStubBuilder implements Closeable {
     this(
         ManagedChannelBuilder.forTarget(nodeAddressFile)
             .defaultLoadBalancingPolicy("round_robin")
-            .nameResolverFactory(new NodeAddressesFileNameResolverProvider(objectMapper, updateInterval))
+            .nameResolverFactory(
+                new NodeAddressesFileNameResolverProvider(objectMapper, updateInterval))
             .usePlaintext()
             .build());
   }
@@ -117,5 +119,13 @@ public class LuceneServerStubBuilder implements Closeable {
     if (channel != null && !channel.isShutdown()) {
       channel.shutdown();
     }
+  }
+
+  public void waitUntilClosed(long timeout, TimeUnit unit)
+      throws IOException, InterruptedException {
+    if (!channel.isShutdown()) {
+      close();
+    }
+    channel.awaitTermination(timeout, unit);
   }
 }
