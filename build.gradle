@@ -119,7 +119,8 @@ applicationDistribution.into('bin') {
 
 task buildGrpcGateway(dependsOn: installDist, type: Exec) {
     workingDir = '.'
-    commandLine = './build_grpc_gateway.sh'
+    executable = 'bash'
+    args = ['-c', './build_grpc_gateway.sh']
 }
 
 //Dynamic exclude through property defined in the build.gradle file

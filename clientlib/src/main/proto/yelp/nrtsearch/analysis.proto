@@ -6,6 +6,8 @@ option java_package = "com.yelp.nrtsearch.server.grpc";
 option java_outer_classname = "AnalysisProto";
 option objc_class_prefix = "HLW";
 
+option go_package = "github.com/Yelp/nrtsearch";
+
 package luceneserver;
 
 message NameAndParams {

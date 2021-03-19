@@ -10,6 +10,8 @@ option java_package = "com.yelp.nrtsearch.server.grpc";
 option java_outer_classname = "SearchResponseProto";
 option objc_class_prefix = "HLW";
 
+option go_package = "github.com/Yelp/nrtsearch";
+
 package luceneserver;
 
 // A clause in a BooleanQuery.
