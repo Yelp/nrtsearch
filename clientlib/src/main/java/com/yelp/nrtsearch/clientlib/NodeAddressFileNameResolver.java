@@ -108,7 +108,7 @@ public class NodeAddressFileNameResolver extends NameResolver {
     @Override
     public void run() {
       List<Node> nodes = readNodesFromFile();
-      if (nodes != currentNodes) {
+      if (!nodes.isEmpty() && nodes != currentNodes) {
         updateNodes(nodes);
         currentNodes = nodes;
       }
