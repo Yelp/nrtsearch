@@ -429,7 +429,7 @@ public class NodeNameResolverAndLoadBalancingTests {
   private int performSearch(LuceneServerGrpc.LuceneServerBlockingStub stub) {
     SearchRequest searchRequest = buildSearchRequest();
     SearchResponse searchResponse =
-        stub.withDeadlineAfter(200, TimeUnit.MILLISECONDS).search(searchRequest);
+        stub.withDeadlineAfter(400, TimeUnit.MILLISECONDS).search(searchRequest);
     return searchResponse.getHits(0).getFieldsOrThrow(FIELD_NAME).getFieldValue(0).getIntValue();
   }
 
@@ -474,6 +474,6 @@ public class NodeNameResolverAndLoadBalancingTests {
             completionCounter.increment();
           }
         };
-    stub.withDeadlineAfter(200, TimeUnit.MILLISECONDS).search(searchRequest, responseObserver);
+    stub.withDeadlineAfter(400, TimeUnit.MILLISECONDS).search(searchRequest, responseObserver);
   }
 }
