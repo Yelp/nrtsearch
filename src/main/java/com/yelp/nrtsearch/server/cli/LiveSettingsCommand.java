@@ -65,6 +65,27 @@ public class LiveSettingsCommand implements Callable<Integer> {
       defaultValue = "100")
   private int addDocumentsMaxBufferLen;
 
+  @CommandLine.Option(
+      names = {"--virtualShards"},
+      description =
+          "Number of virtual shards to partition index into, or 0 to keep current value.  (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  private int virtualShards;
+
+  @CommandLine.Option(
+      names = {"--sliceMaxDocs"},
+      description =
+          "Max documents per index slice, or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  private int sliceMaxDocs;
+
+  @CommandLine.Option(
+      names = {"--sliceMaxSegments"},
+      description =
+          "Max segments per index slice, or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  private int sliceMaxSegments;
+
   public String getIndexName() {
     return indexName;
   }
@@ -89,6 +110,18 @@ public class LiveSettingsCommand implements Callable<Integer> {
     return addDocumentsMaxBufferLen;
   }
 
+  public int getVirtualShards() {
+    return virtualShards;
+  }
+
+  public int getSliceMaxDocs() {
+    return sliceMaxDocs;
+  }
+
+  public int getSliceMaxSegments() {
+    return sliceMaxSegments;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -99,7 +132,10 @@ public class LiveSettingsCommand implements Callable<Integer> {
           getMinRefreshSec(),
           getMaxSearcherAgeSec(),
           getIndexRamBufferSizeMB(),
-          getAddDocumentsMaxBufferLen());
+          getAddDocumentsMaxBufferLen(),
+          getVirtualShards(),
+          getSliceMaxDocs(),
+          getSliceMaxSegments());
     } finally {
       client.shutdown();
     }

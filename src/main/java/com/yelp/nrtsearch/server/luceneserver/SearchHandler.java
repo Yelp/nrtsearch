@@ -484,7 +484,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       SearcherTaxonomyManager.SearcherAndTaxonomy result =
           new SearcherTaxonomyManager.SearcherAndTaxonomy(
-              new MyIndexSearcher(r, threadPoolExecutor), s.taxonomyReader);
+              new MyIndexSearcher(
+                  r,
+                  new MyIndexSearcher.ExecutorWithParams(
+                      threadPoolExecutor,
+                      state.indexState.getVirtualShards(),
+                      state.indexState.getSliceMaxDocs(),
+                      state.indexState.getSliceMaxSegments())),
+              s.taxonomyReader);
       state.slm.record(result.searcher);
       long t1 = System.nanoTime();
       if (diagnostics != null) {

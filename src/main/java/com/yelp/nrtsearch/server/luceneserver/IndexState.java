@@ -39,6 +39,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.index.BucketedTieredMergePolicy;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -423,6 +424,13 @@ public class IndexState implements Closeable, Restorable {
 
   /** Max number of documents to be added at a time. */
   int addDocumentsMaxBufferLen = 100;
+
+  /** Number of virtual shards to use for merges and parallel search */
+  volatile int virtualShards = 1;
+  /** Max documents allowed in a parallel search slice */
+  volatile int sliceMaxDocs = 250_000;
+  /** Max segments allowed in a parallel search slice */
+  volatile int sliceMaxSegments = 5;
 
   /** True if this is a new index. */
   private final boolean doCreate;
@@ -813,6 +821,63 @@ public class IndexState implements Closeable, Restorable {
     return addDocumentsMaxBufferLen;
   }
 
+  /**
+   * Set the number of virtual shards to use for this index.
+   *
+   * @param shards number of virtual shards to use
+   * @throws IllegalArgumentException if shards <= 0
+   */
+  public synchronized void setVirtualShards(int shards) {
+    if (shards <= 0) {
+      throw new IllegalArgumentException("Number of virtual shards must be greater than 0.");
+    }
+    virtualShards = shards;
+    liveSettingsSaveState.addProperty("virtualShards", shards);
+  }
+
+  /** Get the number of virtual shards for this index. */
+  public int getVirtualShards() {
+    return virtualShards;
+  }
+
+  /**
+   * Set the maximum number of document in each parallel search slice.
+   *
+   * @param docs maximum slice documents
+   * @throws IllegalArgumentException if docs <= 0
+   */
+  public synchronized void setSliceMaxDocs(int docs) {
+    if (docs <= 0) {
+      throw new IllegalArgumentException("Max slice docs must be greater than 0.");
+    }
+    sliceMaxDocs = docs;
+    liveSettingsSaveState.addProperty("sliceMaxDocs", docs);
+  }
+
+  /** Get the maximum docs per parallel search slice. */
+  public int getSliceMaxDocs() {
+    return sliceMaxDocs;
+  }
+
+  /**
+   * Set the maximum number of segments in each parallel search slice.
+   *
+   * @param segments maximum slice segments
+   * @throws IllegalArgumentException if segments <= 0
+   */
+  public synchronized void setSliceMaxSegments(int segments) {
+    if (segments <= 0) {
+      throw new IllegalArgumentException("Max slice segments must be greater than 0.");
+    }
+    sliceMaxSegments = segments;
+    liveSettingsSaveState.addProperty("sliceMaxSegments", segments);
+  }
+
+  /** Get the maximum segments per parallel search slice. */
+  public int getSliceMaxSegments() {
+    return sliceMaxSegments;
+  }
+
   /** Returns JSON representation of all live settings. */
   public synchronized String getLiveSettingsJSON() {
     return liveSettingsSaveState.toString();
@@ -1023,6 +1088,7 @@ public class IndexState implements Closeable, Restorable {
             origIndexDir,
             IndexWriterConfig.OpenMode.CREATE_OR_APPEND));
 
+    iwc.setMergePolicy(new BucketedTieredMergePolicy(this::getVirtualShards));
     iwc.setCodec(new ServerCodec(this));
     return iwc;
   }

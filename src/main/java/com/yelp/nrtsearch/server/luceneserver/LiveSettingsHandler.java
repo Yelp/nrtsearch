@@ -54,6 +54,20 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
               "set addDocumentsMaxBufferLen: %s",
               liveSettingsRequest.getAddDocumentsMaxBufferLen()));
     }
+    if (liveSettingsRequest.getVirtualShards() != 0) {
+      System.out.println("Setting virtual shards: " + liveSettingsRequest.getVirtualShards());
+      indexState.setVirtualShards(liveSettingsRequest.getVirtualShards());
+      logger.info(String.format("set virtualShards: %s", liveSettingsRequest.getVirtualShards()));
+    }
+    if (liveSettingsRequest.getSliceMaxDocs() != 0) {
+      indexState.setSliceMaxDocs(liveSettingsRequest.getSliceMaxDocs());
+      logger.info(String.format("set sliceMaxDocs: %s", liveSettingsRequest.getSliceMaxDocs()));
+    }
+    if (liveSettingsRequest.getSliceMaxSegments() != 0) {
+      indexState.setSliceMaxSegments(liveSettingsRequest.getSliceMaxSegments());
+      logger.info(
+          String.format("set sliceMaxSegments: %s", liveSettingsRequest.getSliceMaxSegments()));
+    }
     String response = indexState.getLiveSettingsJSON();
     LiveSettingsResponse reply = LiveSettingsResponse.newBuilder().setResponse(response).build();
     return reply;

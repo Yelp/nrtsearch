@@ -16,11 +16,9 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.*;
+import java.util.concurrent.Executor;
+import java.util.stream.Stream;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
@@ -38,21 +36,104 @@ import org.apache.lucene.util.Bits;
  * .bulkScorer, yet for DrillSideways we must do exactly the opposite!
  */
 public class MyIndexSearcher extends IndexSearcher {
+
   /**
-   * Thresholds for index slice allocation logic. To change the default, extend <code> IndexSearcher
-   * </code> and use custom values TODO: convert these to configs?
+   * Class that uses an Executor implementation to hold the parallel search Executor and any
+   * parameters needed to compute index search slices. This is hacky, but unfortunately necessary
+   * since {@link IndexSearcher#slices(List)} is called directly from the constructor, which happens
+   * before any member variable are set in the child class.
    */
-  private static final int MAX_DOCS_PER_SLICE = 250_000;
+  public static class ExecutorWithParams implements Executor {
+    final Executor wrapped;
+    final int virtualShards;
+    final int sliceMaxDocs;
+    final int sliceMaxSegments;
 
-  private static final int MAX_SEGMENTS_PER_SLICE = 5;
+    public ExecutorWithParams(
+        Executor wrapped, int virtualShards, int sliceMaxDocs, int sliceMaxSegments) {
+      this.wrapped = wrapped;
+      this.virtualShards = virtualShards;
+      this.sliceMaxDocs = sliceMaxDocs;
+      this.sliceMaxSegments = sliceMaxSegments;
+    }
 
-  public MyIndexSearcher(IndexReader reader, ThreadPoolExecutor executor) {
-    super(reader, executor);
+    @Override
+    public void execute(Runnable command) {
+      wrapped.execute(command);
+    }
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param reader index reader
+   * @param executorWithParams parameter class that hold search executor and slice config
+   */
+  public MyIndexSearcher(IndexReader reader, ExecutorWithParams executorWithParams) {
+    super(reader, executorWithParams);
   }
 
   /** * start segment to thread mapping * */
   protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-    return slices(leaves, MAX_DOCS_PER_SLICE, MAX_SEGMENTS_PER_SLICE);
+    if (!(getExecutor() instanceof ExecutorWithParams)) {
+      throw new IllegalArgumentException("Executor must be an ExecutorWithParams");
+    }
+    ExecutorWithParams executorWithParams = (ExecutorWithParams) getExecutor();
+    if (executorWithParams.virtualShards > 1) {
+      return slicesForShards(
+          leaves,
+          executorWithParams.virtualShards,
+          executorWithParams.sliceMaxDocs,
+          executorWithParams.sliceMaxSegments);
+    } else {
+      return slices(leaves, executorWithParams.sliceMaxDocs, executorWithParams.sliceMaxSegments);
+    }
+  }
+
+  /** Class to hold the segments in a virtual shard and the total live doc count. */
+  private static class VirtualShardLeaves {
+    List<LeafReaderContext> leaves = new ArrayList<>();
+    long numDocs = 0;
+
+    void add(LeafReaderContext leaf) {
+      leaves.add(leaf);
+      numDocs += leaf.reader().numDocs();
+    }
+  }
+
+  private static LeafSlice[] slicesForShards(
+      List<LeafReaderContext> leaves, int virtualShards, int sliceMaxDocs, int sliceMaxSegments) {
+    if (leaves.isEmpty()) {
+      return new LeafSlice[0];
+    }
+    // Make a copy so we can sort:
+    List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
+    // Sort by maxDoc, descending:
+    sortedLeaves.sort(Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().numDocs())));
+
+    // Create container for each virtual shard, add them to a min heap by number of live documents
+    PriorityQueue<VirtualShardLeaves> shardQueue =
+        new PriorityQueue<>(sortedLeaves.size(), Comparator.comparingLong(sl -> sl.numDocs));
+    for (int i = 0; i < virtualShards; ++i) {
+      shardQueue.add(new VirtualShardLeaves());
+    }
+
+    // Add each segment in sequence to the virtual shard with the least live documents
+    for (LeafReaderContext leaf : sortedLeaves) {
+      VirtualShardLeaves shardLeaves = shardQueue.poll();
+      shardLeaves.add(leaf);
+      shardQueue.add(shardLeaves);
+    }
+
+    // compute the parallel search slices for each shard independently and concatenate them together
+    List<LeafSlice[]> shardSlices = new ArrayList<>();
+    while (!shardQueue.isEmpty()) {
+      VirtualShardLeaves shardLeaves = shardQueue.poll();
+      if (!shardLeaves.leaves.isEmpty()) {
+        shardSlices.add(slices(shardLeaves.leaves, sliceMaxDocs, sliceMaxSegments));
+      }
+    }
+    return shardSlices.stream().flatMap(Stream::of).toArray(LeafSlice[]::new);
   }
 
   /* Better Segment To Thread Mapping Algorithm: https://issues.apache.org/jira/browse/LUCENE-8757

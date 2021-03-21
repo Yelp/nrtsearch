@@ -2574,6 +2574,21 @@
           "type": "integer",
           "format": "int32",
           "description": "Max number of documents to add at a time."
+        },
+        "virtualShards": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of virtual shards to use for this index."
+        },
+        "sliceMaxDocs": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of documents allowed in a parallel search slice."
+        },
+        "sliceMaxSegments": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of segments allowed in a parallel search slice."
         }
       },
       "title": "Input to liveSettings"
