@@ -15,14 +15,21 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yelp.nrtsearch.clientlib.NodeAddressesFileNameResolverProvider;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc.LuceneServerBlockingStub;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc.LuceneServerFutureStub;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc.LuceneServerStub;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /** Easy entrypoint for clients to create a Lucene Server Stub. */
-public class LuceneServerStubBuilder {
+public class LuceneServerStubBuilder implements Closeable {
+  private static final int DEFAULT_UPDATE_INTERVAL = 10 * 1000; // 10 seconds
+
   public ManagedChannel channel;
 
   /**
@@ -42,6 +49,40 @@ public class LuceneServerStubBuilder {
    */
   public LuceneServerStubBuilder(String host, int port) {
     this(ManagedChannelBuilder.forAddress(host, port).usePlaintext().build());
+  }
+
+  /**
+   * Create {@link LuceneServerStubBuilder} with a {@link io.grpc.Channel} which finds Nrtsearch
+   * node addresses from a file. The file must contain host and port as properties in list in json
+   * format. The file be checked for updates every {@link #DEFAULT_UPDATE_INTERVAL} milliseconds.
+   * E.g.: [{"host":"10.10.1.1", "port": 12000}, {"host":"10.20.1.1", "port": 14000}] If there are
+   * additional properties than host and port, the {@link ObjectMapper} must be configured to ignore
+   * them before passing it to this constructor.
+   *
+   * @param nodeAddressFile Path to file containing node addresses
+   * @param objectMapper {@link ObjectMapper} to use to deserialize the json file
+   */
+  public LuceneServerStubBuilder(String nodeAddressFile, ObjectMapper objectMapper) {
+    this(nodeAddressFile, objectMapper, DEFAULT_UPDATE_INTERVAL);
+  }
+
+  /**
+   * Like {@link #LuceneServerStubBuilder(String, ObjectMapper)} but additionally provide an
+   * interval to check the node address file for updates.
+   *
+   * @param nodeAddressFile Path to file containing node addresses
+   * @param objectMapper {@link ObjectMapper} to use to deserialize the json file
+   * @param updateInterval Time-between checks for changes to node addresses file in milli-seconds
+   */
+  public LuceneServerStubBuilder(
+      String nodeAddressFile, ObjectMapper objectMapper, int updateInterval) {
+    this(
+        ManagedChannelBuilder.forTarget(nodeAddressFile)
+            .defaultLoadBalancingPolicy("round_robin")
+            .nameResolverFactory(
+                new NodeAddressesFileNameResolverProvider(objectMapper, updateInterval))
+            .usePlaintext()
+            .build());
   }
 
   /**
@@ -71,5 +112,20 @@ public class LuceneServerStubBuilder {
    */
   public LuceneServerFutureStub createFutureStub() {
     return LuceneServerGrpc.newFutureStub(channel);
+  }
+
+  @Override
+  public void close() throws IOException {
+    if (channel != null && !channel.isShutdown()) {
+      channel.shutdown();
+    }
+  }
+
+  public void waitUntilClosed(long timeout, TimeUnit unit)
+      throws IOException, InterruptedException {
+    if (!channel.isShutdown()) {
+      close();
+    }
+    channel.awaitTermination(timeout, unit);
   }
 }
