@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.clientlib;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.TEST_INDEX;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,8 +48,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
@@ -166,6 +163,7 @@ public class NodeNameResolverAndLoadBalancingTests {
   public void tearDown() throws IOException, InterruptedException {
     luceneServerStubBuilder.close();
     luceneServerStubBuilder.waitUntilClosed(100, TimeUnit.MILLISECONDS);
+    luceneServerStubBuilder = null;
     teardownGrpcServer(server1);
     teardownGrpcServer(server2);
     teardownGrpcServer(server3);
@@ -182,15 +180,10 @@ public class NodeNameResolverAndLoadBalancingTests {
 
     warmConnections(stub);
 
-    Map<Integer, Integer> resultCounts = new HashMap<>();
     int requestsToEachServer = 20;
     int numServers = 3;
 
-    for (int i = 0; i < numServers * requestsToEachServer; i++) {
-      int result = performSearch(stub);
-      resultCounts.compute(
-          result, (key, currentValue) -> currentValue == null ? 1 : currentValue + 1);
-    }
+    Map<Integer, Integer> resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, numServers);
 
     // All servers should get the same number of requests
     assertEquals(requestsToEachServer, resultCounts.get(SERVER_1_ID).intValue());
@@ -232,48 +225,29 @@ public class NodeNameResolverAndLoadBalancingTests {
   }
 
   @Test(timeout = 1000)
-  public void testServerShutDown() throws IOException {
+  public void testServerShutDown() throws IOException, InterruptedException {
     LuceneServerGrpc.LuceneServerBlockingStub stub = luceneServerStubBuilder.createBlockingStub();
     warmConnections(stub);
 
-    // Stop server 1 after 20 ms
-    new Timer(true)
-        .schedule(
-            new TimerTask() {
-              @Override
-              public void run() {
-                server1.shutdown();
-              }
-            },
-            20);
+    int requestsToEachServer = 20;
 
-    Map<Integer, Integer> resultCounts = new HashMap<>();
-    int requestsToEachServer = 40;
-    int numServers = 3;
+    Map<Integer, Integer> resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 3);
 
-    for (int i = 0; i < numServers * requestsToEachServer; i++) {
-      int result = performSearch(stub);
-      resultCounts.compute(result, (k, v) -> v == null ? 1 : v + 1);
-    }
+    assertEquals(resultCounts.get(SERVER_1_ID).intValue(), requestsToEachServer);
+    assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
+    assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
 
-    // Server 1 will get less than the expected number of requests since it was shutdown midway
-    // but still non-zero number of requests
-    assertTrue(resultCounts.get(SERVER_1_ID) > 0);
-    assertTrue(resultCounts.get(SERVER_1_ID) < requestsToEachServer);
-    // Servers 2 and 3 will get more than the expected number of requests since server 1 was
-    // shutdown
-    assertTrue(resultCounts.get(SERVER_2_ID) > requestsToEachServer);
-    assertTrue(resultCounts.get(SERVER_3_ID) > requestsToEachServer);
+    server1.forceShutdown();
+    Thread.sleep(50);
 
-    // Servers 2 and 3 should still get about the same number of requests
-    int diffServers2And3NumRequests =
-        Math.abs(resultCounts.get(SERVER_2_ID) - resultCounts.get(SERVER_3_ID));
-    // diffServers2And3NumRequests should be 0 or 1 but tests are flaking at times
-    assertTrue(diffServers2And3NumRequests < 5);
+    resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 2);
+
+    assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
+    assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
   @Test(timeout = 1000)
-  public void testNodeRemovedFromAddressFile() {
+  public void testNodeRemovedFromAddressFile() throws IOException, InterruptedException {
     // Use a lower update interval for this test
     int updateInterval = 10;
     luceneServerStubBuilder =
@@ -282,46 +256,24 @@ public class NodeNameResolverAndLoadBalancingTests {
     LuceneServerGrpc.LuceneServerBlockingStub stub = luceneServerStubBuilder.createBlockingStub();
     warmConnections(stub);
 
-    // Remove server 1 from the file after 30 ms
-    new Timer(true)
-        .schedule(
-            new TimerTask() {
-              @Override
-              public void run() {
-                try {
-                  writeNodeAddressFile(port2, port3);
-                } catch (IOException ignored) {
-                }
-              }
-            },
-            30);
+    int requestsToEachServer = 20;
 
-    Map<Integer, Integer> resultCounts = new HashMap<>();
-    int requestsToEachServer = 40;
-    int numServers = 3;
+    Map<Integer, Integer> resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 3);
 
-    for (int i = 0; i < numServers * requestsToEachServer; i++) {
-      int result = performSearch(stub);
-      resultCounts.compute(result, (k, v) -> v == null ? 1 : v + 1);
-    }
+    assertEquals(resultCounts.get(SERVER_1_ID).intValue(), requestsToEachServer);
+    assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
+    assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
 
-    // Server 1 will get less than the expected number of requests since it was removed midway
-    // but still non-zero number of requests
-    assertTrue(resultCounts.get(SERVER_1_ID) > 0);
-    assertTrue(resultCounts.get(SERVER_1_ID) < requestsToEachServer);
-    // Servers 2 and 3 will get more than the expected number of requests since server 1 was
-    // removed
-    assertTrue(resultCounts.get(SERVER_2_ID) > requestsToEachServer);
-    assertTrue(resultCounts.get(SERVER_3_ID) > requestsToEachServer);
+    writeNodeAddressFile(port2, port3);
+    Thread.sleep(50);
 
-    // Servers 2 and 3 should still get about the same number of requests
-    int diffServers2And3NumRequests =
-        Math.abs(resultCounts.get(SERVER_2_ID) - resultCounts.get(SERVER_3_ID));
-    assertTrue(diffServers2And3NumRequests <= 1);
+    resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 2);
+    assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
+    assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
   @Test(timeout = 1000)
-  public void testNodeAddedToAddressFile() throws IOException {
+  public void testNodeAddedToAddressFile() throws IOException, InterruptedException {
     writeNodeAddressFile(port2, port3);
 
     // Use a lower update interval for this test
@@ -332,43 +284,23 @@ public class NodeNameResolverAndLoadBalancingTests {
     LuceneServerGrpc.LuceneServerBlockingStub stub = luceneServerStubBuilder.createBlockingStub();
     warmConnections(stub, SERVER_2_ID, SERVER_3_ID);
 
-    // Add server 1 to the file after 30 ms
-    new Timer(true)
-        .schedule(
-            new TimerTask() {
-              @Override
-              public void run() {
-                try {
-                  writeNodeAddressFile(port1, port2, port3);
-                } catch (IOException ignored) {
-                }
-              }
-            },
-            30);
+    int requestsToEachServer = 20;
 
-    Map<Integer, Integer> resultCounts = new HashMap<>();
-    int requestsToEachServer = 40;
-    int numServers = 3;
+    Map<Integer, Integer> resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 2);
 
-    for (int i = 0; i < numServers * requestsToEachServer; i++) {
-      int result = performSearch(stub);
-      resultCounts.compute(result, (k, v) -> v == null ? 1 : v + 1);
-    }
+    assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
+    assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
 
-    // Server 1 will get less than the expected number of requests since it was added midway
-    // but still non-zero number of requests
-    assertTrue(resultCounts.get(SERVER_1_ID) > 0);
-    assertTrue(resultCounts.get(SERVER_1_ID) < requestsToEachServer);
-    // Servers 2 and 3 will get more than the expected number of requests since server 1 was
-    // added later
-    assertTrue(resultCounts.get(SERVER_2_ID) > requestsToEachServer);
-    assertTrue(resultCounts.get(SERVER_3_ID) > requestsToEachServer);
+    writeNodeAddressFile(port1, port2, port3);
+    Thread.sleep(50);
 
-    // Servers 2 and 3 should still get about the same number of requests
-    int diffServers2And3NumRequests =
-        Math.abs(resultCounts.get(SERVER_2_ID) - resultCounts.get(SERVER_3_ID));
-    // diffServers2And3NumRequests should be 0 or 1 but tests are flaking at times
-    assertTrue(diffServers2And3NumRequests < 5);
+    warmConnections(stub, SERVER_1_ID, SERVER_2_ID, SERVER_3_ID);
+
+    resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 3);
+
+    assertEquals(resultCounts.get(SERVER_1_ID).intValue(), requestsToEachServer);
+    assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
+    assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
   /**
@@ -424,6 +356,15 @@ public class NodeNameResolverAndLoadBalancingTests {
       }
       writer.write("]");
     }
+  }
+
+  private Map<Integer, Integer> performSearchAndGetResultCounts(LuceneServerGrpc.LuceneServerBlockingStub stub, int requestsToEachServer, int numServers) {
+    Map<Integer, Integer> resultCounts = new HashMap<>();
+    for (int i = 0; i < numServers * requestsToEachServer; i++) {
+      int result = performSearch(stub);
+      resultCounts.compute(result, (k, v) -> v == null ? 1 : v + 1);
+    }
+    return resultCounts;
   }
 
   private int performSearch(LuceneServerGrpc.LuceneServerBlockingStub stub) {
