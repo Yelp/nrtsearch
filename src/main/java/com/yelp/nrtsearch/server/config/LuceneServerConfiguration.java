@@ -66,6 +66,7 @@ public class LuceneServerConfiguration {
   private final ThreadPoolConfiguration threadPoolConfiguration;
   private final IndexPreloadConfig preloadConfig;
   private final boolean downloadAsStream;
+  private final boolean fileSendDelay;
 
   private final YamlConfigReader configReader;
 
@@ -103,6 +104,7 @@ public class LuceneServerConfiguration {
     restoreState = configReader.getBoolean("restoreState", false);
     preloadConfig = IndexPreloadConfig.fromConfig(configReader);
     downloadAsStream = configReader.getBoolean("downloadAsStream", false);
+    fileSendDelay = configReader.getBoolean("fileSendDelay", true);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
   }
 
@@ -180,6 +182,10 @@ public class LuceneServerConfiguration {
 
   public boolean getDownloadAsStream() {
     return downloadAsStream;
+  }
+
+  public boolean getFileSendDelay() {
+    return fileSendDelay;
   }
 
   public YamlConfigReader getConfigReader() {

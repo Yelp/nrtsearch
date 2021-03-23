@@ -1545,7 +1545,9 @@ public class LuceneServer {
                     .build();
             rawFileChunkStreamObserver.onNext(rawFileChunk);
             totalRead += chunkSize;
-            randomDelay(random);
+            if (globalState.configuration.getFileSendDelay()) {
+              randomDelay(random);
+            }
           }
           // EOF
           rawFileChunkStreamObserver.onCompleted();
