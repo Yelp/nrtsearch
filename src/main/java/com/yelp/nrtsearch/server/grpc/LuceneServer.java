@@ -94,6 +94,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.lucene.store.IOContext;
@@ -674,15 +675,29 @@ public class LuceneServer {
         @Override
         public void onCompleted() {
           try {
-            // TODO: this should return a map on index to genId in the response
-            String genId = null;
-            for (String indexName : addDocumentRequestQueueMap.keySet()) {
-              genId = onCompletedForIndex(indexName);
-            }
-            responseObserver.onNext(AddDocumentResponse.newBuilder().setGenId(genId).build());
-            responseObserver.onCompleted();
-          } catch (Throwable t) {
-            responseObserver.onError(t);
+            globalState.submitIndexingTask(
+                () -> {
+                  try {
+                    // TODO: this should return a map on index to genId in the response
+                    String genId = null;
+                    for (String indexName : addDocumentRequestQueueMap.keySet()) {
+                      genId = onCompletedForIndex(indexName);
+                    }
+                    responseObserver.onNext(
+                        AddDocumentResponse.newBuilder().setGenId(genId).build());
+                    responseObserver.onCompleted();
+                  } catch (Throwable t) {
+                    responseObserver.onError(t);
+                  }
+                  return null;
+                });
+          } catch (RejectedExecutionException e) {
+            logger.error("Threadpool is full, unable to submit indexing completion job");
+            responseObserver.onError(
+                Status.RESOURCE_EXHAUSTED
+                    .withDescription("Threadpool is full, unable to submit indexing completion job")
+                    .augmentDescription(e.getMessage())
+                    .asRuntimeException());
           }
         }
       };
@@ -735,34 +750,53 @@ public class LuceneServer {
     public void commit(
         CommitRequest commitRequest, StreamObserver<CommitResponse> commitResponseStreamObserver) {
       try {
-        IndexState indexState = globalState.getIndex(commitRequest.getIndexName());
-        long gen = indexState.commit();
-        CommitResponse reply = CommitResponse.newBuilder().setGen(gen).build();
-        logger.debug(
-            String.format(
-                "CommitHandler committed to index: %s for sequenceId: %s",
-                commitRequest.getIndexName(), gen));
-        commitResponseStreamObserver.onNext(reply);
-        commitResponseStreamObserver.onCompleted();
-      } catch (IOException e) {
-        logger.warn(
-            "error while trying to read index state dir for indexName: "
-                + commitRequest.getIndexName(),
-            e);
-        commitResponseStreamObserver.onError(
-            Status.INTERNAL
-                .withDescription(
+        globalState.submitIndexingTask(
+            () -> {
+              try {
+                IndexState indexState = globalState.getIndex(commitRequest.getIndexName());
+                long gen = indexState.commit();
+                CommitResponse reply = CommitResponse.newBuilder().setGen(gen).build();
+                logger.debug(
+                    String.format(
+                        "CommitHandler committed to index: %s for sequenceId: %s",
+                        commitRequest.getIndexName(), gen));
+                commitResponseStreamObserver.onNext(reply);
+                commitResponseStreamObserver.onCompleted();
+              } catch (IOException e) {
+                logger.warn(
                     "error while trying to read index state dir for indexName: "
-                        + commitRequest.getIndexName())
-                .augmentDescription(e.getMessage())
-                .withCause(e)
-                .asRuntimeException());
-      } catch (Exception e) {
-        logger.warn("error while trying to commit to  index " + commitRequest.getIndexName(), e);
+                        + commitRequest.getIndexName(),
+                    e);
+                commitResponseStreamObserver.onError(
+                    Status.INTERNAL
+                        .withDescription(
+                            "error while trying to read index state dir for indexName: "
+                                + commitRequest.getIndexName())
+                        .augmentDescription(e.getMessage())
+                        .withCause(e)
+                        .asRuntimeException());
+              } catch (Exception e) {
+                logger.warn(
+                    "error while trying to commit to  index " + commitRequest.getIndexName(), e);
+                commitResponseStreamObserver.onError(
+                    Status.UNKNOWN
+                        .withDescription(
+                            "error while trying to commit to index: "
+                                + commitRequest.getIndexName())
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+              }
+              return null;
+            });
+      } catch (RejectedExecutionException e) {
+        logger.error(
+            "Threadpool is full, unable to submit commit to index {}",
+            commitRequest.getIndexName());
         commitResponseStreamObserver.onError(
-            Status.UNKNOWN
+            Status.RESOURCE_EXHAUSTED
                 .withDescription(
-                    "error while trying to commit to index: " + commitRequest.getIndexName())
+                    "Threadpool is full, unable to submit commit to index: "
+                        + commitRequest.getIndexName())
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
       }
