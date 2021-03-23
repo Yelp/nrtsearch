@@ -233,15 +233,18 @@ public class NodeNameResolverAndLoadBalancingTests {
 
     Map<Integer, Integer> resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 3);
 
+    // Equal number of requests sent to all 3 servers
     assertEquals(resultCounts.get(SERVER_1_ID).intValue(), requestsToEachServer);
     assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
 
+    // Shutdown server 1
     server1.forceShutdown();
     Thread.sleep(50);
 
     resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 2);
 
+    // Now the requests are sent only to servers 2 and 3
     assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
@@ -260,20 +263,25 @@ public class NodeNameResolverAndLoadBalancingTests {
 
     Map<Integer, Integer> resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 3);
 
+    // Equal number of requests sent to all 3 servers
     assertEquals(resultCounts.get(SERVER_1_ID).intValue(), requestsToEachServer);
     assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
 
+    // Remove server1 from the file
     writeNodeAddressFile(port2, port3);
     Thread.sleep(50);
 
     resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 2);
+
+    // Now the requests are sent only to servers 2 and 3
     assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
   @Test(timeout = 1000)
   public void testNodeAddedToAddressFile() throws IOException, InterruptedException {
+    // Add only servers 2 and 3 to the file
     writeNodeAddressFile(port2, port3);
 
     // Use a lower update interval for this test
@@ -288,9 +296,11 @@ public class NodeNameResolverAndLoadBalancingTests {
 
     Map<Integer, Integer> resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 2);
 
+    // Requests sent to servers 2 and 3
     assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
 
+    // Now add server 1 to file
     writeNodeAddressFile(port1, port2, port3);
     Thread.sleep(50);
 
@@ -298,6 +308,7 @@ public class NodeNameResolverAndLoadBalancingTests {
 
     resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 3);
 
+    // Equal number of requests now sent to all 3 servers
     assertEquals(resultCounts.get(SERVER_1_ID).intValue(), requestsToEachServer);
     assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
