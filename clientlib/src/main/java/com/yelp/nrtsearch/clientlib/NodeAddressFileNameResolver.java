@@ -69,7 +69,9 @@ public class NodeAddressFileNameResolver extends NameResolver {
 
   @Override
   public void shutdown() {
-    fileChangeCheckTimer.cancel();
+    if (fileChangeCheckTimer != null) {
+      fileChangeCheckTimer.cancel();
+    }
   }
 
   private void loadNodes() {

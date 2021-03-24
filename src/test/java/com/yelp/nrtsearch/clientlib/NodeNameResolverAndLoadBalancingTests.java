@@ -183,7 +183,8 @@ public class NodeNameResolverAndLoadBalancingTests {
     int requestsToEachServer = 20;
     int numServers = 3;
 
-    Map<Integer, Integer> resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, numServers);
+    Map<Integer, Integer> resultCounts =
+        performSearchAndGetResultCounts(stub, requestsToEachServer, numServers);
 
     // All servers should get the same number of requests
     assertEquals(requestsToEachServer, resultCounts.get(SERVER_1_ID).intValue());
@@ -231,7 +232,8 @@ public class NodeNameResolverAndLoadBalancingTests {
 
     int requestsToEachServer = 20;
 
-    Map<Integer, Integer> resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 3);
+    Map<Integer, Integer> resultCounts =
+        performSearchAndGetResultCounts(stub, requestsToEachServer, 3);
 
     // Equal number of requests sent to all 3 servers
     assertEquals(resultCounts.get(SERVER_1_ID).intValue(), requestsToEachServer);
@@ -261,7 +263,8 @@ public class NodeNameResolverAndLoadBalancingTests {
 
     int requestsToEachServer = 20;
 
-    Map<Integer, Integer> resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 3);
+    Map<Integer, Integer> resultCounts =
+        performSearchAndGetResultCounts(stub, requestsToEachServer, 3);
 
     // Equal number of requests sent to all 3 servers
     assertEquals(resultCounts.get(SERVER_1_ID).intValue(), requestsToEachServer);
@@ -294,7 +297,8 @@ public class NodeNameResolverAndLoadBalancingTests {
 
     int requestsToEachServer = 20;
 
-    Map<Integer, Integer> resultCounts = performSearchAndGetResultCounts(stub, requestsToEachServer, 2);
+    Map<Integer, Integer> resultCounts =
+        performSearchAndGetResultCounts(stub, requestsToEachServer, 2);
 
     // Requests sent to servers 2 and 3
     assertEquals(resultCounts.get(SERVER_2_ID).intValue(), requestsToEachServer);
@@ -369,7 +373,8 @@ public class NodeNameResolverAndLoadBalancingTests {
     }
   }
 
-  private Map<Integer, Integer> performSearchAndGetResultCounts(LuceneServerGrpc.LuceneServerBlockingStub stub, int requestsToEachServer, int numServers) {
+  private Map<Integer, Integer> performSearchAndGetResultCounts(
+      LuceneServerGrpc.LuceneServerBlockingStub stub, int requestsToEachServer, int numServers) {
     Map<Integer, Integer> resultCounts = new HashMap<>();
     for (int i = 0; i < numServers * requestsToEachServer; i++) {
       int result = performSearch(stub);

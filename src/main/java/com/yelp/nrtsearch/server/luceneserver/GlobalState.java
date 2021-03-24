@@ -265,7 +265,7 @@ public class GlobalState implements Closeable, Restorable {
     return getIndex(name, false);
   }
 
-  public Future<Long> submitIndexingTask(Callable job) throws InterruptedException {
+  public Future<Long> submitIndexingTask(Callable job) {
     return indexService.submit(job);
   }
 
