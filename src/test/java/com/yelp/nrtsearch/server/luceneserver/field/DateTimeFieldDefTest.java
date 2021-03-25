@@ -376,8 +376,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
       String dateTimeField, String dateTimeValue, String dateTimeFormat) {
     return String.format(
         "io.grpc.StatusRuntimeException: INTERNAL: error while trying to addDocuments \n"
-            + "java.lang.Exception: java.lang.IllegalArgumentException: %s "
-            + "could not parse %s as date_time with format %s",
+            + "%s could not parse %s as date_time with format %s",
         dateTimeField, dateTimeValue, dateTimeFormat);
   }
 }

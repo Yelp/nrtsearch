@@ -19,6 +19,8 @@ import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE
 
 import com.google.api.HttpBody;
 import com.google.common.base.Splitter;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
@@ -542,7 +544,7 @@ public class LuceneServer {
         StreamObserver<AddDocumentResponse> responseObserver) {
 
       return new StreamObserver<AddDocumentRequest>() {
-        List<Future<Long>> futures = new ArrayList<>();
+        Multimap<String, Future<Long>> futures = HashMultimap.create();
         // Map of {indexName: addDocumentRequestQueue}
         Map<String, ArrayBlockingQueue<AddDocumentRequest>> addDocumentRequestQueueMap =
             new ConcurrentHashMap<>();
@@ -610,7 +612,7 @@ public class LuceneServer {
               Future<Long> future =
                   globalState.submitIndexingTask(
                       new DocumentIndexer(globalState, addDocRequestList));
-              futures.add(future);
+              futures.put(indexName, future);
             } catch (Exception e) {
               responseObserver.onError(e);
             } finally {
@@ -633,22 +635,27 @@ public class LuceneServer {
                   "onCompleted, addDocumentRequestQueue: %s", addDocumentRequestQueue.size()));
           try {
             // index the left over docs
+            List<Long> gens = new ArrayList<>();
             if (!addDocumentRequestQueue.isEmpty()) {
               logger.debug(
                   String.format(
                       "indexing left over addDocumentRequestQueue of size: %s",
                       addDocumentRequestQueue.size()));
               List<AddDocumentRequest> addDocRequestList = new ArrayList<>(addDocumentRequestQueue);
-              Future<Long> future =
-                  globalState.submitIndexingTask(
-                      new DocumentIndexer(globalState, addDocRequestList));
-              futures.add(future);
+              // Since we are already running in the indexing threadpool run the indexing job
+              // for remaining documents directly. This serializes indexing remaining documents for
+              // multiple indices but avoids deadlocking if there aren't more threads than the
+              // maximum
+              // number of parallel addDocuments calls.
+              long gen = new DocumentIndexer(globalState, addDocRequestList).runIndexingJob();
+              gens.add(gen);
             }
             // collect futures, block if needed
             PriorityQueue<Long> pq = new PriorityQueue<>(Collections.reverseOrder());
+            gens.forEach(pq::offer);
             int numIndexingChunks = futures.size();
             long t0 = System.nanoTime();
-            for (Future<Long> result : futures) {
+            for (Future<Long> result : futures.get(indexName)) {
               Long gen = result.get();
               logger.debug(String.format("Indexing returned sequence-number %s", gen));
               pq.offer(gen);
