@@ -227,7 +227,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
           }
         } catch (Exception e) {
           logger.warn("addDocuments Cancelled", e);
-          throw new Exception(e); // parent thread should catch and send error back to client
+          throw e; // parent thread should catch and send error back to client
         }
       }
 
