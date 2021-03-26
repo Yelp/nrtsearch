@@ -633,9 +633,9 @@ public class LuceneServer {
           logger.debug(
               String.format(
                   "onCompleted, addDocumentRequestQueue: %s", addDocumentRequestQueue.size()));
+          long highestGen = -1;
           try {
             // index the left over docs
-            List<Long> gens = new ArrayList<>();
             if (!addDocumentRequestQueue.isEmpty()) {
               logger.debug(
                   String.format(
@@ -648,24 +648,28 @@ public class LuceneServer {
               // maximum
               // number of parallel addDocuments calls.
               long gen = new DocumentIndexer(globalState, addDocRequestList).runIndexingJob();
-              gens.add(gen);
+              if (gen > highestGen) {
+                highestGen = gen;
+              }
             }
             // collect futures, block if needed
-            PriorityQueue<Long> pq = new PriorityQueue<>(Collections.reverseOrder());
-            gens.forEach(pq::offer);
             int numIndexingChunks = futures.size();
             long t0 = System.nanoTime();
             for (Future<Long> result : futures.get(indexName)) {
               Long gen = result.get();
-              logger.debug(String.format("Indexing returned sequence-number %s", gen));
-              pq.offer(gen);
+              logger.debug("Indexing returned sequence-number {}", gen);
+              if (gen > highestGen) {
+                highestGen = gen;
+              }
             }
             long t1 = System.nanoTime();
             logger.debug(
-                String.format(
-                    "Indexing job completed for %s docs, in %s chunks, with latest sequence number: %s, took: %s micro seconds",
-                    getCount(indexName), numIndexingChunks, pq.peek(), ((t1 - t0) / 1000)));
-            return String.valueOf(pq.peek());
+                "Indexing job completed for {} docs, in {} chunks, with latest sequence number: {}, took: {} micro seconds",
+                getCount(indexName),
+                numIndexingChunks,
+                highestGen,
+                ((t1 - t0) / 1000));
+            return String.valueOf(highestGen);
           } catch (Exception e) {
             logger.warn("error while trying to addDocuments", e);
             throw Status.INTERNAL
