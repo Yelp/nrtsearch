@@ -192,7 +192,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(requestsToEachServer, resultCounts.get(SERVER_3_ID).intValue());
   }
 
-  @Test(timeout = 1000)
+  @Test(timeout = 10000)
   public void testSimpleLoadBalancingAsync() throws IOException, InterruptedException {
     LuceneServerGrpc.LuceneServerStub stub = luceneServerStubBuilder.createAsyncStub();
 
