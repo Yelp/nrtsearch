@@ -679,7 +679,7 @@ public class LuceneServer {
                 () -> {
                   try {
                     // TODO: this should return a map on index to genId in the response
-                    String genId = "";
+                    String genId = "-1";
                     for (String indexName : addDocumentRequestQueueMap.keySet()) {
                       genId = onCompletedForIndex(indexName);
                     }

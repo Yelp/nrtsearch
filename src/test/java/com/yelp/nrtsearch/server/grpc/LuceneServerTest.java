@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.hamcrest.core.IsCollectionContaining;
 import org.junit.After;
 import org.junit.Before;
@@ -404,6 +405,18 @@ public class LuceneServerTest {
     AddDocumentResponse addDocumentResponse = testAddDocs.addDocuments("addDocsLatLon.csv");
     assertEquals(false, testAddDocs.error);
     assertEquals(true, testAddDocs.completed);
+  }
+
+  @Test
+  public void testAddNoDocuments() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+    new GrpcServer.IndexAndRoleManager(grpcServer)
+        .createStartIndexAndRegisterFields(Mode.STANDALONE, 0, false, "registerFieldsLatLon.json");
+
+    testAddDocs.addDocumentsFromStream(Stream.empty());
+    assertFalse(testAddDocs.error);
+    assertTrue(testAddDocs.completed);
   }
 
   @Test
