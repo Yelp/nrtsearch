@@ -15,10 +15,12 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
+import com.yelp.nrtsearch.server.grpc.Rescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
@@ -81,5 +83,14 @@ public class DocCollectorTest {
     assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
     assertTrue(docCollector.getWrappedManager() instanceof SearchCutoffWrapper);
     assertNotSame(docCollector.getManager(), docCollector.getWrappedManager());
+  }
+
+  @Test
+  public void testNumHitsToCollect() {
+    SearchRequest.Builder builder = SearchRequest.newBuilder();
+    builder.setTopHits(200);
+    builder.addRescorers(Rescorer.newBuilder().setWindowSize(1000).build());
+    TestDocCollector docCollector = new TestDocCollector(builder.build());
+    assertEquals(1000, docCollector.getNumHitsToCollect());
   }
 }
