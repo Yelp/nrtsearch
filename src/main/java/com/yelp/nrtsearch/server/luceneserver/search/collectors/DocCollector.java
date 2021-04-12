@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
 import com.yelp.nrtsearch.server.grpc.Facet;
+import com.yelp.nrtsearch.server.grpc.Rescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
@@ -34,12 +35,18 @@ public abstract class DocCollector {
   public DocCollector(SearchRequest request) {
     this.request = request;
 
-    // determine how many hits to collect based on request and facets
+    // determine how many hits to collect based on request, facets and rescore window
     int collectHits = request.getTopHits();
     for (Facet facet : request.getFacetsList()) {
       int facetSample = facet.getSampleTopDocs();
       if (facetSample > 0 && facetSample > collectHits) {
         collectHits = facetSample;
+      }
+    }
+    for (Rescorer rescorer : request.getRescorersList()) {
+      int windowSize = rescorer.getWindowSize();
+      if (windowSize > 0 && windowSize > collectHits) {
+        collectHits = windowSize;
       }
     }
     numHitsToCollect = collectHits;
