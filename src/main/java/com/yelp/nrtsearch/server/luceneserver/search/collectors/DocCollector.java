@@ -43,7 +43,7 @@ public abstract class DocCollector {
         collectHits = facetSample;
       }
     }
-    for (Rescorer rescorer: request.getRescorersList()) {
+    for (Rescorer rescorer : request.getRescorersList()) {
       int windowSize = rescorer.getWindowSize();
       if (windowSize > 0 && windowSize > collectHits) {
         collectHits = windowSize;
