@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchStatsWrapper;
 import java.io.IOException;
 import java.util.Collection;
 import org.apache.lucene.search.Collector;
@@ -83,6 +84,30 @@ public class DocCollectorTest {
     assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
     assertTrue(docCollector.getWrappedManager() instanceof SearchCutoffWrapper);
     assertNotSame(docCollector.getManager(), docCollector.getWrappedManager());
+  }
+
+  @Test
+  public void testHasStatsWrapper() {
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).setProfile(true).build();
+    TestDocCollector docCollector = new TestDocCollector(request);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof SearchStatsWrapper);
+    assertSame(
+        docCollector.getManager(),
+        ((SearchStatsWrapper<?, ?>) docCollector.getWrappedManager()).getWrapped());
+    assertNotSame(docCollector.getManager(), docCollector.getWrappedManager());
+  }
+
+  @Test
+  public void testHasStatsAndTimeoutWrapper() {
+    SearchRequest request =
+        SearchRequest.newBuilder().setTopHits(10).setTimeoutSec(5).setProfile(true).build();
+    TestDocCollector docCollector = new TestDocCollector(request);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof SearchStatsWrapper);
+    assertTrue(
+        ((SearchStatsWrapper<?, ?>) docCollector.getWrappedManager()).getWrapped()
+            instanceof SearchCutoffWrapper);
   }
 
   @Test

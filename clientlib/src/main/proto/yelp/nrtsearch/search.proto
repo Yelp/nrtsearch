@@ -276,6 +276,8 @@ message SearchRequest {
     bool disallowPartialResults = 16; //Should partial result be a failure condition. Applies when a search request times out. If false, the top documents ranking at the point of timeout are used and the request continues. Also, hitTimeout is set to true in the response.
     string queryNestedPath = 17; //nested path we want to query by if we want to query child documents.
     repeated Rescorer rescorers = 18; // Rescorers which are executed in-order after the first pass
+    //If detailed request execution profiling should be included in the response
+    bool profile = 19;
 }
 
 /* Virtual field used during search */
@@ -424,6 +426,8 @@ message SearchResponse {
     repeated Hit hits = 4;
     SearchState searchState = 5;
     repeated FacetResult facetResult = 6; ////Counts or aggregates for a single dimension
+    // Detailed stats returned when profile=true in request
+    ProfileResult profileResult = 7;
 }
 
 message NumericRangeType {
@@ -487,4 +491,36 @@ message Rescorer {
         QueryRescorer queryRescorer = 2;
         PluginRescorer pluginRescorer = 3;
     }
+}
+
+// Defines detailed profiling stats for queries that set profile=true
+message ProfileResult {
+    message CollectorStats {
+        // If collection for this index slice was terminated early, such as by a timeout.
+        bool terminated = 1;
+        repeated SegmentStats segmentStats = 2;
+    }
+
+    message SegmentStats {
+        // Total docs in segment
+        int32 maxDoc = 1;
+        // Total live docs in segment
+        int32 numDocs = 2;
+        // How many docs were collected
+        int32 collectedCount = 3;
+        // Start time of segment processing in relation to the start of the search phase
+        double relativeStartTimeMs = 4;
+        // Collection duration
+        double collectTimeMs = 5;
+    }
+
+    message SearchStats {
+        // Total time for all document collection
+        double totalCollectTimeMs = 1;
+        // Total time to reduce results from all parallel search slices
+        double totalReduceTimeMs = 2;
+        repeated CollectorStats collectorStats = 3;
+    }
+
+    SearchStats searchStats = 1;
 }
