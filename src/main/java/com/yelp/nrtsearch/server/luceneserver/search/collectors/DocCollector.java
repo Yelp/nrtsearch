@@ -16,10 +16,12 @@
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
 import com.yelp.nrtsearch.server.grpc.Facet;
+import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.Rescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchStatsWrapper;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ScoreDoc;
@@ -31,6 +33,7 @@ public abstract class DocCollector {
   private final SearchRequest request;
   private final int numHitsToCollect;
   private boolean hadTimeout = false;
+  private SearchStatsWrapper<? extends Collector, ? extends TopDocs> statsWrapper = null;
 
   public DocCollector(SearchRequest request) {
     this.request = request;
@@ -58,6 +61,18 @@ public abstract class DocCollector {
    */
   public CollectorManager<? extends Collector, ? extends TopDocs> getWrappedManager() {
     return wrapManager(getManager());
+  }
+
+  /**
+   * Add search profiling stats to {@link ProfileResult}, if it was enabled. Otherwise, this is a
+   * noop.
+   *
+   * @param profileResultBuilder builder for profile results in response
+   */
+  public void maybeAddProfiling(ProfileResult.Builder profileResultBuilder) {
+    if (statsWrapper != null) {
+      statsWrapper.addProfiling(profileResultBuilder);
+    }
   }
 
   /**
@@ -113,14 +128,20 @@ public abstract class DocCollector {
   <C extends Collector, T extends TopDocs>
       CollectorManager<? extends Collector, ? extends TopDocs> wrapManager(
           CollectorManager<C, T> manager) {
+    CollectorManager<? extends Collector, ? extends TopDocs> wrapped = manager;
     if (request.getTimeoutSec() > 0.0) {
       hadTimeout = false;
-      return new SearchCutoffWrapper<>(
-          manager,
-          request.getTimeoutSec(),
-          request.getDisallowPartialResults(),
-          () -> hadTimeout = true);
+      wrapped =
+          new SearchCutoffWrapper<>(
+              wrapped,
+              request.getTimeoutSec(),
+              request.getDisallowPartialResults(),
+              () -> hadTimeout = true);
     }
-    return manager;
+    if (request.getProfile()) {
+      statsWrapper = new SearchStatsWrapper<>(wrapped);
+      wrapped = statsWrapper;
+    }
+    return wrapped;
   }
 }

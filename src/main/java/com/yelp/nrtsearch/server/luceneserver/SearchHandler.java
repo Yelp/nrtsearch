@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.google.gson.Gson;
 import com.google.protobuf.Struct;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
+import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
@@ -95,6 +96,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           SearchRequestProcessor.buildContextForRequest(
               searchRequest, indexState, shardState, s, diagnostics);
 
+      ProfileResult.Builder profileResultBuilder = null;
+      if (searchRequest.getProfile()) {
+        profileResultBuilder = ProfileResult.newBuilder();
+      }
+
       long searchStartTime = System.nanoTime();
 
       TopDocs hits;
@@ -148,6 +154,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
 
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
+
+      // add detailed timing metrics for query execution
+      if (profileResultBuilder != null) {
+        searchContext.getCollector().maybeAddProfiling(profileResultBuilder);
+      }
 
       long rescoreStartTime = System.nanoTime();
 
@@ -212,6 +223,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
       searchContext.getResponseBuilder().setDiagnostics(diagnostics);
+
+      if (profileResultBuilder != null) {
+        searchContext.getResponseBuilder().setProfileResult(profileResultBuilder);
+      }
     } catch (IOException | InterruptedException e) {
       logger.warn(e.getMessage(), e);
       throw new SearchHandlerException(e);
