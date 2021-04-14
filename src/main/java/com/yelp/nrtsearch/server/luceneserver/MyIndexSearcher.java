@@ -20,7 +20,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.Objects;
+import java.util.concurrent.Executor;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
@@ -38,21 +39,56 @@ import org.apache.lucene.util.Bits;
  * .bulkScorer, yet for DrillSideways we must do exactly the opposite!
  */
 public class MyIndexSearcher extends IndexSearcher {
+
   /**
-   * Thresholds for index slice allocation logic. To change the default, extend <code> IndexSearcher
-   * </code> and use custom values TODO: convert these to configs?
+   * Class that uses an Executor implementation to hold the parallel search Executor and any
+   * parameters needed to compute index search slices. This is hacky, but unfortunately necessary
+   * since {@link IndexSearcher#slices(List)} is called directly from the constructor, which happens
+   * before any member variable are set in the child class.
    */
-  private static final int MAX_DOCS_PER_SLICE = 250_000;
+  public static class ExecutorWithParams implements Executor {
+    final Executor wrapped;
+    final int sliceMaxDocs;
+    final int sliceMaxSegments;
 
-  private static final int MAX_SEGMENTS_PER_SLICE = 5;
+    /**
+     * Constructor.
+     *
+     * @param wrapped executor to perform parallel search operations
+     * @param sliceMaxDocs max docs per index slice
+     * @param sliceMaxSegments max segments per index slice
+     * @throws NullPointerException if wrapped is null
+     */
+    public ExecutorWithParams(Executor wrapped, int sliceMaxDocs, int sliceMaxSegments) {
+      Objects.requireNonNull(wrapped);
+      this.wrapped = wrapped;
+      this.sliceMaxDocs = sliceMaxDocs;
+      this.sliceMaxSegments = sliceMaxSegments;
+    }
 
-  public MyIndexSearcher(IndexReader reader, ThreadPoolExecutor executor) {
-    super(reader, executor);
+    @Override
+    public void execute(Runnable command) {
+      wrapped.execute(command);
+    }
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param reader index reader
+   * @param executorWithParams parameter class that hold search executor and slice config
+   */
+  public MyIndexSearcher(IndexReader reader, ExecutorWithParams executorWithParams) {
+    super(reader, executorWithParams);
   }
 
   /** * start segment to thread mapping * */
   protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-    return slices(leaves, MAX_DOCS_PER_SLICE, MAX_SEGMENTS_PER_SLICE);
+    if (!(getExecutor() instanceof ExecutorWithParams)) {
+      throw new IllegalArgumentException("Executor must be an ExecutorWithParams");
+    }
+    ExecutorWithParams executorWithParams = (ExecutorWithParams) getExecutor();
+    return slices(leaves, executorWithParams.sliceMaxDocs, executorWithParams.sliceMaxSegments);
   }
 
   /* Better Segment To Thread Mapping Algorithm: https://issues.apache.org/jira/browse/LUCENE-8757

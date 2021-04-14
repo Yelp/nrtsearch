@@ -113,6 +113,9 @@ public class IndexState implements Closeable, Restorable {
   public static final String ROOT = "_root";
   public static final String FIELD_NAMES = "_field_names";
 
+  public static final int DEFAULT_SLICE_MAX_DOCS = 250_000;
+  public static final int DEFAULT_SLICE_MAX_SEGMENTS = 5;
+
   Logger logger = LoggerFactory.getLogger(IndexState.class);
   public final GlobalState globalState;
 
@@ -423,6 +426,11 @@ public class IndexState implements Closeable, Restorable {
 
   /** Max number of documents to be added at a time. */
   int addDocumentsMaxBufferLen = 100;
+
+  /** Max documents allowed in a parallel search slice */
+  volatile int sliceMaxDocs = DEFAULT_SLICE_MAX_DOCS;
+  /** Max segments allowed in a parallel search slice */
+  volatile int sliceMaxSegments = DEFAULT_SLICE_MAX_SEGMENTS;
 
   /** True if this is a new index. */
   private final boolean doCreate;
@@ -811,6 +819,44 @@ public class IndexState implements Closeable, Restorable {
   /** Live setting: max number of documents to add at a time. */
   public int getAddDocumentsMaxBufferLen() {
     return addDocumentsMaxBufferLen;
+  }
+
+  /**
+   * Set the maximum number of document in each parallel search slice.
+   *
+   * @param docs maximum slice documents
+   * @throws IllegalArgumentException if docs <= 0
+   */
+  public synchronized void setSliceMaxDocs(int docs) {
+    if (docs <= 0) {
+      throw new IllegalArgumentException("Max slice docs must be greater than 0.");
+    }
+    sliceMaxDocs = docs;
+    liveSettingsSaveState.addProperty("sliceMaxDocs", docs);
+  }
+
+  /** Get the maximum docs per parallel search slice. */
+  public int getSliceMaxDocs() {
+    return sliceMaxDocs;
+  }
+
+  /**
+   * Set the maximum number of segments in each parallel search slice.
+   *
+   * @param segments maximum slice segments
+   * @throws IllegalArgumentException if segments <= 0
+   */
+  public synchronized void setSliceMaxSegments(int segments) {
+    if (segments <= 0) {
+      throw new IllegalArgumentException("Max slice segments must be greater than 0.");
+    }
+    sliceMaxSegments = segments;
+    liveSettingsSaveState.addProperty("sliceMaxSegments", segments);
+  }
+
+  /** Get the maximum segments per parallel search slice. */
+  public int getSliceMaxSegments() {
+    return sliceMaxSegments;
   }
 
   /** Returns JSON representation of all live settings. */

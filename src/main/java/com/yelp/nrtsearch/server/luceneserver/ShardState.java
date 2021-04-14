@@ -84,7 +84,7 @@ import org.slf4j.LoggerFactory;
 
 public class ShardState implements Closeable {
   public static final int REPLICA_ID = 0;
-  private final ThreadPoolExecutor searchExecutor;
+  final ThreadPoolExecutor searchExecutor;
   Logger logger = LoggerFactory.getLogger(ShardState.class);
 
   /** {@link IndexState} for the index this shard belongs to */
@@ -453,7 +453,11 @@ public class ShardState implements Closeable {
     @Override
     public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader)
         throws IOException {
-      IndexSearcher searcher = new MyIndexSearcher(reader, searchExecutor);
+      IndexSearcher searcher =
+          new MyIndexSearcher(
+              reader,
+              new MyIndexSearcher.ExecutorWithParams(
+                  searchExecutor, indexState.getSliceMaxDocs(), indexState.getSliceMaxSegments()));
       searcher.setSimilarity(indexState.sim);
       if (loadEagerOrdinals) {
         loadEagerGlobalOrdinals(reader);
@@ -722,7 +726,13 @@ public class ShardState implements Closeable {
                 @Override
                 public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader)
                     throws IOException {
-                  IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
+                  IndexSearcher searcher =
+                      new MyIndexSearcher(
+                          r,
+                          new MyIndexSearcher.ExecutorWithParams(
+                              searchExecutor,
+                              indexState.getSliceMaxDocs(),
+                              indexState.getSliceMaxSegments()));
                   searcher.setSimilarity(indexState.sim);
                   return searcher;
                 }
