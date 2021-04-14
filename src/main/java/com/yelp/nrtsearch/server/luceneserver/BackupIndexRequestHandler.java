@@ -154,9 +154,10 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     }
     ShardState state = indexState.shards.entrySet().iterator().next().getValue();
     SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy = null;
+    IndexReader indexReader = null;
     try {
       searcherAndTaxonomy = state.acquire();
-      IndexReader indexReader =
+      indexReader =
           DirectoryReader.openIfChanged(
               (DirectoryReader) searcherAndTaxonomy.searcher.getIndexReader(),
               state.snapshots.getIndexCommit(snapshot.indexGen));
@@ -168,6 +169,9 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     } finally {
       if (searcherAndTaxonomy != null) {
         state.release(searcherAndTaxonomy);
+      }
+      if (indexReader != null) {
+        indexReader.close();
       }
     }
   }

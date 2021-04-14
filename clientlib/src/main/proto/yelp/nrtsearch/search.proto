@@ -421,7 +421,7 @@ message SearchResponse {
     }
 
     Diagnostics diagnostics = 1;
-    bool hitTimeout = 2;
+    bool hitTimeout = 2; // Set to true if search times out and a degraded response is returned
     TotalHits totalHits = 3;
     repeated Hit hits = 4;
     SearchState searchState = 5;
