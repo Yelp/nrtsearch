@@ -373,6 +373,10 @@ message LiveSettingsRequest {
     double indexRamBufferSizeMB = 5;
     //Max number of documents to add at a time.
     int32 addDocumentsMaxBufferLen = 6;
+    //Maximum number of documents allowed in a parallel search slice.
+    int32 sliceMaxDocs = 7;
+    //Maximum number of segments allowed in a parallel search slice.
+    int32 sliceMaxSegments = 8;
 }
 
 /* Response from Server to liveSettings */

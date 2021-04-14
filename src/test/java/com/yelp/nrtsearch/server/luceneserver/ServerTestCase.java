@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.GrpcServer;
+import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.LuceneServerClientBuilder;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.Mode;
@@ -229,6 +230,9 @@ public class ServerTestCase {
       // register fields
       blockingStub.registerFields(getIndexDef(indexName));
 
+      // apply live settings
+      blockingStub.liveSettings(getLiveSettings(indexName));
+
       // start the index
       StartIndexRequest.Builder startIndexBuilder =
           StartIndexRequest.newBuilder().setIndexName(indexName);
@@ -248,6 +252,10 @@ public class ServerTestCase {
 
   protected FieldDefRequest getIndexDef(String name) throws IOException {
     return getFieldsFromResourceFile("/registerFieldsBasic.json");
+  }
+
+  protected LiveSettingsRequest getLiveSettings(String name) {
+    return LiveSettingsRequest.newBuilder().setIndexName(name).build();
   }
 
   protected void initIndex(String name) throws Exception {}
