@@ -504,7 +504,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                   new MyIndexSearcher.ExecutorWithParams(
                       threadPoolExecutor,
                       state.indexState.getSliceMaxDocs(),
-                      state.indexState.getSliceMaxSegments())),
+                      state.indexState.getSliceMaxSegments(),
+                      state.indexState.getVirtualShards())),
               s.taxonomyReader);
       state.slm.record(result.searcher);
       long t1 = System.nanoTime();

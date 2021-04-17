@@ -63,6 +63,10 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
       logger.info(
           String.format("set sliceMaxSegments: %s", liveSettingsRequest.getSliceMaxSegments()));
     }
+    if (liveSettingsRequest.getVirtualShards() != 0) {
+      indexState.setVirtualShards(liveSettingsRequest.getVirtualShards());
+      logger.info(String.format("set virtualShards: %s", liveSettingsRequest.getVirtualShards()));
+    }
     String response = indexState.getLiveSettingsJSON();
     LiveSettingsResponse reply = LiveSettingsResponse.newBuilder().setResponse(response).build();
     return reply;

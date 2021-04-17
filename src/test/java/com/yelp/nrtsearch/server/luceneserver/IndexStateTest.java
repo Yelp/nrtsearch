@@ -45,6 +45,14 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testDefaultVirtualShards() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      assertEquals(1, indexState.getVirtualShards());
+    }
+  }
+
+  @Test
   public void testChangeSliceParams() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -52,6 +60,24 @@ public class IndexStateTest {
       indexState.setSliceMaxSegments(50);
       assertEquals(100, indexState.getSliceMaxDocs());
       assertEquals(50, indexState.getSliceMaxSegments());
+    }
+  }
+
+  @Test
+  public void testChangeVirtualShards() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setVirtualShards(10);
+      assertEquals(10, indexState.getVirtualShards());
+    }
+  }
+
+  @Test
+  public void testDisabledVirtualShards() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setVirtualShards(10);
+      assertEquals(1, indexState.getVirtualShards());
     }
   }
 
@@ -96,6 +122,26 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testInvalidVirtualShards() throws IOException {
+    String expectedMessage = "Number of virtual shards must be greater than 0.";
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      try {
+        indexState.setVirtualShards(0);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage, e.getMessage());
+      }
+      try {
+        indexState.setVirtualShards(-1);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage, e.getMessage());
+      }
+    }
+  }
+
+  @Test
   public void testSliceParamsLoad() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -107,6 +153,19 @@ public class IndexStateTest {
           indexState.buildLiveSettingsRequest(saveState.get("liveSettings").toString());
       assertEquals(200, liveSettingsRequest.getSliceMaxDocs());
       assertEquals(75, liveSettingsRequest.getSliceMaxSegments());
+    }
+  }
+
+  @Test
+  public void testVirtualShardsLoad() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setVirtualShards(20);
+
+      JsonObject saveState = indexState.getSaveState();
+      LiveSettingsRequest liveSettingsRequest =
+          indexState.buildLiveSettingsRequest(saveState.get("liveSettings").toString());
+      assertEquals(20, liveSettingsRequest.getVirtualShards());
     }
   }
 
@@ -124,6 +183,18 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testVirtualShardsSetByLiveSettingsHandler() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest =
+          LiveSettingsRequest.newBuilder().setVirtualShards(30).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(30, indexState.getVirtualShards());
+    }
+  }
+
+  @Test
   public void testSliceParamsLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -135,9 +206,29 @@ public class IndexStateTest {
     }
   }
 
+  @Test
+  public void testVirtualShardsLiveSettingsHandlerNoop() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest = LiveSettingsRequest.newBuilder().build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(1, indexState.getVirtualShards());
+    }
+  }
+
   public GlobalState getInitState() throws IOException {
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
+    FieldDefCreator.initialize(luceneServerConfiguration, Collections.emptyList());
+    SimilarityCreator.initialize(luceneServerConfiguration, Collections.emptyList());
+    return new GlobalState(luceneServerConfiguration);
+  }
+
+  public GlobalState getInitStateVirtualSharding() throws IOException {
+    LuceneServerConfiguration luceneServerConfiguration =
+        LuceneServerTestConfigurationFactory.getConfig(
+            Mode.STANDALONE, folder.getRoot(), "virtualSharding: true");
     FieldDefCreator.initialize(luceneServerConfiguration, Collections.emptyList());
     SimilarityCreator.initialize(luceneServerConfiguration, Collections.emptyList());
     return new GlobalState(luceneServerConfiguration);

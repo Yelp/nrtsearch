@@ -39,6 +39,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.index.BucketedTieredMergePolicy;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -431,6 +432,9 @@ public class IndexState implements Closeable, Restorable {
   volatile int sliceMaxDocs = DEFAULT_SLICE_MAX_DOCS;
   /** Max segments allowed in a parallel search slice */
   volatile int sliceMaxSegments = DEFAULT_SLICE_MAX_SEGMENTS;
+
+  /** Number of virtual shards to use for merges and parallel search */
+  volatile int virtualShards = 1;
 
   /** True if this is a new index. */
   private final boolean doCreate;
@@ -859,6 +863,37 @@ public class IndexState implements Closeable, Restorable {
     return sliceMaxSegments;
   }
 
+  /**
+   * Set the number of virtual shards to use for this index.
+   *
+   * @param shards number of virtual shards to use
+   * @throws IllegalArgumentException if shards <= 0
+   */
+  public synchronized void setVirtualShards(int shards) {
+    if (shards <= 0) {
+      throw new IllegalArgumentException("Number of virtual shards must be greater than 0.");
+    }
+
+    if (!globalState.configuration.getVirtualSharding() && shards > 1) {
+      logger.warn(
+          String.format("Setting virtual shards to %d, but virtual sharding is disabled.", shards));
+    }
+
+    virtualShards = shards;
+    liveSettingsSaveState.addProperty("virtualShards", shards);
+  }
+
+  /**
+   * Get the number of virtual shards for this index. If virtual sharding is disabled, this always
+   * returns 1.
+   */
+  public int getVirtualShards() {
+    if (!globalState.configuration.getVirtualSharding()) {
+      return 1;
+    }
+    return virtualShards;
+  }
+
   /** Returns JSON representation of all live settings. */
   public synchronized String getLiveSettingsJSON() {
     return liveSettingsSaveState.toString();
@@ -1070,6 +1105,11 @@ public class IndexState implements Closeable, Restorable {
             IndexWriterConfig.OpenMode.CREATE_OR_APPEND));
 
     iwc.setCodec(new ServerCodec(this));
+
+    if (globalState.configuration.getVirtualSharding()) {
+      iwc.setMergePolicy(new BucketedTieredMergePolicy(this::getVirtualShards));
+    }
+
     return iwc;
   }
 
