@@ -977,7 +977,7 @@ public class LuceneServer {
       try {
         IndexState indexState = globalState.getIndex(deleteIndexRequest.getIndexName());
         DeleteIndexResponse reply = new DeleteIndexHandler().handle(indexState, deleteIndexRequest);
-        logger.info("DeleteAllDocumentsHandler returned " + reply.toString());
+        logger.info("DeleteIndexHandler returned " + reply.toString());
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
       } catch (Exception e) {

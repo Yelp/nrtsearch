@@ -28,6 +28,8 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -604,11 +606,15 @@ public class LuceneServerTest {
     assertEquals(2, statsResponse.getNumDocs());
     assertEquals(2, statsResponse.getMaxDoc());
 
+    String indexName = "test_index";
     // deleteIndex
     DeleteIndexRequest deleteIndexRequest =
-        DeleteIndexRequest.newBuilder().setIndexName("test_index").build();
+        DeleteIndexRequest.newBuilder().setIndexName(indexName).build();
     DeleteIndexResponse deleteIndexResponse =
         grpcServer.getBlockingStub().deleteIndex(deleteIndexRequest);
+
+    Path indexRootDir = Paths.get(grpcServer.getIndexDir(), indexName);
+    assertEquals(false, Files.exists(indexRootDir));
 
     assertEquals("ok", deleteIndexResponse.getOk());
   }

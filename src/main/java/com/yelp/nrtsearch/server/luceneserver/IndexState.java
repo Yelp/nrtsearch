@@ -40,6 +40,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.index.BucketedTieredMergePolicy;
+import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -195,7 +196,19 @@ public class IndexState implements Closeable, Restorable {
     for (ShardState shardState : shards.values()) {
       shardState.deleteShard();
     }
+    deleteIndexRootDir();
     globalState.deleteIndex(name);
+  }
+
+  /**
+   * Deletes the Index's root directory
+   *
+   * @throws IOException
+   */
+  private void deleteIndexRootDir() throws IOException {
+    if (rootDir != null) {
+      FileUtil.deleteAllFiles(rootDir);
+    }
   }
 
   /** True if this index has at least one commit. */
