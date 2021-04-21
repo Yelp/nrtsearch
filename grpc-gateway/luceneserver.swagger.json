@@ -2650,6 +2650,11 @@
           "type": "integer",
           "format": "int32",
           "description": "Maximum number of segments allowed in a parallel search slice."
+        },
+        "virtualShards": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of virtual shards to use for this index."
         }
       },
       "title": "Input to liveSettings"

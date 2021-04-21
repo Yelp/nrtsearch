@@ -67,6 +67,7 @@ public class LuceneServerConfiguration {
   private final IndexPreloadConfig preloadConfig;
   private final boolean downloadAsStream;
   private final boolean fileSendDelay;
+  private final boolean virtualSharding;
 
   private final YamlConfigReader configReader;
 
@@ -105,6 +106,7 @@ public class LuceneServerConfiguration {
     preloadConfig = IndexPreloadConfig.fromConfig(configReader);
     downloadAsStream = configReader.getBoolean("downloadAsStream", false);
     fileSendDelay = configReader.getBoolean("fileSendDelay", true);
+    virtualSharding = configReader.getBoolean("virtualSharding", false);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
   }
 
@@ -186,6 +188,10 @@ public class LuceneServerConfiguration {
 
   public boolean getFileSendDelay() {
     return fileSendDelay;
+  }
+
+  public boolean getVirtualSharding() {
+    return virtualSharding;
   }
 
   public YamlConfigReader getConfigReader() {

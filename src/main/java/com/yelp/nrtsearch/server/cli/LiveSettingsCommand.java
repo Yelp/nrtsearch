@@ -79,6 +79,13 @@ public class LiveSettingsCommand implements Callable<Integer> {
       defaultValue = "0")
   private int sliceMaxSegments;
 
+  @CommandLine.Option(
+      names = {"--virtualShards"},
+      description =
+          "Number of virtual shards to partition index into, or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  private int virtualShards;
+
   public String getIndexName() {
     return indexName;
   }
@@ -111,6 +118,10 @@ public class LiveSettingsCommand implements Callable<Integer> {
     return sliceMaxSegments;
   }
 
+  public int getVirtualShards() {
+    return virtualShards;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -123,7 +134,8 @@ public class LiveSettingsCommand implements Callable<Integer> {
           getIndexRamBufferSizeMB(),
           getAddDocumentsMaxBufferLen(),
           getSliceMaxDocs(),
-          getSliceMaxSegments());
+          getSliceMaxSegments(),
+          getVirtualShards());
     } finally {
       client.shutdown();
     }

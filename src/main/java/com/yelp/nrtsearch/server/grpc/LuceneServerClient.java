@@ -97,12 +97,13 @@ public class LuceneServerClient {
       double indexRamBufferSizeMB,
       int addDocumentsMaxBufferLen,
       int sliceMaxDocs,
-      int sliceMaxSegments) {
+      int sliceMaxSegments,
+      int virtualShards) {
     logger.info(
         String.format(
             "will try to update liveSettings for indexName: %s, "
                 + "maxRefreshSec: %s, minRefreshSec: %s, maxSearcherAgeSec: %s, "
-                + "indexRamBufferSizeMB: %s, addDocumentsMaxBufferLen: %s, sliceMaxDocs: %s, sliceMaxSegments: %s ",
+                + "indexRamBufferSizeMB: %s, addDocumentsMaxBufferLen: %s, sliceMaxDocs: %s, sliceMaxSegments: %s, virtualShards: %s ",
             indexName,
             maxRefreshSec,
             minRefreshSec,
@@ -110,7 +111,8 @@ public class LuceneServerClient {
             indexRamBufferSizeMB,
             addDocumentsMaxBufferLen,
             sliceMaxDocs,
-            sliceMaxSegments));
+            sliceMaxSegments,
+            virtualShards));
     LiveSettingsRequest request =
         LiveSettingsRequest.newBuilder()
             .setIndexName(indexName)
@@ -121,6 +123,7 @@ public class LuceneServerClient {
             .setAddDocumentsMaxBufferLen(addDocumentsMaxBufferLen)
             .setSliceMaxDocs(sliceMaxDocs)
             .setSliceMaxSegments(sliceMaxSegments)
+            .setVirtualShards(virtualShards)
             .build();
     LiveSettingsResponse response;
     try {
