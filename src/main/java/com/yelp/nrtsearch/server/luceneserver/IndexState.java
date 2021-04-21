@@ -75,6 +75,7 @@ import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.PersistentSnapshotDeletionPolicy;
 import org.apache.lucene.index.SimpleMergedSegmentWarmer;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
@@ -435,6 +436,9 @@ public class IndexState implements Closeable, Restorable {
 
   /** Number of virtual shards to use for merges and parallel search */
   volatile int virtualShards = 1;
+
+  /** Max segment size after merge */
+  volatile int maxMergedSegmentMB = 0;
 
   /** True if this is a new index. */
   private final boolean doCreate;
@@ -894,6 +898,20 @@ public class IndexState implements Closeable, Restorable {
     return virtualShards;
   }
 
+  /** Set maximum sized segment to produce during normal merging */
+  public synchronized void setMaxMergedSegmentMB(int maxMergedSegmentMB) {
+    if (maxMergedSegmentMB <= 0) {
+      throw new IllegalArgumentException("Max merged segment size must be greater than 0.");
+    }
+    this.maxMergedSegmentMB = maxMergedSegmentMB;
+    liveSettingsSaveState.addProperty("maxMergedSegmentMB", maxMergedSegmentMB);
+  }
+
+  /** Get maximum sized segment to produce during normal merging */
+  public int getMaxMergedSegmentMB() {
+    return maxMergedSegmentMB;
+  }
+
   /** Returns JSON representation of all live settings. */
   public synchronized String getLiveSettingsJSON() {
     return liveSettingsSaveState.toString();
@@ -1108,6 +1126,9 @@ public class IndexState implements Closeable, Restorable {
 
     if (globalState.configuration.getVirtualSharding()) {
       iwc.setMergePolicy(new BucketedTieredMergePolicy(this::getVirtualShards));
+    } else if (maxMergedSegmentMB > 0) {
+      // only apply for non virtual sharding clusters
+      iwc.setMergePolicy(new TieredMergePolicy().setMaxMergedSegmentMB(maxMergedSegmentMB));
     }
 
     return iwc;

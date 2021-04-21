@@ -53,6 +53,14 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testDefaultMaxMergedSegmentMB() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      assertEquals(0, indexState.getMaxMergedSegmentMB());
+    }
+  }
+
+  @Test
   public void testChangeSliceParams() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -69,6 +77,15 @@ public class IndexStateTest {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
       indexState.setVirtualShards(10);
       assertEquals(10, indexState.getVirtualShards());
+    }
+  }
+
+  @Test
+  public void testChangeMaxMergedSegmentMB() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setMaxMergedSegmentMB(500);
+      assertEquals(500, indexState.getMaxMergedSegmentMB());
     }
   }
 
@@ -142,6 +159,26 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testInvalidMaxMergedSegmentMB() throws IOException {
+    String expectedMessage = "Max merged segment size must be greater than 0.";
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      try {
+        indexState.setMaxMergedSegmentMB(0);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage, e.getMessage());
+      }
+      try {
+        indexState.setMaxMergedSegmentMB(-1);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage, e.getMessage());
+      }
+    }
+  }
+
+  @Test
   public void testSliceParamsLoad() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -166,6 +203,19 @@ public class IndexStateTest {
       LiveSettingsRequest liveSettingsRequest =
           indexState.buildLiveSettingsRequest(saveState.get("liveSettings").toString());
       assertEquals(20, liveSettingsRequest.getVirtualShards());
+    }
+  }
+
+  @Test
+  public void testMaxMergedSegmentMBLoad() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setMaxMergedSegmentMB(100);
+
+      JsonObject saveState = indexState.getSaveState();
+      LiveSettingsRequest liveSettingsRequest =
+          indexState.buildLiveSettingsRequest(saveState.get("liveSettings").toString());
+      assertEquals(100, liveSettingsRequest.getMaxMergedSegmentMB());
     }
   }
 
@@ -195,6 +245,18 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testMaxMergedSegmentMBSetByLiveSettingsHandler() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest =
+          LiveSettingsRequest.newBuilder().setMaxMergedSegmentMB(100).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(100, indexState.getMaxMergedSegmentMB());
+    }
+  }
+
+  @Test
   public void testSliceParamsLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -214,6 +276,17 @@ public class IndexStateTest {
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
 
       assertEquals(1, indexState.getVirtualShards());
+    }
+  }
+
+  @Test
+  public void testMaxMergedSegmentMBLiveSettingsHandlerNoop() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest = LiveSettingsRequest.newBuilder().build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(0, indexState.getMaxMergedSegmentMB());
     }
   }
 

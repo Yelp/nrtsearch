@@ -86,6 +86,13 @@ public class LiveSettingsCommand implements Callable<Integer> {
       defaultValue = "0")
   private int virtualShards;
 
+  @CommandLine.Option(
+      names = {"--maxMergedSegmentMB"},
+      description =
+          "Max sized segment to produce during normal merging (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  private int maxMergedSegmentMB;
+
   public String getIndexName() {
     return indexName;
   }
@@ -122,6 +129,10 @@ public class LiveSettingsCommand implements Callable<Integer> {
     return virtualShards;
   }
 
+  public int getMaxMergedSegmentMB() {
+    return maxMergedSegmentMB;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -135,7 +146,8 @@ public class LiveSettingsCommand implements Callable<Integer> {
           getAddDocumentsMaxBufferLen(),
           getSliceMaxDocs(),
           getSliceMaxSegments(),
-          getVirtualShards());
+          getVirtualShards(),
+          getMaxMergedSegmentMB());
     } finally {
       client.shutdown();
     }

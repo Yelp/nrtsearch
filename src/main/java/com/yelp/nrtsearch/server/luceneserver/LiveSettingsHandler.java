@@ -67,6 +67,11 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
       indexState.setVirtualShards(liveSettingsRequest.getVirtualShards());
       logger.info(String.format("set virtualShards: %s", liveSettingsRequest.getVirtualShards()));
     }
+    if (liveSettingsRequest.getMaxMergedSegmentMB() != 0) {
+      indexState.setMaxMergedSegmentMB(liveSettingsRequest.getMaxMergedSegmentMB());
+      logger.info(
+          String.format("set maxMergedSegmentMB: %s", liveSettingsRequest.getMaxMergedSegmentMB()));
+    }
     String response = indexState.getLiveSettingsJSON();
     LiveSettingsResponse reply = LiveSettingsResponse.newBuilder().setResponse(response).build();
     return reply;
