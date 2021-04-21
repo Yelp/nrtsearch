@@ -135,6 +135,7 @@ public abstract class DocCollector {
           new SearchCutoffWrapper<>(
               wrapped,
               request.getTimeoutSec(),
+              request.getTimeoutCheckEvery(),
               request.getDisallowPartialResults(),
               () -> hadTimeout = true);
     }

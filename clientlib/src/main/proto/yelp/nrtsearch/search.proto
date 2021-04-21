@@ -278,6 +278,8 @@ message SearchRequest {
     repeated Rescorer rescorers = 18; // Rescorers which are executed in-order after the first pass
     //If detailed request execution profiling should be included in the response
     bool profile = 19;
+    //Check the search timeout condition after each collection of n documents in a segment. If 0, timeout is only checked on the segment boundary.
+    int32 timeoutCheckEvery = 20;
 }
 
 /* Virtual field used during search */

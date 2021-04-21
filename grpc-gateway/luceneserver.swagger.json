@@ -3218,6 +3218,11 @@
         "profile": {
           "type": "boolean",
           "title": "If detailed request execution profiling should be included in the response"
+        },
+        "timeoutCheckEvery": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Check the search timeout condition after each collection of n documents in a segment. If 0, timeout is only checked on the segment boundary."
         }
       }
     },
