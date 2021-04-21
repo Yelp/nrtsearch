@@ -130,9 +130,10 @@ public class TimeoutTest extends ServerTestCase {
     public TimeoutWrapper(
         CollectorManager<Collector, TopDocs> in,
         double timeoutSec,
+        int checkEvery,
         boolean noPartialResults,
         Runnable onTimeout) {
-      super(in, timeoutSec, noPartialResults, onTimeout);
+      super(in, timeoutSec, checkEvery, noPartialResults, onTimeout);
     }
 
     @Override
@@ -190,6 +191,37 @@ public class TimeoutTest extends ServerTestCase {
     verifyNoTimeout(request);
   }
 
+  @Test
+  public void testQueryCheckEveryNoTimeout() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(1000)
+            .setTimeoutCheckEvery(5)
+            .build();
+
+    verifyNoTimeout(request);
+  }
+
+  @Test
+  public void testFacetQueryCheckEveryNoTimeout() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(1000)
+            .setTimeoutCheckEvery(5)
+            .addFacets(getTestFacet())
+            .build();
+
+    verifyNoTimeout(request);
+  }
+
   private void verifyNoTimeout(SearchRequest request) throws Exception {
     TopDocs hits =
         queryWithFunction(
@@ -218,7 +250,7 @@ public class TimeoutTest extends ServerTestCase {
             .setTimeoutSec(5)
             .build();
 
-    verifyPartialResults(request);
+    verifyPartialResults(request, 20);
   }
 
   @Test
@@ -233,10 +265,41 @@ public class TimeoutTest extends ServerTestCase {
             .addFacets(getTestFacet())
             .build();
 
-    verifyPartialResults(request);
+    verifyPartialResults(request, 20);
   }
 
-  private void verifyPartialResults(SearchRequest request) throws Exception {
+  @Test
+  public void testQueryCheckEveryPartialResults() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(7)
+            .setTimeoutCheckEvery(5)
+            .build();
+
+    verifyPartialResults(request, 15);
+  }
+
+  @Test
+  public void testFacetQueryCheckEveryPartialResults() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(7)
+            .setTimeoutCheckEvery(5)
+            .addFacets(getTestFacet())
+            .build();
+
+    verifyPartialResults(request, 15);
+  }
+
+  private void verifyPartialResults(SearchRequest request, int expectedHits) throws Exception {
     TopDocs hits =
         queryWithFunction(
             request,
@@ -249,7 +312,8 @@ public class TimeoutTest extends ServerTestCase {
                         new TimeoutWrapper(
                             (CollectorManager<Collector, TopDocs>)
                                 context.getCollector().getManager(),
-                            5,
+                            request.getTimeoutSec(),
+                            request.getTimeoutCheckEvery(),
                             false,
                             () -> hasTimeout[0] = true));
                 assertTrue(hasTimeout[0]);
@@ -258,7 +322,7 @@ public class TimeoutTest extends ServerTestCase {
                 throw new RuntimeException(e);
               }
             });
-    assertEquals(20, hits.totalHits.value);
+    assertEquals(expectedHits, hits.totalHits.value);
   }
 
   @Test(expected = CollectionTimeoutException.class)
@@ -300,6 +364,47 @@ public class TimeoutTest extends ServerTestCase {
     }
   }
 
+  @Test(expected = CollectionTimeoutException.class)
+  public void testQueryCheckEveryTimeoutException() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(7)
+            .setTimeoutCheckEvery(5)
+            .build();
+
+    verifyTimeoutException(request);
+  }
+
+  @Test(expected = CollectionTimeoutException.class)
+  public void testFacetQueryCheckEveryTimeoutException() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(7)
+            .setTimeoutCheckEvery(5)
+            .addFacets(getTestFacet())
+            .build();
+
+    // re-wrap the exception type if it was caused by a timeout,
+    // duplicates behavior in SearchHandler
+    try {
+      verifyTimeoutException(request);
+    } catch (RuntimeException e) {
+      CollectionTimeoutException timeoutException = findTimeoutException(e);
+      if (timeoutException != null) {
+        throw new CollectionTimeoutException(timeoutException.getMessage(), e);
+      }
+      throw e;
+    }
+  }
+
   private CollectionTimeoutException findTimeoutException(Throwable e) {
     if (e instanceof CollectionTimeoutException) {
       return (CollectionTimeoutException) e;
@@ -321,7 +426,8 @@ public class TimeoutTest extends ServerTestCase {
                     context,
                     new TimeoutWrapper(
                         (CollectorManager<Collector, TopDocs>) context.getCollector().getManager(),
-                        5,
+                        request.getTimeoutSec(),
+                        request.getTimeoutCheckEvery(),
                         true,
                         () -> hasTimeout[0] = true));
             assertTrue(hasTimeout[0]);
