@@ -2655,6 +2655,11 @@
           "type": "integer",
           "format": "int32",
           "description": "Number of virtual shards to use for this index."
+        },
+        "maxMergedSegmentMB": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Maximum sized segment to produce during normal merging"
         }
       },
       "title": "Input to liveSettings"

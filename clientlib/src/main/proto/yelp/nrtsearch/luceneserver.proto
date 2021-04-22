@@ -379,6 +379,8 @@ message LiveSettingsRequest {
     int32 sliceMaxSegments = 8;
     //Number of virtual shards to use for this index.
     int32 virtualShards = 9;
+    //Maximum sized segment to produce during normal merging
+    int32 maxMergedSegmentMB = 10;
 }
 
 /* Response from Server to liveSettings */
