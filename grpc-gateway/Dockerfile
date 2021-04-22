@@ -23,7 +23,7 @@ COPY / ${BASEPATH}/
 WORKDIR  $BASEPATH
 
 ENV JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF8
-RUN ./gradlew clean && ./gradlew installDist
+RUN ./gradlew clean installDist
 
 RUN mkdir /go
 ENV GOPATH /go
