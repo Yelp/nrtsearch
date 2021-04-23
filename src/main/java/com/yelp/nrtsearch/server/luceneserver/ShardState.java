@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValueType;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
+import com.yelp.nrtsearch.server.utils.FileUtil;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.StatusRuntimeException;
 import java.io.Closeable;
@@ -28,8 +29,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.InetAddress;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -225,26 +224,7 @@ public class ShardState implements Closeable {
   /** Delete this shard. */
   public void deleteShard() throws IOException {
     if (rootDir != null) {
-      deleteAllFiles(rootDir);
-    }
-  }
-
-  private static void deleteAllFiles(Path dir) throws IOException {
-    if (Files.exists(dir)) {
-      if (Files.isRegularFile(dir)) {
-        Files.delete(dir);
-      } else {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
-          for (Path path : stream) {
-            if (Files.isDirectory(path)) {
-              deleteAllFiles(path);
-            } else {
-              Files.delete(path);
-            }
-          }
-        }
-        Files.delete(dir);
-      }
+      FileUtil.deleteAllFiles(rootDir);
     }
   }
 
