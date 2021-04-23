@@ -77,7 +77,7 @@ public class NodeAddressFileNameResolver extends NameResolver {
   private void loadNodes() {
     List<Node> nodes = readNodesFromFile();
     if (nodes == null || nodes.size() == 0) {
-      throw new IllegalStateException("No nodes found in file: " + nodeAddressesFile);
+      return;
     }
     updateNodes(nodes);
   }
@@ -96,7 +96,7 @@ public class NodeAddressFileNameResolver extends NameResolver {
     try {
       return objectMapper.readValue(nodeAddressesFile, new TypeReference<List<Node>>() {});
     } catch (IOException e) {
-      logger.error("Unable to read file: {}", nodeAddressesFile, e);
+      logger.warn("Unable to read file: {}", nodeAddressesFile, e);
       return Collections.emptyList();
     }
   }
