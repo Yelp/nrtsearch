@@ -2,11 +2,11 @@
 // source: yelp/nrtsearch/luceneserver.proto
 
 /*
-Package luceneserver is a reverse proxy.
+Package nrtsearch is a reverse proxy.
 
 It translates gRPC into RESTful JSON APIs.
 */
-package luceneserver
+package nrtsearch
 
 import (
 	"context"
