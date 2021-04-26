@@ -2660,6 +2660,11 @@
           "type": "integer",
           "format": "int32",
           "title": "Maximum sized segment to produce during normal merging"
+        },
+        "segmentsPerTier": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Number of segments per tier used by TieredMergePolicy"
         }
       },
       "title": "Input to liveSettings"

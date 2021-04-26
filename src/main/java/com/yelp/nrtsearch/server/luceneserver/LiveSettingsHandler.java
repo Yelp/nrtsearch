@@ -72,6 +72,11 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
       logger.info(
           String.format("set maxMergedSegmentMB: %s", liveSettingsRequest.getMaxMergedSegmentMB()));
     }
+    if (liveSettingsRequest.getSegmentsPerTier() != 0) {
+      indexState.setSegmentsPerTier(liveSettingsRequest.getSegmentsPerTier());
+      logger.info(
+          String.format("set segmentsPerTier: %s", liveSettingsRequest.getSegmentsPerTier()));
+    }
     String response = indexState.getLiveSettingsJSON();
     LiveSettingsResponse reply = LiveSettingsResponse.newBuilder().setResponse(response).build();
     return reply;

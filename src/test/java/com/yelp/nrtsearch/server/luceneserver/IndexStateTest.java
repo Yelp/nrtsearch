@@ -61,6 +61,14 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testDefaultSegmentsPerTier() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      assertEquals(0, indexState.getSegmentsPerTier());
+    }
+  }
+
+  @Test
   public void testChangeSliceParams() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -86,6 +94,15 @@ public class IndexStateTest {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
       indexState.setMaxMergedSegmentMB(500);
       assertEquals(500, indexState.getMaxMergedSegmentMB());
+    }
+  }
+
+  @Test
+  public void testChangeSegmentsPerTier() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setSegmentsPerTier(5);
+      assertEquals(5, indexState.getSegmentsPerTier());
     }
   }
 
@@ -179,6 +196,26 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testInvalidSegmentsPerTier() throws IOException {
+    String expectedMessage = "Segments per tier must be >= 2.";
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      try {
+        indexState.setSegmentsPerTier(1);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage, e.getMessage());
+      }
+      try {
+        indexState.setSegmentsPerTier(-1);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage, e.getMessage());
+      }
+    }
+  }
+
+  @Test
   public void testSliceParamsLoad() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -220,6 +257,19 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testSegmentsPerTierLoad() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setSegmentsPerTier(4);
+
+      JsonObject saveState = indexState.getSaveState();
+      LiveSettingsRequest liveSettingsRequest =
+          indexState.buildLiveSettingsRequest(saveState.get("liveSettings").toString());
+      assertEquals(4, liveSettingsRequest.getSegmentsPerTier());
+    }
+  }
+
+  @Test
   public void testSliceParamsSetByLiveSettingsHandler() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -257,6 +307,18 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testSegmentsPerTierSetByLiveSettingsHandler() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest =
+          LiveSettingsRequest.newBuilder().setSegmentsPerTier(11).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(11, indexState.getSegmentsPerTier());
+    }
+  }
+
+  @Test
   public void testSliceParamsLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -287,6 +349,17 @@ public class IndexStateTest {
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
 
       assertEquals(0, indexState.getMaxMergedSegmentMB());
+    }
+  }
+
+  @Test
+  public void testSegmentsPerTierLiveSettingsHandlerNoop() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest = LiveSettingsRequest.newBuilder().build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(0, indexState.getSegmentsPerTier());
     }
   }
 

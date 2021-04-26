@@ -93,6 +93,13 @@ public class LiveSettingsCommand implements Callable<Integer> {
       defaultValue = "0")
   private int maxMergedSegmentMB;
 
+  @CommandLine.Option(
+      names = {"--segmentsPerTier"},
+      description =
+          "Number of segments per tier used by TieredMergePolicy, or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  private int segmentsPerTier;
+
   public String getIndexName() {
     return indexName;
   }
@@ -133,6 +140,10 @@ public class LiveSettingsCommand implements Callable<Integer> {
     return maxMergedSegmentMB;
   }
 
+  public int getSegmentsPerTier() {
+    return segmentsPerTier;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -147,7 +158,8 @@ public class LiveSettingsCommand implements Callable<Integer> {
           getSliceMaxDocs(),
           getSliceMaxSegments(),
           getVirtualShards(),
-          getMaxMergedSegmentMB());
+          getMaxMergedSegmentMB(),
+          getSegmentsPerTier());
     } finally {
       client.shutdown();
     }

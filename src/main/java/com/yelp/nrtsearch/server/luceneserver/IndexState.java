@@ -453,6 +453,9 @@ public class IndexState implements Closeable, Restorable {
   /** Max segment size after merge */
   volatile int maxMergedSegmentMB = 0;
 
+  /** Segments per tier used by {@link TieredMergePolicy} */
+  volatile int segmentsPerTier = 0;
+
   /** True if this is a new index. */
   private final boolean doCreate;
 
@@ -925,6 +928,25 @@ public class IndexState implements Closeable, Restorable {
     return maxMergedSegmentMB;
   }
 
+  /**
+   * Set segments per tier used by {@link TieredMergePolicy}.
+   *
+   * @param segmentsPerTier segments per tier
+   * @throws IllegalArgumentException if segmentsPerTier < 2
+   */
+  public synchronized void setSegmentsPerTier(int segmentsPerTier) {
+    if (segmentsPerTier < 2) {
+      throw new IllegalArgumentException("Segments per tier must be >= 2.");
+    }
+    this.segmentsPerTier = segmentsPerTier;
+    liveSettingsSaveState.addProperty("segmentsPerTier", segmentsPerTier);
+  }
+
+  /** Get the number of segments per tier used by merge policy, or 0 if using policy default. */
+  public int getSegmentsPerTier() {
+    return segmentsPerTier;
+  }
+
   /** Returns JSON representation of all live settings. */
   public synchronized String getLiveSettingsJSON() {
     return liveSettingsSaveState.toString();
@@ -1137,12 +1159,19 @@ public class IndexState implements Closeable, Restorable {
 
     iwc.setCodec(new ServerCodec(this));
 
+    TieredMergePolicy mergePolicy;
     if (globalState.configuration.getVirtualSharding()) {
-      iwc.setMergePolicy(new BucketedTieredMergePolicy(this::getVirtualShards));
-    } else if (maxMergedSegmentMB > 0) {
-      // only apply for non virtual sharding clusters
-      iwc.setMergePolicy(new TieredMergePolicy().setMaxMergedSegmentMB(maxMergedSegmentMB));
+      mergePolicy = new BucketedTieredMergePolicy(this::getVirtualShards);
+    } else {
+      mergePolicy = new TieredMergePolicy();
     }
+    if (maxMergedSegmentMB > 0) {
+      mergePolicy.setMaxMergedSegmentMB(maxMergedSegmentMB);
+    }
+    if (segmentsPerTier > 1) {
+      mergePolicy.setSegmentsPerTier(segmentsPerTier);
+    }
+    iwc.setMergePolicy(mergePolicy);
 
     return iwc;
   }
