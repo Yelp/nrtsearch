@@ -166,7 +166,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         for (RescoreTask rescorer : searchContext.getRescorers()) {
           hits = rescorer.rescore(s.searcher, hits);
         }
-        diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
+        diagnostics.setRescoreTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
       }
 
       long t0 = System.nanoTime();
