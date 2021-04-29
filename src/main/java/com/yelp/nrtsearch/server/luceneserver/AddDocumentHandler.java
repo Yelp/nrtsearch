@@ -23,6 +23,8 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexableField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,35 +43,98 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
   @Override
   public Any handle(IndexState indexState, AddDocumentRequest addDocumentRequest)
       throws AddDocumentHandlerException {
-    Document document = LuceneDocumentBuilder.getDocument(addDocumentRequest, indexState);
     // this is silly we dont really about about the return value here
     return Any.newBuilder().build();
   }
 
+  /**
+   * DocumentsContext is created for each GRPC AddDocumentRequest It hold all lucene documents
+   * context for the AddDocumentRequest including root document and optional child documents if
+   * schema contains nested objects
+   */
+  public static class DocumentsContext {
+    private final Document rootDocument;
+    private final Map<String, List<Document>> childDocuments;
+
+    public DocumentsContext() {
+      this.rootDocument = new Document();
+      this.childDocuments = new HashMap<>();
+    }
+
+    public Document getRootDocument() {
+      return rootDocument;
+    }
+
+    public Map<String, List<Document>> getChildDocuments() {
+      return childDocuments;
+    }
+
+    public void addChildDocuments(String key, List<Document> documents) {
+      childDocuments.put(key, documents);
+    }
+
+    public boolean hasNested() {
+      return !childDocuments.isEmpty();
+    }
+  }
+
   public static class LuceneDocumentBuilder {
-    public static Document getDocument(AddDocumentRequest addDocumentRequest, IndexState indexState)
+
+    public static DocumentsContext getDocumentsContext(
+        AddDocumentRequest addDocumentRequest, IndexState indexState)
         throws AddDocumentHandlerException {
-      Document document = new Document();
+      DocumentsContext documentsContext = new DocumentsContext();
       Map<String, AddDocumentRequest.MultiValuedField> fields = addDocumentRequest.getFieldsMap();
       for (Map.Entry<String, AddDocumentRequest.MultiValuedField> entry : fields.entrySet()) {
-        parseOneField(entry.getKey(), entry.getValue(), document, indexState);
+        parseOneField(entry.getKey(), entry.getValue(), documentsContext, indexState);
       }
-      return document;
+
+      ((IndexableFieldDef) (IndexState.getMetaField(IndexState.NESTED_PATH)))
+          .parseDocumentField(
+              documentsContext.getRootDocument(), List.of(IndexState.ROOT), List.of());
+
+      // Include all fields and meta-fields in field names
+      extractFieldNames(documentsContext);
+      return documentsContext;
+    }
+
+    /** Extract all field names for each document and stores it into a hidden field */
+    private static void extractFieldNames(DocumentsContext documentsContext) {
+      extractFieldNamesForDocument(documentsContext.getRootDocument());
+      documentsContext.getChildDocuments().values().stream()
+          .flatMap(List::stream)
+          .forEach(LuceneDocumentBuilder::extractFieldNamesForDocument);
+    }
+
+    /** Extract all field names in the document and stores it into a hidden field */
+    private static void extractFieldNamesForDocument(Document document) {
+      IndexableFieldDef fieldNamesFieldDef =
+          (IndexableFieldDef) IndexState.getMetaField(IndexState.FIELD_NAMES);
+
+      List<String> fieldNames =
+          document.getFields().stream()
+              .map(IndexableField::name)
+              .distinct()
+              .collect(Collectors.toList());
+
+      fieldNamesFieldDef.parseDocumentField(document, fieldNames, List.of());
     }
 
     /** Parses a field's value, which is a MultiValuedField in all cases */
     private static void parseOneField(
         String fieldName,
         AddDocumentRequest.MultiValuedField value,
-        Document document,
+        DocumentsContext documentsContext,
         IndexState indexState)
         throws AddDocumentHandlerException {
-      parseMultiValueField(indexState.getField(fieldName), value, document);
+      parseMultiValueField(indexState.getField(fieldName), value, documentsContext);
     }
 
     /** Parse MultiValuedField for a single field, which is always a List<String>. */
     private static void parseMultiValueField(
-        FieldDef field, AddDocumentRequest.MultiValuedField value, Document document)
+        FieldDef field,
+        AddDocumentRequest.MultiValuedField value,
+        DocumentsContext documentsContext)
         throws AddDocumentHandlerException {
       ProtocolStringList fieldValues = value.getValueList();
       List<FacetHierarchyPath> facetHierarchyPaths = value.getFaceHierarchyPathsList();
@@ -89,7 +155,8 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
             String.format("Field: %s is not indexable", field.getName()));
       }
       IndexableFieldDef indexableFieldDef = (IndexableFieldDef) field;
-      indexableFieldDef.parseFieldWithChildren(document, fieldValues, facetHierarchyPathValues);
+      indexableFieldDef.parseFieldWithChildren(
+          documentsContext, fieldValues, facetHierarchyPathValues);
     }
   }
 
@@ -124,19 +191,46 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
               Thread.currentThread().getName() + Thread.currentThread().getId()));
       Queue<Document> documents = new LinkedBlockingDeque<>();
       IndexState indexState = null;
+      ShardState shardState = null;
+      IdFieldDef idFieldDef = null;
       for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {
         try {
           indexState = globalState.getIndex(addDocumentRequest.getIndexName());
-          Document document =
-              AddDocumentHandler.LuceneDocumentBuilder.getDocument(addDocumentRequest, indexState);
-          documents.add(document);
+          idFieldDef = indexState.getIdFieldDef();
+          shardState = indexState.getShard(0);
+
+          DocumentsContext documentsContext =
+              AddDocumentHandler.LuceneDocumentBuilder.getDocumentsContext(
+                  addDocumentRequest, indexState);
+          if (documentsContext.hasNested()) {
+            try {
+              if (idFieldDef != null) {
+                // update documents in the queue to keep order
+                updateDocuments(documents, idFieldDef, shardState);
+                updateNestedDocuments(documentsContext, idFieldDef, shardState);
+              } else {
+                // add documents in the queue to keep order
+                addDocuments(documents, shardState);
+                addNestedDocuments(documentsContext, shardState);
+              }
+              documents.clear();
+            } catch (IOException e) { // This exception should be caught in parent to and set
+              // responseObserver.onError(e) so client knows the job failed
+              logger.warn(
+                  String.format(
+                      "ThreadId: %s, IndexWriter.addDocuments failed",
+                      Thread.currentThread().getName() + Thread.currentThread().getId()));
+              throw new IOException(e);
+            }
+          } else {
+            documents.add(documentsContext.getRootDocument());
+          }
         } catch (Exception e) {
           logger.warn("addDocuments Cancelled", e);
-          throw new Exception(e); // parent thread should catch and send error back to client
+          throw e; // parent thread should catch and send error back to client
         }
       }
-      ShardState shardState = indexState.getShard(0);
-      IdFieldDef idFieldDef = indexState.getIdFieldDef();
+
       try {
         if (idFieldDef != null) {
           updateDocuments(documents, idFieldDef, shardState);
@@ -157,6 +251,57 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
               Thread.currentThread().getName() + Thread.currentThread().getId(),
               shardState.writer.getMaxCompletedSequenceNumber()));
       return shardState.writer.getMaxCompletedSequenceNumber();
+    }
+
+    /**
+     * update documents with nested objects
+     *
+     * @param documentsContext
+     * @param idFieldDef
+     * @param shardState
+     * @throws IOException
+     */
+    private void updateNestedDocuments(
+        DocumentsContext documentsContext, IdFieldDef idFieldDef, ShardState shardState)
+        throws IOException {
+      List<Document> documents = new ArrayList<>();
+      for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
+        documents.addAll(
+            e.getValue().stream()
+                .map(v -> handleFacets(shardState, v))
+                .collect(Collectors.toList()));
+      }
+      Document rootDoc = handleFacets(shardState, documentsContext.getRootDocument());
+
+      for (Document doc : documents) {
+        for (IndexableField f : rootDoc.getFields(idFieldDef.getName())) {
+          doc.add(f);
+        }
+      }
+
+      documents.add(rootDoc);
+      shardState.writer.updateDocuments(idFieldDef.getTerm(rootDoc), documents);
+    }
+
+    /**
+     * Add documents with nested object
+     *
+     * @param documentsContext
+     * @param shardState
+     * @throws IOException
+     */
+    private void addNestedDocuments(DocumentsContext documentsContext, ShardState shardState)
+        throws IOException {
+      List<Document> documents = new ArrayList<>();
+      for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
+        documents.addAll(
+            e.getValue().stream()
+                .map(v -> handleFacets(shardState, v))
+                .collect(Collectors.toList()));
+      }
+      Document rootDoc = handleFacets(shardState, documentsContext.getRootDocument());
+      documents.add(rootDoc);
+      shardState.writer.addDocuments(documents);
     }
 
     private void updateDocuments(

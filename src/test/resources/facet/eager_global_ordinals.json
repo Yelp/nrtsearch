@@ -1,0 +1,24 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "sorted_doc_values_facet_field",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "multiValued": true,
+      "search": true,
+      "facet": "SORTED_SET_DOC_VALUES",
+      "facetIndexFieldName": "$sorted_doc_values_facet_field"
+    },
+    {
+      "name": "eager_sorted_doc_values_facet_field",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "multiValued": true,
+      "search": true,
+      "facet": "SORTED_SET_DOC_VALUES",
+      "facetIndexFieldName": "$eager_sorted_doc_values_facet_field",
+      "eagerGlobalOrdinals": true
+    }
+  ]
+}

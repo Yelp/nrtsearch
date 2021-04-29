@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver.suggest;
+package com.yelp.nrtsearch.server.luceneserver.suggest.iterator;
 
 import com.yelp.nrtsearch.server.grpc.NrtsearchIndex;
 import java.io.Closeable;
@@ -22,14 +22,13 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.util.BytesRef;
 
 /**
  * An {@link org.apache.lucene.search.suggest.InputIterator} that reads the binary file and parse
  * the suggest index information based on the `NrtsearchIndex` proto
  */
-public class FromProtobufFileSuggestItemIterator implements InputIterator, Closeable {
+public class FromProtobufFileSuggestItemIterator implements SuggestInputIterator, Closeable {
 
   /** How many suggestions were found. */
   public int suggestCount;
@@ -37,6 +36,7 @@ public class FromProtobufFileSuggestItemIterator implements InputIterator, Close
   private final FileInputStream sourceStream;
   private final boolean hasContexts;
   private final boolean hasPayload;
+  private final boolean hasSearchTexts;
 
   private final Set<BytesRef> searchTexts = new HashSet<>();
   private final Set<BytesRef> contexts = new HashSet<>();
@@ -45,10 +45,12 @@ public class FromProtobufFileSuggestItemIterator implements InputIterator, Close
   private BytesRef payload;
 
   public FromProtobufFileSuggestItemIterator(
-      File sourceFile, boolean hasContexts, boolean hasPayload) throws IOException {
+      File sourceFile, boolean hasContexts, boolean hasPayload, boolean hasSearchTexts)
+      throws IOException {
     this.sourceStream = new FileInputStream(sourceFile);
     this.hasPayload = hasPayload;
     this.hasContexts = hasContexts;
+    this.hasSearchTexts = hasSearchTexts;
     this.suggestCount = 0;
   }
 
@@ -86,6 +88,11 @@ public class FromProtobufFileSuggestItemIterator implements InputIterator, Close
   @Override
   public boolean hasContexts() {
     return this.hasContexts;
+  }
+
+  @Override
+  public boolean hasSearchTexts() {
+    return hasSearchTexts;
   }
 
   public Set<BytesRef> searchTexts() {

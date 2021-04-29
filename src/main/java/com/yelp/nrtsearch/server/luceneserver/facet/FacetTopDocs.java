@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.facet;
 
 import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
@@ -49,13 +50,18 @@ public class FacetTopDocs {
    * @param facets facet definition grpc messages
    * @param indexState state for index
    * @param searcher searcher for query
+   * @param diagnostics diagnostics builder for storing facet timing
    * @return results for facets over top docs
    * @throws IOException if error reading doc values
    * @throws IllegalArgumentException if top docs facet field is not indexable or does not have doc
    *     values enabled
    */
   public static Iterable<FacetResult> facetTopDocsSample(
-      TopDocs topDocs, List<Facet> facets, IndexState indexState, IndexSearcher searcher)
+      TopDocs topDocs,
+      List<Facet> facets,
+      IndexState indexState,
+      IndexSearcher searcher,
+      Diagnostics.Builder diagnostics)
       throws IOException {
     List<Facet> sampleFacets =
         facets.stream().filter(facet -> facet.getSampleTopDocs() > 0).collect(Collectors.toList());
@@ -65,7 +71,10 @@ public class FacetTopDocs {
 
     List<FacetResult> facetResults = new ArrayList<>(sampleFacets.size());
     for (Facet facet : sampleFacets) {
+      long startNS = System.nanoTime();
       facetResults.add(facetFromTopDocs(topDocs, facet, indexState, searcher));
+      long endNS = System.nanoTime();
+      diagnostics.putFacetTimeMs(facet.getName(), (endNS - startNS) / 1000000.0);
     }
     return facetResults;
   }
@@ -91,7 +100,7 @@ public class FacetTopDocs {
       LeafReaderContext context = leaves.get(ReaderUtil.subIndex(topDocs.scoreDocs[i].doc, leaves));
 
       LoadedDocValues<?> docValues = indexableFieldDef.getDocValues(context);
-      docValues.setDocId(topDocs.scoreDocs[i].doc);
+      docValues.setDocId(topDocs.scoreDocs[i].doc - context.docBase);
       if (docValues.isEmpty()) {
         continue;
       }

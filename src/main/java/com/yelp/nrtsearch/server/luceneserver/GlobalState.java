@@ -64,6 +64,8 @@ public class GlobalState implements Closeable, Restorable {
 
   public final List<RemoteNodeConnection> remoteNodes = new CopyOnWriteArrayList<>();
 
+  public final LuceneServerConfiguration configuration;
+
   /** Current indices. */
   final Map<String, IndexState> indices = new ConcurrentHashMap<String, IndexState>();
 
@@ -100,6 +102,7 @@ public class GlobalState implements Closeable, Restorable {
         ThreadPoolExecutorFactory.getThreadPoolExecutor(
             ThreadPoolExecutorFactory.ExecutorType.SEARCH,
             luceneServerConfiguration.getThreadPoolConfiguration());
+    this.configuration = luceneServerConfiguration;
     loadIndexNames();
   }
 
@@ -175,8 +178,9 @@ public class GlobalState implements Closeable, Restorable {
       // remove old gens
       try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateDir)) {
         for (Path sub : stream) {
-          if (sub.toString().startsWith("indices.")) {
-            long gen = Long.parseLong(sub.toString().substring(8));
+          String filename = sub.getFileName().toString();
+          if (filename.startsWith("indices.")) {
+            long gen = Long.parseLong(filename.substring(8));
             if (gen != lastIndicesGen) {
               Files.delete(sub);
             }
@@ -262,14 +266,15 @@ public class GlobalState implements Closeable, Restorable {
     return getIndex(name, false);
   }
 
-  public Future<Long> submitIndexingTask(Callable job) throws InterruptedException {
+  public Future<Long> submitIndexingTask(Callable job) {
     return indexService.submit(job);
   }
 
   /** Remove the specified index. */
-  public void deleteIndex(String name) {
+  public void deleteIndex(String name) throws IOException {
     synchronized (indices) {
       indexNames.remove(name);
+      saveIndexNames();
     }
   }
 

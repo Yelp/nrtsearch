@@ -18,6 +18,9 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValueType;
+import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
+import com.yelp.nrtsearch.server.utils.FileUtil;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.StatusRuntimeException;
 import java.io.Closeable;
@@ -26,8 +29,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.InetAddress;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -61,6 +62,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PersistentSnapshotDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -79,7 +83,7 @@ import org.slf4j.LoggerFactory;
 
 public class ShardState implements Closeable {
   public static final int REPLICA_ID = 0;
-  private final ThreadPoolExecutor searchExecutor;
+  final ThreadPoolExecutor searchExecutor;
   Logger logger = LoggerFactory.getLogger(ShardState.class);
 
   /** {@link IndexState} for the index this shard belongs to */
@@ -220,26 +224,7 @@ public class ShardState implements Closeable {
   /** Delete this shard. */
   public void deleteShard() throws IOException {
     if (rootDir != null) {
-      deleteAllFiles(rootDir);
-    }
-  }
-
-  private static void deleteAllFiles(Path dir) throws IOException {
-    if (Files.exists(dir)) {
-      if (Files.isRegularFile(dir)) {
-        Files.delete(dir);
-      } else {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
-          for (Path path : stream) {
-            if (Files.isDirectory(path)) {
-              deleteAllFiles(path);
-            } else {
-              Files.delete(path);
-            }
-          }
-        }
-        Files.delete(dir);
-      }
+      FileUtil.deleteAllFiles(rootDir);
     }
   }
 
@@ -426,6 +411,63 @@ public class ShardState implements Closeable {
     }
   }
 
+  /**
+   * Factory class that produces a new searcher for each {@link IndexReader} version. Sets field
+   * similarity and handles any eager global ordinal loading.
+   */
+  private class ShardSearcherFactory extends SearcherFactory {
+    private final boolean loadEagerOrdinals;
+    private final boolean collectMetrics;
+
+    /**
+     * Constructor.
+     *
+     * @param loadEagerOrdinals is eager global ordinal loading enabled, not needed for primary
+     * @param collectMetrics if metrics should be collected for each new index searcher
+     */
+    ShardSearcherFactory(boolean loadEagerOrdinals, boolean collectMetrics) {
+      this.loadEagerOrdinals = loadEagerOrdinals;
+      this.collectMetrics = collectMetrics;
+    }
+
+    @Override
+    public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader)
+        throws IOException {
+      IndexSearcher searcher =
+          new MyIndexSearcher(
+              reader,
+              new MyIndexSearcher.ExecutorWithParams(
+                  searchExecutor,
+                  indexState.getSliceMaxDocs(),
+                  indexState.getSliceMaxSegments(),
+                  indexState.getVirtualShards()));
+      searcher.setSimilarity(indexState.sim);
+      if (loadEagerOrdinals) {
+        loadEagerGlobalOrdinals(reader);
+      }
+      if (collectMetrics) {
+        IndexMetrics.updateReaderStats(indexState.name, reader);
+        IndexMetrics.updateSearcherStats(indexState.name, searcher);
+      }
+      return searcher;
+    }
+
+    private void loadEagerGlobalOrdinals(IndexReader reader) throws IOException {
+      for (Map.Entry<String, FieldDef> entry : indexState.eagerGlobalOrdinalFields.entrySet()) {
+        // only sorted set doc values facet currently supported
+        if (entry.getValue().getFacetValueType() == FacetValueType.SORTED_SET_DOC_VALUES) {
+          // get state to populate cache
+          getSSDVStateForReader(reader, entry.getValue());
+        } else {
+          logger.warn(
+              String.format(
+                  "Field: %s, facet type: %s, does not support eager global ordinals",
+                  entry.getKey(), entry.getValue().getFacetValueType().toString()));
+        }
+      }
+    }
+  }
+
   /** Start this shard as standalone (not primary nor replica) */
   public synchronized void start() throws Exception {
 
@@ -434,7 +476,6 @@ public class ShardState implements Closeable {
     }
 
     boolean success = false;
-
     try {
 
       if (indexState.saveLoadState == null) {
@@ -447,7 +488,8 @@ public class ShardState implements Closeable {
       } else {
         indexDirFile = rootDir.resolve("index");
       }
-      origIndexDir = indexState.df.open(indexDirFile);
+      origIndexDir =
+          indexState.df.open(indexDirFile, indexState.globalState.configuration.getPreloadConfig());
 
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
@@ -484,7 +526,8 @@ public class ShardState implements Closeable {
       } else {
         taxoDirFile = rootDir.resolve("taxonomy");
       }
-      taxoDir = indexState.df.open(taxoDirFile);
+      taxoDir =
+          indexState.df.open(taxoDirFile, indexState.globalState.configuration.getPreloadConfig());
 
       taxoSnapshots =
           new PersistentSnapshotDeletionPolicy(
@@ -531,18 +574,7 @@ public class ShardState implements Closeable {
 
       manager =
           new SearcherTaxonomyManager(
-              writer,
-              true,
-              new SearcherFactory() {
-                @Override
-                public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader)
-                    throws IOException {
-                  IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
-                  searcher.setSimilarity(indexState.sim);
-                  return searcher;
-                }
-              },
-              taxoWriter);
+              writer, true, new ShardSearcherFactory(true, true), taxoWriter);
 
       restartReopenThread();
 
@@ -576,7 +608,6 @@ public class ShardState implements Closeable {
     // nocommit share code better w/ start and startReplica!
 
     boolean success = false;
-
     try {
       // we have backups and are not creating a new index
       // use that to load indexes and other state (registeredFields, settings)
@@ -600,7 +631,8 @@ public class ShardState implements Closeable {
       } else {
         indexDirFile = rootDir.resolve("index");
       }
-      origIndexDir = indexState.df.open(indexDirFile);
+      origIndexDir =
+          indexState.df.open(indexDirFile, indexState.globalState.configuration.getPreloadConfig());
 
       if ((origIndexDir instanceof MMapDirectory) == false) {
         double maxMergeSizeMB =
@@ -636,7 +668,11 @@ public class ShardState implements Closeable {
       writer =
           new IndexWriter(
               indexDir, indexState.getIndexWriterConfig(openMode, origIndexDir, shardOrd));
-      snapshots = (PersistentSnapshotDeletionPolicy) writer.getConfig().getIndexDeletionPolicy();
+      LiveIndexWriterConfig writerConfig = writer.getConfig();
+      MergePolicy mergePolicy = writerConfig.getMergePolicy();
+      // Disable merges while NrtPrimaryNode isn't initalized (ISSUE-210)
+      writerConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+      snapshots = (PersistentSnapshotDeletionPolicy) writerConfig.getIndexDeletionPolicy();
 
       // NOTE: must do this after writer, because SDP only
       // loads its commits after writer calls .onInit:
@@ -660,16 +696,10 @@ public class ShardState implements Closeable {
               0,
               primaryGen,
               -1,
-              new SearcherFactory() {
-                @Override
-                public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader)
-                    throws IOException {
-                  IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
-                  searcher.setSimilarity(indexState.sim);
-                  return searcher;
-                }
-              },
+              new ShardSearcherFactory(false, true),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()));
+      // Enable merges
+      writerConfig.setMergePolicy(mergePolicy);
 
       // nocommit this isn't used?
       searcherManager =
@@ -679,7 +709,14 @@ public class ShardState implements Closeable {
                 @Override
                 public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader)
                     throws IOException {
-                  IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
+                  IndexSearcher searcher =
+                      new MyIndexSearcher(
+                          r,
+                          new MyIndexSearcher.ExecutorWithParams(
+                              searchExecutor,
+                              indexState.getSliceMaxDocs(),
+                              indexState.getSliceMaxSegments(),
+                              indexState.getVirtualShards()));
                   searcher.setSimilarity(indexState.sim);
                   return searcher;
                 }
@@ -704,7 +741,7 @@ public class ShardState implements Closeable {
     }
   }
 
-  private IndexReader.ClosedListener removeSSDVStates =
+  private final IndexReader.ClosedListener removeSSDVStates =
       cacheKey -> {
         synchronized (ssdvStates) {
           ssdvStates.remove(cacheKey);
@@ -723,13 +760,18 @@ public class ShardState implements Closeable {
 
   public SortedSetDocValuesReaderState getSSDVState(
       SearcherTaxonomyManager.SearcherAndTaxonomy s, FieldDef fd) throws IOException {
+    return getSSDVStateForReader(s.searcher.getIndexReader(), fd);
+  }
+
+  public SortedSetDocValuesReaderState getSSDVStateForReader(IndexReader reader, FieldDef fd)
+      throws IOException {
     FacetsConfig.DimConfig dimConfig = indexState.facetsConfig.getDimConfig(fd.getName());
-    IndexReader reader = s.searcher.getIndexReader();
     synchronized (ssdvStates) {
-      Map<String, SortedSetDocValuesReaderState> readerSSDVStates = ssdvStates.get(reader);
+      IndexReader.CacheKey cacheKey = reader.getReaderCacheHelper().getKey();
+      Map<String, SortedSetDocValuesReaderState> readerSSDVStates = ssdvStates.get(cacheKey);
       if (readerSSDVStates == null) {
         readerSSDVStates = new HashMap<>();
-        ssdvStates.put(reader.getReaderCacheHelper().getKey(), readerSSDVStates);
+        ssdvStates.put(cacheKey, readerSSDVStates);
         reader.getReaderCacheHelper().addClosedListener(removeSSDVStates);
       }
 
@@ -835,7 +877,8 @@ public class ShardState implements Closeable {
       } else {
         indexDirFile = rootDir.resolve("index");
       }
-      origIndexDir = indexState.df.open(indexDirFile);
+      origIndexDir =
+          indexState.df.open(indexDirFile, indexState.globalState.configuration.getPreloadConfig());
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
       if ((origIndexDir instanceof MMapDirectory) == false) {
@@ -866,15 +909,7 @@ public class ShardState implements Closeable {
               hostPort,
               REPLICA_ID,
               indexDir,
-              new SearcherFactory() {
-                @Override
-                public IndexSearcher newSearcher(IndexReader r, IndexReader previousReader)
-                    throws IOException {
-                  IndexSearcher searcher = new MyIndexSearcher(r, searchExecutor);
-                  searcher.setSimilarity(indexState.sim);
-                  return searcher;
-                }
-              },
+              new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               primaryGen);
 

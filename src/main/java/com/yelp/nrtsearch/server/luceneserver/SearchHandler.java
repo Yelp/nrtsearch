@@ -15,7 +15,10 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.google.gson.Gson;
+import com.google.protobuf.Struct;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
+import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
@@ -30,9 +33,14 @@ import com.yelp.nrtsearch.server.luceneserver.field.BooleanFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.PolygonfieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
+import com.yelp.nrtsearch.server.utils.StructJsonUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,7 +64,6 @@ import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,6 +72,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
   private final ThreadPoolExecutor threadPoolExecutor;
   Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
+
+  private final Gson gson = new Gson();
 
   public SearchHandler(ThreadPoolExecutor threadPoolExecutor) {
     this.threadPoolExecutor = threadPoolExecutor;
@@ -87,7 +96,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           SearchRequestProcessor.buildContextForRequest(
               searchRequest, indexState, shardState, s, diagnostics);
 
-      searchContext.getResponseBuilder().setDiagnostics(diagnostics);
+      ProfileResult.Builder profileResultBuilder = null;
+      if (searchRequest.getProfile()) {
+        profileResultBuilder = ProfileResult.newBuilder();
+      }
 
       long searchStartTime = System.nanoTime();
 
@@ -109,29 +121,53 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 shardState,
                 searchContext.getQueryFields(),
                 grpcFacetResults,
-                threadPoolExecutor);
+                threadPoolExecutor,
+                diagnostics);
         DrillSideways.ConcurrentDrillSidewaysResult<? extends TopDocs>
-            concurrentDrillSidewaysResult =
-                drillS.search(ddq, searchContext.getCollector().getManager());
+            concurrentDrillSidewaysResult;
+        try {
+          concurrentDrillSidewaysResult =
+              drillS.search(ddq, searchContext.getCollector().getWrappedManager());
+        } catch (RuntimeException e) {
+          // Searching with DrillSideways wraps exceptions in a few layers.
+          // Try to find if this was caused by a timeout, if so, re-wrap
+          // so that the top level exception is the same as when not using facets.
+          CollectionTimeoutException timeoutException = findTimeoutException(e);
+          if (timeoutException != null) {
+            throw new CollectionTimeoutException(timeoutException.getMessage(), e);
+          }
+          throw e;
+        }
         hits = concurrentDrillSidewaysResult.collectorResult;
         searchContext.getResponseBuilder().addAllFacetResult(grpcFacetResults);
         searchContext
             .getResponseBuilder()
             .addAllFacetResult(
                 FacetTopDocs.facetTopDocsSample(
-                    hits, searchRequest.getFacetsList(), indexState, s.searcher));
+                    hits, searchRequest.getFacetsList(), indexState, s.searcher, diagnostics));
       } else {
-        try {
-          hits =
-              s.searcher.search(
-                  searchContext.getQuery(), searchContext.getCollector().getManager());
-        } catch (TimeLimitingCollector.TimeExceededException tee) {
-          searchContext.getResponseBuilder().setHitTimeout(true);
-          return searchContext.getResponseBuilder().build();
-        }
+        hits =
+            s.searcher.search(
+                searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
       }
 
+      searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
+
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
+
+      // add detailed timing metrics for query execution
+      if (profileResultBuilder != null) {
+        searchContext.getCollector().maybeAddProfiling(profileResultBuilder);
+      }
+
+      long rescoreStartTime = System.nanoTime();
+
+      if (!searchContext.getRescorers().isEmpty()) {
+        for (RescoreTask rescorer : searchContext.getRescorers()) {
+          hits = rescorer.rescore(s.searcher, hits);
+        }
+        diagnostics.setRescoreTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
+      }
 
       long t0 = System.nanoTime();
 
@@ -142,8 +178,12 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       // fill all other needed fields into each Hit.Builder
       List<Hit.Builder> hitBuilders = searchContext.getResponseBuilder().getHitsBuilderList();
+      List<LeafReaderContext> leaves = s.searcher.getIndexReader().leaves();
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         var hitResponse = hitBuilders.get(hitIndex);
+
+        LeafReaderContext leaf =
+            leaves.get(ReaderUtil.subIndex(hitResponse.getLuceneDocId(), leaves));
 
         if (!searchContext.getRetrieveFields().isEmpty()) {
           var fieldValueMap =
@@ -152,13 +192,20 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                   null,
                   s.searcher,
                   hitResponse,
+                  leaf,
                   searchContext.getRetrieveFields().keySet(),
                   Collections.emptyMap(),
                   hitIndex,
                   searchContext.getRetrieveFields());
           hitResponse.putAllFields(fieldValueMap);
         }
+
+        searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
       }
+
+      searchContext
+          .getFetchTasks()
+          .processAllHits(searchContext, searchContext.getResponseBuilder().getHitsBuilderList());
 
       SearchState.Builder searchState = SearchState.newBuilder();
       searchContext.getResponseBuilder().setSearchState(searchState);
@@ -175,6 +222,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
 
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
+      searchContext.getResponseBuilder().setDiagnostics(diagnostics);
+
+      if (profileResultBuilder != null) {
+        searchContext.getResponseBuilder().setProfileResult(profileResultBuilder);
+      }
     } catch (IOException | InterruptedException e) {
       logger.warn(e.getMessage(), e);
       throw new SearchHandlerException(e);
@@ -447,7 +499,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       SearcherTaxonomyManager.SearcherAndTaxonomy result =
           new SearcherTaxonomyManager.SearcherAndTaxonomy(
-              new MyIndexSearcher(r, threadPoolExecutor), s.taxonomyReader);
+              new MyIndexSearcher(
+                  r,
+                  new MyIndexSearcher.ExecutorWithParams(
+                      threadPoolExecutor,
+                      state.indexState.getSliceMaxDocs(),
+                      state.indexState.getSliceMaxSegments(),
+                      state.indexState.getVirtualShards())),
+              s.taxonomyReader);
       state.slm.record(result.searcher);
       long t1 = System.nanoTime();
       if (diagnostics != null) {
@@ -469,6 +528,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       Object highlighter,
       IndexSearcher s,
       Hit.Builder hit,
+      LeafReaderContext leaf,
       Set<String> fields,
       Map<String, Object[]> highlights,
       int hiliteHitIndex,
@@ -493,8 +553,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         // retrieve from doc values
         if (fd instanceof VirtualFieldDef) {
           VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
-          List<LeafReaderContext> leaves = s.getIndexReader().leaves();
-          LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.getLuceneDocId(), leaves));
 
           int docID = hit.getLuceneDocId() - leaf.docBase;
 
@@ -516,9 +574,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           compositeFieldValue.addFieldValue(
               FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
         } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
-          List<LeafReaderContext> leaves = s.getIndexReader().leaves();
-          // get the current leaf/segment that this doc is in
-          LeafReaderContext leaf = leaves.get(ReaderUtil.subIndex(hit.getLuceneDocId(), leaves));
           int docID = hit.getLuceneDocId() - leaf.docBase;
           // it may be possible to cache this if there are multiple hits in the same segment
           LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);
@@ -531,7 +586,13 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
           String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.getLuceneDocId()));
           for (String fieldValue : values) {
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
+            if (fd instanceof ObjectFieldDef || fd instanceof PolygonfieldDef) {
+              Map<String, Object> map = gson.fromJson(fieldValue, Map.class);
+              Struct struct = StructJsonUtils.convertMapToStruct(map);
+              compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(struct));
+            } else {
+              compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
+            }
           }
         } else {
           Object v = doc.get(name); // FIXME: doc is never updated, not sure if this is correct
@@ -609,5 +670,20 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     public SearchHandlerException(String message, Throwable err) {
       super(message, err);
     }
+  }
+
+  /**
+   * Find an instance of {@link CollectionTimeoutException} in the cause path of an exception.
+   *
+   * @return found exception instance or null
+   */
+  private static CollectionTimeoutException findTimeoutException(Throwable e) {
+    if (e instanceof CollectionTimeoutException) {
+      return (CollectionTimeoutException) e;
+    }
+    if (e.getCause() != null) {
+      return findTimeoutException(e.getCause());
+    }
+    return null;
   }
 }

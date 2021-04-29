@@ -15,7 +15,9 @@
  */
 package com.yelp.nrtsearch.server.utils;
 
+import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
@@ -89,37 +91,85 @@ public class ArchiverTest {
 
   @Test
   public void testUpload() throws IOException {
+    upload(false);
+  }
+
+  @Test
+  public void testUploadStream() throws IOException {
+    upload(true);
+  }
+
+  private void upload(boolean stream) throws IOException {
     String service = "testservice";
     String resource = "testresource";
     Path sourceDir = createDirWithFiles(service, resource);
-    String versionHash = archiver.upload(service, resource, sourceDir);
+    String subDirPath = sourceDir.resolve("subDir").toString();
+
+    testUploadWithParameters(service, resource, sourceDir, List.of(), List.of(), List.of(), stream);
+    testUploadWithParameters(
+        service,
+        resource,
+        sourceDir,
+        List.of("test1"),
+        List.of(),
+        List.of("test2", "subDir"),
+        stream);
+    testUploadWithParameters(
+        service, resource, sourceDir, List.of(), List.of(subDirPath), List.of("test1"), stream);
+    testUploadWithParameters(
+        service, resource, sourceDir, List.of("test1"), List.of(subDirPath), List.of(), stream);
+  }
+
+  private void testUploadWithParameters(
+      String service,
+      String resource,
+      Path sourceDir,
+      List<String> includeFiles,
+      List<String> includeDirs,
+      List<String> ignoreVerifying,
+      boolean stream)
+      throws IOException {
+    String versionHash =
+        archiver.upload(service, resource, sourceDir, includeFiles, includeDirs, stream);
 
     Path actualDownloadDir = Files.createDirectory(archiverDirectory.resolve("actualDownload"));
     try (S3Object s3Object =
             s3.getObject(BUCKET_NAME, String.format("%s/%s/%s", service, resource, versionHash));
-        final S3ObjectInputStream s3ObjectInputStream = s3Object.getObjectContent();
-        final LZ4FrameInputStream lz4CompressorInputStream =
+        S3ObjectInputStream s3ObjectInputStream = s3Object.getObjectContent();
+        LZ4FrameInputStream lz4CompressorInputStream =
             new LZ4FrameInputStream(s3ObjectInputStream);
-        final TarArchiveInputStream tarArchiveInputStream =
-            new TarArchiveInputStream(lz4CompressorInputStream); ) {
+        TarArchiveInputStream tarArchiveInputStream =
+            new TarArchiveInputStream(lz4CompressorInputStream)) {
       new TarImpl(TarImpl.CompressionMode.LZ4).extractTar(tarArchiveInputStream, actualDownloadDir);
     }
-    assertEquals(
-        true,
-        TarImplTest.dirsMatch(actualDownloadDir.resolve(resource).toFile(), sourceDir.toFile()));
+    assertTrue(
+        TarImplTest.dirsMatch(
+            actualDownloadDir.resolve(resource).toFile(), sourceDir.toFile(), ignoreVerifying));
+
+    rmDir(actualDownloadDir);
   }
 
   @Test
   public void testUploadDownload() throws IOException {
+    uploadDownload(false);
+  }
+
+  @Test
+  public void testUploadDownloadStream() throws IOException {
+    uploadDownload(true);
+  }
+
+  private void uploadDownload(boolean stream) throws IOException {
     String service = "testservice";
     String resource = "testresource";
     Path sourceDir = createDirWithFiles(service, resource);
-    String versionHash = archiver.upload(service, resource, sourceDir);
+    String versionHash =
+        archiver.upload(service, resource, sourceDir, List.of(), List.of(), stream);
     archiver.blessVersion(service, resource, versionHash);
     Path downloadPath = archiver.download(service, resource);
     Path parentPath = downloadPath.getParent();
     Path path = parentPath.resolve(versionHash);
-    assertEquals(true, path.toFile().exists());
+    assertTrue(path.toFile().exists());
   }
 
   private Path createDirWithFiles(String service, String resource) throws IOException {
@@ -162,10 +212,20 @@ public class ArchiverTest {
 
   @Test
   public void testGetResources() throws IOException {
+    getResources(false);
+  }
+
+  @Test
+  public void testGetResourcesStream() throws IOException {
+    getResources(true);
+  }
+
+  private void getResources(boolean stream) throws IOException {
     String service = "testservice";
     String[] resources = new String[] {"testresource"};
     Path sourceDir = createDirWithFiles(service, resources[0]);
-    String versionHash = archiver.upload(service, resources[0], sourceDir);
+    String versionHash =
+        archiver.upload(service, resources[0], sourceDir, List.of(), List.of(), stream);
     archiver.blessVersion(service, resources[0], versionHash);
     List<String> actualResources = archiver.getResources(service);
     String[] actual = actualResources.toArray(new String[0]);
@@ -174,11 +234,22 @@ public class ArchiverTest {
 
   @Test
   public void testGetVersionedResource() throws IOException {
+    getVersionedResource(false);
+  }
+
+  @Test
+  public void testGetVersionedResourceStream() throws IOException {
+    getVersionedResource(true);
+  }
+
+  private void getVersionedResource(boolean stream) throws IOException {
     String service = "testservice";
     String resource = "testresource";
     Path sourceDir = createDirWithFiles(service, resource);
-    String versionHash1 = archiver.upload(service, resource, sourceDir);
-    String versionHash2 = archiver.upload(service, resource, sourceDir);
+    String versionHash1 =
+        archiver.upload(service, resource, sourceDir, List.of(), List.of(), stream);
+    String versionHash2 =
+        archiver.upload(service, resource, sourceDir, List.of(), List.of(), stream);
     List<VersionedResource> actualResources = archiver.getVersionedResource(service, resource);
 
     List<String> versionHashes =
@@ -193,11 +264,22 @@ public class ArchiverTest {
 
   @Test
   public void testDeleteVersion() throws IOException {
+    deleteVersion(false);
+  }
+
+  @Test
+  public void testDeleteVersionStream() throws IOException {
+    deleteVersion(true);
+  }
+
+  private void deleteVersion(boolean stream) throws IOException {
     String service = "testservice";
     String resource = "testresource";
     Path sourceDir = createDirWithFiles(service, resource);
-    String versionHash1 = archiver.upload(service, resource, sourceDir);
-    String versionHash2 = archiver.upload(service, resource, sourceDir);
+    String versionHash1 =
+        archiver.upload(service, resource, sourceDir, List.of(), List.of(), stream);
+    String versionHash2 =
+        archiver.upload(service, resource, sourceDir, List.of(), List.of(), stream);
 
     archiver.deleteVersion(service, resource, versionHash1);
 

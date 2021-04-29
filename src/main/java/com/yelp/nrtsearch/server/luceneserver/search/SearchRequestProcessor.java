@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search;
 
+import com.yelp.nrtsearch.server.grpc.PluginRescorer;
+import com.yelp.nrtsearch.server.grpc.QueryRescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
@@ -24,6 +26,9 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
+import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
+import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
@@ -32,6 +37,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.collectors.RelevanceCollect
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.SortFieldCollector;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -41,8 +47,9 @@ import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.util.QueryBuilder;
 
 /**
@@ -112,8 +119,14 @@ public class SearchRequestProcessor {
       diagnostics.setDrillDownQuery(query.toString());
     }
 
+    contextBuilder.setFetchTasks(new FetchTasks(searchRequest.getFetchTasksList()));
+
     contextBuilder.setQuery(query);
     contextBuilder.setCollector(buildDocCollector(queryFields, searchRequest));
+
+    contextBuilder.setRescorers(
+        getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
+
     return contextBuilder.build(true);
   }
 
@@ -222,11 +235,12 @@ public class SearchRequestProcessor {
         throw new IllegalArgumentException(
             String.format("could not parse queryText: %s", queryText));
       }
-    } else if (searchRequest.getQuery().getQueryNodeCase()
-        != com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET) {
-      q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery(), state);
     } else {
-      q = new MatchAllDocsQuery();
+      q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery(), state);
+    }
+
+    if (state.hasNestedChildFields()) {
+      return QUERY_NODE_MAPPER.applyQueryNestedPath(q, searchRequest.getQueryNestedPath());
     }
     return q;
   }
@@ -286,5 +300,44 @@ public class SearchRequestProcessor {
     return searchRequest.hasQuery()
         && searchRequest.getQuery().getQueryNodeCase()
             == com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET;
+  }
+
+  /** Parses rescorers defined in this search request. */
+  private static List<RescoreTask> getRescorers(
+      IndexState indexState, IndexSearcher searcher, SearchRequest searchRequest)
+      throws IOException {
+
+    List<RescoreTask> rescorers = new ArrayList<>();
+
+    for (com.yelp.nrtsearch.server.grpc.Rescorer rescorer : searchRequest.getRescorersList()) {
+
+      Rescorer thisRescorer;
+
+      if (rescorer.hasQueryRescorer()) {
+        QueryRescorer queryRescorer = rescorer.getQueryRescorer();
+        Query query = QUERY_NODE_MAPPER.getQuery(queryRescorer.getRescoreQuery(), indexState);
+        query = searcher.rewrite(query);
+
+        thisRescorer =
+            QueryRescore.newBuilder()
+                .setQuery(query)
+                .setQueryWeight(queryRescorer.getQueryWeight())
+                .setRescoreQueryWeight(queryRescorer.getRescoreQueryWeight())
+                .build();
+      } else if (rescorer.hasPluginRescorer()) {
+        PluginRescorer plugin = rescorer.getPluginRescorer();
+        thisRescorer = RescorerCreator.getInstance().createRescorer(plugin);
+      } else {
+        throw new IllegalArgumentException(
+            "Rescorer should define either QueryRescorer or PluginRescorer");
+      }
+
+      rescorers.add(
+          RescoreTask.newBuilder()
+              .setRescorer(thisRescorer)
+              .setWindowSize(rescorer.getWindowSize())
+              .build());
+    }
+    return rescorers;
   }
 }

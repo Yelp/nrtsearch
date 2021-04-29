@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.facet;
 import com.google.protobuf.ProtocolStringList;
 import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.NumericRangeType;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
@@ -65,6 +66,7 @@ public class DrillSidewaysImpl extends DrillSideways {
   private final ShardState shardState;
   private final Map<String, FieldDef> dynamicFields;
   private final List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults;
+  private final Diagnostics.Builder diagnostics;
 
   /**
    * @param searcher
@@ -74,6 +76,7 @@ public class DrillSidewaysImpl extends DrillSideways {
    * @param searcherAndTaxonomyManager
    * @param shardState
    * @param dynamicFields
+   * @param diagnostics diagnostics builder for storing facet timing
    */
   public DrillSidewaysImpl(
       IndexSearcher searcher,
@@ -84,13 +87,15 @@ public class DrillSidewaysImpl extends DrillSideways {
       ShardState shardState,
       Map<String, FieldDef> dynamicFields,
       List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults,
-      ExecutorService executorService) {
+      ExecutorService executorService,
+      Diagnostics.Builder diagnostics) {
     super(searcher, config, taxoReader, null, executorService);
     this.grpcFacets = grpcFacets;
     this.searcherAndTaxonomyManager = searcherAndTaxonomyManager;
     this.shardState = shardState;
     this.dynamicFields = dynamicFields;
     this.grpcFacetResults = grpcFacetResults;
+    this.diagnostics = diagnostics;
   }
 
   protected Facets buildFacetsResult(
@@ -104,7 +109,8 @@ public class DrillSidewaysImpl extends DrillSideways {
         grpcFacets,
         dynamicFields,
         searcherAndTaxonomyManager,
-        grpcFacetResults);
+        grpcFacetResults,
+        diagnostics);
     return null;
   }
 
@@ -116,7 +122,8 @@ public class DrillSidewaysImpl extends DrillSideways {
       List<Facet> grpcFacets,
       Map<String, FieldDef> dynamicFields,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomyManager,
-      List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults)
+      List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults,
+      Diagnostics.Builder diagnostics)
       throws IOException {
 
     IndexState indexState = shardState.indexState;
@@ -142,6 +149,8 @@ public class DrillSidewaysImpl extends DrillSideways {
         continue;
       }
 
+      long startNS = System.nanoTime();
+
       com.yelp.nrtsearch.server.grpc.FacetResult facetResult;
       if (facet.hasScript()) {
         // this facet is a FacetScript, run script against all matching documents
@@ -160,6 +169,8 @@ public class DrillSidewaysImpl extends DrillSideways {
       if (facetResult != null) {
         grpcFacetResults.add(facetResult);
       }
+      long endNS = System.nanoTime();
+      diagnostics.putFacetTimeMs(facet.getName(), (endNS - startNS) / 1000000.0);
     }
   }
 
@@ -399,12 +410,22 @@ public class DrillSidewaysImpl extends DrillSideways {
       if (c == null) {
         c = drillDowns;
       }
-      SortedSetDocValuesFacetCounts sortedSetDocValuesFacetCounts =
-          new SortedSetDocValuesFacetCounts(
-              shardState.getSSDVState(searcherAndTaxonomyManager, fieldDef), c);
-      facetResult =
-          sortedSetDocValuesFacetCounts.getTopChildren(
-              facet.getTopN(), fieldDef.getName(), new String[0]);
+      if (facet.getLabelsCount() > 0) {
+        // filter facet if a label list is provided
+        FilteredSSDVFacetCounts filteredSSDVFacetCounts =
+            new FilteredSSDVFacetCounts(
+                facet.getLabelsList(),
+                fieldDef.getName(),
+                shardState.getSSDVState(searcherAndTaxonomyManager, fieldDef),
+                c);
+        facetResult = filteredSSDVFacetCounts.getTopChildren(facet.getTopN(), fieldDef.getName());
+      } else {
+        SortedSetDocValuesFacetCounts sortedSetDocValuesFacetCounts =
+            new SortedSetDocValuesFacetCounts(
+                shardState.getSSDVState(searcherAndTaxonomyManager, fieldDef), c);
+        facetResult =
+            sortedSetDocValuesFacetCounts.getTopChildren(facet.getTopN(), fieldDef.getName());
+      }
     } else if (fieldDef.getFacetValueType() != IndexableFieldDef.FacetValueType.NO_FACETS) {
 
       // Taxonomy  facets
@@ -512,30 +533,29 @@ public class DrillSidewaysImpl extends DrillSideways {
       }
       return getDocValuesFacetResult(facet, drillDowns, indexableFieldDef);
     }
-    if (facetResult != null) {
-      return buildFacetResultGrpc(facetResult, facet.getName());
-    }
-    return null;
+    return buildFacetResultGrpc(facetResult, facet.getName());
   }
 
   private static com.yelp.nrtsearch.server.grpc.FacetResult buildFacetResultGrpc(
       FacetResult facetResult, String name) {
     var builder = com.yelp.nrtsearch.server.grpc.FacetResult.newBuilder();
     builder.setName(name);
-    builder.setDim(facetResult.dim);
-    builder.addAllPath(Arrays.asList(facetResult.path));
-    builder.setValue(facetResult.value.doubleValue());
-    builder.setChildCount(facetResult.childCount);
-    List<com.yelp.nrtsearch.server.grpc.LabelAndValue> labelAndValues = new ArrayList<>();
-    for (LabelAndValue labelValue : facetResult.labelValues) {
-      var labelAndValue =
-          com.yelp.nrtsearch.server.grpc.LabelAndValue.newBuilder()
-              .setLabel(labelValue.label)
-              .setValue(labelValue.value.doubleValue())
-              .build();
-      labelAndValues.add(labelAndValue);
+    if (facetResult != null) {
+      builder.setDim(facetResult.dim);
+      builder.addAllPath(Arrays.asList(facetResult.path));
+      builder.setValue(facetResult.value.doubleValue());
+      builder.setChildCount(facetResult.childCount);
+      List<com.yelp.nrtsearch.server.grpc.LabelAndValue> labelAndValues = new ArrayList<>();
+      for (LabelAndValue labelValue : facetResult.labelValues) {
+        var labelAndValue =
+            com.yelp.nrtsearch.server.grpc.LabelAndValue.newBuilder()
+                .setLabel(labelValue.label)
+                .setValue(labelValue.value.doubleValue())
+                .build();
+        labelAndValues.add(labelAndValue);
+      }
+      builder.addAllLabelValues(labelAndValues);
     }
-    builder.addAllLabelValues(labelAndValues);
     return builder.build();
   }
 }

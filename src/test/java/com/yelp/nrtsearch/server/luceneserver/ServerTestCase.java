@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.GrpcServer;
+import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.LuceneServerClientBuilder;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.Mode;
@@ -112,10 +113,11 @@ public class ServerTestCase {
   }
 
   public static AddDocumentResponse addDocuments(Stream<AddDocumentRequest> requestStream)
-      throws InterruptedException {
+      throws Exception {
     CountDownLatch finishLatch = new CountDownLatch(1);
     // observers responses from Server(should get one onNext and oneCompleted)
     final AtomicReference<AddDocumentResponse> response = new AtomicReference<>();
+    final AtomicReference<Exception> exception = new AtomicReference<>();
     StreamObserver<AddDocumentResponse> responseStreamObserver =
         new StreamObserver<>() {
           @Override
@@ -125,6 +127,7 @@ public class ServerTestCase {
 
           @Override
           public void onError(Throwable t) {
+            exception.set(new RuntimeException(t));
             finishLatch.countDown();
           }
 
@@ -150,6 +153,10 @@ public class ServerTestCase {
     // Receiving happens asynchronously, so block here 20 seconds
     if (!finishLatch.await(20, TimeUnit.SECONDS)) {
       throw new RuntimeException("addDocuments can not finish within 20 seconds");
+    }
+    // Re-throw exception
+    if (exception.get() != null) {
+      throw exception.get();
     }
     return response.get();
   }
@@ -195,7 +202,8 @@ public class ServerTestCase {
   private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
+        LuceneServerTestConfigurationFactory.getConfig(
+            Mode.STANDALONE, folder.getRoot(), getExtraConfig());
     globalState = new GlobalState(luceneServerConfiguration);
     return new GrpcServer(
         collectorRegistry,
@@ -222,6 +230,9 @@ public class ServerTestCase {
       // register fields
       blockingStub.registerFields(getIndexDef(indexName));
 
+      // apply live settings
+      blockingStub.liveSettings(getLiveSettings(indexName));
+
       // start the index
       StartIndexRequest.Builder startIndexBuilder =
           StartIndexRequest.newBuilder().setIndexName(indexName);
@@ -243,9 +254,17 @@ public class ServerTestCase {
     return getFieldsFromResourceFile("/registerFieldsBasic.json");
   }
 
+  protected LiveSettingsRequest getLiveSettings(String name) {
+    return LiveSettingsRequest.newBuilder().setIndexName(name).build();
+  }
+
   protected void initIndex(String name) throws Exception {}
 
   protected List<Plugin> getPlugins() {
     return Collections.emptyList();
+  }
+
+  protected String getExtraConfig() {
+    return "";
   }
 }

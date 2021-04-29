@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.utils;
 
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
+import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -45,6 +46,7 @@ public class ThreadPoolExecutorFactory {
    */
   public static ThreadPoolExecutor getThreadPoolExecutor(
       ExecutorType executorType, ThreadPoolConfiguration threadPoolConfiguration) {
+    ThreadPoolExecutor threadPoolExecutor;
     if (executorType.equals(ExecutorType.SEARCH)) {
       logger.info(
           "Creating LuceneSearchExecutor of size "
@@ -53,13 +55,14 @@ public class ThreadPoolExecutorFactory {
           new LinkedBlockingQueue<Runnable>(threadPoolConfiguration.getMaxSearchBufferedItems());
       // same as Executors.newFixedThreadPool except we want a NamedThreadFactory instead of
       // defaultFactory
-      return new ThreadPoolExecutor(
-          threadPoolConfiguration.getMaxSearchingThreads(),
-          threadPoolConfiguration.getMaxSearchingThreads(),
-          0,
-          TimeUnit.SECONDS,
-          docsToIndex,
-          new NamedThreadFactory("LuceneSearchExecutor"));
+      threadPoolExecutor =
+          new ThreadPoolExecutor(
+              threadPoolConfiguration.getMaxSearchingThreads(),
+              threadPoolConfiguration.getMaxSearchingThreads(),
+              0,
+              TimeUnit.SECONDS,
+              docsToIndex,
+              new NamedThreadFactory("LuceneSearchExecutor"));
 
     } else if (executorType.equals(ExecutorType.INDEX)) {
       logger.info(
@@ -67,13 +70,14 @@ public class ThreadPoolExecutorFactory {
               + threadPoolConfiguration.getMaxIndexingThreads());
       BlockingQueue<Runnable> docsToIndex =
           new LinkedBlockingQueue<Runnable>(threadPoolConfiguration.getMaxIndexingBufferedItems());
-      return new ThreadPoolExecutor(
-          threadPoolConfiguration.getMaxIndexingThreads(),
-          threadPoolConfiguration.getMaxIndexingThreads(),
-          0,
-          TimeUnit.SECONDS,
-          docsToIndex,
-          new NamedThreadFactory("LuceneIndexingExecutor"));
+      threadPoolExecutor =
+          new ThreadPoolExecutor(
+              threadPoolConfiguration.getMaxIndexingThreads(),
+              threadPoolConfiguration.getMaxIndexingThreads(),
+              0,
+              TimeUnit.SECONDS,
+              docsToIndex,
+              new NamedThreadFactory("LuceneIndexingExecutor"));
     } else if (executorType.equals(ExecutorType.LUCENESERVER)) {
       logger.info(
           "Creating GrpcLuceneServerExecutor of size "
@@ -81,13 +85,14 @@ public class ThreadPoolExecutorFactory {
       BlockingQueue<Runnable> docsToIndex =
           new LinkedBlockingQueue<Runnable>(
               threadPoolConfiguration.getMaxGrpcLuceneserverBufferedItems());
-      return new ThreadPoolExecutor(
-          threadPoolConfiguration.getMaxGrpcLuceneserverThreads(),
-          threadPoolConfiguration.getMaxGrpcLuceneserverThreads(),
-          0,
-          TimeUnit.SECONDS,
-          docsToIndex,
-          new NamedThreadFactory("GrpcLuceneServerExecutor"));
+      threadPoolExecutor =
+          new ThreadPoolExecutor(
+              threadPoolConfiguration.getMaxGrpcLuceneserverThreads(),
+              threadPoolConfiguration.getMaxGrpcLuceneserverThreads(),
+              0,
+              TimeUnit.SECONDS,
+              docsToIndex,
+              new NamedThreadFactory("GrpcLuceneServerExecutor"));
     } else if (executorType.equals(ExecutorType.REPLICATIONSERVER)) {
       logger.info(
           "Creating GrpcReplicationServerExecutor of size "
@@ -95,15 +100,18 @@ public class ThreadPoolExecutorFactory {
       BlockingQueue<Runnable> docsToIndex =
           new LinkedBlockingQueue<Runnable>(
               threadPoolConfiguration.getMaxGrpcReplicationserverBufferedItems());
-      return new ThreadPoolExecutor(
-          threadPoolConfiguration.getMaxGrpcReplicationserverThreads(),
-          threadPoolConfiguration.getMaxGrpcReplicationserverThreads(),
-          0,
-          TimeUnit.SECONDS,
-          docsToIndex,
-          new NamedThreadFactory("GrpcReplicationServerExecutor"));
+      threadPoolExecutor =
+          new ThreadPoolExecutor(
+              threadPoolConfiguration.getMaxGrpcReplicationserverThreads(),
+              threadPoolConfiguration.getMaxGrpcReplicationserverThreads(),
+              0,
+              TimeUnit.SECONDS,
+              docsToIndex,
+              new NamedThreadFactory("GrpcReplicationServerExecutor"));
     } else {
       throw new RuntimeException("Invalid executor type provided " + executorType.toString());
     }
+    ThreadPoolCollector.addPool(executorType.name(), threadPoolExecutor);
+    return threadPoolExecutor;
   }
 }

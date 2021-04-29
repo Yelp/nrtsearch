@@ -65,6 +65,41 @@ public class LiveSettingsCommand implements Callable<Integer> {
       defaultValue = "100")
   private int addDocumentsMaxBufferLen;
 
+  @CommandLine.Option(
+      names = {"--sliceMaxDocs"},
+      description =
+          "Max documents per index slice, or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  private int sliceMaxDocs;
+
+  @CommandLine.Option(
+      names = {"--sliceMaxSegments"},
+      description =
+          "Max segments per index slice, or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  private int sliceMaxSegments;
+
+  @CommandLine.Option(
+      names = {"--virtualShards"},
+      description =
+          "Number of virtual shards to partition index into, or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  private int virtualShards;
+
+  @CommandLine.Option(
+      names = {"--maxMergedSegmentMB"},
+      description =
+          "Max sized segment to produce during normal merging (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  private int maxMergedSegmentMB;
+
+  @CommandLine.Option(
+      names = {"--segmentsPerTier"},
+      description =
+          "Number of segments per tier used by TieredMergePolicy, or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
+  private int segmentsPerTier;
+
   public String getIndexName() {
     return indexName;
   }
@@ -89,6 +124,26 @@ public class LiveSettingsCommand implements Callable<Integer> {
     return addDocumentsMaxBufferLen;
   }
 
+  public int getSliceMaxDocs() {
+    return sliceMaxDocs;
+  }
+
+  public int getSliceMaxSegments() {
+    return sliceMaxSegments;
+  }
+
+  public int getVirtualShards() {
+    return virtualShards;
+  }
+
+  public int getMaxMergedSegmentMB() {
+    return maxMergedSegmentMB;
+  }
+
+  public int getSegmentsPerTier() {
+    return segmentsPerTier;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -99,7 +154,12 @@ public class LiveSettingsCommand implements Callable<Integer> {
           getMinRefreshSec(),
           getMaxSearcherAgeSec(),
           getIndexRamBufferSizeMB(),
-          getAddDocumentsMaxBufferLen());
+          getAddDocumentsMaxBufferLen(),
+          getSliceMaxDocs(),
+          getSliceMaxSegments(),
+          getVirtualShards(),
+          getMaxMergedSegmentMB(),
+          getSegmentsPerTier());
     } finally {
       client.shutdown();
     }

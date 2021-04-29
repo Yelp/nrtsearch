@@ -1,6 +1,7 @@
 /* Description of message types for search request and response */
 syntax = "proto3";
 
+import "google/protobuf/struct.proto";
 import "google/type/latlng.proto";
 import "yelp/nrtsearch/analysis.proto";
 
@@ -8,6 +9,8 @@ option java_multiple_files = true;
 option java_package = "com.yelp.nrtsearch.server.grpc";
 option java_outer_classname = "SearchResponseProto";
 option objc_class_prefix = "HLW";
+
+option go_package = "github.com/Yelp/nrtsearch";
 
 package luceneserver;
 
@@ -57,6 +60,25 @@ message PhraseQuery {
 message FunctionScoreQuery {
     Query query = 1; // Input query
     Script script = 2; // script definition to compute a custom document score
+}
+
+// A query that retrieves all documents with a positive score calculated by the script
+message FunctionFilterQuery {
+    Script script = 1; // script definition to compute a custom document score
+}
+
+//
+message NestedQuery {
+    enum ScoreMode {
+        NONE = 0;
+        AVG = 1;
+        MAX = 2;
+        MIN = 3;
+        SUM = 4;
+    }
+    Query query = 1; // query for the child documents
+    string path = 2; // field name of the nested
+    ScoreMode scoreMode = 3; // how child documents score affects final score
 }
 
 // A query that matches documents containing a term.
@@ -155,8 +177,10 @@ message MultiMatchQuery {
 // A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types.
 message RangeQuery {
     string field = 1; // Field in the document to query
-    string lower = 2; // Lower bound, inclusive
-    string upper = 3; // Upper bound, inclusive
+    string lower = 2; // Lower bound, inclusive by default
+    string upper = 3; // Upper bound, inclusive by default
+    bool lowerExclusive = 4; // Set true to make lower bound exclusive
+    bool upperExclusive = 5; // Set true to make upper bound exclusive
 }
 
 // A query that matches documents with geopoint within the geo box. The topLeft and bottomRight values though provided as strings will be converted to the Double.
@@ -166,10 +190,22 @@ message GeoBoundingBoxQuery {
     google.type.LatLng bottomRight = 3; // bottom right corner of the geo box
 }
 
+// A query that matches documents with geo point within the radius of target geo point
+message GeoRadiusQuery {
+    string field = 1; // Field in the document to query
+    google.type.LatLng center = 2; // target center geo point to calculate distance
+    string radius = 3; // distance radius  like "12 km". supports m, km and mi, default to m
+}
+
 // A query that matches documents with polygon that contains the geo point.
 message GeoPointQuery {
     string field = 1; // Field in the document to query
     google.type.LatLng point = 2; // point used to query whether the polygon contains it.
+}
+
+// A query that matches documents which contain an value for a field.
+message ExistsQuery {
+    string field = 1; // Field in the document to query
 }
 
 // Defines different types of QueryNodes.
@@ -187,6 +223,9 @@ enum QueryType {
     RANGE = 10;
     GEO_BOUNDING_BOX = 11;
     GEO_POINT = 12;
+    NESTED = 13;
+    EXISTS = 14;
+    GEO_RADIUS = 15;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -207,13 +246,17 @@ message Query {
         RangeQuery rangeQuery = 12;
         GeoBoundingBoxQuery geoBoundingBoxQuery = 13;
         GeoPointQuery geoPointQuery = 14;
+        NestedQuery nestedQuery = 15;
+        ExistsQuery existsQuery = 16;
+        GeoRadiusQuery geoRadiusQuery = 17;
+        FunctionFilterQuery functionFilterQuery = 18;
     }
 }
 
 message SearchRequest {
     string indexName = 1; //index to search against
     int32 startHit = 2; // Which hit to start from (for pagination); default: 0
-    int32 topHits = 3; // How many top hits to retrieve; default: 10
+    int32 topHits = 3; // How many top hits to retrieve; default: 10. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
     /* Maximum number of seconds spent on each collection phase; note that for
      * multi-pass searches (e.g. query-time grouping), this timeout applies to each phase. */
     double timeoutSec = 4;
@@ -229,6 +272,14 @@ message SearchRequest {
     }
     int32 totalHitsThreshold = 13; //By default we count hits accurately up to 1000. This makes sure that we don't spend most time on computing hit counts
     repeated Facet facets = 14; // Which facets to retrieve
+    repeated FetchTask fetchTasks = 15; //Any custom tasks that should be performed on top documents after ranking
+    bool disallowPartialResults = 16; //Should partial result be a failure condition. Applies when a search request times out. If false, the top documents ranking at the point of timeout are used and the request continues. Also, hitTimeout is set to true in the response.
+    string queryNestedPath = 17; //nested path we want to query by if we want to query child documents.
+    repeated Rescorer rescorers = 18; // Rescorers which are executed in-order after the first pass
+    //If detailed request execution profiling should be included in the response
+    bool profile = 19;
+    //Check the search timeout condition after each collection of n documents in a segment. If 0, timeout is only checked on the segment boundary.
+    int32 timeoutCheckEvery = 20;
 }
 
 /* Virtual field used during search */
@@ -335,6 +386,8 @@ message SearchResponse {
         double getFieldsTimeMs = 6;
         double newSnapshotSearcherOpenMs = 7;
         double nrtWaitTimeMs = 8;
+        map<string, double> facetTimeMs = 9;
+        double rescoreTimeMs = 10;
     }
 
     message Hit {
@@ -347,6 +400,7 @@ message SearchResponse {
                 float floatValue = 5; // Value for FLOAT FieldType
                 double doubleValue = 6; // Value for DOUBLE FieldType
                 google.type.LatLng latLngValue = 7; // Value for LAT_LON FieldType
+                google.protobuf.Struct structValue = 8; // Value for structured data
             }
         }
 
@@ -369,11 +423,13 @@ message SearchResponse {
     }
 
     Diagnostics diagnostics = 1;
-    bool hitTimeout = 2;
+    bool hitTimeout = 2; // Set to true if search times out and a degraded response is returned
     TotalHits totalHits = 3;
     repeated Hit hits = 4;
     SearchState searchState = 5;
     repeated FacetResult facetResult = 6; ////Counts or aggregates for a single dimension
+    // Detailed stats returned when profile=true in request
+    ProfileResult profileResult = 7;
 }
 
 message NumericRangeType {
@@ -409,4 +465,64 @@ message FacetResult {
 message LabelAndValue {
     string label = 1; //Facet's label.
     double value = 2; // Value associated with this label.
+}
+
+message FetchTask {
+    string name = 1; //Name of task, as registered by a FetchTaskPlugin
+    google.protobuf.Struct params = 2; //Optional task parameters
+}
+
+// Defines an entry point for using a rescorer from plugin
+message PluginRescorer {
+    string name = 1;
+    google.protobuf.Struct params = 2; // arguments passed to the plugin
+}
+
+// Defines a rescorer which uses query to rescore documents in the second pass
+message QueryRescorer {
+    Query rescoreQuery = 1;
+    double queryWeight = 2;
+    double rescoreQueryWeight = 3;
+
+}
+
+// Defines a rescorer which is executed after the first search pass
+message Rescorer {
+    int32 windowSize = 1;
+    oneof Rescorers {
+        QueryRescorer queryRescorer = 2;
+        PluginRescorer pluginRescorer = 3;
+    }
+}
+
+// Defines detailed profiling stats for queries that set profile=true
+message ProfileResult {
+    message CollectorStats {
+        // If collection for this index slice was terminated early, such as by a timeout.
+        bool terminated = 1;
+        repeated SegmentStats segmentStats = 2;
+    }
+
+    message SegmentStats {
+        // Total docs in segment
+        int32 maxDoc = 1;
+        // Total live docs in segment
+        int32 numDocs = 2;
+        // How many docs were collected
+        int32 collectedCount = 3;
+        // Start time of segment processing in relation to the start of the search phase
+        double relativeStartTimeMs = 4;
+        // Collection duration
+        double collectTimeMs = 5;
+    }
+
+    message SearchStats {
+        // Total time for all document collection
+        double totalCollectTimeMs = 1;
+        // Total time to reduce results from all parallel search slices
+        double totalReduceTimeMs = 2;
+        repeated CollectorStats collectorStats = 3;
+    }
+
+    SearchStats searchStats = 1;
 }

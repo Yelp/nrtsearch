@@ -53,7 +53,7 @@ import org.apache.lucene.util.CloseableThreadLocal;
 
 /** Field class for 'DATE_TIME' field type. */
 public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, RangeQueryable {
-  private static final long MIN_DATE_TIME = 0;
+  private static final String EPOCH_MILLIS = "epoch_millis";
 
   private final CloseableThreadLocal<DateTimeParser> dateTimeParsers;
   private final String dateTimeFormat;
@@ -74,16 +74,23 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
 
   @Override
   public Query getRangeQuery(RangeQuery rangeQuery) {
-    DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(getDateTimeFormat());
+    String dateTimeFormat = getDateTimeFormat();
 
     long lower =
         rangeQuery.getLower().isEmpty()
-            ? MIN_DATE_TIME
-            : convertDateStringToMillis(rangeQuery.getLower(), dateTimeFormatter);
+            ? Long.MIN_VALUE
+            : convertDateStringToMillis(rangeQuery.getLower(), dateTimeFormat);
     long upper =
         rangeQuery.getUpper().isEmpty()
             ? Long.MAX_VALUE
-            : convertDateStringToMillis(rangeQuery.getUpper(), dateTimeFormatter);
+            : convertDateStringToMillis(rangeQuery.getUpper(), dateTimeFormat);
+
+    if (rangeQuery.getLowerExclusive()) {
+      lower = Math.addExact(lower, 1);
+    }
+    if (rangeQuery.getUpperExclusive()) {
+      upper = Math.addExact(upper, -1);
+    }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
     Query pointQuery = LongPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
@@ -97,11 +104,15 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
     return new IndexOrDocValuesQuery(pointQuery, dvQuery);
   }
 
-  private static long convertDateStringToMillis(
-      String dateString, DateTimeFormatter dateTimeFormatter) {
-    return LocalDateTime.parse(dateString, dateTimeFormatter)
-        .toInstant(ZoneOffset.UTC)
-        .toEpochMilli();
+  private static long convertDateStringToMillis(String dateString, String dateTimeFormat) {
+    if (dateTimeFormat.equals(EPOCH_MILLIS)) {
+      return Long.parseLong(dateString);
+    } else {
+      DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(dateTimeFormat);
+      return LocalDateTime.parse(dateString, dateTimeFormatter)
+          .toInstant(ZoneOffset.UTC)
+          .toEpochMilli();
+    }
   }
 
   private void ensureUpperIsMoreThanLower(RangeQuery rangeQuery, long lower, long upper) {
@@ -150,7 +161,10 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
 
     // make sure the format is valid:
     try {
-      new SimpleDateFormat(requestField.getDateTimeFormat());
+      String dateTimeFormat = requestField.getDateTimeFormat();
+      if (!dateTimeFormat.equals(EPOCH_MILLIS)) {
+        new SimpleDateFormat(dateTimeFormat);
+      }
     } catch (IllegalArgumentException iae) {
       throw new IllegalArgumentException("dateTimeFormat could not parse pattern", iae);
     }
@@ -227,6 +241,14 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
   }
 
   private long getTimeToIndex(String dateString) {
+    if (getDateTimeFormat().equals(EPOCH_MILLIS)) {
+      return getTimeFromEpochMillisString(dateString);
+    } else {
+      return getTimeFromDateTimeString(dateString);
+    }
+  }
+
+  private long getTimeFromDateTimeString(String dateString) {
     DateTimeParser parser = getDateTimeParser();
     parser.position.setIndex(0);
     Date date = parser.parser.parse(dateString, parser.position);
@@ -241,6 +263,19 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
       throw new IllegalArgumentException(format);
     }
     return date.getTime();
+  }
+
+  private long getTimeFromEpochMillisString(String epochMillisString) {
+    String format =
+        String.format(
+            "%s could not parse %s as date_time with format %s",
+            getName(), epochMillisString, dateTimeFormat);
+    try {
+      long epochMillis = Long.parseLong(epochMillisString);
+      return epochMillis;
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException(format, e);
+    }
   }
 
   @Override

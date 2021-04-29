@@ -17,9 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
-import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.LongToDoubleFunction;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -89,6 +89,13 @@ public class LongFieldDef extends NumberFieldDef {
         rangeQuery.getLower().isEmpty() ? Long.MIN_VALUE : Long.parseLong(rangeQuery.getLower());
     long upper =
         rangeQuery.getUpper().isEmpty() ? Long.MAX_VALUE : Long.parseLong(rangeQuery.getUpper());
+
+    if (rangeQuery.getLowerExclusive()) {
+      lower = Math.addExact(lower, 1);
+    }
+    if (rangeQuery.getUpperExclusive()) {
+      upper = Math.addExact(upper, -1);
+    }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
     Query pointQuery = LongPoint.newRangeQuery(rangeQuery.getField(), lower, upper);
@@ -110,12 +117,35 @@ public class LongFieldDef extends NumberFieldDef {
   }
 
   @Override
-  public Query getTermQuery(TermQuery termQuery) {
-    return LongPoint.newExactQuery(getName(), termQuery.getLongValue());
+  public Query getTermQueryFromLongValue(long longValue) {
+    return LongPoint.newExactQuery(getName(), longValue);
   }
 
   @Override
-  public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
-    return LongPoint.newSetQuery(getName(), termInSetQuery.getLongTerms().getTermsList());
+  public Query getTermInSetQueryFromLongValues(List<Long> longValues) {
+    return LongPoint.newSetQuery(getName(), longValues);
+  }
+
+  @Override
+  public Query getTermQueryFromTextValue(String textValue) {
+    return LongPoint.newExactQuery(getName(), Long.parseLong(textValue));
+  }
+
+  @Override
+  public Query getTermInSetQueryFromTextValues(List<String> textValues) {
+    List<Long> longTerms = new ArrayList(textValues.size());
+    textValues.forEach((s) -> longTerms.add(Long.parseLong(s)));
+    return LongPoint.newSetQuery(getName(), longTerms);
+  }
+
+  protected Number parseNumberString(String numberString) {
+    // Long::valueOf will fail for cases like 1.0
+    // GSON will convert all numbers to float during deserialization
+    // for cases like 1.0, use double parser to parse the value
+    if (numberString.indexOf('.') == -1) {
+      return super.parseNumberString(numberString);
+    } else {
+      return DOUBLE_PARSER.apply(numberString).longValue();
+    }
   }
 }

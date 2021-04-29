@@ -25,13 +25,18 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.List;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.ShapeField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.geo.Polygon;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 
 public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryable {
 
@@ -50,19 +55,16 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
               getName()));
     }
 
-    if (requestField.getStore()) {
-      throw new IllegalArgumentException("polygon fields cannot be stored");
-    }
-
     if (hasAnalyzer(requestField)) {
       throw new IllegalArgumentException("no analyzer allowed on polygon field");
     }
   }
 
+  @Override
   protected DocValuesType parseDocValuesType(Field requestField) {
-    // ES does not support geoshape doc value
-    // polygon can only be retrieved from _source in ES
-    // TODO: figure out later for nrtsearch
+    if (requestField.getStoreDocValues()) {
+      return DocValuesType.BINARY;
+    }
     return DocValuesType.NONE;
   }
 
@@ -73,15 +75,6 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
       throw new IllegalArgumentException("polygon length cannot be more than 1.");
     }
     for (String fieldValue : fieldValues) {
-      /**
-       * Map<String, Object> geojson = gson.fromJson(fieldValue, Map.class); if
-       * (!geojson.get("type").equals("polygon")) { throw new IllegalArgumentException( "Non
-       * supported types. Only polygon type is supported." ); } List<List<List<Double>>> coordinates
-       * = (List<List<List<Double>>>) geojson.get("coordinates"); List<List<Double>> outer =
-       * coordinates.get(0); List<List<List<Double>>> holes = coordinates.subList(1,
-       * coordinates.size()); Polygon[] holesArray = (Polygon[]) ( holes.stream().map(hole ->
-       * generatePolygon(hole, new Polygon[0])) ).toArray();
-       */
       Polygon[] polygons;
       try {
         polygons = Polygon.fromGeoJSON(fieldValue);
@@ -94,15 +87,18 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
 
       Arrays.stream(LatLonShape.createIndexableFields(getName(), polygons[0]))
           .forEach(x -> document.add(x));
+
+      if (isStored()) {
+        document.add(new StoredField(this.getName(), fieldValue));
+      }
+    }
+    if (hasDocValues()) {
+      document.add(
+          new BinaryDocValuesField(
+              getName(), new BytesRef(ObjectFieldDef.wrapJsonStringList(fieldValues))));
     }
   }
 
-  /**
-   * private Polygon generatePolygon(List<List<Double>> points, Polygon[] holes) { double[] lats =
-   * new double[points.size()]; double[] lngs = new double[points.size()]; for (int i = 0; i <
-   * points.size(); i++) { lngs[i] = points.get(i).get(0); lats[i] = points.get(i).get(1); } return
-   * new Polygon(lats, lngs, holes); }
-   */
   @Override
   public String getType() {
     return "POLYGON";
@@ -110,8 +106,11 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
 
   @Override
   public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
-    // TODO: figure out later
-    return null;
+    if (docValuesType == DocValuesType.BINARY) {
+      BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
+      return new LoadedDocValues.ObjectJsonDocValues(binaryDocValues);
+    }
+    throw new IllegalStateException("Unsupported doc value type: " + docValuesType);
   }
 
   @Override

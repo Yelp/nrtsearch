@@ -21,6 +21,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
 import com.yelp.nrtsearch.server.grpc.BuildSuggestRequest;
 import com.yelp.nrtsearch.server.grpc.BuildSuggestResponse;
 import com.yelp.nrtsearch.server.grpc.FuzzySuggester;
@@ -30,8 +31,9 @@ import com.yelp.nrtsearch.server.grpc.SuggestLookupHighlight;
 import com.yelp.nrtsearch.server.grpc.SuggestNonLocalSource;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.suggest.CompletionInfixSuggester;
-import com.yelp.nrtsearch.server.luceneserver.suggest.FromProtobufFileSuggestItemIterator;
 import com.yelp.nrtsearch.server.luceneserver.suggest.FuzzyInfixSuggester;
+import com.yelp.nrtsearch.server.luceneserver.suggest.iterator.FromProtobufFileSuggestItemIterator;
+import com.yelp.nrtsearch.server.luceneserver.suggest.iterator.SuggestDocumentDictionary;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
@@ -225,7 +227,9 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
       suggester =
           new AnalyzingInfixSuggester(
-              indexState.df.open(indexState.rootDir.resolve("suggest." + suggestName + ".infix")),
+              indexState.df.open(
+                  indexState.rootDir.resolve("suggest." + suggestName + ".infix"),
+                  IndexPreloadConfig.PRELOAD_ALL),
               indexAnalyzer,
               queryAnalyzer,
               AnalyzingInfixSuggester.DEFAULT_MIN_PREFIX_CHARS,
@@ -316,7 +320,9 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
       suggester =
           new CompletionInfixSuggester(
-              indexState.df.open(indexState.rootDir.resolve("suggest." + suggestName + ".infix")),
+              indexState.df.open(
+                  indexState.rootDir.resolve("suggest." + suggestName + ".infix"),
+                  IndexPreloadConfig.PRELOAD_ALL),
               indexAnalyzer,
               queryAnalyzer);
     } else if (buildSuggestRequest.hasFuzzyInfixSuggester()) {
@@ -353,7 +359,9 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
       suggester =
           new FuzzyInfixSuggester(
-              indexState.df.open(indexState.rootDir.resolve("suggest." + suggestName + ".infix")),
+              indexState.df.open(
+                  indexState.rootDir.resolve("suggest." + suggestName + ".infix"),
+                  IndexPreloadConfig.PRELOAD_ALL),
               indexAnalyzer,
               queryAnalyzer,
               maxEdits,
@@ -498,7 +506,9 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
       // Pull suggestions from local file:
       try {
         if (hasMultiSearchTexts) {
-          iterator = new FromProtobufFileSuggestItemIterator(localFile, hasContexts, hasPayload);
+          iterator =
+              new FromProtobufFileSuggestItemIterator(
+                  localFile, hasContexts, hasPayload, hasMultiSearchTexts);
         } else {
           iterator = new FromFileTermFreqIterator(localFile, hasContexts);
         }
@@ -541,13 +551,23 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
       String payloadField = nonLocalSource.getPayloadField();
       String contextField = nonLocalSource.getContextField();
+      String searchTextField = nonLocalSource.getSearchTextField();
 
       DocumentDictionary dict;
 
       if (weightCase.equals(SuggestNonLocalSource.WeightCase.WEIGHTFIELD)) {
         // Weight is a field
         String weightField = nonLocalSource.getWeightField();
-        if (contextField.isEmpty()) {
+        if (!payloadField.isEmpty() && !contextField.isEmpty() && !searchTextField.isEmpty()) {
+          dict =
+              new SuggestDocumentDictionary(
+                  searcher.searcher.getIndexReader(),
+                  suggestField,
+                  weightField,
+                  payloadField,
+                  contextField,
+                  searchTextField);
+        } else if (contextField.isEmpty()) {
           dict =
               new DocumentDictionary(
                   searcher.searcher.getIndexReader(), suggestField, weightField, payloadField);

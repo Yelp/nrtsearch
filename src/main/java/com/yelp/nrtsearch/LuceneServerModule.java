@@ -105,7 +105,12 @@ public class LuceneServerModule extends AbstractModule {
   protected Archiver providesArchiver(
       LuceneServerConfiguration luceneServerConfiguration, AmazonS3 amazonS3, Tar tar) {
     Path archiveDir = Paths.get(luceneServerConfiguration.getArchiveDirectory());
-    return new ArchiverImpl(amazonS3, luceneServerConfiguration.getBucketName(), archiveDir, tar);
+    return new ArchiverImpl(
+        amazonS3,
+        luceneServerConfiguration.getBucketName(),
+        archiveDir,
+        tar,
+        luceneServerConfiguration.getDownloadAsStream());
   }
 
   @Inject

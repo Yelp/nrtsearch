@@ -54,6 +54,29 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
               "set addDocumentsMaxBufferLen: %s",
               liveSettingsRequest.getAddDocumentsMaxBufferLen()));
     }
+    if (liveSettingsRequest.getSliceMaxDocs() != 0) {
+      indexState.setSliceMaxDocs(liveSettingsRequest.getSliceMaxDocs());
+      logger.info(String.format("set sliceMaxDocs: %s", liveSettingsRequest.getSliceMaxDocs()));
+    }
+    if (liveSettingsRequest.getSliceMaxSegments() != 0) {
+      indexState.setSliceMaxSegments(liveSettingsRequest.getSliceMaxSegments());
+      logger.info(
+          String.format("set sliceMaxSegments: %s", liveSettingsRequest.getSliceMaxSegments()));
+    }
+    if (liveSettingsRequest.getVirtualShards() != 0) {
+      indexState.setVirtualShards(liveSettingsRequest.getVirtualShards());
+      logger.info(String.format("set virtualShards: %s", liveSettingsRequest.getVirtualShards()));
+    }
+    if (liveSettingsRequest.getMaxMergedSegmentMB() != 0) {
+      indexState.setMaxMergedSegmentMB(liveSettingsRequest.getMaxMergedSegmentMB());
+      logger.info(
+          String.format("set maxMergedSegmentMB: %s", liveSettingsRequest.getMaxMergedSegmentMB()));
+    }
+    if (liveSettingsRequest.getSegmentsPerTier() != 0) {
+      indexState.setSegmentsPerTier(liveSettingsRequest.getSegmentsPerTier());
+      logger.info(
+          String.format("set segmentsPerTier: %s", liveSettingsRequest.getSegmentsPerTier()));
+    }
     String response = indexState.getLiveSettingsJSON();
     LiveSettingsResponse reply = LiveSettingsResponse.newBuilder().setResponse(response).build();
     return reply;

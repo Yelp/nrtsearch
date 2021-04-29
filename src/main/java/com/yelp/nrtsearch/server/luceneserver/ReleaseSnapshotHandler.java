@@ -27,13 +27,11 @@ public class ReleaseSnapshotHandler
 
   @Override
   public ReleaseSnapshotResponse handle(
-      IndexState indexState, ReleaseSnapshotRequest releaseSnapshotRequest)
-      throws HandlerException {
+      IndexState indexState, ReleaseSnapshotRequest releaseSnapshotRequest) {
     final ShardState shardState = indexState.getShard(0);
     final IndexState.Gens gens =
         new IndexState.Gens(
-            CreateSnapshotHandler.getSnapshotIdAsString(releaseSnapshotRequest.getSnapshotId()),
-            "id");
+            CreateSnapshotHandler.getSnapshotIdAsString(releaseSnapshotRequest.getSnapshotId()));
     // SearcherLifetimeManager pruning thread will drop
     // the searcher (if it's old enough) next time it
     // wakes up:

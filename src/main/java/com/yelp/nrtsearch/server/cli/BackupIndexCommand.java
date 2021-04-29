@@ -55,11 +55,32 @@ public class BackupIndexCommand implements Callable<Integer> {
     return resourceName;
   }
 
+  @CommandLine.Option(
+      names = {"-c", "--completeDirectory"},
+      description =
+          "Backup complete directory including all current snapshots if true (may backup corrupt segments if backup is created while indexing is happening), otherwise only backup the required segments and segment files")
+  private boolean completeDirectory;
+
+  public boolean getCompleteDirectory() {
+    return completeDirectory;
+  }
+
+  @CommandLine.Option(
+      names = {"--stream"},
+      description =
+          "Stream the index archive directly to s3, instead of writing to a file first (experimental)")
+  private boolean stream;
+
+  public boolean getStream() {
+    return stream;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
     try {
-      client.backupIndex(getIndexName(), getServiceName(), getResourceName());
+      client.backupIndex(
+          getIndexName(), getServiceName(), getResourceName(), getCompleteDirectory(), getStream());
     } finally {
       client.shutdown();
     }

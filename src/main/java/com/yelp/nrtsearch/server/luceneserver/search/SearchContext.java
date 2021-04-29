@@ -19,7 +19,9 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -40,6 +42,8 @@ public class SearchContext {
   private final Map<String, FieldDef> retrieveFields;
   private final Query query;
   private final DocCollector collector;
+  private final FetchTasks fetchTasks;
+  private final List<RescoreTask> rescorers;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -53,6 +57,8 @@ public class SearchContext {
     this.retrieveFields = builder.retrieveFields;
     this.query = builder.query;
     this.collector = builder.collector;
+    this.fetchTasks = builder.fetchTasks;
+    this.rescorers = builder.rescorers;
 
     if (validate) {
       validate();
@@ -117,6 +123,16 @@ public class SearchContext {
     return collector;
   }
 
+  /** Get any extra tasks that should be run during fetch */
+  public FetchTasks getFetchTasks() {
+    return fetchTasks;
+  }
+
+  /** Get rescorers that should be executed after the first pass */
+  public List<RescoreTask> getRescorers() {
+    return rescorers;
+  }
+
   /** Get new context builder instance * */
   public static Builder newBuilder() {
     return new Builder();
@@ -131,6 +147,8 @@ public class SearchContext {
     Objects.requireNonNull(retrieveFields);
     Objects.requireNonNull(query);
     Objects.requireNonNull(collector);
+    Objects.requireNonNull(fetchTasks);
+    Objects.requireNonNull(rescorers);
 
     if (timestampSec < 0) {
       throw new IllegalStateException("Invalid timestamp value: " + timestampSec);
@@ -145,6 +163,7 @@ public class SearchContext {
 
   /** Builder class for search context. */
   public static class Builder {
+
     private IndexState indexState;
     private ShardState shardState;
     private SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy;
@@ -157,6 +176,8 @@ public class SearchContext {
     private Map<String, FieldDef> retrieveFields;
     private Query query;
     private DocCollector collector;
+    private FetchTasks fetchTasks;
+    private List<RescoreTask> rescorers;
 
     private Builder() {}
 
@@ -226,6 +247,18 @@ public class SearchContext {
     /** Set collector for query. */
     public Builder setCollector(DocCollector collector) {
       this.collector = collector;
+      return this;
+    }
+
+    /** Set any extra tasks that should be run during fetch */
+    public Builder setFetchTasks(FetchTasks fetchTasks) {
+      this.fetchTasks = fetchTasks;
+      return this;
+    }
+
+    /** Set rescorers that should be executed after the first pass */
+    public Builder setRescorers(List<RescoreTask> rescorers) {
+      this.rescorers = rescorers;
       return this;
     }
 

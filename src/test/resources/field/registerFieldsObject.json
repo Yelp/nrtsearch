@@ -1,0 +1,85 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "real_id",
+      "type": "_ID",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "dummy_object",
+      "type": "OBJECT",
+      "multiValued": true,
+      "store": false,
+      "storeDocValues": true
+    },
+    {
+      "name": "pickup_partners",
+      "type": "OBJECT",
+      "search": true,
+      "nestedDoc": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "name",
+          "type": "ATOM",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "hours",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        }
+      ]
+    },
+    {
+      "name": "delivery_areas",
+      "type": "OBJECT",
+      "search": true,
+      "store": false,
+      "storeDocValues": true,
+      "childFields": [
+        {
+          "name": "hours",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "zipcode",
+          "type": "ATOM",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "partner",
+          "type": "OBJECT",
+          "search": true,
+          "childFields": [
+            {
+              "name": "partner_id",
+              "type": "ATOM",
+              "search": true,
+              "storeDocValues": true
+            },
+            {
+              "name": "partner_name",
+              "type": "ATOM",
+              "search": true,
+              "storeDocValues": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

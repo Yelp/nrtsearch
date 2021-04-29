@@ -15,6 +15,8 @@ option java_package = "com.yelp.nrtsearch.server.grpc";
 option java_outer_classname = "LuceneServerProto";
 option objc_class_prefix = "HLW";
 
+option go_package = "github.com/Yelp/nrtsearch";
+
 package luceneserver;
 
 // The LuceneServer service definition.
@@ -287,9 +289,30 @@ service LuceneServer {
     };
     }
 
+    /*
+    Forces merge policy to merge segments until there are <= maxNumSegments. The actual
+    merges to be executed are determined by the MergePolicy. This call will merge those
+    segments present in the index when the call started. If other threads are still
+    adding documents and flushing segments, those newly created segments will not be
+    merged unless you call forceMerge again.
+    */
     rpc forceMerge(ForceMergeRequest) returns (ForceMergeResponse) {
         option (google.api.http) = {
       post: "/v1/force_merge"
+      body: "*"
+    };
+    }
+
+    /*
+    Forces merging of all segments that have deleted documents. The actual merges to be
+    executed are determined by the MergePolicy. For example, the default TieredMergePolicy
+    will only pick a segment if the percentage of deleted docs is over 10%.
+    This method first flushes a new segment (if there are indexed documents), and applies
+    all buffered deletes.
+    */
+    rpc forceMergeDeletes(ForceMergeDeletesRequest) returns (ForceMergeDeletesResponse) {
+        option (google.api.http) = {
+      post: "/v1/force_merge_deletes"
       body: "*"
     };
     }
@@ -350,6 +373,16 @@ message LiveSettingsRequest {
     double indexRamBufferSizeMB = 5;
     //Max number of documents to add at a time.
     int32 addDocumentsMaxBufferLen = 6;
+    //Maximum number of documents allowed in a parallel search slice.
+    int32 sliceMaxDocs = 7;
+    //Maximum number of segments allowed in a parallel search slice.
+    int32 sliceMaxSegments = 8;
+    //Number of virtual shards to use for this index.
+    int32 virtualShards = 9;
+    //Maximum sized segment to produce during normal merging
+    int32 maxMergedSegmentMB = 10;
+    //Number of segments per tier used by TieredMergePolicy
+    int32 segmentsPerTier = 11;
 }
 
 /* Response from Server to liveSettings */
@@ -375,6 +408,7 @@ enum FieldType {
     CUSTOM = 11; // Field type specified by name.
     _ID = 12; // Field which will be used as document IDs
     POLYGON = 13; // Geojson string for polygon
+    OBJECT = 14; // JSON
 }
 
 //How the tokens should be indexed.
@@ -415,7 +449,7 @@ message Field {
     bool multiValued = 9; // True if this field may sometimes have more than one value.
     bool highlight = 10; // True if the value should be indexed for highlighting.
     bool omitNorms = 11; // True if norms are omitted.
-    string dateTimeFormat = 12; // Format string used to parse datetime fields
+    string dateTimeFormat = 12; // Format string used to parse datetime fields, supported values are: 1) DateTimeFormatter format 2) "epoch_millis" (datetime value is epoch timestamp)
     string postingsFormat = 13; // Which PostingsFormat should be used to index this field.
     string docValuesFormat = 14; // Which DocValuesFormat should be used to index this field.
     IndexOptions indexOptions = 15; //How the tokens should be indexed.
@@ -432,6 +466,9 @@ message Field {
     google.protobuf.Struct additionalProperties = 24; // Additional info needed to configure field, used for CUSTOM types.
     google.protobuf.Struct similarityParams = 25; // Parameters for similarity implementation.
     repeated Field childFields = 26; // Child fields accessible by dot notation, index same data as parent
+
+    bool eagerGlobalOrdinals = 27; // Compute facet global ordinals for this field up front, otherwise this is done lazily on first query. Currently only for SORTED_SET_DOC_VALUES facet type.
+    bool nestedDoc = 28; // True if object data should be indexed as child documents
 }
 
 /* Input to registerFields */
@@ -645,6 +682,8 @@ message BackupIndexRequest {
     string indexName = 1; //name of the index to backup
     string serviceName = 2; // remote storage namespace qualifier for service
     string resourceName = 3; //remote storage namespace qualifier for resource e.g. indexName
+    bool completeDirectory = 4; // backup complete directory including all current snapshots if true (may backup corrupt segments if backup is created while indexing is happening), otherwise only backup the required segments and segment files
+    bool stream = 5; // if the built tar should be directly streamed to s3, instead of being written to a file first (experimental)
 }
 
 message BackupIndexResponse {
@@ -660,7 +699,10 @@ message DeleteIndexBackupRequest {
 }
 
 message DeleteIndexBackupResponse {
-    repeated string deletedVersionHashes = 1; // version hashes of backups which were deleted
+    repeated string deletedResourceDataHashes = 1;     // version hashes of deleted backups from {resource}_data folder
+    repeated string deletedResourceMetadataHashes = 2; // version hashes of deleted metadata of backups from {resource}_metadata folder
+    repeated string deletedDataVersions = 3;           // versions of deleted backup data from _version/{resource}_data folder
+    repeated string deletedMetadataVersions = 4;       // versions of deleted backup data from _version/{resource}_metadata folder
 }
 
 message IndicesRequest {
@@ -828,6 +870,19 @@ message ForceMergeResponse {
     enum Status {
         FORCE_MERGE_COMPLETED = 0;
         FORCE_MERGE_SUBMITTED = 1;
+    }
+    Status status = 1;
+}
+
+message ForceMergeDeletesRequest {
+    string indexName = 1; // Index whose segments having deletes must be force merged
+    bool doWait = 2; // If true, waits until the force merge is completed before returning a response. Otherwise starts force merging in async and returns a response.
+}
+
+message ForceMergeDeletesResponse {
+    enum Status {
+        FORCE_MERGE_DELETES_COMPLETED = 0;
+        FORCE_MERGE_DELETES_SUBMITTED = 1;
     }
     Status status = 1;
 }

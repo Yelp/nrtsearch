@@ -366,6 +366,7 @@
     },
     "/v1/force_merge": {
       "post": {
+        "summary": "Forces merge policy to merge segments until there are \u003c= maxNumSegments. The actual\nmerges to be executed are determined by the MergePolicy. This call will merge those\nsegments present in the index when the call started. If other threads are still\nadding documents and flushing segments, those newly created segments will not be\nmerged unless you call forceMerge again.",
         "operationId": "LuceneServer_forceMerge",
         "responses": {
           "200": {
@@ -388,6 +389,39 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/luceneserverForceMergeRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/force_merge_deletes": {
+      "post": {
+        "summary": "Forces merging of all segments that have deleted documents. The actual merges to be\nexecuted are determined by the MergePolicy. For example, the default TieredMergePolicy\nwill only pick a segment if the percentage of deleted docs is over 10%.\nThis method first flushes a new segment (if there are indexed documents), and applies\nall buffered deletes.",
+        "operationId": "LuceneServer_forceMergeDeletes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverForceMergeDeletesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverForceMergeDeletesRequest"
             }
           }
         ],
@@ -1099,14 +1133,6 @@
       "default": "SHOULD",
       "description": "Defines how clauses may occur in matching documents. This will always be SHOULD by default."
     },
-    "ForceMergeResponseStatus": {
-      "type": "string",
-      "enum": [
-        "FORCE_MERGE_COMPLETED",
-        "FORCE_MERGE_SUBMITTED"
-      ],
-      "default": "FORCE_MERGE_COMPLETED"
-    },
     "HitCompositeFieldValue": {
       "type": "object",
       "properties": {
@@ -1145,6 +1171,86 @@
         },
         "latLngValue": {
           "$ref": "#/definitions/typeLatLng"
+        },
+        "structValue": {
+          "type": "object"
+        }
+      }
+    },
+    "NestedQueryScoreMode": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "AVG",
+        "MAX",
+        "MIN",
+        "SUM"
+      ],
+      "default": "NONE"
+    },
+    "ProfileResultCollectorStats": {
+      "type": "object",
+      "properties": {
+        "terminated": {
+          "type": "boolean",
+          "description": "If collection for this index slice was terminated early, such as by a timeout."
+        },
+        "segmentStats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ProfileResultSegmentStats"
+          }
+        }
+      }
+    },
+    "ProfileResultSearchStats": {
+      "type": "object",
+      "properties": {
+        "totalCollectTimeMs": {
+          "type": "number",
+          "format": "double",
+          "title": "Total time for all document collection"
+        },
+        "totalReduceTimeMs": {
+          "type": "number",
+          "format": "double",
+          "title": "Total time to reduce results from all parallel search slices"
+        },
+        "collectorStats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ProfileResultCollectorStats"
+          }
+        }
+      }
+    },
+    "ProfileResultSegmentStats": {
+      "type": "object",
+      "properties": {
+        "maxDoc": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Total docs in segment"
+        },
+        "numDocs": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Total live docs in segment"
+        },
+        "collectedCount": {
+          "type": "integer",
+          "format": "int32",
+          "title": "How many docs were collected"
+        },
+        "relativeStartTimeMs": {
+          "type": "number",
+          "format": "double",
+          "title": "Start time of segment processing in relation to the start of the search phase"
+        },
+        "collectTimeMs": {
+          "type": "number",
+          "format": "double",
+          "title": "Collection duration"
         }
       }
     },
@@ -1246,6 +1352,17 @@
           "format": "double"
         },
         "nrtWaitTimeMs": {
+          "type": "number",
+          "format": "double"
+        },
+        "facetTimeMs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "rescoreTimeMs": {
           "type": "number",
           "format": "double"
         }
@@ -1474,6 +1591,12 @@
         },
         "resourceName": {
           "type": "string"
+        },
+        "completeDirectory": {
+          "type": "boolean"
+        },
+        "stream": {
+          "type": "boolean"
         }
       }
     },
@@ -1794,7 +1917,25 @@
     "luceneserverDeleteIndexBackupResponse": {
       "type": "object",
       "properties": {
-        "deletedVersionHashes": {
+        "deletedResourceDataHashes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletedResourceMetadataHashes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletedDataVersions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "deletedMetadataVersions": {
           "type": "array",
           "items": {
             "type": "string"
@@ -1841,6 +1982,15 @@
           "type": "string"
         }
       }
+    },
+    "luceneserverExistsQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        }
+      },
+      "description": "A query that matches documents which contain an value for a field."
     },
     "luceneserverFacet": {
       "type": "object",
@@ -1939,6 +2089,17 @@
       "default": "NO_FACETS",
       "description": "Whether/How this field should index facets, and how."
     },
+    "luceneserverFetchTask": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object"
+        }
+      }
+    },
     "luceneserverField": {
       "type": "object",
       "properties": {
@@ -2024,6 +2185,12 @@
           "items": {
             "$ref": "#/definitions/luceneserverField"
           }
+        },
+        "eagerGlobalOrdinals": {
+          "type": "boolean"
+        },
+        "nestedDoc": {
+          "type": "boolean"
         }
       }
     },
@@ -2067,7 +2234,8 @@
         "INTERNAL",
         "CUSTOM",
         "_ID",
-        "POLYGON"
+        "POLYGON",
+        "OBJECT"
       ],
       "default": "ATOM",
       "description": "- VIRTUAL: TODO name this \"dynamic\" instead of \"virtual\"?\n - INTERNAL: TODO need tests for internal:",
@@ -2120,6 +2288,33 @@
         }
       }
     },
+    "luceneserverForceMergeDeletesRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string"
+        },
+        "doWait": {
+          "type": "boolean"
+        }
+      }
+    },
+    "luceneserverForceMergeDeletesResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/luceneserverForceMergeDeletesResponseStatus"
+        }
+      }
+    },
+    "luceneserverForceMergeDeletesResponseStatus": {
+      "type": "string",
+      "enum": [
+        "FORCE_MERGE_DELETES_COMPLETED",
+        "FORCE_MERGE_DELETES_SUBMITTED"
+      ],
+      "default": "FORCE_MERGE_DELETES_COMPLETED"
+    },
     "luceneserverForceMergeRequest": {
       "type": "object",
       "properties": {
@@ -2139,9 +2334,26 @@
       "type": "object",
       "properties": {
         "status": {
-          "$ref": "#/definitions/ForceMergeResponseStatus"
+          "$ref": "#/definitions/luceneserverForceMergeResponseStatus"
         }
       }
+    },
+    "luceneserverForceMergeResponseStatus": {
+      "type": "string",
+      "enum": [
+        "FORCE_MERGE_COMPLETED",
+        "FORCE_MERGE_SUBMITTED"
+      ],
+      "default": "FORCE_MERGE_COMPLETED"
+    },
+    "luceneserverFunctionFilterQuery": {
+      "type": "object",
+      "properties": {
+        "script": {
+          "$ref": "#/definitions/luceneserverScript"
+        }
+      },
+      "title": "A query that retrieves all documents with a positive score calculated by the script"
     },
     "luceneserverFunctionScoreQuery": {
       "type": "object",
@@ -2282,6 +2494,21 @@
       },
       "description": "A query that matches documents with polygon that contains the geo point."
     },
+    "luceneserverGeoRadiusQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "center": {
+          "$ref": "#/definitions/typeLatLng"
+        },
+        "radius": {
+          "type": "string"
+        }
+      },
+      "title": "A query that matches documents with geo point within the radius of target geo point"
+    },
     "luceneserverGetAllSnapshotGenResponse": {
       "type": "object",
       "properties": {
@@ -2413,6 +2640,31 @@
           "type": "integer",
           "format": "int32",
           "description": "Max number of documents to add at a time."
+        },
+        "sliceMaxDocs": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of documents allowed in a parallel search slice."
+        },
+        "sliceMaxSegments": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of segments allowed in a parallel search slice."
+        },
+        "virtualShards": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of virtual shards to use for this index."
+        },
+        "maxMergedSegmentMB": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Maximum sized segment to produce during normal merging"
+        },
+        "segmentsPerTier": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Number of segments per tier used by TieredMergePolicy"
         }
       },
       "title": "Input to liveSettings"
@@ -2540,6 +2792,20 @@
         }
       }
     },
+    "luceneserverNestedQuery": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery"
+        },
+        "path": {
+          "type": "string"
+        },
+        "scoreMode": {
+          "$ref": "#/definitions/NestedQueryScoreMode"
+        }
+      }
+    },
     "luceneserverNodeInfo": {
       "type": "object",
       "properties": {
@@ -2625,6 +2891,18 @@
       },
       "description": "A Query that matches documents containing a particular sequence of terms."
     },
+    "luceneserverPluginRescorer": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object"
+        }
+      },
+      "title": "Defines an entry point for using a rescorer from plugin"
+    },
     "luceneserverPoint": {
       "type": "object",
       "properties": {
@@ -2638,6 +2916,15 @@
         }
       },
       "title": "Point representation"
+    },
+    "luceneserverProfileResult": {
+      "type": "object",
+      "properties": {
+        "searchStats": {
+          "$ref": "#/definitions/ProfileResultSearchStats"
+        }
+      },
+      "title": "Defines detailed profiling stats for queries that set profile=true"
     },
     "luceneserverQuery": {
       "type": "object",
@@ -2684,9 +2971,38 @@
         },
         "geoPointQuery": {
           "$ref": "#/definitions/luceneserverGeoPointQuery"
+        },
+        "nestedQuery": {
+          "$ref": "#/definitions/luceneserverNestedQuery"
+        },
+        "existsQuery": {
+          "$ref": "#/definitions/luceneserverExistsQuery"
+        },
+        "geoRadiusQuery": {
+          "$ref": "#/definitions/luceneserverGeoRadiusQuery"
+        },
+        "functionFilterQuery": {
+          "$ref": "#/definitions/luceneserverFunctionFilterQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
+    },
+    "luceneserverQueryRescorer": {
+      "type": "object",
+      "properties": {
+        "rescoreQuery": {
+          "$ref": "#/definitions/luceneserverQuery"
+        },
+        "queryWeight": {
+          "type": "number",
+          "format": "double"
+        },
+        "rescoreQueryWeight": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "title": "Defines a rescorer which uses query to rescore documents in the second pass"
     },
     "luceneserverQuerySortField": {
       "type": "object",
@@ -2717,7 +3033,10 @@
         "MULTI_MATCH",
         "RANGE",
         "GEO_BOUNDING_BOX",
-        "GEO_POINT"
+        "GEO_POINT",
+        "NESTED",
+        "EXISTS",
+        "GEO_RADIUS"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."
@@ -2733,6 +3052,12 @@
         },
         "upper": {
           "type": "string"
+        },
+        "lowerExclusive": {
+          "type": "boolean"
+        },
+        "upperExclusive": {
+          "type": "boolean"
         }
       },
       "description": "A query that matches documents with values within the specified range. The lower and upper values though provided as strings will be converted to the type of the field. This works with INT, LONG, FLOAT, DOUBLE and DATE_TIME field types."
@@ -2781,6 +3106,22 @@
           "type": "boolean"
         }
       }
+    },
+    "luceneserverRescorer": {
+      "type": "object",
+      "properties": {
+        "windowSize": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "queryRescorer": {
+          "$ref": "#/definitions/luceneserverQueryRescorer"
+        },
+        "pluginRescorer": {
+          "$ref": "#/definitions/luceneserverPluginRescorer"
+        }
+      },
+      "title": "Defines a rescorer which is executed after the first search pass"
     },
     "luceneserverRestoreIndex": {
       "type": "object",
@@ -2870,6 +3211,33 @@
           "items": {
             "$ref": "#/definitions/luceneserverFacet"
           }
+        },
+        "fetchTasks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverFetchTask"
+          }
+        },
+        "disallowPartialResults": {
+          "type": "boolean"
+        },
+        "queryNestedPath": {
+          "type": "string"
+        },
+        "rescorers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverRescorer"
+          }
+        },
+        "profile": {
+          "type": "boolean",
+          "title": "If detailed request execution profiling should be included in the response"
+        },
+        "timeoutCheckEvery": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Check the search timeout condition after each collection of n documents in a segment. If 0, timeout is only checked on the segment boundary."
         }
       }
     },
@@ -2899,6 +3267,10 @@
           "items": {
             "$ref": "#/definitions/luceneserverFacetResult"
           }
+        },
+        "profileResult": {
+          "$ref": "#/definitions/luceneserverProfileResult",
+          "title": "Detailed stats returned when profile=true in request"
         }
       }
     },
@@ -3269,6 +3641,9 @@
           "type": "string"
         },
         "contextField": {
+          "type": "string"
+        },
+        "searchTextField": {
           "type": "string"
         }
       }

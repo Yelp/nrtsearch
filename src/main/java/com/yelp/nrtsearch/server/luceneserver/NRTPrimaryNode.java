@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
+import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -156,6 +157,8 @@ public class NRTPrimaryNode extends PrimaryNode {
     String msg = "send flushed version=" + version + " replica count " + replicasInfos.size();
     message(msg);
     logger.info(msg);
+    NrtMetrics.searcherVersion.labels(indexName).set(version);
+    NrtMetrics.nrtPrimaryPointCount.labels(indexName).inc();
 
     // Notify current replicas:
     Iterator<ReplicaDetails> it = replicasInfos.iterator();
@@ -241,6 +244,7 @@ public class NRTPrimaryNode extends PrimaryNode {
   @Override
   protected void preCopyMergedSegmentFiles(SegmentCommitInfo info, Map<String, FileMetaData> files)
       throws IOException {
+    long mergeStartNS = System.nanoTime();
     if (replicasInfos.isEmpty()) {
       logger.info("no replicas, skip warming " + info);
       message("no replicas; skip warming " + info);
@@ -356,48 +360,49 @@ public class NRTPrimaryNode extends PrimaryNode {
         }
 
         // Because a replica can suddenly start up and "join" into this merge pre-copy:
-        synchronized (preCopy.connections) {
-          Iterator<ReplicationServerClient> it = preCopy.connections.iterator();
-          while (it.hasNext()) {
-            ReplicationServerClient currentReplicationServerClient = it.next();
-            try {
-              Iterator<TransferStatus> transferStatusIterator =
-                  allCopyStatus.get(currentReplicationServerClient);
-              while (transferStatusIterator.hasNext()) {
-                TransferStatus transferStatus = transferStatusIterator.next();
-                logger.info(
-                    "transferStatus for replicationServerClient="
-                        + currentReplicationServerClient
-                        + " merge files="
-                        + files.keySet()
-                        + " code: "
-                        + transferStatus.getCode()
-                        + " message: "
-                        + transferStatus.getMessage());
-              }
-              it.remove();
-            } catch (Throwable t) {
-              String msg =
-                  "top: ignore exception trying to read byte during warm for segment="
-                      + info
-                      + " to replica="
+        List<ReplicationServerClient> currentConnections = new ArrayList<>(preCopy.connections);
+        for (ReplicationServerClient currentReplicationServerClient : currentConnections) {
+          try {
+            Iterator<TransferStatus> transferStatusIterator =
+                allCopyStatus.get(currentReplicationServerClient);
+            while (transferStatusIterator.hasNext()) {
+              TransferStatus transferStatus = transferStatusIterator.next();
+              logger.debug(
+                  "transferStatus for replicationServerClient="
                       + currentReplicationServerClient
-                      + ": "
-                      + t
-                      + " files="
-                      + files.keySet();
-              logger.warn(msg, t);
-              message(msg);
-              it.remove();
+                      + " merge files="
+                      + files.keySet()
+                      + " code: "
+                      + transferStatus.getCode()
+                      + " message: "
+                      + transferStatus.getMessage());
             }
+          } catch (Throwable t) {
+            String msg =
+                "top: ignore exception trying to read byte during warm for segment="
+                    + info
+                    + " to replica="
+                    + currentReplicationServerClient
+                    + ": "
+                    + t
+                    + " files="
+                    + files.keySet();
+            logger.warn(msg, t);
+            message(msg);
           }
         }
+        preCopy.connections.removeAll(currentConnections);
       }
       String msg = "top: done warming merge " + info;
       logger.info(msg);
       message(msg);
     } finally {
       warmingSegments.remove(preCopy);
+
+      // record metrics for this merge
+      NrtMetrics.nrtPrimaryMergeTime
+          .labels(indexName)
+          .observe((System.nanoTime() - mergeStartNS) / 1000000.0);
     }
   }
 

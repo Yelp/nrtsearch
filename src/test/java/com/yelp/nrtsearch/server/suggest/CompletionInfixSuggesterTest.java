@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.suggest;
 import com.google.protobuf.ByteString;
 import com.yelp.nrtsearch.server.grpc.NrtsearchIndex;
 import com.yelp.nrtsearch.server.luceneserver.suggest.CompletionInfixSuggester;
-import com.yelp.nrtsearch.server.luceneserver.suggest.FromProtobufFileSuggestItemIterator;
+import com.yelp.nrtsearch.server.luceneserver.suggest.iterator.FromProtobufFileSuggestItemIterator;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -216,6 +216,6 @@ public class CompletionInfixSuggesterTest extends LuceneTestCase {
             .writeDelimitedTo(protoFile);
       }
     }
-    return new FromProtobufFileSuggestItemIterator(outputFile, true, true);
+    return new FromProtobufFileSuggestItemIterator(outputFile, true, true, true);
   }
 }

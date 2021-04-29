@@ -17,9 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
-import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.LongToDoubleFunction;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.DoublePoint;
@@ -93,12 +93,18 @@ public class DoubleFieldDef extends NumberFieldDef {
   public Query getRangeQuery(RangeQuery rangeQuery) {
     double lower =
         rangeQuery.getLower().isEmpty()
-            ? Double.MIN_VALUE
+            ? Double.NEGATIVE_INFINITY
             : Double.parseDouble(rangeQuery.getLower());
     double upper =
         rangeQuery.getUpper().isEmpty()
-            ? Double.MAX_VALUE
+            ? Double.POSITIVE_INFINITY
             : Double.parseDouble(rangeQuery.getUpper());
+    if (rangeQuery.getLowerExclusive()) {
+      lower = DoublePoint.nextUp(lower);
+    }
+    if (rangeQuery.getUpperExclusive()) {
+      upper = DoublePoint.nextDown(upper);
+    }
     ensureUpperIsMoreThanLower(rangeQuery, lower, upper);
 
     Query pointQuery = DoublePoint.newRangeQuery(rangeQuery.getField(), lower, upper);
@@ -123,12 +129,24 @@ public class DoubleFieldDef extends NumberFieldDef {
   }
 
   @Override
-  public Query getTermQuery(TermQuery termQuery) {
-    return DoublePoint.newExactQuery(getName(), termQuery.getDoubleValue());
+  public Query getTermQueryFromDoubleValue(double doubleValue) {
+    return DoublePoint.newExactQuery(getName(), doubleValue);
   }
 
   @Override
-  public Query getTermInSetQuery(TermInSetQuery termInSetQuery) {
-    return DoublePoint.newSetQuery(getName(), termInSetQuery.getDoubleTerms().getTermsList());
+  public Query getTermInSetQueryFromDoubleValues(List<Double> doubleValues) {
+    return DoublePoint.newSetQuery(getName(), doubleValues);
+  }
+
+  @Override
+  public Query getTermQueryFromTextValue(String textValue) {
+    return DoublePoint.newExactQuery(getName(), Double.parseDouble(textValue));
+  }
+
+  @Override
+  public Query getTermInSetQueryFromTextValues(List<String> textValues) {
+    List<Double> doubleTerms = new ArrayList(textValues.size());
+    textValues.forEach((s) -> doubleTerms.add(Double.parseDouble(s)));
+    return DoublePoint.newSetQuery(getName(), doubleTerms);
   }
 }

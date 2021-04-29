@@ -20,6 +20,7 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.is
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.PolygonQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
@@ -28,9 +29,11 @@ import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.function.FunctionMatchQuery;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause;
@@ -39,6 +42,9 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.QueryBuilder;
 
 /** This class maps our GRPC Query object to a Lucene Query object. */
@@ -56,13 +62,23 @@ public class QueryNodeMapper {
     Query queryNode = getQueryNode(query, state);
 
     if (query.getBoost() < 0) {
-      throw new IllegalArgumentException("Boost must be a positive number, query: " + query);
+      throw new IllegalArgumentException("Boost must be a positive number");
     }
 
     if (query.getBoost() > 0) {
       return new BoostQuery(queryNode, query.getBoost());
     }
     return queryNode;
+  }
+
+  public Query applyQueryNestedPath(Query query, String path) {
+    if (path == null || path.length() == 0) {
+      path = IndexState.ROOT;
+    }
+    BooleanQuery.Builder builder = new BooleanQuery.Builder();
+    builder.add(new TermQuery(new Term(IndexState.NESTED_PATH, path)), BooleanClause.Occur.FILTER);
+    builder.add(query, BooleanClause.Occur.MUST);
+    return builder.build();
   }
 
   private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
@@ -91,9 +107,52 @@ public class QueryNodeMapper {
         return getGeoBoundingBoxQuery(query.getGeoBoundingBoxQuery(), state);
       case GEOPOINTQUERY:
         return getGeoPointQuery(query.getGeoPointQuery(), state);
+      case NESTEDQUERY:
+        return getNestedQuery(query.getNestedQuery(), state);
+      case EXISTSQUERY:
+        return getExistsQuery(query.getExistsQuery(), state);
+      case GEORADIUSQUERY:
+        return getGeoRadiusQuery(query.getGeoRadiusQuery(), state);
+      case FUNCTIONFILTERQUERY:
+        return getFunctionFilterQuery(query.getFunctionFilterQuery(), state);
+      case QUERYNODE_NOT_SET:
+        return new MatchAllDocsQuery();
       default:
         throw new UnsupportedOperationException(
             "Unsupported query type received: " + query.getQueryNodeCase());
+    }
+  }
+
+  private Query getNestedQuery(
+      com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery, IndexState state) {
+    Query childRawQuery = getQuery(nestedQuery.getQuery(), state);
+    Query childQuery =
+        new BooleanQuery.Builder()
+            .add(
+                new TermQuery(new Term(IndexState.NESTED_PATH, nestedQuery.getPath())),
+                BooleanClause.Occur.FILTER)
+            .add(childRawQuery, BooleanClause.Occur.MUST)
+            .build();
+    Query parentQuery = new TermQuery(new Term(IndexState.NESTED_PATH, IndexState.ROOT));
+    return new ToParentBlockJoinQuery(
+        childQuery, new QueryBitSetProducer(parentQuery), getScoreMode(nestedQuery));
+  }
+
+  private ScoreMode getScoreMode(com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery) {
+    switch (nestedQuery.getScoreMode()) {
+      case NONE:
+        return ScoreMode.None;
+      case AVG:
+        return ScoreMode.Avg;
+      case MAX:
+        return ScoreMode.Max;
+      case MIN:
+        return ScoreMode.Min;
+      case SUM:
+        return ScoreMode.Total;
+      default:
+        throw new UnsupportedOperationException(
+            "Unsupported score mode received: " + nestedQuery.getScoreMode());
     }
   }
 
@@ -103,13 +162,21 @@ public class QueryNodeMapper {
         new BooleanQuery.Builder()
             .setMinimumNumberShouldMatch(booleanQuery.getMinimumNumberShouldMatch());
 
+    AtomicBoolean allMustNot = new AtomicBoolean(true);
     booleanQuery
         .getClausesList()
         .forEach(
-            clause ->
-                builder.add(
-                    getQuery(clause.getQuery(), state), occurMapping.get(clause.getOccur())));
+            clause -> {
+              com.yelp.nrtsearch.server.grpc.BooleanClause.Occur occur = clause.getOccur();
+              builder.add(getQuery(clause.getQuery(), state), occurMapping.get(occur));
+              if (occur != com.yelp.nrtsearch.server.grpc.BooleanClause.Occur.MUST_NOT) {
+                allMustNot.set(false);
+              }
+            });
 
+    if (allMustNot.get()) {
+      builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER);
+    }
     return builder.build();
   }
 
@@ -125,6 +192,7 @@ public class QueryNodeMapper {
       com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery, IndexState state) {
     ScoreScript.Factory scriptFactory =
         ScriptService.getInstance().compile(functionScoreQuery.getScript(), ScoreScript.CONTEXT);
+
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionScoreQuery.getScript().getParamsMap());
     return new FunctionScoreQuery(
@@ -132,11 +200,22 @@ public class QueryNodeMapper {
         scriptFactory.newFactory(params, state.docLookup));
   }
 
+  private FunctionMatchQuery getFunctionFilterQuery(
+      FunctionFilterQuery functionFilterQuery, IndexState state) {
+    ScoreScript.Factory scriptFactory =
+        ScriptService.getInstance().compile(functionFilterQuery.getScript(), ScoreScript.CONTEXT);
+    Map<String, Object> params =
+        ScriptParamsUtils.decodeParams(functionFilterQuery.getScript().getParamsMap());
+    return new FunctionMatchQuery(
+        scriptFactory.newFactory(params, state.docLookup), score -> score > 0);
+  }
+
   private Query getTermQuery(com.yelp.nrtsearch.server.grpc.TermQuery termQuery, IndexState state) {
     String fieldName = termQuery.getField();
     FieldDef fieldDef = state.getField(fieldName);
 
     if (fieldDef instanceof TermQueryable) {
+      validateTermQueryIsSearchable(fieldDef);
       return ((TermQueryable) fieldDef).getTermQuery(termQuery);
     }
 
@@ -145,12 +224,22 @@ public class QueryNodeMapper {
     throw new IllegalArgumentException(String.format(message, termQuery, fieldDef.getType()));
   }
 
+  private void validateTermQueryIsSearchable(FieldDef fieldDef) {
+    if (fieldDef instanceof IndexableFieldDef && !((IndexableFieldDef) fieldDef).isSearchable()) {
+      throw new IllegalStateException(
+          "Field "
+              + fieldDef.getName()
+              + " is not searchable, which is required for TermQuery / TermInSetQuery");
+    }
+  }
+
   private Query getTermInSetQuery(
       com.yelp.nrtsearch.server.grpc.TermInSetQuery termInSetQuery, IndexState state) {
     String fieldName = termInSetQuery.getField();
     FieldDef fieldDef = state.getField(fieldName);
 
     if (fieldDef instanceof TermQueryable) {
+      validateTermQueryIsSearchable(fieldDef);
       return ((TermQueryable) fieldDef).getTermInSetQuery(termInSetQuery);
     }
 
@@ -293,6 +382,16 @@ public class QueryNodeMapper {
     return ((GeoQueryable) field).getGeoBoundingBoxQuery(geoBoundingBoxQuery);
   }
 
+  private Query getGeoRadiusQuery(GeoRadiusQuery geoRadiusQuery, IndexState state) {
+    String fieldName = geoRadiusQuery.getField();
+    FieldDef field = state.getField(fieldName);
+    if (!(field instanceof GeoQueryable)) {
+      throw new IllegalArgumentException(
+          "Field: " + fieldName + " does not support GeoRadiusQuery");
+    }
+    return ((GeoQueryable) field).getGeoRadiusQuery(geoRadiusQuery);
+  }
+
   private Query getGeoPointQuery(GeoPointQuery geoPolygonQuery, IndexState state) {
     String fieldName = geoPolygonQuery.getField();
     FieldDef field = state.getField(fieldName);
@@ -311,5 +410,10 @@ public class QueryNodeMapper {
             () -> new EnumMap<>(com.yelp.nrtsearch.server.grpc.BooleanClause.Occur.class),
             (map, v) -> map.put(v, BooleanClause.Occur.valueOf(v.name())),
             EnumMap::putAll);
+  }
+
+  private Query getExistsQuery(ExistsQuery existsQuery, IndexState state) {
+    String fieldName = existsQuery.getField();
+    return new ConstantScoreQuery(new TermQuery(new Term(IndexState.FIELD_NAMES, fieldName)));
   }
 }

@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.facet;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.Facet;
@@ -293,6 +294,7 @@ public class DocValuesFacetsTest extends ServerTestCase {
     assertEquals(1, response.getFacetResultCount());
     FacetResult result = response.getFacetResult(0);
     assertEquals("doc_values_facet", result.getName());
+    assertTrue(response.getDiagnostics().containsFacetTimeMs("doc_values_facet"));
     assertEquals(value, result.getValue(), 0);
     assertEquals(childCount, result.getChildCount());
     assertEquals(valuesCount, result.getLabelValuesCount());

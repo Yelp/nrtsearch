@@ -19,6 +19,8 @@ import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.*;
 
 import com.google.api.HttpBody;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
@@ -28,6 +30,8 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -40,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.hamcrest.core.IsCollectionContaining;
 import org.junit.After;
 import org.junit.Before;
@@ -407,6 +412,18 @@ public class LuceneServerTest {
   }
 
   @Test
+  public void testAddNoDocuments() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
+    new GrpcServer.IndexAndRoleManager(grpcServer)
+        .createStartIndexAndRegisterFields(Mode.STANDALONE, 0, false, "registerFieldsLatLon.json");
+
+    testAddDocs.addDocumentsFromStream(Stream.empty());
+    assertFalse(testAddDocs.error);
+    assertTrue(testAddDocs.completed);
+  }
+
+  @Test
   public void testStats() throws IOException, InterruptedException {
     new GrpcServer.IndexAndRoleManager(grpcServer)
         .createStartIndexAndRegisterFields(Mode.STANDALONE);
@@ -432,7 +449,7 @@ public class LuceneServerTest {
     assertEquals(0, statsResponse.getOrd());
     assertEquals(2, statsResponse.getCurrentSearcher().getNumDocs());
     assertEquals(1, statsResponse.getCurrentSearcher().getNumSegments());
-    assertEquals(6610, statsResponse.getDirSize(), 1000);
+    assertEquals(6610, statsResponse.getDirSize(), 1500);
     assertEquals("started", statsResponse.getState());
   }
 
@@ -591,13 +608,88 @@ public class LuceneServerTest {
     assertEquals(2, statsResponse.getNumDocs());
     assertEquals(2, statsResponse.getMaxDoc());
 
+    String indexName = "test_index";
     // deleteIndex
     DeleteIndexRequest deleteIndexRequest =
-        DeleteIndexRequest.newBuilder().setIndexName("test_index").build();
+        DeleteIndexRequest.newBuilder().setIndexName(indexName).build();
     DeleteIndexResponse deleteIndexResponse =
         grpcServer.getBlockingStub().deleteIndex(deleteIndexRequest);
 
+    Path indexRootDir = Paths.get(grpcServer.getIndexDir(), indexName);
+    assertEquals(false, Files.exists(indexRootDir));
+
     assertEquals("ok", deleteIndexResponse.getOk());
+  }
+
+  /**
+   * This test creates the index, deletes the same index and then creates the same index again. This
+   * verifies whether the global state is correctly updated, flushed to disk and the previous global
+   * states are deleted.
+   */
+  @Test
+  public void testReCreateDeletedIndex() throws IOException {
+    String indexName = "test_idx_1";
+    LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
+
+    GlobalState globalState = grpcServer.getGlobalState();
+    // verify that globalState has no content
+    assertEquals(0, Files.list(globalState.getStateDir()).count());
+
+    CreateIndexRequest createIndexRequest =
+        CreateIndexRequest.newBuilder().setIndexName(indexName).build();
+    CreateIndexResponse createIndexResponse = blockingStub.createIndex(createIndexRequest);
+    assertEquals(
+        String.format("Created Index name: %s", indexName, grpcServer.getIndexDir()),
+        createIndexResponse.getResponse());
+
+    // verify that only indices.0 exists and has the same content on disk as in-memory
+    assertEquals(1, Files.list(globalState.getStateDir()).count());
+    assertEquals(
+        "indices.0",
+        Files.list(globalState.getStateDir()).findAny().get().getFileName().toString());
+
+    Path primaryStateIndexPath = globalState.getStateDir().resolve("indices.0");
+    JsonObject persistedIndexNames =
+        JsonParser.parseString(Files.readString(primaryStateIndexPath)).getAsJsonObject();
+
+    assertEquals(globalState.getIndexNames(), persistedIndexNames.keySet());
+
+    // delete the index
+    DeleteIndexRequest deleteIndexRequest =
+        DeleteIndexRequest.newBuilder().setIndexName(indexName).build();
+    DeleteIndexResponse deleteIndexResponse =
+        grpcServer.getBlockingStub().deleteIndex(deleteIndexRequest);
+
+    // verify that globalState indices.1 exists only and has the required empty content
+    assertEquals(1, Files.list(globalState.getStateDir()).count());
+    assertEquals(
+        "indices.1",
+        Files.list(globalState.getStateDir()).findAny().get().getFileName().toString());
+
+    primaryStateIndexPath = globalState.getStateDir().resolve("indices.1");
+    persistedIndexNames =
+        JsonParser.parseString(Files.readString(primaryStateIndexPath)).getAsJsonObject();
+
+    assertEquals(globalState.getIndexNames(), persistedIndexNames.keySet());
+
+    // create the index
+    createIndexRequest = CreateIndexRequest.newBuilder().setIndexName(indexName).build();
+    createIndexResponse = blockingStub.createIndex(createIndexRequest);
+    assertEquals(
+        String.format("Created Index name: %s", indexName, grpcServer.getIndexDir()),
+        createIndexResponse.getResponse());
+
+    // verify that globalState indices.2 exists only and has the required content
+    assertEquals(1, Files.list(globalState.getStateDir()).count());
+    assertEquals(
+        "indices.2",
+        Files.list(globalState.getStateDir()).findAny().get().getFileName().toString());
+
+    primaryStateIndexPath = globalState.getStateDir().resolve("indices.2");
+    persistedIndexNames =
+        JsonParser.parseString(Files.readString(primaryStateIndexPath)).getAsJsonObject();
+
+    assertEquals(globalState.getIndexNames(), persistedIndexNames.keySet());
   }
 
   @Test

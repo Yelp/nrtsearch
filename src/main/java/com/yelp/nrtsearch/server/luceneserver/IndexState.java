@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -24,15 +25,22 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
+import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.index.BucketedTieredMergePolicy;
+import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -68,6 +76,7 @@ import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.PersistentSnapshotDeletionPolicy;
 import org.apache.lucene.index.SimpleMergedSegmentWarmer;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
@@ -102,6 +111,13 @@ import org.slf4j.LoggerFactory;
  */
 public class IndexState implements Closeable, Restorable {
   public static final String CHILD_FIELD_SEPARATOR = ".";
+
+  public static final String NESTED_PATH = "_nested_path";
+  public static final String ROOT = "_root";
+  public static final String FIELD_NAMES = "_field_names";
+
+  public static final int DEFAULT_SLICE_MAX_DOCS = 250_000;
+  public static final int DEFAULT_SLICE_MAX_SEGMENTS = 5;
 
   Logger logger = LoggerFactory.getLogger(IndexState.class);
   public final GlobalState globalState;
@@ -181,7 +197,19 @@ public class IndexState implements Closeable, Restorable {
     for (ShardState shardState : shards.values()) {
       shardState.deleteShard();
     }
+    deleteIndexRootDir();
     globalState.deleteIndex(name);
+  }
+
+  /**
+   * Deletes the Index's root directory
+   *
+   * @throws IOException
+   */
+  private void deleteIndexRootDir() throws IOException {
+    if (rootDir != null) {
+      FileUtil.deleteAllFiles(rootDir);
+    }
   }
 
   /** True if this index has at least one commit. */
@@ -375,11 +403,15 @@ public class IndexState implements Closeable, Restorable {
 
         @Override
         public Similarity get(String name) {
-          if (fields.containsKey(name)) {
+          try {
             FieldDef fd = getField(name);
             if (fd instanceof IndexableFieldDef) {
               return ((IndexableFieldDef) fd).getSimilarity();
             }
+          } catch (IllegalArgumentException ignored) {
+            // ReplicaNode tries to do a Term query for a field called 'marker'
+            // in finishNRTCopy. Since the field is not in the index, we want
+            // to ignore the exception.
           }
           return defaultSim;
         }
@@ -410,6 +442,20 @@ public class IndexState implements Closeable, Restorable {
   /** Max number of documents to be added at a time. */
   int addDocumentsMaxBufferLen = 100;
 
+  /** Max documents allowed in a parallel search slice */
+  volatile int sliceMaxDocs = DEFAULT_SLICE_MAX_DOCS;
+  /** Max segments allowed in a parallel search slice */
+  volatile int sliceMaxSegments = DEFAULT_SLICE_MAX_SEGMENTS;
+
+  /** Number of virtual shards to use for merges and parallel search */
+  volatile int virtualShards = 1;
+
+  /** Max segment size after merge */
+  volatile int maxMergedSegmentMB = 0;
+
+  /** Segments per tier used by {@link TieredMergePolicy} */
+  volatile int segmentsPerTier = 0;
+
   /** True if this is a new index. */
   private final boolean doCreate;
 
@@ -423,6 +469,10 @@ public class IndexState implements Closeable, Restorable {
     this.globalState = globalState;
     this.name = name;
     this.rootDir = rootDir;
+
+    // add meta data fields
+    metaFields = getPredefinedMetaFields();
+
     // nocommit require rootDir != null!  no RAMDirectory!
     if (rootDir != null) {
       if (Files.exists(rootDir) == false) {
@@ -446,7 +496,7 @@ public class IndexState implements Closeable, Restorable {
   void initSaveLoadState() throws IOException {
     Path stateDirFile;
     if (rootDir != null) {
-      stateDirFile = rootDir.resolve("state");
+      stateDirFile = getStateDirectoryPath();
       // if (!stateDirFile.exists()) {
       // stateDirFile.mkdirs();
       // }
@@ -456,7 +506,7 @@ public class IndexState implements Closeable, Restorable {
 
     // nocommit who closes this?
     // nocommit can't this be in the rootDir directly?
-    Directory stateDir = df.open(stateDirFile);
+    Directory stateDir = df.open(stateDirFile, IndexPreloadConfig.PRELOAD_ALL);
 
     saveLoadGenRefCounts = new SaveLoadRefCounts(stateDir);
 
@@ -472,6 +522,10 @@ public class IndexState implements Closeable, Restorable {
     if (priorState != null) {
       load(priorState.getAsJsonObject("state"));
     }
+  }
+
+  public Path getStateDirectoryPath() {
+    return rootDir.resolve("state");
   }
 
   /** Load all previously saved state. */
@@ -526,11 +580,19 @@ public class IndexState implements Closeable, Restorable {
   /** The field definitions (registerField) */
   private final Map<String, FieldDef> fields = new ConcurrentHashMap<String, FieldDef>();
 
+  /** The meta field definitions */
+  public static Map<String, FieldDef> metaFields;
+
   /** Contains fields set as facetIndexFieldName. */
   public final Set<String> internalFacetFieldNames =
       Collections.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
 
   public final FacetsConfig facetsConfig = new FacetsConfig();
+
+  /**
+   * Fields using facets with global ordinals that should be loaded up front with each new reader
+   */
+  public final Map<String, FieldDef> eagerGlobalOrdinalFields = new ConcurrentHashMap<>();
 
   /** {@link Bindings} to pass when evaluating expressions. */
   public final Bindings exprBindings = new FieldDefBindings(fields);
@@ -655,10 +717,28 @@ public class IndexState implements Closeable, Restorable {
    * @throws IllegalArgumentException if the field was not registered.
    */
   public FieldDef getField(String fieldName) {
-    FieldDef fd = fields.get(fieldName);
+    FieldDef fd = metaFields.get(fieldName);
+    if (fd != null) {
+      return fd;
+    }
+    fd = fields.get(fieldName);
     if (fd == null) {
       String message =
           "field \"" + fieldName + "\" is unknown: it was not registered with registerField";
+      throw new IllegalArgumentException(message);
+    }
+    return fd;
+  }
+
+  /**
+   * Retrieve the meta field's type.
+   *
+   * @throws IllegalArgumentException if the field was not valid.
+   */
+  public static FieldDef getMetaField(String fieldName) {
+    FieldDef fd = metaFields.get(fieldName);
+    if (fd == null) {
+      String message = "field \"" + fieldName + "\" is unknown: it was not a valid meta field";
       throw new IllegalArgumentException(message);
     }
     return fd;
@@ -681,6 +761,16 @@ public class IndexState implements Closeable, Restorable {
     }
 
     return lastGen;
+  }
+
+  /** Verifies if it has nested child object fields. */
+  public synchronized boolean hasNestedChildFields() {
+    for (FieldDef fieldDef : fields.values()) {
+      if (fieldDef instanceof ObjectFieldDef && ((ObjectFieldDef) fieldDef).isNestedDoc()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Verifies this name doesn't use any "exotic" characters. */
@@ -755,6 +845,108 @@ public class IndexState implements Closeable, Restorable {
     return addDocumentsMaxBufferLen;
   }
 
+  /**
+   * Set the maximum number of document in each parallel search slice.
+   *
+   * @param docs maximum slice documents
+   * @throws IllegalArgumentException if docs <= 0
+   */
+  public synchronized void setSliceMaxDocs(int docs) {
+    if (docs <= 0) {
+      throw new IllegalArgumentException("Max slice docs must be greater than 0.");
+    }
+    sliceMaxDocs = docs;
+    liveSettingsSaveState.addProperty("sliceMaxDocs", docs);
+  }
+
+  /** Get the maximum docs per parallel search slice. */
+  public int getSliceMaxDocs() {
+    return sliceMaxDocs;
+  }
+
+  /**
+   * Set the maximum number of segments in each parallel search slice.
+   *
+   * @param segments maximum slice segments
+   * @throws IllegalArgumentException if segments <= 0
+   */
+  public synchronized void setSliceMaxSegments(int segments) {
+    if (segments <= 0) {
+      throw new IllegalArgumentException("Max slice segments must be greater than 0.");
+    }
+    sliceMaxSegments = segments;
+    liveSettingsSaveState.addProperty("sliceMaxSegments", segments);
+  }
+
+  /** Get the maximum segments per parallel search slice. */
+  public int getSliceMaxSegments() {
+    return sliceMaxSegments;
+  }
+
+  /**
+   * Set the number of virtual shards to use for this index.
+   *
+   * @param shards number of virtual shards to use
+   * @throws IllegalArgumentException if shards <= 0
+   */
+  public synchronized void setVirtualShards(int shards) {
+    if (shards <= 0) {
+      throw new IllegalArgumentException("Number of virtual shards must be greater than 0.");
+    }
+
+    if (!globalState.configuration.getVirtualSharding() && shards > 1) {
+      logger.warn(
+          String.format("Setting virtual shards to %d, but virtual sharding is disabled.", shards));
+    }
+
+    virtualShards = shards;
+    liveSettingsSaveState.addProperty("virtualShards", shards);
+  }
+
+  /**
+   * Get the number of virtual shards for this index. If virtual sharding is disabled, this always
+   * returns 1.
+   */
+  public int getVirtualShards() {
+    if (!globalState.configuration.getVirtualSharding()) {
+      return 1;
+    }
+    return virtualShards;
+  }
+
+  /** Set maximum sized segment to produce during normal merging */
+  public synchronized void setMaxMergedSegmentMB(int maxMergedSegmentMB) {
+    if (maxMergedSegmentMB <= 0) {
+      throw new IllegalArgumentException("Max merged segment size must be greater than 0.");
+    }
+    this.maxMergedSegmentMB = maxMergedSegmentMB;
+    liveSettingsSaveState.addProperty("maxMergedSegmentMB", maxMergedSegmentMB);
+  }
+
+  /** Get maximum sized segment to produce during normal merging */
+  public int getMaxMergedSegmentMB() {
+    return maxMergedSegmentMB;
+  }
+
+  /**
+   * Set segments per tier used by {@link TieredMergePolicy}.
+   *
+   * @param segmentsPerTier segments per tier
+   * @throws IllegalArgumentException if segmentsPerTier < 2
+   */
+  public synchronized void setSegmentsPerTier(int segmentsPerTier) {
+    if (segmentsPerTier < 2) {
+      throw new IllegalArgumentException("Segments per tier must be >= 2.");
+    }
+    this.segmentsPerTier = segmentsPerTier;
+    liveSettingsSaveState.addProperty("segmentsPerTier", segmentsPerTier);
+  }
+
+  /** Get the number of segments per tier used by merge policy, or 0 if using policy default. */
+  public int getSegmentsPerTier() {
+    return segmentsPerTier;
+  }
+
   /** Returns JSON representation of all live settings. */
   public synchronized String getLiveSettingsJSON() {
     return liveSettingsSaveState.toString();
@@ -783,6 +975,10 @@ public class IndexState implements Closeable, Restorable {
     if (fields.containsKey(fd.getName())) {
       throw new IllegalArgumentException("field \"" + fd.getName() + "\" was already registered");
     }
+    if (metaFields.containsKey(fd.getName())) {
+      throw new IllegalArgumentException(
+          "field \"" + fd.getName() + "\" is a predefined meta field");
+    }
     // only json for top level fields needs to be added to the save state
     if (!isChildName(fd.getName())) {
       if (jsonObject == null) {
@@ -804,6 +1000,10 @@ public class IndexState implements Closeable, Restorable {
           && facetValueType != IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
         internalFacetFieldNames.add(facetsConfig.getDimConfig(fd.getName()).indexFieldName);
       }
+    }
+    // register fields that need global ordinals created up front
+    if (fd.getEagerGlobalOrdinals()) {
+      eagerGlobalOrdinalFields.put(fd.getName(), fd);
     }
     if (fd instanceof IdFieldDef) {
       idFieldDef = (IdFieldDef) fd;
@@ -958,6 +1158,21 @@ public class IndexState implements Closeable, Restorable {
             IndexWriterConfig.OpenMode.CREATE_OR_APPEND));
 
     iwc.setCodec(new ServerCodec(this));
+
+    TieredMergePolicy mergePolicy;
+    if (globalState.configuration.getVirtualSharding()) {
+      mergePolicy = new BucketedTieredMergePolicy(this::getVirtualShards);
+    } else {
+      mergePolicy = new TieredMergePolicy();
+    }
+    if (maxMergedSegmentMB > 0) {
+      mergePolicy.setMaxMergedSegmentMB(maxMergedSegmentMB);
+    }
+    if (segmentsPerTier > 1) {
+      mergePolicy.setSegmentsPerTier(segmentsPerTier);
+    }
+    iwc.setMergePolicy(mergePolicy);
+
     return iwc;
   }
 
@@ -1000,6 +1215,30 @@ public class IndexState implements Closeable, Restorable {
     logger.info(
         String.format("jsonStr converted to proto FieldDefRequest %s", fieldDefRequest.toString()));
     return fieldDefRequest;
+  }
+
+  // Get all predifined meta fields
+  private static Map<String, FieldDef> getPredefinedMetaFields() {
+    return ImmutableMap.of(
+        NESTED_PATH,
+        FieldDefCreator.getInstance()
+            .createFieldDef(
+                NESTED_PATH,
+                Field.newBuilder()
+                    .setName(IndexState.NESTED_PATH)
+                    .setType(FieldType.ATOM)
+                    .setSearch(true)
+                    .build()),
+        FIELD_NAMES,
+        FieldDefCreator.getInstance()
+            .createFieldDef(
+                FIELD_NAMES,
+                Field.newBuilder()
+                    .setName(FIELD_NAMES)
+                    .setType(FieldType.ATOM)
+                    .setSearch(true)
+                    .setMultiValued(true)
+                    .build()));
   }
 
   // Builds the valid Json format for FieldDefRequest from fieldsState json
@@ -1119,7 +1358,12 @@ public class IndexState implements Closeable, Restorable {
     /** Snapshot id. */
     public final String id;
 
-    /** Sole constructor. */
+    /** Initialize with an id * */
+    public Gens(String id) {
+      this(id, "id");
+    }
+
+    /** Initialize with a custom param (which is unused) */
     public Gens(String id, String param) {
       this.id = id;
       final String[] gens = id.split(":");
