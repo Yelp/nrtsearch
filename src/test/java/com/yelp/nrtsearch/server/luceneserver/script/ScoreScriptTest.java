@@ -758,6 +758,7 @@ public class ScoreScriptTest {
                     .setStartHit(0)
                     .setTopHits(10)
                     .addVirtualFields(virtualField)
+                    .addRetrieveFields("test_field")
                     .setQueryText("vendor_name:first vendor")
                     .build());
     assertEquals(2, searchResponse.getHitsCount());
@@ -871,6 +872,7 @@ public class ScoreScriptTest {
                     .setStartHit(0)
                     .setTopHits(10)
                     .addVirtualFields(virtualField)
+                    .addRetrieveFields("test_field")
                     .build());
     assertEquals(2, searchResponse.getHitsCount());
     assertEquals(
@@ -911,6 +913,7 @@ public class ScoreScriptTest {
                     .setStartHit(0)
                     .setTopHits(10)
                     .addVirtualFields(virtualField)
+                    .addRetrieveFields("test_field")
                     .build());
     assertEquals(2, searchResponse.getHitsCount());
     assertEquals(

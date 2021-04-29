@@ -105,8 +105,7 @@ public class SearchRequestProcessor {
     addIndexFields(indexState, queryFields);
     contextBuilder.setQueryFields(Collections.unmodifiableMap(queryFields));
 
-    Map<String, FieldDef> retrieveFields = new HashMap<>(queryVirtualFields);
-    addRetrieveFields(indexState, searchRequest, retrieveFields);
+    Map<String, FieldDef> retrieveFields = getRetrieveFields(searchRequest, queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
     Query query = extractQuery(indexState, searchRequest);
@@ -160,22 +159,31 @@ public class SearchRequestProcessor {
   }
 
   /**
-   * Add specified retrieve fields to given query fields map.
+   * Get map of fields that need to be retrieved for the given request.
    *
-   * @param indexState state for query index
-   * @param searchRequest request
-   * @param queryFields mutable current map of query fields
-   * @throws IllegalArgumentException if any retrieve field already exists
+   * @param request search requests
+   * @param queryFields all valid fields for this query
+   * @return map of all fields to retrieve
+   * @throws IllegalArgumentException if a field does not exist, or is not retrievable
    */
-  private static void addRetrieveFields(
-      IndexState indexState, SearchRequest searchRequest, Map<String, FieldDef> queryFields) {
-    for (String field : searchRequest.getRetrieveFieldsList()) {
-      FieldDef fieldDef = getFieldDef(field, indexState);
-      FieldDef current = queryFields.put(field, fieldDef);
-      if (current != null) {
-        throw new IllegalArgumentException("QueryFields: " + field + " specified multiple times");
+  private static Map<String, FieldDef> getRetrieveFields(
+      SearchRequest request, Map<String, FieldDef> queryFields) {
+    Map<String, FieldDef> retrieveFields = new HashMap<>();
+    for (String field : request.getRetrieveFieldsList()) {
+      FieldDef fieldDef = queryFields.get(field);
+      if (fieldDef == null) {
+        throw new IllegalArgumentException("RetrieveFields: " + field + " does not exist");
       }
+      if (!isRetrievable(fieldDef)) {
+        throw new IllegalArgumentException(
+            "RetrieveFields: "
+                + field
+                + " is not retrievable, must be stored"
+                + " or have doc values enabled");
+      }
+      retrieveFields.put(field, fieldDef);
     }
+    return retrieveFields;
   }
 
   /**
@@ -193,29 +201,6 @@ public class SearchRequestProcessor {
             "QueryFields: " + entry.getKey() + " specified multiple times");
       }
     }
-  }
-
-  /**
-   * Find {@link FieldDef} for field name.
-   *
-   * @param name name of field
-   * @param indexState state for query index
-   * @return definition object for field
-   * @throws IllegalArgumentException if field does not exist or is not retrievable
-   */
-  private static FieldDef getFieldDef(String name, IndexState indexState) {
-    FieldDef fieldDef = indexState.getField(name);
-    if (fieldDef == null) {
-      throw new IllegalArgumentException("QueryFields: " + name + " does not exist");
-    }
-    if (!isRetrievable(fieldDef)) {
-      throw new IllegalArgumentException(
-          "QueryFields: "
-              + name
-              + " is not retrievable, must be stored"
-              + " or have doc values enabled");
-    }
-    return fieldDef;
   }
 
   /** If a field's value can be retrieved */

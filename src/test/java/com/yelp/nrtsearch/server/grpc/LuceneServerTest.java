@@ -801,6 +801,7 @@ public class LuceneServerTest {
         .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
 
     List<String> queryFields = new ArrayList<>(RETRIEVED_VALUES);
+    queryFields.addAll(QUERY_VIRTUAL_FIELDS);
 
     SearchResponse searchResponse =
         grpcServer
@@ -837,6 +838,7 @@ public class LuceneServerTest {
 
     List<String> queryFields = new ArrayList<>(RETRIEVED_VALUES);
     queryFields.addAll(INDEX_VIRTUAL_FIELDS);
+    queryFields.addAll(QUERY_VIRTUAL_FIELDS);
 
     SearchResponse searchResponse =
         grpcServer
