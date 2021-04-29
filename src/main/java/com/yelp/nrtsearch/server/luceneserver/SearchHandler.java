@@ -44,6 +44,7 @@ import com.yelp.nrtsearch.server.utils.StructJsonUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -177,8 +178,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       setResponseHits(searchContext, hits);
 
       // fill all other needed fields into each Hit.Builder
-      List<Hit.Builder> hitBuilders = searchContext.getResponseBuilder().getHitsBuilderList();
+      List<Hit.Builder> hitBuilders =
+          new ArrayList<>(searchContext.getResponseBuilder().getHitsBuilderList());
+      hitBuilders.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
       List<LeafReaderContext> leaves = s.searcher.getIndexReader().leaves();
+
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         var hitResponse = hitBuilders.get(hitIndex);
 
