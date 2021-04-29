@@ -52,7 +52,8 @@ public class FetchTasks {
 
     /**
      * Process each hit individually. Hits will already have lucene doc id and scoring info
-     * populated, as well as all requested query fields.
+     * populated, as well as all requested query fields. The method will be called in order of
+     * lucene doc ID of the hits.
      *
      * @param searchContext search context
      * @param hitLeaf lucene segment for hit

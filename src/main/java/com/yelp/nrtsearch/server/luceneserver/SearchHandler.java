@@ -178,19 +178,16 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       setResponseHits(searchContext, hits);
 
       // fill all other needed fields into each Hit.Builder
-      List<Hit.Builder> hitBuilders = searchContext.getResponseBuilder().getHitsBuilderList();
+      List<Hit.Builder> hitBuilders =
+          new ArrayList<>(searchContext.getResponseBuilder().getHitsBuilderList());
+      hitBuilders.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
       List<LeafReaderContext> leaves = s.searcher.getIndexReader().leaves();
-
-      Map<LeafReaderContext, List<Hit.Builder>> leafToHits = new HashMap<>();
 
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         var hitResponse = hitBuilders.get(hitIndex);
 
         LeafReaderContext leaf =
             leaves.get(ReaderUtil.subIndex(hitResponse.getLuceneDocId(), leaves));
-        List<Hit.Builder> hitsForLeaf =
-            leafToHits.computeIfAbsent(leaf, leafReaderContext -> new ArrayList<>());
-        hitsForLeaf.add(hitResponse);
 
         if (!searchContext.getRetrieveFields().isEmpty()) {
           var fieldValueMap =
@@ -206,15 +203,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                   searchContext.getRetrieveFields());
           hitResponse.putAllFields(fieldValueMap);
         }
-      }
 
-      for (Map.Entry<LeafReaderContext, List<Hit.Builder>> entry : leafToHits.entrySet()) {
-        LeafReaderContext leaf = entry.getKey();
-        List<Hit.Builder> hitsForLeaf = entry.getValue();
-        hitsForLeaf.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
-        for (Hit.Builder hit : hitsForLeaf) {
-          searchContext.getFetchTasks().processHit(searchContext, leaf, hit);
-        }
+        searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
       }
 
       searchContext
