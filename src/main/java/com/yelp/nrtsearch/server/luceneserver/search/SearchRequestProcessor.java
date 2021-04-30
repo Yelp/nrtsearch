@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.search;
 
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
+import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -75,7 +76,7 @@ public class SearchRequestProcessor {
    * @param indexState index state
    * @param shardState shard state
    * @param searcherAndTaxonomy index searcher
-   * @param diagnostics container message for returned diagnostic info
+   * @param profileResult container message for returned debug info
    * @return context info needed to execute the search query
    * @throws IOException if query rewrite fails
    */
@@ -84,7 +85,7 @@ public class SearchRequestProcessor {
       IndexState indexState,
       ShardState shardState,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy,
-      SearchResponse.Diagnostics.Builder diagnostics)
+      ProfileResult.Builder profileResult)
       throws IOException {
 
     SearchContext.Builder contextBuilder = SearchContext.newBuilder();
@@ -109,14 +110,20 @@ public class SearchRequestProcessor {
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
     Query query = extractQuery(indexState, searchRequest);
-    diagnostics.setParsedQuery(query.toString());
+    if (profileResult != null) {
+      profileResult.setParsedQuery(query.toString());
+    }
 
     query = searcherAndTaxonomy.searcher.rewrite(query);
-    diagnostics.setRewrittenQuery(query.toString());
+    if (profileResult != null) {
+      profileResult.setRewrittenQuery(query.toString());
+    }
 
     if (searchRequest.getFacetsCount() > 0) {
       query = addDrillDowns(indexState, query);
-      diagnostics.setDrillDownQuery(query.toString());
+      if (profileResult != null) {
+        profileResult.setDrillDownQuery(query.toString());
+      }
     }
 
     contextBuilder.setFetchTasks(new FetchTasks(searchRequest.getFetchTasksList()));

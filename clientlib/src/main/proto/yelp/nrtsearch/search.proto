@@ -378,9 +378,10 @@ message Point {
 
 message SearchResponse {
     message Diagnostics {
-        string parsedQuery = 1;
-        string rewrittenQuery = 2;
-        string drillDownQuery = 3;
+        // Query debug has been moved to ProfileResult
+        string parsedQuery = 1 [deprecated = true];
+        string rewrittenQuery = 2 [deprecated = true];
+        string drillDownQuery = 3 [deprecated = true];
         double firstPassSearchTimeMs = 4;
         double highlightTimeMs = 5;
         double getFieldsTimeMs = 6;
@@ -525,4 +526,7 @@ message ProfileResult {
     }
 
     SearchStats searchStats = 1;
+    string parsedQuery = 2;
+    string rewrittenQuery = 3;
+    string drillDownQuery = 4;
 }
