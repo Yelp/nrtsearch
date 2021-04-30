@@ -20,6 +20,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.ProfileResult.CollectorStats;
@@ -137,6 +138,54 @@ public class SearchStatsWrapperTest extends ServerTestCase {
         assertTrue(segmentStats.getRelativeStartTimeMs() > 0.0);
       }
     }
+  }
+
+  @Test
+  public void testHasQueries() {
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .addRetrieveFields("doc_id")
+                    .addRetrieveFields("int_score")
+                    .addRetrieveFields("int_field")
+                    .setQuery(Query.newBuilder())
+                    .setProfile(true)
+                    .build());
+    assertFalse(searchResponse.getProfileResult().getParsedQuery().isEmpty());
+    assertFalse(searchResponse.getProfileResult().getRewrittenQuery().isEmpty());
+    assertTrue(searchResponse.getProfileResult().getDrillDownQuery().isEmpty());
+  }
+
+  @Test
+  public void testHasDrillDownQuery() {
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .addRetrieveFields("doc_id")
+                    .addRetrieveFields("int_score")
+                    .addRetrieveFields("int_field")
+                    .setQuery(Query.newBuilder())
+                    .addFacets(
+                        Facet.newBuilder()
+                            .setName("test_facet")
+                            .setDim("int_score")
+                            .setTopN(2)
+                            .build())
+                    .setProfile(true)
+                    .build());
+    assertFalse(searchResponse.getProfileResult().getParsedQuery().isEmpty());
+    assertFalse(searchResponse.getProfileResult().getRewrittenQuery().isEmpty());
+    assertFalse(searchResponse.getProfileResult().getDrillDownQuery().isEmpty());
   }
 
   public static class MockTerminateCollectorManager

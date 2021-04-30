@@ -93,14 +93,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     try {
       s = getSearcherAndTaxonomy(searchRequest, shardState, diagnostics, threadPoolExecutor);
 
-      searchContext =
-          SearchRequestProcessor.buildContextForRequest(
-              searchRequest, indexState, shardState, s, diagnostics);
-
       ProfileResult.Builder profileResultBuilder = null;
       if (searchRequest.getProfile()) {
         profileResultBuilder = ProfileResult.newBuilder();
       }
+
+      searchContext =
+          SearchRequestProcessor.buildContextForRequest(
+              searchRequest, indexState, shardState, s, profileResultBuilder);
 
       long searchStartTime = System.nanoTime();
 

@@ -1327,7 +1327,8 @@
       "type": "object",
       "properties": {
         "parsedQuery": {
-          "type": "string"
+          "type": "string",
+          "title": "Query debug has been moved to ProfileResult"
         },
         "rewrittenQuery": {
           "type": "string"
@@ -2922,6 +2923,15 @@
       "properties": {
         "searchStats": {
           "$ref": "#/definitions/ProfileResultSearchStats"
+        },
+        "parsedQuery": {
+          "type": "string"
+        },
+        "rewrittenQuery": {
+          "type": "string"
+        },
+        "drillDownQuery": {
+          "type": "string"
         }
       },
       "title": "Defines detailed profiling stats for queries that set profile=true"
