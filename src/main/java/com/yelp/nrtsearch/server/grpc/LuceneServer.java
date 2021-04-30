@@ -292,10 +292,7 @@ public class LuceneServer {
       this.archiver = archiver;
       this.archiveDirectory = configuration.getArchiveDirectory();
       this.collectorRegistry = collectorRegistry;
-      this.searchThreadPoolExecutor =
-          ThreadPoolExecutorFactory.getThreadPoolExecutor(
-              ThreadPoolExecutorFactory.ExecutorType.SEARCH,
-              globalState.getThreadPoolConfiguration());
+      this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
 
       initExtendableComponents(configuration, plugins);
     }
