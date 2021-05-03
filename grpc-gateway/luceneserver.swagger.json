@@ -1133,6 +1133,18 @@
       "default": "SHOULD",
       "description": "Defines how clauses may occur in matching documents. This will always be SHOULD by default."
     },
+    "BucketResultBucket": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
     "HitCompositeFieldValue": {
       "type": "object",
       "properties": {
@@ -1640,6 +1652,27 @@
       },
       "description": "A query that matches documents using boolean combinations of other queries."
     },
+    "luceneserverBucketResult": {
+      "type": "object",
+      "properties": {
+        "buckets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BucketResultBucket"
+          }
+        },
+        "totalBuckets": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of unique buckets, including those not in the buckets list."
+        },
+        "totalOtherCounts": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of other collected counts not represented in the buckets' counts."
+        }
+      }
+    },
     "luceneserverBuildSuggestRequest": {
       "type": "object",
       "properties": {
@@ -1687,6 +1720,25 @@
         "count": {
           "type": "string",
           "format": "int64"
+        }
+      }
+    },
+    "luceneserverCollector": {
+      "type": "object",
+      "properties": {
+        "terms": {
+          "$ref": "#/definitions/luceneserverTermsCollector",
+          "description": "Collector for aggregating based on term values."
+        }
+      },
+      "description": "Definition of additional document collector."
+    },
+    "luceneserverCollectorResult": {
+      "type": "object",
+      "properties": {
+        "bucketResult": {
+          "$ref": "#/definitions/luceneserverBucketResult",
+          "description": "Result of collector that produces buckets and counts."
         }
       }
     },
@@ -3248,6 +3300,13 @@
           "type": "integer",
           "format": "int32",
           "description": "Check the search timeout condition after each collection of n documents in a segment. If 0, timeout is only checked on the segment boundary."
+        },
+        "collectors": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollector"
+          },
+          "description": "Additional document collectors. Provides support for operations such as aggregation."
         }
       }
     },
@@ -3281,6 +3340,13 @@
         "profileResult": {
           "$ref": "#/definitions/luceneserverProfileResult",
           "title": "Detailed stats returned when profile=true in request"
+        },
+        "collectorResults": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollectorResult"
+          },
+          "title": "Results from any additional document collectors"
         }
       }
     },
@@ -3749,6 +3815,25 @@
       ],
       "default": "NO_TERMVECTORS",
       "description": "Whether/how term vectors should be indexed."
+    },
+    "luceneserverTermsCollector": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "title": "Placeholder: TODO implement"
+        },
+        "script": {
+          "$ref": "#/definitions/luceneserverScript",
+          "description": "Use FacetScript definition to produce terms."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of top terms to return."
+        }
+      },
+      "description": "Definition of term aggregating collector."
     },
     "luceneserverTotalHits": {
       "type": "object",

@@ -280,6 +280,8 @@ message SearchRequest {
     bool profile = 19;
     //Check the search timeout condition after each collection of n documents in a segment. If 0, timeout is only checked on the segment boundary.
     int32 timeoutCheckEvery = 20;
+    //Additional document collectors. Provides support for operations such as aggregation.
+    map<string, Collector> collectors = 21;
 }
 
 /* Virtual field used during search */
@@ -431,6 +433,8 @@ message SearchResponse {
     repeated FacetResult facetResult = 6; ////Counts or aggregates for a single dimension
     // Detailed stats returned when profile=true in request
     ProfileResult profileResult = 7;
+    // Results from any additional document collectors
+    map<string, CollectorResult> collectorResults = 8;
 }
 
 message NumericRangeType {
@@ -529,4 +533,43 @@ message ProfileResult {
     string parsedQuery = 2;
     string rewrittenQuery = 3;
     string drillDownQuery = 4;
+}
+
+//Definition of additional document collector.
+message Collector {
+    oneof Collectors {
+        //Collector for aggregating based on term values.
+        TermsCollector terms = 1;
+    }
+}
+
+//Definition of term aggregating collector.
+message TermsCollector {
+    oneof TermsSource {
+        // Placeholder: TODO implement
+        string field = 1;
+        //Use FacetScript definition to produce terms.
+        Script script = 2;
+    }
+    //Maximum number of top terms to return.
+    int32 size = 3;
+}
+
+message CollectorResult {
+    oneof CollectorResults {
+        //Result of collector that produces buckets and counts.
+        BucketResult bucketResult = 1;
+    }
+}
+
+message BucketResult {
+    message Bucket {
+        string key = 1;
+        int32 count = 2;
+    }
+    repeated Bucket buckets = 1;
+    //Number of unique buckets, including those not in the buckets list.
+    int32 totalBuckets = 2;
+    //Number of other collected counts not represented in the buckets' counts.
+    int32 totalOtherCounts = 3;
 }
