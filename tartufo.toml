@@ -1,0 +1,5 @@
+[tool.tartufo]
+exclude-signatures = [
+	"322efeb2ac23fb7010ac31a4536591cbe923ecb5e64d105fe7fef2d601955419",
+	"dfa831e727c37aa4c218de95d3c076d5c4e046d3f02400f998e86fa9b681fa96"
+]

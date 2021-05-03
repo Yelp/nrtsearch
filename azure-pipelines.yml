@@ -1,0 +1,155 @@
+pr:
+  branches:
+    include:
+      - "dev"
+      - "master"
+      - "release/*"
+      - "sprint/*"
+      - "POC/*"
+      
+pool: vmssagentpool
+      
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: chaseappio/devops-ci-templates
+      ref: refs/heads/master
+      endpoint: chaseappio
+
+variables:  
+- template: vars.yml@templates
+
+stages:
+  - stage: prepare
+    jobs: 
+     - job: version
+       steps:
+         - template: version.yml@templates          
+
+
+  - stage: push
+    condition: "succeeded()"
+    jobs:             
+      - job: dockerizing_nrtsearch
+        steps:
+          - task: Docker@2
+            displayName: Build The Base Image
+            inputs: 
+              command: build
+              Dockerfile: ./Dockerfile
+              buildContext: $(Build.SourcesDirectory)
+              arguments: '--tag app_image'
+              
+          - task: ECRPushImage@1
+            condition: "succeeded()"
+            displayName: Push Image To ECR
+            inputs:
+              awsCredentials: '$(ecr_service)'
+              regionName: 'us-east-1'
+              imageSource: 'imagename'
+              sourceImageName: 'app_image'
+              pushTag: '$(Build.BuildNumber)'
+              repositoryName: yelp-nrtsearch
+              autoCreateRepository: true
+          
+          - task: Bash@3
+            displayName: Tag Image for ACR
+            condition: "succeeded()"
+            inputs:
+              targetType: inline
+              script: |   
+                set -e
+                docker tag app_image ${ACR_REGISTRY_URL}/yelp-nrtsearch:${BUILD_BUILDNUMBER} 
+
+          - task: Docker@2
+            condition: "succeeded()"
+            displayName: Push Image To ACR
+            inputs:
+              command: push
+              containerRegistry: '$(acr_service_connection)'
+              repository: yelp-nrtsearch
+              tags: |
+                $(Build.BuildNumber)
+
+          - task: ECRPushImage@1
+            condition: and(succeeded(),eq(variables['build.sourceBranch'], 'refs/heads/master'))
+            displayName: Push Image To ECR
+            inputs:
+              awsCredentials: '$(ecr_service)'
+              regionName: 'us-east-1'
+              imageSource: 'imagename'
+              sourceImageName: 'app_image'
+              pushTag: latest
+              repositoryName: yelp-nrtsearch
+              autoCreateRepository: true
+          
+          - task: Bash@3
+            displayName: Tag Latest Image for ACR
+            condition: and(succeeded(),eq(variables['build.sourceBranch'], 'refs/heads/master'))
+            inputs:
+              targetType: inline
+              script: |   
+                set -e
+                docker tag app_image ${ACR_REGISTRY_URL}/yelp-nrtsearch:latest       
+          
+          - task: Docker@2
+            condition: and(succeeded(),eq(variables['build.sourceBranch'], 'refs/heads/master'))
+            displayName: Push Latest Image To ACR
+            inputs:
+              command: push
+              containerRegistry: '$(acr_service_connection)'
+              repository: yelp-nrtsearch
+              tags: |
+                latest
+
+          - task: ECRPushImage@1
+            condition: and(succeeded(),eq(variables['build.sourceBranch'], 'refs/heads/dev'))
+            displayName: Push Image To ECR
+            inputs:
+              awsCredentials: '$(ecr_service)'
+              regionName: 'us-east-1'
+              imageSource: 'imagename'
+              sourceImageName: 'app_image'
+              pushTag: dev
+              repositoryName: yelp-nrtsearch
+              autoCreateRepository: true      
+          
+          - task: Bash@3
+            displayName: Tag Dev Image for ACR
+            condition: and(succeeded(),eq(variables['build.sourceBranch'], 'refs/heads/dev'))
+            inputs:
+              targetType: inline
+              script: |   
+                set -e
+                docker tag app_image ${ACR_REGISTRY_URL}/yelp-nrtsearch:dev             
+                
+          - task: Docker@2
+            condition: and(succeeded(),eq(variables['build.sourceBranch'], 'refs/heads/dev'))
+            displayName: Push Dev Image To ACR
+            inputs:
+              command: push
+              containerRegistry: '$(acr_service_connection)'
+              repository: yelp-nrtsearch
+              tags: |
+                dev
+
+          - task: Bash@3
+            displayName: Write repoistory policy to a file
+            condition: "succeeded()"
+            inputs:
+              targetType: inline
+              script: | 
+                POLICY='{"Version":"2008-10-17","Statement":[{"Sid":"allowpublicpull","Effect":"Allow","Principal":{ "AWS":[ "arn:aws:iam::264604750251:root","arn:aws:iam::733818552769:root"]},"Action":["ecr:BatchCheckLayerAvailability","ecr:BatchGetImage","ecr:GetDownloadUrlForLayer"]}]}'
+                echo $POLICY > policy.json
+          
+          - task: AWSCLI@1
+            displayName: Set Image Permissions
+            condition: and(succeeded(),eq(variables['build.sourceBranch'], 'refs/heads/master'))
+            inputs:
+              awsCredentials: '$(ecr_service)'
+              regionName: 'us-east-1'
+              awsCommand: 'ecr'
+              awsSubCommand: 'set-repository-policy'      
+              awsArguments: '--repository-name yelp-nrtsearch --policy-text file://policy.json'
+        

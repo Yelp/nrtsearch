@@ -1,0 +1,4 @@
+name: chaseplugin
+version: 1
+description: plugin to load chase analyzers
+classname: com.chase.app.plugins.ChaseAnalyzersPlugin
