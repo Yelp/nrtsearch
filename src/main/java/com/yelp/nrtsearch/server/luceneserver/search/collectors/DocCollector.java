@@ -15,13 +15,17 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
+import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.Rescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchStatsWrapper;
+import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
+import java.util.List;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ScoreDoc;
@@ -31,12 +35,24 @@ import org.apache.lucene.search.TopDocs;
 public abstract class DocCollector {
 
   private final SearchRequest request;
+  private final List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
+      additionalCollectors;
   private final int numHitsToCollect;
   private boolean hadTimeout = false;
-  private SearchStatsWrapper<? extends Collector, ? extends TopDocs> statsWrapper = null;
+  private SearchStatsWrapper<? extends Collector> statsWrapper = null;
 
-  public DocCollector(SearchRequest request) {
+  /**
+   * Constructor
+   *
+   * @param request search request
+   * @param additionalCollectors additional collector implementations
+   */
+  public DocCollector(
+      SearchRequest request,
+      List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
+          additionalCollectors) {
     this.request = request;
+    this.additionalCollectors = additionalCollectors;
 
     // determine how many hits to collect based on request, facets and rescore window
     int collectHits = request.getTopHits();
@@ -59,8 +75,10 @@ public abstract class DocCollector {
    * Get the {@link CollectorManager} to use during search with any required wrapping, such as
    * timeout handling.
    */
-  public CollectorManager<? extends Collector, ? extends TopDocs> getWrappedManager() {
-    return wrapManager(getManager());
+  public CollectorManager<? extends Collector, SearcherResult> getWrappedManager() {
+    SearchCollectorManager searchCollectorManager =
+        new SearchCollectorManager(this, additionalCollectors);
+    return wrapManager(searchCollectorManager);
   }
 
   /**
@@ -122,13 +140,11 @@ public abstract class DocCollector {
    *
    * @param manager base manager
    * @param <C> collector type for base manager
-   * @param <T> top docs type for base manager
    * @return wrapped manager, or base manager if no wrapping is required
    */
-  <C extends Collector, T extends TopDocs>
-      CollectorManager<? extends Collector, ? extends TopDocs> wrapManager(
-          CollectorManager<C, T> manager) {
-    CollectorManager<? extends Collector, ? extends TopDocs> wrapped = manager;
+  <C extends Collector> CollectorManager<? extends Collector, SearcherResult> wrapManager(
+      CollectorManager<C, SearcherResult> manager) {
+    CollectorManager<? extends Collector, SearcherResult> wrapped = manager;
     if (request.getTimeoutSec() > 0.0) {
       hadTimeout = false;
       wrapped =

@@ -24,10 +24,12 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.facet.DrillSidewaysImpl;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
+import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,11 +126,11 @@ public class TimeoutTest extends ServerTestCase {
     }
   }
 
-  private static class TimeoutWrapper extends SearchCutoffWrapper<Collector, TopDocs> {
+  private static class TimeoutWrapper<T extends Collector> extends SearchCutoffWrapper<T> {
     long currentTime = 10000;
 
     public TimeoutWrapper(
-        CollectorManager<Collector, TopDocs> in,
+        CollectorManager<T, SearcherResult> in,
         double timeoutSec,
         int checkEvery,
         boolean noPartialResults,
@@ -310,8 +312,8 @@ public class TimeoutTest extends ServerTestCase {
                     getTopDocs(
                         context,
                         new TimeoutWrapper(
-                            (CollectorManager<Collector, TopDocs>)
-                                context.getCollector().getManager(),
+                            new SearchCollectorManager(
+                                context.getCollector(), Collections.emptyList()),
                             request.getTimeoutSec(),
                             request.getTimeoutCheckEvery(),
                             false,
@@ -425,7 +427,7 @@ public class TimeoutTest extends ServerTestCase {
                 getTopDocs(
                     context,
                     new TimeoutWrapper(
-                        (CollectorManager<Collector, TopDocs>) context.getCollector().getManager(),
+                        new SearchCollectorManager(context.getCollector(), Collections.emptyList()),
                         request.getTimeoutSec(),
                         request.getTimeoutCheckEvery(),
                         true,
@@ -474,7 +476,7 @@ public class TimeoutTest extends ServerTestCase {
         .build();
   }
 
-  private TopDocs getTopDocs(SearchContext context, CollectorManager<?, ? extends TopDocs> manager)
+  private TopDocs getTopDocs(SearchContext context, CollectorManager<?, SearcherResult> manager)
       throws IOException {
     TopDocs topDocs;
     if (context.getQuery() instanceof DrillDownQuery) {
@@ -491,11 +493,16 @@ public class TimeoutTest extends ServerTestCase {
               grpcFacetResults,
               searchThreadPoolExecutor,
               Diagnostics.newBuilder());
-      DrillSideways.ConcurrentDrillSidewaysResult<? extends TopDocs> concurrentDrillSidewaysResult =
+      DrillSideways.ConcurrentDrillSidewaysResult<SearcherResult> concurrentDrillSidewaysResult =
           drillS.search((DrillDownQuery) context.getQuery(), manager);
-      topDocs = concurrentDrillSidewaysResult.collectorResult;
+      topDocs = concurrentDrillSidewaysResult.collectorResult.getTopDocs();
     } else {
-      topDocs = context.getSearcherAndTaxonomy().searcher.search(context.getQuery(), manager);
+      topDocs =
+          context
+              .getSearcherAndTaxonomy()
+              .searcher
+              .search(context.getQuery(), manager)
+              .getTopDocs();
     }
     return topDocs;
   }

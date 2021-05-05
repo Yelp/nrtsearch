@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -24,10 +23,12 @@ import com.yelp.nrtsearch.server.grpc.Rescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchStatsWrapper;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ScoreDoc;
@@ -40,7 +41,7 @@ public class DocCollectorTest {
     private final CollectorManager<? extends Collector, ? extends TopDocs> manager;
 
     public TestDocCollector(SearchRequest request) {
-      super(request);
+      super(request, Collections.emptyList());
       manager = new TestCollectorManager();
     }
 
@@ -74,7 +75,10 @@ public class DocCollectorTest {
     SearchRequest request = SearchRequest.newBuilder().setTopHits(10).build();
     TestDocCollector docCollector = new TestDocCollector(request);
     assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
-    assertSame(docCollector.getManager(), docCollector.getWrappedManager());
+    assertTrue(docCollector.getWrappedManager() instanceof SearchCollectorManager);
+    assertSame(
+        docCollector.getManager(),
+        ((SearchCollectorManager) docCollector.getWrappedManager()).getDocCollectorManger());
   }
 
   @Test
@@ -83,7 +87,6 @@ public class DocCollectorTest {
     TestDocCollector docCollector = new TestDocCollector(request);
     assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
     assertTrue(docCollector.getWrappedManager() instanceof SearchCutoffWrapper);
-    assertNotSame(docCollector.getManager(), docCollector.getWrappedManager());
   }
 
   @Test
@@ -92,10 +95,12 @@ public class DocCollectorTest {
     TestDocCollector docCollector = new TestDocCollector(request);
     assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
     assertTrue(docCollector.getWrappedManager() instanceof SearchStatsWrapper);
-    assertSame(
-        docCollector.getManager(),
-        ((SearchStatsWrapper<?, ?>) docCollector.getWrappedManager()).getWrapped());
-    assertNotSame(docCollector.getManager(), docCollector.getWrappedManager());
+    SearchStatsWrapper<?> searchStatsWrapper =
+        (SearchStatsWrapper<?>) docCollector.getWrappedManager();
+    assertTrue(searchStatsWrapper.getWrapped() instanceof SearchCollectorManager);
+    SearchCollectorManager searchCollectorManager =
+        (SearchCollectorManager) searchStatsWrapper.getWrapped();
+    assertSame(docCollector.getManager(), searchCollectorManager.getDocCollectorManger());
   }
 
   @Test
@@ -106,7 +111,7 @@ public class DocCollectorTest {
     assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
     assertTrue(docCollector.getWrappedManager() instanceof SearchStatsWrapper);
     assertTrue(
-        ((SearchStatsWrapper<?, ?>) docCollector.getWrappedManager()).getWrapped()
+        ((SearchStatsWrapper<?>) docCollector.getWrappedManager()).getWrapped()
             instanceof SearchCutoffWrapper);
   }
 

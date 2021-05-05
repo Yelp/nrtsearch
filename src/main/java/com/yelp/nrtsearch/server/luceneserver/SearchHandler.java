@@ -40,6 +40,7 @@ import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
+import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import com.yelp.nrtsearch.server.utils.StructJsonUtils;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -104,6 +105,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       long searchStartTime = System.nanoTime();
 
+      SearcherResult searcherResult;
       TopDocs hits;
       if (!searchRequest.getFacetsList().isEmpty()) {
         if (!(searchContext.getQuery() instanceof DrillDownQuery)) {
@@ -124,8 +126,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 grpcFacetResults,
                 threadPoolExecutor,
                 diagnostics);
-        DrillSideways.ConcurrentDrillSidewaysResult<? extends TopDocs>
-            concurrentDrillSidewaysResult;
+        DrillSideways.ConcurrentDrillSidewaysResult<SearcherResult> concurrentDrillSidewaysResult;
         try {
           concurrentDrillSidewaysResult =
               drillS.search(ddq, searchContext.getCollector().getWrappedManager());
@@ -139,7 +140,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           }
           throw e;
         }
-        hits = concurrentDrillSidewaysResult.collectorResult;
+        searcherResult = concurrentDrillSidewaysResult.collectorResult;
+        hits = searcherResult.getTopDocs();
         searchContext.getResponseBuilder().addAllFacetResult(grpcFacetResults);
         searchContext
             .getResponseBuilder()
@@ -147,10 +149,16 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 FacetTopDocs.facetTopDocsSample(
                     hits, searchRequest.getFacetsList(), indexState, s.searcher, diagnostics));
       } else {
-        hits =
+        searcherResult =
             s.searcher.search(
                 searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
+        hits = searcherResult.getTopDocs();
       }
+
+      // add results from any extra collectors
+      searchContext
+          .getResponseBuilder()
+          .putAllCollectorResults(searcherResult.getCollectorResults());
 
       searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
 
