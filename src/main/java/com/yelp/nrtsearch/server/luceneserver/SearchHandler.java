@@ -182,12 +182,12 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       hitBuilders.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
       List<LeafReaderContext> leaves = s.searcher.getIndexReader().leaves();
 
-      Map<Integer, LeafReaderContext> hitIdToLeaves = new HashMap<>();
+      List<LeafReaderContext> hitIdToLeaves = new ArrayList<>();
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         var hitResponse = hitBuilders.get(hitIndex);
         LeafReaderContext leaf =
             leaves.get(ReaderUtil.subIndex(hitResponse.getLuceneDocId(), leaves));
-        hitIdToLeaves.put(hitIndex, leaf);
+        hitIdToLeaves.add(hitIndex, leaf);
       }
 
       for (String field : searchContext.getRetrieveFields().keySet()) {
