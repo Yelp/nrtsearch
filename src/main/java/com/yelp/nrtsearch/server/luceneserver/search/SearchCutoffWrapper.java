@@ -26,7 +26,6 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.TopDocs;
 
 /**
  * {@link CollectorManager} that wraps another manager to provide support for cutting short a search
@@ -38,12 +37,11 @@ import org.apache.lucene.search.TopDocs;
  * on the first call to {@link #newCollector()}.
  *
  * @param <C> collector type of wrapped manager
- * @param <T> top docs type of wrapped manager
  */
-public class SearchCutoffWrapper<C extends Collector, T extends TopDocs>
-    implements CollectorManager<SearchCutoffWrapper<C, T>.TimeoutCollectorWrapper, T> {
+public class SearchCutoffWrapper<C extends Collector>
+    implements CollectorManager<SearchCutoffWrapper<C>.TimeoutCollectorWrapper, SearcherResult> {
 
-  private final CollectorManager<C, T> in;
+  private final CollectorManager<C, SearcherResult> in;
   private final boolean noPartialResults;
   private final double timeoutSec;
   private final int checkEvery;
@@ -59,7 +57,10 @@ public class SearchCutoffWrapper<C extends Collector, T extends TopDocs>
    * @param onTimeout an action to do if there was a timeout (done in reduce call)
    */
   public SearchCutoffWrapper(
-      CollectorManager<C, T> in, double timeoutSec, boolean noPartialResults, Runnable onTimeout) {
+      CollectorManager<C, SearcherResult> in,
+      double timeoutSec,
+      boolean noPartialResults,
+      Runnable onTimeout) {
     this(in, timeoutSec, 0, noPartialResults, onTimeout);
   }
 
@@ -74,7 +75,7 @@ public class SearchCutoffWrapper<C extends Collector, T extends TopDocs>
    * @param onTimeout an action to do if there was a timeout (done in reduce call)
    */
   public SearchCutoffWrapper(
-      CollectorManager<C, T> in,
+      CollectorManager<C, SearcherResult> in,
       double timeoutSec,
       int checkEvery,
       boolean noPartialResults,
@@ -101,8 +102,8 @@ public class SearchCutoffWrapper<C extends Collector, T extends TopDocs>
   }
 
   @Override
-  public T reduce(Collection<SearchCutoffWrapper<C, T>.TimeoutCollectorWrapper> collectors)
-      throws IOException {
+  public SearcherResult reduce(
+      Collection<SearchCutoffWrapper<C>.TimeoutCollectorWrapper> collectors) throws IOException {
     List<C> innerCollectors = new ArrayList<>(collectors.size());
     boolean hadTimeout = false;
     for (TimeoutCollectorWrapper collector : collectors) {
@@ -115,6 +116,11 @@ public class SearchCutoffWrapper<C extends Collector, T extends TopDocs>
       onTimeout.run();
     }
     return in.reduce(innerCollectors);
+  }
+
+  /** Get the collector manager being wrapped. */
+  public CollectorManager<C, SearcherResult> getWrapped() {
+    return in;
   }
 
   /**

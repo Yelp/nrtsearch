@@ -42,7 +42,7 @@ public class SearchContextTest extends ServerTestCase {
   public static class DummyCollector extends DocCollector {
 
     public DummyCollector() {
-      super(SearchRequest.newBuilder().build());
+      super(SearchRequest.newBuilder().build(), Collections.emptyList());
     }
 
     @Override

@@ -17,14 +17,12 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
 import static com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor.TOTAL_HITS_THRESHOLD;
 
-import com.yelp.nrtsearch.server.grpc.SearchRequest;
+import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
-import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
@@ -42,22 +40,26 @@ public class SortFieldCollector extends DocCollector {
   private final Sort sort;
   private final List<String> sortNames;
 
-  public SortFieldCollector(Map<String, FieldDef> queryFields, SearchRequest searchRequest) {
-    super(searchRequest);
+  public SortFieldCollector(
+      CollectorCreatorContext context,
+      List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
+          additionalCollectors) {
+    super(context.getRequest(), additionalCollectors);
     FieldDoc searchAfter = null;
     int topHits = getNumHitsToCollect();
     int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
-    if (searchRequest.getTotalHitsThreshold() != 0) {
-      totalHitsThreshold = searchRequest.getTotalHitsThreshold();
+    if (context.getRequest().getTotalHitsThreshold() != 0) {
+      totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
     }
 
-    sortNames = new ArrayList<>(searchRequest.getQuerySort().getFields().getSortedFieldsCount());
+    sortNames =
+        new ArrayList<>(context.getRequest().getQuerySort().getFields().getSortedFieldsCount());
     try {
       sort =
           SortParser.parseSort(
-              searchRequest.getQuerySort().getFields().getSortedFieldsList(),
+              context.getRequest().getQuerySort().getFields().getSortedFieldsList(),
               sortNames,
-              queryFields);
+              context.getQueryFields());
     } catch (SearchHandler.SearchHandlerException e) {
       throw new IllegalArgumentException(e);
     }

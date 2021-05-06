@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search;
 
+import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
@@ -32,6 +33,9 @@ import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreator;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.LargeNumHitsCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.RelevanceCollector;
@@ -43,11 +47,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Rescorer;
@@ -129,7 +135,10 @@ public class SearchRequestProcessor {
     contextBuilder.setFetchTasks(new FetchTasks(searchRequest.getFetchTasksList()));
 
     contextBuilder.setQuery(query);
-    contextBuilder.setCollector(buildDocCollector(queryFields, searchRequest));
+
+    CollectorCreatorContext collectorCreatorContext =
+        new CollectorCreatorContext(searchRequest, indexState, shardState, queryFields);
+    contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
 
     contextBuilder.setRescorers(
         getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
@@ -285,20 +294,26 @@ public class SearchRequestProcessor {
    * Build {@link DocCollector} to provide the {@link org.apache.lucene.search.CollectorManager} for
    * collecting hits for this query.
    *
-   * @param queryFields all valid fields for this query
-   * @param searchRequest request
    * @return collector
    */
-  private static DocCollector buildDocCollector(
-      Map<String, FieldDef> queryFields, SearchRequest searchRequest) {
+  private static DocCollector buildDocCollector(CollectorCreatorContext collectorCreatorContext) {
+    SearchRequest searchRequest = collectorCreatorContext.getRequest();
+    List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
+        additionalCollectors =
+            searchRequest.getCollectorsMap().entrySet().stream()
+                .map(
+                    e ->
+                        CollectorCreator.createCollectorManager(
+                            collectorCreatorContext, e.getKey(), e.getValue()))
+                .collect(Collectors.toList());
     if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
       if (hasLargeNumHits(searchRequest)) {
-        return new LargeNumHitsCollector(searchRequest);
+        return new LargeNumHitsCollector(collectorCreatorContext, additionalCollectors);
       } else {
-        return new RelevanceCollector(searchRequest);
+        return new RelevanceCollector(collectorCreatorContext, additionalCollectors);
       }
     } else {
-      return new SortFieldCollector(queryFields, searchRequest);
+      return new SortFieldCollector(collectorCreatorContext, additionalCollectors);
     }
   }
 
