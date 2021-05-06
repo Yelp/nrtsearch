@@ -16,19 +16,20 @@
 package com.yelp.nrtsearch.server.luceneserver.doc;
 
 import com.google.gson.Gson;
+import com.google.protobuf.ListValue;
 import com.google.protobuf.Struct;
+import com.google.protobuf.util.JsonFormat;
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
-import com.yelp.nrtsearch.server.utils.StructJsonUtils;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.function.LongFunction;
+import java.util.stream.Collectors;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.NumericDocValues;
@@ -342,9 +343,9 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
   }
 
-  public static final class ObjectJsonDocValues extends LoadedDocValues<Map<String, Object>> {
+  public static final class ObjectJsonDocValues extends LoadedDocValues<Struct> {
     private final BinaryDocValues docValues;
-    private List<Map<String, Object>> value;
+    private List<Struct> value;
 
     public ObjectJsonDocValues(BinaryDocValues docValues) {
       this.docValues = docValues;
@@ -354,14 +355,19 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     public void setDocId(int docID) throws IOException {
       if (docValues.advanceExact(docID)) {
         String jsonString = STRING_DECODER.apply(docValues.binaryValue());
-        value = gson.fromJson(jsonString, List.class);
+        ListValue.Builder builder = ListValue.newBuilder();
+        JsonFormat.parser().merge(jsonString, builder);
+        value =
+            builder.getValuesList().stream()
+                .map(e -> e.getStructValue())
+                .collect(Collectors.toList());
       } else {
         value = null;
       }
     }
 
     @Override
-    public Map<String, Object> get(int index) {
+    public Struct get(int index) {
       if (value == null) {
         throw new IllegalStateException("No doc values for document");
       }
@@ -374,7 +380,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
 
     @Override
     public SearchResponse.Hit.FieldValue toFieldValue(int index) {
-      Struct struct = StructJsonUtils.convertMapToStruct(get(index));
+      Struct struct = get(index);
       return SearchResponse.Hit.FieldValue.newBuilder().setStructValue(struct).build();
     }
 
