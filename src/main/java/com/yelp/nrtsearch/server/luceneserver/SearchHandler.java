@@ -50,7 +50,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -191,27 +190,54 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       hitBuilders.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
       List<LeafReaderContext> leaves = s.searcher.getIndexReader().leaves();
 
+      List<LeafReaderContext> hitIdToLeaves = new ArrayList<>();
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         var hitResponse = hitBuilders.get(hitIndex);
-
         LeafReaderContext leaf =
             leaves.get(ReaderUtil.subIndex(hitResponse.getLuceneDocId(), leaves));
+        hitIdToLeaves.add(hitIndex, leaf);
+      }
 
-        if (!searchContext.getRetrieveFields().isEmpty()) {
-          var fieldValueMap =
-              fillFields(
+      for (String field : searchContext.getRetrieveFields().keySet()) {
+        for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+          var hitResponse = hitBuilders.get(hitIndex);
+          LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
+          CompositeFieldValue v =
+              getFieldForHit(
                   indexState,
-                  null,
                   s.searcher,
                   hitResponse,
                   leaf,
-                  searchContext.getRetrieveFields().keySet(),
-                  Collections.emptyMap(),
-                  hitIndex,
+                  field,
                   searchContext.getRetrieveFields());
-          hitResponse.putAllFields(fieldValueMap);
+          hitResponse.putFields(field, v);
         }
+      }
 
+      // TODO: support highlight fields
+      Object highlighter = null;
+      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+        // TODO: get real highlights later
+        Map<String, Object[]> highlights = Collections.emptyMap();
+
+        if (highlights != null) {
+          for (Map.Entry<String, Object[]> ent : highlights.entrySet()) {
+            Object v = ent.getValue()[hitIndex];
+            if (v != null) {
+              // FIXME: not sure this is serializable to string?
+              CompositeFieldValue value =
+                  CompositeFieldValue.newBuilder()
+                      .addFieldValue(FieldValue.newBuilder().setTextValue(v.toString()).build())
+                      .build();
+              hitBuilders.get(hitIndex).putFields(ent.getKey(), value);
+            }
+          }
+        }
+      }
+
+      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+        var hitResponse = hitBuilders.get(hitIndex);
+        LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
         searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
       }
 
@@ -531,119 +557,93 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
   }
 
   /**
-   * Fills in the returned fields (some hilited) for one hit:
+   * retrieve one field (some hilited) for one hit:
    *
    * @return
    */
-  private Map<String, CompositeFieldValue> fillFields(
+  private CompositeFieldValue getFieldForHit(
       IndexState state,
-      Object highlighter,
       IndexSearcher s,
       Hit.Builder hit,
       LeafReaderContext leaf,
-      Set<String> fields,
-      Map<String, Object[]> highlights,
-      int hiliteHitIndex,
+      String field,
       Map<String, FieldDef> dynamicFields)
       throws IOException {
-    Map<String, CompositeFieldValue> fieldValueMap = new HashMap<>();
-    if (fields != null) {
-      // Add requested stored fields (no highlighting):
+    assert field != null;
+    CompositeFieldValue.Builder compositeFieldValue = CompositeFieldValue.newBuilder();
+    FieldDef fd = dynamicFields.get(field);
 
-      // even if they were not stored ...
-      // TODO: get highlighted fields as well
-      // Map<String,Object> doc = highlighter.getDocument(state, s, hit.doc);
-      Map<String, Object> doc = new HashMap<>();
-      boolean docIdAdvanced = false;
-      for (String name : fields) {
-        CompositeFieldValue.Builder compositeFieldValue = CompositeFieldValue.newBuilder();
-        FieldDef fd = dynamicFields.get(name);
+    // TODO: get highlighted fields as well
+    // Map<String,Object> doc = highlighter.getDocument(state, s, hit.doc);
+    Map<String, Object> doc = new HashMap<>();
+    boolean docIdAdvanced = false;
 
-        // We detect invalid field above:
-        assert fd != null;
+    // We detect invalid field above:
+    assert fd != null;
 
-        // retrieve from doc values
-        if (fd instanceof VirtualFieldDef) {
-          VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
+    if (fd instanceof VirtualFieldDef) {
+      VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
 
-          int docID = hit.getLuceneDocId() - leaf.docBase;
+      int docID = hit.getLuceneDocId() - leaf.docBase;
 
-          assert !Double.isNaN(hit.getScore()) || !virtualFieldDef.getValuesSource().needsScores();
-          DoubleValues scoreValue =
-              new DoubleValues() {
-                @Override
-                public double doubleValue() throws IOException {
-                  return hit.getScore();
-                }
-
-                @Override
-                public boolean advanceExact(int doc) throws IOException {
-                  return !Double.isNaN(hit.getScore());
-                }
-              };
-          DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
-          doubleValues.advanceExact(docID);
-          compositeFieldValue.addFieldValue(
-              FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
-        } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
-          int docID = hit.getLuceneDocId() - leaf.docBase;
-          // it may be possible to cache this if there are multiple hits in the same segment
-          LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);
-          docValues.setDocId(docID);
-          for (int i = 0; i < docValues.size(); ++i) {
-            compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
-          }
-        }
-        // retrieve stored fields
-        else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
-          String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.getLuceneDocId()));
-          for (String fieldValue : values) {
-            if (fd instanceof ObjectFieldDef || fd instanceof PolygonfieldDef) {
-              Map<String, Object> map = gson.fromJson(fieldValue, Map.class);
-              Struct struct = StructJsonUtils.convertMapToStruct(map);
-              compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(struct));
-            } else {
-              compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
+      assert !Double.isNaN(hit.getScore()) || !virtualFieldDef.getValuesSource().needsScores();
+      DoubleValues scoreValue =
+          new DoubleValues() {
+            @Override
+            public double doubleValue() throws IOException {
+              return hit.getScore();
             }
-          }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+              return !Double.isNaN(hit.getScore());
+            }
+          };
+      DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
+      doubleValues.advanceExact(docID);
+      compositeFieldValue.addFieldValue(
+          FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
+    } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
+      int docID = hit.getLuceneDocId() - leaf.docBase;
+      // it may be possible to cache this if there are multiple hits in the same segment
+      LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);
+      docValues.setDocId(docID);
+      for (int i = 0; i < docValues.size(); ++i) {
+        compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
+      }
+    }
+    // retrieve stored fields
+    else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
+      String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.getLuceneDocId()));
+      for (String fieldValue : values) {
+        if (fd instanceof ObjectFieldDef || fd instanceof PolygonfieldDef) {
+          Map<String, Object> map = gson.fromJson(fieldValue, Map.class);
+          Struct struct = StructJsonUtils.convertMapToStruct(map);
+          compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(struct));
         } else {
-          Object v = doc.get(name); // FIXME: doc is never updated, not sure if this is correct
-          if (v != null) {
-            if (fd instanceof IndexableFieldDef && !((IndexableFieldDef) fd).isMultiValue()) {
-              compositeFieldValue.addFieldValue(convertType(fd, v));
-            } else {
-              if (!(v instanceof List)) {
-                // FIXME: not sure this is serializable to string?
-                compositeFieldValue.addFieldValue(convertType(fd, v));
-              } else {
-                for (Object o : (List<Object>) v) {
-                  // FIXME: not sure this is serializable to string?
-                  compositeFieldValue.addFieldValue(convertType(fd, o));
-                }
-              }
+          compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
+        }
+      }
+    } else {
+      Object v = doc.get(field); // FIXME: doc is never updated, not sure if this is correct
+      if (v != null) {
+        if (fd instanceof IndexableFieldDef && !((IndexableFieldDef) fd).isMultiValue()) {
+          compositeFieldValue.addFieldValue(convertType(fd, v));
+        } else {
+          if (!(v instanceof List)) {
+            // FIXME: not sure this is serializable to string?
+            compositeFieldValue.addFieldValue(convertType(fd, v));
+          } else {
+            for (Object o : (List<Object>) v) {
+              // FIXME: not sure this is serializable to string?
+              compositeFieldValue.addFieldValue(convertType(fd, o));
             }
           }
         }
-
-        fieldValueMap.put(name, compositeFieldValue.build());
       }
     }
 
-    if (highlights != null) {
-      for (Map.Entry<String, Object[]> ent : highlights.entrySet()) {
-        Object v = ent.getValue()[hiliteHitIndex];
-        if (v != null) {
-          // FIXME: not sure this is serializable to string?
-          CompositeFieldValue value =
-              CompositeFieldValue.newBuilder()
-                  .addFieldValue(FieldValue.newBuilder().setTextValue(v.toString()).build())
-                  .build();
-          fieldValueMap.put(ent.getKey(), value);
-        }
-      }
-    }
-
-    return fieldValueMap;
+    return compositeFieldValue.build();
   }
 
   private static FieldValue convertType(FieldDef fd, Object o) {
