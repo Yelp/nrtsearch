@@ -25,6 +25,8 @@ public class ThreadPoolConfiguration {
 
   private static final int DEFAULT_MAX_INDEXING_THREADS =
       Runtime.getRuntime().availableProcessors() + 1;
+  private static final int DEFAULT_MAX_FILL_FIELDS_THREADS = DEFAULT_MAX_INDEXING_THREADS*2;
+
   private static final int DEFAULT_MAX_INDEXING_BUFFERED_ITEMS =
       Math.max(200, 2 * DEFAULT_MAX_INDEXING_THREADS);
 
@@ -39,6 +41,8 @@ public class ThreadPoolConfiguration {
 
   private final int maxSearchingThreads;
   private final int maxSearchBufferedItems;
+
+  private final int maxFillFieldsThreads;
 
   private final int maxIndexingThreads;
   private final int maxIndexingBufferedItems;
@@ -56,6 +60,9 @@ public class ThreadPoolConfiguration {
     maxSearchBufferedItems =
         configReader.getInteger(
             "threadPoolConfiguration.maxSearchBufferedItems", DEFAULT_MAX_SEARCH_BUFFERED_ITEMS);
+    maxFillFieldsThreads =
+        configReader.getInteger(
+            "threadPoolConfiguration.maxFillFieldsThreads", DEFAULT_MAX_FILL_FIELDS_THREADS);
 
     maxIndexingThreads =
         configReader.getInteger(
@@ -90,6 +97,10 @@ public class ThreadPoolConfiguration {
 
   public int getMaxSearchBufferedItems() {
     return maxSearchBufferedItems;
+  }
+
+  public int getMaxFillFieldsThreads() {
+    return maxFillFieldsThreads;
   }
 
   public int getMaxIndexingThreads() {

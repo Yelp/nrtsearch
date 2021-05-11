@@ -26,6 +26,7 @@ import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
+import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldType;
@@ -61,6 +62,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Pattern;
 import org.apache.lucene.analysis.Analyzer;
@@ -151,6 +153,7 @@ public class IndexState implements Closeable, Restorable {
 
   private static final Pattern reSimpleName = Pattern.compile("^[a-zA-Z_][a-zA-Z_0-9]*$");
   private ThreadPoolExecutor searchThreadPoolExecutor;
+  private ExecutorService fetchThreadPoolExecutor;
   private IdFieldDef idFieldDef = null;
 
   public ShardState addShard(int shardOrd, boolean doCreate) {
@@ -255,6 +258,14 @@ public class IndexState implements Closeable, Restorable {
 
   public ThreadPoolExecutor getSearchThreadPoolExecutor() {
     return searchThreadPoolExecutor;
+  }
+
+  public ExecutorService getFetchThreadPoolExecutor() {
+    return fetchThreadPoolExecutor;
+  }
+
+  public ThreadPoolConfiguration getThreadPoolConfiguration() {
+    return globalState.getThreadPoolConfiguration();
   }
 
   public IdFieldDef getIdFieldDef() {
@@ -491,6 +502,7 @@ public class IndexState implements Closeable, Restorable {
       initSaveLoadState();
     }
     searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
+    fetchThreadPoolExecutor = globalState.getFetchService();
   }
 
   void initSaveLoadState() throws IOException {
