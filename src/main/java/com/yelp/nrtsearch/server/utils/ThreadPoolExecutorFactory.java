@@ -110,6 +110,8 @@ public class ThreadPoolExecutorFactory {
               docsToIndex,
               new NamedThreadFactory("GrpcReplicationServerExecutor"));
     } else if (executorType.equals(ExecutorType.FETCH)) {
+      logger.info(
+          "Creating LuceneFetchExecutor of size " + threadPoolConfiguration.getMaxFetchThreads());
       BlockingQueue<Runnable> docsToIndex =
           new LinkedBlockingQueue<Runnable>(threadPoolConfiguration.getMaxSearchBufferedItems());
       threadPoolExecutor =
