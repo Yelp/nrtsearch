@@ -105,7 +105,7 @@ public class GlobalState implements Closeable, Restorable {
             luceneServerConfiguration.getThreadPoolConfiguration());
     this.fetchService =
         ThreadPoolExecutorFactory.getThreadPoolExecutor(
-            ThreadPoolExecutorFactory.ExecutorType.FILLFIELDS,
+            ThreadPoolExecutorFactory.ExecutorType.FETCH,
             luceneServerConfiguration.getThreadPoolConfiguration());
     this.configuration = luceneServerConfiguration;
     loadIndexNames();
