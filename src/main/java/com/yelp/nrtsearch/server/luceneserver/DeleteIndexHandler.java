@@ -18,11 +18,11 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.DeleteIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DeleteIndexResponse;
 import java.io.IOException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DeleteIndexHandler implements Handler<DeleteIndexRequest, DeleteIndexResponse> {
-  private static final Logger logger = Logger.getLogger(DeleteIndexHandler.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(DeleteIndexHandler.class.getName());
 
   @Override
   public DeleteIndexResponse handle(IndexState indexState, DeleteIndexRequest protoRequest)
@@ -31,8 +31,7 @@ public class DeleteIndexHandler implements Handler<DeleteIndexRequest, DeleteInd
       indexState.close();
       indexState.deleteIndex();
     } catch (IOException e) {
-      logger.log(
-          Level.WARNING,
+      logger.warn(
           String.format(
               "ThreadId: %s, deleteIndex failed",
               Thread.currentThread().getName() + Thread.currentThread().getId()));

@@ -63,15 +63,15 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
 public class YelpReviewsTest {
-  private static final Logger logger = Logger.getLogger(YelpReviewsTest.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(YelpReviewsTest.class.getName());
   public static final String LUCENE_SERVER_CONFIGURATION_YAML = "lucene_server_configuration.yaml";
   public static final String INDEX_NAME = "yelp_reviews_test_0";
   public static final String CLIENT_LOG = "client.log";
@@ -320,7 +320,7 @@ public class YelpReviewsTest {
         logger.info(String.format(" Input file %s will be indexed", reviews.toString()));
       } else {
         String reviewStr = getPathAsStr("reviews.json", ServerType.unknown);
-        logger.warning(
+        logger.warn(
             String.format(
                 " Input file %s does not exist using default resource from %s",
                 reviews.toString(), reviewStr));
@@ -357,10 +357,10 @@ public class YelpReviewsTest {
       logger.info("done...");
 
     } catch (StatusRuntimeException e) {
-      logger.severe("RPC failed with status " + e.getStatus());
+      logger.error("RPC failed with status " + e.getStatus());
       throw new RuntimeException(e);
     } catch (ExecutionException e) {
-      logger.severe("Task launched async failed " + e.getMessage());
+      logger.error("Task launched async failed " + e.getMessage());
       throw new RuntimeException(e);
     } finally {
       // stop servers
@@ -442,7 +442,7 @@ public class YelpReviewsTest {
           String.format(
               "process: %s, exited with code: %s, " + "command: %s, commandLog: %s",
               process.pid(), process.exitValue(), command, commandLog);
-      logger.warning(errorSt);
+      logger.warn(errorSt);
       throw new RuntimeException(errorSt);
     }
     return process;
@@ -505,7 +505,7 @@ public class YelpReviewsTest {
   }
 
   static FieldDefRequest getFieldDefRequest(String jsonStr) {
-    logger.fine(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
+    logger.info(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
     FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
     try {
       JsonFormat.parser().merge(jsonStr, fieldDefRequestBuilder);
@@ -513,13 +513,13 @@ public class YelpReviewsTest {
       throw new RuntimeException(e);
     }
     FieldDefRequest fieldDefRequest = fieldDefRequestBuilder.build();
-    logger.fine(
+    logger.info(
         String.format("jsonStr converted to proto FieldDefRequest %s", fieldDefRequest.toString()));
     return fieldDefRequest;
   }
 
   private static SettingsRequest getSettings(String jsonStr) {
-    logger.fine(String.format("Converting fields %s to proto SettingsRequest", jsonStr));
+    logger.info(String.format("Converting fields %s to proto SettingsRequest", jsonStr));
     SettingsRequest.Builder builder = SettingsRequest.newBuilder();
     try {
       JsonFormat.parser().merge(jsonStr, builder);
@@ -527,7 +527,7 @@ public class YelpReviewsTest {
       throw new RuntimeException(e);
     }
     SettingsRequest settingsRequest = builder.build();
-    logger.fine(
+    logger.info(
         String.format("jsonStr converted to proto SettingsRequest %s", settingsRequest.toString()));
     return settingsRequest;
   }
@@ -546,8 +546,7 @@ public class YelpReviewsTest {
         }
       } catch (Exception e) {
         retry += 1;
-        logger.log(
-            Level.WARNING,
+        logger.warn(
             String.format("Servers not up yet...retry healthcheck %s/%s time", retry, RETRY_LIMIT));
         Thread.sleep(1000);
       }

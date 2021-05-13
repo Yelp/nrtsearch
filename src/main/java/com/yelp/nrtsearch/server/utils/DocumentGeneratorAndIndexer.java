@@ -19,8 +19,9 @@ import com.google.gson.Gson;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
 import java.util.concurrent.Callable;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** */
 public class DocumentGeneratorAndIndexer implements Callable<Long> {
@@ -28,7 +29,7 @@ public class DocumentGeneratorAndIndexer implements Callable<Long> {
   private final Gson gson = new Gson();
   final LuceneServerClient luceneServerClient;
   private static final Logger logger =
-      Logger.getLogger(DocumentGeneratorAndIndexer.class.getName());
+      LoggerFactory.getLogger(DocumentGeneratorAndIndexer.class.getName());
   private final OneDocBuilder oneDocBuilder;
 
   public DocumentGeneratorAndIndexer(

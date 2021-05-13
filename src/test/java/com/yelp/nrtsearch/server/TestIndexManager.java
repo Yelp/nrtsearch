@@ -40,11 +40,12 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TestIndexManager {
-  protected static final Logger logger = Logger.getLogger(YelpReviewsTest.class.getName());
+  protected static final Logger logger = LoggerFactory.getLogger(YelpReviewsTest.class.getName());
 
   protected static void liveSettings(LuceneServerClient serverClient, String indexName) {
     LiveSettingsRequest liveSettingsRequest =
@@ -136,7 +137,7 @@ public class TestIndexManager {
   }
 
   private static FieldDefRequest getFieldDefRequest(String jsonStr) {
-    logger.fine(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
+    logger.info(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
     FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
     try {
       JsonFormat.parser().merge(jsonStr, fieldDefRequestBuilder);
@@ -144,7 +145,7 @@ public class TestIndexManager {
       throw new RuntimeException(e);
     }
     FieldDefRequest fieldDefRequest = fieldDefRequestBuilder.build();
-    logger.fine(
+    logger.info(
         String.format("jsonStr converted to proto FieldDefRequest %s", fieldDefRequest.toString()));
     return fieldDefRequest;
   }

@@ -25,11 +25,12 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParallelDocumentIndexer {
-  private static final Logger logger = Logger.getLogger(ParallelDocumentIndexer.class.getName());
+  private static final Logger logger =
+      LoggerFactory.getLogger(ParallelDocumentIndexer.class.getName());
   private static final int DOCS_PER_INDEX_REQUEST = 1000;
 
   public static List<Future<Long>> buildAndIndexDocs(
@@ -86,10 +87,8 @@ public class ParallelDocumentIndexer {
                     oneDocBuilder, rawLines.stream(), luceneServerClient));
         return genIdFuture;
       } catch (RejectedExecutionException e) {
-        logger.log(
-            Level.WARNING,
-            String.format("Waiting for 1s for LinkedBlockingQueue to have more capacity"),
-            e);
+        logger.warn(
+            String.format("Waiting for 1s for LinkedBlockingQueue to have more capacity"), e);
         Thread.sleep(1000);
       }
     }

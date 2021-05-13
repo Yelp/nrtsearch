@@ -17,12 +17,13 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.*;
 import java.io.IOException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DeleteAllDocumentsHandler
     implements Handler<DeleteAllDocumentsRequest, DeleteAllDocumentsResponse> {
-  private static final Logger logger = Logger.getLogger(DeleteAllDocumentsHandler.class.getName());
+  private static final Logger logger =
+      LoggerFactory.getLogger(DeleteAllDocumentsHandler.class.getName());
 
   @Override
   public DeleteAllDocumentsResponse handle(
@@ -34,8 +35,7 @@ public class DeleteAllDocumentsHandler
     try {
       gen = shardState.writer.deleteAll();
     } catch (IOException e) {
-      logger.log(
-          Level.WARNING,
+      logger.warn(
           String.format(
               "ThreadId: %s, writer.deleteAll failed",
               Thread.currentThread().getName() + Thread.currentThread().getId()));
