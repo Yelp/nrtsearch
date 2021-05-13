@@ -166,6 +166,7 @@ public class ShardState implements Closeable {
 
   public final Map<IndexReader.CacheKey, Map<String, SortedSetDocValuesReaderState>> ssdvStates =
       new HashMap<>();
+  private final Object ordinalBuilderLock = new Object();
 
   public final String name;
   private KeepAlive keepAlive;
@@ -766,8 +767,9 @@ public class ShardState implements Closeable {
   public SortedSetDocValuesReaderState getSSDVStateForReader(IndexReader reader, FieldDef fd)
       throws IOException {
     FacetsConfig.DimConfig dimConfig = indexState.facetsConfig.getDimConfig(fd.getName());
+    IndexReader.CacheKey cacheKey = reader.getReaderCacheHelper().getKey();
+    SortedSetDocValuesReaderState ssdvState;
     synchronized (ssdvStates) {
-      IndexReader.CacheKey cacheKey = reader.getReaderCacheHelper().getKey();
       Map<String, SortedSetDocValuesReaderState> readerSSDVStates = ssdvStates.get(cacheKey);
       if (readerSSDVStates == null) {
         readerSSDVStates = new HashMap<>();
@@ -775,41 +777,59 @@ public class ShardState implements Closeable {
         reader.getReaderCacheHelper().addClosedListener(removeSSDVStates);
       }
 
-      SortedSetDocValuesReaderState ssdvState = readerSSDVStates.get(dimConfig.indexFieldName);
-      if (ssdvState == null) {
-        // TODO: maybe we should do this up front when reader is first opened instead
-        ssdvState =
-            new DefaultSortedSetDocValuesReaderState(reader, dimConfig.indexFieldName) {
-              @Override
-              public SortedSetDocValues getDocValues() throws IOException {
-                SortedSetDocValues values = super.getDocValues();
-                if (values == null) {
-                  values = DocValues.emptySortedSet();
-                }
-                return values;
-              }
-
-              @Override
-              public OrdRange getOrdRange(String dim) {
-                OrdRange result = super.getOrdRange(dim);
-                if (result == null) {
-                  result = new OrdRange(0, -1);
-                }
-                return result;
-              }
-            };
-        // nocommit maybe we shouldn't make this a hard error
-        // ... ie just return 0 facets
-        if (ssdvState == null) {
-          throw new IllegalArgumentException(
-              String.format(
-                  "field %s was properly registered with facet=sortedSetDocValues, however no documents were indexed as of this searcher"));
-        }
-        readerSSDVStates.put(dimConfig.indexFieldName, ssdvState);
-      }
-
-      return ssdvState;
+      ssdvState = readerSSDVStates.get(dimConfig.indexFieldName);
     }
+
+    if (ssdvState == null) {
+      // Lock building SSDV state with different lock, so it won't block readers accessing
+      // the cache. Uses a single lock for now, could be made better by scoping it to the
+      // field and reader key.
+      synchronized (ordinalBuilderLock) {
+        // make sure state was not built while we were waiting for the lock
+        synchronized (ssdvStates) {
+          Map<String, SortedSetDocValuesReaderState> readerSSDVStates = ssdvStates.get(cacheKey);
+          if (readerSSDVStates == null) {
+            // we added this above, so we really should never get here
+            throw new IllegalStateException("SSDV State cache does not exist for reader");
+          }
+          ssdvState = readerSSDVStates.get(dimConfig.indexFieldName);
+        }
+        if (ssdvState == null) {
+          ssdvState =
+              new DefaultSortedSetDocValuesReaderState(reader, dimConfig.indexFieldName) {
+                @Override
+                public SortedSetDocValues getDocValues() throws IOException {
+                  SortedSetDocValues values = super.getDocValues();
+                  if (values == null) {
+                    values = DocValues.emptySortedSet();
+                  }
+                  return values;
+                }
+
+                @Override
+                public OrdRange getOrdRange(String dim) {
+                  OrdRange result = super.getOrdRange(dim);
+                  if (result == null) {
+                    result = new OrdRange(0, -1);
+                  }
+                  return result;
+                }
+              };
+
+          // add state to cache
+          synchronized (ssdvStates) {
+            Map<String, SortedSetDocValuesReaderState> readerSSDVStates = ssdvStates.get(cacheKey);
+            if (readerSSDVStates == null) {
+              // we added this above, so we really should never get here
+              throw new IllegalStateException("SSDV State cache does not exist for reader");
+            }
+            readerSSDVStates.put(dimConfig.indexFieldName, ssdvState);
+          }
+        }
+      }
+    }
+
+    return ssdvState;
   }
 
   /* TODO: read remote state from s3 */
