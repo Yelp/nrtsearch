@@ -219,7 +219,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 fetch_thread_pool_size,
                 (fields.size() + min_parallel_fetch_num_fields - 1)
                     / min_parallel_fetch_num_fields);
-        List<List<String>> fieldsChunks = Lists.partition(fields, (fields.size() + parallelism - 1) / parallelism);
+        List<List<String>> fieldsChunks =
+            Lists.partition(fields, (fields.size() + parallelism - 1) / parallelism);
 
         List<Future<List<Map<String, CompositeFieldValue>>>> futures = new ArrayList<>();
         // Only parallel by fields here, which should work well for doc values and virtual fields
