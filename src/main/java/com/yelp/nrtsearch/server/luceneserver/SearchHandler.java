@@ -212,14 +212,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       if (fetch_thread_pool_size > 1
           && fields.size() > min_parallel_fetch_num_fields
           && hitBuilders.size() > min_parallel_fetch_num_hits) {
-        // parallelism is min of fetchThreadPoolSize and fields.size() / MIN_PARALLEL_NUM_FIELDS
-        // round up
-        int parallelism =
-            Math.min(
-                fetch_thread_pool_size,
-                (fields.size() + min_parallel_fetch_num_fields - 1)
-                    / min_parallel_fetch_num_fields);
-        List<List<String>> fieldsChunks = Lists.partition(fields, parallelism);
+        List<List<String>> fieldsChunks = Lists.partition(fields, min_parallel_fetch_num_fields);
 
         List<Future<List<Map<String, CompositeFieldValue>>>> futures = new ArrayList<>();
         // Only parallel by fields here, which should work well for doc values and virtual fields
