@@ -84,7 +84,9 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.Status;
+import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
+
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.hotspot.DefaultExports;
 import java.io.File;
@@ -167,6 +169,7 @@ public class LuceneServer {
                         collectorRegistry,
                         plugins),
                     monitoringInterceptor))
+            .addService(ProtoReflectionService.newInstance())
             .executor(
                 ThreadPoolExecutorFactory.getThreadPoolExecutor(
                     ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
