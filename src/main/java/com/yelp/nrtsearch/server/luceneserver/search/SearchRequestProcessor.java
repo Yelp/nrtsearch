@@ -137,7 +137,8 @@ public class SearchRequestProcessor {
     contextBuilder.setQuery(query);
 
     CollectorCreatorContext collectorCreatorContext =
-        new CollectorCreatorContext(searchRequest, indexState, shardState, queryFields);
+        new CollectorCreatorContext(
+            searchRequest, indexState, shardState, queryFields, searcherAndTaxonomy);
     contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
 
     contextBuilder.setRescorers(

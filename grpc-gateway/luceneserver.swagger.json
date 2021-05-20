@@ -2244,6 +2244,10 @@
         },
         "nestedDoc": {
           "type": "boolean"
+        },
+        "eagerFieldGlobalOrdinals": {
+          "type": "boolean",
+          "description": "If field based global ordinals should be built up front, otherwise this is done lazily on first access. Currently only for fields with text doc values (TEXT/ATOM)."
         }
       }
     },
@@ -3821,7 +3825,7 @@
       "properties": {
         "field": {
           "type": "string",
-          "title": "Placeholder: TODO implement"
+          "description": "Use field values for terms."
         },
         "script": {
           "$ref": "#/definitions/luceneserverScript",

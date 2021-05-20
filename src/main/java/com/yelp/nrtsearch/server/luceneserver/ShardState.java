@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValueType;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import com.yelp.nrtsearch.server.utils.HostPort;
@@ -464,6 +465,14 @@ public class ShardState implements Closeable {
               String.format(
                   "Field: %s, facet type: %s, does not support eager global ordinals",
                   entry.getKey(), entry.getValue().getFacetValueType().toString()));
+        }
+      }
+
+      for (Map.Entry<String, GlobalOrdinalable> entry :
+          indexState.eagerFieldGlobalOrdinalFields.entrySet()) {
+        if (entry.getValue().usesOrdinals()) {
+          // get lookup to populate cache
+          entry.getValue().getOrdinalLookup(reader);
         }
       }
     }

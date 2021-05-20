@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import java.util.Map;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 
 /**
  * Context information needed to create collectors. Used for {@link DocCollector} and {@link
@@ -30,6 +31,7 @@ public class CollectorCreatorContext {
   private final IndexState indexState;
   private final ShardState shardState;
   private final Map<String, FieldDef> queryFields;
+  private final SearcherAndTaxonomy searcherAndTaxonomy;
 
   /**
    * Constructor.
@@ -38,16 +40,19 @@ public class CollectorCreatorContext {
    * @param indexState index state
    * @param shardState shard state
    * @param queryFields all possible fields usable for this query
+   * @param searcherAndTaxonomy searcher for query
    */
   public CollectorCreatorContext(
       SearchRequest request,
       IndexState indexState,
       ShardState shardState,
-      Map<String, FieldDef> queryFields) {
+      Map<String, FieldDef> queryFields,
+      SearcherAndTaxonomy searcherAndTaxonomy) {
     this.request = request;
     this.indexState = indexState;
     this.shardState = shardState;
     this.queryFields = queryFields;
+    this.searcherAndTaxonomy = searcherAndTaxonomy;
   }
 
   /** Get search request */
@@ -68,5 +73,10 @@ public class CollectorCreatorContext {
   /** Get all possible field usable for this query */
   public Map<String, FieldDef> getQueryFields() {
     return queryFields;
+  }
+
+  /** Get searcher for query */
+  public SearcherAndTaxonomy getSearcherAndTaxonomy() {
+    return searcherAndTaxonomy;
   }
 }

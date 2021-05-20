@@ -469,6 +469,8 @@ message Field {
 
     bool eagerGlobalOrdinals = 27; // Compute facet global ordinals for this field up front, otherwise this is done lazily on first query. Currently only for SORTED_SET_DOC_VALUES facet type.
     bool nestedDoc = 28; // True if object data should be indexed as child documents
+    // If field based global ordinals should be built up front, otherwise this is done lazily on first access. Currently only for fields with text doc values (TEXT/ATOM).
+    bool eagerFieldGlobalOrdinals = 29;
 }
 
 /* Input to registerFields */
