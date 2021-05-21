@@ -27,15 +27,14 @@ startScripts.enabled = false
 def _artifactId = 'clientlib'
 
 // Dependency versions
-def grpcVersion = '1.30.0' // CURRENT_GRPC_VERSION
 def protobufVersion = '3.11.1'
 def protocVersion = protobufVersion
 
 dependencies {
     //grpc deps
-    compile "io.grpc:grpc-protobuf:${grpcVersion}"
-    implementation "io.grpc:grpc-stub:${grpcVersion}"
-    implementation "io.grpc:grpc-okhttp:${grpcVersion}"
+    compile "io.grpc:grpc-protobuf:${rootProject.grpcVersion}"
+    implementation "io.grpc:grpc-stub:${rootProject.grpcVersion}"
+    implementation "io.grpc:grpc-okhttp:${rootProject.grpcVersion}"
     implementation "javax.annotation:javax.annotation-api:1.2"
     implementation "org.slf4j:slf4j-api:${rootProject.slf4jVersion}"
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.9.8'
