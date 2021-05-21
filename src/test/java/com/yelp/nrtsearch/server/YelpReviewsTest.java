@@ -505,7 +505,7 @@ public class YelpReviewsTest {
   }
 
   static FieldDefRequest getFieldDefRequest(String jsonStr) {
-    logger.info(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
+    logger.debug(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
     FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
     try {
       JsonFormat.parser().merge(jsonStr, fieldDefRequestBuilder);
@@ -513,13 +513,13 @@ public class YelpReviewsTest {
       throw new RuntimeException(e);
     }
     FieldDefRequest fieldDefRequest = fieldDefRequestBuilder.build();
-    logger.info(
+    logger.debug(
         String.format("jsonStr converted to proto FieldDefRequest %s", fieldDefRequest.toString()));
     return fieldDefRequest;
   }
 
   private static SettingsRequest getSettings(String jsonStr) {
-    logger.info(String.format("Converting fields %s to proto SettingsRequest", jsonStr));
+    logger.debug(String.format("Converting fields %s to proto SettingsRequest", jsonStr));
     SettingsRequest.Builder builder = SettingsRequest.newBuilder();
     try {
       JsonFormat.parser().merge(jsonStr, builder);
@@ -527,7 +527,7 @@ public class YelpReviewsTest {
       throw new RuntimeException(e);
     }
     SettingsRequest settingsRequest = builder.build();
-    logger.info(
+    logger.debug(
         String.format("jsonStr converted to proto SettingsRequest %s", settingsRequest.toString()));
     return settingsRequest;
   }

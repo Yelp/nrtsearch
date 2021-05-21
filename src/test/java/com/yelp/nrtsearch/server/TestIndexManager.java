@@ -137,7 +137,7 @@ public class TestIndexManager {
   }
 
   private static FieldDefRequest getFieldDefRequest(String jsonStr) {
-    logger.info(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
+    logger.debug(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
     FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
     try {
       JsonFormat.parser().merge(jsonStr, fieldDefRequestBuilder);
@@ -145,7 +145,7 @@ public class TestIndexManager {
       throw new RuntimeException(e);
     }
     FieldDefRequest fieldDefRequest = fieldDefRequestBuilder.build();
-    logger.info(
+    logger.debug(
         String.format("jsonStr converted to proto FieldDefRequest %s", fieldDefRequest.toString()));
     return fieldDefRequest;
   }
