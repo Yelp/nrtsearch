@@ -130,6 +130,44 @@ public class SearchStatsWrapperTest extends ServerTestCase {
     for (CollectorStats collectorStats :
         searchResponse.getProfileResult().getSearchStats().getCollectorStatsList()) {
       assertFalse(collectorStats.getTerminated());
+      assertTrue(collectorStats.getTotalCollectTimeMs() > 0.0);
+      assertEquals(50, collectorStats.getTotalCollectedCount());
+      assertEquals(0, collectorStats.getAdditionalCollectorStatsCount());
+      for (SegmentStats segmentStats : collectorStats.getSegmentStatsList()) {
+        assertEquals(10, segmentStats.getMaxDoc());
+        assertEquals(10, segmentStats.getNumDocs());
+        assertEquals(10, segmentStats.getCollectedCount());
+        assertTrue(segmentStats.getCollectTimeMs() > 0.0);
+        assertTrue(segmentStats.getRelativeStartTimeMs() > 0.0);
+      }
+    }
+  }
+
+  @Test
+  public void testHasAdditionalCollectorStats() {
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .addRetrieveFields("doc_id")
+                    .addRetrieveFields("int_score")
+                    .addRetrieveFields("int_field")
+                    .setQuery(Query.newBuilder())
+                    .setProfile(true)
+                    .build());
+    assertTrue(searchResponse.getProfileResult().getSearchStats().getCollectorStatsCount() > 1);
+    assertTrue(searchResponse.getProfileResult().getSearchStats().getTotalCollectTimeMs() > 0.0);
+    assertTrue(searchResponse.getProfileResult().getSearchStats().getTotalReduceTimeMs() > 0.0);
+    for (CollectorStats collectorStats :
+        searchResponse.getProfileResult().getSearchStats().getCollectorStatsList()) {
+      assertFalse(collectorStats.getTerminated());
+      assertTrue(collectorStats.getTotalCollectTimeMs() > 0.0);
+      assertEquals(50, collectorStats.getTotalCollectedCount());
+      assertEquals(0, collectorStats.getAdditionalCollectorStatsCount());
       for (SegmentStats segmentStats : collectorStats.getSegmentStatsList()) {
         assertEquals(10, segmentStats.getMaxDoc());
         assertEquals(10, segmentStats.getNumDocs());
