@@ -42,10 +42,10 @@ dependencies {
     // examples/advanced need this for JsonFormat
     compile "com.google.protobuf:protobuf-java-util:${protobufVersion}"
 
-    runtimeOnly "io.grpc:grpc-netty-shaded:${grpcVersion}"
+    runtimeOnly "io.grpc:grpc-netty-shaded:${rootProject.grpcVersion}"
 
     //test deps
-    compile "io.grpc:grpc-testing:${grpcVersion}"
+    compile "io.grpc:grpc-testing:${rootProject.grpcVersion}"
 }
 
 // Inform IDEs like IntelliJ IDEA, Eclipse or NetBeans about the generated code.
@@ -61,7 +61,7 @@ sourceSets {
 protobuf {
     protoc { artifact = "com.google.protobuf:protoc:${protocVersion}" }
     plugins {
-        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" }
+        grpc { artifact = "io.grpc:protoc-gen-grpc-java:${rootProject.grpcVersion}" }
     }
     generateProtoTasks {
         all()*.plugins { grpc {} }
