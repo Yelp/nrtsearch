@@ -36,9 +36,8 @@ public class DeleteAllDocumentsHandler
       gen = shardState.writer.deleteAll();
     } catch (IOException e) {
       logger.warn(
-          String.format(
-              "ThreadId: %s, writer.deleteAll failed",
-              Thread.currentThread().getName() + Thread.currentThread().getId()));
+          "ThreadId: {}, writer.deleteAll failed",
+          Thread.currentThread().getName() + Thread.currentThread().getId());
       throw new DeleteAllDocumentsHandlerException(e);
     }
     return DeleteAllDocumentsResponse.newBuilder().setGenId(String.valueOf(gen)).build();

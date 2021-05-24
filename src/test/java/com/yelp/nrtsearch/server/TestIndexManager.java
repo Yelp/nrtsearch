@@ -111,8 +111,7 @@ public class TestIndexManager {
     for (Future<Long> each : results) {
       try {
         Long genId = each.get();
-        logger.info(
-            String.format("ParallelDocumentIndexer.buildAndIndexDocs returned genId: %s", genId));
+        logger.info("ParallelDocumentIndexer.buildAndIndexDocs returned genId: {}", genId);
       } catch (ExecutionException | InterruptedException futureException) {
         System.out.println(futureException.getCause());
       }
@@ -137,7 +136,7 @@ public class TestIndexManager {
   }
 
   private static FieldDefRequest getFieldDefRequest(String jsonStr) {
-    logger.debug(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
+    logger.debug("Converting fields {} to proto FieldDefRequest", jsonStr);
     FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
     try {
       JsonFormat.parser().merge(jsonStr, fieldDefRequestBuilder);
@@ -145,8 +144,7 @@ public class TestIndexManager {
       throw new RuntimeException(e);
     }
     FieldDefRequest fieldDefRequest = fieldDefRequestBuilder.build();
-    logger.debug(
-        String.format("jsonStr converted to proto FieldDefRequest %s", fieldDefRequest.toString()));
+    logger.debug("jsonStr converted to proto FieldDefRequest {}", fieldDefRequest);
     return fieldDefRequest;
   }
 
@@ -163,11 +161,10 @@ public class TestIndexManager {
     StartIndexResponse startIndexResponse =
         serverClient.getBlockingStub().startIndex(startIndexRequest);
     logger.info(
-        String.format(
-            "numDocs: %s, maxDoc: %s, segments: %s, startTimeMS: %s",
-            startIndexResponse.getNumDocs(),
-            startIndexResponse.getMaxDoc(),
-            startIndexResponse.getSegments(),
-            startIndexResponse.getStartTimeMS()));
+        "numDocs: {}, maxDoc: {}, segments: {}, startTimeMS: {}",
+        startIndexResponse.getNumDocs(),
+        startIndexResponse.getMaxDoc(),
+        startIndexResponse.getSegments(),
+        startIndexResponse.getStartTimeMS());
   }
 }

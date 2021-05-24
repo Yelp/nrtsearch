@@ -47,8 +47,7 @@ public class IndexerTask {
             // should be
             // called only once.
             logger.debug(
-                String.format(
-                    "Received response for genId: %s on threadId: %s", value.getGenId(), threadId));
+                "Received response for genId: {} on threadId: {}", value.getGenId(), threadId);
             genId = value.getGenId();
           }
 
@@ -60,8 +59,7 @@ public class IndexerTask {
 
           @Override
           public void onCompleted() {
-            logger.debug(
-                String.format("Received final response from server on threadId: %s", threadId));
+            logger.debug("Received final response from server on threadId: {}", threadId);
             finishLatch.countDown();
           }
         };
@@ -82,13 +80,11 @@ public class IndexerTask {
     // Mark the end of requests
     requestObserver.onCompleted();
 
-    logger.debug(
-        String.format("sent async addDocumentsRequest to server on threadId: %s", threadId));
+    logger.debug("sent async addDocumentsRequest to server on threadId: {}", threadId);
 
     // Receiving happens asynchronously, so block here for 5 minutes
     if (!finishLatch.await(5, TimeUnit.MINUTES)) {
-      logger.warn(
-          String.format("addDocuments can not finish within 5 minutes on threadId: %s", threadId));
+      logger.warn("addDocuments can not finish within 5 minutes on threadId: {}", threadId);
     }
     return Long.valueOf(genId);
   }

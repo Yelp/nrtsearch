@@ -247,7 +247,7 @@ public class YelpReviewsTest {
     String primaryClientCommandLog = primaryDir.resolve(CLIENT_LOG).toString();
     String secondaryClientCommandLog = replicaDir.resolve(CLIENT_LOG).toString();
 
-    logger.info("Temporary directory: " + yelp_reviews_test_base_path.toString());
+    logger.info("Temporary directory: {}", yelp_reviews_test_base_path);
     Process primaryServerProcess =
         startServer(
             primaryDir.resolve(SERVER_LOG).toString(), getLuceneServerPrimaryConfigurationYaml());
@@ -317,13 +317,11 @@ public class YelpReviewsTest {
           createExecutorService(MAX_INDEXING_THREADS, "LuceneIndexing");
       Path reviews = Paths.get(System.getProperty("user.home"), "reviews.json");
       if (Files.exists(reviews)) {
-        logger.info(String.format(" Input file %s will be indexed", reviews.toString()));
+        logger.info("Input file {} will be indexed", reviews);
       } else {
         String reviewStr = getPathAsStr("reviews.json", ServerType.unknown);
         logger.warn(
-            String.format(
-                " Input file %s does not exist using default resource from %s",
-                reviews.toString(), reviewStr));
+            "Input file {} does not exist using default resource from {}", reviews, reviewStr);
         reviews = Paths.get(reviewStr);
       }
       long t1 = System.nanoTime();
@@ -334,19 +332,16 @@ public class YelpReviewsTest {
       // wait till all indexing done and notify search thread once done
       for (Future<Long> each : results) {
         Long genId = each.get();
-        logger.info(
-            String.format("ParallelDocumentIndexer.buildAndIndexDocs returned genId: %s", genId));
+        logger.info("ParallelDocumentIndexer.buildAndIndexDocs returned genId: {}", genId);
       }
       long t2 = System.nanoTime();
       long timeMilliSecs = (t2 - t1) / (1000 * 1000);
-      logger.info(
-          String.format(
-              "ParallelDocumentIndexer.buildAndIndexDocs took %s milliSecs", timeMilliSecs));
+      logger.info("ParallelDocumentIndexer.buildAndIndexDocs took {} milliSecs", timeMilliSecs);
 
       // stop search now
-      logger.info(String.format("Signal SearchTask to end"));
+      logger.info("Signal SearchTask to end");
       indexingDone.set(true);
-      logger.info(String.format("Search result totalHits: %s", searchFuture.get()));
+      logger.info("Search result totalHits: {}", searchFuture.get());
 
       // publishNRT, get latest searcher version and search over replica again with searcherVersion
       ReplicationServerClient primaryReplicationClient =
@@ -357,10 +352,10 @@ public class YelpReviewsTest {
       logger.info("done...");
 
     } catch (StatusRuntimeException e) {
-      logger.error("RPC failed with status " + e.getStatus());
+      logger.error("RPC failed with status {}", e.getStatus());
       throw new RuntimeException(e);
     } catch (ExecutionException e) {
-      logger.error("Task launched async failed " + e.getMessage());
+      logger.error("Task launched async failed {}", e.getMessage());
       throw new RuntimeException(e);
     } finally {
       // stop servers
@@ -377,12 +372,11 @@ public class YelpReviewsTest {
     StartIndexResponse startIndexResponse =
         serverClient.getBlockingStub().startIndex(startIndexRequest);
     logger.info(
-        String.format(
-            "numDocs: %s, maxDoc: %s, segments: %s, startTimeMS: %s",
-            startIndexResponse.getNumDocs(),
-            startIndexResponse.getMaxDoc(),
-            startIndexResponse.getSegments(),
-            startIndexResponse.getStartTimeMS()));
+        "numDocs: {}, maxDoc: {}, segments: {}, startTimeMS: {}",
+        startIndexResponse.getNumDocs(),
+        startIndexResponse.getMaxDoc(),
+        startIndexResponse.getSegments(),
+        startIndexResponse.getStartTimeMS());
   }
 
   private static void settings(LuceneServerClient serverClient, ServerType serverType)
@@ -430,7 +424,7 @@ public class YelpReviewsTest {
   }
 
   private static Process issueCommand(String commandLog, String command) throws IOException {
-    logger.info(String.format("issuing command: %s", command));
+    logger.info("issuing command: {}", command);
     ProcessBuilder processBuilder = new ProcessBuilder("bash", "-c", command);
     File primaryLog = new File(commandLog);
     // merge error and output streams
@@ -440,7 +434,7 @@ public class YelpReviewsTest {
     if (!process.isAlive() && process.exitValue() != 0) {
       String errorSt =
           String.format(
-              "process: %s, exited with code: %s, " + "command: %s, commandLog: %s",
+              "process: %s, exited with code: %s, command: %s, commandLog: %s",
               process.pid(), process.exitValue(), command, commandLog);
       logger.warn(errorSt);
       throw new RuntimeException(errorSt);
@@ -505,7 +499,7 @@ public class YelpReviewsTest {
   }
 
   static FieldDefRequest getFieldDefRequest(String jsonStr) {
-    logger.debug(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
+    logger.debug("Converting fields {} to proto FieldDefRequest", jsonStr);
     FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
     try {
       JsonFormat.parser().merge(jsonStr, fieldDefRequestBuilder);
@@ -513,13 +507,12 @@ public class YelpReviewsTest {
       throw new RuntimeException(e);
     }
     FieldDefRequest fieldDefRequest = fieldDefRequestBuilder.build();
-    logger.debug(
-        String.format("jsonStr converted to proto FieldDefRequest %s", fieldDefRequest.toString()));
+    logger.debug("jsonStr converted to proto FieldDefRequest {}", fieldDefRequest);
     return fieldDefRequest;
   }
 
   private static SettingsRequest getSettings(String jsonStr) {
-    logger.debug(String.format("Converting fields %s to proto SettingsRequest", jsonStr));
+    logger.debug("Converting fields {} to proto SettingsRequest", jsonStr);
     SettingsRequest.Builder builder = SettingsRequest.newBuilder();
     try {
       JsonFormat.parser().merge(jsonStr, builder);
@@ -527,8 +520,7 @@ public class YelpReviewsTest {
       throw new RuntimeException(e);
     }
     SettingsRequest settingsRequest = builder.build();
-    logger.debug(
-        String.format("jsonStr converted to proto SettingsRequest %s", settingsRequest.toString()));
+    logger.debug("jsonStr converted to proto SettingsRequest {}", settingsRequest);
     return settingsRequest;
   }
 
@@ -546,8 +538,7 @@ public class YelpReviewsTest {
         }
       } catch (Exception e) {
         retry += 1;
-        logger.warn(
-            String.format("Servers not up yet...retry healthcheck %s/%s time", retry, RETRY_LIMIT));
+        logger.warn("Servers not up yet...retry healthcheck {}/{} time", retry, RETRY_LIMIT);
         Thread.sleep(1000);
       }
     }
@@ -637,9 +628,10 @@ public class YelpReviewsTest {
       long totalHits = searchResponse.getTotalHits().getValue();
       String threadId = Thread.currentThread().getName() + Thread.currentThread().getId();
       logger.info(
-          String.format(
-              "Search returned totalHits: %s on threadId: %s in %s milliSecs",
-              totalHits, threadId, timeMs));
+          "Search returned totalHits: {} on threadId: {} in {} milliSecs",
+          totalHits,
+          threadId,
+          timeMs);
       return totalHits;
     }
   }
