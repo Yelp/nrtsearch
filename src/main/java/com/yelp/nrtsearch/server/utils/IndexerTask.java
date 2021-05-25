@@ -21,12 +21,12 @@ import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
 import io.grpc.stub.StreamObserver;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class IndexerTask {
-  private static final Logger logger = Logger.getLogger(IndexerTask.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(IndexerTask.class.getName());
   private String genId;
 
   public Long index(
@@ -46,22 +46,20 @@ public class IndexerTask {
             // which is when it is done with indexing the entire stream), which means this method
             // should be
             // called only once.
-            logger.fine(
-                String.format(
-                    "Received response for genId: %s on threadId: %s", value.getGenId(), threadId));
+            logger.debug(
+                "Received response for genId: {} on threadId: {}", value.getGenId(), threadId);
             genId = value.getGenId();
           }
 
           @Override
           public void onError(Throwable t) {
-            logger.log(Level.SEVERE, t.getMessage(), t);
+            logger.error(t.getMessage(), t);
             finishLatch.countDown();
           }
 
           @Override
           public void onCompleted() {
-            logger.fine(
-                String.format("Received final response from server on threadId: %s", threadId));
+            logger.debug("Received final response from server on threadId: {}", threadId);
             finishLatch.countDown();
           }
         };
@@ -82,14 +80,11 @@ public class IndexerTask {
     // Mark the end of requests
     requestObserver.onCompleted();
 
-    logger.fine(
-        String.format("sent async addDocumentsRequest to server on threadId: %s", threadId));
+    logger.debug("sent async addDocumentsRequest to server on threadId: {}", threadId);
 
     // Receiving happens asynchronously, so block here for 5 minutes
     if (!finishLatch.await(5, TimeUnit.MINUTES)) {
-      logger.log(
-          Level.WARNING,
-          String.format("addDocuments can not finish within 5 minutes on threadId: %s", threadId));
+      logger.warn("addDocuments can not finish within 5 minutes on threadId: {}", threadId);
     }
     return Long.valueOf(genId);
   }

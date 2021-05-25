@@ -30,10 +30,13 @@ def _artifactId = 'server'
 System.setProperty("org.gradle.internal.publish.checksums.insecure", "True")
 
 def luceneVersion = '8.4.0'
-project.ext.slf4jVersion = '2.0.0-alpha0'
+project.ext.slf4jVersion = '2.0.0-alpha1'
 project.ext.grpcVersion = '1.30.0'
+def log4jVersion = '2.14.1'
+def disruptorVersion = '3.2.1'
 def gsonVersion = '2.8.5'
 def snakeYamlVersion = '1.25'
+def jacksonYamlVersion = '2.12.3'
 def spatial4jVersion = '0.7'
 def s3mockVersion = '0.2.5'
 def commonsCompressVersion = '1.19'
@@ -48,9 +51,14 @@ dependencies {
     implementation "io.prometheus:simpleclient_servlet:${prometheusClientVersion}"
     implementation "io.prometheus:simpleclient_hotspot:${prometheusClientVersion}"
 
-    //
+    //logging deps
     implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
-    implementation "org.slf4j:slf4j-jdk14:2.0.0-alpha1"
+    implementation "org.apache.logging.log4j:log4j-slf4j18-impl:${log4jVersion}"
+    implementation "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+    implementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+    implementation "com.lmax:disruptor:${disruptorVersion}"
+
+
     implementation "com.google.code.gson:gson:${gsonVersion}"
     implementation 'org.apache.commons:commons-io:1.3.2'
     implementation "org.yaml:snakeyaml:${snakeYamlVersion}"
@@ -60,6 +68,9 @@ dependencies {
     implementation "javax.xml.bind:jaxb-api:2.3.1"
     implementation "com.guicedee.services:guice:${guicedeeVersion}"
     implementation "org.lz4:lz4-java:${lz4Version}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonYamlVersion}"
+    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonYamlVersion}"
+
 
     //lucene deps
     implementation "org.apache.lucene:lucene-core:${luceneVersion}"
@@ -100,14 +111,14 @@ task luceneServer(type: CreateStartScripts) {
     mainClassName = 'com.yelp.nrtsearch.server.grpc.LuceneServer'
     applicationName = 'lucene-server'
     outputDir = new File(project.buildDir, 'tmp')
-    classpath = startScripts.classpath
+    classpath = files('$APP_HOME/lib/*')
 }
 
 task luceneServerClient(type: CreateStartScripts) {
     mainClassName = 'com.yelp.nrtsearch.server.cli.LuceneClientCommand'
     applicationName = 'lucene-client'
     outputDir = new File(project.buildDir, 'tmp')
-    classpath = startScripts.classpath
+    classpath = files('$APP_HOME/lib/*')
 }
 
 applicationDistribution.into('bin') {
