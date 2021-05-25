@@ -79,6 +79,7 @@ public class GlobalState implements Closeable, Restorable {
   private final JsonObject indexNames = new JsonObject();
 
   private final ExecutorService indexService;
+  private final ExecutorService fetchService;
   private final ThreadPoolExecutor searchThreadPoolExecutor;
 
   public GlobalState(LuceneServerConfiguration luceneServerConfiguration) throws IOException {
@@ -101,6 +102,10 @@ public class GlobalState implements Closeable, Restorable {
     this.searchThreadPoolExecutor =
         ThreadPoolExecutorFactory.getThreadPoolExecutor(
             ThreadPoolExecutorFactory.ExecutorType.SEARCH,
+            luceneServerConfiguration.getThreadPoolConfiguration());
+    this.fetchService =
+        ThreadPoolExecutorFactory.getThreadPoolExecutor(
+            ThreadPoolExecutorFactory.ExecutorType.FETCH,
             luceneServerConfiguration.getThreadPoolConfiguration());
     this.configuration = luceneServerConfiguration;
     loadIndexNames();
@@ -292,5 +297,9 @@ public class GlobalState implements Closeable, Restorable {
 
   public ThreadPoolExecutor getSearchThreadPoolExecutor() {
     return searchThreadPoolExecutor;
+  }
+
+  public ExecutorService getFetchService() {
+    return fetchService;
   }
 }

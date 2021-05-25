@@ -31,6 +31,7 @@ System.setProperty("org.gradle.internal.publish.checksums.insecure", "True")
 
 def luceneVersion = '8.4.0'
 project.ext.slf4jVersion = '2.0.0-alpha1'
+project.ext.grpcVersion = '1.30.0'
 def log4jVersion = '2.14.1'
 def disruptorVersion = '3.2.1'
 def gsonVersion = '2.8.5'
@@ -91,6 +92,9 @@ dependencies {
     //cli deps
     implementation 'info.picocli:picocli:4.0.4'
     implementation 'org.apache.commons:commons-csv:1.7'
+
+    // gRPC deps
+    implementation "io.grpc:grpc-services:${project.ext.grpcVersion}"
 
     testImplementation "junit:junit:4.12"
     testImplementation "org.mockito:mockito-core:2.25.1"

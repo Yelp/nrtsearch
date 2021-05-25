@@ -15,8 +15,10 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import com.google.protobuf.Struct;
+import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
@@ -41,7 +43,6 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
-import com.yelp.nrtsearch.server.utils.StructJsonUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,6 +51,9 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -197,20 +201,59 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             leaves.get(ReaderUtil.subIndex(hitResponse.getLuceneDocId(), leaves));
         hitIdToLeaves.add(hitIndex, leaf);
       }
+      List<String> fields = new ArrayList<>(searchContext.getRetrieveFields().keySet());
+      int fetch_thread_pool_size = indexState.getThreadPoolConfiguration().getMaxFetchThreads();
+      int min_parallel_fetch_num_fields =
+          indexState.getThreadPoolConfiguration().getMinParallelFetchNumFields();
+      int min_parallel_fetch_num_hits =
+          indexState.getThreadPoolConfiguration().getMinParallelFetchNumHits();
+      // only parallel load data when request retrieve large number of fields for large number of
+      // hits
+      if (fetch_thread_pool_size > 1
+          && fields.size() > min_parallel_fetch_num_fields
+          && hitBuilders.size() > min_parallel_fetch_num_hits) {
+        // parallelism is min of fetchThreadPoolSize and fields.size() / MIN_PARALLEL_NUM_FIELDS
+        // round up
+        int parallelism =
+            Math.min(
+                fetch_thread_pool_size,
+                (fields.size() + min_parallel_fetch_num_fields - 1)
+                    / min_parallel_fetch_num_fields);
+        List<List<String>> fieldsChunks =
+            Lists.partition(fields, (fields.size() + parallelism - 1) / parallelism);
 
-      for (String field : searchContext.getRetrieveFields().keySet()) {
+        List<Future<List<Map<String, CompositeFieldValue>>>> futures = new ArrayList<>();
+        // Only parallel by fields here, which should work well for doc values and virtual fields
+        // For row based stored fields, we should do it by hit id.
+        // Stored fields are not widely used for NRTSearch (not recommended for memory usage)
+        for (List<String> fieldsChunk : fieldsChunks) {
+          futures.add(
+              indexState
+                  .getFetchThreadPoolExecutor()
+                  .submit(
+                      new FillFieldsTask(
+                          indexState,
+                          s.searcher,
+                          hitIdToLeaves,
+                          hitBuilders,
+                          fieldsChunk,
+                          searchContext)));
+        }
+        for (Future<List<Map<String, CompositeFieldValue>>> future : futures) {
+          List<Map<String, CompositeFieldValue>> values = future.get();
+          for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+            var hitResponse = hitBuilders.get(hitIndex);
+            hitResponse.putAllFields(values.get(hitIndex));
+          }
+        }
+      } else {
+        List<Map<String, CompositeFieldValue>> values =
+            new FillFieldsTask(
+                    indexState, s.searcher, hitIdToLeaves, hitBuilders, fields, searchContext)
+                .call();
         for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
           var hitResponse = hitBuilders.get(hitIndex);
-          LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
-          CompositeFieldValue v =
-              getFieldForHit(
-                  indexState,
-                  s.searcher,
-                  hitResponse,
-                  leaf,
-                  field,
-                  searchContext.getRetrieveFields());
-          hitResponse.putFields(field, v);
+          hitResponse.putAllFields(values.get(hitIndex));
         }
       }
 
@@ -265,7 +308,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       if (profileResultBuilder != null) {
         searchContext.getResponseBuilder().setProfileResult(profileResultBuilder);
       }
-    } catch (IOException | InterruptedException e) {
+    } catch (IOException | InterruptedException | ExecutionException e) {
       logger.warn(e.getMessage(), e);
       throw new SearchHandlerException(e);
     } finally {
@@ -556,94 +599,147 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     }
   }
 
-  /**
-   * retrieve one field (some hilited) for one hit:
-   *
-   * @return
-   */
-  private CompositeFieldValue getFieldForHit(
-      IndexState state,
-      IndexSearcher s,
-      Hit.Builder hit,
-      LeafReaderContext leaf,
-      String field,
-      Map<String, FieldDef> dynamicFields)
-      throws IOException {
-    assert field != null;
-    CompositeFieldValue.Builder compositeFieldValue = CompositeFieldValue.newBuilder();
-    FieldDef fd = dynamicFields.get(field);
+  public static class FillFieldsTask implements Callable<List<Map<String, CompositeFieldValue>>> {
 
-    // TODO: get highlighted fields as well
-    // Map<String,Object> doc = highlighter.getDocument(state, s, hit.doc);
-    Map<String, Object> doc = new HashMap<>();
-    boolean docIdAdvanced = false;
+    private IndexState state;
+    private IndexSearcher s;
+    private List<LeafReaderContext> hitIdToleaves;
+    private List<Hit.Builder> hitBuilders;
+    private List<String> fields;
+    private SearchContext searchContext;
 
-    // We detect invalid field above:
-    assert fd != null;
-
-    if (fd instanceof VirtualFieldDef) {
-      VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
-
-      int docID = hit.getLuceneDocId() - leaf.docBase;
-
-      assert !Double.isNaN(hit.getScore()) || !virtualFieldDef.getValuesSource().needsScores();
-      DoubleValues scoreValue =
-          new DoubleValues() {
-            @Override
-            public double doubleValue() throws IOException {
-              return hit.getScore();
-            }
-
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-              return !Double.isNaN(hit.getScore());
-            }
-          };
-      DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
-      doubleValues.advanceExact(docID);
-      compositeFieldValue.addFieldValue(
-          FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
-    } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
-      int docID = hit.getLuceneDocId() - leaf.docBase;
-      // it may be possible to cache this if there are multiple hits in the same segment
-      LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);
-      docValues.setDocId(docID);
-      for (int i = 0; i < docValues.size(); ++i) {
-        compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
-      }
+    public FillFieldsTask(
+        IndexState indexState,
+        IndexSearcher indexSearcher,
+        List<LeafReaderContext> hitIdToleaves,
+        List<Hit.Builder> hitBuilders,
+        List<String> fields,
+        SearchContext searchContext) {
+      this.state = indexState;
+      this.s = indexSearcher;
+      this.fields = fields;
+      this.searchContext = searchContext;
+      this.hitBuilders = hitBuilders;
+      this.hitIdToleaves = hitIdToleaves;
     }
-    // retrieve stored fields
-    else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
-      String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.getLuceneDocId()));
-      for (String fieldValue : values) {
-        if (fd instanceof ObjectFieldDef || fd instanceof PolygonfieldDef) {
-          Map<String, Object> map = gson.fromJson(fieldValue, Map.class);
-          Struct struct = StructJsonUtils.convertMapToStruct(map);
-          compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(struct));
-        } else {
-          compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
+
+    private List<Map<String, CompositeFieldValue>> fillFields(
+        IndexState state,
+        IndexSearcher s,
+        List<Hit.Builder> hitBuilders,
+        List<String> fields,
+        SearchContext searchContext)
+        throws IOException {
+      List<Map<String, CompositeFieldValue>> values = new ArrayList<>();
+      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+        values.add(new HashMap<>());
+      }
+      for (String field : fields) {
+        for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+          var hitResponse = hitBuilders.get(hitIndex);
+          LeafReaderContext leaf = hitIdToleaves.get(hitIndex);
+          CompositeFieldValue v =
+              getFieldForHit(state, s, hitResponse, leaf, field, searchContext.getRetrieveFields());
+          values.get(hitIndex).put(field, v);
         }
       }
-    } else {
-      Object v = doc.get(field); // FIXME: doc is never updated, not sure if this is correct
-      if (v != null) {
-        if (fd instanceof IndexableFieldDef && !((IndexableFieldDef) fd).isMultiValue()) {
-          compositeFieldValue.addFieldValue(convertType(fd, v));
-        } else {
-          if (!(v instanceof List)) {
-            // FIXME: not sure this is serializable to string?
+      return values;
+    }
+
+    /**
+     * retrieve one field (some hilited) for one hit:
+     *
+     * @return
+     */
+    private CompositeFieldValue getFieldForHit(
+        IndexState state,
+        IndexSearcher s,
+        Hit.Builder hit,
+        LeafReaderContext leaf,
+        String field,
+        Map<String, FieldDef> dynamicFields)
+        throws IOException {
+      assert field != null;
+      CompositeFieldValue.Builder compositeFieldValue = CompositeFieldValue.newBuilder();
+      FieldDef fd = dynamicFields.get(field);
+
+      // TODO: get highlighted fields as well
+      // Map<String,Object> doc = highlighter.getDocument(state, s, hit.doc);
+      Map<String, Object> doc = new HashMap<>();
+      boolean docIdAdvanced = false;
+
+      // We detect invalid field above:
+      assert fd != null;
+
+      if (fd instanceof VirtualFieldDef) {
+        VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
+
+        int docID = hit.getLuceneDocId() - leaf.docBase;
+
+        assert !Double.isNaN(hit.getScore()) || !virtualFieldDef.getValuesSource().needsScores();
+        DoubleValues scoreValue =
+            new DoubleValues() {
+              @Override
+              public double doubleValue() throws IOException {
+                return hit.getScore();
+              }
+
+              @Override
+              public boolean advanceExact(int doc) throws IOException {
+                return !Double.isNaN(hit.getScore());
+              }
+            };
+        DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
+        doubleValues.advanceExact(docID);
+        compositeFieldValue.addFieldValue(
+            FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
+      } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
+        int docID = hit.getLuceneDocId() - leaf.docBase;
+        // it may be possible to cache this if there are multiple hits in the same segment
+        LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);
+        docValues.setDocId(docID);
+        for (int i = 0; i < docValues.size(); ++i) {
+          compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
+        }
+      }
+      // retrieve stored fields
+      else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
+        String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.getLuceneDocId()));
+        for (String fieldValue : values) {
+          if (fd instanceof ObjectFieldDef || fd instanceof PolygonfieldDef) {
+            Struct.Builder builder = Struct.newBuilder();
+            JsonFormat.parser().merge(fieldValue, builder);
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(builder));
+          } else {
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
+          }
+        }
+      } else {
+        Object v = doc.get(field); // FIXME: doc is never updated, not sure if this is correct
+        if (v != null) {
+          if (fd instanceof IndexableFieldDef && !((IndexableFieldDef) fd).isMultiValue()) {
             compositeFieldValue.addFieldValue(convertType(fd, v));
           } else {
-            for (Object o : (List<Object>) v) {
+            if (!(v instanceof List)) {
               // FIXME: not sure this is serializable to string?
-              compositeFieldValue.addFieldValue(convertType(fd, o));
+              compositeFieldValue.addFieldValue(convertType(fd, v));
+            } else {
+              for (Object o : (List<Object>) v) {
+                // FIXME: not sure this is serializable to string?
+                compositeFieldValue.addFieldValue(convertType(fd, o));
+              }
             }
           }
         }
       }
+
+      return compositeFieldValue.build();
     }
 
-    return compositeFieldValue.build();
+    @Override
+    public List<Map<String, CompositeFieldValue>> call() throws IOException {
+      return fillFields(state, s, hitBuilders, fields, searchContext);
+    }
   }
 
   private static FieldValue convertType(FieldDef fd, Object o) {
