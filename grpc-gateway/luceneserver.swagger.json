@@ -681,12 +681,12 @@
     "/v1/search": {
       "post": {
         "summary": "Search",
-        "operationId": "LuceneServer_search",
+        "operationId": "LuceneServer_searchV2",
         "responses": {
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/luceneserverSearchResponse"
+              "$ref": "#/definitions/protobufAny"
             }
           },
           "default": {
