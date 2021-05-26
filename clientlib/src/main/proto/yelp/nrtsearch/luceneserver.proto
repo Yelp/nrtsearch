@@ -6,6 +6,7 @@ import "yelp/nrtsearch/analysis.proto";
 import "yelp/nrtsearch/suggest.proto";
 import "google/api/annotations.proto";
 import "google/api/httpbody.proto";
+import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
 
@@ -128,6 +129,15 @@ service LuceneServer {
       body: "*"
     };
     }
+
+    /* Search */
+    rpc searchV2 (SearchRequest) returns (google.protobuf.Any) {
+        option (google.api.http) = {
+      post: "/v1/search"
+      body: "*"
+    };
+    }
+
     /* Delete documents */
     rpc delete (AddDocumentRequest) returns (AddDocumentResponse) {
         option (google.api.http) = {

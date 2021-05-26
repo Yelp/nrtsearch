@@ -25,6 +25,7 @@ import com.google.common.collect.Sets;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
+import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -854,6 +855,51 @@ public class LuceneServer {
         SearchHandler searchHandler = new SearchHandler(searchThreadPoolExecutor);
         SearchResponse reply = searchHandler.handle(indexState, searchRequest);
         searchResponseStreamObserver.onNext(reply);
+        searchResponseStreamObserver.onCompleted();
+      } catch (IOException e) {
+        logger.warn(
+            "error while trying to read index state dir for indexName: "
+                + searchRequest.getIndexName(),
+            e);
+        searchResponseStreamObserver.onError(
+            Status.INTERNAL
+                .withDescription(
+                    "error while trying to read index state dir for indexName: "
+                        + searchRequest.getIndexName())
+                .augmentDescription(e.getMessage())
+                .withCause(e)
+                .asRuntimeException());
+      } catch (Exception e) {
+        String searchRequestJson = null;
+        try {
+          searchRequestJson = protoMessagePrinter.print(searchRequest);
+        } catch (InvalidProtocolBufferException ignored) {
+          // Ignore as invalid proto would have thrown an exception earlier
+        }
+        logger.warn(
+            String.format(
+                "error while trying to execute search for index %s: request: %s",
+                searchRequest.getIndexName(), searchRequestJson),
+            e);
+        searchResponseStreamObserver.onError(
+            Status.UNKNOWN
+                .withDescription(
+                    String.format(
+                        "error while trying to execute search for index %s. check logs for full searchRequest.",
+                        searchRequest.getIndexName()))
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+
+    @Override
+    public void searchV2(
+        SearchRequest searchRequest, StreamObserver<Any> searchResponseStreamObserver) {
+      try {
+        IndexState indexState = globalState.getIndex(searchRequest.getIndexName());
+        SearchHandler searchHandler = new SearchHandler(searchThreadPoolExecutor);
+        SearchResponse reply = searchHandler.handle(indexState, searchRequest);
+        searchResponseStreamObserver.onNext(Any.pack(reply));
         searchResponseStreamObserver.onCompleted();
       } catch (IOException e) {
         logger.warn(
