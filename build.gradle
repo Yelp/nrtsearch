@@ -111,14 +111,14 @@ task luceneServer(type: CreateStartScripts) {
     mainClassName = 'com.yelp.nrtsearch.server.grpc.LuceneServer'
     applicationName = 'lucene-server'
     outputDir = new File(project.buildDir, 'tmp')
-    classpath = files('$APP_HOME/lib/*')
+    classpath = startScripts.classpath
 }
 
 task luceneServerClient(type: CreateStartScripts) {
     mainClassName = 'com.yelp.nrtsearch.server.cli.LuceneClientCommand'
     applicationName = 'lucene-client'
     outputDir = new File(project.buildDir, 'tmp')
-    classpath = files('$APP_HOME/lib/*')
+    classpath = startScripts.classpath
 }
 
 applicationDistribution.into('bin') {
