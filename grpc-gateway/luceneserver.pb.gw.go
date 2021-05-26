@@ -2852,7 +2852,7 @@ var (
 
 	pattern_LuceneServer_Search_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "search"}, "", runtime.AssumeColonVerbOpt(true)))
 
-	pattern_LuceneServer_SearchV2_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "search"}, "", runtime.AssumeColonVerbOpt(true)))
+	pattern_LuceneServer_SearchV2_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v2", "search"}, "", runtime.AssumeColonVerbOpt(true)))
 
 	pattern_LuceneServer_Delete_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v1", "delete"}, "", runtime.AssumeColonVerbOpt(true)))
 

@@ -130,10 +130,10 @@ service LuceneServer {
     };
     }
 
-    /* Search */
+    /* Search V2 */
     rpc searchV2 (SearchRequest) returns (google.protobuf.Any) {
         option (google.api.http) = {
-      post: "/v1/search"
+      post: "/v2/search"
       body: "*"
     };
     }
