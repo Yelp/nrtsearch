@@ -1100,6 +1100,39 @@
           "LuceneServer"
         ]
       }
+    },
+    "/v2/search": {
+      "post": {
+        "summary": "Search V2",
+        "operationId": "LuceneServer_searchV2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/protobufAny"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverSearchRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
     }
   },
   "definitions": {
