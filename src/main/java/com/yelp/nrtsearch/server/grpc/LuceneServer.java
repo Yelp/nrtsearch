@@ -75,6 +75,7 @@ import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
+import com.yelp.nrtsearch.server.monitoring.QueryCacheCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -242,6 +243,8 @@ public class LuceneServer {
     NrtMetrics.register(collectorRegistry);
     // register index metrics
     IndexMetrics.register(collectorRegistry);
+    // register query cache metrics
+    new QueryCacheCollector().register(collectorRegistry);
   }
 
   /** Main launches the server from the command line. */
