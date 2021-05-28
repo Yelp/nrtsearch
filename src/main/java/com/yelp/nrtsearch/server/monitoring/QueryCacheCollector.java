@@ -53,9 +53,19 @@ public class QueryCacheCollector extends Collector {
             lruQueryCache.getCacheSize()));
     mfs.add(
         new GaugeMetricFamily(
+            "nrt_query_cache_size_bytes",
+            "Total memory used by query cache.",
+            lruQueryCache.ramBytesUsed()));
+    mfs.add(
+        new GaugeMetricFamily(
             "nrt_query_cache_count",
             "Total number of entries added to the query cache.",
             lruQueryCache.getCacheCount()));
+    mfs.add(
+        new GaugeMetricFamily(
+            "nrt_query_cache_eviction_count",
+            "Total number of query cache evictions.",
+            lruQueryCache.getEvictionCount()));
     return mfs;
   }
 }
