@@ -112,6 +112,8 @@ task luceneServer(type: CreateStartScripts) {
     applicationName = 'lucene-server'
     outputDir = new File(project.buildDir, 'tmp')
     classpath = startScripts.classpath
+    // Add additional dependencies, e.g. custom loggers
+    classpath += files('$APP_HOME/additional_libs')
 }
 
 task luceneServerClient(type: CreateStartScripts) {
