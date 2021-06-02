@@ -33,6 +33,7 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.LuceneServerModule;
 import com.yelp.nrtsearch.server.MetricsRequestHandler;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.QueryCacheConfig;
 import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler.DocumentIndexer;
 import com.yelp.nrtsearch.server.luceneserver.AddReplicaHandler;
 import com.yelp.nrtsearch.server.luceneserver.BackupIndexRequestHandler;
@@ -102,6 +103,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -300,7 +303,19 @@ public class LuceneServer {
       this.collectorRegistry = collectorRegistry;
       this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
 
+      initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
+    }
+
+    private void initQueryCache(LuceneServerConfiguration configuration) {
+      QueryCacheConfig cacheConfig = configuration.getQueryCacheConfig();
+      LRUQueryCache queryCache =
+          new LRUQueryCache(
+              cacheConfig.getMaxQueries(),
+              cacheConfig.getMaxMemoryBytes(),
+              cacheConfig.getLeafPredicate(),
+              cacheConfig.getSkipCacheFactor());
+      IndexSearcher.setDefaultQueryCache(queryCache);
     }
 
     private void initExtendableComponents(
