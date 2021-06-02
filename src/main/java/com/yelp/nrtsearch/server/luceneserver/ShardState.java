@@ -82,6 +82,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ShardState implements Closeable {
+  private static final long INITIAL_SYNC_PRIMARY_WAIT_MS = 30000;
   public static final int REPLICA_ID = 0;
   final ThreadPoolExecutor searchExecutor;
   Logger logger = LoggerFactory.getLogger(ShardState.class);
@@ -932,6 +933,10 @@ public class ShardState implements Closeable {
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               primaryGen);
+
+      if (indexState.globalState.configuration.getSyncInitialNrtPoint()) {
+        nrtReplicaNode.syncFromCurrentPrimary(INITIAL_SYNC_PRIMARY_WAIT_MS);
+      }
 
       startSearcherPruningThread(indexState.globalState.shutdownNow);
 
