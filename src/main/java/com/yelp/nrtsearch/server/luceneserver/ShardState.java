@@ -82,6 +82,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ShardState implements Closeable {
+  private static final long INITIAL_SYNC_PRIMARY_WAIT_MS = 30000;
   public static final int REPLICA_ID = 0;
   final ThreadPoolExecutor searchExecutor;
   Logger logger = LoggerFactory.getLogger(ShardState.class);
@@ -172,6 +173,7 @@ public class ShardState implements Closeable {
   private KeepAlive keepAlive;
   // is this shard restored
   private boolean restored;
+  private volatile boolean started = false;
 
   /** Restarts the reopen thread (called when the live settings have changed). */
   public void restartReopenThread() {
@@ -206,7 +208,7 @@ public class ShardState implements Closeable {
 
   /** True if this index is started. */
   public boolean isStarted() {
-    return writer != null || nrtReplicaNode != null || nrtPrimaryNode != null;
+    return started;
   }
 
   public boolean isRestored() {
@@ -476,7 +478,6 @@ public class ShardState implements Closeable {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
 
-    boolean success = false;
     try {
 
       if (indexState.saveLoadState == null) {
@@ -580,9 +581,9 @@ public class ShardState implements Closeable {
       restartReopenThread();
 
       startSearcherPruningThread(indexState.globalState.shutdownNow);
-      success = true;
+      started = true;
     } finally {
-      if (!success) {
+      if (!started) {
         IOUtils.closeWhileHandlingException(
             reopenThread,
             manager,
@@ -608,7 +609,6 @@ public class ShardState implements Closeable {
 
     // nocommit share code better w/ start and startReplica!
 
-    boolean success = false;
     try {
       // we have backups and are not creating a new index
       // use that to load indexes and other state (registeredFields, settings)
@@ -725,9 +725,9 @@ public class ShardState implements Closeable {
       restartReopenThread();
 
       startSearcherPruningThread(indexState.globalState.shutdownNow);
-      success = true;
+      started = true;
     } finally {
-      if (!success) {
+      if (!started) {
         IOUtils.closeWhileHandlingException(
             reopenThread,
             nrtPrimaryNode,
@@ -886,7 +886,6 @@ public class ShardState implements Closeable {
     }
 
     // nocommit share code better w/ start and startPrimary!
-    boolean success = false;
     try {
       if (indexState.saveLoadState == null) {
         indexState.initSaveLoadState();
@@ -933,6 +932,10 @@ public class ShardState implements Closeable {
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               primaryGen);
 
+      if (indexState.globalState.configuration.getSyncInitialNrtPoint()) {
+        nrtReplicaNode.syncFromCurrentPrimary(INITIAL_SYNC_PRIMARY_WAIT_MS);
+      }
+
       startSearcherPruningThread(indexState.globalState.shutdownNow);
 
       // Necessary so that the replica "hang onto" all versions sent to it, since the version is
@@ -954,9 +957,9 @@ public class ShardState implements Closeable {
           });
       keepAlive = new KeepAlive(this);
       new Thread(keepAlive, "KeepAlive").start();
-      success = true;
+      started = true;
     } finally {
-      if (!success) {
+      if (!started) {
         IOUtils.closeWhileHandlingException(
             reopenThread,
             nrtReplicaNode,
