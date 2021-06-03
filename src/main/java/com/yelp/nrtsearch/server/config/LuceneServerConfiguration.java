@@ -65,6 +65,7 @@ public class LuceneServerConfiguration {
   private final boolean restoreState;
   private final ThreadPoolConfiguration threadPoolConfiguration;
   private final IndexPreloadConfig preloadConfig;
+  private final QueryCacheConfig queryCacheConfig;
   private final boolean downloadAsStream;
   private final boolean fileSendDelay;
   private final boolean virtualSharding;
@@ -105,6 +106,7 @@ public class LuceneServerConfiguration {
     serviceName = configReader.getString("serviceName", DEFAULT_SERVICE_NAME);
     restoreState = configReader.getBoolean("restoreState", false);
     preloadConfig = IndexPreloadConfig.fromConfig(configReader);
+    queryCacheConfig = QueryCacheConfig.fromConfig(configReader);
     downloadAsStream = configReader.getBoolean("downloadAsStream", false);
     fileSendDelay = configReader.getBoolean("fileSendDelay", true);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
@@ -182,6 +184,10 @@ public class LuceneServerConfiguration {
 
   public IndexPreloadConfig getPreloadConfig() {
     return preloadConfig;
+  }
+
+  public QueryCacheConfig getQueryCacheConfig() {
+    return queryCacheConfig;
   }
 
   public boolean getDownloadAsStream() {
