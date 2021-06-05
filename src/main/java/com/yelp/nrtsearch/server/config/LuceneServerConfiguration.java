@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.config;
 
 import com.google.inject.Inject;
+import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
+
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -66,6 +68,7 @@ public class LuceneServerConfiguration {
   private final ThreadPoolConfiguration threadPoolConfiguration;
   private final IndexPreloadConfig preloadConfig;
   private final QueryCacheConfig queryCacheConfig;
+  private final WarmerConfig warmerConfig;
   private final boolean downloadAsStream;
   private final boolean fileSendDelay;
   private final boolean virtualSharding;
@@ -107,6 +110,7 @@ public class LuceneServerConfiguration {
     restoreState = configReader.getBoolean("restoreState", false);
     preloadConfig = IndexPreloadConfig.fromConfig(configReader);
     queryCacheConfig = QueryCacheConfig.fromConfig(configReader);
+    warmerConfig = WarmerConfig.fromConfig(configReader);
     downloadAsStream = configReader.getBoolean("downloadAsStream", false);
     fileSendDelay = configReader.getBoolean("fileSendDelay", true);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
@@ -188,6 +192,10 @@ public class LuceneServerConfiguration {
 
   public QueryCacheConfig getQueryCacheConfig() {
     return queryCacheConfig;
+  }
+
+  public WarmerConfig getWarmerConfig() {
+    return warmerConfig;
   }
 
   public boolean getDownloadAsStream() {
