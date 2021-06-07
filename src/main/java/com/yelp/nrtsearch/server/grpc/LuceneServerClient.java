@@ -329,6 +329,14 @@ public class LuceneServerClient {
             .build());
   }
 
+  public void backupWarmingQueries(String index, String service) {
+    blockingStub.backupWarmingQueries(
+            BackupWarmingQueriesRequest.newBuilder()
+                    .setIndex(index)
+                    .setServiceName(service)
+                    .build());
+  }
+
   public void status() throws InterruptedException {
     try {
       HealthCheckResponse status =
