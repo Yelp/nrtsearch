@@ -65,8 +65,7 @@ public class Warmer {
   }
 
   public void addSearchRequest(SearchRequest searchRequest) {
-    ReservoirSampler.SampleResult sampleResult =
-        reservoirSampler.sample();
+    ReservoirSampler.SampleResult sampleResult = reservoirSampler.sample();
     if (sampleResult.isSample()) {
       int replace = sampleResult.getReplace();
       if (warmingRequests.size() < maxWarmingQueries) {
@@ -77,7 +76,7 @@ public class Warmer {
     }
   }
 
-  synchronized public void backupWarmingQueriesToS3(String service) throws IOException {
+  public synchronized void backupWarmingQueriesToS3(String service) throws IOException {
     if (Strings.isNullOrEmpty(service)) {
       service = this.service;
     }
@@ -102,7 +101,12 @@ public class Warmer {
       String versionHash =
           archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), true);
       archiver.blessVersion(service, resource, versionHash);
-      logger.info("Backed up {} warming queries for index: {} to service: {}, resource: {}", count, index, service, resource);
+      logger.info(
+          "Backed up {} warming queries for index: {} to service: {}, resource: {}",
+          count,
+          index,
+          service,
+          resource);
     } finally {
       if (writer != null) {
         writer.close();
@@ -118,8 +122,7 @@ public class Warmer {
 
   public void warmFromS3(IndexState indexState, int parallelism)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
-    SearchHandler searchHandler =
-        new SearchHandler(indexState.getSearchThreadPoolExecutor(), true);
+    SearchHandler searchHandler = new SearchHandler(indexState.getSearchThreadPoolExecutor(), true);
     warmFromS3(indexState, parallelism, searchHandler);
   }
 

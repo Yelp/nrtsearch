@@ -16,11 +16,12 @@
 package com.yelp.nrtsearch.server.cli;
 
 import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
-import java.util.concurrent.Callable;
-
-@CommandLine.Command(name = BackupWarmingQueriesCommand.BACKUP_WARMING_QUERIES, description = "Backup index")
+@CommandLine.Command(
+    name = BackupWarmingQueriesCommand.BACKUP_WARMING_QUERIES,
+    description = "Backup index")
 public class BackupWarmingQueriesCommand implements Callable<Integer> {
   public static final String BACKUP_WARMING_QUERIES = "backupWarmingQueries";
 
@@ -49,8 +50,7 @@ public class BackupWarmingQueriesCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
     try {
-      client.backupWarmingQueries(
-          getIndex(), getServiceName());
+      client.backupWarmingQueries(getIndex(), getServiceName());
     } finally {
       client.shutdown();
     }
