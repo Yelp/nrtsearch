@@ -1389,7 +1389,9 @@ public class LuceneServer {
     }
 
     @Override
-    public void backupWarmingQueries(BackupWarmingQueriesRequest request, StreamObserver<BackupWarmingQueriesResponse> responseObserver) {
+    public void backupWarmingQueries(
+        BackupWarmingQueriesRequest request,
+        StreamObserver<BackupWarmingQueriesResponse> responseObserver) {
       String index = request.getIndex();
       try {
         IndexState indexState = globalState.getIndex(index);
@@ -1397,24 +1399,28 @@ public class LuceneServer {
         if (warmer == null) {
           logger.warn("Unable to backup warming queries as warmer not found for index: {}", index);
           responseObserver.onError(
-                  Status.UNKNOWN
-                          .withDescription("Unable to backup warming queries as warmer not found for index: " + index)
-                          .asRuntimeException());
+              Status.UNKNOWN
+                  .withDescription(
+                      "Unable to backup warming queries as warmer not found for index: " + index)
+                  .asRuntimeException());
           return;
         }
         warmer.backupWarmingQueriesToS3(request.getServiceName());
       } catch (IOException e) {
-        logger.error("Unable to backup warming queries for index: {}, service: {}", index, request.getServiceName(), e);
+        logger.error(
+            "Unable to backup warming queries for index: {}, service: {}",
+            index,
+            request.getServiceName(),
+            e);
         responseObserver.onError(
-                Status.UNKNOWN
-                        .withCause(e)
-                        .withDescription(
-                                String.format(
-                                        "Unable to backup warming queries for index: %s, service: %s",
-                                        index,
-                                        request.getServiceName()))
-                        .augmentDescription(e.getMessage())
-                        .asRuntimeException());
+            Status.UNKNOWN
+                .withCause(e)
+                .withDescription(
+                    String.format(
+                        "Unable to backup warming queries for index: %s, service: %s",
+                        index, request.getServiceName()))
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
       }
     }
 

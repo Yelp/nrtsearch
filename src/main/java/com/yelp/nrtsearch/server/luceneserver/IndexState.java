@@ -549,7 +549,9 @@ public class IndexState implements Closeable, Restorable {
     LuceneServerConfiguration configuration = globalState.configuration;
     WarmerConfig warmerConfig = configuration.getWarmerConfig();
     if (warmerConfig.isWarmOnStartup() || warmerConfig.getMaxWarmingQueries() > 0) {
-      this.warmer = new Warmer(archiver, configuration.getServiceName(), name, warmerConfig.getMaxWarmingQueries());
+      this.warmer =
+          new Warmer(
+              archiver, configuration.getServiceName(), name, warmerConfig.getMaxWarmingQueries());
     }
   }
 

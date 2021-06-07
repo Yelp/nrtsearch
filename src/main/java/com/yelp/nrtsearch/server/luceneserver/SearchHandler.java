@@ -79,7 +79,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
   private final boolean storeWarmingQueries;
 
   public SearchHandler(ThreadPoolExecutor threadPoolExecutor) {
-    this (threadPoolExecutor, true);
+    this(threadPoolExecutor, true);
   }
 
   /**

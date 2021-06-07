@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.config;
 
 import com.google.inject.Inject;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
-
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
