@@ -76,26 +76,30 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
   private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
   private final ThreadPoolExecutor threadPoolExecutor;
-  private final boolean storeWarmingQueries;
+  private final boolean warming;
 
   public SearchHandler(ThreadPoolExecutor threadPoolExecutor) {
-    this(threadPoolExecutor, true);
+    this(threadPoolExecutor, false);
   }
 
   /**
    * @param threadPoolExecutor Threadpool to execute a parallel search
-   * @param storeWarmingQueries store warming queries using {@link IndexState#getWarmer()}
+   * @param warming set to true if we are warming the index right now
    */
-  public SearchHandler(ThreadPoolExecutor threadPoolExecutor, boolean storeWarmingQueries) {
+  public SearchHandler(ThreadPoolExecutor threadPoolExecutor, boolean warming) {
     this.threadPoolExecutor = threadPoolExecutor;
-    this.storeWarmingQueries = storeWarmingQueries;
+    this.warming = warming;
   }
 
   @Override
   public SearchResponse handle(IndexState indexState, SearchRequest searchRequest)
       throws SearchHandlerException {
     ShardState shardState = indexState.getShard(0);
-    indexState.verifyStarted();
+
+    // Index won't be started if we are currently warming
+    if (!warming) {
+      indexState.verifyStarted();
+    }
 
     var diagnostics = SearchResponse.Diagnostics.newBuilder();
 
@@ -339,7 +343,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
     // Add searchRequest to warmer if needed
     try {
-      if (storeWarmingQueries && indexState.getWarmer() != null) {
+      if (!warming && indexState.getWarmer() != null) {
         indexState.getWarmer().addSearchRequest(searchRequest);
       }
     } catch (Exception e) {

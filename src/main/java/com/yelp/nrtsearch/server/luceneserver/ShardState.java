@@ -939,11 +939,6 @@ public class ShardState implements Closeable {
 
       startSearcherPruningThread(indexState.globalState.shutdownNow);
 
-      WarmerConfig warmerConfig = indexState.globalState.configuration.getWarmerConfig();
-      if (warmerConfig.isWarmOnStartup() && indexState.getWarmer() != null) {
-        indexState.getWarmer().warmFromS3(indexState, warmerConfig.getWarmingParallelism());
-      }
-
       // Necessary so that the replica "hang onto" all versions sent to it, since the version is
       // sent back to the user on writeNRTPoint
       addRefreshListener(
@@ -963,6 +958,11 @@ public class ShardState implements Closeable {
           });
       keepAlive = new KeepAlive(this);
       new Thread(keepAlive, "KeepAlive").start();
+
+      WarmerConfig warmerConfig = indexState.globalState.configuration.getWarmerConfig();
+      if (warmerConfig.isWarmOnStartup() && indexState.getWarmer() != null) {
+        indexState.getWarmer().warmFromS3(indexState, warmerConfig.getWarmingParallelism());
+      }
       started = true;
     } finally {
       if (!started) {

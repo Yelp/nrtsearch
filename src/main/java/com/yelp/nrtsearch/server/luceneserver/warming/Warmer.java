@@ -51,11 +51,13 @@ public class Warmer {
   private final String resource;
   private final List<SearchRequest> warmingRequests;
   private final ReservoirSampler reservoirSampler;
+  private final String index;
   private final int maxWarmingQueries;
 
   public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries) {
     this.archiver = archiver;
     this.service = service;
+    this.index = index;
     this.resource = index + WARMING_QUERIES_RESOURCE;
     this.warmingRequests = Collections.synchronizedList(new ArrayList<>(maxWarmingQueries));
     this.reservoirSampler = new ReservoirSampler(maxWarmingQueries);
@@ -89,15 +91,18 @@ public class Warmer {
       warmingQueriesDir = Files.createDirectory(tmpDirectory.resolve(WARMING_QUERIES_DIR));
       warmingQueriesFile = warmingQueriesDir.resolve(WARMING_QUERIES_FILE);
       writer = Files.newBufferedWriter(warmingQueriesFile);
+      int count = 0;
       for (SearchRequest searchRequest : warmingRequests) {
         writer.write(JsonFormat.printer().omittingInsignificantWhitespace().print(searchRequest));
         writer.newLine();
+        count++;
       }
       writer.close();
       writer = null;
       String versionHash =
           archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), true);
       archiver.blessVersion(service, resource, versionHash);
+      logger.info("Backed up {} warming queries for index: {} to service: {}, resource: {}", count, index, service, resource);
     } finally {
       if (writer != null) {
         writer.close();
@@ -114,7 +119,7 @@ public class Warmer {
   public void warmFromS3(IndexState indexState, int parallelism)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     SearchHandler searchHandler =
-        new SearchHandler(indexState.getSearchThreadPoolExecutor(), false);
+        new SearchHandler(indexState.getSearchThreadPoolExecutor(), true);
     warmFromS3(indexState, parallelism, searchHandler);
   }
 
@@ -144,19 +149,30 @@ public class Warmer {
     try (BufferedReader reader =
         Files.newBufferedReader(warmingRequestsDir.resolve(WARMING_QUERIES_FILE))) {
       String line;
+      int count = 0;
       while ((line = reader.readLine()) != null) {
         processLine(indexState, searchHandler, threadPoolExecutor, line);
+        count++;
       }
+      logger.info("Warmed index: {} with {} warming queries", index, count);
     } finally {
       if (threadPoolExecutor != null) {
         threadPoolExecutor.shutdown();
         threadPoolExecutor.awaitTermination(10, TimeUnit.SECONDS);
       }
+      // TODO: If index start fails during or after warming and is attempted again, the startIndex
+      // will fail due to previous downloaded parent directory still being present.
+      // We need to manually clean up the directory to be able to start the index. Either don't
+      // delete at all so the file is present and can be found or delete the parent and version
+      // directory created by archiver.
       if (Files.exists(warmingRequestsDir)) {
         for (Path file : Files.list(warmingRequestsDir).collect(Collectors.toList())) {
           Files.delete(file);
         }
         Files.delete(warmingRequestsDir);
+      }
+      if (Files.exists(downloadDir)) {
+        Files.delete(downloadDir);
       }
     }
   }
