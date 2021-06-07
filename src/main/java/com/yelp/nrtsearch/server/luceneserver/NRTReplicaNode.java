@@ -223,27 +223,29 @@ public class NRTReplicaNode extends ReplicaNode {
   }
 
   /**
-   * Sync the next nrt point from the current primary. Attempts to start a new copy job with the
-   * primary, giving up after the specified amount of time. Sync is considered completed when either
-   * the index version has changed, or there is no longer an active copy job.
+   * Sync the next nrt point from the current primary. Attempts to get the current index version
+   * from the primary, giving up after the specified amount of time. Sync is considered completed
+   * when either the index version has updated to at least the initial primary version, or there is
+   * a failure to start a new copy job.
    *
    * @param primaryWaitMs how long to wait for primary to be available
    * @throws IOException on issue getting searcher version
    */
   public void syncFromCurrentPrimary(long primaryWaitMs) throws IOException {
-    long curVersion = getCurrentSearchingVersion();
-    logger.info(
-        "Starting sync of next nrt point from current primary, current version: " + curVersion);
-    CopyJob job = null;
+    logger.info("Starting sync of next nrt point from current primary");
     long startMS = System.currentTimeMillis();
-    // Attempt to start a new nrt point copy from the current primary, give up if
-    // it is unavailable for too long
-    while (job == null && System.currentTimeMillis() - startMS < primaryWaitMs) {
-      // synchronize read of lastPrimaryGen
-      synchronized (this) {
-        job = newNRTPoint(lastPrimaryGen, Long.MAX_VALUE);
-      }
-      if (job == null) {
+    long primaryIndexVersion = -1;
+    long lastPrimaryGen = -1;
+    // Attempt to get the current index version from the primary, give up if the timeout
+    // is exceeded
+    while (System.currentTimeMillis() - startMS < primaryWaitMs) {
+      try {
+        com.yelp.nrtsearch.server.grpc.CopyState copyState =
+            primaryAddress.recvCopyState(indexName, this.id);
+        primaryIndexVersion = copyState.getVersion();
+        lastPrimaryGen = copyState.getPrimaryGen();
+        break;
+      } catch (Exception ignored) {
         try {
           Thread.sleep(NRT_CONNECT_WAIT_MS);
         } catch (InterruptedException e) {
@@ -251,29 +253,39 @@ public class NRTReplicaNode extends ReplicaNode {
         }
       }
     }
-    if (job == null) {
-      logger.info("Timed out starting nrt point copy from current primary");
+    if (primaryIndexVersion == -1) {
+      logger.info("Nrt sync: Could not get index version from primary, skipping");
       return;
     }
-    while (true) {
-      // we are done when either a new index version has synced, or there is no longer
-      // an active copy
-      if (curVersion < getCurrentSearchingVersion()) {
-        break;
+    long curVersion = getCurrentSearchingVersion();
+    logger.info("Nrt sync: primary version: {}, my version: {}", primaryIndexVersion, curVersion);
+    // Keep trying to sync a new nrt point until either our searcher version updates, or
+    // we are unable to start a new copy job. This is needed since long running nrt points
+    // may fail if the primary cleans up old commit files.
+    while (curVersion < primaryIndexVersion) {
+      CopyJob job = newNRTPoint(lastPrimaryGen, Long.MAX_VALUE);
+      if (job == null) {
+        logger.info("Nrt sync: failed to start copy job, aborting");
+        return;
       }
-      synchronized (this) {
-        if (curNRTCopy == null) {
+      logger.info("Nrt sync: started new copy job");
+      while (true) {
+        curVersion = getCurrentSearchingVersion();
+        if (curVersion >= primaryIndexVersion) {
           break;
         }
-      }
-      try {
-        Thread.sleep(NRT_SYNC_WAIT_MS);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
+        synchronized (this) {
+          if (curNRTCopy == null) {
+            break;
+          }
+        }
+        try {
+          Thread.sleep(NRT_SYNC_WAIT_MS);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
       }
     }
-    logger.info(
-        "Finished syncing nrt point from current primary, current version: "
-            + getCurrentSearchingVersion());
+    logger.info("Finished syncing nrt point from current primary, current version: {}", curVersion);
   }
 }
