@@ -101,6 +101,7 @@ dependencies {
     testImplementation "org.apache.lucene:lucene-test-framework:${luceneVersion}"
     testImplementation "org.locationtech.spatial4j:spatial4j:${spatial4jVersion}"
     testImplementation "io.findify:s3mock_2.12:${s3mockVersion}"
+    testImplementation "org.assertj:assertj-core:3.19.0"
 
     compile project(':clientlib')
 }

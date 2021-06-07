@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.collect.Lists;
-import com.google.gson.Gson;
 import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
@@ -75,13 +74,21 @@ import org.slf4j.LoggerFactory;
 
 public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
+  private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
   private final ThreadPoolExecutor threadPoolExecutor;
-  Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
-
-  private final Gson gson = new Gson();
+  private final boolean storeWarmingQueries;
 
   public SearchHandler(ThreadPoolExecutor threadPoolExecutor) {
+    this (threadPoolExecutor, true);
+  }
+
+  /**
+   * @param threadPoolExecutor Threadpool to execute a parallel search
+   * @param storeWarmingQueries store warming queries using {@link IndexState#getWarmer()}
+   */
+  public SearchHandler(ThreadPoolExecutor threadPoolExecutor, boolean storeWarmingQueries) {
     this.threadPoolExecutor = threadPoolExecutor;
+    this.storeWarmingQueries = storeWarmingQueries;
   }
 
   @Override
@@ -328,6 +335,15 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         logger.warn("Failed to release searcher reference previously acquired by acquire()", e);
         throw new SearchHandlerException(e);
       }
+    }
+
+    // Add searchRequest to warmer if needed
+    try {
+      if (storeWarmingQueries && indexState.getWarmer() != null) {
+        indexState.getWarmer().addSearchRequest(searchRequest);
+      }
+    } catch (Exception e) {
+      logger.error("Unable to add warming query", e);
     }
 
     return searchContext.getResponseBuilder().build();

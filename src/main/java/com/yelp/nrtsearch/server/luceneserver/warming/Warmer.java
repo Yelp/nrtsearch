@@ -17,6 +17,9 @@
 
 package com.yelp.nrtsearch.server.luceneserver.warming;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
@@ -31,6 +34,7 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -41,19 +45,20 @@ import java.util.stream.Collectors;
 
 public class Warmer {
     private static final Logger logger = LoggerFactory.getLogger(Warmer.class);
-    private static final String WARMING_QUERIES_RESOURCE = "warming_queries";
+    private static final String WARMING_QUERIES_RESOURCE = "_warming_queries";
+    public static final String WARMING_QUERIES_DIR = "warming_queries";
     private static final String WARMING_QUERIES_FILE = "warming_queries.txt";
 
     private final Archiver archiver;
-    private final String serviceName;
-    private final String resourceName;
+    private final String service;
+    private final String resource;
     private final List<SearchRequest> warmingRequests;
     private final ReservoirSampler reservoirSampler;
 
-    public Warmer(Archiver archiver, String serviceName, String indexName, int maxWarmingQueries) {
+    public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries) {
         this.archiver = archiver;
-        this.serviceName = serviceName;
-        this.resourceName = indexName + WARMING_QUERIES_RESOURCE;
+        this.service = service;
+        this.resource = index + WARMING_QUERIES_RESOURCE;
         this.warmingRequests = Collections.synchronizedList(new ArrayList<>(maxWarmingQueries));
         this.reservoirSampler = new ReservoirSampler(maxWarmingQueries);
     }
@@ -61,26 +66,37 @@ public class Warmer {
     public void addSearchRequest(SearchRequest searchRequest) {
         ReservoirSampler.SampleResult sampleResult = reservoirSampler.sample(searchRequest.getIndexName());
         if (sampleResult.isSample()) {
-            warmingRequests.set(sampleResult.getReplace(), searchRequest);
+            int replace = sampleResult.getReplace();
+            if (replace <= warmingRequests.size()) {
+                warmingRequests.add(searchRequest);
+            } else {
+                warmingRequests.set(replace, searchRequest);
+            }
         }
     }
 
-    public void backupWarmingQueriesToS3() throws IOException {
+    public void backupWarmingQueriesToS3(String service) throws IOException {
+        if (Strings.isNullOrEmpty(service)) {
+            service = this.service;
+        }
+        // TODO: tmpDirectory used for simplicity but we might want to provide directory via config
+        Path tmpDirectory = Paths.get(System.getProperty("java.io.tmpdir"));
         Path warmingQueriesDir = null;
         Path warmingQueriesFile = null;
         BufferedWriter writer = null;
         try {
-            warmingQueriesDir = Files.createTempDirectory("warming_queries");
+            // Creating a directory since the Archiver requires a directory
+            warmingQueriesDir = Files.createDirectory(tmpDirectory.resolve(WARMING_QUERIES_DIR));
             warmingQueriesFile = warmingQueriesDir.resolve(WARMING_QUERIES_FILE);
             writer = Files.newBufferedWriter(warmingQueriesFile);
             for (SearchRequest searchRequest : warmingRequests) {
-                writer.write(JsonFormat.printer().print(searchRequest));
+                writer.write(JsonFormat.printer().omittingInsignificantWhitespace().print(searchRequest));
                 writer.newLine();
             }
-            writer.flush();
             writer.close();
             writer = null;
-            archiver.upload(serviceName, resourceName, warmingQueriesDir, List.of(), List.of(), true);
+            String versionHash = archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), true);
+            archiver.blessVersion(service, resource, versionHash);
         } finally {
             if (writer != null) {
                 writer.close();
@@ -95,8 +111,14 @@ public class Warmer {
     }
 
     public void warmFromS3(IndexState indexState, int parallelism) throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
-        if (archiver.getVersionedResource(serviceName, resourceName).isEmpty()) {
-            logger.info("No warming queries found in S3 for service: {} and resource: {}", serviceName, resourceName);
+        SearchHandler searchHandler = new SearchHandler(indexState.getSearchThreadPoolExecutor(), false);
+        warmFromS3(indexState, parallelism, searchHandler);
+    }
+
+    @VisibleForTesting
+    void warmFromS3(IndexState indexState, int parallelism, SearchHandler searchHandler) throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+        if (archiver.getVersionedResource(service, resource).isEmpty()) {
+            logger.info("No warming queries found in S3 for service: {} and resource: {}", service, resource);
             return;
         }
         ThreadPoolExecutor threadPoolExecutor = null;
@@ -104,35 +126,36 @@ public class Warmer {
             int numThreads = parallelism - 1;
             threadPoolExecutor = new ThreadPoolExecutor(numThreads, numThreads, 0, TimeUnit.SECONDS, new LinkedBlockingQueue<>(0), new NamedThreadFactory("warming-"), new ThreadPoolExecutor.CallerRunsPolicy());
         }
-        Path downloadDir = null;
-        try {
-            downloadDir = archiver.download(serviceName, resourceName);
-            BufferedReader reader = Files.newBufferedReader(downloadDir.resolve(WARMING_QUERIES_FILE));
+        Path downloadDir = archiver.download(service, resource);
+        Path warmingRequestsDir = downloadDir.resolve(WARMING_QUERIES_DIR);
+        try (BufferedReader reader = Files.newBufferedReader(warmingRequestsDir.resolve(WARMING_QUERIES_FILE))){
             String line;
             while ((line = reader.readLine()) != null) {
-                SearchRequest.Builder builder = SearchRequest.newBuilder();
-                JsonFormat.parser().merge(line, builder);
-                SearchRequest searchRequest = builder.build();
-                SearchHandler searchHandler = new SearchHandler(indexState.getSearchThreadPoolExecutor());
-                if (threadPoolExecutor == null) {
-                    searchHandler.handle(indexState, searchRequest);
-                } else {
-                    threadPoolExecutor.submit(() -> searchHandler.handle(indexState, searchRequest));
-                }
+                processLine(indexState, searchHandler, threadPoolExecutor, line);
             }
         } finally {
             if (threadPoolExecutor != null) {
                 threadPoolExecutor.shutdown();
                 threadPoolExecutor.awaitTermination(10, TimeUnit.SECONDS);
             }
-            if (downloadDir != null && Files.exists(downloadDir)) {
-                for (Path file : Files.list(downloadDir).collect(Collectors.toList())) {
+            if (Files.exists(warmingRequestsDir)) {
+                for (Path file : Files.list(warmingRequestsDir).collect(Collectors.toList())) {
                     Files.delete(file);
                 }
-                Files.delete(downloadDir);
+                Files.delete(warmingRequestsDir);
             }
         }
+    }
 
+    private void processLine(IndexState indexState, SearchHandler searchHandler, ThreadPoolExecutor threadPoolExecutor, String line) throws InvalidProtocolBufferException, SearchHandler.SearchHandlerException {
+        SearchRequest.Builder builder = SearchRequest.newBuilder();
+        JsonFormat.parser().merge(line, builder);
+        SearchRequest searchRequest = builder.build();
+        if (threadPoolExecutor == null) {
+            searchHandler.handle(indexState, searchRequest);
+        } else {
+            threadPoolExecutor.submit(() -> searchHandler.handle(indexState, searchRequest));
+        }
     }
 
 }

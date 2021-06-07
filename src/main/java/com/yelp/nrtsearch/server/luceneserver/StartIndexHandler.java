@@ -100,6 +100,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         // channel for replica to talk to primary on
         ReplicationServerClient primaryNodeClient =
             new ReplicationServerClient(primaryAddress, primaryPort);
+        indexState.initWarmer(archiver);
         shardState.startReplica(primaryNodeClient, primaryGen, dataPath);
       } else {
         indexState.start(dataPath);
