@@ -51,6 +51,7 @@ public class Warmer {
   private final String resource;
   private final List<SearchRequest> warmingRequests;
   private final ReservoirSampler reservoirSampler;
+  private final int maxWarmingQueries;
 
   public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries) {
     this.archiver = archiver;
@@ -58,6 +59,7 @@ public class Warmer {
     this.resource = index + WARMING_QUERIES_RESOURCE;
     this.warmingRequests = Collections.synchronizedList(new ArrayList<>(maxWarmingQueries));
     this.reservoirSampler = new ReservoirSampler(maxWarmingQueries);
+    this.maxWarmingQueries = maxWarmingQueries;
   }
 
   public void addSearchRequest(SearchRequest searchRequest) {
@@ -65,7 +67,7 @@ public class Warmer {
         reservoirSampler.sample();
     if (sampleResult.isSample()) {
       int replace = sampleResult.getReplace();
-      if (replace <= warmingRequests.size()) {
+      if (warmingRequests.size() < maxWarmingQueries) {
         warmingRequests.add(searchRequest);
       } else {
         warmingRequests.set(replace, searchRequest);
