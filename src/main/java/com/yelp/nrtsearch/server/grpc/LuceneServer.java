@@ -72,6 +72,7 @@ import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
+import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
@@ -1384,6 +1385,36 @@ public class LuceneServer {
                         request.getNDays()))
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
+      }
+    }
+
+    @Override
+    public void backupWarmingQueries(BackupWarmingQueriesRequest request, StreamObserver<BackupWarmingQueriesResponse> responseObserver) {
+      String index = request.getIndex();
+      try {
+        IndexState indexState = globalState.getIndex(index);
+        Warmer warmer = indexState.getWarmer();
+        if (warmer == null) {
+          logger.warn("Unable to backup warming queries as warmer not found for index: {}", index);
+          responseObserver.onError(
+                  Status.UNKNOWN
+                          .withDescription("Unable to backup warming queries as warmer not found for index: " + index)
+                          .asRuntimeException());
+          return;
+        }
+        warmer.backupWarmingQueriesToS3(request.getServiceName());
+      } catch (IOException e) {
+        logger.error("Unable to backup warming queries for index: {}, service: {}", index, request.getServiceName(), e);
+        responseObserver.onError(
+                Status.UNKNOWN
+                        .withCause(e)
+                        .withDescription(
+                                String.format(
+                                        "Unable to backup warming queries for index: %s, service: %s",
+                                        index,
+                                        request.getServiceName()))
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
       }
     }
 
