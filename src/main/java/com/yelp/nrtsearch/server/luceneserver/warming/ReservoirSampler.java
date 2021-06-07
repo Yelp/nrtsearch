@@ -15,8 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.warming;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -26,35 +24,35 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class ReservoirSampler {
 
+  private static final SampleResult REJECTED_RESULT = new SampleResult(false, 0);
+
   private final long maxQueries;
-  private final Map<String, AtomicLong> numQueries;
+  private final AtomicLong numQueries;
 
   /** @param maxQueries Maximum number of warming queries. */
   public ReservoirSampler(long maxQueries) {
     this.maxQueries = maxQueries;
-    this.numQueries = new ConcurrentHashMap<>();
+    this.numQueries = new AtomicLong(0);
   }
 
   /**
    * Decide if a query should be included for warming or not.
    *
-   * @param indexName Index name for the query
    * @return a {@link SampleResult}. If the query must be included, {@link SampleResult#isSample()}
    *     is {@code true} and {@link SampleResult#getReplace()} points to the index of query in the
    *     list to replace current query with. If the query must not be included then {@code isSample}
    *     returns {@code false}.
    */
-  public SampleResult sample(String indexName) {
-    long numQueriesForIndex =
-        numQueries.computeIfAbsent(indexName, s -> new AtomicLong(0)).getAndIncrement();
-    if (numQueriesForIndex < maxQueries) {
-      return new SampleResult(true, (int) numQueriesForIndex);
+  public SampleResult sample() {
+    long numQueries = this.numQueries.getAndIncrement();
+    if (numQueries < maxQueries) {
+      return new SampleResult(true, (int) numQueries);
     }
-    int replace = (int) ThreadLocalRandom.current().nextLong(numQueriesForIndex);
+    int replace = (int) ThreadLocalRandom.current().nextLong(numQueries);
     if (replace < maxQueries) {
       return new SampleResult(true, replace);
     }
-    return new SampleResult(false, 0);
+    return REJECTED_RESULT;
   }
 
   public static class SampleResult {

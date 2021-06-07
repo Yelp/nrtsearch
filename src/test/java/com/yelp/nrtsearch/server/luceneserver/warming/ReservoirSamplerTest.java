@@ -19,7 +19,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import java.util.List;
 import org.assertj.core.data.Percentage;
 import org.junit.Test;
 
@@ -28,12 +27,10 @@ public class ReservoirSamplerTest {
   @Test
   public void testSampleQueryReservoirNotFull() {
     ReservoirSampler reservoirSampler = new ReservoirSampler(2);
-    for (String index : List.of("index1", "index2")) {
-      for (int i = 0; i < 2; i++) {
-        ReservoirSampler.SampleResult sampleResult = reservoirSampler.sample(index);
-        assertThat(sampleResult.isSample()).isTrue();
-        assertThat(sampleResult.getReplace()).isEqualTo(i);
-      }
+    for (int i = 0; i < 2; i++) {
+      ReservoirSampler.SampleResult sampleResult = reservoirSampler.sample();
+      assertThat(sampleResult.isSample()).isTrue();
+      assertThat(sampleResult.getReplace()).isEqualTo(i);
     }
   }
 
@@ -42,7 +39,7 @@ public class ReservoirSamplerTest {
     ReservoirSampler reservoirSampler = new ReservoirSampler(2);
     Multimap<Boolean, Integer> sampleResults = ArrayListMultimap.create();
     for (int i = 0; i < 1000; i++) {
-      ReservoirSampler.SampleResult sampleResult = reservoirSampler.sample("test_index");
+      ReservoirSampler.SampleResult sampleResult = reservoirSampler.sample();
       sampleResults.put(sampleResult.isSample(), sampleResult.getReplace());
     }
     assertThat(sampleResults.get(true)).containsOnly(0, 1);

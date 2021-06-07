@@ -62,7 +62,7 @@ public class Warmer {
 
   public void addSearchRequest(SearchRequest searchRequest) {
     ReservoirSampler.SampleResult sampleResult =
-        reservoirSampler.sample(searchRequest.getIndexName());
+        reservoirSampler.sample();
     if (sampleResult.isSample()) {
       int replace = sampleResult.getReplace();
       if (replace <= warmingRequests.size()) {
@@ -73,7 +73,7 @@ public class Warmer {
     }
   }
 
-  public void backupWarmingQueriesToS3(String service) throws IOException {
+  synchronized public void backupWarmingQueriesToS3(String service) throws IOException {
     if (Strings.isNullOrEmpty(service)) {
       service = this.service;
     }

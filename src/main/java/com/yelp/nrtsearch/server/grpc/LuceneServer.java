@@ -1406,6 +1406,8 @@ public class LuceneServer {
           return;
         }
         warmer.backupWarmingQueriesToS3(request.getServiceName());
+        responseObserver.onNext(BackupWarmingQueriesResponse.newBuilder().build());
+        responseObserver.onCompleted();
       } catch (IOException e) {
         logger.error(
             "Unable to backup warming queries for index: {}, service: {}",
