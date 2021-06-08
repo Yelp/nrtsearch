@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValueType;
+import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import com.yelp.nrtsearch.server.utils.HostPort;
@@ -957,6 +958,11 @@ public class ShardState implements Closeable {
           });
       keepAlive = new KeepAlive(this);
       new Thread(keepAlive, "KeepAlive").start();
+
+      WarmerConfig warmerConfig = indexState.globalState.configuration.getWarmerConfig();
+      if (warmerConfig.isWarmOnStartup() && indexState.getWarmer() != null) {
+        indexState.getWarmer().warmFromS3(indexState, warmerConfig.getWarmingParallelism());
+      }
       started = true;
     } finally {
       if (!started) {

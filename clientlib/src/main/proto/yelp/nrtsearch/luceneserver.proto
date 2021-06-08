@@ -253,6 +253,14 @@ service LuceneServer {
         };
     }
 
+    /* Backup warming queries to S3 */
+    rpc backupWarmingQueries (BackupWarmingQueriesRequest) returns (BackupWarmingQueriesResponse) {
+        option (google.api.http) = {
+      post: "/v1/backup_warming_queries"
+      body: "*"
+    };
+    }
+
     /* Gets the state of a started index, includes settings, live_settings, search schema, suggest schema */
     rpc state (StateRequest) returns (StateResponse) {
         option (google.api.http) = {
@@ -699,6 +707,14 @@ message BackupIndexRequest {
 message BackupIndexResponse {
     string dataVersionHash = 1; //version identifier for data on s3
     string metadataVersionHash = 2; //version identifier for metadata on s3
+}
+
+message BackupWarmingQueriesRequest {
+    string index = 1; // Index whose warming queries to backup
+    string serviceName = 2; // remote storage namespace qualifier for service
+}
+
+message BackupWarmingQueriesResponse {
 }
 
 message DeleteIndexBackupRequest {
