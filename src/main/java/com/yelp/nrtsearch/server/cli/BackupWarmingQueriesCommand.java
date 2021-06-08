@@ -21,7 +21,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
     name = BackupWarmingQueriesCommand.BACKUP_WARMING_QUERIES,
-    description = "Backup index")
+    description = "Backup warming queries")
 public class BackupWarmingQueriesCommand implements Callable<Integer> {
   public static final String BACKUP_WARMING_QUERIES = "backupWarmingQueries";
 
