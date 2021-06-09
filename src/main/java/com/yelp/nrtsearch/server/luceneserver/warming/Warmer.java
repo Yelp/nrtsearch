@@ -32,7 +32,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -143,7 +143,7 @@ public class Warmer {
               numThreads,
               0,
               TimeUnit.SECONDS,
-              new LinkedBlockingQueue<>(0),
+              new SynchronousQueue<>(),
               new NamedThreadFactory("warming-"),
               new ThreadPoolExecutor.CallerRunsPolicy());
     }

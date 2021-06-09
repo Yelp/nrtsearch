@@ -16,7 +16,9 @@
 package com.yelp.nrtsearch.server.luceneserver.warming;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
@@ -120,6 +122,40 @@ public class WarmerTest {
     for (SearchRequest testRequest : getTestSearchRequests()) {
       verify(mockSearchHandler).handle(mockIndexState, testRequest);
     }
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  @Test
+  public void testWarmFromS3_parallel()
+          throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
+    int warmingCountPerQuery = 10;
+    try (BufferedWriter writer =
+                 Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
+      List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
+      List<String> moreTestSearchRequestsJson = new ArrayList<>();
+      for (int i = 0; i < warmingCountPerQuery; i++) {
+        moreTestSearchRequestsJson.addAll(testSearchRequestsJson);
+      }
+      for (String line : moreTestSearchRequestsJson) {
+        writer.write(line);
+        writer.newLine();
+      }
+      writer.flush();
+    }
+    String versionHash =
+            archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), false);
+    archiver.blessVersion(service, resource, versionHash);
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+
+    warmer.warmFromS3(mockIndexState, 3, mockSearchHandler);
+
+    for (SearchRequest testRequest : getTestSearchRequests()) {
+      verify(mockSearchHandler, times(warmingCountPerQuery)).handle(mockIndexState, testRequest);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
   }
 
   private List<SearchRequest> getTestSearchRequests() {
