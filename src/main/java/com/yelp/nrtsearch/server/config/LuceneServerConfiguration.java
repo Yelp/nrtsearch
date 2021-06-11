@@ -16,13 +16,20 @@
 package com.yelp.nrtsearch.server.config;
 
 import com.google.inject.Inject;
+import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class LuceneServerConfiguration {
+  private static final Pattern ENV_VAR_PATTERN = Pattern.compile("\\$\\{([A-Za-z0-9_]+)}");
+
   public static final Path DEFAULT_USER_DIR =
       Paths.get(System.getProperty("user.home"), "lucene", "server");
   public static final Path DEFAULT_ARCHIVER_DIR =
@@ -65,9 +72,12 @@ public class LuceneServerConfiguration {
   private final boolean restoreState;
   private final ThreadPoolConfiguration threadPoolConfiguration;
   private final IndexPreloadConfig preloadConfig;
+  private final QueryCacheConfig queryCacheConfig;
+  private final WarmerConfig warmerConfig;
   private final boolean downloadAsStream;
   private final boolean fileSendDelay;
   private final boolean virtualSharding;
+  private final boolean syncInitialNrtPoint;
 
   private final YamlConfigReader configReader;
 
@@ -80,7 +90,7 @@ public class LuceneServerConfiguration {
     replicaReplicationPortPingInterval =
         configReader.getInteger("replicaReplicationPortPingInterval", DEFAULT_INTERVAL_MS);
     nodeName = configReader.getString("nodeName", DEFAULT_NODE_NAME);
-    hostName = configReader.getString("hostName", DEFAULT_HOSTNAME);
+    hostName = substituteEnvVariables(configReader.getString("hostName", DEFAULT_HOSTNAME));
     stateDir = configReader.getString("stateDir", DEFAULT_STATE_DIR.toString());
     indexDir = configReader.getString("indexDir", DEFAULT_INDEX_DIR.toString());
     archiveDirectory = configReader.getString("archiveDirectory", DEFAULT_ARCHIVER_DIR.toString());
@@ -104,9 +114,12 @@ public class LuceneServerConfiguration {
     serviceName = configReader.getString("serviceName", DEFAULT_SERVICE_NAME);
     restoreState = configReader.getBoolean("restoreState", false);
     preloadConfig = IndexPreloadConfig.fromConfig(configReader);
+    queryCacheConfig = QueryCacheConfig.fromConfig(configReader);
+    warmerConfig = WarmerConfig.fromConfig(configReader);
     downloadAsStream = configReader.getBoolean("downloadAsStream", false);
     fileSendDelay = configReader.getBoolean("fileSendDelay", true);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
+    syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", false);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
   }
 
@@ -182,6 +195,14 @@ public class LuceneServerConfiguration {
     return preloadConfig;
   }
 
+  public QueryCacheConfig getQueryCacheConfig() {
+    return queryCacheConfig;
+  }
+
+  public WarmerConfig getWarmerConfig() {
+    return warmerConfig;
+  }
+
   public boolean getDownloadAsStream() {
     return downloadAsStream;
   }
@@ -194,7 +215,43 @@ public class LuceneServerConfiguration {
     return virtualSharding;
   }
 
+  public boolean getSyncInitialNrtPoint() {
+    return syncInitialNrtPoint;
+  }
+
   public YamlConfigReader getConfigReader() {
     return configReader;
+  }
+
+  /**
+   * Substitute all sub strings of the form ${FOO} with the environment variable value env[FOO].
+   * Variable names may only contain letters, numbers, and underscores. If a variable is not present
+   * in the environment, it is substituted with an empty string.
+   *
+   * @param s string to make substitutions
+   */
+  private String substituteEnvVariables(String s) {
+    String result = s;
+    Matcher matcher = ENV_VAR_PATTERN.matcher(s);
+    Set<String> foundVars = null;
+    while (matcher.find()) {
+      if (foundVars == null) {
+        foundVars = new HashSet<>();
+      }
+      foundVars.add(matcher.group(1));
+    }
+
+    if (foundVars == null) {
+      return result;
+    }
+
+    for (String envVar : foundVars) {
+      String envStr = System.getenv(envVar);
+      if (envStr == null) {
+        envStr = "";
+      }
+      result = result.replaceAll("\\$\\{" + envVar + "}", envStr);
+    }
+    return result;
   }
 }

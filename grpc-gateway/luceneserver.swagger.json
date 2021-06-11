@@ -101,6 +101,39 @@
         ]
       }
     },
+    "/v1/backup_warming_queries": {
+      "post": {
+        "summary": "Backup warming queries to S3",
+        "operationId": "LuceneServer_backupWarmingQueries",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverBackupWarmingQueriesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverBackupWarmingQueriesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/commit": {
       "post": {
         "summary": "Commits all pending changes to durable storage",
@@ -1100,6 +1133,39 @@
           "LuceneServer"
         ]
       }
+    },
+    "/v2/search": {
+      "post": {
+        "summary": "Search V2",
+        "operationId": "LuceneServer_searchV2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/protobufAny"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverSearchRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
     }
   },
   "definitions": {
@@ -1623,6 +1689,20 @@
           "type": "string"
         }
       }
+    },
+    "luceneserverBackupWarmingQueriesRequest": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        }
+      }
+    },
+    "luceneserverBackupWarmingQueriesResponse": {
+      "type": "object"
     },
     "luceneserverBooleanClause": {
       "type": "object",

@@ -18,6 +18,8 @@ package com.yelp.nrtsearch.server.grpc;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.google.protobuf.Any;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
@@ -100,6 +102,29 @@ public class QueryTest {
                     .setQueryText("SECOND")
                     .build());
 
+    assertEquals(1, searchResponse.getTotalHits().getValue());
+    assertEquals(1, searchResponse.getHitsList().size());
+    SearchResponse.Hit hit = searchResponse.getHits(0);
+    String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+    assertEquals("2", docId);
+    LuceneServerTest.checkHits(hit);
+  }
+
+  @Test
+  public void testSearchV2QueryText() throws InvalidProtocolBufferException {
+    Any anyResponse =
+        grpcServer
+            .getBlockingStub()
+            .searchV2(
+                SearchRequest.newBuilder()
+                    .setIndexName(grpcServer.getTestIndex())
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .setQueryText("SECOND")
+                    .build());
+    assertTrue(anyResponse.is(SearchResponse.class));
+    SearchResponse searchResponse = anyResponse.unpack(SearchResponse.class);
     assertEquals(1, searchResponse.getTotalHits().getValue());
     assertEquals(1, searchResponse.getHitsList().size());
     SearchResponse.Hit hit = searchResponse.getHits(0);

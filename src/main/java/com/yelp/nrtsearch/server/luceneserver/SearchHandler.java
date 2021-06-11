@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.collect.Lists;
-import com.google.gson.Gson;
 import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
@@ -75,20 +74,32 @@ import org.slf4j.LoggerFactory;
 
 public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
+  private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
   private final ThreadPoolExecutor threadPoolExecutor;
-  Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
-
-  private final Gson gson = new Gson();
+  private final boolean warming;
 
   public SearchHandler(ThreadPoolExecutor threadPoolExecutor) {
+    this(threadPoolExecutor, false);
+  }
+
+  /**
+   * @param threadPoolExecutor Threadpool to execute a parallel search
+   * @param warming set to true if we are warming the index right now
+   */
+  public SearchHandler(ThreadPoolExecutor threadPoolExecutor, boolean warming) {
     this.threadPoolExecutor = threadPoolExecutor;
+    this.warming = warming;
   }
 
   @Override
   public SearchResponse handle(IndexState indexState, SearchRequest searchRequest)
       throws SearchHandlerException {
     ShardState shardState = indexState.getShard(0);
-    indexState.verifyStarted();
+
+    // Index won't be started if we are currently warming
+    if (!warming) {
+      indexState.verifyStarted();
+    }
 
     var diagnostics = SearchResponse.Diagnostics.newBuilder();
 
@@ -219,7 +230,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 fetch_thread_pool_size,
                 (fields.size() + min_parallel_fetch_num_fields - 1)
                     / min_parallel_fetch_num_fields);
-        List<List<String>> fieldsChunks = Lists.partition(fields, parallelism);
+        List<List<String>> fieldsChunks =
+            Lists.partition(fields, (fields.size() + parallelism - 1) / parallelism);
 
         List<Future<List<Map<String, CompositeFieldValue>>>> futures = new ArrayList<>();
         // Only parallel by fields here, which should work well for doc values and virtual fields
@@ -327,6 +339,15 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         logger.warn("Failed to release searcher reference previously acquired by acquire()", e);
         throw new SearchHandlerException(e);
       }
+    }
+
+    // Add searchRequest to warmer if needed
+    try {
+      if (!warming && indexState.getWarmer() != null) {
+        indexState.getWarmer().addSearchRequest(searchRequest);
+      }
+    } catch (Exception e) {
+      logger.error("Unable to add warming query", e);
     }
 
     return searchContext.getResponseBuilder().build();

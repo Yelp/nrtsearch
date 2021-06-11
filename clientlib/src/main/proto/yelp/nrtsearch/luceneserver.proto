@@ -6,6 +6,7 @@ import "yelp/nrtsearch/analysis.proto";
 import "yelp/nrtsearch/suggest.proto";
 import "google/api/annotations.proto";
 import "google/api/httpbody.proto";
+import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
 
@@ -128,6 +129,15 @@ service LuceneServer {
       body: "*"
     };
     }
+
+    /* Search V2 */
+    rpc searchV2 (SearchRequest) returns (google.protobuf.Any) {
+        option (google.api.http) = {
+      post: "/v2/search"
+      body: "*"
+    };
+    }
+
     /* Delete documents */
     rpc delete (AddDocumentRequest) returns (AddDocumentResponse) {
         option (google.api.http) = {
@@ -241,6 +251,14 @@ service LuceneServer {
             post: "/v1/delete_index_backup"
             body: "*"
         };
+    }
+
+    /* Backup warming queries to S3 */
+    rpc backupWarmingQueries (BackupWarmingQueriesRequest) returns (BackupWarmingQueriesResponse) {
+        option (google.api.http) = {
+      post: "/v1/backup_warming_queries"
+      body: "*"
+    };
     }
 
     /* Gets the state of a started index, includes settings, live_settings, search schema, suggest schema */
@@ -691,6 +709,14 @@ message BackupIndexRequest {
 message BackupIndexResponse {
     string dataVersionHash = 1; //version identifier for data on s3
     string metadataVersionHash = 2; //version identifier for metadata on s3
+}
+
+message BackupWarmingQueriesRequest {
+    string index = 1; // Index whose warming queries to backup
+    string serviceName = 2; // remote storage namespace qualifier for service
+}
+
+message BackupWarmingQueriesResponse {
 }
 
 message DeleteIndexBackupRequest {

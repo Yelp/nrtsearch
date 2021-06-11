@@ -26,6 +26,7 @@ import com.google.gson.JsonParser;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
@@ -42,6 +43,9 @@ import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.index.BucketedTieredMergePolicy;
+import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
+import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
+import com.yelp.nrtsearch.server.utils.Archiver;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.Closeable;
 import java.io.IOException;
@@ -156,6 +160,7 @@ public class IndexState implements Closeable, Restorable {
   private ThreadPoolExecutor searchThreadPoolExecutor;
   private ExecutorService fetchThreadPoolExecutor;
   private IdFieldDef idFieldDef = null;
+  private Warmer warmer = null;
 
   public ShardState addShard(int shardOrd, boolean doCreate) {
     if (shards.containsKey(shardOrd)) {
@@ -271,6 +276,10 @@ public class IndexState implements Closeable, Restorable {
 
   public IdFieldDef getIdFieldDef() {
     return idFieldDef;
+  }
+
+  public Warmer getWarmer() {
+    return warmer;
   }
 
   /** Tracks snapshot references to generations. */
@@ -534,6 +543,16 @@ public class IndexState implements Closeable, Restorable {
     JsonObject priorState = saveLoadState.load();
     if (priorState != null) {
       load(priorState.getAsJsonObject("state"));
+    }
+  }
+
+  public void initWarmer(Archiver archiver) {
+    LuceneServerConfiguration configuration = globalState.configuration;
+    WarmerConfig warmerConfig = configuration.getWarmerConfig();
+    if (warmerConfig.isWarmOnStartup() || warmerConfig.getMaxWarmingQueries() > 0) {
+      this.warmer =
+          new Warmer(
+              archiver, configuration.getServiceName(), name, warmerConfig.getMaxWarmingQueries());
     }
   }
 

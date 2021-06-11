@@ -25,17 +25,19 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
 import java.util.stream.Stream;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public interface LuceneServerClientBuilder<T> {
 
   T buildRequest(Path filePath) throws IOException;
 
   class SettingsClientBuilder implements LuceneServerClientBuilder<SettingsRequest> {
-    private static final Logger logger = Logger.getLogger(SettingsClientBuilder.class.getName());
+    private static final Logger logger =
+        LoggerFactory.getLogger(SettingsClientBuilder.class.getName());
 
     @Override
     public SettingsRequest buildRequest(Path filePath) throws IOException {
@@ -69,7 +71,8 @@ public interface LuceneServerClientBuilder<T> {
   }
 
   class StartIndexClientBuilder implements LuceneServerClientBuilder<StartIndexRequest> {
-    private static final Logger logger = Logger.getLogger(StartIndexClientBuilder.class.getName());
+    private static final Logger logger =
+        LoggerFactory.getLogger(StartIndexClientBuilder.class.getName());
 
     @Override
     public StartIndexRequest buildRequest(Path filePath) throws IOException {
@@ -91,7 +94,7 @@ public interface LuceneServerClientBuilder<T> {
 
   class AddDocumentsClientBuilder implements LuceneServerClientBuilder<Stream<AddDocumentRequest>> {
     private static final Logger logger =
-        Logger.getLogger(AddDocumentsClientBuilder.class.getName());
+        LoggerFactory.getLogger(AddDocumentsClientBuilder.class.getName());
     private final String indexName;
     private final CSVParser csvParser;
 
@@ -128,7 +131,7 @@ public interface LuceneServerClientBuilder<T> {
   class AddJsonDocumentsClientBuilder
       implements LuceneServerClientBuilder<Stream<AddDocumentRequest>> {
     private static final Logger logger =
-        Logger.getLogger(AddJsonDocumentsClientBuilder.class.getName());
+        LoggerFactory.getLogger(AddJsonDocumentsClientBuilder.class.getName());
     private final String indexName;
     private final Gson gson;
     private final Path filePath;
@@ -205,7 +208,8 @@ public interface LuceneServerClientBuilder<T> {
   }
 
   class SearchClientBuilder implements LuceneServerClientBuilder<SearchRequest> {
-    private static final Logger logger = Logger.getLogger(SearchClientBuilder.class.getName());
+    private static final Logger logger =
+        LoggerFactory.getLogger(SearchClientBuilder.class.getName());
 
     @Override
     public SearchRequest buildRequest(Path filePath) throws IOException {
@@ -226,7 +230,8 @@ public interface LuceneServerClientBuilder<T> {
   }
 
   class DeleteDocumentsBuilder implements LuceneServerClientBuilder<AddDocumentRequest> {
-    private static final Logger logger = Logger.getLogger(DeleteDocumentsBuilder.class.getName());
+    private static final Logger logger =
+        LoggerFactory.getLogger(DeleteDocumentsBuilder.class.getName());
 
     @Override
     public AddDocumentRequest buildRequest(Path filePath) throws IOException {
