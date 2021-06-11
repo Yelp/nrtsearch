@@ -546,7 +546,7 @@ message Collector {
 //Definition of term aggregating collector.
 message TermsCollector {
     oneof TermsSource {
-        // Placeholder: TODO implement
+        //Use field values for terms.
         string field = 1;
         //Use FacetScript definition to produce terms.
         Script script = 2;

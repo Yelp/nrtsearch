@@ -41,6 +41,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.index.BucketedTieredMergePolicy;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
@@ -625,6 +626,13 @@ public class IndexState implements Closeable, Restorable {
    */
   public final Map<String, FieldDef> eagerGlobalOrdinalFields = new ConcurrentHashMap<>();
 
+  /**
+   * Fields using doc values with global ordinals that should be loaded up front with each new
+   * reader
+   */
+  public final Map<String, GlobalOrdinalable> eagerFieldGlobalOrdinalFields =
+      new ConcurrentHashMap<>();
+
   /** {@link Bindings} to pass when evaluating expressions. */
   public final Bindings exprBindings = new FieldDefBindings(fields);
 
@@ -1035,6 +1043,10 @@ public class IndexState implements Closeable, Restorable {
     // register fields that need global ordinals created up front
     if (fd.getEagerGlobalOrdinals()) {
       eagerGlobalOrdinalFields.put(fd.getName(), fd);
+    }
+    // register fields that need doc value global ordinals created up front
+    if (fd instanceof GlobalOrdinalable && ((GlobalOrdinalable) fd).getEagerFieldGlobalOrdinals()) {
+      eagerFieldGlobalOrdinalFields.put(fd.getName(), (GlobalOrdinalable) fd);
     }
     if (fd instanceof IdFieldDef) {
       idFieldDef = (IdFieldDef) fd;

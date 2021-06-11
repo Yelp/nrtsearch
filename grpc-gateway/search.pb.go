@@ -3636,7 +3636,7 @@ type isTermsCollector_TermsSource interface {
 }
 
 type TermsCollector_Field struct {
-	// Placeholder: TODO implement
+	//Use field values for terms.
 	Field string `protobuf:"bytes,1,opt,name=field,proto3,oneof"`
 }
 

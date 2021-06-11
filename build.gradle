@@ -44,6 +44,7 @@ def awsJavaSdkVersion = '1.11.695'
 def guicedeeVersion = '1.0.1.7-jre13'
 def lz4Version = '1.7.0'
 def prometheusClientVersion = '0.8.0'
+def fastutilVersion = '8.5.4'
 
 dependencies {
 
@@ -68,9 +69,9 @@ dependencies {
     implementation "javax.xml.bind:jaxb-api:2.3.1"
     implementation "com.guicedee.services:guice:${guicedeeVersion}"
     implementation "org.lz4:lz4-java:${lz4Version}"
+    implementation "it.unimi.dsi:fastutil:${fastutilVersion}"
     implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonYamlVersion}"
     implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonYamlVersion}"
-
 
     //lucene deps
     implementation "org.apache.lucene:lucene-core:${luceneVersion}"

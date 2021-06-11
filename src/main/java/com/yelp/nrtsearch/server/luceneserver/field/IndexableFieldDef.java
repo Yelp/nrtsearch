@@ -194,6 +194,11 @@ public abstract class IndexableFieldDef extends FieldDef {
     return docValuesType != DocValuesType.NONE;
   }
 
+  /** Get the type of doc value used for this field. */
+  public DocValuesType getDocValuesType() {
+    return docValuesType;
+  }
+
   /**
    * Get if this field data is stored in the index. This data must be accessible via {@link
    * #getStored(Document)}.

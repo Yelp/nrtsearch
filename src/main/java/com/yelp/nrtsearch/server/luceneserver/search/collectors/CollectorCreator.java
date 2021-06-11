@@ -40,7 +40,7 @@ public class CollectorCreator {
       createCollectorManager(CollectorCreatorContext context, String name, Collector collector) {
     switch (collector.getCollectorsCase()) {
       case TERMS:
-        return new TermsCollectorManager(name, collector.getTerms(), context);
+        return TermsCollectorManager.buildManager(name, collector.getTerms(), context);
       default:
         throw new IllegalArgumentException(
             "Unknown Collector type: " + collector.getCollectorsCase());

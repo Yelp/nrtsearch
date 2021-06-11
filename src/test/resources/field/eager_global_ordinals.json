@@ -1,0 +1,57 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "atom_field",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "group": true
+    },
+    {
+      "name": "eager_atom_field",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "eagerFieldGlobalOrdinals": true,
+      "group": true
+    },
+    {
+      "name": "atom_field_multi",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "multiValued": true
+    },
+    {
+      "name": "eager_atom_field_multi",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "multiValued": true,
+      "eagerFieldGlobalOrdinals": true
+    },
+    {
+      "name": "text_field",
+      "type": "TEXT",
+      "storeDocValues": true,
+      "group": true
+    },
+    {
+      "name": "eager_text_field",
+      "type": "TEXT",
+      "storeDocValues": true,
+      "eagerFieldGlobalOrdinals": true,
+      "group": true
+    },
+    {
+      "name": "text_field_multi",
+      "type": "TEXT",
+      "storeDocValues": true,
+      "multiValued": true
+    },
+    {
+      "name": "eager_text_field_multi",
+      "type": "TEXT",
+      "storeDocValues": true,
+      "multiValued": true,
+      "eagerFieldGlobalOrdinals": true
+    }
+  ]
+}

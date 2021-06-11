@@ -1,0 +1,19 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "value",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "group": true,
+      "eagerFieldGlobalOrdinals": true
+    },
+    {
+      "name": "value_multi",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "multiValued": true,
+      "eagerFieldGlobalOrdinals": true
+    }
+  ]
+}
