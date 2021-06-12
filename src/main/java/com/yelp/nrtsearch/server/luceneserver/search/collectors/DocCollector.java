@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.Rescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchStatsWrapper;
@@ -35,6 +36,7 @@ import org.apache.lucene.search.TopDocs;
 public abstract class DocCollector {
 
   private final SearchRequest request;
+  private final IndexState indexState;
   private final List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
       additionalCollectors;
   private final int numHitsToCollect;
@@ -44,14 +46,15 @@ public abstract class DocCollector {
   /**
    * Constructor
    *
-   * @param request search request
+   * @param context collector creation context
    * @param additionalCollectors additional collector implementations
    */
   public DocCollector(
-      SearchRequest request,
+      CollectorCreatorContext context,
       List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
           additionalCollectors) {
-    this.request = request;
+    this.request = context.getRequest();
+    this.indexState = context.getIndexState();
     this.additionalCollectors = additionalCollectors;
 
     // determine how many hits to collect based on request, facets and rescore window
@@ -145,13 +148,21 @@ public abstract class DocCollector {
   <C extends Collector> CollectorManager<? extends Collector, SearcherResult> wrapManager(
       CollectorManager<C, SearcherResult> manager) {
     CollectorManager<? extends Collector, SearcherResult> wrapped = manager;
-    if (request.getTimeoutSec() > 0.0) {
+    double timeout =
+        request.getTimeoutSec() > 0.0
+            ? request.getTimeoutSec()
+            : indexState.getDefaultSearchTimeoutSec();
+    if (timeout > 0.0) {
+      int timeoutCheckEvery =
+          request.getTimeoutCheckEvery() > 0
+              ? request.getTimeoutCheckEvery()
+              : indexState.getDefaultSearchTimeoutCheckEvery();
       hadTimeout = false;
       wrapped =
           new SearchCutoffWrapper<>(
               wrapped,
-              request.getTimeoutSec(),
-              request.getTimeoutCheckEvery(),
+              timeout,
+              timeoutCheckEvery,
               request.getDisallowPartialResults(),
               () -> hadTimeout = true);
     }
