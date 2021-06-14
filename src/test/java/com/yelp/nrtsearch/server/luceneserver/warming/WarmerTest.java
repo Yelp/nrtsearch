@@ -127,11 +127,11 @@ public class WarmerTest {
 
   @Test
   public void testWarmFromS3_parallel()
-          throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
     int warmingCountPerQuery = 10;
     try (BufferedWriter writer =
-                 Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
+        Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
       List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
       List<String> moreTestSearchRequestsJson = new ArrayList<>();
       for (int i = 0; i < warmingCountPerQuery; i++) {
@@ -144,7 +144,7 @@ public class WarmerTest {
       writer.flush();
     }
     String versionHash =
-            archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), false);
+        archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), false);
     archiver.blessVersion(service, resource, versionHash);
 
     IndexState mockIndexState = mock(IndexState.class);

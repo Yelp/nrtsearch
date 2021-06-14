@@ -401,6 +401,10 @@ message LiveSettingsRequest {
     int32 maxMergedSegmentMB = 10;
     //Number of segments per tier used by TieredMergePolicy
     int32 segmentsPerTier = 11;
+    //Timeout value to used when not specified in the search request.
+    double defaultSearchTimeoutSec = 12;
+    //Timeout check every value to use when not specified in the search request.
+    int32 defaultSearchTimeoutCheckEvery = 13;
 }
 
 /* Response from Server to liveSettings */
