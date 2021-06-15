@@ -18,29 +18,30 @@ Fields must first be registered with the *registerFields* command, where you exp
 There is no transaction log, so you must call *commit* yourself periodically to make recent changes durable on disk. This means that if a node crashes, all indexed documents since the last commit are lost.
 
 # Indexing a stream of documents
-nrtSearch supports client side gRPC streaming for its *addDocuments* endpoint. This means that the server API accepts a stream of documents . The client can choose to stream the documents however it wishes.
+NrtSearch supports client side gRPC streaming for its *addDocuments* endpoint. This means that the server API accepts a stream of documents . The client can choose to stream the documents however it wishes.
 The example nrtSearch client implemented here reads a CSV file and streams documents from it over to the server. The server can index chunks of documents the size of which is configurable as the client
 continues to send more documents over its stream. gRPC enables this with minimal application code and yields higher performance compared to JSON. TODO[citation needed]: Add performance numbers of stream based indexing for some datasets.
 
 # Near-real-time-replication
-This requirement is one of the primary reasons to create this project. [near-real-time-replication](https://issues.apache.org/jira/browse/LUCENE-5438) seems a good alternative to document based replication when it comes to costs associated with maintaing large clusters. Scaling document based clusters up/down in a timely manner could be slower
+This requirement is one of the primary reasons to create this project. [near-real-time-replication](https://issues.apache.org/jira/browse/LUCENE-5438) seems a good alternative to document based replication when it comes to costs associated with maintaining large clusters. Scaling document based clusters up/down in a timely manner could be slower
 due to data migration between nodes apart from paying the cost for reindexing on all nodes.
 
 Below is a depiction of how the system works in regards to Near-real-time(NRT) replication and durability.
 ![alt text](https://github.com/Yelp/platypus/blob/master/src/images/nrt.png "Platypus NRT and durability")
 
-* Primary node comes up with either no index or can restore an index from remote storage if the `restore` option is specified by the client on the `startIndex` command. This node will accept `indexing` requests from clients. It will also periodically  `publishNrtUpdate` to replicas giving them a chance to catch up with latest primary indexing changes.
-* Replica nodes are also started using the `startIndex` command. They will sync with the current primary and update their indexes using lucene's NRT APIs. These nodes will serve client's `search` queries.
-* Each time client invokes `commit` on primary, it will save its current index state and related metadata e.g. schemas, settings to a remote storage. Clients should use the ack from this endpoint to commit the data in their channel e.g. kafka.
-* If a replica crashes, a new one can be brought up and will re-sync with the current primary. It will register itself with the primary once its brought up.
-* If a primary crashes, a new one can be brought up with the `restore` option on `startIndex` command to regain previous stored state. The replicas will then re-sync their indexes with the primary.
+* Primary node comes up with either no index or reads segments from disk or can restore an index from remote storage if the `restore` option is specified by the client on the `startIndex` command. This node will accept `indexing` requests from clients. It will also periodically  `publishNrtUpdate` to replicas giving them a chance to catch up with the latest primary indexing changes.
+* Replica nodes are also started using the `startIndex` command. They will sync with the current primary and update their indexes using lucene's NRT APIs. They can also restore the index from remote storage and then receive the updates since the last backup. These nodes will serve client's `search` queries.
+* Each time client invokes `commit` on primary, it will save its current index state and related metadata e.g. schemas, settings to the disk. Clients should use the ack from this endpoint to commit the data in their channel e.g. kafka.
+* Client can invoke `backupIndex` on the primary to backup the index to remote storage.  
+* If a replica crashes, a new one can be brought up and will re-sync with the current primary (optionally restoring the index from remote storage first). It will register itself with the primary once it's brought up.
+* If a primary crashes, a new one can be brought up with the `restore` option on `startIndex` command to regain previous stored state in the cloud, but since primaries don't serve search requests they can also use network attached storage e.g. Amazon EBS to persist data across restarts. The replicas will then re-sync their indexes with the primary.
 
 
 # Build Server and Client
 In the home directory.
 
 ```
-./gradlew clean && ./gradlew installDist && ./gradlew test
+./gradlew clean installDist test
 ```
 
 Note: This code has been tested on *Java14*
@@ -150,7 +151,7 @@ This should create a src/main/docs/index.html file that can be seen in your loca
 This tool indexes yelp reviews available at [Yelp dataset challenge](https://www.yelp.com/dataset). It runs a default version with only 1k reviews of the `reviews.json` or you could download the yelp dataset and place the review.json in the user.home dir and the tool will use that instead. The complete review.json should have close to 7Million reviews. The tool runs multi-threaded indexing and a search thread in parallel reporting the `totalHits`.  Command to run this specific test:
 
 ```
-./gradlew clean && ./gradlew installDist && ./gradlew :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
+./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
 ```
 
 # Suggestions
