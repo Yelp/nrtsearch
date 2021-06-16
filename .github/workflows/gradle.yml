@@ -24,7 +24,7 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
     - name: Build with Gradle
-      run: ./gradlew clean installDist check test buildGrpcGateway --info
+      run: ./gradlew clean installDist check test --info
     - name: Yelp Reviews Perf test
       run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
     - name: Merge behavior tests
