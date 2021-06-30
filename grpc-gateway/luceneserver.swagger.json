@@ -2808,6 +2808,10 @@
           "type": "integer",
           "format": "int32",
           "description": "Timeout check every value to use when not specified in the search request."
+        },
+        "indexVerbose": {
+          "type": "boolean",
+          "title": "Turn on IndexWriter's infoStream (to stdout)"
         }
       },
       "title": "Input to liveSettings"
@@ -3516,9 +3520,6 @@
         },
         "indexSort": {
           "$ref": "#/definitions/luceneserverSortFields"
-        },
-        "indexVerbose": {
-          "type": "boolean"
         },
         "indexMergeSchedulerAutoThrottle": {
           "type": "boolean"
