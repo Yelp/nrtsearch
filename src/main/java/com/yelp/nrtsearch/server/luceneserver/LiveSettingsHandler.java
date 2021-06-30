@@ -91,6 +91,15 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
               "set defaultSearchTimeoutCheckEvery: %s",
               liveSettingsRequest.getDefaultSearchTimeoutCheckEvery()));
     }
+    indexState.setIndexVerbose(
+      liveSettingsRequest.getIndexVerbose()
+    );
+    logger.info(
+      String.format(
+        "set indexVerbose: %b",
+        liveSettingsRequest.getIndexVerbose()));
+
+
     String response = indexState.getLiveSettingsJSON();
     LiveSettingsResponse reply = LiveSettingsResponse.newBuilder().setResponse(response).build();
     return reply;

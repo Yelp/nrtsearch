@@ -482,6 +482,9 @@ public class IndexState implements Closeable, Restorable {
   /** Default search timeout check every, when not specified in the request */
   volatile int defaultSearchTimeoutCheckEvery = 0;
 
+  /** Index verbose flag **/
+  volatile boolean indexVerbose = false;
+
   /** True if this is a new index. */
   private final boolean doCreate;
 
@@ -1018,6 +1021,12 @@ public class IndexState implements Closeable, Restorable {
         "defaultSearchTimeoutCheckEvery", defaultSearchTimeoutCheckEvery);
   }
 
+  /** Control IndexWriter's infoStream (to stdout) */
+  public synchronized void setIndexVerbose(boolean indexVerbose) {
+    this.indexVerbose = indexVerbose;
+    liveSettingsSaveState.addProperty("indexVerbose", indexVerbose);
+  }
+
   /** Get the default search timeout check every. */
   public int getDefaultSearchTimeoutCheckEvery() {
     return defaultSearchTimeoutCheckEvery;
@@ -1151,7 +1160,6 @@ public class IndexState implements Closeable, Restorable {
           "concurrentMergeSchedulerMaxMergeCount",
           settingsRequest.getConcurrentMergeSchedulerMaxMergeCount());
     }
-    settingsSaveState.addProperty("indexVerbose", settingsRequest.getIndexVerbose());
     settingsSaveState.addProperty(
         "indexMergeSchedulerAutoThrottle", settingsRequest.getIndexMergeSchedulerAutoThrottle());
   }
@@ -1187,7 +1195,7 @@ public class IndexState implements Closeable, Restorable {
       throws IOException {
     IndexWriterConfig iwc = new IndexWriterConfig(indexAnalyzer);
     iwc.setOpenMode(openMode);
-    if (getBooleanSetting("indexVerbose", false)) {
+    if (getBooleanLiveSetting("indexVerbose", false)) {
       iwc.setInfoStream(new PrintStreamInfoStream(System.out));
     }
 
@@ -1254,6 +1262,10 @@ public class IndexState implements Closeable, Restorable {
 
   synchronized boolean getBooleanSetting(String name, boolean val) {
     return settingsSaveState.get(name) == null ? val : settingsSaveState.get(name).getAsBoolean();
+  }
+
+  synchronized boolean getBooleanLiveSetting(String name, boolean val) {
+    return liveSettingsSaveState.get(name) == null ? val : liveSettingsSaveState.get(name).getAsBoolean();
   }
 
   synchronized double getDoubleSetting(String name, double val) {
