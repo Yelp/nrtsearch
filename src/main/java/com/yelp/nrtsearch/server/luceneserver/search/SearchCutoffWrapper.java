@@ -92,6 +92,16 @@ public class SearchCutoffWrapper<C extends Collector>
     return System.currentTimeMillis();
   }
 
+  /** Get timeout for search phase. */
+  public double getTimeoutSec() {
+    return timeoutSec;
+  }
+
+  /** Check timeout every time this many docs are collected, or 0 for only at segment boundaries. */
+  public int getCheckEvery() {
+    return checkEvery;
+  }
+
   @Override
   public TimeoutCollectorWrapper newCollector() throws IOException {
     // start timer when first collector is created

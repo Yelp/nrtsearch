@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -42,7 +43,10 @@ public class SearchContextTest extends ServerTestCase {
   public static class DummyCollector extends DocCollector {
 
     public DummyCollector() {
-      super(SearchRequest.newBuilder().build(), Collections.emptyList());
+      super(
+          new CollectorCreatorContext(
+              SearchRequest.newBuilder().build(), null, null, Collections.emptyMap()),
+          Collections.emptyList());
     }
 
     @Override

@@ -77,6 +77,20 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
       logger.info(
           String.format("set segmentsPerTier: %s", liveSettingsRequest.getSegmentsPerTier()));
     }
+    if (liveSettingsRequest.getDefaultSearchTimeoutSec() >= 0) {
+      indexState.setDefaultSearchTimeoutSec(liveSettingsRequest.getDefaultSearchTimeoutSec());
+      logger.info(
+          String.format(
+              "set defaultSearchTimeoutSec: %s", liveSettingsRequest.getDefaultSearchTimeoutSec()));
+    }
+    if (liveSettingsRequest.getDefaultSearchTimeoutCheckEvery() >= 0) {
+      indexState.setDefaultSearchTimeoutCheckEvery(
+          liveSettingsRequest.getDefaultSearchTimeoutCheckEvery());
+      logger.info(
+          String.format(
+              "set defaultSearchTimeoutCheckEvery: %s",
+              liveSettingsRequest.getDefaultSearchTimeoutCheckEvery()));
+    }
     String response = indexState.getLiveSettingsJSON();
     LiveSettingsResponse reply = LiveSettingsResponse.newBuilder().setResponse(response).build();
     return reply;

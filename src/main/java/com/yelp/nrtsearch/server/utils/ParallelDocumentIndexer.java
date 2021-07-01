@@ -25,11 +25,12 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParallelDocumentIndexer {
-  private static final Logger logger = Logger.getLogger(ParallelDocumentIndexer.class.getName());
+  private static final Logger logger =
+      LoggerFactory.getLogger(ParallelDocumentIndexer.class.getName());
   private static final int DOCS_PER_INDEX_REQUEST = 1000;
 
   public static List<Future<Long>> buildAndIndexDocs(
@@ -48,9 +49,7 @@ public class ParallelDocumentIndexer {
         } else {
           // launch indexing task
           logger.info(
-              String.format(
-                  "Launching DocumentGeneratorAndIndexer task for %s docs",
-                  DOCS_PER_INDEX_REQUEST));
+              "Launching DocumentGeneratorAndIndexer task for {} docs", DOCS_PER_INDEX_REQUEST);
           List<String> copiedRawLines = new ArrayList<>(rawLines);
           Future<Long> genIdFuture =
               submitTask(oneDocBuilder, executorService, luceneServerClient, copiedRawLines);
@@ -60,9 +59,7 @@ public class ParallelDocumentIndexer {
       }
       if (!rawLines.isEmpty()) {
         // convert left over docs
-        logger.info(
-            String.format(
-                "Launching DocumentGeneratorAndIndexer task for %s docs", rawLines.size()));
+        logger.info("Launching DocumentGeneratorAndIndexer task for {} docs", rawLines.size());
         Future<Long> genIdFuture =
             submitTask(oneDocBuilder, executorService, luceneServerClient, rawLines);
         futures.add(genIdFuture);
@@ -86,10 +83,7 @@ public class ParallelDocumentIndexer {
                     oneDocBuilder, rawLines.stream(), luceneServerClient));
         return genIdFuture;
       } catch (RejectedExecutionException e) {
-        logger.log(
-            Level.WARNING,
-            String.format("Waiting for 1s for LinkedBlockingQueue to have more capacity"),
-            e);
+        logger.warn("Waiting for 1s for LinkedBlockingQueue to have more capacity", e);
         Thread.sleep(1000);
       }
     }

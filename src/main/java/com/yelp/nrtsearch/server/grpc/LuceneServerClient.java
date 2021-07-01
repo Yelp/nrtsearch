@@ -100,13 +100,16 @@ public class LuceneServerClient {
       int sliceMaxSegments,
       int virtualShards,
       int maxMergedSegmentMB,
-      int segmentsPerTier) {
+      int segmentsPerTier,
+      double defaultSearchTimeoutSec,
+      int defaultSearchTimeoutCheckEvery) {
     logger.info(
         String.format(
             "will try to update liveSettings for indexName: %s, "
                 + "maxRefreshSec: %s, minRefreshSec: %s, maxSearcherAgeSec: %s, "
                 + "indexRamBufferSizeMB: %s, addDocumentsMaxBufferLen: %s, sliceMaxDocs: %s, "
-                + "sliceMaxSegments: %s, virtualShards: %s, maxMergedSegmentMB: %s, segmentsPerTier: %s ",
+                + "sliceMaxSegments: %s, virtualShards: %s, maxMergedSegmentMB: %s, segmentsPerTier: %s, "
+                + "defaultSearchTimeoutSec: %s, defaultSearchTimeoutCheckEvery: %s ",
             indexName,
             maxRefreshSec,
             minRefreshSec,
@@ -117,7 +120,9 @@ public class LuceneServerClient {
             sliceMaxSegments,
             virtualShards,
             maxMergedSegmentMB,
-            segmentsPerTier));
+            segmentsPerTier,
+            defaultSearchTimeoutSec,
+            defaultSearchTimeoutCheckEvery));
     LiveSettingsRequest request =
         LiveSettingsRequest.newBuilder()
             .setIndexName(indexName)
@@ -131,6 +136,8 @@ public class LuceneServerClient {
             .setVirtualShards(virtualShards)
             .setMaxMergedSegmentMB(maxMergedSegmentMB)
             .setSegmentsPerTier(segmentsPerTier)
+            .setDefaultSearchTimeoutSec(defaultSearchTimeoutSec)
+            .setDefaultSearchTimeoutCheckEvery(defaultSearchTimeoutCheckEvery)
             .build();
     LiveSettingsResponse response;
     try {
@@ -327,6 +334,11 @@ public class LuceneServerClient {
             .setCompleteDirectory(completeDirectory)
             .setStream(stream)
             .build());
+  }
+
+  public void backupWarmingQueries(String index, String service) {
+    blockingStub.backupWarmingQueries(
+        BackupWarmingQueriesRequest.newBuilder().setIndex(index).setServiceName(service).build());
   }
 
   public void status() throws InterruptedException {

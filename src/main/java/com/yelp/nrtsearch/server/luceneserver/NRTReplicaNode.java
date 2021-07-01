@@ -41,6 +41,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class NRTReplicaNode extends ReplicaNode {
+  private static final long NRT_SYNC_WAIT_MS = 2000;
+  private static final long NRT_CONNECT_WAIT_MS = 500;
+
   private final ReplicationServerClient primaryAddress;
   private final String indexName;
   final Jobs jobs;
@@ -217,5 +220,72 @@ public class NRTReplicaNode extends ReplicaNode {
       }
     }
     return false;
+  }
+
+  /**
+   * Sync the next nrt point from the current primary. Attempts to get the current index version
+   * from the primary, giving up after the specified amount of time. Sync is considered completed
+   * when either the index version has updated to at least the initial primary version, or there is
+   * a failure to start a new copy job.
+   *
+   * @param primaryWaitMs how long to wait for primary to be available
+   * @throws IOException on issue getting searcher version
+   */
+  public void syncFromCurrentPrimary(long primaryWaitMs) throws IOException {
+    logger.info("Starting sync of next nrt point from current primary");
+    long startMS = System.currentTimeMillis();
+    long primaryIndexVersion = -1;
+    long lastPrimaryGen = -1;
+    // Attempt to get the current index version from the primary, give up if the timeout
+    // is exceeded
+    while (System.currentTimeMillis() - startMS < primaryWaitMs) {
+      try {
+        com.yelp.nrtsearch.server.grpc.CopyState copyState =
+            primaryAddress.recvCopyState(indexName, this.id);
+        primaryIndexVersion = copyState.getVersion();
+        lastPrimaryGen = copyState.getPrimaryGen();
+        break;
+      } catch (Exception ignored) {
+        try {
+          Thread.sleep(NRT_CONNECT_WAIT_MS);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+      }
+    }
+    if (primaryIndexVersion == -1) {
+      logger.info("Nrt sync: Could not get index version from primary, skipping");
+      return;
+    }
+    long curVersion = getCurrentSearchingVersion();
+    logger.info("Nrt sync: primary version: {}, my version: {}", primaryIndexVersion, curVersion);
+    // Keep trying to sync a new nrt point until either our searcher version updates, or
+    // we are unable to start a new copy job. This is needed since long running nrt points
+    // may fail if the primary cleans up old commit files.
+    while (curVersion < primaryIndexVersion) {
+      CopyJob job = newNRTPoint(lastPrimaryGen, Long.MAX_VALUE);
+      if (job == null) {
+        logger.info("Nrt sync: failed to start copy job, aborting");
+        return;
+      }
+      logger.info("Nrt sync: started new copy job");
+      while (true) {
+        curVersion = getCurrentSearchingVersion();
+        if (curVersion >= primaryIndexVersion) {
+          break;
+        }
+        synchronized (this) {
+          if (curNRTCopy == null) {
+            break;
+          }
+        }
+        try {
+          Thread.sleep(NRT_SYNC_WAIT_MS);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+      }
+    }
+    logger.info("Finished syncing nrt point from current primary, current version: {}", curVersion);
   }
 }

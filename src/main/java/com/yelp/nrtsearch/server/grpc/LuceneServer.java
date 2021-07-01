@@ -25,6 +25,7 @@ import com.google.common.collect.Sets;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
+import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -32,6 +33,7 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.LuceneServerModule;
 import com.yelp.nrtsearch.server.MetricsRequestHandler;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.QueryCacheConfig;
 import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler.DocumentIndexer;
 import com.yelp.nrtsearch.server.luceneserver.AddReplicaHandler;
 import com.yelp.nrtsearch.server.luceneserver.BackupIndexRequestHandler;
@@ -70,10 +72,12 @@ import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
+import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
+import com.yelp.nrtsearch.server.monitoring.QueryCacheCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -84,6 +88,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.Status;
+import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.hotspot.DefaultExports;
@@ -99,6 +104,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -167,6 +174,7 @@ public class LuceneServer {
                         collectorRegistry,
                         plugins),
                     monitoringInterceptor))
+            .addService(ProtoReflectionService.newInstance())
             .executor(
                 ThreadPoolExecutorFactory.getThreadPoolExecutor(
                     ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
@@ -239,6 +247,8 @@ public class LuceneServer {
     NrtMetrics.register(collectorRegistry);
     // register index metrics
     IndexMetrics.register(collectorRegistry);
+    // register query cache metrics
+    new QueryCacheCollector().register(collectorRegistry);
   }
 
   /** Main launches the server from the command line. */
@@ -294,7 +304,19 @@ public class LuceneServer {
       this.collectorRegistry = collectorRegistry;
       this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
 
+      initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
+    }
+
+    private void initQueryCache(LuceneServerConfiguration configuration) {
+      QueryCacheConfig cacheConfig = configuration.getQueryCacheConfig();
+      LRUQueryCache queryCache =
+          new LRUQueryCache(
+              cacheConfig.getMaxQueries(),
+              cacheConfig.getMaxMemoryBytes(),
+              cacheConfig.getLeafPredicate(),
+              cacheConfig.getSkipCacheFactor());
+      IndexSearcher.setDefaultQueryCache(queryCache);
     }
 
     private void initExtendableComponents(
@@ -892,6 +914,51 @@ public class LuceneServer {
     }
 
     @Override
+    public void searchV2(
+        SearchRequest searchRequest, StreamObserver<Any> searchResponseStreamObserver) {
+      try {
+        IndexState indexState = globalState.getIndex(searchRequest.getIndexName());
+        SearchHandler searchHandler = new SearchHandler(searchThreadPoolExecutor);
+        SearchResponse reply = searchHandler.handle(indexState, searchRequest);
+        searchResponseStreamObserver.onNext(Any.pack(reply));
+        searchResponseStreamObserver.onCompleted();
+      } catch (IOException e) {
+        logger.warn(
+            "error while trying to read index state dir for indexName: "
+                + searchRequest.getIndexName(),
+            e);
+        searchResponseStreamObserver.onError(
+            Status.INTERNAL
+                .withDescription(
+                    "error while trying to read index state dir for indexName: "
+                        + searchRequest.getIndexName())
+                .augmentDescription(e.getMessage())
+                .withCause(e)
+                .asRuntimeException());
+      } catch (Exception e) {
+        String searchRequestJson = null;
+        try {
+          searchRequestJson = protoMessagePrinter.print(searchRequest);
+        } catch (InvalidProtocolBufferException ignored) {
+          // Ignore as invalid proto would have thrown an exception earlier
+        }
+        logger.warn(
+            String.format(
+                "error while trying to execute search for index %s: request: %s",
+                searchRequest.getIndexName(), searchRequestJson),
+            e);
+        searchResponseStreamObserver.onError(
+            Status.UNKNOWN
+                .withDescription(
+                    String.format(
+                        "error while trying to execute search for index %s. check logs for full searchRequest.",
+                        searchRequest.getIndexName()))
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+
+    @Override
     public void delete(
         AddDocumentRequest addDocumentRequest,
         StreamObserver<AddDocumentResponse> responseObserver) {
@@ -1316,6 +1383,44 @@ public class LuceneServer {
                         request.getServiceName(),
                         request.getResourceName(),
                         request.getNDays()))
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+
+    @Override
+    public void backupWarmingQueries(
+        BackupWarmingQueriesRequest request,
+        StreamObserver<BackupWarmingQueriesResponse> responseObserver) {
+      String index = request.getIndex();
+      try {
+        IndexState indexState = globalState.getIndex(index);
+        Warmer warmer = indexState.getWarmer();
+        if (warmer == null) {
+          logger.warn("Unable to backup warming queries as warmer not found for index: {}", index);
+          responseObserver.onError(
+              Status.UNKNOWN
+                  .withDescription(
+                      "Unable to backup warming queries as warmer not found for index: " + index)
+                  .asRuntimeException());
+          return;
+        }
+        warmer.backupWarmingQueriesToS3(request.getServiceName());
+        responseObserver.onNext(BackupWarmingQueriesResponse.newBuilder().build());
+        responseObserver.onCompleted();
+      } catch (IOException e) {
+        logger.error(
+            "Unable to backup warming queries for index: {}, service: {}",
+            index,
+            request.getServiceName(),
+            e);
+        responseObserver.onError(
+            Status.UNKNOWN
+                .withCause(e)
+                .withDescription(
+                    String.format(
+                        "Unable to backup warming queries for index: %s, service: %s",
+                        index, request.getServiceName()))
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
       }
