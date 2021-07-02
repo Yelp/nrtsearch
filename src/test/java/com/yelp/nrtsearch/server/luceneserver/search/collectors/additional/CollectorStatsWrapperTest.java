@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Yelp Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,41 +13,43 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver.search;
+package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
-import com.yelp.nrtsearch.server.grpc.Facet;
+import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.grpc.ProfileResult;
+import com.yelp.nrtsearch.server.grpc.ProfileResult.AdditionalCollectorStats;
 import com.yelp.nrtsearch.server.grpc.ProfileResult.CollectorStats;
 import com.yelp.nrtsearch.server.grpc.ProfileResult.SegmentStats;
 import com.yelp.nrtsearch.server.grpc.Query;
+import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
+import com.yelp.nrtsearch.server.luceneserver.script.FacetScript;
+import com.yelp.nrtsearch.server.luceneserver.script.ScriptContext;
+import com.yelp.nrtsearch.server.luceneserver.script.ScriptEngine;
+import com.yelp.nrtsearch.server.plugins.Plugin;
+import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.TopDocs;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-public class SearchStatsWrapperTest extends ServerTestCase {
+public class CollectorStatsWrapperTest extends ServerTestCase {
   private static final String TEST_INDEX = "test_index";
   private static final int NUM_DOCS = 100;
   private static final int SEGMENT_CHUNK = 10;
@@ -61,7 +63,7 @@ public class SearchStatsWrapperTest extends ServerTestCase {
 
   @Override
   public FieldDefRequest getIndexDef(String name) throws IOException {
-    return getFieldsFromResourceFile("/search/StatsWrapperRegisterFields.json");
+    return getFieldsFromResourceFile("/search/collection/CollectorStatsWrapperRegisterFields.json");
   }
 
   @Override
@@ -108,8 +110,70 @@ public class SearchStatsWrapperTest extends ServerTestCase {
     }
   }
 
+  @Override
+  public List<Plugin> getPlugins() {
+    return Collections.singletonList(new TestScriptPlugin());
+  }
+
+  private static class TestScriptPlugin extends Plugin implements ScriptPlugin {
+    public Iterable<ScriptEngine> getScriptEngines(List<ScriptContext<?>> contexts) {
+      return Collections.singletonList(new TestScriptEngine());
+    }
+
+    private static class TestScriptEngine implements ScriptEngine {
+
+      @Override
+      public String getLang() {
+        return "test_lang";
+      }
+
+      @Override
+      public <T> T compile(String source, ScriptContext<T> context) {
+        FacetScript.Factory factory = (TestSegmentFactory::new);
+        return context.factoryClazz.cast(factory);
+      }
+
+      private static class TestSegmentFactory implements FacetScript.SegmentFactory {
+
+        private final Map<String, Object> params;
+        private final DocLookup docLookup;
+
+        public TestSegmentFactory(Map<String, Object> params, DocLookup docLookup) {
+          this.params = params;
+          this.docLookup = docLookup;
+        }
+
+        @Override
+        public FacetScript newInstance(LeafReaderContext context) throws IOException {
+          return new TestScript(params, docLookup, context);
+        }
+
+        private static class TestScript extends FacetScript {
+
+          /**
+           * FacetScript constructor.
+           *
+           * @param params script parameters from {@link Script}
+           * @param docLookup index level doc values lookup
+           * @param leafContext lucene segment context
+           */
+          public TestScript(
+              Map<String, Object> params, DocLookup docLookup, LeafReaderContext leafContext) {
+            super(params, docLookup, leafContext);
+          }
+
+          @Override
+          public Object execute() {
+            return getDoc().get("int_field").get(0).toString()
+                + getDoc().get("int_score").get(0).toString();
+          }
+        }
+      }
+    }
+  }
+
   @Test
-  public void testHasSearchStats() {
+  public void testHasAdditionalCollectorStats() {
     SearchResponse searchResponse =
         getGrpcServer()
             .getBlockingStub()
@@ -122,6 +186,32 @@ public class SearchStatsWrapperTest extends ServerTestCase {
                     .addRetrieveFields("int_score")
                     .addRetrieveFields("int_field")
                     .setQuery(Query.newBuilder())
+                    .putCollectors(
+                        "test_collector1",
+                        Collector.newBuilder()
+                            .setTerms(
+                                TermsCollector.newBuilder()
+                                    .setSize(10)
+                                    .setScript(
+                                        Script.newBuilder()
+                                            .setLang("test_lang")
+                                            .setSource("test_script")
+                                            .build())
+                                    .build())
+                            .build())
+                    .putCollectors(
+                        "test_collector2",
+                        Collector.newBuilder()
+                            .setTerms(
+                                TermsCollector.newBuilder()
+                                    .setSize(10)
+                                    .setScript(
+                                        Script.newBuilder()
+                                            .setLang("test_lang")
+                                            .setSource("test_script")
+                                            .build())
+                                    .build())
+                            .build())
                     .setProfile(true)
                     .build());
     assertTrue(searchResponse.getProfileResult().getSearchStats().getCollectorStatsCount() > 1);
@@ -132,7 +222,13 @@ public class SearchStatsWrapperTest extends ServerTestCase {
       assertFalse(collectorStats.getTerminated());
       assertTrue(collectorStats.getTotalCollectTimeMs() > 0.0);
       assertEquals(50, collectorStats.getTotalCollectedCount());
-      assertEquals(0, collectorStats.getAdditionalCollectorStatsCount());
+      assertEquals(2, collectorStats.getAdditionalCollectorStatsCount());
+      AdditionalCollectorStats additionalCollectorStats =
+          collectorStats.getAdditionalCollectorStatsOrThrow("test_collector1");
+      assertTrue(additionalCollectorStats.getCollectTimeMs() > 0.0);
+      additionalCollectorStats =
+          collectorStats.getAdditionalCollectorStatsOrThrow("test_collector2");
+      assertTrue(additionalCollectorStats.getCollectTimeMs() > 0.0);
       for (SegmentStats segmentStats : collectorStats.getSegmentStatsList()) {
         assertEquals(10, segmentStats.getMaxDoc());
         assertEquals(10, segmentStats.getNumDocs());
@@ -140,105 +236,6 @@ public class SearchStatsWrapperTest extends ServerTestCase {
         assertTrue(segmentStats.getCollectTimeMs() > 0.0);
         assertTrue(segmentStats.getRelativeStartTimeMs() > 0.0);
       }
-    }
-  }
-
-  @Test
-  public void testHasQueries() {
-    SearchResponse searchResponse =
-        getGrpcServer()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName(TEST_INDEX)
-                    .setStartHit(0)
-                    .setTopHits(5)
-                    .addRetrieveFields("doc_id")
-                    .addRetrieveFields("int_score")
-                    .addRetrieveFields("int_field")
-                    .setQuery(Query.newBuilder())
-                    .setProfile(true)
-                    .build());
-    assertFalse(searchResponse.getProfileResult().getParsedQuery().isEmpty());
-    assertFalse(searchResponse.getProfileResult().getRewrittenQuery().isEmpty());
-    assertTrue(searchResponse.getProfileResult().getDrillDownQuery().isEmpty());
-  }
-
-  @Test
-  public void testHasDrillDownQuery() {
-    SearchResponse searchResponse =
-        getGrpcServer()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName(TEST_INDEX)
-                    .setStartHit(0)
-                    .setTopHits(5)
-                    .addRetrieveFields("doc_id")
-                    .addRetrieveFields("int_score")
-                    .addRetrieveFields("int_field")
-                    .setQuery(Query.newBuilder())
-                    .addFacets(
-                        Facet.newBuilder()
-                            .setName("test_facet")
-                            .setDim("int_score")
-                            .setTopN(2)
-                            .build())
-                    .setProfile(true)
-                    .build());
-    assertFalse(searchResponse.getProfileResult().getParsedQuery().isEmpty());
-    assertFalse(searchResponse.getProfileResult().getRewrittenQuery().isEmpty());
-    assertFalse(searchResponse.getProfileResult().getDrillDownQuery().isEmpty());
-  }
-
-  public static class MockTerminateCollectorManager
-      implements CollectorManager<Collector, TopDocs> {
-
-    @Override
-    public Collector newCollector() throws IOException {
-      return new MockTerminateCollector();
-    }
-
-    @Override
-    public TopDocs reduce(Collection<Collector> collectors) throws IOException {
-      return null;
-    }
-
-    public static class MockTerminateCollector implements Collector {
-
-      @Override
-      public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-        throw new CollectionTerminatedException();
-      }
-
-      @Override
-      public ScoreMode scoreMode() {
-        return null;
-      }
-    }
-  }
-
-  @Test
-  public void testTerminateFlag() throws IOException {
-    SearchStatsWrapper searchStatsWrapper =
-        new SearchStatsWrapper(new MockTerminateCollectorManager());
-    List<Collector> collectors = new ArrayList<>();
-    for (int i = 0; i < 3; ++i) {
-      Collector c = searchStatsWrapper.newCollector();
-      collectors.add(c);
-      try {
-        c.getLeafCollector(null);
-        assert false;
-      } catch (CollectionTerminatedException ignored) {
-      }
-    }
-    searchStatsWrapper.reduce(collectors);
-    ProfileResult.Builder builder = ProfileResult.newBuilder();
-    searchStatsWrapper.addProfiling(builder);
-    ProfileResult result = builder.build();
-    assertEquals(3, result.getSearchStats().getCollectorStatsCount());
-    for (CollectorStats collectorStats : result.getSearchStats().getCollectorStatsList()) {
-      assertTrue(collectorStats.getTerminated());
     }
   }
 }
