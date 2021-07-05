@@ -96,9 +96,7 @@ public class SaveState {
     }
   }
 
-  /** Holds pending save state, written to state.N file on commit. */
   final SynchronizedJSONObject settings = new SynchronizedJSONObject();
-
   final SynchronizedJSONObject liveSettings = new SynchronizedJSONObject();
   final SynchronizedJSONObject fields = new SynchronizedJSONObject();
   final SynchronizedJSONObject suggest = new SynchronizedJSONObject();
