@@ -33,7 +33,7 @@ import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
-import com.yelp.nrtsearch.server.luceneserver.SaveState.SynchronizedJSONObject;
+import com.yelp.nrtsearch.server.luceneserver.SaveState.ThreadSafeJSONObject;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
@@ -1255,12 +1255,12 @@ public class IndexState implements Closeable, Restorable {
   }
 
   synchronized boolean getBooleanSetting(String name, boolean val) {
-    SynchronizedJSONObject settings = saveState.getSettings();
+    ThreadSafeJSONObject settings = saveState.getSettings();
     return settings.get(name) == null ? val : settings.get(name).getAsBoolean();
   }
 
   synchronized double getDoubleSetting(String name, double val) {
-    SynchronizedJSONObject settings = saveState.getSettings();
+    ThreadSafeJSONObject settings = saveState.getSettings();
     return settings.get(name) == null ? val : settings.get(name).getAsDouble();
   }
 

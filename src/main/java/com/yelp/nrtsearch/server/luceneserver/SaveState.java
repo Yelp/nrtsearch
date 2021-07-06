@@ -23,10 +23,15 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class SaveState {
 
-  class SynchronizedJSONObject {
+  /**
+   * Wrapper class around JSONObject which implements thread safety using read-write lock
+   */
+  class ThreadSafeJSONObject {
 
+    /** JSON object for storing the data */
     final JsonObject data = new JsonObject();
 
+    /** Locking mechanism to guarantee the thread safety */
     private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private final Lock readLock = readWriteLock.readLock();
     private final Lock writeLock = readWriteLock.writeLock();
@@ -76,6 +81,24 @@ public class SaveState {
       }
     }
 
+    public JsonElement remove(String property) {
+      try {
+        writeLock.lock();
+        return data.remove(property);
+      } finally {
+        writeLock.unlock();
+      }
+    }
+
+    public boolean has(String memberName) {
+      try {
+        readLock.lock();
+        return data.has(memberName);
+      } finally {
+        readLock.unlock();
+      }
+    }
+
     public JsonObject getData() {
       try {
         readLock.lock();
@@ -96,24 +119,24 @@ public class SaveState {
     }
   }
 
-  final SynchronizedJSONObject settings = new SynchronizedJSONObject();
-  final SynchronizedJSONObject liveSettings = new SynchronizedJSONObject();
-  final SynchronizedJSONObject fields = new SynchronizedJSONObject();
-  final SynchronizedJSONObject suggest = new SynchronizedJSONObject();
+  final ThreadSafeJSONObject settings = new ThreadSafeJSONObject();
+  final ThreadSafeJSONObject liveSettings = new ThreadSafeJSONObject();
+  final ThreadSafeJSONObject fields = new ThreadSafeJSONObject();
+  final ThreadSafeJSONObject suggest = new ThreadSafeJSONObject();
 
-  public SynchronizedJSONObject getSettings() {
+  public ThreadSafeJSONObject getSettings() {
     return settings;
   }
 
-  public SynchronizedJSONObject getLiveSettings() {
+  public ThreadSafeJSONObject getLiveSettings() {
     return liveSettings;
   }
 
-  public SynchronizedJSONObject getFields() {
+  public ThreadSafeJSONObject getFields() {
     return fields;
   }
 
-  public SynchronizedJSONObject getSuggest() {
+  public ThreadSafeJSONObject getSuggest() {
     return suggest;
   }
 
