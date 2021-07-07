@@ -502,10 +502,21 @@ message Rescorer {
 
 // Defines detailed profiling stats for queries that set profile=true
 message ProfileResult {
+    message AdditionalCollectorStats {
+        // Sum of all collection time
+        double collectTimeMs = 1;
+    }
+
     message CollectorStats {
         // If collection for this index slice was terminated early, such as by a timeout.
         bool terminated = 1;
         repeated SegmentStats segmentStats = 2;
+        // Total docs collected by this collector
+        int32 totalCollectedCount = 3;
+        // Sum of all segment collection time
+        double totalCollectTimeMs = 4;
+        // Stats for additional collection operations
+        map<string, AdditionalCollectorStats> additionalCollectorStats = 5;
     }
 
     message SegmentStats {

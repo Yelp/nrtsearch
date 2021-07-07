@@ -476,6 +476,12 @@ public class IndexState implements Closeable, Restorable {
   /** Segments per tier used by {@link TieredMergePolicy} */
   volatile int segmentsPerTier = 0;
 
+  /** Default search timeout, when not specified in the request */
+  volatile double defaultSearchTimeoutSec = 0;
+
+  /** Default search timeout check every, when not specified in the request */
+  volatile int defaultSearchTimeoutCheckEvery = 0;
+
   /** True if this is a new index. */
   private final boolean doCreate;
 
@@ -976,6 +982,45 @@ public class IndexState implements Closeable, Restorable {
   /** Get the number of segments per tier used by merge policy, or 0 if using policy default. */
   public int getSegmentsPerTier() {
     return segmentsPerTier;
+  }
+
+  /**
+   * Set the default search timeout.
+   *
+   * @param defaultSearchTimeoutSec default timeout
+   * @throws IllegalArgumentException if value is < 0
+   */
+  public synchronized void setDefaultSearchTimeoutSec(double defaultSearchTimeoutSec) {
+    if (defaultSearchTimeoutSec < 0) {
+      throw new IllegalArgumentException("Default search timeout must be >= 0.");
+    }
+    this.defaultSearchTimeoutSec = defaultSearchTimeoutSec;
+    liveSettingsSaveState.addProperty("defaultSearchTimeoutSec", defaultSearchTimeoutSec);
+  }
+
+  /** Get the default search timeout. */
+  public double getDefaultSearchTimeoutSec() {
+    return defaultSearchTimeoutSec;
+  }
+
+  /**
+   * Set the default search timeout check every.
+   *
+   * @param defaultSearchTimeoutCheckEvery default search timeout check every
+   * @throws IllegalArgumentException if value is < 0
+   */
+  public synchronized void setDefaultSearchTimeoutCheckEvery(int defaultSearchTimeoutCheckEvery) {
+    if (defaultSearchTimeoutCheckEvery < 0) {
+      throw new IllegalArgumentException("Default search timeout check every must be >= 0.");
+    }
+    this.defaultSearchTimeoutCheckEvery = defaultSearchTimeoutCheckEvery;
+    liveSettingsSaveState.addProperty(
+        "defaultSearchTimeoutCheckEvery", defaultSearchTimeoutCheckEvery);
+  }
+
+  /** Get the default search timeout check every. */
+  public int getDefaultSearchTimeoutCheckEvery() {
+    return defaultSearchTimeoutCheckEvery;
   }
 
   /** Returns JSON representation of all live settings. */

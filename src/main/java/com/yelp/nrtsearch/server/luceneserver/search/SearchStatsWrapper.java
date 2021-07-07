@@ -115,17 +115,24 @@ public class SearchStatsWrapper<C extends Collector>
     for (SearchStatsCollectorWrapper collector : collectors) {
       CollectorStats.Builder collectorStatsBuilder = CollectorStats.newBuilder();
       collectorStatsBuilder.setTerminated(collector.terminated);
+      int totalCollected = 0;
+      double totalCollectTimeMs = 0;
       for (SearchStatsLeafCollectorWrapper leafCollector : collector.leafCollectors) {
         SegmentStats.Builder segmentStatsBuilder = SegmentStats.newBuilder();
         segmentStatsBuilder.setMaxDoc(leafCollector.context.reader().maxDoc());
         segmentStatsBuilder.setNumDocs(leafCollector.context.reader().numDocs());
         segmentStatsBuilder.setCollectedCount(leafCollector.collectedCount);
+        totalCollected += leafCollector.collectedCount;
         segmentStatsBuilder.setRelativeStartTimeMs(
             (leafCollector.leafStartNano - collectStartNano) / 1000000.0);
-        segmentStatsBuilder.setCollectTimeMs(
-            (leafCollector.leafEndNano - leafCollector.leafStartNano) / 1000000.0);
+        double collectTimeMs =
+            (leafCollector.leafEndNano - leafCollector.leafStartNano) / 1000000.0;
+        segmentStatsBuilder.setCollectTimeMs(collectTimeMs);
+        totalCollectTimeMs += collectTimeMs;
         collectorStatsBuilder.addSegmentStats(segmentStatsBuilder.build());
       }
+      collectorStatsBuilder.setTotalCollectedCount(totalCollected);
+      collectorStatsBuilder.setTotalCollectTimeMs(totalCollectTimeMs);
       searchStatsBuilder.addCollectorStats(collectorStatsBuilder.build());
     }
     profileResultBuilder.setSearchStats(searchStatsBuilder);

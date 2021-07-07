@@ -100,6 +100,20 @@ public class LiveSettingsCommand implements Callable<Integer> {
       defaultValue = "0")
   private int segmentsPerTier;
 
+  @CommandLine.Option(
+      names = {"--defaultSearchTimeoutSec"},
+      description =
+          "Search timeout to use when not provided by the request, or -1 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "-1")
+  private double defaultSearchTimeoutSec;
+
+  @CommandLine.Option(
+      names = {"--defaultSearchTimeoutCheckEvery"},
+      description =
+          "Timeout check every value to use when not provided by the request, or -1 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "-1")
+  private int defaultSearchTimeoutCheckEvery;
+
   public String getIndexName() {
     return indexName;
   }
@@ -144,6 +158,14 @@ public class LiveSettingsCommand implements Callable<Integer> {
     return segmentsPerTier;
   }
 
+  public double getDefaultSearchTimeoutSec() {
+    return defaultSearchTimeoutSec;
+  }
+
+  public int getDefaultSearchTimeoutCheckEvery() {
+    return defaultSearchTimeoutCheckEvery;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -159,7 +181,9 @@ public class LiveSettingsCommand implements Callable<Integer> {
           getSliceMaxSegments(),
           getVirtualShards(),
           getMaxMergedSegmentMB(),
-          getSegmentsPerTier());
+          getSegmentsPerTier(),
+          getDefaultSearchTimeoutSec(),
+          getDefaultSearchTimeoutCheckEvery());
     } finally {
       client.shutdown();
     }
