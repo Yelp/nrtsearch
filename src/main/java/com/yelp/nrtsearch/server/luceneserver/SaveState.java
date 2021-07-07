@@ -23,9 +23,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class SaveState {
 
-  /**
-   * Wrapper class around JSONObject which implements thread safety using read-write lock
-   */
+  /** Wrapper class around JSONObject which implements thread safety using read-write lock */
   class ThreadSafeJSONObject {
 
     /** JSON object for storing the data */
@@ -33,6 +31,7 @@ public class SaveState {
 
     /** Locking mechanism to guarantee the thread safety */
     private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+
     private final Lock readLock = readWriteLock.readLock();
     private final Lock writeLock = readWriteLock.writeLock();
 
