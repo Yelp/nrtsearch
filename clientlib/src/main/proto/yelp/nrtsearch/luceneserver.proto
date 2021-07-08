@@ -513,7 +513,7 @@ message SettingsRequest {
     int32 concurrentMergeSchedulerMaxThreadCount = 5; // How many merge threads to allow at once
     int32 concurrentMergeSchedulerMaxMergeCount = 6; // Maximum backlog of pending merges before indexing threads are stalled
     SortFields indexSort = 7; // Index time sorting; can only be written once", SearchHandler.SORT_TYPE
-    bool indexVerbose = 8; // Turn on IndexWriter's infoStream (to stdout)
+    bool indexVerbose = 8 [deprecated = true]; // Deprecated, moved to lucene config. Turn on IndexWriter's infoStream (to stdout)
     bool indexMergeSchedulerAutoThrottle = 9; // Turn on/off the merge scheduler's auto throttling
     string normsFormat = 10; // Which NormsFormat should be used for all indexed fields. default: Lucene80NormsFormat
     // Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
