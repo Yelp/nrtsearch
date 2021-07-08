@@ -145,6 +145,9 @@ test {
         exclude '**/YelpReviewsTest.class'
         exclude '**/YelpSuggestTest.class'
         exclude '**/MergeBehaviorTests.class'
+        filter {
+            excludeTestsMatching '*.NodeNameResolverAndLoadBalancingTests.testSimpleLoadBalancingAsync'
+        }
     }
     systemProperties System.properties
 }
