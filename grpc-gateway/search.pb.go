@@ -4779,6 +4779,54 @@ func (x *SearchResponse_Hit_CompositeFieldValue) GetFieldValue() []*SearchRespon
 	return nil
 }
 
+type ProfileResult_AdditionalCollectorStats struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Sum of all collection time
+	CollectTimeMs float64 `protobuf:"fixed64,1,opt,name=collectTimeMs,proto3" json:"collectTimeMs,omitempty"`
+}
+
+func (x *ProfileResult_AdditionalCollectorStats) Reset() {
+	*x = ProfileResult_AdditionalCollectorStats{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[62]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ProfileResult_AdditionalCollectorStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProfileResult_AdditionalCollectorStats) ProtoMessage() {}
+
+func (x *ProfileResult_AdditionalCollectorStats) ProtoReflect() protoreflect.Message {
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[62]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProfileResult_AdditionalCollectorStats.ProtoReflect.Descriptor instead.
+func (*ProfileResult_AdditionalCollectorStats) Descriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{36, 0}
+}
+
+func (x *ProfileResult_AdditionalCollectorStats) GetCollectTimeMs() float64 {
+	if x != nil {
+		return x.CollectTimeMs
+	}
+	return 0
+}
+
 type ProfileResult_CollectorStats struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -4787,12 +4835,18 @@ type ProfileResult_CollectorStats struct {
 	// If collection for this index slice was terminated early, such as by a timeout.
 	Terminated   bool                          `protobuf:"varint,1,opt,name=terminated,proto3" json:"terminated,omitempty"`
 	SegmentStats []*ProfileResult_SegmentStats `protobuf:"bytes,2,rep,name=segmentStats,proto3" json:"segmentStats,omitempty"`
+	// Total docs collected by this collector
+	TotalCollectedCount int32 `protobuf:"varint,3,opt,name=totalCollectedCount,proto3" json:"totalCollectedCount,omitempty"`
+	// Sum of all segment collection time
+	TotalCollectTimeMs float64 `protobuf:"fixed64,4,opt,name=totalCollectTimeMs,proto3" json:"totalCollectTimeMs,omitempty"`
+	// Stats for additional collection operations
+	AdditionalCollectorStats map[string]*ProfileResult_AdditionalCollectorStats `protobuf:"bytes,5,rep,name=additionalCollectorStats,proto3" json:"additionalCollectorStats,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (x *ProfileResult_CollectorStats) Reset() {
 	*x = ProfileResult_CollectorStats{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[62]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[63]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4805,7 +4859,7 @@ func (x *ProfileResult_CollectorStats) String() string {
 func (*ProfileResult_CollectorStats) ProtoMessage() {}
 
 func (x *ProfileResult_CollectorStats) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[62]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[63]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4818,7 +4872,7 @@ func (x *ProfileResult_CollectorStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProfileResult_CollectorStats.ProtoReflect.Descriptor instead.
 func (*ProfileResult_CollectorStats) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{36, 0}
+	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{36, 1}
 }
 
 func (x *ProfileResult_CollectorStats) GetTerminated() bool {
@@ -4831,6 +4885,27 @@ func (x *ProfileResult_CollectorStats) GetTerminated() bool {
 func (x *ProfileResult_CollectorStats) GetSegmentStats() []*ProfileResult_SegmentStats {
 	if x != nil {
 		return x.SegmentStats
+	}
+	return nil
+}
+
+func (x *ProfileResult_CollectorStats) GetTotalCollectedCount() int32 {
+	if x != nil {
+		return x.TotalCollectedCount
+	}
+	return 0
+}
+
+func (x *ProfileResult_CollectorStats) GetTotalCollectTimeMs() float64 {
+	if x != nil {
+		return x.TotalCollectTimeMs
+	}
+	return 0
+}
+
+func (x *ProfileResult_CollectorStats) GetAdditionalCollectorStats() map[string]*ProfileResult_AdditionalCollectorStats {
+	if x != nil {
+		return x.AdditionalCollectorStats
 	}
 	return nil
 }
@@ -4855,7 +4930,7 @@ type ProfileResult_SegmentStats struct {
 func (x *ProfileResult_SegmentStats) Reset() {
 	*x = ProfileResult_SegmentStats{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[63]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[64]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4868,7 +4943,7 @@ func (x *ProfileResult_SegmentStats) String() string {
 func (*ProfileResult_SegmentStats) ProtoMessage() {}
 
 func (x *ProfileResult_SegmentStats) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[63]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[64]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4881,7 +4956,7 @@ func (x *ProfileResult_SegmentStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProfileResult_SegmentStats.ProtoReflect.Descriptor instead.
 func (*ProfileResult_SegmentStats) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{36, 1}
+	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{36, 2}
 }
 
 func (x *ProfileResult_SegmentStats) GetMaxDoc() int32 {
@@ -4934,7 +5009,7 @@ type ProfileResult_SearchStats struct {
 func (x *ProfileResult_SearchStats) Reset() {
 	*x = ProfileResult_SearchStats{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[64]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[65]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4947,7 +5022,7 @@ func (x *ProfileResult_SearchStats) String() string {
 func (*ProfileResult_SearchStats) ProtoMessage() {}
 
 func (x *ProfileResult_SearchStats) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[64]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[65]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4960,7 +5035,7 @@ func (x *ProfileResult_SearchStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProfileResult_SearchStats.ProtoReflect.Descriptor instead.
 func (*ProfileResult_SearchStats) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{36, 2}
+	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{36, 3}
 }
 
 func (x *ProfileResult_SearchStats) GetTotalCollectTimeMs() float64 {
@@ -4996,7 +5071,7 @@ type BucketResult_Bucket struct {
 func (x *BucketResult_Bucket) Reset() {
 	*x = BucketResult_Bucket{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_search_proto_msgTypes[65]
+		mi := &file_yelp_nrtsearch_search_proto_msgTypes[67]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5009,7 +5084,7 @@ func (x *BucketResult_Bucket) String() string {
 func (*BucketResult_Bucket) ProtoMessage() {}
 
 func (x *BucketResult_Bucket) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_search_proto_msgTypes[65]
+	mi := &file_yelp_nrtsearch_search_proto_msgTypes[67]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5725,7 +5800,7 @@ var file_yelp_nrtsearch_search_proto_rawDesc = []byte{
 	0x32, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
 	0x50, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72, 0x48, 0x00,
 	0x52, 0x0e, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72,
-	0x42, 0x0b, 0x0a, 0x09, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72, 0x73, 0x22, 0xd1, 0x05,
+	0x42, 0x0b, 0x0a, 0x09, 0x52, 0x65, 0x73, 0x63, 0x6f, 0x72, 0x65, 0x72, 0x73, 0x22, 0x81, 0x09,
 	0x0a, 0x0d, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x12,
 	0x49, 0x0a, 0x0b, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x53, 0x74, 0x61, 0x74, 0x73, 0x18, 0x01,
 	0x20, 0x01, 0x28, 0x0b, 0x32, 0x27, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
@@ -5738,15 +5813,42 @@ var file_yelp_nrtsearch_search_proto_rawDesc = []byte{
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x0e, 0x72, 0x65, 0x77, 0x72, 0x69, 0x74, 0x74, 0x65, 0x6e, 0x51,
 	0x75, 0x65, 0x72, 0x79, 0x12, 0x26, 0x0a, 0x0e, 0x64, 0x72, 0x69, 0x6c, 0x6c, 0x44, 0x6f, 0x77,
 	0x6e, 0x51, 0x75, 0x65, 0x72, 0x79, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0e, 0x64, 0x72,
-	0x69, 0x6c, 0x6c, 0x44, 0x6f, 0x77, 0x6e, 0x51, 0x75, 0x65, 0x72, 0x79, 0x1a, 0x7e, 0x0a, 0x0e,
-	0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x53, 0x74, 0x61, 0x74, 0x73, 0x12, 0x1e,
-	0x0a, 0x0a, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x64, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x08, 0x52, 0x0a, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x64, 0x12, 0x4c,
-	0x0a, 0x0c, 0x73, 0x65, 0x67, 0x6d, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x18, 0x02,
-	0x20, 0x03, 0x28, 0x0b, 0x32, 0x28, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
+	0x69, 0x6c, 0x6c, 0x44, 0x6f, 0x77, 0x6e, 0x51, 0x75, 0x65, 0x72, 0x79, 0x1a, 0x40, 0x0a, 0x18,
+	0x41, 0x64, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63,
+	0x74, 0x6f, 0x72, 0x53, 0x74, 0x61, 0x74, 0x73, 0x12, 0x24, 0x0a, 0x0d, 0x63, 0x6f, 0x6c, 0x6c,
+	0x65, 0x63, 0x74, 0x54, 0x69, 0x6d, 0x65, 0x4d, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x01, 0x52,
+	0x0d, 0x63, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x54, 0x69, 0x6d, 0x65, 0x4d, 0x73, 0x1a, 0xeb,
+	0x03, 0x0a, 0x0e, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x53, 0x74, 0x61, 0x74,
+	0x73, 0x12, 0x1e, 0x0a, 0x0a, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6e, 0x61, 0x74, 0x65, 0x64, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0a, 0x74, 0x65, 0x72, 0x6d, 0x69, 0x6e, 0x61, 0x74, 0x65,
+	0x64, 0x12, 0x4c, 0x0a, 0x0c, 0x73, 0x65, 0x67, 0x6d, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74,
+	0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x28, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65,
+	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x52, 0x65,
+	0x73, 0x75, 0x6c, 0x74, 0x2e, 0x53, 0x65, 0x67, 0x6d, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74,
+	0x73, 0x52, 0x0c, 0x73, 0x65, 0x67, 0x6d, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x12,
+	0x30, 0x0a, 0x13, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x65,
+	0x64, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x05, 0x52, 0x13, 0x74, 0x6f,
+	0x74, 0x61, 0x6c, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x65, 0x64, 0x43, 0x6f, 0x75, 0x6e,
+	0x74, 0x12, 0x2e, 0x0a, 0x12, 0x74, 0x6f, 0x74, 0x61, 0x6c, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63,
+	0x74, 0x54, 0x69, 0x6d, 0x65, 0x4d, 0x73, 0x18, 0x04, 0x20, 0x01, 0x28, 0x01, 0x52, 0x12, 0x74,
+	0x6f, 0x74, 0x61, 0x6c, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x54, 0x69, 0x6d, 0x65, 0x4d,
+	0x73, 0x12, 0x84, 0x01, 0x0a, 0x18, 0x61, 0x64, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c,
+	0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x53, 0x74, 0x61, 0x74, 0x73, 0x18, 0x05,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x48, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
 	0x76, 0x65, 0x72, 0x2e, 0x50, 0x72, 0x6f, 0x66, 0x69, 0x6c, 0x65, 0x52, 0x65, 0x73, 0x75, 0x6c,
-	0x74, 0x2e, 0x53, 0x65, 0x67, 0x6d, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x0c,
-	0x73, 0x65, 0x67, 0x6d, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x1a, 0xc0, 0x01, 0x0a,
+	0x74, 0x2e, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x53, 0x74, 0x61, 0x74, 0x73,
+	0x2e, 0x41, 0x64, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x43, 0x6f, 0x6c, 0x6c, 0x65,
+	0x63, 0x74, 0x6f, 0x72, 0x53, 0x74, 0x61, 0x74, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x18,
+	0x61, 0x64, 0x64, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63,
+	0x74, 0x6f, 0x72, 0x53, 0x74, 0x61, 0x74, 0x73, 0x1a, 0x81, 0x01, 0x0a, 0x1d, 0x41, 0x64, 0x64,
+	0x69, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x6f, 0x72,
+	0x53, 0x74, 0x61, 0x74, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65,
+	0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x4a, 0x0a, 0x05,
+	0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x34, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x50, 0x72, 0x6f, 0x66, 0x69,
+	0x6c, 0x65, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x2e, 0x41, 0x64, 0x64, 0x69, 0x74, 0x69, 0x6f,
+	0x6e, 0x61, 0x6c, 0x43, 0x6f, 0x6c, 0x6c, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x53, 0x74, 0x61, 0x74,
+	0x73, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x1a, 0xc0, 0x01, 0x0a,
 	0x0c, 0x53, 0x65, 0x67, 0x6d, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61, 0x74, 0x73, 0x12, 0x16, 0x0a,
 	0x06, 0x6d, 0x61, 0x78, 0x44, 0x6f, 0x63, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x06, 0x6d,
 	0x61, 0x78, 0x44, 0x6f, 0x63, 0x12, 0x18, 0x0a, 0x07, 0x6e, 0x75, 0x6d, 0x44, 0x6f, 0x63, 0x73,
@@ -5849,7 +5951,7 @@ func file_yelp_nrtsearch_search_proto_rawDescGZIP() []byte {
 }
 
 var file_yelp_nrtsearch_search_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_yelp_nrtsearch_search_proto_msgTypes = make([]protoimpl.MessageInfo, 66)
+var file_yelp_nrtsearch_search_proto_msgTypes = make([]protoimpl.MessageInfo, 68)
 var file_yelp_nrtsearch_search_proto_goTypes = []interface{}{
 	(MatchOperator)(0),                    // 0: luceneserver.MatchOperator
 	(QueryType)(0),                        // 1: luceneserver.QueryType
@@ -5918,15 +6020,17 @@ var file_yelp_nrtsearch_search_proto_goTypes = []interface{}{
 	nil,                                   // 64: luceneserver.SearchResponse.Diagnostics.FacetTimeMsEntry
 	(*SearchResponse_Hit_FieldValue)(nil), // 65: luceneserver.SearchResponse.Hit.FieldValue
 	(*SearchResponse_Hit_CompositeFieldValue)(nil), // 66: luceneserver.SearchResponse.Hit.CompositeFieldValue
-	nil,                                  // 67: luceneserver.SearchResponse.Hit.FieldsEntry
-	nil,                                  // 68: luceneserver.SearchResponse.Hit.SortedFieldsEntry
-	(*ProfileResult_CollectorStats)(nil), // 69: luceneserver.ProfileResult.CollectorStats
-	(*ProfileResult_SegmentStats)(nil),   // 70: luceneserver.ProfileResult.SegmentStats
-	(*ProfileResult_SearchStats)(nil),    // 71: luceneserver.ProfileResult.SearchStats
-	(*BucketResult_Bucket)(nil),          // 72: luceneserver.BucketResult.Bucket
-	(*Analyzer)(nil),                     // 73: luceneserver.Analyzer
-	(*latlng.LatLng)(nil),                // 74: google.type.LatLng
-	(*_struct.Struct)(nil),               // 75: google.protobuf.Struct
+	nil, // 67: luceneserver.SearchResponse.Hit.FieldsEntry
+	nil, // 68: luceneserver.SearchResponse.Hit.SortedFieldsEntry
+	(*ProfileResult_AdditionalCollectorStats)(nil), // 69: luceneserver.ProfileResult.AdditionalCollectorStats
+	(*ProfileResult_CollectorStats)(nil),           // 70: luceneserver.ProfileResult.CollectorStats
+	(*ProfileResult_SegmentStats)(nil),             // 71: luceneserver.ProfileResult.SegmentStats
+	(*ProfileResult_SearchStats)(nil),              // 72: luceneserver.ProfileResult.SearchStats
+	nil,                                            // 73: luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry
+	(*BucketResult_Bucket)(nil),                    // 74: luceneserver.BucketResult.Bucket
+	(*Analyzer)(nil),                               // 75: luceneserver.Analyzer
+	(*latlng.LatLng)(nil),                          // 76: google.type.LatLng
+	(*_struct.Struct)(nil),                         // 77: google.protobuf.Struct
 }
 var file_yelp_nrtsearch_search_proto_depIdxs = []int32{
 	25, // 0: luceneserver.BooleanClause.query:type_name -> luceneserver.Query
@@ -5944,17 +6048,17 @@ var file_yelp_nrtsearch_search_proto_depIdxs = []int32{
 	52, // 12: luceneserver.TermInSetQuery.doubleTerms:type_name -> luceneserver.TermInSetQuery.DoubleTerms
 	25, // 13: luceneserver.DisjunctionMaxQuery.disjuncts:type_name -> luceneserver.Query
 	0,  // 14: luceneserver.MatchQuery.operator:type_name -> luceneserver.MatchOperator
-	73, // 15: luceneserver.MatchQuery.analyzer:type_name -> luceneserver.Analyzer
+	75, // 15: luceneserver.MatchQuery.analyzer:type_name -> luceneserver.Analyzer
 	8,  // 16: luceneserver.MatchQuery.fuzzyParams:type_name -> luceneserver.FuzzyParams
-	73, // 17: luceneserver.MatchPhraseQuery.analyzer:type_name -> luceneserver.Analyzer
+	75, // 17: luceneserver.MatchPhraseQuery.analyzer:type_name -> luceneserver.Analyzer
 	53, // 18: luceneserver.MultiMatchQuery.fieldBoosts:type_name -> luceneserver.MultiMatchQuery.FieldBoostsEntry
 	0,  // 19: luceneserver.MultiMatchQuery.operator:type_name -> luceneserver.MatchOperator
-	73, // 20: luceneserver.MultiMatchQuery.analyzer:type_name -> luceneserver.Analyzer
+	75, // 20: luceneserver.MultiMatchQuery.analyzer:type_name -> luceneserver.Analyzer
 	8,  // 21: luceneserver.MultiMatchQuery.fuzzyParams:type_name -> luceneserver.FuzzyParams
-	74, // 22: luceneserver.GeoBoundingBoxQuery.topLeft:type_name -> google.type.LatLng
-	74, // 23: luceneserver.GeoBoundingBoxQuery.bottomRight:type_name -> google.type.LatLng
-	74, // 24: luceneserver.GeoRadiusQuery.center:type_name -> google.type.LatLng
-	74, // 25: luceneserver.GeoPointQuery.point:type_name -> google.type.LatLng
+	76, // 22: luceneserver.GeoBoundingBoxQuery.topLeft:type_name -> google.type.LatLng
+	76, // 23: luceneserver.GeoBoundingBoxQuery.bottomRight:type_name -> google.type.LatLng
+	76, // 24: luceneserver.GeoRadiusQuery.center:type_name -> google.type.LatLng
+	76, // 25: luceneserver.GeoPointQuery.point:type_name -> google.type.LatLng
 	1,  // 26: luceneserver.Query.queryType:type_name -> luceneserver.QueryType
 	9,  // 27: luceneserver.Query.booleanQuery:type_name -> luceneserver.BooleanQuery
 	10, // 28: luceneserver.Query.phraseQuery:type_name -> luceneserver.PhraseQuery
@@ -5996,16 +6100,16 @@ var file_yelp_nrtsearch_search_proto_depIdxs = []int32{
 	35, // 64: luceneserver.Facet.numericRange:type_name -> luceneserver.NumericRangeType
 	28, // 65: luceneserver.Facet.script:type_name -> luceneserver.Script
 	38, // 66: luceneserver.FacetResult.labelValues:type_name -> luceneserver.LabelAndValue
-	75, // 67: luceneserver.FetchTask.params:type_name -> google.protobuf.Struct
-	75, // 68: luceneserver.PluginRescorer.params:type_name -> google.protobuf.Struct
+	77, // 67: luceneserver.FetchTask.params:type_name -> google.protobuf.Struct
+	77, // 68: luceneserver.PluginRescorer.params:type_name -> google.protobuf.Struct
 	25, // 69: luceneserver.QueryRescorer.rescoreQuery:type_name -> luceneserver.Query
 	41, // 70: luceneserver.Rescorer.queryRescorer:type_name -> luceneserver.QueryRescorer
 	40, // 71: luceneserver.Rescorer.pluginRescorer:type_name -> luceneserver.PluginRescorer
-	71, // 72: luceneserver.ProfileResult.searchStats:type_name -> luceneserver.ProfileResult.SearchStats
+	72, // 72: luceneserver.ProfileResult.searchStats:type_name -> luceneserver.ProfileResult.SearchStats
 	45, // 73: luceneserver.Collector.terms:type_name -> luceneserver.TermsCollector
 	28, // 74: luceneserver.TermsCollector.script:type_name -> luceneserver.Script
 	47, // 75: luceneserver.CollectorResult.bucketResult:type_name -> luceneserver.BucketResult
-	72, // 76: luceneserver.BucketResult.buckets:type_name -> luceneserver.BucketResult.Bucket
+	74, // 76: luceneserver.BucketResult.buckets:type_name -> luceneserver.BucketResult.Bucket
 	44, // 77: luceneserver.SearchRequest.CollectorsEntry.value:type_name -> luceneserver.Collector
 	5,  // 78: luceneserver.Script.ParamValue.nullValue:type_name -> luceneserver.Script.ParamNullValue
 	57, // 79: luceneserver.Script.ParamValue.listValue:type_name -> luceneserver.Script.ParamListValue
@@ -6018,18 +6122,20 @@ var file_yelp_nrtsearch_search_proto_depIdxs = []int32{
 	67, // 86: luceneserver.SearchResponse.Hit.fields:type_name -> luceneserver.SearchResponse.Hit.FieldsEntry
 	68, // 87: luceneserver.SearchResponse.Hit.sortedFields:type_name -> luceneserver.SearchResponse.Hit.SortedFieldsEntry
 	46, // 88: luceneserver.SearchResponse.CollectorResultsEntry.value:type_name -> luceneserver.CollectorResult
-	74, // 89: luceneserver.SearchResponse.Hit.FieldValue.latLngValue:type_name -> google.type.LatLng
-	75, // 90: luceneserver.SearchResponse.Hit.FieldValue.structValue:type_name -> google.protobuf.Struct
+	76, // 89: luceneserver.SearchResponse.Hit.FieldValue.latLngValue:type_name -> google.type.LatLng
+	77, // 90: luceneserver.SearchResponse.Hit.FieldValue.structValue:type_name -> google.protobuf.Struct
 	65, // 91: luceneserver.SearchResponse.Hit.CompositeFieldValue.fieldValue:type_name -> luceneserver.SearchResponse.Hit.FieldValue
 	66, // 92: luceneserver.SearchResponse.Hit.FieldsEntry.value:type_name -> luceneserver.SearchResponse.Hit.CompositeFieldValue
 	66, // 93: luceneserver.SearchResponse.Hit.SortedFieldsEntry.value:type_name -> luceneserver.SearchResponse.Hit.CompositeFieldValue
-	70, // 94: luceneserver.ProfileResult.CollectorStats.segmentStats:type_name -> luceneserver.ProfileResult.SegmentStats
-	69, // 95: luceneserver.ProfileResult.SearchStats.collectorStats:type_name -> luceneserver.ProfileResult.CollectorStats
-	96, // [96:96] is the sub-list for method output_type
-	96, // [96:96] is the sub-list for method input_type
-	96, // [96:96] is the sub-list for extension type_name
-	96, // [96:96] is the sub-list for extension extendee
-	0,  // [0:96] is the sub-list for field type_name
+	71, // 94: luceneserver.ProfileResult.CollectorStats.segmentStats:type_name -> luceneserver.ProfileResult.SegmentStats
+	73, // 95: luceneserver.ProfileResult.CollectorStats.additionalCollectorStats:type_name -> luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry
+	70, // 96: luceneserver.ProfileResult.SearchStats.collectorStats:type_name -> luceneserver.ProfileResult.CollectorStats
+	69, // 97: luceneserver.ProfileResult.CollectorStats.AdditionalCollectorStatsEntry.value:type_name -> luceneserver.ProfileResult.AdditionalCollectorStats
+	98, // [98:98] is the sub-list for method output_type
+	98, // [98:98] is the sub-list for method input_type
+	98, // [98:98] is the sub-list for extension type_name
+	98, // [98:98] is the sub-list for extension extendee
+	0,  // [0:98] is the sub-list for field type_name
 }
 
 func init() { file_yelp_nrtsearch_search_proto_init() }
@@ -6688,7 +6794,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[62].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProfileResult_CollectorStats); i {
+			switch v := v.(*ProfileResult_AdditionalCollectorStats); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6700,7 +6806,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[63].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProfileResult_SegmentStats); i {
+			switch v := v.(*ProfileResult_CollectorStats); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6712,7 +6818,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[64].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ProfileResult_SearchStats); i {
+			switch v := v.(*ProfileResult_SegmentStats); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -6724,6 +6830,18 @@ func file_yelp_nrtsearch_search_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_search_proto_msgTypes[65].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ProfileResult_SearchStats); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yelp_nrtsearch_search_proto_msgTypes[67].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*BucketResult_Bucket); i {
 			case 0:
 				return &v.state
@@ -6815,7 +6933,7 @@ func file_yelp_nrtsearch_search_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_yelp_nrtsearch_search_proto_rawDesc,
 			NumEnums:      7,
-			NumMessages:   66,
+			NumMessages:   68,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

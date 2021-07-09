@@ -26,6 +26,8 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchStatsWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.CollectorStatsWrapper;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
@@ -42,6 +44,7 @@ public abstract class DocCollector {
   private final int numHitsToCollect;
   private boolean hadTimeout = false;
   private SearchStatsWrapper<? extends Collector> statsWrapper = null;
+  private List<CollectorStatsWrapper<?, ?>> collectorStatsWrappers = null;
 
   /**
    * Constructor
@@ -79,8 +82,9 @@ public abstract class DocCollector {
    * timeout handling.
    */
   public CollectorManager<? extends Collector, SearcherResult> getWrappedManager() {
-    SearchCollectorManager searchCollectorManager =
-        new SearchCollectorManager(this, additionalCollectors);
+    List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>> collectors =
+        wrappedCollectors();
+    SearchCollectorManager searchCollectorManager = new SearchCollectorManager(this, collectors);
     return wrapManager(searchCollectorManager);
   }
 
@@ -93,6 +97,11 @@ public abstract class DocCollector {
   public void maybeAddProfiling(ProfileResult.Builder profileResultBuilder) {
     if (statsWrapper != null) {
       statsWrapper.addProfiling(profileResultBuilder);
+      if (collectorStatsWrappers != null) {
+        for (CollectorStatsWrapper<?, ?> wrapper : collectorStatsWrappers) {
+          wrapper.addProfiling(profileResultBuilder);
+        }
+      }
     }
   }
 
@@ -171,5 +180,28 @@ public abstract class DocCollector {
       wrapped = statsWrapper;
     }
     return wrapped;
+  }
+
+  /**
+   * Produce a list of wrapped {@link AdditionalCollectorManager}, providing support for profiling
+   * stats collection if needed.
+   */
+  List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
+      wrappedCollectors() {
+    if (!additionalCollectors.isEmpty() && request.getProfile()) {
+      List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
+          wrappedCollectors = new ArrayList<>(additionalCollectors.size());
+      // hold the stats wrappers to fill profiling info later
+      collectorStatsWrappers = new ArrayList<>(additionalCollectors.size());
+      for (AdditionalCollectorManager<? extends Collector, ? extends CollectorResult> collector :
+          additionalCollectors) {
+        CollectorStatsWrapper<?, ?> statsWrapper = new CollectorStatsWrapper<>(collector);
+        collectorStatsWrappers.add(statsWrapper);
+        wrappedCollectors.add(statsWrapper);
+      }
+      return wrappedCollectors;
+    } else {
+      return additionalCollectors;
+    }
   }
 }

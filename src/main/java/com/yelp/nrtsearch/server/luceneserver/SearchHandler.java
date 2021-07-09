@@ -44,7 +44,6 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
@@ -199,105 +198,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       // create Hit.Builder for each hit, and populate with lucene doc id and ranking info
       setResponseHits(searchContext, hits);
 
-      // fill all other needed fields into each Hit.Builder
-      List<Hit.Builder> hitBuilders =
-          new ArrayList<>(searchContext.getResponseBuilder().getHitsBuilderList());
-      hitBuilders.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
-      List<LeafReaderContext> leaves = s.searcher.getIndexReader().leaves();
-
-      List<LeafReaderContext> hitIdToLeaves = new ArrayList<>();
-      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
-        var hitResponse = hitBuilders.get(hitIndex);
-        LeafReaderContext leaf =
-            leaves.get(ReaderUtil.subIndex(hitResponse.getLuceneDocId(), leaves));
-        hitIdToLeaves.add(hitIndex, leaf);
-      }
-      List<String> fields = new ArrayList<>(searchContext.getRetrieveFields().keySet());
-      int fetch_thread_pool_size = indexState.getThreadPoolConfiguration().getMaxFetchThreads();
-      int min_parallel_fetch_num_fields =
-          indexState.getThreadPoolConfiguration().getMinParallelFetchNumFields();
-      int min_parallel_fetch_num_hits =
-          indexState.getThreadPoolConfiguration().getMinParallelFetchNumHits();
-      // only parallel load data when request retrieve large number of fields for large number of
-      // hits
-      if (fetch_thread_pool_size > 1
-          && fields.size() > min_parallel_fetch_num_fields
-          && hitBuilders.size() > min_parallel_fetch_num_hits) {
-        // parallelism is min of fetchThreadPoolSize and fields.size() / MIN_PARALLEL_NUM_FIELDS
-        // round up
-        int parallelism =
-            Math.min(
-                fetch_thread_pool_size,
-                (fields.size() + min_parallel_fetch_num_fields - 1)
-                    / min_parallel_fetch_num_fields);
-        List<List<String>> fieldsChunks =
-            Lists.partition(fields, (fields.size() + parallelism - 1) / parallelism);
-
-        List<Future<List<Map<String, CompositeFieldValue>>>> futures = new ArrayList<>();
-        // Only parallel by fields here, which should work well for doc values and virtual fields
-        // For row based stored fields, we should do it by hit id.
-        // Stored fields are not widely used for NRTSearch (not recommended for memory usage)
-        for (List<String> fieldsChunk : fieldsChunks) {
-          futures.add(
-              indexState
-                  .getFetchThreadPoolExecutor()
-                  .submit(
-                      new FillFieldsTask(
-                          indexState,
-                          s.searcher,
-                          hitIdToLeaves,
-                          hitBuilders,
-                          fieldsChunk,
-                          searchContext)));
-        }
-        for (Future<List<Map<String, CompositeFieldValue>>> future : futures) {
-          List<Map<String, CompositeFieldValue>> values = future.get();
-          for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
-            var hitResponse = hitBuilders.get(hitIndex);
-            hitResponse.putAllFields(values.get(hitIndex));
-          }
-        }
-      } else {
-        List<Map<String, CompositeFieldValue>> values =
-            new FillFieldsTask(
-                    indexState, s.searcher, hitIdToLeaves, hitBuilders, fields, searchContext)
-                .call();
-        for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
-          var hitResponse = hitBuilders.get(hitIndex);
-          hitResponse.putAllFields(values.get(hitIndex));
-        }
-      }
-
-      // TODO: support highlight fields
-      Object highlighter = null;
-      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
-        // TODO: get real highlights later
-        Map<String, Object[]> highlights = Collections.emptyMap();
-
-        if (highlights != null) {
-          for (Map.Entry<String, Object[]> ent : highlights.entrySet()) {
-            Object v = ent.getValue()[hitIndex];
-            if (v != null) {
-              // FIXME: not sure this is serializable to string?
-              CompositeFieldValue value =
-                  CompositeFieldValue.newBuilder()
-                      .addFieldValue(FieldValue.newBuilder().setTextValue(v.toString()).build())
-                      .build();
-              hitBuilders.get(hitIndex).putFields(ent.getKey(), value);
-            }
-          }
-        }
-      }
-
-      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
-        var hitResponse = hitBuilders.get(hitIndex);
-        LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
-        searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
-      }
-
-      searchContext
-          .getFetchTasks()
-          .processAllHits(searchContext, searchContext.getResponseBuilder().getHitsBuilderList());
+      // fill Hit.Builder with requested fields
+      fetchFields(searchContext);
 
       SearchState.Builder searchState = SearchState.newBuilder();
       searchContext.getResponseBuilder().setSearchState(searchState);
@@ -351,6 +253,131 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     }
 
     return searchContext.getResponseBuilder().build();
+  }
+
+  /**
+   * Fetch/compute field values for the top hits. This operation may be done in parallel, based on
+   * the setting for the fetch thread pool. In addition to filling hit fields, any query {@link
+   * com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask}s are executed.
+   *
+   * @param searchContext search parameters
+   * @throws IOException on error reading index data
+   * @throws ExecutionException on error when performing parallel fetch
+   * @throws InterruptedException if parallel fetch is interrupted
+   */
+  private void fetchFields(SearchContext searchContext)
+      throws IOException, ExecutionException, InterruptedException {
+    if (searchContext.getResponseBuilder().getHitsBuilderList().isEmpty()) {
+      return;
+    }
+
+    // sort hits by lucene doc id
+    List<Hit.Builder> hitBuilders =
+        new ArrayList<>(searchContext.getResponseBuilder().getHitsBuilderList());
+    hitBuilders.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
+
+    IndexState indexState = searchContext.getIndexState();
+    int fetch_thread_pool_size = indexState.getThreadPoolConfiguration().getMaxFetchThreads();
+    int min_parallel_fetch_num_fields =
+        indexState.getThreadPoolConfiguration().getMinParallelFetchNumFields();
+    int min_parallel_fetch_num_hits =
+        indexState.getThreadPoolConfiguration().getMinParallelFetchNumHits();
+    boolean parallelFetchByField =
+        indexState.getThreadPoolConfiguration().getParallelFetchByField();
+
+    if (parallelFetchByField
+        && fetch_thread_pool_size > 1
+        && searchContext.getRetrieveFields().keySet().size() > min_parallel_fetch_num_fields
+        && hitBuilders.size() > min_parallel_fetch_num_hits) {
+      // Fetch fields in parallel
+
+      List<LeafReaderContext> leaves =
+          searchContext.getSearcherAndTaxonomy().searcher.getIndexReader().leaves();
+      List<LeafReaderContext> hitIdToLeaves = new ArrayList<>();
+      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+        var hitResponse = hitBuilders.get(hitIndex);
+        LeafReaderContext leaf =
+            leaves.get(ReaderUtil.subIndex(hitResponse.getLuceneDocId(), leaves));
+        hitIdToLeaves.add(hitIndex, leaf);
+      }
+      List<String> fields = new ArrayList<>(searchContext.getRetrieveFields().keySet());
+
+      // parallelism is min of fetchThreadPoolSize and fields.size() / MIN_PARALLEL_NUM_FIELDS
+      // round up
+      int parallelism =
+          Math.min(
+              fetch_thread_pool_size,
+              (fields.size() + min_parallel_fetch_num_fields - 1) / min_parallel_fetch_num_fields);
+      List<List<String>> fieldsChunks =
+          Lists.partition(fields, (fields.size() + parallelism - 1) / parallelism);
+      List<Future<List<Map<String, CompositeFieldValue>>>> futures = new ArrayList<>();
+
+      // Only parallel by fields here, which should work well for doc values and virtual fields
+      // For row based stored fields, we should do it by hit id.
+      // Stored fields are not widely used for NRTSearch (not recommended for memory usage)
+      for (List<String> fieldsChunk : fieldsChunks) {
+        futures.add(
+            indexState
+                .getFetchThreadPoolExecutor()
+                .submit(
+                    new FillFieldsTask(
+                        indexState,
+                        searchContext.getSearcherAndTaxonomy().searcher,
+                        hitIdToLeaves,
+                        hitBuilders,
+                        fieldsChunk,
+                        searchContext)));
+      }
+      for (Future<List<Map<String, CompositeFieldValue>>> future : futures) {
+        List<Map<String, CompositeFieldValue>> values = future.get();
+        for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+          var hitResponse = hitBuilders.get(hitIndex);
+          hitResponse.putAllFields(values.get(hitIndex));
+        }
+      }
+
+      // execute per hit fetch tasks
+      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+        var hitResponse = hitBuilders.get(hitIndex);
+        LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
+        searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
+      }
+    } else if (!parallelFetchByField
+        && fetch_thread_pool_size > 1
+        && hitBuilders.size() > min_parallel_fetch_num_hits) {
+      // Fetch docs in parallel
+
+      // parallelism is min of fetchThreadPoolSize and hitsBuilder.size() / MIN_PARALLEL_NUM_HITS
+      // round up
+      int parallelism =
+          Math.min(
+              fetch_thread_pool_size,
+              (hitBuilders.size() + min_parallel_fetch_num_hits - 1) / min_parallel_fetch_num_hits);
+      List<List<Hit.Builder>> docChunks =
+          Lists.partition(hitBuilders, (hitBuilders.size() + parallelism - 1) / parallelism);
+
+      // process each document chunk in parallel
+      List<Future<?>> futures = new ArrayList<>();
+      for (List<Hit.Builder> docChunk : docChunks) {
+        futures.add(
+            indexState
+                .getFetchThreadPoolExecutor()
+                .submit(new FillDocsTask(searchContext, docChunk)));
+      }
+      for (Future<?> future : futures) {
+        future.get();
+      }
+      // no need to run the per hit fetch tasks here, since they were done in the FillDocsTask
+    } else {
+      // single threaded fetch
+      FillDocsTask fillDocsTask = new FillDocsTask(searchContext, hitBuilders);
+      fillDocsTask.run();
+    }
+
+    // execute all hits fetch tasks
+    searchContext
+        .getFetchTasks()
+        .processAllHits(searchContext, searchContext.getResponseBuilder().getHitsBuilderList());
   }
 
   /**
@@ -759,6 +786,201 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     @Override
     public List<Map<String, CompositeFieldValue>> call() throws IOException {
       return fillFields(state, s, hitBuilders, fields, searchContext);
+    }
+  }
+
+  /** Task to fetch all the fields for a chunk of hits. Also executes any per hit fetch tasks. */
+  public static class FillDocsTask implements Runnable {
+    private final SearchContext searchContext;
+    private final List<Hit.Builder> docChunk;
+
+    /**
+     * Constructor.
+     *
+     * @param searchContext search parameters
+     * @param docChunk list of hit builders for query response, must be in lucene doc id order
+     */
+    public FillDocsTask(SearchContext searchContext, List<Hit.Builder> docChunk) {
+      this.searchContext = searchContext;
+      this.docChunk = docChunk;
+    }
+
+    @Override
+    public void run() {
+      List<LeafReaderContext> leaves =
+          searchContext.getSearcherAndTaxonomy().searcher.getIndexReader().leaves();
+      int hitIndex = 0;
+      // process documents, grouped by lucene segment
+      while (hitIndex < docChunk.size()) {
+        int leafIndex = ReaderUtil.subIndex(docChunk.get(hitIndex).getLuceneDocId(), leaves);
+        LeafReaderContext sliceSegment = leaves.get(leafIndex);
+
+        // get all hits in the same segment and process them together for better resource reuse
+        List<Hit.Builder> sliceHits = getSliceHits(docChunk, hitIndex, sliceSegment);
+        try {
+          fetchSlice(searchContext, sliceHits, sliceSegment);
+        } catch (IOException e) {
+          throw new RuntimeException("Error fetching field data", e);
+        }
+
+        hitIndex += sliceHits.size();
+      }
+    }
+
+    /** Get all hits belonging to the same lucene segment */
+    private static List<SearchResponse.Hit.Builder> getSliceHits(
+        List<SearchResponse.Hit.Builder> sortedHits,
+        int startIndex,
+        LeafReaderContext sliceSegment) {
+      int endDoc = sliceSegment.docBase + sliceSegment.reader().maxDoc();
+      int endIndex = startIndex + 1;
+      while (endIndex < sortedHits.size()) {
+        if (sortedHits.get(endIndex).getLuceneDocId() >= endDoc) {
+          break;
+        }
+        endIndex++;
+      }
+      return sortedHits.subList(startIndex, endIndex);
+    }
+
+    /**
+     * Fetch all the required field data For a slice of hits. All these hit reside in the same
+     * lucene segment.
+     *
+     * @param context search context
+     * @param sliceHits hits in this slice
+     * @param sliceSegment lucene segment context for slice
+     * @throws IOException on issue reading document data
+     */
+    private static void fetchSlice(
+        SearchContext context,
+        List<SearchResponse.Hit.Builder> sliceHits,
+        LeafReaderContext sliceSegment)
+        throws IOException {
+      for (Map.Entry<String, FieldDef> fieldDefEntry : context.getRetrieveFields().entrySet()) {
+        if (fieldDefEntry.getValue() instanceof VirtualFieldDef) {
+          fetchFromValueSource(
+              sliceHits,
+              sliceSegment,
+              fieldDefEntry.getKey(),
+              (VirtualFieldDef) fieldDefEntry.getValue());
+        } else if (fieldDefEntry.getValue() instanceof IndexableFieldDef) {
+          IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDefEntry.getValue();
+          if (indexableFieldDef.hasDocValues()) {
+            fetchFromDocVales(sliceHits, sliceSegment, fieldDefEntry.getKey(), indexableFieldDef);
+          } else if (indexableFieldDef.isStored()) {
+            fetchFromStored(context, sliceHits, fieldDefEntry.getKey(), indexableFieldDef);
+          } else {
+            throw new IllegalStateException(
+                "No valid method to retrieve indexable field: " + fieldDefEntry.getKey());
+          }
+        } else {
+          throw new IllegalStateException(
+              "No valid method to retrieve field: " + fieldDefEntry.getKey());
+        }
+      }
+
+      // execute any per hit fetch tasks
+      for (Hit.Builder hit : sliceHits) {
+        context.getFetchTasks().processHit(context, sliceSegment, hit);
+      }
+    }
+
+    /**
+     * Fetch field value from virtual field's {@link org.apache.lucene.search.DoubleValuesSource}
+     */
+    private static void fetchFromValueSource(
+        List<SearchResponse.Hit.Builder> sliceHits,
+        LeafReaderContext sliceSegment,
+        String name,
+        VirtualFieldDef virtualFieldDef)
+        throws IOException {
+      SettableScoreDoubleValues scoreValue = new SettableScoreDoubleValues();
+      DoubleValues doubleValues =
+          virtualFieldDef.getValuesSource().getValues(sliceSegment, scoreValue);
+      for (SearchResponse.Hit.Builder hit : sliceHits) {
+        int docID = hit.getLuceneDocId() - sliceSegment.docBase;
+        scoreValue.setScore(hit.getScore());
+        doubleValues.advanceExact(docID);
+
+        SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
+            SearchResponse.Hit.CompositeFieldValue.newBuilder();
+        compositeFieldValue.addFieldValue(
+            SearchResponse.Hit.FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
+        hit.putFields(name, compositeFieldValue.build());
+      }
+    }
+
+    /** Fetch field value from its doc value */
+    private static void fetchFromDocVales(
+        List<SearchResponse.Hit.Builder> sliceHits,
+        LeafReaderContext sliceSegment,
+        String name,
+        IndexableFieldDef indexableFieldDef)
+        throws IOException {
+      LoadedDocValues<?> docValues = indexableFieldDef.getDocValues(sliceSegment);
+      for (SearchResponse.Hit.Builder hit : sliceHits) {
+        int docID = hit.getLuceneDocId() - sliceSegment.docBase;
+        docValues.setDocId(docID);
+
+        SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
+            SearchResponse.Hit.CompositeFieldValue.newBuilder();
+        for (int i = 0; i < docValues.size(); ++i) {
+          compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
+        }
+        hit.putFields(name, compositeFieldValue.build());
+      }
+    }
+
+    /** Fetch field value stored in the index */
+    private static void fetchFromStored(
+        SearchContext context,
+        List<SearchResponse.Hit.Builder> sliceHits,
+        String name,
+        IndexableFieldDef indexableFieldDef)
+        throws IOException {
+      for (SearchResponse.Hit.Builder hit : sliceHits) {
+        String[] values =
+            indexableFieldDef.getStored(
+                context.getSearcherAndTaxonomy().searcher.doc(hit.getLuceneDocId()));
+
+        SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
+            SearchResponse.Hit.CompositeFieldValue.newBuilder();
+        for (String fieldValue : values) {
+          if (indexableFieldDef instanceof ObjectFieldDef
+              || indexableFieldDef instanceof PolygonfieldDef) {
+            Struct.Builder builder = Struct.newBuilder();
+            JsonFormat.parser().merge(fieldValue, builder);
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(builder));
+          } else {
+            compositeFieldValue.addFieldValue(
+                SearchResponse.Hit.FieldValue.newBuilder().setTextValue(fieldValue));
+          }
+        }
+        hit.putFields(name, compositeFieldValue.build());
+      }
+    }
+
+    /**
+     * {@link DoubleValues} implementation used to inject the document score into the execution of
+     * scripts to populate virtual fields.
+     */
+    private static class SettableScoreDoubleValues extends DoubleValues {
+      private double score = Double.NaN;
+
+      @Override
+      public double doubleValue() {
+        return score;
+      }
+
+      @Override
+      public boolean advanceExact(int doc) {
+        return !Double.isNaN(score);
+      }
+
+      public void setScore(double score) {
+        this.score = score;
+      }
     }
   }
 

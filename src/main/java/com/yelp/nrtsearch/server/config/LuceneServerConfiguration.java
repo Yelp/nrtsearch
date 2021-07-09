@@ -78,6 +78,7 @@ public class LuceneServerConfiguration {
   private final boolean fileSendDelay;
   private final boolean virtualSharding;
   private final boolean syncInitialNrtPoint;
+  private final boolean indexVerbose;
 
   private final YamlConfigReader configReader;
 
@@ -120,6 +121,7 @@ public class LuceneServerConfiguration {
     fileSendDelay = configReader.getBoolean("fileSendDelay", true);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
     syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", false);
+    indexVerbose = configReader.getBoolean("indexVerbose", false);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
   }
 
@@ -217,6 +219,10 @@ public class LuceneServerConfiguration {
 
   public boolean getSyncInitialNrtPoint() {
     return syncInitialNrtPoint;
+  }
+
+  public boolean getIndexVerbose() {
+    return indexVerbose;
   }
 
   public YamlConfigReader getConfigReader() {
