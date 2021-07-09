@@ -76,7 +76,6 @@ curl -XPOST localhost:<REST_PORT>/v1/create_index -d '{"indexName": "testIdx"}'
 ./build/install/nrtsearch/bin/lucene-client settings -f settings.json
 cat settings.json
 {             "indexName": "testIdx",
-              "indexVerbose": false,
               "directory": "MMapDirectory",
               "nrtCachingDirectoryMaxSizeMB": 0.0,
               "indexMergeSchedulerAutoThrottle": false,

@@ -1151,7 +1151,6 @@ public class IndexState implements Closeable, Restorable {
           "concurrentMergeSchedulerMaxMergeCount",
           settingsRequest.getConcurrentMergeSchedulerMaxMergeCount());
     }
-    settingsSaveState.addProperty("indexVerbose", settingsRequest.getIndexVerbose());
     settingsSaveState.addProperty(
         "indexMergeSchedulerAutoThrottle", settingsRequest.getIndexMergeSchedulerAutoThrottle());
   }
@@ -1187,7 +1186,7 @@ public class IndexState implements Closeable, Restorable {
       throws IOException {
     IndexWriterConfig iwc = new IndexWriterConfig(indexAnalyzer);
     iwc.setOpenMode(openMode);
-    if (getBooleanSetting("indexVerbose", false)) {
+    if (globalState.configuration.getIndexVerbose()) {
       iwc.setInfoStream(new PrintStreamInfoStream(System.out));
     }
 

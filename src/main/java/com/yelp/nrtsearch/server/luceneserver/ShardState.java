@@ -665,7 +665,7 @@ public class ShardState implements Closeable {
 
       // TODO: get facets working!
 
-      boolean verbose = indexState.getBooleanSetting("indexVerbose", false);
+      boolean verbose = indexState.globalState.configuration.getIndexVerbose();
 
       writer =
           new IndexWriter(
@@ -917,7 +917,7 @@ public class ShardState implements Closeable {
       manager = null;
       nrtPrimaryNode = null;
 
-      boolean verbose = indexState.getBooleanSetting("indexVerbose", false);
+      boolean verbose = indexState.globalState.configuration.getIndexVerbose();
 
       HostPort hostPort =
           new HostPort(
