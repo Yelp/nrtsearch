@@ -814,7 +814,7 @@ public class IndexState implements Closeable, Restorable {
    * Live setting: set the mininum refresh time (seconds), which is the longest amount of time a
    * client may wait for a searcher to reopen.
    */
-  public void setMinRefreshSec(double min) {
+  public synchronized void setMinRefreshSec(double min) {
     minRefreshSec = min;
     saveState.getLiveSettings().addProperty("minRefreshSec", min);
     for (ShardState shardState : shards.values()) {
@@ -827,7 +827,7 @@ public class IndexState implements Closeable, Restorable {
    * reopen the searcher proactively (when no search client is waiting for a specific index
    * generation).
    */
-  public void setMaxRefreshSec(double max) {
+  public synchronized void setMaxRefreshSec(double max) {
     maxRefreshSec = max;
     saveState.getLiveSettings().addProperty("maxRefreshSec", max);
     for (ShardState shardState : shards.values()) {
@@ -836,7 +836,7 @@ public class IndexState implements Closeable, Restorable {
   }
 
   /** Live setting: once a searcher becomes stale, we will close it after this many seconds. */
-  public void setMaxSearcherAgeSec(double d) {
+  public synchronized void setMaxSearcherAgeSec(double d) {
     maxSearcherAgeSec = d;
     saveState.getLiveSettings().addProperty("maxSearcherAgeSec", d);
   }
@@ -845,7 +845,7 @@ public class IndexState implements Closeable, Restorable {
    * Live setting: how much RAM to use for buffered documents during indexing (passed to {@link
    * IndexWriterConfig#setRAMBufferSizeMB}.
    */
-  public void setIndexRamBufferSizeMB(double d) {
+  public synchronized void setIndexRamBufferSizeMB(double d) {
     indexRamBufferSizeMB = d;
     saveState.getLiveSettings().addProperty("indexRamBufferSizeMB", d);
 
@@ -862,7 +862,7 @@ public class IndexState implements Closeable, Restorable {
   }
 
   /** Live setting: max number of documents to add at a time. */
-  public void setAddDocumentsMaxBufferLen(int i) {
+  public synchronized void setAddDocumentsMaxBufferLen(int i) {
     addDocumentsMaxBufferLen = i;
     saveState.getLiveSettings().addProperty("addDocumentsMaxBufferLen", i);
   }
@@ -878,7 +878,7 @@ public class IndexState implements Closeable, Restorable {
    * @param docs maximum slice documents
    * @throws IllegalArgumentException if docs <= 0
    */
-  public void setSliceMaxDocs(int docs) {
+  public synchronized void setSliceMaxDocs(int docs) {
     if (docs <= 0) {
       throw new IllegalArgumentException("Max slice docs must be greater than 0.");
     }
@@ -897,7 +897,7 @@ public class IndexState implements Closeable, Restorable {
    * @param segments maximum slice segments
    * @throws IllegalArgumentException if segments <= 0
    */
-  public void setSliceMaxSegments(int segments) {
+  public synchronized void setSliceMaxSegments(int segments) {
     if (segments <= 0) {
       throw new IllegalArgumentException("Max slice segments must be greater than 0.");
     }
@@ -916,7 +916,7 @@ public class IndexState implements Closeable, Restorable {
    * @param shards number of virtual shards to use
    * @throws IllegalArgumentException if shards <= 0
    */
-  public void setVirtualShards(int shards) {
+  public synchronized void setVirtualShards(int shards) {
     if (shards <= 0) {
       throw new IllegalArgumentException("Number of virtual shards must be greater than 0.");
     }
@@ -942,7 +942,7 @@ public class IndexState implements Closeable, Restorable {
   }
 
   /** Set maximum sized segment to produce during normal merging */
-  public void setMaxMergedSegmentMB(int maxMergedSegmentMB) {
+  public synchronized void setMaxMergedSegmentMB(int maxMergedSegmentMB) {
     if (maxMergedSegmentMB <= 0) {
       throw new IllegalArgumentException("Max merged segment size must be greater than 0.");
     }
@@ -961,7 +961,7 @@ public class IndexState implements Closeable, Restorable {
    * @param segmentsPerTier segments per tier
    * @throws IllegalArgumentException if segmentsPerTier < 2
    */
-  public void setSegmentsPerTier(int segmentsPerTier) {
+  public synchronized void setSegmentsPerTier(int segmentsPerTier) {
     if (segmentsPerTier < 2) {
       throw new IllegalArgumentException("Segments per tier must be >= 2.");
     }
@@ -980,7 +980,7 @@ public class IndexState implements Closeable, Restorable {
    * @param defaultSearchTimeoutSec default timeout
    * @throws IllegalArgumentException if value is < 0
    */
-  public void setDefaultSearchTimeoutSec(double defaultSearchTimeoutSec) {
+  public synchronized void setDefaultSearchTimeoutSec(double defaultSearchTimeoutSec) {
     if (defaultSearchTimeoutSec < 0) {
       throw new IllegalArgumentException("Default search timeout must be >= 0.");
     }
@@ -999,7 +999,7 @@ public class IndexState implements Closeable, Restorable {
    * @param defaultSearchTimeoutCheckEvery default search timeout check every
    * @throws IllegalArgumentException if value is < 0
    */
-  public void setDefaultSearchTimeoutCheckEvery(int defaultSearchTimeoutCheckEvery) {
+  public synchronized void setDefaultSearchTimeoutCheckEvery(int defaultSearchTimeoutCheckEvery) {
     if (defaultSearchTimeoutCheckEvery < 0) {
       throw new IllegalArgumentException("Default search timeout check every must be >= 0.");
     }
@@ -1253,21 +1253,21 @@ public class IndexState implements Closeable, Restorable {
     return iwc;
   }
 
-  synchronized boolean getBooleanSetting(String name, boolean val) {
+  boolean getBooleanSetting(String name, boolean val) {
     ThreadSafeJSONObject settings = saveState.getSettings();
     return settings.get(name) == null ? val : settings.get(name).getAsBoolean();
   }
 
-  synchronized double getDoubleSetting(String name, double val) {
+  double getDoubleSetting(String name, double val) {
     ThreadSafeJSONObject settings = saveState.getSettings();
     return settings.get(name) == null ? val : settings.get(name).getAsDouble();
   }
 
-  synchronized int getIntSetting(String name) {
+  int getIntSetting(String name) {
     return saveState.getSettings().get(name).getAsInt();
   }
 
-  synchronized boolean hasSetting(String name) {
+  boolean hasSetting(String name) {
     return saveState.getSettings().get(name) != null;
   }
 
