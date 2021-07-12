@@ -1084,7 +1084,7 @@ public class IndexState implements Closeable, Restorable {
   }
 
   /** Record the {@link DirectoryFactory} to use for this index. */
-  public void setDirectoryFactory(DirectoryFactory df, String directoryClassName) {
+  public synchronized void setDirectoryFactory(DirectoryFactory df, String directoryClassName) {
     if (isStarted()) {
       throw new IllegalStateException(
           "index \"" + name + "\": cannot change Directory when the index is running");
