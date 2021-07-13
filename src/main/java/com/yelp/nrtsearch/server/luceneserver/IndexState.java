@@ -33,7 +33,6 @@ import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
-import com.yelp.nrtsearch.server.luceneserver.SaveState.ThreadSafeJSONObject;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
@@ -1025,7 +1024,7 @@ public class IndexState implements Closeable, Restorable {
 
   /** Returns JSON representation of all registered fields. */
   public synchronized String getAllFieldsJSON() {
-    return saveState.fields.toString();
+    return saveState.getFields().toString();
   }
 
   /** Returns JSON representation of all settings. */
@@ -1254,13 +1253,13 @@ public class IndexState implements Closeable, Restorable {
   }
 
   boolean getBooleanSetting(String name, boolean val) {
-    ThreadSafeJSONObject settings = saveState.getSettings();
-    return settings.get(name) == null ? val : settings.get(name).getAsBoolean();
+    JsonElement settingValue = saveState.getSettings().get(name);
+    return settingValue == null ? val : settingValue.getAsBoolean();
   }
 
   double getDoubleSetting(String name, double val) {
-    ThreadSafeJSONObject settings = saveState.getSettings();
-    return settings.get(name) == null ? val : settings.get(name).getAsDouble();
+    JsonElement settingValue = saveState.getSettings().get(name);
+    return settingValue == null ? val : settingValue.getAsDouble();
   }
 
   int getIntSetting(String name) {
