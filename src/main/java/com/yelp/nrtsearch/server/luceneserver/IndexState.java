@@ -160,6 +160,7 @@ public class IndexState implements Closeable, Restorable {
   private ExecutorService fetchThreadPoolExecutor;
   private IdFieldDef idFieldDef = null;
   private Warmer warmer = null;
+  private final PeriodicCommit periodicCommit;
 
   public ShardState addShard(int shardOrd, boolean doCreate) {
     if (shards.containsKey(shardOrd)) {
@@ -518,6 +519,8 @@ public class IndexState implements Closeable, Restorable {
     }
     searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
     fetchThreadPoolExecutor = globalState.getFetchService();
+    periodicCommit = new PeriodicCommit(this);
+    periodicCommit.schedule();
   }
 
   void initSaveLoadState() throws IOException {
@@ -647,6 +650,7 @@ public class IndexState implements Closeable, Restorable {
   @Override
   public void close() throws IOException {
     logger.info(String.format("IndexState.close name= %s", name));
+    periodicCommit.cancel();
     List<Closeable> closeables = new ArrayList<>();
     closeables.addAll(shards.values());
     closeables.addAll(fields.values());
