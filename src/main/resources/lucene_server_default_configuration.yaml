@@ -2,4 +2,3 @@ nodeName: "lucene_server"
 hostName: "localhost"
 port: "6000"
 replicationPort: "6001"
-periodicCommitDelaySec: 2
