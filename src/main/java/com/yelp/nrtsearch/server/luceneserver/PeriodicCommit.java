@@ -39,7 +39,7 @@ public class PeriodicCommit {
           public void run() {
             try {
               indexState.commit();
-              logger.error("running periodic commit for index: {}", indexState.name);
+              logger.info("running periodic commit for index: {}", indexState.name);
             } catch (IOException e) {
               logger.warn("error while trying to commit index: {}", indexState.name, e);
             }
