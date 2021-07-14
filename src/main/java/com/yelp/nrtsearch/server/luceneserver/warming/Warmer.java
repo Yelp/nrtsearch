@@ -64,6 +64,10 @@ public class Warmer {
     this.maxWarmingQueries = maxWarmingQueries;
   }
 
+  public int getNumWarmingRequests() {
+    return warmingRequests.size();
+  }
+
   public void addSearchRequest(SearchRequest searchRequest) {
     ReservoirSampler.SampleResult sampleResult = reservoirSampler.sample();
     if (sampleResult.isSample()) {

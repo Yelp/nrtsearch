@@ -716,6 +716,7 @@ message BackupIndexResponse {
 message BackupWarmingQueriesRequest {
     string index = 1; // Index whose warming queries to backup
     string serviceName = 2; // remote storage namespace qualifier for service
+    int32 numQueriesThreshold = 3; // optional; minimum # of queries required to backup warming queries
 }
 
 message BackupWarmingQueriesResponse {

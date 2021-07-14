@@ -1405,6 +1405,23 @@ public class LuceneServer {
                   .asRuntimeException());
           return;
         }
+        Integer numQueriesThreshold = request.getNumQueriesThreshold();
+        int numWarmingRequests = warmer.getNumWarmingRequests();
+        if (numQueriesThreshold != null && numWarmingRequests < numQueriesThreshold) {
+          logger.warn(
+              "Unable to backup warming queries since warmer has {} requests, which is less than threshold {}",
+              numWarmingRequests,
+              numQueriesThreshold);
+          responseObserver.onError(
+              Status.UNKNOWN
+                  .withDescription(
+                      String.format(
+                          "Unable to backup warming queries since warmer has {} requests, which is less than threshold {}",
+                          numWarmingRequests,
+                          numQueriesThreshold))
+                  .asRuntimeException());
+          return;
+        }
         warmer.backupWarmingQueriesToS3(request.getServiceName());
         responseObserver.onNext(BackupWarmingQueriesResponse.newBuilder().build());
         responseObserver.onCompleted();
