@@ -154,7 +154,7 @@ public class IndexState implements Closeable, Restorable {
   private ExecutorService fetchThreadPoolExecutor;
   private IdFieldDef idFieldDef = null;
   private Warmer warmer = null;
-  private final PeriodicCommit periodicCommit;
+  private PeriodicCommit periodicCommit = null;
 
   public ShardState addShard(int shardOrd, boolean doCreate) {
     if (shards.containsKey(shardOrd)) {
@@ -513,8 +513,10 @@ public class IndexState implements Closeable, Restorable {
     }
     searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
     fetchThreadPoolExecutor = globalState.getFetchService();
-    periodicCommit = new PeriodicCommit(this);
-    periodicCommit.schedule();
+    if (isPeriodicCommitEnabled()) {
+      periodicCommit = new PeriodicCommit(this);
+      periodicCommit.schedule(globalState.configuration.getPeriodicCommitDelaySec());
+    }
   }
 
   void initSaveLoadState() throws IOException {
@@ -644,7 +646,9 @@ public class IndexState implements Closeable, Restorable {
   @Override
   public void close() throws IOException {
     logger.info(String.format("IndexState.close name= %s", name));
-    periodicCommit.cancel();
+    if (isPeriodicCommitEnabled()) {
+      periodicCommit.cancel();
+    }
     List<Closeable> closeables = new ArrayList<>();
     closeables.addAll(shards.values());
     closeables.addAll(fields.values());
@@ -1420,6 +1424,11 @@ public class IndexState implements Closeable, Restorable {
     }
 
     return result;
+  }
+
+  protected boolean isPeriodicCommitEnabled() {
+    return globalState.configuration.getPeriodicCommitDelaySec()
+        != LuceneServerConfiguration.PERIODIC_COMMIT_OFF;
   }
 
   /**

@@ -47,9 +47,7 @@ public class PeriodicCommit {
         };
   }
 
-  public void schedule() {
-    long delaySec = indexState.globalState.configuration.getPeriodicCommitDelaySec();
-
+  public void schedule(long delaySec) {
     if (delaySec != LuceneServerConfiguration.PERIODIC_COMMIT_OFF && delaySec > 0) {
       timer.scheduleAtFixedRate(periodicCommitTask, 0, delaySec * 1000);
     }
