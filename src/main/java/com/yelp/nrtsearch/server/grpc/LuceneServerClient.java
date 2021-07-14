@@ -336,7 +336,7 @@ public class LuceneServerClient {
             .build());
   }
 
-  public void backupWarmingQueries(String index, String service, Integer numQueriesThreshold) {
+  public void backupWarmingQueries(String index, String service, int numQueriesThreshold) {
     blockingStub.backupWarmingQueries(
         BackupWarmingQueriesRequest.newBuilder()
             .setIndex(index)
