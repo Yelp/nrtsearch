@@ -49,9 +49,9 @@ public class BackupWarmingQueriesCommand implements Callable<Integer> {
   @CommandLine.Option(
       names = {"-n", "--numQueriesThreshold"},
       description = "Optional; minimum # of queries required to backup warming queries")
-  private Integer numQueriesThreshold;
+  private int numQueriesThreshold;
 
-  public Integer getNumQueriesThreshold() {
+  public int getNumQueriesThreshold() {
     return numQueriesThreshold;
   }
 
