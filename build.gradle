@@ -154,6 +154,7 @@ test {
     testLogging {
         events "failed"
         exceptionFormat "full"
+        showStackTraces true
     }
 }
 
