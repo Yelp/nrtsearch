@@ -16,15 +16,16 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Timer;
 import java.util.TimerTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class PeriodicCommit {
+public class PeriodicCommit implements Closeable {
 
-  Logger logger = LoggerFactory.getLogger(IndexState.class);
+  private static final Logger logger = LoggerFactory.getLogger(PeriodicCommit.class);
 
   private final IndexState indexState;
   private final TimerTask periodicCommitTask;
@@ -53,7 +54,8 @@ public class PeriodicCommit {
     }
   }
 
-  public void cancel() {
+  @Override
+  public void close() throws IOException {
     timer.cancel();
   }
 }
