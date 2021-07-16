@@ -68,7 +68,8 @@ public class BackupWarmingQueriesCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
     try {
-      client.backupWarmingQueries(getIndex(), getServiceName(), getNumQueriesThreshold(), getUptimeMinutesThreshold());
+      client.backupWarmingQueries(
+          getIndex(), getServiceName(), getNumQueriesThreshold(), getUptimeMinutesThreshold());
     } finally {
       client.shutdown();
     }

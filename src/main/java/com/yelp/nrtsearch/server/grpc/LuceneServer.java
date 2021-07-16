@@ -1424,7 +1424,8 @@ public class LuceneServer {
           return;
         }
         int uptimeMinutesThreshold = request.getUptimeMinutesThreshold();
-        int currUptimeMinutes = ManagementFactory.getRuntimeMXBean().getUptime() / 1000 / 60;
+        int currUptimeMinutes =
+            (int) (ManagementFactory.getRuntimeMXBean().getUptime() / 1000L / 60L);
         if (uptimeMinutesThreshold > 0 && currUptimeMinutes < uptimeMinutesThreshold) {
           logger.warn(
               "Unable to backup warming queries since uptime is {} minutes, which is less than threshold {}",
