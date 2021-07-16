@@ -55,11 +55,20 @@ public class BackupWarmingQueriesCommand implements Callable<Integer> {
     return numQueriesThreshold;
   }
 
+  @CommandLine.Option(
+      names = {"-u", "--uptimeMinutesThreshold"},
+      description = "Optional; minimum # of minutes uptime to backup warming queries")
+  private int uptimeMinutesThreshold;
+
+  public int getUptimeMinutesThreshold() {
+    return uptimeMinutesThreshold;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
     try {
-      client.backupWarmingQueries(getIndex(), getServiceName(), getNumQueriesThreshold());
+      client.backupWarmingQueries(getIndex(), getServiceName(), getNumQueriesThreshold(), getUptimeMinutesThreshold());
     } finally {
       client.shutdown();
     }
