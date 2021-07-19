@@ -151,6 +151,11 @@ test {
         }
     }
     systemProperties System.properties
+    testLogging {
+        events "failed"
+        exceptionFormat "full"
+        showStackTraces true
+    }
 }
 
 task javadocs(type: Javadoc) {
