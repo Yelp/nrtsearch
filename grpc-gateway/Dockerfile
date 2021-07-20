@@ -35,7 +35,7 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 ENV GO111MODULE=on
 ENV GRPC_GATEWAY_VERSION=1.15.2
 ENV PROTOC_GEN_GO_VERSION=1.5.1
-ENV GRPC_VERSION=1.36.0
+ENV GRPC_VERSION=1.38.0
 
 #install required go protoc plugins to build grpc-gateway server
 RUN go get \
