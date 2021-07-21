@@ -17,6 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.google.gson.JsonObject;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
@@ -27,6 +30,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -499,6 +503,28 @@ public class IndexStateTest {
     }
   }
 
+  @Test
+  public void testPeriodicCommitSetting() throws IOException {
+    try (GlobalState globalState = getInitStatePeriodicCommit()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      assertEquals(1, indexState.globalState.configuration.getPeriodicCommitDelaySec());
+    }
+  }
+
+  @Test
+  public void testPeriodicCommit() throws InterruptedException, IOException {
+    IndexState indexState = mock(IndexState.class);
+    PeriodicCommit periodicCommit = new PeriodicCommit(indexState);
+
+    // Do the commit every 1 sec
+    periodicCommit.schedule(1L);
+
+    TimeUnit.MILLISECONDS.sleep(1500);
+
+    // 2 periodic commits are expected
+    verify(indexState, times(2)).commit();
+  }
+
   public GlobalState getInitState() throws IOException {
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
@@ -511,6 +537,15 @@ public class IndexStateTest {
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), "virtualSharding: true");
+    FieldDefCreator.initialize(luceneServerConfiguration, Collections.emptyList());
+    SimilarityCreator.initialize(luceneServerConfiguration, Collections.emptyList());
+    return new GlobalState(luceneServerConfiguration);
+  }
+
+  public GlobalState getInitStatePeriodicCommit() throws IOException {
+    LuceneServerConfiguration luceneServerConfiguration =
+        LuceneServerTestConfigurationFactory.getConfig(
+            Mode.STANDALONE, folder.getRoot(), "periodicCommitDelaySec: 1");
     FieldDefCreator.initialize(luceneServerConfiguration, Collections.emptyList());
     SimilarityCreator.initialize(luceneServerConfiguration, Collections.emptyList());
     return new GlobalState(luceneServerConfiguration);

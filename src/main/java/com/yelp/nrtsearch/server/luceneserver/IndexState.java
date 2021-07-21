@@ -125,7 +125,7 @@ public class IndexState implements Closeable, Restorable {
   public static final int DEFAULT_SLICE_MAX_DOCS = 250_000;
   public static final int DEFAULT_SLICE_MAX_SEGMENTS = 5;
 
-  Logger logger = LoggerFactory.getLogger(IndexState.class);
+  private static final Logger logger = LoggerFactory.getLogger(IndexState.class);
   public final GlobalState globalState;
 
   /** Which norms format to use for all indexed fields. */
@@ -154,6 +154,7 @@ public class IndexState implements Closeable, Restorable {
   private ExecutorService fetchThreadPoolExecutor;
   private IdFieldDef idFieldDef = null;
   private Warmer warmer = null;
+  private PeriodicCommit periodicCommit = null;
 
   public ShardState addShard(int shardOrd, boolean doCreate) {
     if (shards.containsKey(shardOrd)) {
@@ -512,6 +513,10 @@ public class IndexState implements Closeable, Restorable {
     }
     searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
     fetchThreadPoolExecutor = globalState.getFetchService();
+    if (isPeriodicCommitEnabled()) {
+      periodicCommit = new PeriodicCommit(this);
+      periodicCommit.schedule(globalState.configuration.getPeriodicCommitDelaySec());
+    }
   }
 
   void initSaveLoadState() throws IOException {
@@ -642,6 +647,9 @@ public class IndexState implements Closeable, Restorable {
   public void close() throws IOException {
     logger.info(String.format("IndexState.close name= %s", name));
     List<Closeable> closeables = new ArrayList<>();
+    if (periodicCommit != null) {
+      closeables.add(periodicCommit);
+    }
     closeables.addAll(shards.values());
     closeables.addAll(fields.values());
     for (Lookup suggester : suggesters.values()) {
@@ -1416,6 +1424,11 @@ public class IndexState implements Closeable, Restorable {
     }
 
     return result;
+  }
+
+  protected boolean isPeriodicCommitEnabled() {
+    return globalState.configuration.getPeriodicCommitDelaySec()
+        != LuceneServerConfiguration.PERIODIC_COMMIT_OFF;
   }
 
   /**

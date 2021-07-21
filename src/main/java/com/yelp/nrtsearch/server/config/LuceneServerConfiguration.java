@@ -53,6 +53,7 @@ public class LuceneServerConfiguration {
   private static final Path DEFAULT_PLUGIN_SEARCH_PATH =
       Paths.get(DEFAULT_USER_DIR.toString(), "plugins");
   private static final String DEFAULT_SERVICE_NAME = "nrtsearch-generic";
+  public static final Long PERIODIC_COMMIT_OFF = -1L;
 
   private final int port;
   private final int replicationPort;
@@ -79,6 +80,7 @@ public class LuceneServerConfiguration {
   private final boolean virtualSharding;
   private final boolean syncInitialNrtPoint;
   private final boolean indexVerbose;
+  private final long periodicCommitDelaySec;
 
   private final YamlConfigReader configReader;
 
@@ -122,6 +124,7 @@ public class LuceneServerConfiguration {
     virtualSharding = configReader.getBoolean("virtualSharding", false);
     syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", false);
     indexVerbose = configReader.getBoolean("indexVerbose", false);
+    periodicCommitDelaySec = configReader.getLong("periodicCommitDelaySec", PERIODIC_COMMIT_OFF);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
   }
 
@@ -223,6 +226,10 @@ public class LuceneServerConfiguration {
 
   public boolean getIndexVerbose() {
     return indexVerbose;
+  }
+
+  public long getPeriodicCommitDelaySec() {
+    return periodicCommitDelaySec;
   }
 
   public YamlConfigReader getConfigReader() {
