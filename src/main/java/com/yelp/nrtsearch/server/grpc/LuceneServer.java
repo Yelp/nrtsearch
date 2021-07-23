@@ -1417,9 +1417,8 @@ public class LuceneServer {
               Status.UNKNOWN
                   .withDescription(
                       String.format(
-                          "Unable to backup warming queries since warmer has {} requests, which is less than threshold {}",
-                          numWarmingRequests,
-                          numQueriesThreshold))
+                          "Unable to backup warming queries since warmer has %s requests, which is less than threshold %s",
+                          numWarmingRequests, numQueriesThreshold))
                   .asRuntimeException());
           return;
         }
@@ -1435,9 +1434,8 @@ public class LuceneServer {
               Status.UNKNOWN
                   .withDescription(
                       String.format(
-                          "Unable to backup warming queries since uptime is {} minutes, which is less than threshold {}",
-                          currUptimeMinutes,
-                          uptimeMinutesThreshold))
+                          "Unable to backup warming queries since uptime is %s minutes, which is less than threshold %s",
+                          currUptimeMinutes, uptimeMinutesThreshold))
                   .asRuntimeException());
           return;
         }

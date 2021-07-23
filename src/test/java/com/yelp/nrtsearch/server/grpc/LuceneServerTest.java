@@ -18,6 +18,9 @@ package com.yelp.nrtsearch.server.grpc;
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.*;
 
+import com.amazonaws.auth.AnonymousAWSCredentials;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
 import com.google.api.HttpBody;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -26,9 +29,14 @@ import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.utils.Archiver;
+import com.yelp.nrtsearch.server.utils.ArchiverImpl;
+import com.yelp.nrtsearch.server.utils.TarImpl;
+import io.findify.s3mock.S3Mock;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -90,11 +98,18 @@ public class LuceneServerTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   private GrpcServer grpcServer;
+  private GrpcServer replicaGrpcServer;
   private CollectorRegistry collectorRegistry;
+  private Archiver archiver;
+  private AmazonS3 s3;
+  private S3Mock api;
+  private final String TEST_SERVICE_NAME = "TEST_SERVICE_NAME";
 
   @After
   public void tearDown() throws IOException {
     tearDownGrpcServer();
+    tearDownReplicaGrpcServer();
+    teardownArchiver();
   }
 
   private void tearDownGrpcServer() throws IOException {
@@ -103,10 +118,63 @@ public class LuceneServerTest {
     rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
   }
 
+  private void tearDownReplicaGrpcServer() throws IOException {
+    replicaGrpcServer.getGlobalState().close();
+    replicaGrpcServer.shutdown();
+    rmDir(Paths.get(replicaGrpcServer.getIndexDir()).getParent());
+  }
+
+  public void teardownArchiver() {
+    s3.shutdown();
+    api.shutdown();
+  }
+
   @Before
   public void setUp() throws IOException {
     collectorRegistry = new CollectorRegistry();
+    archiver = setUpArchiver();
     grpcServer = setUpGrpcServer(collectorRegistry);
+    replicaGrpcServer = setUpReplicaGrpcServer(collectorRegistry);
+    setUpWarmer();
+  }
+
+  private Archiver setUpArchiver() throws IOException {
+    Path s3Directory = folder.newFolder("s3").toPath();
+    Path archiverDirectory = folder.newFolder("archiver").toPath();
+
+    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
+    api.start();
+    s3 = new AmazonS3Client(new AnonymousAWSCredentials());
+    s3.setEndpoint("http://127.0.0.1:8011");
+    String bucketName = "warmer-unittest";
+    s3.createBucket(bucketName);
+
+    return new ArchiverImpl(
+        s3, bucketName, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4));
+  }
+
+  private void setUpWarmer() throws IOException {
+    Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
+    try (BufferedWriter writer =
+        Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
+      List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
+      for (String line : testSearchRequestsJson) {
+        writer.write(line);
+        writer.newLine();
+      }
+      writer.flush();
+    }
+    String resourceName = "test_index_warming_queries";
+    String versionHash =
+        archiver.upload(
+            TEST_SERVICE_NAME, resourceName, warmingQueriesDir, List.of(), List.of(), false);
+    archiver.blessVersion(TEST_SERVICE_NAME, resourceName, versionHash);
+  }
+
+  private List<String> getTestSearchRequestsAsJsonStrings() {
+    return List.of(
+        "{\"indexName\":\"test_index\",\"query\":{\"termQuery\":{\"field\":\"field0\"}}}",
+        "{\"indexName\":\"test_index\",\"query\":{\"termQuery\":{\"field\":\"field1\"}}}");
   }
 
   private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
@@ -126,6 +194,35 @@ public class LuceneServerTest {
         globalState.getPort(),
         null,
         Collections.emptyList());
+  }
+
+  private GrpcServer setUpReplicaGrpcServer(CollectorRegistry collectorRegistry)
+      throws IOException {
+    String testIndex = "test_index";
+    LuceneServerConfiguration luceneServerReplicaConfiguration =
+        LuceneServerTestConfigurationFactory.getConfig(
+            Mode.REPLICA, folder.getRoot(), getExtraConfig());
+    GlobalState globalStateSecondary = new GlobalState(luceneServerReplicaConfiguration);
+
+    return new GrpcServer(
+        grpcCleanup,
+        luceneServerReplicaConfiguration,
+        folder,
+        false,
+        globalStateSecondary,
+        luceneServerReplicaConfiguration.getIndexDir(),
+        testIndex,
+        globalStateSecondary.getPort(),
+        archiver);
+  }
+
+  private String getExtraConfig() {
+    return String.join(
+        "\n",
+        "warmer:",
+        "  maxWarmingQueries: 10",
+        "  warmOnStartup: true",
+        "  warmingParallelism: 1");
   }
 
   @Test
@@ -859,6 +956,59 @@ public class LuceneServerTest {
     checkHitsVirtual(firstHit, true, true);
     SearchResponse.Hit secondHit = searchResponse.getHits(1);
     checkHitsVirtual(secondHit, true, true);
+  }
+
+  @Test
+  public void testBackupWarmingQueries() throws IOException, InterruptedException {
+    GrpcServer.TestServer testServerReplica =
+        new GrpcServer.TestServer(replicaGrpcServer, true, Mode.REPLICA);
+    replicaGrpcServer
+        .getGlobalState()
+        .getIndex(replicaGrpcServer.getTestIndex())
+        .initWarmer(archiver);
+    assertNotNull(
+        replicaGrpcServer.getGlobalState().getIndex(replicaGrpcServer.getTestIndex()).getWarmer());
+    // Average case should pass
+    replicaGrpcServer
+        .getBlockingStub()
+        .backupWarmingQueries(
+            BackupWarmingQueriesRequest.newBuilder()
+                .setIndex(replicaGrpcServer.getTestIndex())
+                .setServiceName(TEST_SERVICE_NAME)
+                .build());
+    // Should fail; does not meet UptimeMinutesThreshold
+    try {
+      replicaGrpcServer
+          .getBlockingStub()
+          .backupWarmingQueries(
+              BackupWarmingQueriesRequest.newBuilder()
+                  .setIndex(replicaGrpcServer.getTestIndex())
+                  .setServiceName(TEST_SERVICE_NAME)
+                  .setUptimeMinutesThreshold(1000)
+                  .build());
+      fail("Expecting exception on the previous line");
+    } catch (StatusRuntimeException e) {
+      assertEquals(
+          "UNKNOWN: Unable to backup warming queries since uptime is 0 minutes, which is less than threshold 1000",
+          e.getMessage());
+    }
+
+    // Should fail; does not meet NumQueriesThreshold
+    try {
+      replicaGrpcServer
+          .getBlockingStub()
+          .backupWarmingQueries(
+              BackupWarmingQueriesRequest.newBuilder()
+                  .setIndex(replicaGrpcServer.getTestIndex())
+                  .setServiceName(TEST_SERVICE_NAME)
+                  .setNumQueriesThreshold(1000)
+                  .build());
+      fail("Expecting exception on the previous line");
+    } catch (StatusRuntimeException e) {
+      assertEquals(
+          "UNKNOWN: Unable to backup warming queries since warmer has 0 requests, which is less than threshold 1000",
+          e.getMessage());
+    }
   }
 
   @Test
