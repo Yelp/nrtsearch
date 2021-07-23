@@ -208,7 +208,7 @@ public class IndexState implements Closeable, Restorable {
    *
    * @throws IOException
    */
-  private void deleteIndexRootDir() throws IOException {
+  public void deleteIndexRootDir() throws IOException {
     if (rootDir != null) {
       FileUtil.deleteAllFiles(rootDir);
     }

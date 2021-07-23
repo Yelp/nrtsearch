@@ -46,6 +46,10 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
   @Override
   public StartIndexResponse handle(IndexState indexState, StartIndexRequest startIndexRequest)
       throws StartIndexHandlerException {
+    if (indexState.isStarted()) {
+      throw new IllegalArgumentException(String.format("Index %s is already started", indexState.name));
+    }
+
     final ShardState shardState = indexState.getShard(0);
     final Mode mode = startIndexRequest.getMode();
     final long primaryGen;
@@ -56,6 +60,10 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       synchronized (shardState) {
         try {
           if (!shardState.isRestored()) {
+            if (startIndexRequest.getRestore().getDeleteExistingData()) {
+              indexState.deleteIndexRootDir();
+            }
+
             RestoreIndex restoreIndex = startIndexRequest.getRestore();
             dataPath =
                 downloadArtifact(
@@ -65,6 +73,9 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
           } else {
             throw new IllegalStateException("Index " + indexState.name + " already restored");
           }
+        } catch (IOException e) {
+          logger.info("Unable to delete existing index data", e);
+          throw new StartIndexHandlerException(e);
         } finally {
           shardState.setRestored(true);
         }

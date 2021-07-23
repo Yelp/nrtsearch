@@ -750,6 +750,7 @@ message IndexStatsResponse {
 message RestoreIndex {
     string serviceName = 1; // remote storage namespace qualifier for service
     string resourceName = 2; //remote storage namespace qualifier for resource e.g. indexName
+    bool deleteExistingData = 3; // delete any existing data for the index
 }
 
 message StateRequest {

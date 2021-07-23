@@ -3310,6 +3310,9 @@
         },
         "resourceName": {
           "type": "string"
+        },
+        "deleteExistingData": {
+          "type": "boolean"
         }
       }
     },
