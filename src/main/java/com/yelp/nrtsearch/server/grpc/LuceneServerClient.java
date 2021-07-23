@@ -336,9 +336,15 @@ public class LuceneServerClient {
             .build());
   }
 
-  public void backupWarmingQueries(String index, String service) {
+  public void backupWarmingQueries(
+      String index, String service, int numQueriesThreshold, int uptimeMinutesThreshold) {
     blockingStub.backupWarmingQueries(
-        BackupWarmingQueriesRequest.newBuilder().setIndex(index).setServiceName(service).build());
+        BackupWarmingQueriesRequest.newBuilder()
+            .setIndex(index)
+            .setServiceName(service)
+            .setNumQueriesThreshold(numQueriesThreshold)
+            .setUptimeMinutesThreshold(uptimeMinutesThreshold)
+            .build());
   }
 
   public void status() throws InterruptedException {

@@ -96,6 +96,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.management.ManagementFactory;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
@@ -1402,6 +1403,39 @@ public class LuceneServer {
               Status.UNKNOWN
                   .withDescription(
                       "Unable to backup warming queries as warmer not found for index: " + index)
+                  .asRuntimeException());
+          return;
+        }
+        int numQueriesThreshold = request.getNumQueriesThreshold();
+        int numWarmingRequests = warmer.getNumWarmingRequests();
+        if (numQueriesThreshold > 0 && numWarmingRequests < numQueriesThreshold) {
+          logger.warn(
+              "Unable to backup warming queries since warmer has {} requests, which is less than threshold {}",
+              numWarmingRequests,
+              numQueriesThreshold);
+          responseObserver.onError(
+              Status.UNKNOWN
+                  .withDescription(
+                      String.format(
+                          "Unable to backup warming queries since warmer has %s requests, which is less than threshold %s",
+                          numWarmingRequests, numQueriesThreshold))
+                  .asRuntimeException());
+          return;
+        }
+        int uptimeMinutesThreshold = request.getUptimeMinutesThreshold();
+        int currUptimeMinutes =
+            (int) (ManagementFactory.getRuntimeMXBean().getUptime() / 1000L / 60L);
+        if (uptimeMinutesThreshold > 0 && currUptimeMinutes < uptimeMinutesThreshold) {
+          logger.warn(
+              "Unable to backup warming queries since uptime is {} minutes, which is less than threshold {}",
+              currUptimeMinutes,
+              uptimeMinutesThreshold);
+          responseObserver.onError(
+              Status.UNKNOWN
+                  .withDescription(
+                      String.format(
+                          "Unable to backup warming queries since uptime is %s minutes, which is less than threshold %s",
+                          currUptimeMinutes, uptimeMinutesThreshold))
                   .asRuntimeException());
           return;
         }
