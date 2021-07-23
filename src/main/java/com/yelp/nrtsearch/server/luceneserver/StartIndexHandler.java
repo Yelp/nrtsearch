@@ -47,7 +47,8 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
   public StartIndexResponse handle(IndexState indexState, StartIndexRequest startIndexRequest)
       throws StartIndexHandlerException {
     if (indexState.isStarted()) {
-      throw new IllegalArgumentException(String.format("Index %s is already started", indexState.name));
+      throw new IllegalArgumentException(
+          String.format("Index %s is already started", indexState.name));
     }
 
     final ShardState shardState = indexState.getShard(0);

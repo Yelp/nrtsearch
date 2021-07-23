@@ -156,7 +156,8 @@ public class BackupRestoreIndexRequestHandlerTest {
   }
 
   @Test
-  public void testRestoreHandler_deleteExistingDataAndRestoreIndexWithoutDeleteExistingDataOption() throws IOException, InterruptedException {
+  public void testRestoreHandler_deleteExistingDataAndRestoreIndexWithoutDeleteExistingDataOption()
+      throws IOException, InterruptedException {
     GrpcServer.TestServer testAddDocs =
         new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
     testAddDocs.addDocuments();
@@ -168,9 +169,10 @@ public class BackupRestoreIndexRequestHandlerTest {
   }
 
   @Test(expected = StatusRuntimeException.class)
-  public void testRestoreHandler_retainExistingDataAndRestoreIndex() throws IOException, InterruptedException {
+  public void testRestoreHandler_retainExistingDataAndRestoreIndex()
+      throws IOException, InterruptedException {
     GrpcServer.TestServer testAddDocs =
-            new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
     testAddDocs.addDocuments();
 
     backupIndex(false);
@@ -185,9 +187,10 @@ public class BackupRestoreIndexRequestHandlerTest {
   }
 
   @Test
-  public void testRestoreHandler_retainExistingDataAndRestoreIndexWithDeleteExistingDataOption() throws IOException, InterruptedException {
+  public void testRestoreHandler_retainExistingDataAndRestoreIndexWithDeleteExistingDataOption()
+      throws IOException, InterruptedException {
     GrpcServer.TestServer testAddDocs =
-            new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
     testAddDocs.addDocuments();
 
     backupIndex(false);
@@ -197,9 +200,10 @@ public class BackupRestoreIndexRequestHandlerTest {
   }
 
   @Test
-  public void testRestoreHandler_deleteExistingDataAndRestoreIndexWithDeleteExistingDataOption() throws IOException, InterruptedException {
+  public void testRestoreHandler_deleteExistingDataAndRestoreIndexWithDeleteExistingDataOption()
+      throws IOException, InterruptedException {
     GrpcServer.TestServer testAddDocs =
-            new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
     testAddDocs.addDocuments();
 
     backupIndex(false);
@@ -209,9 +213,10 @@ public class BackupRestoreIndexRequestHandlerTest {
   }
 
   @Test(expected = StatusRuntimeException.class)
-  public void testRestoreHandler_throwErrorIfIndexStarted() throws IOException, InterruptedException {
+  public void testRestoreHandler_throwErrorIfIndexStarted()
+      throws IOException, InterruptedException {
     GrpcServer.TestServer testAddDocs =
-            new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
     testAddDocs.addDocuments();
 
     backupIndex(false);
@@ -219,25 +224,29 @@ public class BackupRestoreIndexRequestHandlerTest {
 
     try {
       grpcServer
-              .getBlockingStub()
-              .startIndex(
-                      StartIndexRequest.newBuilder()
-                              .setIndexName("test_index")
-                              .setMode(Mode.STANDALONE)
-                              .setRestore(
-                                      RestoreIndex.newBuilder()
-                                              .setServiceName("testservice")
-                                              .setResourceName("testresource")
-                                              .setDeleteExistingData(true)
-                                              .build())
-                              .build());
+          .getBlockingStub()
+          .startIndex(
+              StartIndexRequest.newBuilder()
+                  .setIndexName("test_index")
+                  .setMode(Mode.STANDALONE)
+                  .setRestore(
+                      RestoreIndex.newBuilder()
+                          .setServiceName("testservice")
+                          .setResourceName("testresource")
+                          .setDeleteExistingData(true)
+                          .build())
+                  .build());
     } catch (StatusRuntimeException e) {
-      assertEquals("INVALID_ARGUMENT: error while trying to start index: test_index\nIndex test_index is already started", e.getMessage());
+      assertEquals(
+          "INVALID_ARGUMENT: error while trying to start index: test_index\nIndex test_index is already started",
+          e.getMessage());
       throw e;
     }
   }
 
-  private void restartIndexWithRestoreAndVerify(boolean deleteIndexDataBeforeRestore, boolean setDeleteExistingDataInRestoreRequest) throws IOException {
+  private void restartIndexWithRestoreAndVerify(
+      boolean deleteIndexDataBeforeRestore, boolean setDeleteExistingDataInRestoreRequest)
+      throws IOException {
     grpcServer
         .getBlockingStub()
         .stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
