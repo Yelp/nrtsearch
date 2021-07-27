@@ -545,7 +545,7 @@ public class LuceneServer {
                 .withDescription(
                     "error while trying to read index state dir for indexName: "
                         + startIndexRequest.getIndexName())
-                .augmentDescription("IOException()")
+                .augmentDescription(e.getMessage())
                 .withCause(e)
                 .asRuntimeException());
       } catch (Exception e) {

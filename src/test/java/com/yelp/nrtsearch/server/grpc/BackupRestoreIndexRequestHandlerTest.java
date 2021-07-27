@@ -19,6 +19,7 @@ import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static com.yelp.nrtsearch.server.grpc.LuceneServerTest.RETRIEVED_VALUES;
 import static com.yelp.nrtsearch.server.grpc.LuceneServerTest.checkHits;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
@@ -32,6 +33,7 @@ import com.yelp.nrtsearch.server.utils.ArchiverImpl;
 import com.yelp.nrtsearch.server.utils.Tar;
 import com.yelp.nrtsearch.server.utils.TarImpl;
 import io.findify.s3mock.S3Mock;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.File;
 import java.io.IOException;
@@ -150,11 +152,12 @@ public class BackupRestoreIndexRequestHandlerTest {
     backupIndex(true);
     testAddDocs.addDocuments();
 
-    restartIndexWithRestoreAndVerify();
+    restartIndexWithRestoreAndVerify(true, false);
   }
 
   @Test
-  public void testRestoreHandler() throws IOException, InterruptedException {
+  public void testRestoreHandler_deleteExistingDataAndRestoreIndexWithoutDeleteExistingDataOption()
+      throws IOException, InterruptedException {
     GrpcServer.TestServer testAddDocs =
         new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
     testAddDocs.addDocuments();
@@ -162,15 +165,95 @@ public class BackupRestoreIndexRequestHandlerTest {
     backupIndex(false);
     testAddDocs.addDocuments();
 
-    restartIndexWithRestoreAndVerify();
+    restartIndexWithRestoreAndVerify(true, false);
   }
 
-  private void restartIndexWithRestoreAndVerify() throws IOException {
+  @Test(expected = StatusRuntimeException.class)
+  public void testRestoreHandler_retainExistingDataAndRestoreIndex()
+      throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    testAddDocs.addDocuments();
+
+    backupIndex(false);
+    testAddDocs.addDocuments();
+
+    try {
+      restartIndexWithRestoreAndVerify(false, false);
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("java.nio.file.DirectoryNotEmptyException"));
+      throw e;
+    }
+  }
+
+  @Test
+  public void testRestoreHandler_retainExistingDataAndRestoreIndexWithDeleteExistingDataOption()
+      throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    testAddDocs.addDocuments();
+
+    backupIndex(false);
+    testAddDocs.addDocuments();
+
+    restartIndexWithRestoreAndVerify(false, true);
+  }
+
+  @Test
+  public void testRestoreHandler_deleteExistingDataAndRestoreIndexWithDeleteExistingDataOption()
+      throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    testAddDocs.addDocuments();
+
+    backupIndex(false);
+    testAddDocs.addDocuments();
+
+    restartIndexWithRestoreAndVerify(true, true);
+  }
+
+  @Test(expected = StatusRuntimeException.class)
+  public void testRestoreHandler_throwErrorIfIndexStarted()
+      throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    testAddDocs.addDocuments();
+
+    backupIndex(false);
+    testAddDocs.addDocuments();
+
+    try {
+      grpcServer
+          .getBlockingStub()
+          .startIndex(
+              StartIndexRequest.newBuilder()
+                  .setIndexName("test_index")
+                  .setMode(Mode.STANDALONE)
+                  .setRestore(
+                      RestoreIndex.newBuilder()
+                          .setServiceName("testservice")
+                          .setResourceName("testresource")
+                          .setDeleteExistingData(true)
+                          .build())
+                  .build());
+    } catch (StatusRuntimeException e) {
+      assertEquals(
+          "INVALID_ARGUMENT: error while trying to start index: test_index\nIndex test_index is already started",
+          e.getMessage());
+      throw e;
+    }
+  }
+
+  private void restartIndexWithRestoreAndVerify(
+      boolean deleteIndexDataBeforeRestore, boolean setDeleteExistingDataInRestoreRequest)
+      throws IOException {
     grpcServer
         .getBlockingStub()
         .stopIndex(StopIndexRequest.newBuilder().setIndexName("test_index").build());
 
-    deleteIndexAndMetadata();
+    if (deleteIndexDataBeforeRestore) {
+      deleteIndexAndMetadata();
+    }
 
     grpcServer
         .getBlockingStub()
@@ -182,6 +265,7 @@ public class BackupRestoreIndexRequestHandlerTest {
                     RestoreIndex.newBuilder()
                         .setServiceName("testservice")
                         .setResourceName("testresource")
+                        .setDeleteExistingData(setDeleteExistingDataInRestoreRequest)
                         .build())
                 .build());
 
