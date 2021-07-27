@@ -71,14 +71,13 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
                     restoreIndex.getServiceName(),
                     restoreIndex.getResourceName(),
                     INDEXED_DATA_TYPE.DATA);
+            shardState.setRestored(true);
           } else {
             throw new IllegalStateException("Index " + indexState.name + " already restored");
           }
         } catch (IOException e) {
           logger.info("Unable to delete existing index data", e);
           throw new StartIndexHandlerException(e);
-        } finally {
-          shardState.setRestored(true);
         }
       }
     }
