@@ -282,6 +282,8 @@ message SearchRequest {
     int32 timeoutCheckEvery = 20;
     //Additional document collectors. Provides support for operations such as aggregation.
     map<string, Collector> collectors = 21;
+    //Stop document collection in search phase after this many documents, 0 for unlimited.
+    int32 terminateAfter = 22;
 }
 
 /* Virtual field used during search */
@@ -435,6 +437,8 @@ message SearchResponse {
     ProfileResult profileResult = 7;
     // Results from any additional document collectors
     map<string, CollectorResult> collectorResults = 8;
+    // If this query hit the terminateAfter threshold specified in the request
+    bool terminatedEarly = 9;
 }
 
 message NumericRangeType {

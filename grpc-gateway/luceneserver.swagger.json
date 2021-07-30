@@ -1725,6 +1725,14 @@
         },
         "serviceName": {
           "type": "string"
+        },
+        "numQueriesThreshold": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "uptimeMinutesThreshold": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -3427,6 +3435,11 @@
             "$ref": "#/definitions/luceneserverCollector"
           },
           "description": "Additional document collectors. Provides support for operations such as aggregation."
+        },
+        "terminateAfter": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Stop document collection in search phase after this many documents, 0 for unlimited."
         }
       }
     },
@@ -3467,6 +3480,10 @@
             "$ref": "#/definitions/luceneserverCollectorResult"
           },
           "title": "Results from any additional document collectors"
+        },
+        "terminatedEarly": {
+          "type": "boolean",
+          "title": "If this query hit the terminateAfter threshold specified in the request"
         }
       }
     },

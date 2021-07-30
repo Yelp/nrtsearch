@@ -102,14 +102,15 @@ public class LuceneServerClient {
       int maxMergedSegmentMB,
       int segmentsPerTier,
       double defaultSearchTimeoutSec,
-      int defaultSearchTimeoutCheckEvery) {
+      int defaultSearchTimeoutCheckEvery,
+      int defaultTerminateAfter) {
     logger.info(
         String.format(
             "will try to update liveSettings for indexName: %s, "
                 + "maxRefreshSec: %s, minRefreshSec: %s, maxSearcherAgeSec: %s, "
                 + "indexRamBufferSizeMB: %s, addDocumentsMaxBufferLen: %s, sliceMaxDocs: %s, "
                 + "sliceMaxSegments: %s, virtualShards: %s, maxMergedSegmentMB: %s, segmentsPerTier: %s, "
-                + "defaultSearchTimeoutSec: %s, defaultSearchTimeoutCheckEvery: %s ",
+                + "defaultSearchTimeoutSec: %s, defaultSearchTimeoutCheckEvery: %s, defaultTerminateAfter: %s ",
             indexName,
             maxRefreshSec,
             minRefreshSec,
@@ -122,7 +123,8 @@ public class LuceneServerClient {
             maxMergedSegmentMB,
             segmentsPerTier,
             defaultSearchTimeoutSec,
-            defaultSearchTimeoutCheckEvery));
+            defaultSearchTimeoutCheckEvery,
+            defaultTerminateAfter));
     LiveSettingsRequest request =
         LiveSettingsRequest.newBuilder()
             .setIndexName(indexName)
@@ -138,6 +140,7 @@ public class LuceneServerClient {
             .setSegmentsPerTier(segmentsPerTier)
             .setDefaultSearchTimeoutSec(defaultSearchTimeoutSec)
             .setDefaultSearchTimeoutCheckEvery(defaultSearchTimeoutCheckEvery)
+            .setDefaultTerminateAfter(defaultTerminateAfter)
             .build();
     LiveSettingsResponse response;
     try {

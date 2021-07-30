@@ -174,6 +174,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           .putAllCollectorResults(searcherResult.getCollectorResults());
 
       searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
+      searchContext
+          .getResponseBuilder()
+          .setTerminatedEarly(searchContext.getCollector().terminatedEarly());
 
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 

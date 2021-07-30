@@ -405,6 +405,8 @@ message LiveSettingsRequest {
     double defaultSearchTimeoutSec = 12;
     //Timeout check every value to use when not specified in the search request.
     int32 defaultSearchTimeoutCheckEvery = 13;
+    //Terminate after value to use when not specified in the search request.
+    int32 defaultTerminateAfter = 14;
 }
 
 /* Response from Server to liveSettings */
