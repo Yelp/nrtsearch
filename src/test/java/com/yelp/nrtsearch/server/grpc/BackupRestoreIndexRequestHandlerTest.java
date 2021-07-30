@@ -209,6 +209,23 @@ public class BackupRestoreIndexRequestHandlerTest {
     backupIndex(false);
     testAddDocs.addDocuments();
 
+
+
+    restartIndexWithRestoreAndVerify(true, true);
+  }
+
+  @Test
+  public void testRestoreHandler_indexInitiallyStartedFromBackup_deleteExistingDataAndRestoreIndexWithDeleteExistingDataOption()
+          throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+            new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    testAddDocs.addDocuments();
+
+    backupIndex(false);
+    testAddDocs.addDocuments();
+
+    restartIndexWithRestoreAndVerify(true, true);
+
     restartIndexWithRestoreAndVerify(true, true);
   }
 
