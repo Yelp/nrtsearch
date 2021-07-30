@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchStatsWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
+import com.yelp.nrtsearch.server.luceneserver.search.TerminateAfterWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.CollectorStatsWrapper;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +44,7 @@ public abstract class DocCollector {
       additionalCollectors;
   private final int numHitsToCollect;
   private boolean hadTimeout = false;
+  private boolean terminatedEarly = false;
   private SearchStatsWrapper<? extends Collector> statsWrapper = null;
   private List<CollectorStatsWrapper<?, ?>> collectorStatsWrappers = null;
 
@@ -114,6 +116,10 @@ public abstract class DocCollector {
     return hadTimeout;
   }
 
+  public boolean terminatedEarly() {
+    return terminatedEarly;
+  }
+
   /** Get a lucene level {@link CollectorManager} to rank document for search. */
   public abstract CollectorManager<? extends Collector, ? extends TopDocs> getManager();
 
@@ -174,6 +180,13 @@ public abstract class DocCollector {
               timeoutCheckEvery,
               request.getDisallowPartialResults(),
               () -> hadTimeout = true);
+    }
+    int terminateAfter =
+        request.getTerminateAfter() > 0
+            ? request.getTerminateAfter()
+            : indexState.getDefaultTerminateAfter();
+    if (terminateAfter > 0) {
+      wrapped = new TerminateAfterWrapper<>(wrapped, terminateAfter, () -> terminatedEarly = true);
     }
     if (request.getProfile()) {
       statsWrapper = new SearchStatsWrapper<>(wrapped);

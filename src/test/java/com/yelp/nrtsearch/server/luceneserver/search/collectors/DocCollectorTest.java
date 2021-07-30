@@ -28,6 +28,7 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchStatsWrapper;
+import com.yelp.nrtsearch.server.luceneserver.search.TerminateAfterWrapper;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
@@ -207,5 +208,60 @@ public class DocCollectorTest {
     builder.addRescorers(Rescorer.newBuilder().setWindowSize(1000).build());
     TestDocCollector docCollector = new TestDocCollector(builder.build());
     assertEquals(1000, docCollector.getNumHitsToCollect());
+  }
+
+  @Test
+  public void testHasTerminateAfterWrapper() {
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).setTerminateAfter(5).build();
+    TestDocCollector docCollector = new TestDocCollector(request);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof TerminateAfterWrapper);
+    assertEquals(
+        5, ((TerminateAfterWrapper<?>) docCollector.getWrappedManager()).getTerminateAfter());
+  }
+
+  @Test
+  public void testUsesDefaultTerminateAfter() {
+    IndexState indexState = Mockito.mock(IndexState.class);
+    when(indexState.getDefaultTerminateAfter()).thenReturn(100);
+
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).build();
+    TestDocCollector docCollector = new TestDocCollector(request, indexState);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof TerminateAfterWrapper);
+    assertEquals(
+        100, ((TerminateAfterWrapper<?>) docCollector.getWrappedManager()).getTerminateAfter());
+  }
+
+  @Test
+  public void testOverrideDefaultTerminateAfter() {
+    IndexState indexState = Mockito.mock(IndexState.class);
+    when(indexState.getDefaultTerminateAfter()).thenReturn(100);
+
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).setTerminateAfter(75).build();
+    TestDocCollector docCollector = new TestDocCollector(request, indexState);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof TerminateAfterWrapper);
+    assertEquals(
+        75, ((TerminateAfterWrapper<?>) docCollector.getWrappedManager()).getTerminateAfter());
+  }
+
+  @Test
+  public void testWithAllWrappers() {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setTopHits(10)
+            .setTerminateAfter(3)
+            .setTimeoutSec(5)
+            .setProfile(true)
+            .build();
+    TestDocCollector docCollector = new TestDocCollector(request);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof SearchStatsWrapper);
+    SearchStatsWrapper<?> statsWrapper = (SearchStatsWrapper<?>) docCollector.getWrappedManager();
+    assertTrue(statsWrapper.getWrapped() instanceof TerminateAfterWrapper);
+    TerminateAfterWrapper<?> terminateAfterWrapper =
+        (TerminateAfterWrapper<?>) statsWrapper.getWrapped();
+    assertTrue(terminateAfterWrapper.getWrapped() instanceof SearchCutoffWrapper);
   }
 }

@@ -91,6 +91,12 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
               "set defaultSearchTimeoutCheckEvery: %s",
               liveSettingsRequest.getDefaultSearchTimeoutCheckEvery()));
     }
+    if (liveSettingsRequest.getDefaultTerminateAfter() >= 0) {
+      indexState.setDefaultTerminateAfter(liveSettingsRequest.getDefaultTerminateAfter());
+      logger.info(
+          String.format(
+              "set defaultTerminateAfter: %s", liveSettingsRequest.getDefaultTerminateAfter()));
+    }
     String response = indexState.getLiveSettingsJSON();
     LiveSettingsResponse reply = LiveSettingsResponse.newBuilder().setResponse(response).build();
     return reply;

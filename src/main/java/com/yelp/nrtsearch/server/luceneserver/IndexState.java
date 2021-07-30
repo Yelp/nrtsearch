@@ -476,6 +476,9 @@ public class IndexState implements Closeable, Restorable {
   /** Default search timeout check every, when not specified in the request */
   volatile int defaultSearchTimeoutCheckEvery = 0;
 
+  /** Default terminate after, when not specified in the request */
+  volatile int defaultTerminateAfter = 0;
+
   /** True if this is a new index. */
   private final boolean doCreate;
 
@@ -1006,6 +1009,25 @@ public class IndexState implements Closeable, Restorable {
     saveState
         .getLiveSettings()
         .addProperty("defaultSearchTimeoutCheckEvery", defaultSearchTimeoutCheckEvery);
+  }
+
+  /** Get the default terminate after. */
+  public int getDefaultTerminateAfter() {
+    return defaultTerminateAfter;
+  }
+
+  /**
+   * Set the default terminate after.
+   *
+   * @param defaultTerminateAfter default terminate after
+   * @throws IllegalArgumentException if value is < 0
+   */
+  public synchronized void setDefaultTerminateAfter(int defaultTerminateAfter) {
+    if (defaultTerminateAfter < 0) {
+      throw new IllegalArgumentException("Default terminate after must be >= 0.");
+    }
+    this.defaultTerminateAfter = defaultTerminateAfter;
+    saveState.getLiveSettings().addProperty("defaultTerminateAfter", defaultTerminateAfter);
   }
 
   /** Get the default search timeout check every. */

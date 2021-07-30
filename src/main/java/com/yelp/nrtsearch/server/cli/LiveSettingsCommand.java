@@ -114,6 +114,13 @@ public class LiveSettingsCommand implements Callable<Integer> {
       defaultValue = "-1")
   private int defaultSearchTimeoutCheckEvery;
 
+  @CommandLine.Option(
+      names = {"--defaultTerminateAfter"},
+      description =
+          "Terminate after to use when not provided by the request, or -1 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "-1")
+  private int defaultTerminateAfter;
+
   public String getIndexName() {
     return indexName;
   }
@@ -166,6 +173,10 @@ public class LiveSettingsCommand implements Callable<Integer> {
     return defaultSearchTimeoutCheckEvery;
   }
 
+  public int getDefaultTerminateAfter() {
+    return defaultTerminateAfter;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -183,7 +194,8 @@ public class LiveSettingsCommand implements Callable<Integer> {
           getMaxMergedSegmentMB(),
           getSegmentsPerTier(),
           getDefaultSearchTimeoutSec(),
-          getDefaultSearchTimeoutCheckEvery());
+          getDefaultSearchTimeoutCheckEvery(),
+          getDefaultTerminateAfter());
     } finally {
       client.shutdown();
     }
