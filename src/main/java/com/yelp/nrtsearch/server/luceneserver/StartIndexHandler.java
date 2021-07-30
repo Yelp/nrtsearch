@@ -64,7 +64,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         try {
           if (!shardState.isRestored()) {
             RestoreIndex restoreIndex = startIndexRequest.getRestore();
-            if (startIndexRequest.getRestore().getDeleteExistingData()) {
+            if (restoreIndex.getDeleteExistingData()) {
               indexState.deleteIndexRootDir();
               deleteDownloadedBackupDirectories(restoreIndex.getResourceName());
             }
