@@ -21,11 +21,10 @@ import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.utils.Archiver;
+import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
-import com.yelp.nrtsearch.server.utils.FileUtil;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.IndexReader;
 import org.slf4j.Logger;

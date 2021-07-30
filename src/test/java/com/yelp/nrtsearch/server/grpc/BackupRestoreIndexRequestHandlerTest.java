@@ -209,20 +209,20 @@ public class BackupRestoreIndexRequestHandlerTest {
     backupIndex(false);
     testAddDocs.addDocuments();
 
-
-
     restartIndexWithRestoreAndVerify(true, true);
   }
 
   /**
-   * When a backup is downloaded we just point the index directory the downloaded files. This test verifies
-   * that if deleteExistingData is set during restore it deletes the directories from the backup as well.
+   * When a backup is downloaded we just point the index directory the downloaded files. This test
+   * verifies that if deleteExistingData is set during restore it deletes the directories from the
+   * backup as well.
    */
   @Test
-  public void testRestoreHandler_indexInitiallyStartedFromBackup_deleteExistingDataAndRestoreIndexWithDeleteExistingDataOption()
+  public void
+      testRestoreHandler_indexInitiallyStartedFromBackup_deleteExistingDataAndRestoreIndexWithDeleteExistingDataOption()
           throws IOException, InterruptedException {
     GrpcServer.TestServer testAddDocs =
-            new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
     testAddDocs.addDocuments();
 
     backupIndex(false);
