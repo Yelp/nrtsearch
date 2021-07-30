@@ -23,6 +23,9 @@ import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.utils.Archiver;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import com.yelp.nrtsearch.server.utils.FileUtil;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.IndexReader;
 import org.slf4j.Logger;
@@ -61,11 +64,12 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       synchronized (shardState) {
         try {
           if (!shardState.isRestored()) {
+            RestoreIndex restoreIndex = startIndexRequest.getRestore();
             if (startIndexRequest.getRestore().getDeleteExistingData()) {
               indexState.deleteIndexRootDir();
+              deleteDownloadedBackupDirectories(restoreIndex.getResourceName());
             }
 
-            RestoreIndex restoreIndex = startIndexRequest.getRestore();
             dataPath =
                 downloadArtifact(
                     restoreIndex.getServiceName(),
@@ -145,6 +149,11 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
     long t1 = System.nanoTime();
     startIndexResponseBuilder.setStartTimeMS(((t1 - t0) / 1000000.0));
     return startIndexResponseBuilder.build();
+  }
+
+  private void deleteDownloadedBackupDirectories(String resourceName) throws IOException {
+    String resourceDataDirectory = IndexBackupUtils.getResourceData(resourceName);
+    FileUtil.deleteAllFiles(Paths.get(archiveDirectory, resourceDataDirectory));
   }
 
   public Path downloadArtifact(
