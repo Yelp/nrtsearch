@@ -27,6 +27,7 @@ import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.junit.After;
 import org.junit.Before;
@@ -368,6 +369,9 @@ public class QueryTest {
 
     Consumer<SearchResponse> responseTester =
         searchResponse -> {
+          assertEquals(
+              Set.of("rescorer_0"),
+              searchResponse.getDiagnostics().getRescorersTimeMsMap().keySet());
           assertEquals(1, searchResponse.getTotalHits().getValue());
           assertEquals(1, searchResponse.getHitsList().size());
           SearchResponse.Hit hit = searchResponse.getHits(0);

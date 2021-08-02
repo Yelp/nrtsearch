@@ -1471,6 +1471,13 @@
         "rescoreTimeMs": {
           "type": "number",
           "format": "double"
+        },
+        "rescorersTimeMs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          }
         }
       }
     },
@@ -2843,6 +2850,11 @@
           "type": "integer",
           "format": "int32",
           "description": "Timeout check every value to use when not specified in the search request."
+        },
+        "defaultTerminateAfter": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Terminate after value to use when not specified in the search request."
         }
       },
       "title": "Input to liveSettings"
@@ -3187,6 +3199,9 @@
         "rescoreQueryWeight": {
           "type": "number",
           "format": "double"
+        },
+        "name": {
+          "type": "string"
         }
       },
       "title": "Defines a rescorer which uses query to rescore documents in the second pass"

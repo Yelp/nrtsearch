@@ -331,9 +331,10 @@ public class SearchRequestProcessor {
 
     List<RescoreTask> rescorers = new ArrayList<>();
 
-    for (com.yelp.nrtsearch.server.grpc.Rescorer rescorer : searchRequest.getRescorersList()) {
-
+    for (int i = 0; i < searchRequest.getRescorersList().size(); ++i) {
+      com.yelp.nrtsearch.server.grpc.Rescorer rescorer = searchRequest.getRescorers(i);
       Rescorer thisRescorer;
+      String rescorerName;
 
       if (rescorer.hasQueryRescorer()) {
         QueryRescorer queryRescorer = rescorer.getQueryRescorer();
@@ -346,9 +347,12 @@ public class SearchRequestProcessor {
                 .setQueryWeight(queryRescorer.getQueryWeight())
                 .setRescoreQueryWeight(queryRescorer.getRescoreQueryWeight())
                 .build();
+        rescorerName = queryRescorer.getName();
       } else if (rescorer.hasPluginRescorer()) {
         PluginRescorer plugin = rescorer.getPluginRescorer();
         thisRescorer = RescorerCreator.getInstance().createRescorer(plugin);
+        // Assumes that rescorer names are unique per query
+        rescorerName = plugin.getName();
       } else {
         throw new IllegalArgumentException(
             "Rescorer should define either QueryRescorer or PluginRescorer");
@@ -358,6 +362,10 @@ public class SearchRequestProcessor {
           RescoreTask.newBuilder()
               .setRescorer(thisRescorer)
               .setWindowSize(rescorer.getWindowSize())
+              .setName(
+                  rescorerName != null && !rescorerName.equals("")
+                      ? rescorerName
+                      : String.format("rescorer_%d", i))
               .build());
     }
     return rescorers;

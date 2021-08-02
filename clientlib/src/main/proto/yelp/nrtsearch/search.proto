@@ -392,7 +392,8 @@ message SearchResponse {
         double newSnapshotSearcherOpenMs = 7;
         double nrtWaitTimeMs = 8;
         map<string, double> facetTimeMs = 9;
-        double rescoreTimeMs = 10;
+        double rescoreTimeMs = 10 [deprecated = true];
+        map<string, double> rescorersTimeMs = 11;
     }
 
     message Hit {
@@ -492,7 +493,7 @@ message QueryRescorer {
     Query rescoreQuery = 1;
     double queryWeight = 2;
     double rescoreQueryWeight = 3;
-
+    string name = 4;
 }
 
 // Defines a rescorer which is executed after the first search pass
