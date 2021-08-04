@@ -392,7 +392,7 @@ message SearchResponse {
         double newSnapshotSearcherOpenMs = 7;
         double nrtWaitTimeMs = 8;
         map<string, double> facetTimeMs = 9;
-        double rescoreTimeMs = 10 [deprecated = true];
+        double rescoreTimeMs = 10;
         map<string, double> rescorersTimeMs = 11;
     }
 
