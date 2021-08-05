@@ -493,7 +493,6 @@ message QueryRescorer {
     Query rescoreQuery = 1;
     double queryWeight = 2;
     double rescoreQueryWeight = 3;
-    string name = 4;
 }
 
 // Defines a rescorer which is executed after the first search pass
@@ -503,6 +502,8 @@ message Rescorer {
         QueryRescorer queryRescorer = 2;
         PluginRescorer pluginRescorer = 3;
     }
+    // Must be unique for each Rescorer
+    string name = 4;
 }
 
 // Defines detailed profiling stats for queries that set profile=true

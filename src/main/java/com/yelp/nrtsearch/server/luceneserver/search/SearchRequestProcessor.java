@@ -333,8 +333,8 @@ public class SearchRequestProcessor {
 
     for (int i = 0; i < searchRequest.getRescorersList().size(); ++i) {
       com.yelp.nrtsearch.server.grpc.Rescorer rescorer = searchRequest.getRescorers(i);
+      String rescorerName = rescorer.getName();
       Rescorer thisRescorer;
-      String rescorerName;
 
       if (rescorer.hasQueryRescorer()) {
         QueryRescorer queryRescorer = rescorer.getQueryRescorer();
@@ -347,12 +347,9 @@ public class SearchRequestProcessor {
                 .setQueryWeight(queryRescorer.getQueryWeight())
                 .setRescoreQueryWeight(queryRescorer.getRescoreQueryWeight())
                 .build();
-        rescorerName = queryRescorer.getName();
       } else if (rescorer.hasPluginRescorer()) {
         PluginRescorer plugin = rescorer.getPluginRescorer();
         thisRescorer = RescorerCreator.getInstance().createRescorer(plugin);
-        // Assumes that rescorer names are unique per query
-        rescorerName = plugin.getName();
       } else {
         throw new IllegalArgumentException(
             "Rescorer should define either QueryRescorer or PluginRescorer");

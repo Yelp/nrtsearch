@@ -3199,9 +3199,6 @@
         "rescoreQueryWeight": {
           "type": "number",
           "format": "double"
-        },
-        "name": {
-          "type": "string"
         }
       },
       "title": "Defines a rescorer which uses query to rescore documents in the second pass"
@@ -3321,6 +3318,10 @@
         },
         "pluginRescorer": {
           "$ref": "#/definitions/luceneserverPluginRescorer"
+        },
+        "name": {
+          "type": "string",
+          "title": "Must be unique for each Rescorer"
         }
       },
       "title": "Defines a rescorer which is executed after the first search pass"
