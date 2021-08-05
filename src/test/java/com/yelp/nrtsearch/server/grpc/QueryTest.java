@@ -27,6 +27,7 @@ import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.junit.After;
 import org.junit.Before;
@@ -359,6 +360,7 @@ public class QueryTest {
     Rescorer queryRescorer =
         Rescorer.newBuilder()
             .setWindowSize(2)
+            .setName("query_rescorer")
             .setQueryRescorer(
                 QueryRescorer.newBuilder()
                     .setQueryWeight(1.0)
@@ -368,6 +370,9 @@ public class QueryTest {
 
     Consumer<SearchResponse> responseTester =
         searchResponse -> {
+          assertEquals(
+              Set.of("query_rescorer"),
+              searchResponse.getDiagnostics().getRescorersTimeMsMap().keySet());
           assertEquals(1, searchResponse.getTotalHits().getValue());
           assertEquals(1, searchResponse.getHitsList().size());
           SearchResponse.Hit hit = searchResponse.getHits(0);
@@ -380,6 +385,26 @@ public class QueryTest {
         };
 
     testQueryWithRescorers(firstPassQuery, List.of(queryRescorer), responseTester);
+
+    // Rescorers are not required to have a name
+    Rescorer queryRescorerNoName =
+        Rescorer.newBuilder()
+            .setWindowSize(2)
+            .setQueryRescorer(
+                QueryRescorer.newBuilder()
+                    .setQueryWeight(1.0)
+                    .setRescoreQueryWeight(4.0)
+                    .setRescoreQuery(rescoreQuery))
+            .build();
+
+    Consumer<SearchResponse> responseTesterNoName =
+        searchResponse -> {
+          assertEquals(
+              Set.of("rescorer_0"),
+              searchResponse.getDiagnostics().getRescorersTimeMsMap().keySet());
+        };
+
+    testQueryWithRescorers(firstPassQuery, List.of(queryRescorerNoName), responseTesterNoName);
   }
 
   @Test

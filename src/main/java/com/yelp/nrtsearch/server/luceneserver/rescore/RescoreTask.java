@@ -28,11 +28,13 @@ import org.apache.lucene.search.TopDocs;
 public class RescoreTask {
 
   private final Rescorer rescorer;
-  private int windowSize;
+  private final int windowSize;
+  private final String name;
 
   private RescoreTask(Builder builder) {
     rescorer = builder.rescorer;
     windowSize = builder.windowSize;
+    name = builder.name;
   }
 
   /**
@@ -48,6 +50,10 @@ public class RescoreTask {
     return rescorer.rescore(searcher, hits, windowSize);
   }
 
+  public String getName() {
+    return name;
+  }
+
   public static Builder newBuilder() {
     return new Builder();
   }
@@ -55,6 +61,7 @@ public class RescoreTask {
   public static class Builder {
     private Rescorer rescorer;
     private int windowSize;
+    private String name;
 
     private Builder() {}
 
@@ -65,6 +72,11 @@ public class RescoreTask {
 
     public Builder setWindowSize(int windowSize) {
       this.windowSize = windowSize;
+      return this;
+    }
+
+    public Builder setName(String name) {
+      this.name = name;
       return this;
     }
 

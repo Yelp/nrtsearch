@@ -393,6 +393,7 @@ message SearchResponse {
         double nrtWaitTimeMs = 8;
         map<string, double> facetTimeMs = 9;
         double rescoreTimeMs = 10;
+        map<string, double> rescorersTimeMs = 11;
     }
 
     message Hit {
@@ -492,7 +493,6 @@ message QueryRescorer {
     Query rescoreQuery = 1;
     double queryWeight = 2;
     double rescoreQueryWeight = 3;
-
 }
 
 // Defines a rescorer which is executed after the first search pass
@@ -502,6 +502,8 @@ message Rescorer {
         QueryRescorer queryRescorer = 2;
         PluginRescorer pluginRescorer = 3;
     }
+    // Must be unique for each Rescorer
+    string name = 4;
 }
 
 // Defines detailed profiling stats for queries that set profile=true

@@ -1471,6 +1471,13 @@
         "rescoreTimeMs": {
           "type": "number",
           "format": "double"
+        },
+        "rescorersTimeMs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          }
         }
       }
     },
@@ -2843,6 +2850,11 @@
           "type": "integer",
           "format": "int32",
           "description": "Timeout check every value to use when not specified in the search request."
+        },
+        "defaultTerminateAfter": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Terminate after value to use when not specified in the search request."
         }
       },
       "title": "Input to liveSettings"
@@ -3306,6 +3318,10 @@
         },
         "pluginRescorer": {
           "$ref": "#/definitions/luceneserverPluginRescorer"
+        },
+        "name": {
+          "type": "string",
+          "title": "Must be unique for each Rescorer"
         }
       },
       "title": "Defines a rescorer which is executed after the first search pass"

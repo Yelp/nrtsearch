@@ -331,8 +331,9 @@ public class SearchRequestProcessor {
 
     List<RescoreTask> rescorers = new ArrayList<>();
 
-    for (com.yelp.nrtsearch.server.grpc.Rescorer rescorer : searchRequest.getRescorersList()) {
-
+    for (int i = 0; i < searchRequest.getRescorersList().size(); ++i) {
+      com.yelp.nrtsearch.server.grpc.Rescorer rescorer = searchRequest.getRescorers(i);
+      String rescorerName = rescorer.getName();
       Rescorer thisRescorer;
 
       if (rescorer.hasQueryRescorer()) {
@@ -358,6 +359,10 @@ public class SearchRequestProcessor {
           RescoreTask.newBuilder()
               .setRescorer(thisRescorer)
               .setWindowSize(rescorer.getWindowSize())
+              .setName(
+                  rescorerName != null && !rescorerName.equals("")
+                      ? rescorerName
+                      : String.format("rescorer_%d", i))
               .build());
     }
     return rescorers;
