@@ -27,6 +27,9 @@ import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.FileMetaData;
 
 public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
+  private static final long CHECK_SLEEP_TIME_MS = 10;
+  private static final int CHECKS_PER_STATUS_MESSAGE = 3000; // at least 30s between status messages
+
   @Override
   public void handle(
       IndexState indexState,
@@ -58,7 +61,7 @@ public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
     } catch (IOException e) {
       responseObserver.onNext(
           TransferStatus.newBuilder()
-              .setMessage(String.format("replica failed to launchPreCopyFiles" + files.keySet()))
+              .setMessage("replica failed to launchPreCopyFiles" + files.keySet())
               .setCode(TransferStatusCode.Failed)
               .build());
       // called must set; //responseObserver.onError(e);
@@ -67,6 +70,7 @@ public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
 
     // we hold open this request, only finishing/closing once our copy has finished, so primary
     // knows when we finished
+    int sendStatusCounter = 0;
     while (true) {
       // nocommit don't poll!  use a condition...
       if (finished.get()) {
@@ -79,20 +83,24 @@ public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
         break;
       }
       try {
-        Thread.sleep(10);
+        Thread.sleep(CHECK_SLEEP_TIME_MS);
+      } catch (InterruptedException e) {
+        responseObserver.onNext(
+            TransferStatus.newBuilder()
+                .setMessage("replica failed to copy files..." + files.keySet())
+                .setCode(TransferStatusCode.Failed)
+                .build());
+        // caller must set; //responseObserver.onError(e);
+        throw new RuntimeException(e);
+      }
+      sendStatusCounter++;
+      if (sendStatusCounter == CHECKS_PER_STATUS_MESSAGE) {
         responseObserver.onNext(
             TransferStatus.newBuilder()
                 .setMessage("replica is copying files..." + files.keySet())
                 .setCode(TransferStatusCode.Ongoing)
                 .build());
-      } catch (InterruptedException e) {
-        responseObserver.onNext(
-            TransferStatus.newBuilder()
-                .setMessage(String.format("replica failed to copy files..." + files.keySet()))
-                .setCode(TransferStatusCode.Failed)
-                .build());
-        // caller must set; //responseObserver.onError(e);
-        throw new RuntimeException(e);
+        sendStatusCounter = 0;
       }
     }
 
