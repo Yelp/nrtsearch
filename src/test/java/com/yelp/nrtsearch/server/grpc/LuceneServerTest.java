@@ -591,6 +591,7 @@ public class LuceneServerTest {
     addDocumentRequestBuilder.putFields("doc_id", multiValuedFieldsBuilder.addValue("1").build());
     AddDocumentResponse addDocumentResponse =
         grpcServer.getBlockingStub().delete(addDocumentRequestBuilder.build());
+    assertFalse(addDocumentResponse.getPrimaryId().isEmpty());
 
     // manual refresh needed to depict changes in buffered deletes (i.e. not committed yet)
     grpcServer
@@ -642,6 +643,7 @@ public class LuceneServerTest {
         DeleteByQueryRequest.newBuilder().setIndexName("test_index").addQuery(query).build();
     AddDocumentResponse addDocumentResponse =
         grpcServer.getBlockingStub().deleteByQuery(deleteByQueryRequest);
+    assertFalse(addDocumentResponse.getPrimaryId().isEmpty());
 
     // manual refresh needed to depict changes in buffered deletes (i.e. not committed yet)
     grpcServer
@@ -1160,6 +1162,25 @@ public class LuceneServerTest {
 
     assertThat(
         getAllSnapshotGenResponse.getIndexGensList(), IsCollectionContaining.hasItems(1L, 2L));
+  }
+
+  @Test
+  public void testAddDocsHasPrimaryId() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.PRIMARY);
+    // 2 docs addDocuments
+    AddDocumentResponse response = testAddDocs.addDocuments();
+    assertFalse(response.getPrimaryId().isEmpty());
+  }
+
+  @Test
+  public void testCommitHasPrimaryId() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.PRIMARY);
+    // 2 docs addDocuments
+    testAddDocs.addDocuments();
+    CommitRequest commitRequest =
+        CommitRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+    CommitResponse response = grpcServer.getBlockingStub().commit(commitRequest);
+    assertFalse(response.getPrimaryId().isEmpty());
   }
 
   @Test

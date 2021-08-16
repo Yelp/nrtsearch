@@ -715,7 +715,10 @@ public class LuceneServer {
                       genId = onCompletedForIndex(indexName);
                     }
                     responseObserver.onNext(
-                        AddDocumentResponse.newBuilder().setGenId(genId).build());
+                        AddDocumentResponse.newBuilder()
+                            .setGenId(genId)
+                            .setPrimaryId(globalState.getEphemeralId())
+                            .build());
                     responseObserver.onCompleted();
                   } catch (Throwable t) {
                     responseObserver.onError(t);
@@ -786,7 +789,11 @@ public class LuceneServer {
               try {
                 IndexState indexState = globalState.getIndex(commitRequest.getIndexName());
                 long gen = indexState.commit();
-                CommitResponse reply = CommitResponse.newBuilder().setGen(gen).build();
+                CommitResponse reply =
+                    CommitResponse.newBuilder()
+                        .setGen(gen)
+                        .setPrimaryId(globalState.getEphemeralId())
+                        .build();
                 logger.debug(
                     String.format(
                         "CommitHandler committed to index: %s for sequenceId: %s",

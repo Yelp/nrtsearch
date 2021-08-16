@@ -1642,6 +1642,10 @@
       "properties": {
         "genId": {
           "type": "string"
+        },
+        "primaryId": {
+          "type": "string",
+          "title": "Unique identifier for the primary instance that processed the request"
         }
       }
     },
@@ -1879,6 +1883,10 @@
           "type": "string",
           "format": "int64",
           "description": "sequence number of the last operation in the commit.  All sequence numbers less than this value\nwill be reflected in the commit, and all others will not."
+        },
+        "primaryId": {
+          "type": "string",
+          "title": "Unique identifier for the primary instance that processed the request"
         }
       }
     },

@@ -568,6 +568,8 @@ message FacetHierarchyPath {
 
 message AddDocumentResponse {
     string genId = 1;
+    // Unique identifier for the primary instance that processed the request
+    string primaryId = 2;
 }
 
 message RefreshRequest {
@@ -586,6 +588,8 @@ message CommitResponse {
     /*  sequence number of the last operation in the commit.  All sequence numbers less than this value
     will be reflected in the commit, and all others will not.*/
     int64 gen = 1;
+    // Unique identifier for the primary instance that processed the request
+    string primaryId = 2;
 }
 
 message StatsRequest {
