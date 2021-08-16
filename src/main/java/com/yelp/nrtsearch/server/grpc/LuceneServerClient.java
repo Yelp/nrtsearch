@@ -264,7 +264,11 @@ public class LuceneServerClient {
       logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
-    logger.info("Server returned sequence id: " + response.getGen());
+    logger.info(
+        "Server returned sequence id: "
+            + response.getGen()
+            + ", primary id: "
+            + response.getPrimaryId());
   }
 
   public void stats(String indexName) {
@@ -303,7 +307,11 @@ public class LuceneServerClient {
       logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
-    logger.info("Server returned indexGen : " + response.getGenId());
+    logger.info(
+        "Server returned indexGen : "
+            + response.getGenId()
+            + ", primary id: "
+            + response.getPrimaryId());
   }
 
   public void deleteIndex(String indexName) {

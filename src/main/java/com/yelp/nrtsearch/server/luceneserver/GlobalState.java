@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -59,6 +60,7 @@ public class GlobalState implements Closeable, Restorable {
   Logger logger = LoggerFactory.getLogger(GlobalState.class);
   private long lastIndicesGen;
   private final JsonParser jsonParser = new JsonParser();
+  private final String ephemeralId = UUID.randomUUID().toString();
 
   public final String nodeName;
 
@@ -301,5 +303,9 @@ public class GlobalState implements Closeable, Restorable {
 
   public ExecutorService getFetchService() {
     return fetchService;
+  }
+
+  public String getEphemeralId() {
+    return ephemeralId;
   }
 }

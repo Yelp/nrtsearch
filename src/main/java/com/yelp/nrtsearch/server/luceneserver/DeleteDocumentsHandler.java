@@ -57,7 +57,10 @@ public class DeleteDocumentsHandler implements Handler<AddDocumentRequest, AddDo
       throw new DeleteDocumentsHandlerException(e);
     }
     long genId = shardState.writer.getMaxCompletedSequenceNumber();
-    return AddDocumentResponse.newBuilder().setGenId(String.valueOf(genId)).build();
+    return AddDocumentResponse.newBuilder()
+        .setGenId(String.valueOf(genId))
+        .setPrimaryId(indexState.globalState.getEphemeralId())
+        .build();
   }
 
   public static class DeleteDocumentsHandlerException extends Handler.HandlerException {
