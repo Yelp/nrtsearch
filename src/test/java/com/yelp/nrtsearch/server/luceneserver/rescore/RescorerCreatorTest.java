@@ -30,9 +30,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.TopDocs;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,13 +53,14 @@ public class RescorerCreatorTest {
   public static class TestRescorerPlugin extends Plugin implements RescorerPlugin {
 
     @Override
-    public Map<String, RescorerProvider<? extends Rescorer>> getRescorers() {
-      Map<String, RescorerProvider<? extends Rescorer>> rescorerProviderMap = new HashMap<>();
+    public Map<String, RescorerProvider<? extends RescoreOperation>> getRescorers() {
+      Map<String, RescorerProvider<? extends RescoreOperation>> rescorerProviderMap =
+          new HashMap<>();
       rescorerProviderMap.put("plugin_rescorer", CustomRescorer::new);
       return rescorerProviderMap;
     }
 
-    public static class CustomRescorer extends Rescorer {
+    public static class CustomRescorer implements RescoreOperation {
 
       public final Map<String, Object> params;
 
@@ -71,14 +69,7 @@ public class RescorerCreatorTest {
       }
 
       @Override
-      public TopDocs rescore(IndexSearcher searcher, TopDocs firstPassTopDocs, int topN)
-          throws IOException {
-        return null;
-      }
-
-      @Override
-      public Explanation explain(
-          IndexSearcher searcher, Explanation firstPassExplanation, int docID) throws IOException {
+      public TopDocs rescore(TopDocs hits, RescoreContext context) throws IOException {
         return null;
       }
     }
@@ -93,7 +84,7 @@ public class RescorerCreatorTest {
   @Test
   public void testPluginProvidesRescorer() {
     init(Collections.singletonList(new TestRescorerPlugin()));
-    Rescorer rescorer =
+    RescoreOperation rescorer =
         RescorerCreator.getInstance()
             .createRescorer(PluginRescorer.newBuilder().setName("plugin_rescorer").build());
     assertTrue(rescorer instanceof TestRescorerPlugin.CustomRescorer);
@@ -102,7 +93,7 @@ public class RescorerCreatorTest {
   @Test
   public void testRescorerParams() {
     init(Collections.singletonList(new TestRescorerPlugin()));
-    Rescorer rescorer =
+    RescoreOperation rescorer =
         RescorerCreator.getInstance()
             .createRescorer(
                 PluginRescorer.newBuilder()

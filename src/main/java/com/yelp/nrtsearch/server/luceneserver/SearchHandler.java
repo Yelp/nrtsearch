@@ -190,7 +190,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       if (!searchContext.getRescorers().isEmpty()) {
         for (RescoreTask rescorer : searchContext.getRescorers()) {
           long startNS = System.nanoTime();
-          hits = rescorer.rescore(s.searcher, hits);
+          hits = rescorer.rescore(hits, searchContext);
           long endNS = System.nanoTime();
           diagnostics.putRescorersTimeMs(rescorer.getName(), (endNS - startNS) / 1000000.0);
         }

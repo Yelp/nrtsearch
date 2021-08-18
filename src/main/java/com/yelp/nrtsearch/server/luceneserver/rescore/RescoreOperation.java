@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Yelp Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,22 +15,22 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.rescore;
 
-import java.util.Map;
+import java.io.IOException;
+import org.apache.lucene.search.TopDocs;
 
 /**
- * Interface for getting a {@link RescoreOperation} implementation initialized with the given
- * parameters map.
- *
- * @param <T> rescorer type
+ * Interface for implementation of a rescore operation that produces {@link TopDocs} given the
+ * {@link TopDocs} from a previous search/rescore operation.
  */
-public interface RescorerProvider<T extends RescoreOperation> {
+public interface RescoreOperation {
 
   /**
-   * Get a {@link RescoreOperation} implementation initialized with the given parameters.
+   * Rescore the given hits to produce a new set of {@link TopDocs}.
    *
-   * @param params rescorer parameters decoded from {@link
-   *     com.yelp.nrtsearch.server.grpc.PluginRescorer}
-   * @return {@link RescoreOperation} instance
+   * @param hits {@link TopDocs} from a previous search/rescore operation
+   * @param context additional context for rescoring
+   * @return new hits ranking
+   * @throws IOException on error loading index data
    */
-  T get(Map<String, Object> params);
+  TopDocs rescore(TopDocs hits, RescoreContext context) throws IOException;
 }
