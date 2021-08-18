@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.search;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
@@ -44,6 +45,7 @@ public class SearchContext {
   private final DocCollector collector;
   private final FetchTasks fetchTasks;
   private final List<RescoreTask> rescorers;
+  private final SharedDocContext sharedDocContext;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -59,6 +61,7 @@ public class SearchContext {
     this.collector = builder.collector;
     this.fetchTasks = builder.fetchTasks;
     this.rescorers = builder.rescorers;
+    this.sharedDocContext = builder.sharedDocContext;
 
     if (validate) {
       validate();
@@ -133,6 +136,11 @@ public class SearchContext {
     return rescorers;
   }
 
+  /** Get shared context accessor for documents */
+  public SharedDocContext getSharedDocContext() {
+    return sharedDocContext;
+  }
+
   /** Get new context builder instance * */
   public static Builder newBuilder() {
     return new Builder();
@@ -149,6 +157,7 @@ public class SearchContext {
     Objects.requireNonNull(collector);
     Objects.requireNonNull(fetchTasks);
     Objects.requireNonNull(rescorers);
+    Objects.requireNonNull(sharedDocContext);
 
     if (timestampSec < 0) {
       throw new IllegalStateException("Invalid timestamp value: " + timestampSec);
@@ -178,6 +187,7 @@ public class SearchContext {
     private DocCollector collector;
     private FetchTasks fetchTasks;
     private List<RescoreTask> rescorers;
+    private SharedDocContext sharedDocContext;
 
     private Builder() {}
 
@@ -259,6 +269,12 @@ public class SearchContext {
     /** Set rescorers that should be executed after the first pass */
     public Builder setRescorers(List<RescoreTask> rescorers) {
       this.rescorers = rescorers;
+      return this;
+    }
+
+    /** Set shared context accessor for documents */
+    public Builder setSharedDocContext(SharedDocContext sharedDocContext) {
+      this.sharedDocContext = sharedDocContext;
       return this;
     }
 
