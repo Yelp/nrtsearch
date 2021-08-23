@@ -15,39 +15,38 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.rescore;
 
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.search.TopDocs;
 
 /**
- * A wrapper component for {@link Rescorer} and <i>int windowSize</i>. It has a public
+ * A wrapper component for {@link RescoreOperation} and <i>int windowSize</i>. It has a public
  * <i>rescore</i> method which is called by the {@link
  * com.yelp.nrtsearch.server.luceneserver.SearchHandler} to rescore the first-pass hits.
  */
 public class RescoreTask {
 
-  private final Rescorer rescorer;
+  private final RescoreOperation rescoreOperation;
   private final int windowSize;
   private final String name;
 
   private RescoreTask(Builder builder) {
-    rescorer = builder.rescorer;
+    rescoreOperation = builder.rescoreOperation;
     windowSize = builder.windowSize;
     name = builder.name;
   }
 
   /**
-   * This wrapper method calls {@link Rescorer} <i>rescore</i> method with <i>windowSize</i>
-   * parameter passed from {@link RescoreTask} class field.
+   * This wrapper method calls {@link RescoreOperation} <i>rescore</i> method with a {@link
+   * RescoreContext} to pass additional information.
    *
-   * @param searcher index searcher instance
    * @param hits results from the previous search pass
    * @return rescored documents
-   * @throws IOException
+   * @throws IOException on error loading index data
    */
-  public TopDocs rescore(IndexSearcher searcher, TopDocs hits) throws IOException {
-    return rescorer.rescore(searcher, hits, windowSize);
+  public TopDocs rescore(TopDocs hits, SearchContext searchContext) throws IOException {
+    RescoreContext context = new RescoreContext(windowSize, searchContext);
+    return rescoreOperation.rescore(hits, context);
   }
 
   public String getName() {
@@ -59,14 +58,14 @@ public class RescoreTask {
   }
 
   public static class Builder {
-    private Rescorer rescorer;
+    private RescoreOperation rescoreOperation;
     private int windowSize;
     private String name;
 
     private Builder() {}
 
-    public Builder setRescorer(Rescorer rescorer) {
-      this.rescorer = rescorer;
+    public Builder setRescoreOperation(RescoreOperation rescoreOperation) {
+      this.rescoreOperation = rescoreOperation;
       return this;
     }
 
