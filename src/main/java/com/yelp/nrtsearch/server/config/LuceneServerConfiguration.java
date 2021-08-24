@@ -93,7 +93,9 @@ public class LuceneServerConfiguration {
     replicaReplicationPortPingInterval =
         configReader.getInteger("replicaReplicationPortPingInterval", DEFAULT_INTERVAL_MS);
     primaryMaxConcurrentCallsPerConnectionForReplication =
-            configReader.getInteger("primaryMaxConcurrentCallsPerConnectionForReplication", DEFAULT_MAX_CONCURRENT_CALLS_REPLICATION);
+        configReader.getInteger(
+            "primaryMaxConcurrentCallsPerConnectionForReplication",
+            DEFAULT_MAX_CONCURRENT_CALLS_REPLICATION);
     nodeName = configReader.getString("nodeName", DEFAULT_NODE_NAME);
     hostName = substituteEnvVariables(configReader.getString("hostName", DEFAULT_HOSTNAME));
     stateDir = configReader.getString("stateDir", DEFAULT_STATE_DIR.toString());

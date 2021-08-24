@@ -189,14 +189,17 @@ public class LuceneServer {
         "Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
 
     if (luceneServerConfiguration.getPrimaryMaxConcurrentCallsPerConnectionForReplication() != -1) {
-      replicationServer = NettyServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
+      replicationServer =
+          NettyServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
               .addService(new ReplicationServerImpl(globalState))
               .executor(
-                      ThreadPoolExecutorFactory.getThreadPoolExecutor(
-                              ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
-                              luceneServerConfiguration.getThreadPoolConfiguration()))
+                  ThreadPoolExecutorFactory.getThreadPoolExecutor(
+                      ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
+                      luceneServerConfiguration.getThreadPoolConfiguration()))
               .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
-              .maxConcurrentCallsPerConnection(luceneServerConfiguration.getPrimaryMaxConcurrentCallsPerConnectionForReplication())
+              .maxConcurrentCallsPerConnection(
+                  luceneServerConfiguration
+                      .getPrimaryMaxConcurrentCallsPerConnectionForReplication())
               .build()
               .start();
     } else {
