@@ -88,6 +88,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.Status;
+import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
@@ -103,6 +104,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.lucene.search.IndexSearcher;
@@ -186,17 +188,30 @@ public class LuceneServer {
     logger.info(
         "Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
 
-    /* The port on which the replication server should run */
-    replicationServer =
-        ServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
-            .addService(new ReplicationServerImpl(globalState))
-            .executor(
-                ThreadPoolExecutorFactory.getThreadPoolExecutor(
-                    ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
-                    luceneServerConfiguration.getThreadPoolConfiguration()))
-            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
-            .build()
-            .start();
+    if (luceneServerConfiguration.getPrimaryMaxConcurrentCallsPerConnectionForReplication() != -1) {
+      replicationServer = NettyServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
+              .addService(new ReplicationServerImpl(globalState))
+              .executor(
+                      ThreadPoolExecutorFactory.getThreadPoolExecutor(
+                              ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
+                              luceneServerConfiguration.getThreadPoolConfiguration()))
+              .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+              .maxConcurrentCallsPerConnection(luceneServerConfiguration.getPrimaryMaxConcurrentCallsPerConnectionForReplication())
+              .build()
+              .start();
+    } else {
+      replicationServer =
+          ServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
+              .addService(new ReplicationServerImpl(globalState))
+              .executor(
+                  ThreadPoolExecutorFactory.getThreadPoolExecutor(
+                      ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
+                      luceneServerConfiguration.getThreadPoolConfiguration()))
+              .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+              .build()
+              .start();
+    }
+
     logger.info(
         "Server started, listening on "
             + luceneServerConfiguration.getReplicationPort()
@@ -1723,7 +1738,6 @@ public class LuceneServer {
           byte[] buffer = new byte[1024 * 64];
           long totalRead;
           totalRead = pos;
-          Random random = new Random();
           while (totalRead < len) {
             int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
             luceneFile.readBytes(buffer, 0, chunkSize);
@@ -1734,7 +1748,7 @@ public class LuceneServer {
             rawFileChunkStreamObserver.onNext(rawFileChunk);
             totalRead += chunkSize;
             if (globalState.configuration.getFileSendDelay()) {
-              randomDelay(random);
+              randomDelay(ThreadLocalRandom.current());
             }
           }
           // EOF

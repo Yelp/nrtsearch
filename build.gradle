@@ -51,6 +51,7 @@ dependencies {
     //prometheus (metrics) deps
     implementation "io.prometheus:simpleclient_servlet:${prometheusClientVersion}"
     implementation "io.prometheus:simpleclient_hotspot:${prometheusClientVersion}"
+    implementation "io.grpc:grpc-netty-shaded:${rootProject.grpcVersion}"
 
     //logging deps
     implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
