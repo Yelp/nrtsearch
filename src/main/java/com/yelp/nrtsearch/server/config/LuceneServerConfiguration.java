@@ -49,6 +49,7 @@ public class LuceneServerConfiguration {
   private static final double[] DEFAULT_METRICS_BUCKETS =
       new double[] {.005, .01, .025, .05, .075, .1, .25, .5, .75, 1, 2.5, 5, 7.5, 10};
   private static final int DEFAULT_INTERVAL_MS = 1000 * 10;
+  private static final int DEFAULT_MAX_CONCURRENT_CALLS_REPLICATION = -1;
   private static final List<String> DEFAULT_PLUGINS = Collections.emptyList();
   private static final Path DEFAULT_PLUGIN_SEARCH_PATH =
       Paths.get(DEFAULT_USER_DIR.toString(), "plugins");
@@ -57,6 +58,7 @@ public class LuceneServerConfiguration {
   private final int port;
   private final int replicationPort;
   private final int replicaReplicationPortPingInterval;
+  private final int maxConcurrentCallsPerConnectionForReplication;
   private final String nodeName;
   private final String hostName;
   private final String stateDir;
@@ -90,6 +92,10 @@ public class LuceneServerConfiguration {
     replicationPort = configReader.getInteger("replicationPort", DEFAULT_REPLICATION_PORT);
     replicaReplicationPortPingInterval =
         configReader.getInteger("replicaReplicationPortPingInterval", DEFAULT_INTERVAL_MS);
+    maxConcurrentCallsPerConnectionForReplication =
+        configReader.getInteger(
+            "maxConcurrentCallsPerConnectionForReplication",
+            DEFAULT_MAX_CONCURRENT_CALLS_REPLICATION);
     nodeName = configReader.getString("nodeName", DEFAULT_NODE_NAME);
     hostName = substituteEnvVariables(configReader.getString("hostName", DEFAULT_HOSTNAME));
     stateDir = configReader.getString("stateDir", DEFAULT_STATE_DIR.toString());
@@ -139,6 +145,10 @@ public class LuceneServerConfiguration {
 
   public int getReplicationPort() {
     return replicationPort;
+  }
+
+  public int getMaxConcurrentCallsPerConnectionForReplication() {
+    return maxConcurrentCallsPerConnectionForReplication;
   }
 
   public String getNodeName() {
