@@ -34,8 +34,12 @@ import org.apache.lucene.replicator.nrt.FileMetaData;
 import org.apache.lucene.replicator.nrt.Node;
 import org.apache.lucene.replicator.nrt.NodeCommunicationException;
 import org.apache.lucene.replicator.nrt.ReplicaNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SimpleCopyJob extends CopyJob {
+  private static final Logger logger = LoggerFactory.getLogger(SimpleCopyJob.class);
+
   private final CopyState copyState;
   private final ReplicationServerClient primaryAddres;
   private final String indexName;
@@ -271,6 +275,7 @@ public class SimpleCopyJob extends CopyJob {
     BlockingQueue<RawFileChunk> pendingChunks = new LinkedBlockingQueue<>();
     RawFileChunk next = null;
     volatile Throwable error = null;
+    boolean observerDone = false;
 
     /**
      * Set the request observer for this streaming copy.
@@ -292,14 +297,26 @@ public class SimpleCopyJob extends CopyJob {
       // set error and add terminal chunk, so hasNext won't block forever
       error = t;
       pendingChunks.add(TERMINAL_CHUNK);
-      observer.onError(t);
+      synchronized (this) {
+        if (!observerDone) {
+          observerDone = true;
+          observer.onError(t);
+        }
+      }
+      logger.error("File streaming onError", t);
     }
 
     @Override
     public void onCompleted() {
       // add terminal chunk to signal end of file
       pendingChunks.add(TERMINAL_CHUNK);
-      observer.onCompleted();
+      synchronized (this) {
+        if (!observerDone) {
+          observerDone = true;
+          observer.onCompleted();
+        }
+      }
+      logger.debug("File streaming onCompleted");
     }
 
     @Override
@@ -309,7 +326,12 @@ public class SimpleCopyJob extends CopyJob {
         try {
           next = pendingChunks.take();
         } catch (InterruptedException e) {
-          observer.onError(e);
+          synchronized (this) {
+            if (!observerDone) {
+              observerDone = true;
+              observer.onError(e);
+            }
+          }
           throw new RuntimeException(e);
         }
       }
@@ -331,7 +353,12 @@ public class SimpleCopyJob extends CopyJob {
       }
       // send an ack for this chunk, if requested by the primary
       if (next.getAck()) {
-        observer.onNext(FileInfo.newBuilder().setAckSeqNum(next.getSeqNum()).build());
+        synchronized (this) {
+          if (!observerDone) {
+            observer.onNext(FileInfo.newBuilder().setAckSeqNum(next.getSeqNum()).build());
+            logger.debug(String.format("File streaming acking seq: %d", next.getSeqNum()));
+          }
+        }
       }
       RawFileChunk result = next;
       next = null;

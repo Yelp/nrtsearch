@@ -1806,6 +1806,8 @@ public class LuceneServer {
                 rawFileChunkStreamObserver.onCompleted();
               }
             }
+            logger.debug(
+                String.format("recvRawFileV2: in flight chunks: %d", currentSeq - lastAckedSeq));
           } catch (Throwable t) {
             maybeCloseFile();
             rawFileChunkStreamObserver.onError(t);
@@ -1823,6 +1825,7 @@ public class LuceneServer {
         @Override
         public void onCompleted() {
           maybeCloseFile();
+          logger.debug("recvRawFileV2 onCompleted");
         }
 
         private void maybeCloseFile() {

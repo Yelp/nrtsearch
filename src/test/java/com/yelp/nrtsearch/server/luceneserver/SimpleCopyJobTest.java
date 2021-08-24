@@ -16,7 +16,9 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
@@ -78,7 +80,34 @@ public class SimpleCopyJobTest {
     verifyNoMoreInteractions(mockObserver);
   }
 
+  @Test
+  public void testSkipAcksOnComplete() {
+    doSkippedAckedTest(10, 1000, 1000);
+    doSkippedAckedTest(10, 1000, 100);
+    doSkippedAckedTest(10, 1000, 10);
+    doSkippedAckedTest(10, 1000, 1);
+  }
+
   private void doAckedTest(int chunkSize, int numChunks, int ackEvery) {
+    @SuppressWarnings("unchecked")
+    StreamObserver<FileInfo> mockObserver = (StreamObserver<FileInfo>) mock(StreamObserver.class);
+    ArgumentCaptor<FileInfo> inputCapture = ArgumentCaptor.forClass(FileInfo.class);
+    doNothing().when(mockObserver).onNext(inputCapture.capture());
+
+    FileChunkStreamingIterator fcsi = new FileChunkStreamingIterator();
+    fcsi.init(mockObserver);
+    sendData(fcsi, chunkSize, numChunks, ackEvery);
+    verifyData(fcsi, chunkSize, numChunks, ackEvery);
+    fcsi.onCompleted();
+    assertFalse(fcsi.hasNext());
+    verifyParams(inputCapture.getAllValues(), numChunks, ackEvery);
+
+    verify(mockObserver, times(1)).onCompleted();
+    verify(mockObserver, times(numChunks / ackEvery)).onNext(any(FileInfo.class));
+    verifyNoMoreInteractions(mockObserver);
+  }
+
+  private void doSkippedAckedTest(int chunkSize, int numChunks, int ackEvery) {
     @SuppressWarnings("unchecked")
     StreamObserver<FileInfo> mockObserver = (StreamObserver<FileInfo>) mock(StreamObserver.class);
     ArgumentCaptor<FileInfo> inputCapture = ArgumentCaptor.forClass(FileInfo.class);
@@ -89,10 +118,10 @@ public class SimpleCopyJobTest {
     sendData(fcsi, chunkSize, numChunks, ackEvery);
     fcsi.onCompleted();
     verifyData(fcsi, chunkSize, numChunks, ackEvery);
-    verifyParams(inputCapture.getAllValues(), numChunks, ackEvery);
+    assertFalse(fcsi.hasNext());
+    assertEquals(0, inputCapture.getAllValues().size());
 
     verify(mockObserver, times(1)).onCompleted();
-    verify(mockObserver, times(numChunks / ackEvery)).onNext(any(FileInfo.class));
     verifyNoMoreInteractions(mockObserver);
   }
 
@@ -113,10 +142,9 @@ public class SimpleCopyJobTest {
 
   private void verifyData(
       FileChunkStreamingIterator fcsi, int chunkSize, int numChunks, int ackEvery) {
-    int seq = 0;
     byte[] buffer = new byte[chunkSize];
-    while (fcsi.hasNext()) {
-      seq++;
+    for (int seq = 1; seq <= numChunks; ++seq) {
+      assertTrue(fcsi.hasNext());
       RawFileChunk chunk = fcsi.next();
       assertEquals(seq, chunk.getSeqNum());
       assertEquals((seq % ackEvery) == 0, chunk.getAck());
@@ -128,7 +156,6 @@ public class SimpleCopyJobTest {
         assertEquals(expectedByte, b);
       }
     }
-    assertEquals(numChunks, seq);
   }
 
   private void verifyParams(List<FileInfo> params, int numChunks, int ackEvery) {
