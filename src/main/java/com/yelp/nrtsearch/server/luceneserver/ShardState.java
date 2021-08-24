@@ -931,7 +931,8 @@ public class ShardState implements Closeable {
               indexDir,
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
-              primaryGen);
+              primaryGen,
+              indexState.globalState.configuration.getFileCopyConfig().getAckedCopy());
 
       if (indexState.globalState.configuration.getSyncInitialNrtPoint()) {
         nrtReplicaNode.syncFromCurrentPrimary(INITIAL_SYNC_PRIMARY_WAIT_MS);

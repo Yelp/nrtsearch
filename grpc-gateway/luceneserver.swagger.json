@@ -3275,6 +3275,15 @@
         "content": {
           "type": "string",
           "format": "byte"
+        },
+        "seqNum": {
+          "type": "integer",
+          "format": "int32",
+          "title": "sequence number for this chunk, only used for acked file copy"
+        },
+        "ack": {
+          "type": "boolean",
+          "title": "if this chunk should be acked, only used for acked file copy"
         }
       }
     },

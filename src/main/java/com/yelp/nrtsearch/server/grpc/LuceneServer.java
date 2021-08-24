@@ -1750,6 +1750,92 @@ public class LuceneServer {
       }
     }
 
+    @Override
+    public StreamObserver<FileInfo> recvRawFileV2(
+        StreamObserver<RawFileChunk> rawFileChunkStreamObserver) {
+      return new StreamObserver<>() {
+        private IndexState indexState;
+        private IndexInput luceneFile;
+        private byte[] buffer;
+        private final int ackEvery = globalState.configuration.getFileCopyConfig().getAckEvery();
+        private final int maxInflight =
+            globalState.configuration.getFileCopyConfig().getMaxInFlight();
+        private int lastAckedSeq = 0;
+        private int currentSeq = 0;
+        private long fileOffset;
+        private long fileLength;
+
+        @Override
+        public void onNext(FileInfo fileInfoRequest) {
+          try {
+            if (indexState == null) {
+              // Start transfer
+              indexState = globalState.getIndex(fileInfoRequest.getIndexName());
+              ShardState shardState = indexState.getShard(0);
+              if (shardState == null) {
+                throw new IllegalStateException(
+                    "Error getting shard state for: " + fileInfoRequest.getIndexName());
+              }
+              luceneFile =
+                  shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT);
+              luceneFile.seek(fileInfoRequest.getFpStart());
+              fileOffset = fileInfoRequest.getFpStart();
+              fileLength = luceneFile.length();
+              buffer = new byte[globalState.configuration.getFileCopyConfig().getChunkSize()];
+            } else {
+              // ack existing transfer
+              lastAckedSeq = fileInfoRequest.getAckSeqNum();
+              if (lastAckedSeq <= 0) {
+                throw new IllegalArgumentException(
+                    "Invalid ackSeqNum: " + fileInfoRequest.getAckSeqNum());
+              }
+            }
+            while (fileOffset < fileLength && (currentSeq - lastAckedSeq) < maxInflight) {
+              int chunkSize = (int) Math.min(buffer.length, (fileLength - fileOffset));
+              luceneFile.readBytes(buffer, 0, chunkSize);
+              currentSeq++;
+              RawFileChunk rawFileChunk =
+                  RawFileChunk.newBuilder()
+                      .setContent(ByteString.copyFrom(buffer, 0, chunkSize))
+                      .setSeqNum(currentSeq)
+                      .setAck((currentSeq % ackEvery) == 0)
+                      .build();
+              rawFileChunkStreamObserver.onNext(rawFileChunk);
+              fileOffset += chunkSize;
+              if (fileOffset == fileLength) {
+                rawFileChunkStreamObserver.onCompleted();
+              }
+            }
+          } catch (Throwable t) {
+            rawFileChunkStreamObserver.onError(t);
+          }
+        }
+
+        @Override
+        public void onError(Throwable t) {
+          if (luceneFile != null) {
+            try {
+              luceneFile.close();
+            } catch (IOException e) {
+              logger.warn("Error closing index file", e);
+            }
+          }
+          rawFileChunkStreamObserver.onError(t);
+        }
+
+        @Override
+        public void onCompleted() {
+          if (luceneFile != null) {
+            try {
+              luceneFile.close();
+            } catch (IOException e) {
+              logger.warn("Error closing index file", e);
+            }
+          }
+        }
+      };
+    }
+
     /**
      * induces random delay between 1ms to 10ms (both inclusive). Without this excessive buffering
      * happens in server/primary if its to fast compared to receiver/replica. This only happens when

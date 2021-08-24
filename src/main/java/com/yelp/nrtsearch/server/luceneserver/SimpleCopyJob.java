@@ -15,14 +15,18 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.grpc.FileInfo;
 import com.yelp.nrtsearch.server.grpc.RawFileChunk;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyOneFile;
 import org.apache.lucene.replicator.nrt.CopyState;
@@ -35,6 +39,7 @@ public class SimpleCopyJob extends CopyJob {
   private final CopyState copyState;
   private final ReplicationServerClient primaryAddres;
   private final String indexName;
+  private final boolean ackedCopy;
   private Iterator<Map.Entry<String, FileMetaData>> iter;
 
   public SimpleCopyJob(
@@ -45,12 +50,14 @@ public class SimpleCopyJob extends CopyJob {
       Map<String, FileMetaData> files,
       boolean highPriority,
       OnceDone onceDone,
-      String indexName)
+      String indexName,
+      boolean ackedCopy)
       throws IOException {
     super(reason, files, dest, highPriority, onceDone);
     this.copyState = copyState;
     this.primaryAddres = primaryAddress;
     this.indexName = indexName;
+    this.ackedCopy = ackedCopy;
   }
 
   @Override
@@ -212,7 +219,13 @@ public class SimpleCopyJob extends CopyJob {
       String fileName = next.getKey();
       Iterator<RawFileChunk> rawFileChunkIterator;
       try {
-        rawFileChunkIterator = primaryAddres.recvRawFile(fileName, 0, indexName);
+        if (ackedCopy) {
+          FileChunkStreamingIterator fcsi = new FileChunkStreamingIterator();
+          primaryAddres.recvRawFileV2(fileName, 0, indexName, fcsi);
+          rawFileChunkIterator = fcsi;
+        } else {
+          rawFileChunkIterator = primaryAddres.recvRawFile(fileName, 0, indexName);
+        }
       } catch (Throwable t) {
         cancel("exc during start", t);
         throw new NodeCommunicationException("exc during start", t);
@@ -248,5 +261,86 @@ public class SimpleCopyJob extends CopyJob {
         + ") filesCopied="
         + copiedFiles.size()
         + ")";
+  }
+
+  /** Stream observer that also functions as a file chunk iterator. */
+  public static class FileChunkStreamingIterator
+      implements StreamObserver<RawFileChunk>, Iterator<RawFileChunk> {
+    private static final RawFileChunk TERMINAL_CHUNK = RawFileChunk.newBuilder().build();
+    private StreamObserver<FileInfo> observer;
+    BlockingQueue<RawFileChunk> pendingChunks = new LinkedBlockingQueue<>();
+    RawFileChunk next = null;
+    volatile Throwable error = null;
+
+    /**
+     * Set the request observer for this streaming copy.
+     *
+     * @param observer request observer
+     */
+    public void init(StreamObserver<FileInfo> observer) {
+      this.observer = observer;
+    }
+
+    @Override
+    public void onNext(RawFileChunk value) {
+      // buffer all file chunks, this is bounded by the max in flight config value
+      pendingChunks.add(value);
+    }
+
+    @Override
+    public void onError(Throwable t) {
+      // set error and add terminal chunk, so hasNext won't block forever
+      error = t;
+      pendingChunks.add(TERMINAL_CHUNK);
+      observer.onError(t);
+    }
+
+    @Override
+    public void onCompleted() {
+      // add terminal chunk to signal end of file
+      pendingChunks.add(TERMINAL_CHUNK);
+      observer.onCompleted();
+    }
+
+    @Override
+    public boolean hasNext() {
+      // set next chunk
+      if (next == null) {
+        try {
+          next = pendingChunks.take();
+        } catch (InterruptedException e) {
+          observer.onError(e);
+          throw new RuntimeException(e);
+        }
+      }
+      // handle error
+      if (error != null) {
+        throw new RuntimeException("Error getting next element", error);
+      }
+      // see if we are at the end of file
+      return next != TERMINAL_CHUNK;
+    }
+
+    @Override
+    public RawFileChunk next() {
+      if (next == null) {
+        boolean hasNext = hasNext();
+        if (!hasNext) {
+          throw new IllegalStateException("Next called on empty iterator");
+        }
+      }
+      // send an ack for this chunk, if requested by the primary
+      if (next.getAck()) {
+        observer.onNext(FileInfo.newBuilder().setAckSeqNum(next.getSeqNum()).build());
+      }
+      RawFileChunk result = next;
+      next = null;
+      return result;
+    }
+
+    @Override
+    public void remove() {
+      throw new UnsupportedOperationException();
+    }
   }
 }
