@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.grpc;
 import com.google.protobuf.GeneratedMessageV3;
 import com.yelp.nrtsearch.server.luceneserver.SimpleCopyJob.FileChunkStreamingIterator;
 import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
+import io.grpc.okhttp.OkHttpChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import java.io.Closeable;
 import java.util.Iterator;
@@ -51,7 +51,7 @@ public class ReplicationServerClient implements Closeable {
   /** Construct client connecting to ReplicationServer server at {@code host:port}. */
   public ReplicationServerClient(String host, int port) {
     this(
-        ManagedChannelBuilder.forAddress(host, port)
+        OkHttpChannelBuilder.forAddress(host, port)
             // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
             // needing certificates.
             .usePlaintext()

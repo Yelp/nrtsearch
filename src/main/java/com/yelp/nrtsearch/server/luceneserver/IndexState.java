@@ -1210,6 +1210,7 @@ public class IndexState implements Closeable, Restorable {
     IndexWriterConfig iwc = new IndexWriterConfig(indexAnalyzer);
     iwc.setOpenMode(openMode);
     if (globalState.configuration.getIndexVerbose()) {
+      logger.info("Enabling verbose logging for Lucene NRT");
       iwc.setInfoStream(new PrintStreamInfoStream(System.out));
     }
 
