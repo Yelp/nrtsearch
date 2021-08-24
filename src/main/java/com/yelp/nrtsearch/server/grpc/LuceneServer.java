@@ -1807,30 +1807,32 @@ public class LuceneServer {
               }
             }
           } catch (Throwable t) {
+            maybeCloseFile();
             rawFileChunkStreamObserver.onError(t);
+            throw new RuntimeException(t);
           }
         }
 
         @Override
         public void onError(Throwable t) {
-          if (luceneFile != null) {
-            try {
-              luceneFile.close();
-            } catch (IOException e) {
-              logger.warn("Error closing index file", e);
-            }
-          }
+          logger.error("recvRawFileV2 onError", t);
+          maybeCloseFile();
           rawFileChunkStreamObserver.onError(t);
         }
 
         @Override
         public void onCompleted() {
+          maybeCloseFile();
+        }
+
+        private void maybeCloseFile() {
           if (luceneFile != null) {
             try {
               luceneFile.close();
             } catch (IOException e) {
               logger.warn("Error closing index file", e);
             }
+            luceneFile = null;
           }
         }
       };
