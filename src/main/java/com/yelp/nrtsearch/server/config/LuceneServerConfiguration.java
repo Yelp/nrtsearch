@@ -82,6 +82,7 @@ public class LuceneServerConfiguration {
   private final boolean virtualSharding;
   private final boolean syncInitialNrtPoint;
   private final boolean indexVerbose;
+  private final FileCopyConfig fileCopyConfig;
 
   private final YamlConfigReader configReader;
   private final long maxConnectionAgeForReplication;
@@ -135,6 +136,7 @@ public class LuceneServerConfiguration {
     virtualSharding = configReader.getBoolean("virtualSharding", false);
     syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", false);
     indexVerbose = configReader.getBoolean("indexVerbose", false);
+    fileCopyConfig = FileCopyConfig.fromConfig(configReader);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
   }
 
@@ -240,6 +242,10 @@ public class LuceneServerConfiguration {
 
   public boolean getIndexVerbose() {
     return indexVerbose;
+  }
+
+  public FileCopyConfig getFileCopyConfig() {
+    return fileCopyConfig;
   }
 
   public YamlConfigReader getConfigReader() {

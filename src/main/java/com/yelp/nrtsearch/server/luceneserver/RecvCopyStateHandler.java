@@ -36,19 +36,20 @@ public class RecvCopyStateHandler implements Handler<CopyStateRequest, CopyState
     if (!isValidMagicHeader(copyStateRequest.getMagicNumber())) {
       throw new RuntimeException("RecvCopyStateHandler invoked with Invalid Magic Number");
     }
+    NRTPrimaryNode primaryNode = shardState.nrtPrimaryNode;
     org.apache.lucene.replicator.nrt.CopyState copyState = null;
     try {
       // Caller does not have CopyState; we pull the latest NRT point:
-      copyState = shardState.nrtPrimaryNode.getCopyState();
+      copyState = primaryNode.getCopyState();
       return RecvCopyStateHandler.writeCopyState(copyState);
     } catch (IOException e) {
-      shardState.nrtPrimaryNode.message("top: exception during fetch: " + e.getMessage());
+      primaryNode.message("top: exception during fetch: " + e.getMessage());
       throw new RuntimeException(e);
     } finally {
       if (copyState != null) {
-        shardState.nrtPrimaryNode.message("top: fetch: now release CopyState");
+        primaryNode.message("top: fetch: now release CopyState");
         try {
-          shardState.nrtPrimaryNode.releaseCopyState(copyState);
+          primaryNode.releaseCopyState(copyState);
         } catch (IOException e) {
           throw new RuntimeException(e);
         }
