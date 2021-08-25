@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.grpc;
 
 import com.google.protobuf.GeneratedMessageV3;
 import io.grpc.ManagedChannel;
-import io.grpc.okhttp.OkHttpChannelBuilder;
+import io.grpc.ManagedChannelBuilder;
 import java.io.Closeable;
 import java.util.Iterator;
 import java.util.Map;
@@ -49,7 +49,7 @@ public class ReplicationServerClient implements Closeable {
   /** Construct client connecting to ReplicationServer server at {@code host:port}. */
   public ReplicationServerClient(String host, int port) {
     this(
-        OkHttpChannelBuilder.forAddress(host, port)
+        ManagedChannelBuilder.forAddress(host, port)
             // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
             // needing certificates.
             .usePlaintext()
