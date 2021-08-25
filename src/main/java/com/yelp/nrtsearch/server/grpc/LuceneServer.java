@@ -34,38 +34,8 @@ import com.yelp.nrtsearch.LuceneServerModule;
 import com.yelp.nrtsearch.server.MetricsRequestHandler;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.QueryCacheConfig;
+import com.yelp.nrtsearch.server.luceneserver.*;
 import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler.DocumentIndexer;
-import com.yelp.nrtsearch.server.luceneserver.AddReplicaHandler;
-import com.yelp.nrtsearch.server.luceneserver.BackupIndexRequestHandler;
-import com.yelp.nrtsearch.server.luceneserver.BuildSuggestHandler;
-import com.yelp.nrtsearch.server.luceneserver.CopyFilesHandler;
-import com.yelp.nrtsearch.server.luceneserver.CreateSnapshotHandler;
-import com.yelp.nrtsearch.server.luceneserver.DeleteAllDocumentsHandler;
-import com.yelp.nrtsearch.server.luceneserver.DeleteByQueryHandler;
-import com.yelp.nrtsearch.server.luceneserver.DeleteDocumentsHandler;
-import com.yelp.nrtsearch.server.luceneserver.DeleteIndexBackupHandler;
-import com.yelp.nrtsearch.server.luceneserver.DeleteIndexHandler;
-import com.yelp.nrtsearch.server.luceneserver.GetNodesInfoHandler;
-import com.yelp.nrtsearch.server.luceneserver.GetStateHandler;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
-import com.yelp.nrtsearch.server.luceneserver.LiveSettingsHandler;
-import com.yelp.nrtsearch.server.luceneserver.NewNRTPointHandler;
-import com.yelp.nrtsearch.server.luceneserver.RecvCopyStateHandler;
-import com.yelp.nrtsearch.server.luceneserver.RegisterFieldsHandler;
-import com.yelp.nrtsearch.server.luceneserver.ReleaseSnapshotHandler;
-import com.yelp.nrtsearch.server.luceneserver.ReplicaCurrentSearchingVersionHandler;
-import com.yelp.nrtsearch.server.luceneserver.RestoreStateHandler;
-import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
-import com.yelp.nrtsearch.server.luceneserver.SettingsHandler;
-import com.yelp.nrtsearch.server.luceneserver.ShardState;
-import com.yelp.nrtsearch.server.luceneserver.StartIndexHandler;
-import com.yelp.nrtsearch.server.luceneserver.StatsRequestHandler;
-import com.yelp.nrtsearch.server.luceneserver.StopIndexHandler;
-import com.yelp.nrtsearch.server.luceneserver.SuggestLookupHandler;
-import com.yelp.nrtsearch.server.luceneserver.UpdateFieldsHandler;
-import com.yelp.nrtsearch.server.luceneserver.UpdateSuggestHandler;
-import com.yelp.nrtsearch.server.luceneserver.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
@@ -73,12 +43,7 @@ import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
-import com.yelp.nrtsearch.server.monitoring.Configuration;
-import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
-import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
-import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
-import com.yelp.nrtsearch.server.monitoring.QueryCacheCollector;
-import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
+import com.yelp.nrtsearch.server.monitoring.*;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
@@ -99,13 +64,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.util.*;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LRUQueryCache;
@@ -199,6 +158,11 @@ public class LuceneServer {
               .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
               .maxConcurrentCallsPerConnection(
                   luceneServerConfiguration.getMaxConcurrentCallsPerConnectionForReplication())
+              .maxConnectionAge(
+                  luceneServerConfiguration.getMaxConnectionAgeForReplication(), TimeUnit.SECONDS)
+              .maxConnectionAgeGrace(
+                  luceneServerConfiguration.getMaxConnectionAgeGraceForReplication(),
+                  TimeUnit.SECONDS)
               .build()
               .start();
     } else {

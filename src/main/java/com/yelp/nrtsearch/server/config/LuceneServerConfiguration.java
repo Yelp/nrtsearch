@@ -24,12 +24,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class LuceneServerConfiguration {
   private static final Pattern ENV_VAR_PATTERN = Pattern.compile("\\$\\{([A-Za-z0-9_]+)}");
 
+  private static final long AS_LARGE_AS_INFINITE = TimeUnit.DAYS.toSeconds(1000L);
   public static final Path DEFAULT_USER_DIR =
       Paths.get(System.getProperty("user.home"), "lucene", "server");
   public static final Path DEFAULT_ARCHIVER_DIR =
@@ -54,7 +56,6 @@ public class LuceneServerConfiguration {
   private static final Path DEFAULT_PLUGIN_SEARCH_PATH =
       Paths.get(DEFAULT_USER_DIR.toString(), "plugins");
   private static final String DEFAULT_SERVICE_NAME = "nrtsearch-generic";
-
   private final int port;
   private final int replicationPort;
   private final int replicaReplicationPortPingInterval;
@@ -84,6 +85,8 @@ public class LuceneServerConfiguration {
   private final FileCopyConfig fileCopyConfig;
 
   private final YamlConfigReader configReader;
+  private final long maxConnectionAgeForReplication;
+  private final long maxConnectionAgeGraceForReplication;
 
   @Inject
   public LuceneServerConfiguration(InputStream yamlStream) {
@@ -97,6 +100,10 @@ public class LuceneServerConfiguration {
         configReader.getInteger(
             "maxConcurrentCallsPerConnectionForReplication",
             DEFAULT_MAX_CONCURRENT_CALLS_REPLICATION);
+    maxConnectionAgeForReplication =
+        configReader.getLong("maxConnectionAgeForReplication", AS_LARGE_AS_INFINITE);
+    maxConnectionAgeGraceForReplication =
+        configReader.getLong("maxConnectionAgeGraceForReplication", AS_LARGE_AS_INFINITE);
     nodeName = configReader.getString("nodeName", DEFAULT_NODE_NAME);
     hostName = substituteEnvVariables(configReader.getString("hostName", DEFAULT_HOSTNAME));
     stateDir = configReader.getString("stateDir", DEFAULT_STATE_DIR.toString());
@@ -275,5 +282,13 @@ public class LuceneServerConfiguration {
       result = result.replaceAll("\\$\\{" + envVar + "}", envStr);
     }
     return result;
+  }
+
+  public long getMaxConnectionAgeForReplication() {
+    return maxConnectionAgeForReplication;
+  }
+
+  public long getMaxConnectionAgeGraceForReplication() {
+    return maxConnectionAgeGraceForReplication;
   }
 }
