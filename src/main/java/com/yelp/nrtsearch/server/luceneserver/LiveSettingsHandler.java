@@ -28,13 +28,18 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
       IndexState indexState, LiveSettingsRequest liveSettingsRequest) {
     logger.info(
         String.format("update liveSettings for index:  %s", liveSettingsRequest.getIndexName()));
-    if (liveSettingsRequest.getMaxRefreshSec() != 0) {
-      indexState.setMaxRefreshSec(liveSettingsRequest.getMaxRefreshSec());
-      logger.info(String.format("set maxRefreshSec: %s", liveSettingsRequest.getMaxRefreshSec()));
-    }
-    if (liveSettingsRequest.getMinRefreshSec() != 0) {
-      indexState.setMinRefreshSec(liveSettingsRequest.getMinRefreshSec());
-      logger.info(String.format("set minRefreshSec: %s", liveSettingsRequest.getMinRefreshSec()));
+    if (liveSettingsRequest.getMaxRefreshSec() != 0
+        || liveSettingsRequest.getMinRefreshSec() != 0) {
+      double maxSec =
+          liveSettingsRequest.getMaxRefreshSec() != 0
+              ? liveSettingsRequest.getMaxRefreshSec()
+              : indexState.maxRefreshSec;
+      double minSec =
+          liveSettingsRequest.getMinRefreshSec() != 0
+              ? liveSettingsRequest.getMinRefreshSec()
+              : indexState.minRefreshSec;
+      indexState.setRefreshSec(minSec, maxSec);
+      logger.info(String.format("set minRefreshSec: %s, maxRefreshSec: %s", minSec, maxSec));
     }
     if (liveSettingsRequest.getMaxSearcherAgeSec() != 0) {
       indexState.setMaxSearcherAgeSec(liveSettingsRequest.getMaxSearcherAgeSec());
