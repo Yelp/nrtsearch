@@ -23,11 +23,6 @@ Fields must first be registered with the *registerFields* command, where you exp
 
 There is no transaction log, so you must call *commit* yourself periodically to make recent changes durable on disk. This means that if a node crashes, all indexed documents since the last commit are lost.
 
-
-.. image:: path/filename.png
-  :width: 400
-  :alt: Alternative text
-
 Indexing a stream of documents
 ---------------------------
 
