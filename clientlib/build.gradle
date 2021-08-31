@@ -71,6 +71,11 @@ protobuf {
 }
 
 test {
+    testLogging {
+        events "failed"
+        exceptionFormat "full"
+        showStackTraces true
+    }
     finalizedBy 'spotlessJavaCheck'
 }
 
