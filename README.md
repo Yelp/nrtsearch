@@ -1,11 +1,11 @@
 # nrtSearch
-A high performance gRPC server, with optional REST APIs on top of [Apache Lucene](http://lucene.apache.org/) version 8.x source, exposing lucene's
+A high performance gRPC server, with optional REST APIs on top of [Apache Lucene](http://lucene.apache.org/) version 8.x source, exposing Lucene's
 core functionality over a simple gRPC based API.
 
 # Features
-* Relies on Lucene's [near-real-time segment replication](http://blog.mikemccandless.com/2017/09/lucenes-near-real-time-segment-index.html) for data replication. This means, a dedicated primary/writer node takes care of indexing operations and expensive operations like [segment merges](http://blog.mikemccandless.com/2011/02/visualizing-lucenes-segment-merges.html). This allows the replicas' system resources to be dedicated entirely for search queries. This behavior is in contrast to the document replication approach taken by some other popular seach engines based on lucene like elasticsearch where every node is a writer and a reader.
+* Relies on Lucene's [near-real-time segment replication](http://blog.mikemccandless.com/2017/09/lucenes-near-real-time-segment-index.html) for data replication. This means, a dedicated primary/writer node takes care of indexing operations and expensive operations like [segment merges](http://blog.mikemccandless.com/2011/02/visualizing-lucenes-segment-merges.html). This allows the replicas' system resources to be dedicated entirely for search queries. This behavior is in contrast to the document replication approach taken by some other popular search engines based on lucene like elasticsearch where every node is a writer and a reader.
 * [Supports concurrent query execution](http://blog.mikemccandless.com/2019/10/concurrent-query-execution-in-apache.html). This is another feature missing from popular search engines based on lucene like elasticsearch.
-* Can be deployed as a "stateless microservice". Indexes are backed up in s3. Clients can choose to commit data outside of this system once their backup is complete. Upon restarts e.g. if you bring up a new container clients can choose to bootstrap indexes from their previous backed up state. Ability to deploy in a stateless manner allows for easy scalibility using container tools like kubernetes, mesos etc.
+* Can be deployed as a "stateless microservice". Indexes are backed up in s3. Clients can choose to commit data outside of this system once their backup is complete. Upon restarts e.g. if you bring up a new container clients can choose to bootstrap indexes from their previous backed up state. Ability to deploy in a stateless manner allows for easy scalability using container tools like kubernetes, mesos etc.
 * Provides gRPC streaming APIs for indexing and searching. Also supports REST APIs.
 
 # Design
@@ -27,7 +27,7 @@ This requirement is one of the primary reasons to create this project. [near-rea
 due to data migration between nodes apart from paying the cost for reindexing on all nodes.
 
 Below is a depiction of how the system works in regards to Near-real-time(NRT) replication and durability.
-![alt text](https://github.com/Yelp/platypus/blob/master/src/images/nrt.png "Platypus NRT and durability")
+![alt text](https://github.com/Yelp/nrtsearch/blob/master/docs/images/nrt.png "NRT and durability")
 
 * Primary node comes up with either no index or reads segments from disk or can restore an index from remote storage if the `restore` option is specified by the client on the `startIndex` command. This node will accept `indexing` requests from clients. It will also periodically  `publishNrtUpdate` to replicas giving them a chance to catch up with the latest primary indexing changes.
 * Replica nodes are also started using the `startIndex` command. They will sync with the current primary and update their indexes using lucene's NRT APIs. They can also restore the index from remote storage and then receive the updates since the last backup. These nodes will serve client's `search` queries.
