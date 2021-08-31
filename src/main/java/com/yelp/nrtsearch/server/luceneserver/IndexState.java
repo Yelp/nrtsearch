@@ -813,24 +813,19 @@ public class IndexState implements Closeable, Restorable {
   }
 
   /**
-   * Live setting: set the mininum refresh time (seconds), which is the longest amount of time a
-   * client may wait for a searcher to reopen.
+   * Live setting: set the minimum and maximum refresh time (seconds), which is the longest amount
+   * of time a client may wait for a searcher to reopen.
    */
-  public synchronized void setMinRefreshSec(double min) {
-    minRefreshSec = min;
-    saveState.getLiveSettings().addProperty("minRefreshSec", min);
-    for (ShardState shardState : shards.values()) {
-      shardState.restartReopenThread();
+  public synchronized void setRefreshSec(double min, double max) {
+    if (min <= 0.0 || max <= 0.0) {
+      throw new IllegalArgumentException("Min and Max refresh seconds must be > 0");
     }
-  }
-
-  /**
-   * Live setting: set the maximum refresh time (seconds), which is the amount of time before we
-   * reopen the searcher proactively (when no search client is waiting for a specific index
-   * generation).
-   */
-  public synchronized void setMaxRefreshSec(double max) {
+    if (max < min) {
+      throw new IllegalArgumentException("Max refresh seconds must be >= Min refresh seconds");
+    }
+    minRefreshSec = min;
     maxRefreshSec = max;
+    saveState.getLiveSettings().addProperty("minRefreshSec", min);
     saveState.getLiveSettings().addProperty("maxRefreshSec", max);
     for (ShardState shardState : shards.values()) {
       shardState.restartReopenThread();

@@ -36,15 +36,15 @@ public class LiveSettingsCommand implements Callable<Integer> {
   @CommandLine.Option(
       names = {"--maxRefreshSec"},
       description =
-          "Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen). (default: ${DEFAULT-VALUE})",
-      defaultValue = "1.0")
+          "Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen), or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
   private double maxRefreshSec;
 
   @CommandLine.Option(
       names = {"--minRefreshSec"},
       description =
-          "Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen). (default: ${DEFAULT-VALUE})",
-      defaultValue = "0.5")
+          "Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen), or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
   private double minRefreshSec;
 
   @CommandLine.Option(
