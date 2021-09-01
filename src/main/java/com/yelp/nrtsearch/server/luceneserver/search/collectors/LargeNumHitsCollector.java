@@ -15,9 +15,10 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
-import com.yelp.nrtsearch.server.grpc.SearchRequest;
+import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.LargeNumHitsTopDocsCollectorManagerCreator;
+import java.util.List;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.LargeNumHitsTopDocsCollector;
@@ -29,8 +30,11 @@ public class LargeNumHitsCollector extends DocCollector {
 
   private final CollectorManager<LargeNumHitsTopDocsCollector, TopDocs> manager;
 
-  public LargeNumHitsCollector(SearchRequest searchRequest) {
-    super(searchRequest);
+  public LargeNumHitsCollector(
+      CollectorCreatorContext context,
+      List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
+          additionalCollectors) {
+    super(context, additionalCollectors);
     int topHits = getNumHitsToCollect();
     manager = LargeNumHitsTopDocsCollectorManagerCreator.createSharedManager(topHits);
   }

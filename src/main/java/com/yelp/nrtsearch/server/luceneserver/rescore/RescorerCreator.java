@@ -22,28 +22,28 @@ import com.yelp.nrtsearch.server.plugins.RescorerPlugin;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.lucene.search.Rescorer;
 
 /**
- * Class to handle the creation of {@link Rescorer} instances. Type strings are mapped to {@link
- * RescorerProvider}s to produce concrete {@link Rescorer}s.
+ * Class to handle the creation of {@link RescoreOperation} instances. Type strings are mapped to
+ * {@link RescorerProvider}s to produce concrete {@link RescoreOperation}s.
  */
 public class RescorerCreator {
 
   private static RescorerCreator instance;
 
-  private final Map<String, RescorerProvider<? extends Rescorer>> rescorersMap = new HashMap<>();
+  private final Map<String, RescorerProvider<? extends RescoreOperation>> rescorersMap =
+      new HashMap<>();
 
   public RescorerCreator(LuceneServerConfiguration configuration) {}
 
   /**
-   * Get a {@link Rescorer} implementation by name, and with the given parameters. Valid names are
-   * any custom type registered by a {@link RescorerPlugin}.
+   * Get a {@link RescoreOperation} implementation by name, and with the given parameters. Valid
+   * names are any custom type registered by a {@link RescorerPlugin}.
    *
    * @param grpcPluginRescorer grpc message with plugin name and params map
    * @return rescorer instance
    */
-  public Rescorer createRescorer(PluginRescorer grpcPluginRescorer) {
+  public RescoreOperation createRescorer(PluginRescorer grpcPluginRescorer) {
     RescorerProvider<?> provider = rescorersMap.get(grpcPluginRescorer.getName());
     if (provider == null) {
       throw new IllegalArgumentException(
@@ -55,11 +55,11 @@ public class RescorerCreator {
     return provider.get(StructValueTransformer.transformStruct(grpcPluginRescorer.getParams()));
   }
 
-  private void register(Map<String, RescorerProvider<? extends Rescorer>> rescorers) {
+  private void register(Map<String, RescorerProvider<? extends RescoreOperation>> rescorers) {
     rescorers.forEach(this::register);
   }
 
-  private void register(String name, RescorerProvider<? extends Rescorer> rescorer) {
+  private void register(String name, RescorerProvider<? extends RescoreOperation> rescorer) {
     if (rescorersMap.containsKey(name)) {
       throw new IllegalArgumentException("Rescorer " + name + " already exists");
     }
@@ -68,7 +68,7 @@ public class RescorerCreator {
 
   /**
    * Initialize singleton instance of {@link RescorerCreator}. Registers any additional {@link
-   * Rescorer} implementations provided by {@link RescorerPlugin}s.
+   * RescoreOperation} implementations provided by {@link RescorerPlugin}s.
    *
    * @param configuration service configuration
    * @param plugins list of loaded plugins

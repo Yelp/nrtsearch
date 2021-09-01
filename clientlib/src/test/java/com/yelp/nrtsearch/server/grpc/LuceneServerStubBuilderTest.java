@@ -15,9 +15,21 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.grpc.ManagedChannelBuilder;
+import java.util.function.Consumer;
 import org.junit.Test;
+import org.mockito.stubbing.Answer;
 
 public class LuceneServerStubBuilderTest {
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   public static final String HOST = "host";
   public static final int PORT = 9999;
 
@@ -55,5 +67,32 @@ public class LuceneServerStubBuilderTest {
         .getChannel()
         .authority()
         .equals(String.format("%s:%d", HOST, PORT));
+  }
+
+  @Test
+  public void testAppliesChannelConfig() {
+    verifyAppliesChannelConfig(
+        (channelConfig -> new LuceneServerStubBuilder(HOST, PORT, OBJECT_MAPPER, channelConfig)));
+    verifyAppliesChannelConfig(
+        (channelConfig -> new LuceneServerStubBuilder("node_file", OBJECT_MAPPER, channelConfig)));
+    verifyAppliesChannelConfig(
+        (channelConfig ->
+            new LuceneServerStubBuilder("node_file", OBJECT_MAPPER, 10, channelConfig)));
+  }
+
+  private void verifyAppliesChannelConfig(Consumer<ChannelConfig> createStubBuilder) {
+    ChannelConfig mockConfig = mock(ChannelConfig.class);
+    when(mockConfig.configureChannelBuilder(
+            any(ManagedChannelBuilder.class), any(ObjectMapper.class)))
+        .thenAnswer(
+            (Answer<ManagedChannelBuilder<?>>)
+                invocation -> {
+                  Object[] args = invocation.getArguments();
+                  return (ManagedChannelBuilder<?>) args[0];
+                });
+    createStubBuilder.accept(mockConfig);
+    verify(mockConfig, times(1))
+        .configureChannelBuilder(any(ManagedChannelBuilder.class), any(ObjectMapper.class));
+    verifyNoMoreInteractions(mockConfig);
   }
 }

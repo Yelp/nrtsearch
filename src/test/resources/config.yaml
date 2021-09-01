@@ -8,3 +8,6 @@ threadPoolConfiguration:
   maxSearchingThreads: 16
   maxIndexingThreads: 4
   maxSearchBufferedItems: 100
+  maxFetchThreads: 8
+  minParallelFetchNumFields: 1
+  minParallelFetchNumHits: 1

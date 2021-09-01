@@ -31,18 +31,17 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.TopDocs;
 import org.junit.Test;
 
 public class SearchCutoffWrapperTest {
   private static final String EXPECTED_TIMEOUT_MESSAGE =
       "Search collection exceeded timeout of 5.0s";
 
-  private static class TimeSettableWrapper extends SearchCutoffWrapper<Collector, TopDocs> {
+  private static class TimeSettableWrapper extends SearchCutoffWrapper<Collector> {
     long currentTime = 0;
 
     public TimeSettableWrapper(
-        CollectorManager<Collector, TopDocs> in,
+        CollectorManager<Collector, SearcherResult> in,
         double timeoutSec,
         boolean noPartialResults,
         Runnable onTimeout) {
@@ -55,7 +54,7 @@ public class SearchCutoffWrapperTest {
     }
   }
 
-  private static class TestCollectorManager implements CollectorManager<Collector, TopDocs> {
+  private static class TestCollectorManager implements CollectorManager<Collector, SearcherResult> {
 
     @Override
     public Collector newCollector() throws IOException {
@@ -63,7 +62,7 @@ public class SearchCutoffWrapperTest {
     }
 
     @Override
-    public TopDocs reduce(Collection<Collector> collectors) throws IOException {
+    public SearcherResult reduce(Collection<Collector> collectors) throws IOException {
       return null;
     }
 
@@ -187,8 +186,7 @@ public class SearchCutoffWrapperTest {
     TestCollectorManager manager = new TestCollectorManager();
     TimeSettableWrapper wrapper =
         new TimeSettableWrapper(manager, 5, false, () -> hadTimeout[0] = true);
-    List<SearchCutoffWrapper<Collector, TopDocs>.TimeoutCollectorWrapper> collectors =
-        new ArrayList<>();
+    List<SearchCutoffWrapper<Collector>.TimeoutCollectorWrapper> collectors = new ArrayList<>();
     wrapper.currentTime = 10000;
     for (int i = 0; i < 5; ++i) {
       collectors.add(wrapper.newCollector());

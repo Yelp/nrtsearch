@@ -24,8 +24,8 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.TopDocs;
 
 /**
  * {@link CollectorManager} that wraps another manager to provide support for cutting short a search
@@ -37,14 +37,14 @@ import org.apache.lucene.search.TopDocs;
  * on the first call to {@link #newCollector()}.
  *
  * @param <C> collector type of wrapped manager
- * @param <T> top docs type of wrapped manager
  */
-public class SearchCutoffWrapper<C extends Collector, T extends TopDocs>
-    implements CollectorManager<SearchCutoffWrapper<C, T>.TimeoutCollectorWrapper, T> {
+public class SearchCutoffWrapper<C extends Collector>
+    implements CollectorManager<SearchCutoffWrapper<C>.TimeoutCollectorWrapper, SearcherResult> {
 
-  private final CollectorManager<C, T> in;
+  private final CollectorManager<C, SearcherResult> in;
   private final boolean noPartialResults;
   private final double timeoutSec;
+  private final int checkEvery;
   private final Runnable onTimeout;
   private long maxTime = -1;
 
@@ -57,16 +57,49 @@ public class SearchCutoffWrapper<C extends Collector, T extends TopDocs>
    * @param onTimeout an action to do if there was a timeout (done in reduce call)
    */
   public SearchCutoffWrapper(
-      CollectorManager<C, T> in, double timeoutSec, boolean noPartialResults, Runnable onTimeout) {
+      CollectorManager<C, SearcherResult> in,
+      double timeoutSec,
+      boolean noPartialResults,
+      Runnable onTimeout) {
+    this(in, timeoutSec, 0, noPartialResults, onTimeout);
+  }
+
+  /**
+   * Constructor
+   *
+   * @param in manager to wrap
+   * @param timeoutSec timeout for collecting
+   * @param checkEvery check timeout condition after each collection of this many document in a
+   *     segment, 0 to only check on the segment boundary
+   * @param noPartialResults if a cutoff should be an exception, instead of using partial results
+   * @param onTimeout an action to do if there was a timeout (done in reduce call)
+   */
+  public SearchCutoffWrapper(
+      CollectorManager<C, SearcherResult> in,
+      double timeoutSec,
+      int checkEvery,
+      boolean noPartialResults,
+      Runnable onTimeout) {
     this.in = in;
     this.noPartialResults = noPartialResults;
     this.timeoutSec = timeoutSec;
+    this.checkEvery = checkEvery;
     this.onTimeout = onTimeout;
   }
 
   // make this overridable for testing
   protected long getTimeMs() {
     return System.currentTimeMillis();
+  }
+
+  /** Get timeout for search phase. */
+  public double getTimeoutSec() {
+    return timeoutSec;
+  }
+
+  /** Check timeout every time this many docs are collected, or 0 for only at segment boundaries. */
+  public int getCheckEvery() {
+    return checkEvery;
   }
 
   @Override
@@ -79,8 +112,8 @@ public class SearchCutoffWrapper<C extends Collector, T extends TopDocs>
   }
 
   @Override
-  public T reduce(Collection<SearchCutoffWrapper<C, T>.TimeoutCollectorWrapper> collectors)
-      throws IOException {
+  public SearcherResult reduce(
+      Collection<SearchCutoffWrapper<C>.TimeoutCollectorWrapper> collectors) throws IOException {
     List<C> innerCollectors = new ArrayList<>(collectors.size());
     boolean hadTimeout = false;
     for (TimeoutCollectorWrapper collector : collectors) {
@@ -93,6 +126,11 @@ public class SearchCutoffWrapper<C extends Collector, T extends TopDocs>
       onTimeout.run();
     }
     return in.reduce(innerCollectors);
+  }
+
+  /** Get the collector manager being wrapped. */
+  public CollectorManager<C, SearcherResult> getWrapped() {
+    return in;
   }
 
   /**
@@ -110,6 +148,20 @@ public class SearchCutoffWrapper<C extends Collector, T extends TopDocs>
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+      checkTimeout();
+      if (checkEvery > 0) {
+        return new TimeoutLeafCollectorWrapper(collector.getLeafCollector(context));
+      } else {
+        return collector.getLeafCollector(context);
+      }
+    }
+
+    @Override
+    public ScoreMode scoreMode() {
+      return collector.scoreMode();
+    }
+
+    private void checkTimeout() {
       if (getTimeMs() > maxTime) {
         hadTimeout = true;
         if (noPartialResults) {
@@ -119,12 +171,35 @@ public class SearchCutoffWrapper<C extends Collector, T extends TopDocs>
           throw new CollectionTerminatedException();
         }
       }
-      return collector.getLeafCollector(context);
     }
 
-    @Override
-    public ScoreMode scoreMode() {
-      return collector.scoreMode();
+    /**
+     * {@link LeafCollector} implementation that wraps another leaf collector and checks if the
+     * operations has timed out during document collection. The timeout condition is checked every
+     * time the configured number of documents are collected.
+     */
+    class TimeoutLeafCollectorWrapper implements LeafCollector {
+      private final LeafCollector leafCollector;
+      private int collectionCount = 0;
+
+      public TimeoutLeafCollectorWrapper(LeafCollector leafCollector) {
+        this.leafCollector = leafCollector;
+      }
+
+      @Override
+      public void setScorer(Scorable scorer) throws IOException {
+        leafCollector.setScorer(scorer);
+      }
+
+      @Override
+      public void collect(int doc) throws IOException {
+        if (collectionCount == checkEvery) {
+          collectionCount = 0;
+          checkTimeout();
+        }
+        leafCollector.collect(doc);
+        collectionCount++;
+      }
     }
   }
 

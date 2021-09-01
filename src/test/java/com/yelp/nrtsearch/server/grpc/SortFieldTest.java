@@ -638,6 +638,7 @@ public class SortFieldTest extends ServerTestCase {
                 .addRetrieveFields("float_field")
                 .addRetrieveFields("double_field")
                 .addRetrieveFields("index_virtual_field")
+                .addRetrieveFields("query_virtual_field")
                 .setQuery(Query.newBuilder().build())
                 .setQuerySort(querySortField)
                 .addVirtualFields(
@@ -704,6 +705,7 @@ public class SortFieldTest extends ServerTestCase {
                 .addRetrieveFields("float_field")
                 .addRetrieveFields("double_field")
                 .addRetrieveFields("index_virtual_field")
+                .addRetrieveFields("query_virtual_field")
                 .setQuery(
                     Query.newBuilder()
                         .setFunctionScoreQuery(

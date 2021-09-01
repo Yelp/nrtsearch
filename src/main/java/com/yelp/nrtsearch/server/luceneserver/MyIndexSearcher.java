@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.PriorityQueue;
 import java.util.concurrent.Executor;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -50,6 +51,7 @@ public class MyIndexSearcher extends IndexSearcher {
     final Executor wrapped;
     final int sliceMaxDocs;
     final int sliceMaxSegments;
+    final int virtualShards;
 
     /**
      * Constructor.
@@ -57,13 +59,16 @@ public class MyIndexSearcher extends IndexSearcher {
      * @param wrapped executor to perform parallel search operations
      * @param sliceMaxDocs max docs per index slice
      * @param sliceMaxSegments max segments per index slice
+     * @param virtualShards number for virtual shards for index
      * @throws NullPointerException if wrapped is null
      */
-    public ExecutorWithParams(Executor wrapped, int sliceMaxDocs, int sliceMaxSegments) {
+    public ExecutorWithParams(
+        Executor wrapped, int sliceMaxDocs, int sliceMaxSegments, int virtualShards) {
       Objects.requireNonNull(wrapped);
       this.wrapped = wrapped;
       this.sliceMaxDocs = sliceMaxDocs;
       this.sliceMaxSegments = sliceMaxSegments;
+      this.virtualShards = virtualShards;
     }
 
     @Override
@@ -88,7 +93,84 @@ public class MyIndexSearcher extends IndexSearcher {
       throw new IllegalArgumentException("Executor must be an ExecutorWithParams");
     }
     ExecutorWithParams executorWithParams = (ExecutorWithParams) getExecutor();
-    return slices(leaves, executorWithParams.sliceMaxDocs, executorWithParams.sliceMaxSegments);
+    if (executorWithParams.virtualShards > 1) {
+      return slicesForShards(
+          leaves,
+          executorWithParams.virtualShards,
+          executorWithParams.sliceMaxDocs,
+          executorWithParams.sliceMaxSegments);
+    } else {
+      return slices(leaves, executorWithParams.sliceMaxDocs, executorWithParams.sliceMaxSegments);
+    }
+  }
+
+  /** Class to hold the segments in a virtual shard and the total live doc count. */
+  private static class VirtualShardLeaves {
+    List<LeafReaderContext> leaves = new ArrayList<>();
+    long numDocs = 0;
+
+    void add(LeafReaderContext leaf) {
+      leaves.add(leaf);
+      numDocs += leaf.reader().numDocs();
+    }
+  }
+
+  /** Class to hold an index slice and the total slice live doc count. */
+  private static class SliceAndSize {
+    LeafSlice slice;
+    long numDocs = 0;
+
+    SliceAndSize(LeafSlice slice) {
+      this.slice = slice;
+      for (int i = 0; i < slice.leaves.length; ++i) {
+        numDocs += slice.leaves[i].reader().numDocs();
+      }
+    }
+  }
+
+  private static LeafSlice[] slicesForShards(
+      List<LeafReaderContext> leaves, int virtualShards, int sliceMaxDocs, int sliceMaxSegments) {
+    if (leaves.isEmpty()) {
+      return new LeafSlice[0];
+    }
+    // Make a copy so we can sort:
+    List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
+    // Sort by number of live documents, descending:
+    sortedLeaves.sort(Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().numDocs())));
+
+    // Create container for each virtual shard, add them to a min heap by number of live documents
+    PriorityQueue<VirtualShardLeaves> shardQueue =
+        new PriorityQueue<>(sortedLeaves.size(), Comparator.comparingLong(sl -> sl.numDocs));
+    for (int i = 0; i < virtualShards; ++i) {
+      shardQueue.add(new VirtualShardLeaves());
+    }
+
+    // Add each segment in sequence to the virtual shard with the least live documents
+    for (LeafReaderContext leaf : sortedLeaves) {
+      VirtualShardLeaves shardLeaves = shardQueue.poll();
+      shardLeaves.add(leaf);
+      shardQueue.add(shardLeaves);
+    }
+
+    // compute the parallel search slices for each shard independently and combine them
+    PriorityQueue<SliceAndSize> sortedSlices =
+        new PriorityQueue<>(Collections.reverseOrder(Comparator.comparingLong(ss -> ss.numDocs)));
+    while (!shardQueue.isEmpty()) {
+      VirtualShardLeaves shardLeaves = shardQueue.poll();
+      if (!shardLeaves.leaves.isEmpty()) {
+        LeafSlice[] shardSlices = slices(shardLeaves.leaves, sliceMaxDocs, sliceMaxSegments);
+        for (LeafSlice leafSlice : shardSlices) {
+          sortedSlices.add(new SliceAndSize(leafSlice));
+        }
+      }
+    }
+
+    // order slices largest to smallest
+    LeafSlice[] slices = new LeafSlice[sortedSlices.size()];
+    for (int i = 0; i < slices.length; ++i) {
+      slices[i] = sortedSlices.poll().slice;
+    }
+    return slices;
   }
 
   /* Better Segment To Thread Mapping Algorithm: https://issues.apache.org/jira/browse/LUCENE-8757

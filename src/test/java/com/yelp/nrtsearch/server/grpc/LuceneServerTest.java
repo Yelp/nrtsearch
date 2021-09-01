@@ -18,16 +18,28 @@ package com.yelp.nrtsearch.server.grpc;
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.*;
 
+import com.amazonaws.auth.AnonymousAWSCredentials;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
 import com.google.api.HttpBody;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.utils.Archiver;
+import com.yelp.nrtsearch.server.utils.ArchiverImpl;
+import com.yelp.nrtsearch.server.utils.TarImpl;
+import io.findify.s3mock.S3Mock;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -86,11 +98,18 @@ public class LuceneServerTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   private GrpcServer grpcServer;
+  private GrpcServer replicaGrpcServer;
   private CollectorRegistry collectorRegistry;
+  private Archiver archiver;
+  private AmazonS3 s3;
+  private S3Mock api;
+  private final String TEST_SERVICE_NAME = "TEST_SERVICE_NAME";
 
   @After
   public void tearDown() throws IOException {
     tearDownGrpcServer();
+    tearDownReplicaGrpcServer();
+    teardownArchiver();
   }
 
   private void tearDownGrpcServer() throws IOException {
@@ -99,10 +118,63 @@ public class LuceneServerTest {
     rmDir(Paths.get(grpcServer.getIndexDir()).getParent());
   }
 
+  private void tearDownReplicaGrpcServer() throws IOException {
+    replicaGrpcServer.getGlobalState().close();
+    replicaGrpcServer.shutdown();
+    rmDir(Paths.get(replicaGrpcServer.getIndexDir()).getParent());
+  }
+
+  public void teardownArchiver() {
+    s3.shutdown();
+    api.shutdown();
+  }
+
   @Before
   public void setUp() throws IOException {
     collectorRegistry = new CollectorRegistry();
+    archiver = setUpArchiver();
     grpcServer = setUpGrpcServer(collectorRegistry);
+    replicaGrpcServer = setUpReplicaGrpcServer(collectorRegistry);
+    setUpWarmer();
+  }
+
+  private Archiver setUpArchiver() throws IOException {
+    Path s3Directory = folder.newFolder("s3").toPath();
+    Path archiverDirectory = folder.newFolder("archiver").toPath();
+
+    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
+    api.start();
+    s3 = new AmazonS3Client(new AnonymousAWSCredentials());
+    s3.setEndpoint("http://127.0.0.1:8011");
+    String bucketName = "warmer-unittest";
+    s3.createBucket(bucketName);
+
+    return new ArchiverImpl(
+        s3, bucketName, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4));
+  }
+
+  private void setUpWarmer() throws IOException {
+    Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
+    try (BufferedWriter writer =
+        Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
+      List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
+      for (String line : testSearchRequestsJson) {
+        writer.write(line);
+        writer.newLine();
+      }
+      writer.flush();
+    }
+    String resourceName = "test_index_warming_queries";
+    String versionHash =
+        archiver.upload(
+            TEST_SERVICE_NAME, resourceName, warmingQueriesDir, List.of(), List.of(), false);
+    archiver.blessVersion(TEST_SERVICE_NAME, resourceName, versionHash);
+  }
+
+  private List<String> getTestSearchRequestsAsJsonStrings() {
+    return List.of(
+        "{\"indexName\":\"test_index\",\"query\":{\"termQuery\":{\"field\":\"field0\"}}}",
+        "{\"indexName\":\"test_index\",\"query\":{\"termQuery\":{\"field\":\"field1\"}}}");
   }
 
   private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
@@ -122,6 +194,35 @@ public class LuceneServerTest {
         globalState.getPort(),
         null,
         Collections.emptyList());
+  }
+
+  private GrpcServer setUpReplicaGrpcServer(CollectorRegistry collectorRegistry)
+      throws IOException {
+    String testIndex = "test_index";
+    LuceneServerConfiguration luceneServerReplicaConfiguration =
+        LuceneServerTestConfigurationFactory.getConfig(
+            Mode.REPLICA, folder.getRoot(), getExtraConfig());
+    GlobalState globalStateSecondary = new GlobalState(luceneServerReplicaConfiguration);
+
+    return new GrpcServer(
+        grpcCleanup,
+        luceneServerReplicaConfiguration,
+        folder,
+        false,
+        globalStateSecondary,
+        luceneServerReplicaConfiguration.getIndexDir(),
+        testIndex,
+        globalStateSecondary.getPort(),
+        archiver);
+  }
+
+  private String getExtraConfig() {
+    return String.join(
+        "\n",
+        "warmer:",
+        "  maxWarmingQueries: 10",
+        "  warmOnStartup: true",
+        "  warmingParallelism: 1");
   }
 
   @Test
@@ -490,6 +591,7 @@ public class LuceneServerTest {
     addDocumentRequestBuilder.putFields("doc_id", multiValuedFieldsBuilder.addValue("1").build());
     AddDocumentResponse addDocumentResponse =
         grpcServer.getBlockingStub().delete(addDocumentRequestBuilder.build());
+    assertFalse(addDocumentResponse.getPrimaryId().isEmpty());
 
     // manual refresh needed to depict changes in buffered deletes (i.e. not committed yet)
     grpcServer
@@ -541,6 +643,7 @@ public class LuceneServerTest {
         DeleteByQueryRequest.newBuilder().setIndexName("test_index").addQuery(query).build();
     AddDocumentResponse addDocumentResponse =
         grpcServer.getBlockingStub().deleteByQuery(deleteByQueryRequest);
+    assertFalse(addDocumentResponse.getPrimaryId().isEmpty());
 
     // manual refresh needed to depict changes in buffered deletes (i.e. not committed yet)
     grpcServer
@@ -604,13 +707,88 @@ public class LuceneServerTest {
     assertEquals(2, statsResponse.getNumDocs());
     assertEquals(2, statsResponse.getMaxDoc());
 
+    String indexName = "test_index";
     // deleteIndex
     DeleteIndexRequest deleteIndexRequest =
-        DeleteIndexRequest.newBuilder().setIndexName("test_index").build();
+        DeleteIndexRequest.newBuilder().setIndexName(indexName).build();
     DeleteIndexResponse deleteIndexResponse =
         grpcServer.getBlockingStub().deleteIndex(deleteIndexRequest);
 
+    Path indexRootDir = Paths.get(grpcServer.getIndexDir(), indexName);
+    assertEquals(false, Files.exists(indexRootDir));
+
     assertEquals("ok", deleteIndexResponse.getOk());
+  }
+
+  /**
+   * This test creates the index, deletes the same index and then creates the same index again. This
+   * verifies whether the global state is correctly updated, flushed to disk and the previous global
+   * states are deleted.
+   */
+  @Test
+  public void testReCreateDeletedIndex() throws IOException {
+    String indexName = "test_idx_1";
+    LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
+
+    GlobalState globalState = grpcServer.getGlobalState();
+    // verify that globalState has no content
+    assertEquals(0, Files.list(globalState.getStateDir()).count());
+
+    CreateIndexRequest createIndexRequest =
+        CreateIndexRequest.newBuilder().setIndexName(indexName).build();
+    CreateIndexResponse createIndexResponse = blockingStub.createIndex(createIndexRequest);
+    assertEquals(
+        String.format("Created Index name: %s", indexName, grpcServer.getIndexDir()),
+        createIndexResponse.getResponse());
+
+    // verify that only indices.0 exists and has the same content on disk as in-memory
+    assertEquals(1, Files.list(globalState.getStateDir()).count());
+    assertEquals(
+        "indices.0",
+        Files.list(globalState.getStateDir()).findAny().get().getFileName().toString());
+
+    Path primaryStateIndexPath = globalState.getStateDir().resolve("indices.0");
+    JsonObject persistedIndexNames =
+        JsonParser.parseString(Files.readString(primaryStateIndexPath)).getAsJsonObject();
+
+    assertEquals(globalState.getIndexNames(), persistedIndexNames.keySet());
+
+    // delete the index
+    DeleteIndexRequest deleteIndexRequest =
+        DeleteIndexRequest.newBuilder().setIndexName(indexName).build();
+    DeleteIndexResponse deleteIndexResponse =
+        grpcServer.getBlockingStub().deleteIndex(deleteIndexRequest);
+
+    // verify that globalState indices.1 exists only and has the required empty content
+    assertEquals(1, Files.list(globalState.getStateDir()).count());
+    assertEquals(
+        "indices.1",
+        Files.list(globalState.getStateDir()).findAny().get().getFileName().toString());
+
+    primaryStateIndexPath = globalState.getStateDir().resolve("indices.1");
+    persistedIndexNames =
+        JsonParser.parseString(Files.readString(primaryStateIndexPath)).getAsJsonObject();
+
+    assertEquals(globalState.getIndexNames(), persistedIndexNames.keySet());
+
+    // create the index
+    createIndexRequest = CreateIndexRequest.newBuilder().setIndexName(indexName).build();
+    createIndexResponse = blockingStub.createIndex(createIndexRequest);
+    assertEquals(
+        String.format("Created Index name: %s", indexName, grpcServer.getIndexDir()),
+        createIndexResponse.getResponse());
+
+    // verify that globalState indices.2 exists only and has the required content
+    assertEquals(1, Files.list(globalState.getStateDir()).count());
+    assertEquals(
+        "indices.2",
+        Files.list(globalState.getStateDir()).findAny().get().getFileName().toString());
+
+    primaryStateIndexPath = globalState.getStateDir().resolve("indices.2");
+    persistedIndexNames =
+        JsonParser.parseString(Files.readString(primaryStateIndexPath)).getAsJsonObject();
+
+    assertEquals(globalState.getIndexNames(), persistedIndexNames.keySet());
   }
 
   @Test
@@ -722,6 +900,7 @@ public class LuceneServerTest {
         .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
 
     List<String> queryFields = new ArrayList<>(RETRIEVED_VALUES);
+    queryFields.addAll(QUERY_VIRTUAL_FIELDS);
 
     SearchResponse searchResponse =
         grpcServer
@@ -758,6 +937,7 @@ public class LuceneServerTest {
 
     List<String> queryFields = new ArrayList<>(RETRIEVED_VALUES);
     queryFields.addAll(INDEX_VIRTUAL_FIELDS);
+    queryFields.addAll(QUERY_VIRTUAL_FIELDS);
 
     SearchResponse searchResponse =
         grpcServer
@@ -778,6 +958,59 @@ public class LuceneServerTest {
     checkHitsVirtual(firstHit, true, true);
     SearchResponse.Hit secondHit = searchResponse.getHits(1);
     checkHitsVirtual(secondHit, true, true);
+  }
+
+  @Test
+  public void testBackupWarmingQueries() throws IOException, InterruptedException {
+    GrpcServer.TestServer testServerReplica =
+        new GrpcServer.TestServer(replicaGrpcServer, true, Mode.REPLICA);
+    replicaGrpcServer
+        .getGlobalState()
+        .getIndex(replicaGrpcServer.getTestIndex())
+        .initWarmer(archiver);
+    assertNotNull(
+        replicaGrpcServer.getGlobalState().getIndex(replicaGrpcServer.getTestIndex()).getWarmer());
+    // Average case should pass
+    replicaGrpcServer
+        .getBlockingStub()
+        .backupWarmingQueries(
+            BackupWarmingQueriesRequest.newBuilder()
+                .setIndex(replicaGrpcServer.getTestIndex())
+                .setServiceName(TEST_SERVICE_NAME)
+                .build());
+    // Should fail; does not meet UptimeMinutesThreshold
+    try {
+      replicaGrpcServer
+          .getBlockingStub()
+          .backupWarmingQueries(
+              BackupWarmingQueriesRequest.newBuilder()
+                  .setIndex(replicaGrpcServer.getTestIndex())
+                  .setServiceName(TEST_SERVICE_NAME)
+                  .setUptimeMinutesThreshold(1000)
+                  .build());
+      fail("Expecting exception on the previous line");
+    } catch (StatusRuntimeException e) {
+      assertEquals(
+          "UNKNOWN: Unable to backup warming queries since uptime is 0 minutes, which is less than threshold 1000",
+          e.getMessage());
+    }
+
+    // Should fail; does not meet NumQueriesThreshold
+    try {
+      replicaGrpcServer
+          .getBlockingStub()
+          .backupWarmingQueries(
+              BackupWarmingQueriesRequest.newBuilder()
+                  .setIndex(replicaGrpcServer.getTestIndex())
+                  .setServiceName(TEST_SERVICE_NAME)
+                  .setNumQueriesThreshold(1000)
+                  .build());
+      fail("Expecting exception on the previous line");
+    } catch (StatusRuntimeException e) {
+      assertEquals(
+          "UNKNOWN: Unable to backup warming queries since warmer has 0 requests, which is less than threshold 1000",
+          e.getMessage());
+    }
   }
 
   @Test
@@ -929,6 +1162,25 @@ public class LuceneServerTest {
 
     assertThat(
         getAllSnapshotGenResponse.getIndexGensList(), IsCollectionContaining.hasItems(1L, 2L));
+  }
+
+  @Test
+  public void testAddDocsHasPrimaryId() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.PRIMARY);
+    // 2 docs addDocuments
+    AddDocumentResponse response = testAddDocs.addDocuments();
+    assertFalse(response.getPrimaryId().isEmpty());
+  }
+
+  @Test
+  public void testCommitHasPrimaryId() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs = new GrpcServer.TestServer(grpcServer, true, Mode.PRIMARY);
+    // 2 docs addDocuments
+    testAddDocs.addDocuments();
+    CommitRequest commitRequest =
+        CommitRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
+    CommitResponse response = grpcServer.getBlockingStub().commit(commitRequest);
+    assertFalse(response.getPrimaryId().isEmpty());
   }
 
   @Test

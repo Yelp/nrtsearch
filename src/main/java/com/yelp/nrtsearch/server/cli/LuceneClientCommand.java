@@ -28,6 +28,7 @@ import picocli.CommandLine;
     subcommands = {
       AddDocumentsCommand.class,
       BackupIndexCommand.class,
+      BackupWarmingQueriesCommand.class,
       CommitCommand.class,
       CreateIndexCommand.class,
       GetCurrentSearcherVersion.class,

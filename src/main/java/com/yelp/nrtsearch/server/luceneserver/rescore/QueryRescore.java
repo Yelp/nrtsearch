@@ -15,18 +15,20 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.rescore;
 
+import java.io.IOException;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryRescorer;
+import org.apache.lucene.search.TopDocs;
 
 /**
  * A implementation of {@link QueryRescorer} that uses a provided Query to assign scores to the
  * first-pass hits. The final score is defined by the combine function and is calculated as follows:
  * <i>final_score = queryWeight * firstPassScore + rescoreQueryWeight * secondPassScore</i>
  */
-public final class QueryRescore extends QueryRescorer {
+public final class QueryRescore extends QueryRescorer implements RescoreOperation {
 
-  private double queryWeight;
-  private double rescoreQueryWeight;
+  private final double queryWeight;
+  private final double rescoreQueryWeight;
 
   private QueryRescore(Builder builder) {
     super(builder.query);
@@ -44,6 +46,14 @@ public final class QueryRescore extends QueryRescorer {
 
   public static Builder newBuilder() {
     return new Builder();
+  }
+
+  @Override
+  public TopDocs rescore(TopDocs hits, RescoreContext context) throws IOException {
+    return rescore(
+        context.getSearchContext().getSearcherAndTaxonomy().searcher,
+        hits,
+        context.getWindowSize());
   }
 
   public static class Builder {

@@ -101,6 +101,39 @@
         ]
       }
     },
+    "/v1/backup_warming_queries": {
+      "post": {
+        "summary": "Backup warming queries to S3",
+        "operationId": "LuceneServer_backupWarmingQueries",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverBackupWarmingQueriesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverBackupWarmingQueriesRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/commit": {
       "post": {
         "summary": "Commits all pending changes to durable storage",
@@ -1100,6 +1133,39 @@
           "LuceneServer"
         ]
       }
+    },
+    "/v2/search": {
+      "post": {
+        "summary": "Search V2",
+        "operationId": "LuceneServer_searchV2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/protobufAny"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverSearchRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
     }
   },
   "definitions": {
@@ -1132,6 +1198,18 @@
       ],
       "default": "SHOULD",
       "description": "Defines how clauses may occur in matching documents. This will always be SHOULD by default."
+    },
+    "BucketResultBucket": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
     },
     "HitCompositeFieldValue": {
       "type": "object",
@@ -1188,6 +1266,16 @@
       ],
       "default": "NONE"
     },
+    "ProfileResultAdditionalCollectorStats": {
+      "type": "object",
+      "properties": {
+        "collectTimeMs": {
+          "type": "number",
+          "format": "double",
+          "title": "Sum of all collection time"
+        }
+      }
+    },
     "ProfileResultCollectorStats": {
       "type": "object",
       "properties": {
@@ -1200,6 +1288,23 @@
           "items": {
             "$ref": "#/definitions/ProfileResultSegmentStats"
           }
+        },
+        "totalCollectedCount": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Total docs collected by this collector"
+        },
+        "totalCollectTimeMs": {
+          "type": "number",
+          "format": "double",
+          "title": "Sum of all segment collection time"
+        },
+        "additionalCollectorStats": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ProfileResultAdditionalCollectorStats"
+          },
+          "title": "Stats for additional collection operations"
         }
       }
     },
@@ -1327,7 +1432,8 @@
       "type": "object",
       "properties": {
         "parsedQuery": {
-          "type": "string"
+          "type": "string",
+          "title": "Query debug has been moved to ProfileResult"
         },
         "rewrittenQuery": {
           "type": "string"
@@ -1365,6 +1471,13 @@
         "rescoreTimeMs": {
           "type": "number",
           "format": "double"
+        },
+        "rescorersTimeMs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          }
         }
       }
     },
@@ -1529,6 +1642,10 @@
       "properties": {
         "genId": {
           "type": "string"
+        },
+        "primaryId": {
+          "type": "string",
+          "title": "Unique identifier for the primary instance that processed the request"
         }
       }
     },
@@ -1611,6 +1728,28 @@
         }
       }
     },
+    "luceneserverBackupWarmingQueriesRequest": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "string"
+        },
+        "serviceName": {
+          "type": "string"
+        },
+        "numQueriesThreshold": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "uptimeMinutesThreshold": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "luceneserverBackupWarmingQueriesResponse": {
+      "type": "object"
+    },
     "luceneserverBooleanClause": {
       "type": "object",
       "properties": {
@@ -1638,6 +1777,27 @@
         }
       },
       "description": "A query that matches documents using boolean combinations of other queries."
+    },
+    "luceneserverBucketResult": {
+      "type": "object",
+      "properties": {
+        "buckets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BucketResultBucket"
+          }
+        },
+        "totalBuckets": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of unique buckets, including those not in the buckets list."
+        },
+        "totalOtherCounts": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of other collected counts not represented in the buckets' counts."
+        }
+      }
     },
     "luceneserverBuildSuggestRequest": {
       "type": "object",
@@ -1689,6 +1849,25 @@
         }
       }
     },
+    "luceneserverCollector": {
+      "type": "object",
+      "properties": {
+        "terms": {
+          "$ref": "#/definitions/luceneserverTermsCollector",
+          "description": "Collector for aggregating based on term values."
+        }
+      },
+      "description": "Definition of additional document collector."
+    },
+    "luceneserverCollectorResult": {
+      "type": "object",
+      "properties": {
+        "bucketResult": {
+          "$ref": "#/definitions/luceneserverBucketResult",
+          "description": "Result of collector that produces buckets and counts."
+        }
+      }
+    },
     "luceneserverCommitRequest": {
       "type": "object",
       "properties": {
@@ -1704,6 +1883,10 @@
           "type": "string",
           "format": "int64",
           "description": "sequence number of the last operation in the commit.  All sequence numbers less than this value\nwill be reflected in the commit, and all others will not."
+        },
+        "primaryId": {
+          "type": "string",
+          "title": "Unique identifier for the primary instance that processed the request"
         }
       }
     },
@@ -2650,6 +2833,36 @@
           "type": "integer",
           "format": "int32",
           "description": "Maximum number of segments allowed in a parallel search slice."
+        },
+        "virtualShards": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of virtual shards to use for this index."
+        },
+        "maxMergedSegmentMB": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Maximum sized segment to produce during normal merging"
+        },
+        "segmentsPerTier": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Number of segments per tier used by TieredMergePolicy"
+        },
+        "defaultSearchTimeoutSec": {
+          "type": "number",
+          "format": "double",
+          "description": "Timeout value to used when not specified in the search request."
+        },
+        "defaultSearchTimeoutCheckEvery": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Timeout check every value to use when not specified in the search request."
+        },
+        "defaultTerminateAfter": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Terminate after value to use when not specified in the search request."
         }
       },
       "title": "Input to liveSettings"
@@ -2907,6 +3120,15 @@
       "properties": {
         "searchStats": {
           "$ref": "#/definitions/ProfileResultSearchStats"
+        },
+        "parsedQuery": {
+          "type": "string"
+        },
+        "rewrittenQuery": {
+          "type": "string"
+        },
+        "drillDownQuery": {
+          "type": "string"
         }
       },
       "title": "Defines detailed profiling stats for queries that set profile=true"
@@ -3053,6 +3275,15 @@
         "content": {
           "type": "string",
           "format": "byte"
+        },
+        "seqNum": {
+          "type": "integer",
+          "format": "int32",
+          "title": "sequence number for this chunk, only used for acked file copy"
+        },
+        "ack": {
+          "type": "boolean",
+          "title": "if this chunk should be acked, only used for acked file copy"
         }
       }
     },
@@ -3104,6 +3335,10 @@
         },
         "pluginRescorer": {
           "$ref": "#/definitions/luceneserverPluginRescorer"
+        },
+        "name": {
+          "type": "string",
+          "title": "Must be unique for each Rescorer"
         }
       },
       "title": "Defines a rescorer which is executed after the first search pass"
@@ -3116,6 +3351,9 @@
         },
         "resourceName": {
           "type": "string"
+        },
+        "deleteExistingData": {
+          "type": "boolean"
         }
       }
     },
@@ -3218,6 +3456,23 @@
         "profile": {
           "type": "boolean",
           "title": "If detailed request execution profiling should be included in the response"
+        },
+        "timeoutCheckEvery": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Check the search timeout condition after each collection of n documents in a segment. If 0, timeout is only checked on the segment boundary."
+        },
+        "collectors": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollector"
+          },
+          "description": "Additional document collectors. Provides support for operations such as aggregation."
+        },
+        "terminateAfter": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Stop document collection in search phase after this many documents, 0 for unlimited."
         }
       }
     },
@@ -3251,6 +3506,17 @@
         "profileResult": {
           "$ref": "#/definitions/luceneserverProfileResult",
           "title": "Detailed stats returned when profile=true in request"
+        },
+        "collectorResults": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollectorResult"
+          },
+          "title": "Results from any additional document collectors"
+        },
+        "terminatedEarly": {
+          "type": "boolean",
+          "title": "If this query hit the terminateAfter threshold specified in the request"
         }
       }
     },
@@ -3719,6 +3985,25 @@
       ],
       "default": "NO_TERMVECTORS",
       "description": "Whether/how term vectors should be indexed."
+    },
+    "luceneserverTermsCollector": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "title": "Placeholder: TODO implement"
+        },
+        "script": {
+          "$ref": "#/definitions/luceneserverScript",
+          "description": "Use FacetScript definition to produce terms."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of top terms to return."
+        }
+      },
+      "description": "Definition of term aggregating collector."
     },
     "luceneserverTotalHits": {
       "type": "object",

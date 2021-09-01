@@ -71,7 +71,11 @@ public class StatsRequestHandler implements Handler<StatsRequest, StatsResponse>
       String[] fNames = shardState.indexDir.listAll();
       long dirSize = 0;
       for (int i = 0; i < fNames.length; i++) {
-        dirSize += shardState.indexDir.fileLength(fNames[i]);
+        try {
+          dirSize += shardState.indexDir.fileLength(fNames[i]);
+        } catch (IOException ignored) {
+          // files may be deleted from merging, don't fail the request
+        }
       }
       statsResponseBuilder.setDirSize(dirSize);
       // TODO: snapshots
