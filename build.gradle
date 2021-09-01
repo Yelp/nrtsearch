@@ -6,6 +6,7 @@ plugins {
     id 'maven-publish'
     id 'signing'
     id "com.diffplug.gradle.spotless" version "4.3.0"
+    id 'java-library'
 }
 
 repositories {
@@ -105,7 +106,7 @@ dependencies {
     testImplementation "io.findify:s3mock_2.12:${s3mockVersion}"
     testImplementation "org.assertj:assertj-core:3.19.0"
 
-    compile project(':clientlib')
+    api project(':clientlib')
 }
 
 startScripts.enabled = false
