@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-import org.assertj.core.data.Percentage;
+import org.assertj.core.data.Offset;
 import org.junit.Test;
 
 public class ReservoirSamplerTest {
@@ -43,6 +43,6 @@ public class ReservoirSamplerTest {
       sampleResults.put(sampleResult.isSample(), sampleResult.getReplace());
     }
     assertThat(sampleResults.get(true)).containsOnly(0, 1);
-    assertThat(sampleResults.get(false).size()).isCloseTo(900, Percentage.withPercentage(10));
+    assertThat(sampleResults.get(false).size()).isCloseTo(900, Offset.offset(97));
   }
 }
