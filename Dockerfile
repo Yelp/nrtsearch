@@ -1,8 +1,7 @@
-FROM ubuntu:20.04
+FROM azul/zulu-openjdk-debian:14
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y wget unzip htop \
-    openjdk-14-jdk \
     golang-go \
     git
 
