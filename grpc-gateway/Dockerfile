@@ -36,6 +36,8 @@ ENV GRPC_GATEWAY_VERSION=1.15.2
 ENV PROTOC_GEN_GO_VERSION=1.5.1
 ENV GRPC_VERSION=1.38.0
 
+RUN go mod init github.com/Yelp/nrtsearch
+
 #install required go protoc plugins to build grpc-gateway server
 RUN go get \
     github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
