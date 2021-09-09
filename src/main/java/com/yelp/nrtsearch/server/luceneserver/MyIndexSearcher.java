@@ -75,6 +75,13 @@ public class MyIndexSearcher extends IndexSearcher {
     public void execute(Runnable command) {
       wrapped.execute(command);
     }
+
+    @Override
+    public String toString() {
+      return String.format(
+          "ExecutorWithParams(sliceMaxDocs=%d, sliceMaxSegments=%d, virtualShards=%d, wrapped=%s)",
+          sliceMaxDocs, sliceMaxSegments, virtualShards, wrapped);
+    }
   }
 
   /**
