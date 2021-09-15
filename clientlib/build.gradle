@@ -9,6 +9,7 @@ plugins {
     id 'maven-publish'
     id 'signing'
     id "com.diffplug.gradle.spotless"
+    id 'java-library'
 }
 
 repositories {
@@ -32,7 +33,7 @@ def protocVersion = protobufVersion
 
 dependencies {
     //grpc deps
-    compile "io.grpc:grpc-protobuf:${rootProject.grpcVersion}"
+    implementation "io.grpc:grpc-protobuf:${rootProject.grpcVersion}"
     implementation "io.grpc:grpc-stub:${rootProject.grpcVersion}"
     implementation "io.grpc:grpc-okhttp:${rootProject.grpcVersion}"
     implementation "javax.annotation:javax.annotation-api:1.2"
@@ -40,12 +41,14 @@ dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.9.8'
 
     // examples/advanced need this for JsonFormat
-    compile "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+    api "com.google.protobuf:protobuf-java-util:${protobufVersion}"
 
     runtimeOnly "io.grpc:grpc-netty-shaded:${rootProject.grpcVersion}"
 
     //test deps
-    compile "io.grpc:grpc-testing:${rootProject.grpcVersion}"
+    api "io.grpc:grpc-testing:${rootProject.grpcVersion}"
+
+    testImplementation "org.mockito:mockito-core:${rootProject.mockitoVersion}"
 }
 
 // Inform IDEs like IntelliJ IDEA, Eclipse or NetBeans about the generated code.
@@ -69,6 +72,11 @@ protobuf {
 }
 
 test {
+    testLogging {
+        events "failed"
+        exceptionFormat "full"
+        showStackTraces true
+    }
     finalizedBy 'spotlessJavaCheck'
 }
 

@@ -148,13 +148,7 @@ public class IndexState implements Closeable, Restorable {
   private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
   /** Holds pending save state, written to state.N file on commit. */
-  // nocommit move these to their own obj, make it sync'd,
-  // instead of syncing on IndexState instance:
-  final JsonObject settingsSaveState = new JsonObject();
-
-  final JsonObject liveSettingsSaveState = new JsonObject();
-  final JsonObject fieldsSaveState = new JsonObject();
-  final JsonObject suggestSaveState = new JsonObject();
+  private final SaveState saveState = new SaveState();
 
   private static final Pattern reSimpleName = Pattern.compile("^[a-zA-Z_][a-zA-Z_0-9]*$");
   private ThreadPoolExecutor searchThreadPoolExecutor;
@@ -215,7 +209,7 @@ public class IndexState implements Closeable, Restorable {
    *
    * @throws IOException
    */
-  private void deleteIndexRootDir() throws IOException {
+  public void deleteIndexRootDir() throws IOException {
     if (rootDir != null) {
       FileUtil.deleteAllFiles(rootDir);
     }
@@ -476,6 +470,15 @@ public class IndexState implements Closeable, Restorable {
 
   /** Segments per tier used by {@link TieredMergePolicy} */
   volatile int segmentsPerTier = 0;
+
+  /** Default search timeout, when not specified in the request */
+  volatile double defaultSearchTimeoutSec = 0;
+
+  /** Default search timeout check every, when not specified in the request */
+  volatile int defaultSearchTimeoutCheckEvery = 0;
+
+  /** Default terminate after, when not specified in the request */
+  volatile int defaultTerminateAfter = 0;
 
   /** True if this is a new index. */
   private final boolean doCreate;
@@ -741,13 +744,8 @@ public class IndexState implements Closeable, Restorable {
   }
 
   /** Get the current save state. */
-  public synchronized JsonObject getSaveState() throws IOException {
-    JsonObject o = new JsonObject();
-    o.add("settings", settingsSaveState);
-    o.add("liveSettings", liveSettingsSaveState);
-    o.add("fields", fieldsSaveState);
-    o.add("suggest", suggestSaveState);
-    return o;
+  public JsonObject getSaveState() throws IOException {
+    return saveState.getSaveState();
   }
 
   /**
@@ -823,25 +821,20 @@ public class IndexState implements Closeable, Restorable {
   }
 
   /**
-   * Live setting: set the mininum refresh time (seconds), which is the longest amount of time a
-   * client may wait for a searcher to reopen.
+   * Live setting: set the minimum and maximum refresh time (seconds), which is the longest amount
+   * of time a client may wait for a searcher to reopen.
    */
-  public synchronized void setMinRefreshSec(double min) {
-    minRefreshSec = min;
-    liveSettingsSaveState.addProperty("minRefreshSec", min);
-    for (ShardState shardState : shards.values()) {
-      shardState.restartReopenThread();
+  public synchronized void setRefreshSec(double min, double max) {
+    if (min <= 0.0 || max <= 0.0) {
+      throw new IllegalArgumentException("Min and Max refresh seconds must be > 0");
     }
-  }
-
-  /**
-   * Live setting: set the maximum refresh time (seconds), which is the amount of time before we
-   * reopen the searcher proactively (when no search client is waiting for a specific index
-   * generation).
-   */
-  public synchronized void setMaxRefreshSec(double max) {
+    if (max < min) {
+      throw new IllegalArgumentException("Max refresh seconds must be >= Min refresh seconds");
+    }
+    minRefreshSec = min;
     maxRefreshSec = max;
-    liveSettingsSaveState.addProperty("maxRefreshSec", max);
+    saveState.getLiveSettings().addProperty("minRefreshSec", min);
+    saveState.getLiveSettings().addProperty("maxRefreshSec", max);
     for (ShardState shardState : shards.values()) {
       shardState.restartReopenThread();
     }
@@ -850,7 +843,7 @@ public class IndexState implements Closeable, Restorable {
   /** Live setting: once a searcher becomes stale, we will close it after this many seconds. */
   public synchronized void setMaxSearcherAgeSec(double d) {
     maxSearcherAgeSec = d;
-    liveSettingsSaveState.addProperty("maxSearcherAgeSec", d);
+    saveState.getLiveSettings().addProperty("maxSearcherAgeSec", d);
   }
 
   /**
@@ -859,7 +852,7 @@ public class IndexState implements Closeable, Restorable {
    */
   public synchronized void setIndexRamBufferSizeMB(double d) {
     indexRamBufferSizeMB = d;
-    liveSettingsSaveState.addProperty("indexRamBufferSizeMB", d);
+    saveState.getLiveSettings().addProperty("indexRamBufferSizeMB", d);
 
     // nocommit sync: what if closeIndex is happening in
     // another thread:
@@ -876,7 +869,7 @@ public class IndexState implements Closeable, Restorable {
   /** Live setting: max number of documents to add at a time. */
   public synchronized void setAddDocumentsMaxBufferLen(int i) {
     addDocumentsMaxBufferLen = i;
-    liveSettingsSaveState.addProperty("addDocumentsMaxBufferLen", i);
+    saveState.getLiveSettings().addProperty("addDocumentsMaxBufferLen", i);
   }
 
   /** Live setting: max number of documents to add at a time. */
@@ -895,7 +888,7 @@ public class IndexState implements Closeable, Restorable {
       throw new IllegalArgumentException("Max slice docs must be greater than 0.");
     }
     sliceMaxDocs = docs;
-    liveSettingsSaveState.addProperty("sliceMaxDocs", docs);
+    saveState.getLiveSettings().addProperty("sliceMaxDocs", docs);
   }
 
   /** Get the maximum docs per parallel search slice. */
@@ -914,7 +907,7 @@ public class IndexState implements Closeable, Restorable {
       throw new IllegalArgumentException("Max slice segments must be greater than 0.");
     }
     sliceMaxSegments = segments;
-    liveSettingsSaveState.addProperty("sliceMaxSegments", segments);
+    saveState.getLiveSettings().addProperty("sliceMaxSegments", segments);
   }
 
   /** Get the maximum segments per parallel search slice. */
@@ -939,7 +932,7 @@ public class IndexState implements Closeable, Restorable {
     }
 
     virtualShards = shards;
-    liveSettingsSaveState.addProperty("virtualShards", shards);
+    saveState.getLiveSettings().addProperty("virtualShards", shards);
   }
 
   /**
@@ -959,7 +952,7 @@ public class IndexState implements Closeable, Restorable {
       throw new IllegalArgumentException("Max merged segment size must be greater than 0.");
     }
     this.maxMergedSegmentMB = maxMergedSegmentMB;
-    liveSettingsSaveState.addProperty("maxMergedSegmentMB", maxMergedSegmentMB);
+    saveState.getLiveSettings().addProperty("maxMergedSegmentMB", maxMergedSegmentMB);
   }
 
   /** Get maximum sized segment to produce during normal merging */
@@ -978,7 +971,7 @@ public class IndexState implements Closeable, Restorable {
       throw new IllegalArgumentException("Segments per tier must be >= 2.");
     }
     this.segmentsPerTier = segmentsPerTier;
-    liveSettingsSaveState.addProperty("segmentsPerTier", segmentsPerTier);
+    saveState.getLiveSettings().addProperty("segmentsPerTier", segmentsPerTier);
   }
 
   /** Get the number of segments per tier used by merge policy, or 0 if using policy default. */
@@ -986,9 +979,68 @@ public class IndexState implements Closeable, Restorable {
     return segmentsPerTier;
   }
 
+  /**
+   * Set the default search timeout.
+   *
+   * @param defaultSearchTimeoutSec default timeout
+   * @throws IllegalArgumentException if value is < 0
+   */
+  public synchronized void setDefaultSearchTimeoutSec(double defaultSearchTimeoutSec) {
+    if (defaultSearchTimeoutSec < 0) {
+      throw new IllegalArgumentException("Default search timeout must be >= 0.");
+    }
+    this.defaultSearchTimeoutSec = defaultSearchTimeoutSec;
+    saveState.getLiveSettings().addProperty("defaultSearchTimeoutSec", defaultSearchTimeoutSec);
+  }
+
+  /** Get the default search timeout. */
+  public double getDefaultSearchTimeoutSec() {
+    return defaultSearchTimeoutSec;
+  }
+
+  /**
+   * Set the default search timeout check every.
+   *
+   * @param defaultSearchTimeoutCheckEvery default search timeout check every
+   * @throws IllegalArgumentException if value is < 0
+   */
+  public synchronized void setDefaultSearchTimeoutCheckEvery(int defaultSearchTimeoutCheckEvery) {
+    if (defaultSearchTimeoutCheckEvery < 0) {
+      throw new IllegalArgumentException("Default search timeout check every must be >= 0.");
+    }
+    this.defaultSearchTimeoutCheckEvery = defaultSearchTimeoutCheckEvery;
+    saveState
+        .getLiveSettings()
+        .addProperty("defaultSearchTimeoutCheckEvery", defaultSearchTimeoutCheckEvery);
+  }
+
+  /** Get the default terminate after. */
+  public int getDefaultTerminateAfter() {
+    return defaultTerminateAfter;
+  }
+
+  /**
+   * Set the default terminate after.
+   *
+   * @param defaultTerminateAfter default terminate after
+   * @throws IllegalArgumentException if value is < 0
+   */
+  public synchronized void setDefaultTerminateAfter(int defaultTerminateAfter) {
+    if (defaultTerminateAfter < 0) {
+      throw new IllegalArgumentException("Default terminate after must be >= 0.");
+    }
+    this.defaultTerminateAfter = defaultTerminateAfter;
+    saveState.getLiveSettings().addProperty("defaultTerminateAfter", defaultTerminateAfter);
+  }
+
+  /** Get the default search timeout check every. */
+  public int getDefaultSearchTimeoutCheckEvery() {
+    return defaultSearchTimeoutCheckEvery;
+  }
+
   /** Returns JSON representation of all live settings. */
-  public synchronized String getLiveSettingsJSON() {
-    return liveSettingsSaveState.toString();
+  public String getLiveSettingsJSON() {
+    return saveState.getLiveSettings().toString();
   }
 
   public boolean hasFacets() {
@@ -997,12 +1049,12 @@ public class IndexState implements Closeable, Restorable {
 
   /** Returns JSON representation of all registered fields. */
   public synchronized String getAllFieldsJSON() {
-    return fieldsSaveState.toString();
+    return saveState.getFields().toString();
   }
 
   /** Returns JSON representation of all settings. */
   public synchronized String getSettingsJSON() {
-    return settingsSaveState.toString();
+    return saveState.getSettings().toString();
   }
 
   public Map<String, FieldDef> getAllFields() {
@@ -1023,8 +1075,8 @@ public class IndexState implements Closeable, Restorable {
       if (jsonObject == null) {
         throw new IllegalArgumentException("Field json cannot be null for " + fd.getName());
       }
-      assert null == fieldsSaveState.get(fd.getName());
-      fieldsSaveState.add(fd.getName(), jsonObject);
+      assert null == saveState.getFields().get(fd.getName());
+      saveState.getFields().add(fd.getName(), jsonObject);
     } else if (jsonObject != null) {
       throw new IllegalArgumentException(
           "Field json should not be specified for child field " + fd.getName());
@@ -1065,7 +1117,7 @@ public class IndexState implements Closeable, Restorable {
       throw new IllegalStateException(
           "index \"" + name + "\": cannot change Directory when the index is running");
     }
-    settingsSaveState.addProperty("directory", directoryClassName);
+    saveState.getSettings().addProperty("directory", directoryClassName);
     this.df = df;
   }
 
@@ -1077,7 +1129,7 @@ public class IndexState implements Closeable, Restorable {
     if (this.indexSort != null && this.indexSort.equals(sort) == false) {
       throw new IllegalStateException("index \"" + name + "\": cannot change index sort");
     }
-    settingsSaveState.add("indexSort", saveState);
+    this.saveState.getSettings().add("indexSort", saveState);
     this.indexSort = sort;
   }
 
@@ -1103,24 +1155,34 @@ public class IndexState implements Closeable, Restorable {
       throw new IllegalStateException(
           "index \"" + name + "\" was already started (cannot change non-live settings)");
     }
-    settingsSaveState.addProperty("mergeMaxMBPerSec", settingsRequest.getMergeMaxMBPerSec());
-    settingsSaveState.addProperty(
-        "nrtCachingDirectoryMaxMergeSizeMB",
-        settingsRequest.getNrtCachingDirectoryMaxMergeSizeMB());
-    settingsSaveState.addProperty(
-        "nrtCachingDirectoryMaxSizeMB", settingsRequest.getNrtCachingDirectoryMaxSizeMB());
+    saveState.getSettings().addProperty("mergeMaxMBPerSec", settingsRequest.getMergeMaxMBPerSec());
+    saveState
+        .getSettings()
+        .addProperty(
+            "nrtCachingDirectoryMaxMergeSizeMB",
+            settingsRequest.getNrtCachingDirectoryMaxMergeSizeMB());
+    saveState
+        .getSettings()
+        .addProperty(
+            "nrtCachingDirectoryMaxSizeMB", settingsRequest.getNrtCachingDirectoryMaxSizeMB());
     if ((settingsRequest.getConcurrentMergeSchedulerMaxThreadCount() != 0)
         && settingsRequest.getConcurrentMergeSchedulerMaxMergeCount() != 0) {
-      settingsSaveState.addProperty(
-          "concurrentMergeSchedulerMaxThreadCount",
-          settingsRequest.getConcurrentMergeSchedulerMaxThreadCount());
-      settingsSaveState.addProperty(
-          "concurrentMergeSchedulerMaxMergeCount",
-          settingsRequest.getConcurrentMergeSchedulerMaxMergeCount());
+      saveState
+          .getSettings()
+          .addProperty(
+              "concurrentMergeSchedulerMaxThreadCount",
+              settingsRequest.getConcurrentMergeSchedulerMaxThreadCount());
+      saveState
+          .getSettings()
+          .addProperty(
+              "concurrentMergeSchedulerMaxMergeCount",
+              settingsRequest.getConcurrentMergeSchedulerMaxMergeCount());
     }
-    settingsSaveState.addProperty("indexVerbose", settingsRequest.getIndexVerbose());
-    settingsSaveState.addProperty(
-        "indexMergeSchedulerAutoThrottle", settingsRequest.getIndexMergeSchedulerAutoThrottle());
+    saveState
+        .getSettings()
+        .addProperty(
+            "indexMergeSchedulerAutoThrottle",
+            settingsRequest.getIndexMergeSchedulerAutoThrottle());
   }
 
   public synchronized void start(Path dataPath) throws Exception {
@@ -1154,7 +1216,8 @@ public class IndexState implements Closeable, Restorable {
       throws IOException {
     IndexWriterConfig iwc = new IndexWriterConfig(indexAnalyzer);
     iwc.setOpenMode(openMode);
-    if (getBooleanSetting("indexVerbose", false)) {
+    if (globalState.configuration.getIndexVerbose()) {
+      logger.info("Enabling verbose logging for Lucene NRT");
       iwc.setInfoStream(new PrintStreamInfoStream(System.out));
     }
 
@@ -1219,20 +1282,22 @@ public class IndexState implements Closeable, Restorable {
     return iwc;
   }
 
-  synchronized boolean getBooleanSetting(String name, boolean val) {
-    return settingsSaveState.get(name) == null ? val : settingsSaveState.get(name).getAsBoolean();
+  boolean getBooleanSetting(String name, boolean val) {
+    JsonElement settingValue = saveState.getSettings().get(name);
+    return settingValue == null ? val : settingValue.getAsBoolean();
   }
 
-  synchronized double getDoubleSetting(String name, double val) {
-    return settingsSaveState.get(name) == null ? val : settingsSaveState.get(name).getAsDouble();
+  double getDoubleSetting(String name, double val) {
+    JsonElement settingValue = saveState.getSettings().get(name);
+    return settingValue == null ? val : settingValue.getAsDouble();
   }
 
-  synchronized int getIntSetting(String name) {
-    return settingsSaveState.get(name).getAsInt();
+  int getIntSetting(String name) {
+    return saveState.getSettings().get(name).getAsInt();
   }
 
-  synchronized boolean hasSetting(String name) {
-    return settingsSaveState.get(name) != null;
+  boolean hasSetting(String name) {
+    return saveState.getSettings().get(name) != null;
   }
 
   public ShardState getShard(int shardOrd) {
@@ -1430,8 +1495,8 @@ public class IndexState implements Closeable, Restorable {
   }
 
   /** Records a new suggester state. */
-  public synchronized void addSuggest(String name, JsonObject o) {
-    suggestSaveState.add(name, o);
+  public void addSuggest(String name, JsonObject o) {
+    saveState.getSuggest().add(name, o);
   }
 
   /**

@@ -34,38 +34,8 @@ import com.yelp.nrtsearch.LuceneServerModule;
 import com.yelp.nrtsearch.server.MetricsRequestHandler;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.QueryCacheConfig;
+import com.yelp.nrtsearch.server.luceneserver.*;
 import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler.DocumentIndexer;
-import com.yelp.nrtsearch.server.luceneserver.AddReplicaHandler;
-import com.yelp.nrtsearch.server.luceneserver.BackupIndexRequestHandler;
-import com.yelp.nrtsearch.server.luceneserver.BuildSuggestHandler;
-import com.yelp.nrtsearch.server.luceneserver.CopyFilesHandler;
-import com.yelp.nrtsearch.server.luceneserver.CreateSnapshotHandler;
-import com.yelp.nrtsearch.server.luceneserver.DeleteAllDocumentsHandler;
-import com.yelp.nrtsearch.server.luceneserver.DeleteByQueryHandler;
-import com.yelp.nrtsearch.server.luceneserver.DeleteDocumentsHandler;
-import com.yelp.nrtsearch.server.luceneserver.DeleteIndexBackupHandler;
-import com.yelp.nrtsearch.server.luceneserver.DeleteIndexHandler;
-import com.yelp.nrtsearch.server.luceneserver.GetNodesInfoHandler;
-import com.yelp.nrtsearch.server.luceneserver.GetStateHandler;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
-import com.yelp.nrtsearch.server.luceneserver.LiveSettingsHandler;
-import com.yelp.nrtsearch.server.luceneserver.NewNRTPointHandler;
-import com.yelp.nrtsearch.server.luceneserver.RecvCopyStateHandler;
-import com.yelp.nrtsearch.server.luceneserver.RegisterFieldsHandler;
-import com.yelp.nrtsearch.server.luceneserver.ReleaseSnapshotHandler;
-import com.yelp.nrtsearch.server.luceneserver.ReplicaCurrentSearchingVersionHandler;
-import com.yelp.nrtsearch.server.luceneserver.RestoreStateHandler;
-import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
-import com.yelp.nrtsearch.server.luceneserver.SettingsHandler;
-import com.yelp.nrtsearch.server.luceneserver.ShardState;
-import com.yelp.nrtsearch.server.luceneserver.StartIndexHandler;
-import com.yelp.nrtsearch.server.luceneserver.StatsRequestHandler;
-import com.yelp.nrtsearch.server.luceneserver.StopIndexHandler;
-import com.yelp.nrtsearch.server.luceneserver.SuggestLookupHandler;
-import com.yelp.nrtsearch.server.luceneserver.UpdateFieldsHandler;
-import com.yelp.nrtsearch.server.luceneserver.UpdateSuggestHandler;
-import com.yelp.nrtsearch.server.luceneserver.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
@@ -73,12 +43,7 @@ import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
-import com.yelp.nrtsearch.server.monitoring.Configuration;
-import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
-import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
-import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
-import com.yelp.nrtsearch.server.monitoring.QueryCacheCollector;
-import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
+import com.yelp.nrtsearch.server.monitoring.*;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
@@ -88,6 +53,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.Status;
+import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
@@ -96,13 +62,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.management.ManagementFactory;
 import java.util.*;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LRUQueryCache;
@@ -185,17 +147,37 @@ public class LuceneServer {
     logger.info(
         "Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
 
-    /* The port on which the replication server should run */
-    replicationServer =
-        ServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
-            .addService(new ReplicationServerImpl(globalState))
-            .executor(
-                ThreadPoolExecutorFactory.getThreadPoolExecutor(
-                    ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
-                    luceneServerConfiguration.getThreadPoolConfiguration()))
-            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
-            .build()
-            .start();
+    if (luceneServerConfiguration.getMaxConcurrentCallsPerConnectionForReplication() != -1) {
+      replicationServer =
+          NettyServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
+              .addService(new ReplicationServerImpl(globalState))
+              .executor(
+                  ThreadPoolExecutorFactory.getThreadPoolExecutor(
+                      ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
+                      luceneServerConfiguration.getThreadPoolConfiguration()))
+              .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+              .maxConcurrentCallsPerConnection(
+                  luceneServerConfiguration.getMaxConcurrentCallsPerConnectionForReplication())
+              .maxConnectionAge(
+                  luceneServerConfiguration.getMaxConnectionAgeForReplication(), TimeUnit.SECONDS)
+              .maxConnectionAgeGrace(
+                  luceneServerConfiguration.getMaxConnectionAgeGraceForReplication(),
+                  TimeUnit.SECONDS)
+              .build()
+              .start();
+    } else {
+      replicationServer =
+          ServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
+              .addService(new ReplicationServerImpl(globalState))
+              .executor(
+                  ThreadPoolExecutorFactory.getThreadPoolExecutor(
+                      ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
+                      luceneServerConfiguration.getThreadPoolConfiguration()))
+              .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+              .build()
+              .start();
+    }
+
     logger.info(
         "Server started, listening on "
             + luceneServerConfiguration.getReplicationPort()
@@ -544,7 +526,7 @@ public class LuceneServer {
                 .withDescription(
                     "error while trying to read index state dir for indexName: "
                         + startIndexRequest.getIndexName())
-                .augmentDescription("IOException()")
+                .augmentDescription(e.getMessage())
                 .withCause(e)
                 .asRuntimeException());
       } catch (Exception e) {
@@ -714,7 +696,10 @@ public class LuceneServer {
                       genId = onCompletedForIndex(indexName);
                     }
                     responseObserver.onNext(
-                        AddDocumentResponse.newBuilder().setGenId(genId).build());
+                        AddDocumentResponse.newBuilder()
+                            .setGenId(genId)
+                            .setPrimaryId(globalState.getEphemeralId())
+                            .build());
                     responseObserver.onCompleted();
                   } catch (Throwable t) {
                     responseObserver.onError(t);
@@ -785,7 +770,11 @@ public class LuceneServer {
               try {
                 IndexState indexState = globalState.getIndex(commitRequest.getIndexName());
                 long gen = indexState.commit();
-                CommitResponse reply = CommitResponse.newBuilder().setGen(gen).build();
+                CommitResponse reply =
+                    CommitResponse.newBuilder()
+                        .setGen(gen)
+                        .setPrimaryId(globalState.getEphemeralId())
+                        .build();
                 logger.debug(
                     String.format(
                         "CommitHandler committed to index: %s for sequenceId: %s",
@@ -1405,6 +1394,39 @@ public class LuceneServer {
                   .asRuntimeException());
           return;
         }
+        int numQueriesThreshold = request.getNumQueriesThreshold();
+        int numWarmingRequests = warmer.getNumWarmingRequests();
+        if (numQueriesThreshold > 0 && numWarmingRequests < numQueriesThreshold) {
+          logger.warn(
+              "Unable to backup warming queries since warmer has {} requests, which is less than threshold {}",
+              numWarmingRequests,
+              numQueriesThreshold);
+          responseObserver.onError(
+              Status.UNKNOWN
+                  .withDescription(
+                      String.format(
+                          "Unable to backup warming queries since warmer has %s requests, which is less than threshold %s",
+                          numWarmingRequests, numQueriesThreshold))
+                  .asRuntimeException());
+          return;
+        }
+        int uptimeMinutesThreshold = request.getUptimeMinutesThreshold();
+        int currUptimeMinutes =
+            (int) (ManagementFactory.getRuntimeMXBean().getUptime() / 1000L / 60L);
+        if (uptimeMinutesThreshold > 0 && currUptimeMinutes < uptimeMinutesThreshold) {
+          logger.warn(
+              "Unable to backup warming queries since uptime is {} minutes, which is less than threshold {}",
+              currUptimeMinutes,
+              uptimeMinutesThreshold);
+          responseObserver.onError(
+              Status.UNKNOWN
+                  .withDescription(
+                      String.format(
+                          "Unable to backup warming queries since uptime is %s minutes, which is less than threshold %s",
+                          currUptimeMinutes, uptimeMinutesThreshold))
+                  .asRuntimeException());
+          return;
+        }
         warmer.backupWarmingQueriesToS3(request.getServiceName());
         responseObserver.onNext(BackupWarmingQueriesResponse.newBuilder().build());
         responseObserver.onCompleted();
@@ -1682,7 +1704,6 @@ public class LuceneServer {
           byte[] buffer = new byte[1024 * 64];
           long totalRead;
           totalRead = pos;
-          Random random = new Random();
           while (totalRead < len) {
             int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
             luceneFile.readBytes(buffer, 0, chunkSize);
@@ -1693,7 +1714,7 @@ public class LuceneServer {
             rawFileChunkStreamObserver.onNext(rawFileChunk);
             totalRead += chunkSize;
             if (globalState.configuration.getFileSendDelay()) {
-              randomDelay(random);
+              randomDelay(ThreadLocalRandom.current());
             }
           }
           // EOF
@@ -1707,6 +1728,97 @@ public class LuceneServer {
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
       }
+    }
+
+    @Override
+    public StreamObserver<FileInfo> recvRawFileV2(
+        StreamObserver<RawFileChunk> rawFileChunkStreamObserver) {
+      return new StreamObserver<>() {
+        private IndexState indexState;
+        private IndexInput luceneFile;
+        private byte[] buffer;
+        private final int ackEvery = globalState.configuration.getFileCopyConfig().getAckEvery();
+        private final int maxInflight =
+            globalState.configuration.getFileCopyConfig().getMaxInFlight();
+        private int lastAckedSeq = 0;
+        private int currentSeq = 0;
+        private long fileOffset;
+        private long fileLength;
+
+        @Override
+        public void onNext(FileInfo fileInfoRequest) {
+          try {
+            if (indexState == null) {
+              // Start transfer
+              indexState = globalState.getIndex(fileInfoRequest.getIndexName());
+              ShardState shardState = indexState.getShard(0);
+              if (shardState == null) {
+                throw new IllegalStateException(
+                    "Error getting shard state for: " + fileInfoRequest.getIndexName());
+              }
+              luceneFile =
+                  shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT);
+              luceneFile.seek(fileInfoRequest.getFpStart());
+              fileOffset = fileInfoRequest.getFpStart();
+              fileLength = luceneFile.length();
+              buffer = new byte[globalState.configuration.getFileCopyConfig().getChunkSize()];
+            } else {
+              // ack existing transfer
+              lastAckedSeq = fileInfoRequest.getAckSeqNum();
+              if (lastAckedSeq <= 0) {
+                throw new IllegalArgumentException(
+                    "Invalid ackSeqNum: " + fileInfoRequest.getAckSeqNum());
+              }
+            }
+            while (fileOffset < fileLength && (currentSeq - lastAckedSeq) < maxInflight) {
+              int chunkSize = (int) Math.min(buffer.length, (fileLength - fileOffset));
+              luceneFile.readBytes(buffer, 0, chunkSize);
+              currentSeq++;
+              RawFileChunk rawFileChunk =
+                  RawFileChunk.newBuilder()
+                      .setContent(ByteString.copyFrom(buffer, 0, chunkSize))
+                      .setSeqNum(currentSeq)
+                      .setAck((currentSeq % ackEvery) == 0)
+                      .build();
+              rawFileChunkStreamObserver.onNext(rawFileChunk);
+              fileOffset += chunkSize;
+              if (fileOffset == fileLength) {
+                rawFileChunkStreamObserver.onCompleted();
+              }
+            }
+            logger.debug(
+                String.format("recvRawFileV2: in flight chunks: %d", currentSeq - lastAckedSeq));
+          } catch (Throwable t) {
+            maybeCloseFile();
+            rawFileChunkStreamObserver.onError(t);
+            throw new RuntimeException(t);
+          }
+        }
+
+        @Override
+        public void onError(Throwable t) {
+          logger.error("recvRawFileV2 onError", t);
+          maybeCloseFile();
+          rawFileChunkStreamObserver.onError(t);
+        }
+
+        @Override
+        public void onCompleted() {
+          maybeCloseFile();
+          logger.debug("recvRawFileV2 onCompleted");
+        }
+
+        private void maybeCloseFile() {
+          if (luceneFile != null) {
+            try {
+              luceneFile.close();
+            } catch (IOException e) {
+              logger.warn("Error closing index file", e);
+            }
+            luceneFile = null;
+          }
+        }
+      };
     }
 
     /**

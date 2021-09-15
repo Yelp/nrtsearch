@@ -331,8 +331,8 @@ public class GrpcServer {
       this(grpcServer, startIndex, mode, 0);
     }
 
-    public void addDocuments() throws IOException, InterruptedException {
-      addDocuments(null);
+    public AddDocumentResponse addDocuments() throws IOException, InterruptedException {
+      return addDocuments(null);
     }
 
     public AddDocumentResponse addDocuments(String fileName)

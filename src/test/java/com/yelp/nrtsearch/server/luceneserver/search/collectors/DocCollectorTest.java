@@ -18,14 +18,17 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.when;
 
 import com.yelp.nrtsearch.server.grpc.Rescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
+import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchStatsWrapper;
+import com.yelp.nrtsearch.server.luceneserver.search.TerminateAfterWrapper;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
@@ -34,14 +37,28 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 public class DocCollectorTest {
 
   private static class TestDocCollector extends DocCollector {
     private final CollectorManager<? extends Collector, ? extends TopDocs> manager;
 
+    public static IndexState getMockState() {
+      IndexState indexState = Mockito.mock(IndexState.class);
+      when(indexState.getDefaultSearchTimeoutSec()).thenReturn(0.0);
+      when(indexState.getDefaultSearchTimeoutCheckEvery()).thenReturn(0);
+      return indexState;
+    }
+
     public TestDocCollector(SearchRequest request) {
-      super(request, Collections.emptyList());
+      this(request, getMockState());
+    }
+
+    public TestDocCollector(SearchRequest request, IndexState indexState) {
+      super(
+          new CollectorCreatorContext(request, indexState, null, Collections.emptyMap(), null),
+          Collections.emptyList());
       manager = new TestCollectorManager();
     }
 
@@ -90,6 +107,75 @@ public class DocCollectorTest {
   }
 
   @Test
+  public void testUsesDefaultTimeout() {
+    IndexState indexState = Mockito.mock(IndexState.class);
+    when(indexState.getDefaultSearchTimeoutSec()).thenReturn(3.0);
+    when(indexState.getDefaultSearchTimeoutCheckEvery()).thenReturn(0);
+
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).build();
+    TestDocCollector docCollector = new TestDocCollector(request, indexState);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof SearchCutoffWrapper);
+    SearchCutoffWrapper<?> cutoffWrapper =
+        (SearchCutoffWrapper<?>) docCollector.getWrappedManager();
+    assertEquals(3.0, cutoffWrapper.getTimeoutSec(), 0.0);
+    assertEquals(0, cutoffWrapper.getCheckEvery());
+  }
+
+  @Test
+  public void testQueryOverridesDefaultTimeout() {
+    IndexState indexState = Mockito.mock(IndexState.class);
+    when(indexState.getDefaultSearchTimeoutSec()).thenReturn(3.0);
+    when(indexState.getDefaultSearchTimeoutCheckEvery()).thenReturn(0);
+
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).setTimeoutSec(2.0).build();
+    TestDocCollector docCollector = new TestDocCollector(request, indexState);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof SearchCutoffWrapper);
+    SearchCutoffWrapper<?> cutoffWrapper =
+        (SearchCutoffWrapper<?>) docCollector.getWrappedManager();
+    assertEquals(2.0, cutoffWrapper.getTimeoutSec(), 0.0);
+    assertEquals(0, cutoffWrapper.getCheckEvery());
+  }
+
+  @Test
+  public void testUsesDefaultTimeoutCheckEvery() {
+    IndexState indexState = Mockito.mock(IndexState.class);
+    when(indexState.getDefaultSearchTimeoutSec()).thenReturn(6.0);
+    when(indexState.getDefaultSearchTimeoutCheckEvery()).thenReturn(10);
+
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).build();
+    TestDocCollector docCollector = new TestDocCollector(request, indexState);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof SearchCutoffWrapper);
+    SearchCutoffWrapper<?> cutoffWrapper =
+        (SearchCutoffWrapper<?>) docCollector.getWrappedManager();
+    assertEquals(6.0, cutoffWrapper.getTimeoutSec(), 0.0);
+    assertEquals(10, cutoffWrapper.getCheckEvery());
+  }
+
+  @Test
+  public void testQueryOverridesDefaultTimeoutCheckEvery() {
+    IndexState indexState = Mockito.mock(IndexState.class);
+    when(indexState.getDefaultSearchTimeoutSec()).thenReturn(0.0);
+    when(indexState.getDefaultSearchTimeoutCheckEvery()).thenReturn(20);
+
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setTopHits(10)
+            .setTimeoutSec(7.0)
+            .setTimeoutCheckEvery(30)
+            .build();
+    TestDocCollector docCollector = new TestDocCollector(request, indexState);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof SearchCutoffWrapper);
+    SearchCutoffWrapper<?> cutoffWrapper =
+        (SearchCutoffWrapper<?>) docCollector.getWrappedManager();
+    assertEquals(7.0, cutoffWrapper.getTimeoutSec(), 0.0);
+    assertEquals(30, cutoffWrapper.getCheckEvery());
+  }
+
+  @Test
   public void testHasStatsWrapper() {
     SearchRequest request = SearchRequest.newBuilder().setTopHits(10).setProfile(true).build();
     TestDocCollector docCollector = new TestDocCollector(request);
@@ -122,5 +208,60 @@ public class DocCollectorTest {
     builder.addRescorers(Rescorer.newBuilder().setWindowSize(1000).build());
     TestDocCollector docCollector = new TestDocCollector(builder.build());
     assertEquals(1000, docCollector.getNumHitsToCollect());
+  }
+
+  @Test
+  public void testHasTerminateAfterWrapper() {
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).setTerminateAfter(5).build();
+    TestDocCollector docCollector = new TestDocCollector(request);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof TerminateAfterWrapper);
+    assertEquals(
+        5, ((TerminateAfterWrapper<?>) docCollector.getWrappedManager()).getTerminateAfter());
+  }
+
+  @Test
+  public void testUsesDefaultTerminateAfter() {
+    IndexState indexState = Mockito.mock(IndexState.class);
+    when(indexState.getDefaultTerminateAfter()).thenReturn(100);
+
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).build();
+    TestDocCollector docCollector = new TestDocCollector(request, indexState);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof TerminateAfterWrapper);
+    assertEquals(
+        100, ((TerminateAfterWrapper<?>) docCollector.getWrappedManager()).getTerminateAfter());
+  }
+
+  @Test
+  public void testOverrideDefaultTerminateAfter() {
+    IndexState indexState = Mockito.mock(IndexState.class);
+    when(indexState.getDefaultTerminateAfter()).thenReturn(100);
+
+    SearchRequest request = SearchRequest.newBuilder().setTopHits(10).setTerminateAfter(75).build();
+    TestDocCollector docCollector = new TestDocCollector(request, indexState);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof TerminateAfterWrapper);
+    assertEquals(
+        75, ((TerminateAfterWrapper<?>) docCollector.getWrappedManager()).getTerminateAfter());
+  }
+
+  @Test
+  public void testWithAllWrappers() {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setTopHits(10)
+            .setTerminateAfter(3)
+            .setTimeoutSec(5)
+            .setProfile(true)
+            .build();
+    TestDocCollector docCollector = new TestDocCollector(request);
+    assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
+    assertTrue(docCollector.getWrappedManager() instanceof SearchStatsWrapper);
+    SearchStatsWrapper<?> statsWrapper = (SearchStatsWrapper<?>) docCollector.getWrappedManager();
+    assertTrue(statsWrapper.getWrapped() instanceof TerminateAfterWrapper);
+    TerminateAfterWrapper<?> terminateAfterWrapper =
+        (TerminateAfterWrapper<?>) statsWrapper.getWrapped();
+    assertTrue(terminateAfterWrapper.getWrapped() instanceof SearchCutoffWrapper);
   }
 }

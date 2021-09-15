@@ -46,6 +46,7 @@ public class NRTReplicaNode extends ReplicaNode {
 
   private final ReplicationServerClient primaryAddress;
   private final String indexName;
+  private final boolean ackedCopy;
   final Jobs jobs;
 
   /* Just a wrapper class to hold our <hostName, port> pair so that we can send them to the Primary
@@ -61,11 +62,13 @@ public class NRTReplicaNode extends ReplicaNode {
       Directory indexDir,
       SearcherFactory searcherFactory,
       PrintStream printStream,
-      long primaryGen)
+      long primaryGen,
+      boolean ackedCopy)
       throws IOException {
     super(replicaId, indexDir, searcherFactory, printStream);
     this.primaryAddress = primaryAddress;
     this.indexName = indexName;
+    this.ackedCopy = ackedCopy;
     this.hostPort = hostPort;
     // Handles fetching files from primary, on a new thread which receives files from primary
     jobs = new Jobs(this);
@@ -100,7 +103,15 @@ public class NRTReplicaNode extends ReplicaNode {
       copyState = null;
     }
     return new SimpleCopyJob(
-        reason, primaryAddress, copyState, this, files, highPriority, onceDone, indexName);
+        reason,
+        primaryAddress,
+        copyState,
+        this,
+        files,
+        highPriority,
+        onceDone,
+        indexName,
+        ackedCopy);
   }
 
   private CopyState getCopyStateFromPrimary() throws IOException {

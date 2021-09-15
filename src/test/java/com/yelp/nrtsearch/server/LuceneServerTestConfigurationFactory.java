@@ -43,13 +43,6 @@ public class LuceneServerTestConfigurationFactory {
   public static LuceneServerConfiguration getConfig(
       Mode mode, File dataRootDir, Path archiverDirectory, String extraConfig) {
     String dirNum = String.valueOf(atomicLong.addAndGet(1));
-    String threadPoolConfiguration =
-        String.join(
-            "\n",
-            "threadPoolConfiguration:",
-            "  maxFetchThreads: 8",
-            "  minParallelFetchNumFields: 1",
-            "  minParallelFetchNumHits: 1");
     if (mode.equals(Mode.STANDALONE)) {
       String stateDir =
           Paths.get(dataRootDir.getAbsolutePath(), "standalone", dirNum, "state").toString();
@@ -64,7 +57,6 @@ public class LuceneServerTestConfigurationFactory {
               "port: " + (9000 + atomicLong.intValue()),
               "replicationPort: " + (10000 + atomicLong.intValue()),
               "archiveDirectory: " + archiverDirectory.toString(),
-              threadPoolConfiguration,
               extraConfig);
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     } else if (mode.equals(Mode.PRIMARY)) {
@@ -81,7 +73,6 @@ public class LuceneServerTestConfigurationFactory {
               "port: " + 9900,
               "replicationPort: " + 9001,
               "archiveDirectory: " + archiverDirectory.toString(),
-              threadPoolConfiguration,
               extraConfig);
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     } else if (mode.equals(Mode.REPLICA)) {
@@ -97,7 +88,6 @@ public class LuceneServerTestConfigurationFactory {
               "indexDir: " + indexDir,
               "port: " + 9902,
               "replicationPort: " + 9003,
-              threadPoolConfiguration,
               extraConfig);
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     }

@@ -48,6 +48,7 @@ public class ThreadPoolConfiguration {
   private final int maxFetchThreads;
   private final int minParallelFetchNumFields;
   private final int minParallelFetchNumHits;
+  private final boolean parallelFetchByField;
 
   private final int maxIndexingThreads;
   private final int maxIndexingBufferedItems;
@@ -75,6 +76,8 @@ public class ThreadPoolConfiguration {
     minParallelFetchNumHits =
         configReader.getInteger(
             "threadPoolConfiguration.minParallelFetchNumHits", DEFAULT_MIN_PARALLEL_FETCH_NUM_HITS);
+    parallelFetchByField =
+        configReader.getBoolean("threadPoolConfiguration.parallelFetchByField", true);
 
     maxIndexingThreads =
         configReader.getInteger(
@@ -121,6 +124,10 @@ public class ThreadPoolConfiguration {
 
   public int getMinParallelFetchNumHits() {
     return minParallelFetchNumHits;
+  }
+
+  public boolean getParallelFetchByField() {
+    return parallelFetchByField;
   }
 
   public int getMaxIndexingThreads() {

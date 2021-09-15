@@ -25,10 +25,12 @@ import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
+import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
@@ -56,7 +58,6 @@ import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.util.QueryBuilder;
 
 /**
@@ -143,6 +144,7 @@ public class SearchRequestProcessor {
 
     contextBuilder.setRescorers(
         getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
+    contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
     return contextBuilder.build(true);
   }
@@ -332,16 +334,17 @@ public class SearchRequestProcessor {
 
     List<RescoreTask> rescorers = new ArrayList<>();
 
-    for (com.yelp.nrtsearch.server.grpc.Rescorer rescorer : searchRequest.getRescorersList()) {
-
-      Rescorer thisRescorer;
+    for (int i = 0; i < searchRequest.getRescorersList().size(); ++i) {
+      com.yelp.nrtsearch.server.grpc.Rescorer rescorer = searchRequest.getRescorers(i);
+      String rescorerName = rescorer.getName();
+      RescoreOperation thisRescoreOperation;
 
       if (rescorer.hasQueryRescorer()) {
         QueryRescorer queryRescorer = rescorer.getQueryRescorer();
         Query query = QUERY_NODE_MAPPER.getQuery(queryRescorer.getRescoreQuery(), indexState);
         query = searcher.rewrite(query);
 
-        thisRescorer =
+        thisRescoreOperation =
             QueryRescore.newBuilder()
                 .setQuery(query)
                 .setQueryWeight(queryRescorer.getQueryWeight())
@@ -349,7 +352,7 @@ public class SearchRequestProcessor {
                 .build();
       } else if (rescorer.hasPluginRescorer()) {
         PluginRescorer plugin = rescorer.getPluginRescorer();
-        thisRescorer = RescorerCreator.getInstance().createRescorer(plugin);
+        thisRescoreOperation = RescorerCreator.getInstance().createRescorer(plugin);
       } else {
         throw new IllegalArgumentException(
             "Rescorer should define either QueryRescorer or PluginRescorer");
@@ -357,8 +360,12 @@ public class SearchRequestProcessor {
 
       rescorers.add(
           RescoreTask.newBuilder()
-              .setRescorer(thisRescorer)
+              .setRescoreOperation(thisRescoreOperation)
               .setWindowSize(rescorer.getWindowSize())
+              .setName(
+                  rescorerName != null && !rescorerName.equals("")
+                      ? rescorerName
+                      : String.format("rescorer_%d", i))
               .build());
     }
     return rescorers;

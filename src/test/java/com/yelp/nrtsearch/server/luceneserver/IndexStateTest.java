@@ -69,6 +69,39 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testDefaultSearchTimeout() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      assertEquals(0, indexState.getDefaultSearchTimeoutSec(), 0);
+    }
+  }
+
+  @Test
+  public void testDefaultTimeoutCheckEvery() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      assertEquals(0, indexState.getDefaultSearchTimeoutCheckEvery());
+    }
+  }
+
+  @Test
+  public void testDefaultTerminateAfter() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      assertEquals(0, indexState.getDefaultTerminateAfter());
+    }
+  }
+
+  @Test
+  public void testDefaultRefreshSec() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      assertEquals(0.05f, indexState.minRefreshSec, Math.ulp(0.05f));
+      assertEquals(1.0f, indexState.maxRefreshSec, Math.ulp(1.0f));
+    }
+  }
+
+  @Test
   public void testChangeSliceParams() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -103,6 +136,43 @@ public class IndexStateTest {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
       indexState.setSegmentsPerTier(5);
       assertEquals(5, indexState.getSegmentsPerTier());
+    }
+  }
+
+  @Test
+  public void testChangeSearchTimeout() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setDefaultSearchTimeoutSec(2.0);
+      assertEquals(2.0, indexState.getDefaultSearchTimeoutSec(), 0);
+    }
+  }
+
+  @Test
+  public void testChangeCheckEvery() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setDefaultSearchTimeoutCheckEvery(10);
+      assertEquals(10, indexState.getDefaultSearchTimeoutCheckEvery());
+    }
+  }
+
+  @Test
+  public void testChangeDefaultTerminateAfter() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setDefaultTerminateAfter(11);
+      assertEquals(11, indexState.getDefaultTerminateAfter());
+    }
+  }
+
+  @Test
+  public void testChangeRefreshSec() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setRefreshSec(2.0, 3.0);
+      assertEquals(2.0, indexState.minRefreshSec, 0);
+      assertEquals(3.0, indexState.maxRefreshSec, 0);
     }
   }
 
@@ -216,6 +286,75 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testInvalidSearchTimeout() throws IOException {
+    String expectedMessage = "Default search timeout must be >= 0.";
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      try {
+        indexState.setDefaultSearchTimeoutSec(-1);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage, e.getMessage());
+      }
+    }
+  }
+
+  @Test
+  public void testInvalidTimeoutCheckEvery() throws IOException {
+    String expectedMessage = "Default search timeout check every must be >= 0.";
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      try {
+        indexState.setDefaultSearchTimeoutCheckEvery(-1);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage, e.getMessage());
+      }
+    }
+  }
+
+  @Test
+  public void testInvalidDefaultTerminateAfter() throws IOException {
+    String expectedMessage = "Default terminate after must be >= 0.";
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      try {
+        indexState.setDefaultTerminateAfter(-1);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage, e.getMessage());
+      }
+    }
+  }
+
+  @Test
+  public void testInvalidRefreshSec() throws IOException {
+    String expectedMessage = "Min and Max refresh seconds must be > 0";
+    String expectedMessage2 = "Max refresh seconds must be >= Min refresh seconds";
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      try {
+        indexState.setRefreshSec(1.0, 0.0);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage, e.getMessage());
+      }
+      try {
+        indexState.setRefreshSec(0.0, 2.0);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage, e.getMessage());
+      }
+      try {
+        indexState.setRefreshSec(3.0, 2.0);
+        fail();
+      } catch (IllegalArgumentException e) {
+        assertEquals(expectedMessage2, e.getMessage());
+      }
+    }
+  }
+
+  @Test
   public void testSliceParamsLoad() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -270,6 +409,59 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testSearchTimeoutLoad() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setDefaultSearchTimeoutSec(4.0);
+
+      JsonObject saveState = indexState.getSaveState();
+      LiveSettingsRequest liveSettingsRequest =
+          indexState.buildLiveSettingsRequest(saveState.get("liveSettings").toString());
+      assertEquals(4.0, liveSettingsRequest.getDefaultSearchTimeoutSec(), 0);
+    }
+  }
+
+  @Test
+  public void testTimeoutCheckEveryLoad() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setDefaultSearchTimeoutCheckEvery(25);
+
+      JsonObject saveState = indexState.getSaveState();
+      LiveSettingsRequest liveSettingsRequest =
+          indexState.buildLiveSettingsRequest(saveState.get("liveSettings").toString());
+      assertEquals(25, liveSettingsRequest.getDefaultSearchTimeoutCheckEvery());
+    }
+  }
+
+  @Test
+  public void testDefaultTerminateAfterLoad() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setDefaultTerminateAfter(50);
+
+      JsonObject saveState = indexState.getSaveState();
+      LiveSettingsRequest liveSettingsRequest =
+          indexState.buildLiveSettingsRequest(saveState.get("liveSettings").toString());
+      assertEquals(50, liveSettingsRequest.getDefaultTerminateAfter());
+    }
+  }
+
+  @Test
+  public void testRefreshSecLoad() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      indexState.setRefreshSec(5.0, 7.0);
+
+      JsonObject saveState = indexState.getSaveState();
+      LiveSettingsRequest liveSettingsRequest =
+          indexState.buildLiveSettingsRequest(saveState.get("liveSettings").toString());
+      assertEquals(5.0, liveSettingsRequest.getMinRefreshSec(), 0);
+      assertEquals(7.0, liveSettingsRequest.getMaxRefreshSec(), 0);
+    }
+  }
+
+  @Test
   public void testSliceParamsSetByLiveSettingsHandler() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -319,6 +511,67 @@ public class IndexStateTest {
   }
 
   @Test
+  public void testSearchTimeoutSetByLiveSettingsHandler() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest =
+          LiveSettingsRequest.newBuilder().setDefaultSearchTimeoutSec(10.0).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(10.0, indexState.getDefaultSearchTimeoutSec(), 0);
+    }
+  }
+
+  @Test
+  public void testTimeoutCheckEverySetByLiveSettingsHandler() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest =
+          LiveSettingsRequest.newBuilder().setDefaultSearchTimeoutCheckEvery(50).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(50, indexState.getDefaultSearchTimeoutCheckEvery());
+    }
+  }
+
+  @Test
+  public void testDefaultTerminateAfterSetByLiveSettingsHandler() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest =
+          LiveSettingsRequest.newBuilder().setDefaultTerminateAfter(60).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(60, indexState.getDefaultTerminateAfter());
+    }
+  }
+
+  @Test
+  public void testRefreshSecSetByLiveSettingsHandler() throws IOException {
+    try (GlobalState globalState = getInitStateVirtualSharding()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest =
+          LiveSettingsRequest.newBuilder().setMaxRefreshSec(4.0).setMinRefreshSec(3.0).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(3.0, indexState.minRefreshSec, 0);
+      assertEquals(4.0, indexState.maxRefreshSec, 0);
+
+      liveSettingsRequest = LiveSettingsRequest.newBuilder().setMinRefreshSec(2.0).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(2.0, indexState.minRefreshSec, 0);
+      assertEquals(4.0, indexState.maxRefreshSec, 0);
+
+      liveSettingsRequest = LiveSettingsRequest.newBuilder().setMaxRefreshSec(5.0).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(2.0, indexState.minRefreshSec, 0);
+      assertEquals(5.0, indexState.maxRefreshSec, 0);
+    }
+  }
+
+  @Test
   public void testSliceParamsLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitState()) {
       IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
@@ -360,6 +613,54 @@ public class IndexStateTest {
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
 
       assertEquals(0, indexState.getSegmentsPerTier());
+    }
+  }
+
+  @Test
+  public void testSearchTimeoutLiveSettingsHandlerNoop() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest =
+          LiveSettingsRequest.newBuilder().setDefaultSearchTimeoutSec(-1).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(0.0, indexState.getDefaultSearchTimeoutSec(), 0);
+    }
+  }
+
+  @Test
+  public void testTimeoutCheckEveryLiveSettingsHandlerNoop() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest =
+          LiveSettingsRequest.newBuilder().setDefaultSearchTimeoutCheckEvery(-1).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(0.0, indexState.getDefaultSearchTimeoutCheckEvery(), 0);
+    }
+  }
+
+  @Test
+  public void testDefaultTerminateAfterLiveSettingsHandlerNoop() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest =
+          LiveSettingsRequest.newBuilder().setDefaultTerminateAfter(-1).build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(0, indexState.getDefaultTerminateAfter());
+    }
+  }
+
+  @Test
+  public void testRefreshSecLiveSettingsHandlerNoop() throws IOException {
+    try (GlobalState globalState = getInitState()) {
+      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LiveSettingsRequest liveSettingsRequest = LiveSettingsRequest.newBuilder().build();
+      new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
+
+      assertEquals(0.05f, indexState.minRefreshSec, Math.ulp(0.05f));
+      assertEquals(1.0f, indexState.maxRefreshSec, Math.ulp(1.0f));
     }
   }
 

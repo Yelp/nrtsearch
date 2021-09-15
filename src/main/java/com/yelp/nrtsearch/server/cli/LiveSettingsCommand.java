@@ -36,15 +36,15 @@ public class LiveSettingsCommand implements Callable<Integer> {
   @CommandLine.Option(
       names = {"--maxRefreshSec"},
       description =
-          "Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen). (default: ${DEFAULT-VALUE})",
-      defaultValue = "1.0")
+          "Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen), or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
   private double maxRefreshSec;
 
   @CommandLine.Option(
       names = {"--minRefreshSec"},
       description =
-          "Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen). (default: ${DEFAULT-VALUE})",
-      defaultValue = "0.5")
+          "Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen), or 0 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "0")
   private double minRefreshSec;
 
   @CommandLine.Option(
@@ -100,6 +100,27 @@ public class LiveSettingsCommand implements Callable<Integer> {
       defaultValue = "0")
   private int segmentsPerTier;
 
+  @CommandLine.Option(
+      names = {"--defaultSearchTimeoutSec"},
+      description =
+          "Search timeout to use when not provided by the request, or -1 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "-1")
+  private double defaultSearchTimeoutSec;
+
+  @CommandLine.Option(
+      names = {"--defaultSearchTimeoutCheckEvery"},
+      description =
+          "Timeout check every value to use when not provided by the request, or -1 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "-1")
+  private int defaultSearchTimeoutCheckEvery;
+
+  @CommandLine.Option(
+      names = {"--defaultTerminateAfter"},
+      description =
+          "Terminate after to use when not provided by the request, or -1 to keep current value. (default: ${DEFAULT-VALUE})",
+      defaultValue = "-1")
+  private int defaultTerminateAfter;
+
   public String getIndexName() {
     return indexName;
   }
@@ -144,6 +165,18 @@ public class LiveSettingsCommand implements Callable<Integer> {
     return segmentsPerTier;
   }
 
+  public double getDefaultSearchTimeoutSec() {
+    return defaultSearchTimeoutSec;
+  }
+
+  public int getDefaultSearchTimeoutCheckEvery() {
+    return defaultSearchTimeoutCheckEvery;
+  }
+
+  public int getDefaultTerminateAfter() {
+    return defaultTerminateAfter;
+  }
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -159,7 +192,10 @@ public class LiveSettingsCommand implements Callable<Integer> {
           getSliceMaxSegments(),
           getVirtualShards(),
           getMaxMergedSegmentMB(),
-          getSegmentsPerTier());
+          getSegmentsPerTier(),
+          getDefaultSearchTimeoutSec(),
+          getDefaultSearchTimeoutCheckEvery(),
+          getDefaultTerminateAfter());
     } finally {
       client.shutdown();
     }

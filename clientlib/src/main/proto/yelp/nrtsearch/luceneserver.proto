@@ -350,6 +350,8 @@ service ReplicationServer {
     /* Receives a file as a stream in chunks. Typically issued by replica on primary */
     rpc recvRawFile (FileInfo) returns (stream RawFileChunk) {
     }
+    rpc recvRawFileV2 (stream FileInfo) returns (stream RawFileChunk) {
+    }
     /* Issued by primary on replica to inform it to start copying files either pre-warming (new merged segments) or when replica comes up first time */
     rpc copyFiles (CopyFiles) returns (stream TransferStatus) {
     }
@@ -401,6 +403,12 @@ message LiveSettingsRequest {
     int32 maxMergedSegmentMB = 10;
     //Number of segments per tier used by TieredMergePolicy
     int32 segmentsPerTier = 11;
+    //Timeout value to used when not specified in the search request.
+    double defaultSearchTimeoutSec = 12;
+    //Timeout check every value to use when not specified in the search request.
+    int32 defaultSearchTimeoutCheckEvery = 13;
+    //Terminate after value to use when not specified in the search request.
+    int32 defaultTerminateAfter = 14;
 }
 
 /* Response from Server to liveSettings */
@@ -511,7 +519,7 @@ message SettingsRequest {
     int32 concurrentMergeSchedulerMaxThreadCount = 5; // How many merge threads to allow at once
     int32 concurrentMergeSchedulerMaxMergeCount = 6; // Maximum backlog of pending merges before indexing threads are stalled
     SortFields indexSort = 7; // Index time sorting; can only be written once", SearchHandler.SORT_TYPE
-    bool indexVerbose = 8; // Turn on IndexWriter's infoStream (to stdout)
+    bool indexVerbose = 8 [deprecated = true]; // Deprecated, moved to lucene config. Turn on IndexWriter's infoStream (to stdout)
     bool indexMergeSchedulerAutoThrottle = 9; // Turn on/off the merge scheduler's auto throttling
     string normsFormat = 10; // Which NormsFormat should be used for all indexed fields. default: Lucene80NormsFormat
     // Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
@@ -564,6 +572,8 @@ message FacetHierarchyPath {
 
 message AddDocumentResponse {
     string genId = 1;
+    // Unique identifier for the primary instance that processed the request
+    string primaryId = 2;
 }
 
 message RefreshRequest {
@@ -582,6 +592,8 @@ message CommitResponse {
     /*  sequence number of the last operation in the commit.  All sequence numbers less than this value
     will be reflected in the commit, and all others will not.*/
     int64 gen = 1;
+    // Unique identifier for the primary instance that processed the request
+    string primaryId = 2;
 }
 
 message StatsRequest {
@@ -714,6 +726,8 @@ message BackupIndexResponse {
 message BackupWarmingQueriesRequest {
     string index = 1; // Index whose warming queries to backup
     string serviceName = 2; // remote storage namespace qualifier for service
+    int32 numQueriesThreshold = 3; // optional; minimum # of queries required to backup warming queries
+    int32 uptimeMinutesThreshold = 4; // optional; minimum # of minutes uptime to backup warming queries
 }
 
 message BackupWarmingQueriesResponse {
@@ -748,6 +762,7 @@ message IndexStatsResponse {
 message RestoreIndex {
     string serviceName = 1; // remote storage namespace qualifier for service
     string resourceName = 2; //remote storage namespace qualifier for resource e.g. indexName
+    bool deleteExistingData = 3; // delete any existing data for the index
 }
 
 message StateRequest {
@@ -823,10 +838,16 @@ message FileInfo {
     string fileName = 1; // Name of the file the replica wants primary to send
     int64 fpStart = 2; // Starting offset in the file primary should start sending bytes from:
     string indexName = 3; //index name these files belong to
+    // sequence number to ack, only used for acked file copy
+    int32 ackSeqNum = 4;
 }
 
 message RawFileChunk {
     bytes content = 1; //raw contents of file
+    // sequence number for this chunk, only used for acked file copy
+    int32 seqNum = 2;
+    // if this chunk should be acked, only used for acked file copy
+    bool ack = 3;
 }
 
 enum TransferStatusCode {

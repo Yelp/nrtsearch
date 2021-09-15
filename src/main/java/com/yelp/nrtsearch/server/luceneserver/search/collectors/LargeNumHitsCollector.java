@@ -34,7 +34,7 @@ public class LargeNumHitsCollector extends DocCollector {
       CollectorCreatorContext context,
       List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
           additionalCollectors) {
-    super(context.getRequest(), additionalCollectors);
+    super(context, additionalCollectors);
     int topHits = getNumHitsToCollect();
     manager = LargeNumHitsTopDocsCollectorManagerCreator.createSharedManager(topHits);
   }

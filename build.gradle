@@ -6,6 +6,7 @@ plugins {
     id 'maven-publish'
     id 'signing'
     id "com.diffplug.gradle.spotless" version "4.3.0"
+    id 'java-library'
 }
 
 repositories {
@@ -20,7 +21,7 @@ sourceCompatibility = 1.14
 targetCompatibility = 1.14
 
 allprojects {
-    version = '0.6.17'
+    version = '0.10.1'
     group = 'com.yelp.nrtsearch'
 }
 
@@ -31,7 +32,8 @@ System.setProperty("org.gradle.internal.publish.checksums.insecure", "True")
 
 def luceneVersion = '8.4.0'
 project.ext.slf4jVersion = '2.0.0-alpha1'
-project.ext.grpcVersion = '1.30.0'
+project.ext.grpcVersion = '1.38.0'
+project.ext.mockitoVersion = '2.25.1'
 def log4jVersion = '2.14.1'
 def disruptorVersion = '3.2.1'
 def gsonVersion = '2.8.5'
@@ -41,7 +43,7 @@ def spatial4jVersion = '0.7'
 def s3mockVersion = '0.2.5'
 def commonsCompressVersion = '1.19'
 def awsJavaSdkVersion = '1.11.695'
-def guicedeeVersion = '1.0.1.7-jre13'
+def guicedeeVersion = '1.1.1.3-jre14'
 def lz4Version = '1.7.0'
 def prometheusClientVersion = '0.8.0'
 def fastutilVersion = '8.5.4'
@@ -51,6 +53,7 @@ dependencies {
     //prometheus (metrics) deps
     implementation "io.prometheus:simpleclient_servlet:${prometheusClientVersion}"
     implementation "io.prometheus:simpleclient_hotspot:${prometheusClientVersion}"
+    implementation "io.grpc:grpc-netty-shaded:${rootProject.grpcVersion}"
 
     //logging deps
     implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
@@ -98,13 +101,13 @@ dependencies {
     implementation "io.grpc:grpc-services:${project.ext.grpcVersion}"
 
     testImplementation "junit:junit:4.12"
-    testImplementation "org.mockito:mockito-core:2.25.1"
+    testImplementation "org.mockito:mockito-core:${project.ext.mockitoVersion}"
     testImplementation "org.apache.lucene:lucene-test-framework:${luceneVersion}"
     testImplementation "org.locationtech.spatial4j:spatial4j:${spatial4jVersion}"
     testImplementation "io.findify:s3mock_2.12:${s3mockVersion}"
     testImplementation "org.assertj:assertj-core:3.19.0"
 
-    compile project(':clientlib')
+    api project(':clientlib')
 }
 
 startScripts.enabled = false
@@ -146,8 +149,16 @@ test {
         exclude '**/YelpReviewsTest.class'
         exclude '**/YelpSuggestTest.class'
         exclude '**/MergeBehaviorTests.class'
+        filter {
+            excludeTestsMatching '*.NodeNameResolverAndLoadBalancingTests.testSimpleLoadBalancingAsync'
+        }
     }
     systemProperties System.properties
+    testLogging {
+        events "failed"
+        exceptionFormat "full"
+        showStackTraces true
+    }
 }
 
 task javadocs(type: Javadoc) {

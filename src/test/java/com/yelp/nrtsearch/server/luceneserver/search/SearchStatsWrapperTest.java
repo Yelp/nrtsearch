@@ -130,6 +130,9 @@ public class SearchStatsWrapperTest extends ServerTestCase {
     for (CollectorStats collectorStats :
         searchResponse.getProfileResult().getSearchStats().getCollectorStatsList()) {
       assertFalse(collectorStats.getTerminated());
+      assertTrue(collectorStats.getTotalCollectTimeMs() > 0.0);
+      assertEquals(50, collectorStats.getTotalCollectedCount());
+      assertEquals(0, collectorStats.getAdditionalCollectorStatsCount());
       for (SegmentStats segmentStats : collectorStats.getSegmentStatsList()) {
         assertEquals(10, segmentStats.getMaxDoc());
         assertEquals(10, segmentStats.getNumDocs());
