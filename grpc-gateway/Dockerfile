@@ -83,6 +83,7 @@ $PROTO_PATH/yelp/nrtsearch/search.proto \
 $PROTO_PATH/yelp/nrtsearch/suggest.proto
 
 RUN cp $OUTPATH/yelp/nrtsearch/* grpc-gateway/
+RUN cp $OUTPATH/github.com/Yelp/nrtsearch/* grpc-gateway/
 
 # build go executables for various platforms
 RUN for GOOS in darwin linux windows; do \
