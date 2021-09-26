@@ -105,8 +105,8 @@ public class ChaseAnalyzersPlugin extends Plugin implements AnalysisPlugin {
         return new TextStemmingAnalyzer();
       }
     });
-    map.put("treePathHierarchy", new AnalysisProvider<TreePathHierarchyAnalyzer>() {
-      public TreePathHiepeAggressiveDelimitionAnalyzer get(String name) {
+    map.put("typeAggressiveDelimition", new AnalysisProvider<TypeAggressiveDelimitionAnalyzer>() {
+      public TypeAggressiveDelimitionAnalyzer get(String name) {
         return new TypeAggressiveDelimitionAnalyzer();
       }
     });
