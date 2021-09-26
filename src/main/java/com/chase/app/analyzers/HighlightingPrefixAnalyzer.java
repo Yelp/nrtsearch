@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +23,13 @@ import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 
 public class HighlightingPrefixAnalyzer extends Analyzer {
-    @Override
-    protected TokenStreamComponents createComponents(String fieldName) {
-      final Tokenizer src = new HighlightingPrefixTokenizer();
-      
-      TokenStream res = new LowerCaseFilter(src);
-      res = new ASCIIFoldingFilter(res);
-      
-      return new TokenStreamComponents(src, res);
-    }
+  @Override
+  protected TokenStreamComponents createComponents(String fieldName) {
+    final Tokenizer src = new HighlightingPrefixTokenizer();
+
+    TokenStream res = new LowerCaseFilter(src);
+    res = new ASCIIFoldingFilter(res);
+
+    return new TokenStreamComponents(src, res);
   }
+}

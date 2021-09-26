@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,16 +20,14 @@ import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 
 public final class ShingleFilterHelper {
-  public static TokenStream UseTrigramFilter(TokenStream in)
-    {
-      final ShingleFilter sf = new ShingleFilter(in, 3);
-      sf.setTokenSeparator("");
-      sf.setOutputUnigrams(true);
-      return sf;
-    }
+  public static TokenStream UseTrigramFilter(TokenStream in) {
+    final ShingleFilter sf = new ShingleFilter(in, 3);
+    sf.setTokenSeparator("");
+    sf.setOutputUnigrams(true);
+    return sf;
+  }
 
-    public static TokenStream UseTrigramLengthLimitFilter(TokenStream in)
-    {
-      return new LengthFilter(in, 1, 20);
-    }
+  public static TokenStream UseTrigramLengthLimitFilter(TokenStream in) {
+    return new LengthFilter(in, 1, 20);
+  }
 }

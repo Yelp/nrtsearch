@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,9 +30,11 @@ public class TypeLiteDelimitionAnalyzer extends Analyzer {
     final Tokenizer src = new PathsTokenizer();
     TokenStream res = new LowerCaseFilter(src);
     res = new ASCIIFoldingFilter(res);
-    res = new PorterStemFilter(res);  // TODO is this the equivalent of ES'es StemmerFilter for light_english? check source code.
+    res =
+        new PorterStemFilter(
+            res); // TODO is this the equivalent of ES'es StemmerFilter for light_english? check
+    // source code.
 
     return new TokenStreamComponents(src, res);
   }
-
 }

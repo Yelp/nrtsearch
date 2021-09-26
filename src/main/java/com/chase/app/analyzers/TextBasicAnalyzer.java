@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,14 +24,14 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 
 public class TextBasicAnalyzer extends Analyzer {
-    @Override
-    protected TokenStreamComponents createComponents(String fieldName) {
-      final Tokenizer src = new WhitespaceTokenizer();
-      
-      TokenStream res = new LowerCaseFilter(src);
-      res = new ASCIIFoldingFilter(res);
-      res = StopFilterHelper.UseEnglishStopFilter(res);
+  @Override
+  protected TokenStreamComponents createComponents(String fieldName) {
+    final Tokenizer src = new WhitespaceTokenizer();
 
-      return new TokenStreamComponents(src, res);
-    }
+    TokenStream res = new LowerCaseFilter(src);
+    res = new ASCIIFoldingFilter(res);
+    res = StopFilterHelper.UseEnglishStopFilter(res);
+
+    return new TokenStreamComponents(src, res);
   }
+}

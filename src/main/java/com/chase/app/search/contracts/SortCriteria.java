@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,9 @@
  */
 package com.chase.app.search.contracts;
 
-public enum SortCriteria
-{
-    RELEVANCE,
-    TIMESTAMP,
-    TRAIT,
-    ALPHABETICALLY
+public enum SortCriteria {
+  RELEVANCE,
+  TIMESTAMP,
+  TRAIT,
+  ALPHABETICALLY
 }

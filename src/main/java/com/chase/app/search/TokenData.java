@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,19 @@
 package com.chase.app.search;
 
 public class TokenData {
-    public TokenData(String text, int startOffset, int endOffset, int position) {
-        this.Text = text;
-        this.StartOffset = startOffset;
-        this.EndOffset = endOffset;
-        this.Position = position;
-    }
-    public String Text;
-    public int StartOffset;
-    public int EndOffset;
-    public int Position;
-    public int GetPosition() {
-        return Position;
-    }
+  public TokenData(String text, int startOffset, int endOffset, int position) {
+    this.Text = text;
+    this.StartOffset = startOffset;
+    this.EndOffset = endOffset;
+    this.Position = position;
+  }
+
+  public String Text;
+  public int StartOffset;
+  public int EndOffset;
+  public int Position;
+
+  public int GetPosition() {
+    return Position;
+  }
 }

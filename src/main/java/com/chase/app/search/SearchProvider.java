@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,11 +58,13 @@ package com.chase.app.search;
 //     private FacetsConfig facetsConfig;
 //     private SearcherQueryBuilder queryBuilder;
 
-//     public SearchProvider(Directory localIndex, Directory localTaxo, Directory remoteIndex, Directory remoteTaxo) throws IOException {
-//         IndexReader reader = 
+//     public SearchProvider(Directory localIndex, Directory localTaxo, Directory remoteIndex,
+// Directory remoteTaxo) throws IOException {
+//         IndexReader reader =
 //             remoteIndex==null ? DirectoryReader.open(localIndex)
-//                               : new MultiReader(DirectoryReader.open(localIndex),DirectoryReader.open(remoteIndex));
-//         searcher = new IndexSearcher(reader);          
+//                               : new
+// MultiReader(DirectoryReader.open(localIndex),DirectoryReader.open(remoteIndex));
+//         searcher = new IndexSearcher(reader);
 //         localTaxoReader = new DirectoryTaxonomyReader(localTaxo);
 //         remoteTaxoReader = new DirectoryTaxonomyReader(remoteTaxo);
 //         queryBuilder = new SearcherQueryBuilder();
@@ -75,7 +77,6 @@ package com.chase.app.search;
 //         facetsConfig.setHierarchical("traits", true);
 //         facetsConfig.setMultiValued("traits", true);
 //     }
-
 
 //     private void ApplyPostfilters(DrillDownQuery q, SearchFilter filters)
 //     {
@@ -99,9 +100,8 @@ package com.chase.app.search;
 //             for (String x : filters.link) {
 //                 q.add(IndexedFieldsNames.LINK_ID, x);
 //             }
-//         }    
+//         }
 //     }
-
 
 //     private ResponseResourceItem ToResponseResource(Document d)
 //     {
@@ -116,9 +116,10 @@ package com.chase.app.search;
 //         r.name = d.get(IndexedFieldsNames.NAME);
 
 //         // r.data, r.traits // TODO
-        
-//         // TODO -> r.indexTime =  d.getField(IndexedFieldsNames.INDEX_TIME).numericValue().longValue();
-        
+
+//         // TODO -> r.indexTime =
+// d.getField(IndexedFieldsNames.INDEX_TIME).numericValue().longValue();
+
 //         return r;
 //     }
 
@@ -133,15 +134,17 @@ package com.chase.app.search;
 //         }
 
 //         resp.resource = ToResponseResource(d);
-//         resp.sortValue = hit.score; // TODO support using a field etc. in case we dont use default sorting
+//         resp.sortValue = hit.score; // TODO support using a field etc. in case we dont use
+// default sorting
 //         return resp;
 //     }
 
 //     public SearchResponse Search(SearchRequest req) throws Exception {
-        
+
 //         FacetsCollector fc = new FacetsCollector();
-        
-//         Query query = req.term == null ? new MatchAllDocsQuery() : queryBuilder.BuildInnerQuery(req.term);
+
+//         Query query = req.term == null ? new MatchAllDocsQuery() :
+// queryBuilder.BuildInnerQuery(req.term);
 
 //         // add pre-filters
 //         if (req.preFilter != null)
@@ -150,10 +153,10 @@ package com.chase.app.search;
 //         }
 
 //         // add post-filters
-//         DrillDownQuery drilldownQuery = 
+//         DrillDownQuery drilldownQuery =
 //             new DrillDownQuery(facetsConfig, query);
 //         ApplyPostfilters(drilldownQuery, req.postFilter);
-            
+
 //         // compute sort
 //          // TODO - currently by relevance only
 
@@ -161,39 +164,43 @@ package com.chase.app.search;
 //          // TODO
 
 //         // run query
-//         TopDocs td = FacetsCollector.search(searcher, drilldownQuery, req.paging.skip + req.paging.limit,  fc);   // TODO pagination - only take relevant results. Also - 
-//                                                                                                                 // should make sure we correctly adjust this to our "grouping" needs
+//         TopDocs td = FacetsCollector.search(searcher, drilldownQuery, req.paging.skip +
+// req.paging.limit,  fc);   // TODO pagination - only take relevant results. Also -
+//
+//               // should make sure we correctly adjust this to our "grouping" needs
 
 //         SearchResponse sResp = new SearchResponse();
 
 //         // get results and aggregations
 //         ScoreDoc[] hits = td.scoreDocs;
 //         if (td.totalHits.value > 0) {
-//             sResp.results = Arrays.stream(hits).skip(req.paging.skip).map(x -> ToResponseItem(x)).toArray(ResponseItem[]::new);
+//             sResp.results = Arrays.stream(hits).skip(req.paging.skip).map(x ->
+// ToResponseItem(x)).toArray(ResponseItem[]::new);
 //             sResp.count = (int)td.totalHits.value;
 //         }
-        
-//         // now calc facets. TODO: Note that docs says drillSideways should calculate for each drilldown dim, but it seems to do it only for the last added drilldown.
-        
+
+//         // now calc facets. TODO: Note that docs says drillSideways should calculate for each
+// drilldown dim, but it seems to do it only for the last added drilldown.
+
 //         sResp.filter = GetAggregationSuggestions(query, req.postFilter, remoteTaxoReader, fc)
 //             .merge(GetAggregationSuggestions(query, req.postFilter, localTaxoReader, fc));
 
 //         return sResp;
 //     }
-    
+
 //     private String[] GetFacetResult(Facets facets, String dim) throws IOException
 //     {
 //         FacetResult r = facets.getTopChildren(50, dim);
-//         if (r == null || r.childCount <= 0) 
+//         if (r == null || r.childCount <= 0)
 //             return null;
-        
+
 //         return Arrays.stream(r.labelValues).map(x -> x.label).toArray(String[]::new);
 //     }
 
 //     private SearchFilter ToAggregationSuggestion(Facets facets) throws IOException
 //     {
 //         SearchFilter sf = new SearchFilter();
-        
+
 //         sf.appId = GetFacetResult(facets, IndexedFieldsNames.APP_ID);
 //         sf.resourceType = GetFacetResult(facets, IndexedFieldsNames.TYPE);
 //         sf.link = GetFacetResult(facets, IndexedFieldsNames.LINK_ID);
@@ -201,9 +208,9 @@ package com.chase.app.search;
 //         return sf;
 //     }
 
-
-
-//     private SearchFilter GetAggregationSuggestions(Query internalQuery, SearchFilter postFilters, DirectoryTaxonomyReader taxoReader, Collector collector) throws IOException, CloneNotSupportedException
+//     private SearchFilter GetAggregationSuggestions(Query internalQuery, SearchFilter postFilters,
+// DirectoryTaxonomyReader taxoReader, Collector collector) throws IOException,
+// CloneNotSupportedException
 //     {
 //         SearchFilter sf = new SearchFilter();
 //         DrillSideways ds = new DrillSideways(searcher, facetsConfig, taxoReader);
@@ -248,14 +255,13 @@ package com.chase.app.search;
 
 //         return sf;
 //     }
-    
 
 //     @Override
 //     public void close() throws IOException {
 //         // TODO Auto-generated method stub
 //         if (localTaxoReader != null)
 //             localTaxoReader.close();
-        
+
 //         if (remoteTaxoReader != null)
 //             remoteTaxoReader.close();
 //     }

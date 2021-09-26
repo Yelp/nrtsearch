@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,28 +23,26 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 
-
-import com.chase.app.search.TokenData;
-
 public class AnalysisHelper {
-    public static ArrayList<TokenData> Analyze(String fieldName, String text, Analyzer analyzer) throws IOException
-    {
-        ArrayList<TokenData> ret = new ArrayList<TokenData>();
-        try (TokenStream ts = analyzer.tokenStream(fieldName, text)) {
-            OffsetAttribute offsetAtt = ts.addAttribute(OffsetAttribute.class);
-            int pos = 0;
-            PositionIncrementAttribute posAtt = ts.addAttribute(PositionIncrementAttribute.class);
-            CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+  public static ArrayList<TokenData> Analyze(String fieldName, String text, Analyzer analyzer)
+      throws IOException {
+    ArrayList<TokenData> ret = new ArrayList<TokenData>();
+    try (TokenStream ts = analyzer.tokenStream(fieldName, text)) {
+      OffsetAttribute offsetAtt = ts.addAttribute(OffsetAttribute.class);
+      int pos = 0;
+      PositionIncrementAttribute posAtt = ts.addAttribute(PositionIncrementAttribute.class);
+      CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
 
-            ts.reset();
+      ts.reset();
 
-            while (ts.incrementToken()) {
-                pos = pos + posAtt.getPositionIncrement();
-                ret.add(new TokenData(termAtt.toString(), offsetAtt.startOffset(), offsetAtt.endOffset(), pos));
-            }
-            ts.end();
-        }
-
-        return ret;
+      while (ts.incrementToken()) {
+        pos = pos + posAtt.getPositionIncrement();
+        ret.add(
+            new TokenData(termAtt.toString(), offsetAtt.startOffset(), offsetAtt.endOffset(), pos));
+      }
+      ts.end();
     }
+
+    return ret;
+  }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@ import org.apache.lucene.analysis.Analyzer;
 
 public class CustomTokensAnalyzer extends Analyzer {
 
-    @Override
-    protected TokenStreamComponents createComponents(String fieldName) {
-        // TODO Auto-generated method stub
-        return null;
-    }    
+  @Override
+  protected TokenStreamComponents createComponents(String fieldName) {
+    // TODO Auto-generated method stub
+    return null;
+  }
 }

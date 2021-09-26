@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,15 +26,17 @@ import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 
 public class TypeAggressiveDelimitionAnalyzer extends Analyzer {
 
-    @Override
-    protected TokenStreamComponents createComponents(String fieldName) {
-      final Tokenizer src = new PathsTokenizer();
-      TokenStream res = WordDelimiterGraphFilterHelper.UseDefaultWordDelimiterGraphSettings(src);
-      res = new LowerCaseFilter(res);
-      res = new ASCIIFoldingFilter(res);
-      res = new PorterStemFilter(res);  // TODO is this the equivalent of ES'es StemmerFilter for light_english? check source code.
-  
-      return new TokenStreamComponents(src, res);
-    }
-  
+  @Override
+  protected TokenStreamComponents createComponents(String fieldName) {
+    final Tokenizer src = new PathsTokenizer();
+    TokenStream res = WordDelimiterGraphFilterHelper.UseDefaultWordDelimiterGraphSettings(src);
+    res = new LowerCaseFilter(res);
+    res = new ASCIIFoldingFilter(res);
+    res =
+        new PorterStemFilter(
+            res); // TODO is this the equivalent of ES'es StemmerFilter for light_english? check
+    // source code.
+
+    return new TokenStreamComponents(src, res);
   }
+}

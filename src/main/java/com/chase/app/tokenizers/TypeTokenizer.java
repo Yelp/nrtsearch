@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.chase.app.tokenizers;
 
 // import org.apache.lucene.analysis.util.CharTokenizer;
 // import org.apache.lucene.util.AttributeFactory;
 
-// // like https://github.com/chaseappio/backend-resources-service/blob/dev/src/Chase.Resources.Elastic/Template/Tokenizers/TypeTokenizer.cs
+// // like
+// https://github.com/chaseappio/backend-resources-service/blob/dev/src/Chase.Resources.Elastic/Template/Tokenizers/TypeTokenizer.cs
 // public class TypeTokenizer extends CharTokenizer {
 //     public TypeTokenizer() {
 //     }

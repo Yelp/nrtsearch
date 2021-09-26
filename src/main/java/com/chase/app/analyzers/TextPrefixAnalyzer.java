@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,16 +26,16 @@ import org.apache.lucene.analysis.miscellaneous.RemoveDuplicatesTokenFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 
 public class TextPrefixAnalyzer extends Analyzer {
-    @Override
-    protected TokenStreamComponents createComponents(String fieldName) {
-      final Tokenizer src = new StandardTokenizer();
-      
-      TokenStream res = new LowerCaseFilter(src);
-      res = new ASCIIFoldingFilter(res);
-      res = ShingleFilterHelper.UseTrigramFilter(res); // TODO why are we using this here as well?
-      res = EdgeNgramFilterHelper.UsePrefixEdgeNgramFilter(res);
-      res = new RemoveDuplicatesTokenFilter(res);
+  @Override
+  protected TokenStreamComponents createComponents(String fieldName) {
+    final Tokenizer src = new StandardTokenizer();
 
-      return new TokenStreamComponents(src, res);
-    }
+    TokenStream res = new LowerCaseFilter(src);
+    res = new ASCIIFoldingFilter(res);
+    res = ShingleFilterHelper.UseTrigramFilter(res); // TODO why are we using this here as well?
+    res = EdgeNgramFilterHelper.UsePrefixEdgeNgramFilter(res);
+    res = new RemoveDuplicatesTokenFilter(res);
+
+    return new TokenStreamComponents(src, res);
   }
+}

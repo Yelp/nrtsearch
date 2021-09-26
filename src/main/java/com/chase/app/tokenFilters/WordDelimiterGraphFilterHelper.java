@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,13 +20,14 @@ import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
 
 public final class WordDelimiterGraphFilterHelper {
 
-    final private static int _configurationFlags = WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS |
-      WordDelimiterGraphFilter.GENERATE_WORD_PARTS |
-      WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE |
-      WordDelimiterGraphFilter.SPLIT_ON_NUMERICS |
-      WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE;
-    public static TokenStream UseDefaultWordDelimiterGraphSettings(TokenStream in)
-    {
-      return new WordDelimiterGraphFilter(in, _configurationFlags, null);
-    }
+  private static final int _configurationFlags =
+      WordDelimiterGraphFilter.GENERATE_NUMBER_PARTS
+          | WordDelimiterGraphFilter.GENERATE_WORD_PARTS
+          | WordDelimiterGraphFilter.SPLIT_ON_CASE_CHANGE
+          | WordDelimiterGraphFilter.SPLIT_ON_NUMERICS
+          | WordDelimiterGraphFilter.STEM_ENGLISH_POSSESSIVE;
+
+  public static TokenStream UseDefaultWordDelimiterGraphSettings(TokenStream in) {
+    return new WordDelimiterGraphFilter(in, _configurationFlags, null);
   }
+}

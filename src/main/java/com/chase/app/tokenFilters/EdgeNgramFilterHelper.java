@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Chase Labs Inc.
+ * Copyright 2021 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,7 @@ import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 
 public final class EdgeNgramFilterHelper {
 
-    public static TokenStream UsePrefixEdgeNgramFilter(TokenStream in)
-    {
-      return new EdgeNGramTokenFilter(in, 1, 20, false);
-    }
+  public static TokenStream UsePrefixEdgeNgramFilter(TokenStream in) {
+    return new EdgeNGramTokenFilter(in, 1, 20, false);
   }
+}
