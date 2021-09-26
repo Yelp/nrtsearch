@@ -53,6 +53,12 @@ Note: This code has been tested on *Java14*
 ./build/install/nrtsearch/bin/lucene-server
 ```
 
+# Build gRPC Gateway
+
+```
+./gradlew buildGrpcGateway
+```
+
 # Run REST Server (use the appropriate binary for your platform e.g. for mac os)
 
 ```
