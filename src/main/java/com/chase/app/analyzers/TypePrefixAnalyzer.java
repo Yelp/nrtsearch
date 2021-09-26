@@ -1,11 +1,9 @@
 package com.chase.app.analyzers;
 
 import java.util.Arrays;
-
 import com.chase.app.tokenFilters.EdgeNgramFilterHelper;
 import com.chase.app.tokenFilters.WordDelimiterGraphFilterHelper;
 import com.chase.app.tokenizers.PathsTokenizer;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;

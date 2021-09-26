@@ -11,13 +11,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import com.chase.app.FieldMetadataProvider;
 import com.chase.app.IndexedFieldsExtensionsNames;
 import com.chase.app.IndexedFieldsNames;
 import com.chase.app.search.contracts.SearchFilter;
 import com.google.common.collect.Multimap;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;

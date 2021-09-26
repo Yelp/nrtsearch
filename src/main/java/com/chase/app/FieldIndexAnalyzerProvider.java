@@ -2,7 +2,6 @@ package com.chase.app;
 
 import java.util.Arrays;
 import java.util.Map;
-
 import com.chase.app.analyzers.HighlightingPrefixAnalyzer;
 import com.chase.app.analyzers.PathLiteDelimitionAnalyzer;
 import com.chase.app.analyzers.PathLiteDelimitionPrefixAnalyzer;
@@ -16,7 +15,6 @@ import com.chase.app.analyzers.TextStemmingAnalyzer;
 import com.chase.app.analyzers.TypeAggressiveDelimitionAnalyzer;
 import com.chase.app.analyzers.TypeLiteDelimitionAnalyzer;
 import com.chase.app.analyzers.TypePrefixAnalyzer;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;

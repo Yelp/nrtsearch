@@ -3,14 +3,12 @@ package com.chase.app;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
-
 import com.chase.app.analyzers.HighlightingSearchAnalyzer;
 import com.chase.app.analyzers.PathLiteDelimitionAnalyzer;
 import com.chase.app.analyzers.TextAggressiveDelimitionAnalyzer;
 import com.chase.app.analyzers.TextPrefixSearchAnalyzer;
 import com.chase.app.analyzers.TypeAggressiveDelimitionAnalyzer;
 import com.chase.app.search.FieldMetadata;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 

@@ -8,7 +8,6 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
-
 import org.apache.lucene.document.DateTools;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -17,7 +16,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
-
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.document.DateTools.Resolution;
 import org.apache.lucene.facet.FacetField;
@@ -25,8 +23,6 @@ import org.apache.lucene.facet.sortedset.SortedSetDocValuesFacetField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
-// import org.elasticsearch.common.recycler.Recycler.V;
-// import org.elasticsearch.index.store.Store;
 import org.joda.time.format.ISODateTimeFormat;
 
 public class FieldTypeProvider {

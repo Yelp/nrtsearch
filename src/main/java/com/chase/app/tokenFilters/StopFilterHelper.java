@@ -1,7 +1,6 @@
 package com.chase.app.tokenFilters;
 
 import java.util.Arrays;
-
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.StopFilter;

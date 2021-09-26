@@ -21,10 +21,8 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalysisProvider;
 import com.yelp.nrtsearch.server.plugins.AnalysisPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
-
 import java.util.Map;
 import java.io.IOException;
 import java.util.HashMap;
@@ -107,8 +105,8 @@ public class ChaseAnalyzersPlugin extends Plugin implements AnalysisPlugin {
         return new TextStemmingAnalyzer();
       }
     });
-    map.put("typeAggressiveDelimition", new AnalysisProvider<TypeAggressiveDelimitionAnalyzer>() {
-      public TypeAggressiveDelimitionAnalyzer get(String name) {
+    map.put("treePathHierarchy", new AnalysisProvider<TreePathHierarchyAnalyzer>() {
+      public TreePathHiepeAggressiveDelimitionAnalyzer get(String name) {
         return new TypeAggressiveDelimitionAnalyzer();
       }
     });

@@ -1,7 +1,6 @@
 package com.chase.app.tokenizers;
 
 import java.util.Set;
-
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.util.AttributeFactory;
 

@@ -3,7 +3,6 @@ package com.chase.app.analyzers;
 import com.chase.app.tokenFilters.EdgeNgramFilterHelper;
 import com.chase.app.tokenFilters.ShingleFilterHelper;
 import com.chase.app.tokenFilters.WordDelimiterGraphFilterHelper;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
