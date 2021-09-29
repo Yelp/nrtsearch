@@ -17,8 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
 import static com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor.TOTAL_HITS_THRESHOLD;
 
-import com.yelp.nrtsearch.server.grpc.SearchRequest;
+import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import java.util.List;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
@@ -31,13 +32,16 @@ public class RelevanceCollector extends DocCollector {
 
   private final CollectorManager<TopScoreDocCollector, TopDocs> manager;
 
-  public RelevanceCollector(SearchRequest searchRequest) {
-    super(searchRequest);
+  public RelevanceCollector(
+      CollectorCreatorContext context,
+      List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
+          additionalCollectors) {
+    super(context, additionalCollectors);
     FieldDoc searchAfter = null;
     int topHits = getNumHitsToCollect();
     int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
-    if (searchRequest.getTotalHitsThreshold() != 0) {
-      totalHitsThreshold = searchRequest.getTotalHitsThreshold();
+    if (context.getRequest().getTotalHitsThreshold() != 0) {
+      totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
     }
     manager = TopScoreDocCollector.createSharedManager(topHits, searchAfter, totalHitsThreshold);
   }

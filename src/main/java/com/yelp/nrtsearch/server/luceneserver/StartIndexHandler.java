@@ -21,8 +21,10 @@ import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.utils.Archiver;
+import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.IndexReader;
 import org.slf4j.Logger;
@@ -46,6 +48,11 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
   @Override
   public StartIndexResponse handle(IndexState indexState, StartIndexRequest startIndexRequest)
       throws StartIndexHandlerException {
+    if (indexState.isStarted()) {
+      throw new IllegalArgumentException(
+          String.format("Index %s is already started", indexState.name));
+    }
+
     final ShardState shardState = indexState.getShard(0);
     final Mode mode = startIndexRequest.getMode();
     final long primaryGen;
@@ -57,16 +64,23 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         try {
           if (!shardState.isRestored()) {
             RestoreIndex restoreIndex = startIndexRequest.getRestore();
+            if (restoreIndex.getDeleteExistingData()) {
+              indexState.deleteIndexRootDir();
+              deleteDownloadedBackupDirectories(restoreIndex.getResourceName());
+            }
+
             dataPath =
                 downloadArtifact(
                     restoreIndex.getServiceName(),
                     restoreIndex.getResourceName(),
                     INDEXED_DATA_TYPE.DATA);
+            shardState.setRestored(true);
           } else {
             throw new IllegalStateException("Index " + indexState.name + " already restored");
           }
-        } finally {
-          shardState.setRestored(true);
+        } catch (IOException e) {
+          logger.info("Unable to delete existing index data", e);
+          throw new StartIndexHandlerException(e);
         }
       }
     }
@@ -100,6 +114,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         // channel for replica to talk to primary on
         ReplicationServerClient primaryNodeClient =
             new ReplicationServerClient(primaryAddress, primaryPort);
+        indexState.initWarmer(archiver);
         shardState.startReplica(primaryNodeClient, primaryGen, dataPath);
       } else {
         indexState.start(dataPath);
@@ -133,6 +148,11 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
     long t1 = System.nanoTime();
     startIndexResponseBuilder.setStartTimeMS(((t1 - t0) / 1000000.0));
     return startIndexResponseBuilder.build();
+  }
+
+  private void deleteDownloadedBackupDirectories(String resourceName) throws IOException {
+    String resourceDataDirectory = IndexBackupUtils.getResourceData(resourceName);
+    FileUtil.deleteAllFiles(Paths.get(archiveDirectory, resourceDataDirectory));
   }
 
   public Path downloadArtifact(

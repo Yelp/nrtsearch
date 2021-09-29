@@ -97,12 +97,20 @@ public class LuceneServerClient {
       double indexRamBufferSizeMB,
       int addDocumentsMaxBufferLen,
       int sliceMaxDocs,
-      int sliceMaxSegments) {
+      int sliceMaxSegments,
+      int virtualShards,
+      int maxMergedSegmentMB,
+      int segmentsPerTier,
+      double defaultSearchTimeoutSec,
+      int defaultSearchTimeoutCheckEvery,
+      int defaultTerminateAfter) {
     logger.info(
         String.format(
             "will try to update liveSettings for indexName: %s, "
                 + "maxRefreshSec: %s, minRefreshSec: %s, maxSearcherAgeSec: %s, "
-                + "indexRamBufferSizeMB: %s, addDocumentsMaxBufferLen: %s, sliceMaxDocs: %s, sliceMaxSegments: %s ",
+                + "indexRamBufferSizeMB: %s, addDocumentsMaxBufferLen: %s, sliceMaxDocs: %s, "
+                + "sliceMaxSegments: %s, virtualShards: %s, maxMergedSegmentMB: %s, segmentsPerTier: %s, "
+                + "defaultSearchTimeoutSec: %s, defaultSearchTimeoutCheckEvery: %s, defaultTerminateAfter: %s ",
             indexName,
             maxRefreshSec,
             minRefreshSec,
@@ -110,7 +118,13 @@ public class LuceneServerClient {
             indexRamBufferSizeMB,
             addDocumentsMaxBufferLen,
             sliceMaxDocs,
-            sliceMaxSegments));
+            sliceMaxSegments,
+            virtualShards,
+            maxMergedSegmentMB,
+            segmentsPerTier,
+            defaultSearchTimeoutSec,
+            defaultSearchTimeoutCheckEvery,
+            defaultTerminateAfter));
     LiveSettingsRequest request =
         LiveSettingsRequest.newBuilder()
             .setIndexName(indexName)
@@ -121,6 +135,12 @@ public class LuceneServerClient {
             .setAddDocumentsMaxBufferLen(addDocumentsMaxBufferLen)
             .setSliceMaxDocs(sliceMaxDocs)
             .setSliceMaxSegments(sliceMaxSegments)
+            .setVirtualShards(virtualShards)
+            .setMaxMergedSegmentMB(maxMergedSegmentMB)
+            .setSegmentsPerTier(segmentsPerTier)
+            .setDefaultSearchTimeoutSec(defaultSearchTimeoutSec)
+            .setDefaultSearchTimeoutCheckEvery(defaultSearchTimeoutCheckEvery)
+            .setDefaultTerminateAfter(defaultTerminateAfter)
             .build();
     LiveSettingsResponse response;
     try {
@@ -244,7 +264,11 @@ public class LuceneServerClient {
       logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
-    logger.info("Server returned sequence id: " + response.getGen());
+    logger.info(
+        "Server returned sequence id: "
+            + response.getGen()
+            + ", primary id: "
+            + response.getPrimaryId());
   }
 
   public void stats(String indexName) {
@@ -283,7 +307,11 @@ public class LuceneServerClient {
       logger.warn("RPC failed: {}", e.getStatus());
       return;
     }
-    logger.info("Server returned indexGen : " + response.getGenId());
+    logger.info(
+        "Server returned indexGen : "
+            + response.getGenId()
+            + ", primary id: "
+            + response.getPrimaryId());
   }
 
   public void deleteIndex(String indexName) {
@@ -316,6 +344,17 @@ public class LuceneServerClient {
             .setIndexName(indexName)
             .setCompleteDirectory(completeDirectory)
             .setStream(stream)
+            .build());
+  }
+
+  public void backupWarmingQueries(
+      String index, String service, int numQueriesThreshold, int uptimeMinutesThreshold) {
+    blockingStub.backupWarmingQueries(
+        BackupWarmingQueriesRequest.newBuilder()
+            .setIndex(index)
+            .setServiceName(service)
+            .setNumQueriesThreshold(numQueriesThreshold)
+            .setUptimeMinutesThreshold(uptimeMinutesThreshold)
             .build());
   }
 

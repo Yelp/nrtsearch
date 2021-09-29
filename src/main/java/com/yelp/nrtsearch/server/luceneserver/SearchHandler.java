@@ -15,8 +15,9 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.google.gson.Gson;
+import com.google.common.collect.Lists;
 import com.google.protobuf.Struct;
+import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
@@ -40,15 +41,17 @@ import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
-import com.yelp.nrtsearch.server.utils.StructJsonUtils;
+import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -70,20 +73,32 @@ import org.slf4j.LoggerFactory;
 
 public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
+  private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
   private final ThreadPoolExecutor threadPoolExecutor;
-  Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
-
-  private final Gson gson = new Gson();
+  private final boolean warming;
 
   public SearchHandler(ThreadPoolExecutor threadPoolExecutor) {
+    this(threadPoolExecutor, false);
+  }
+
+  /**
+   * @param threadPoolExecutor Threadpool to execute a parallel search
+   * @param warming set to true if we are warming the index right now
+   */
+  public SearchHandler(ThreadPoolExecutor threadPoolExecutor, boolean warming) {
     this.threadPoolExecutor = threadPoolExecutor;
+    this.warming = warming;
   }
 
   @Override
   public SearchResponse handle(IndexState indexState, SearchRequest searchRequest)
       throws SearchHandlerException {
     ShardState shardState = indexState.getShard(0);
-    indexState.verifyStarted();
+
+    // Index won't be started if we are currently warming
+    if (!warming) {
+      indexState.verifyStarted();
+    }
 
     var diagnostics = SearchResponse.Diagnostics.newBuilder();
 
@@ -92,17 +107,18 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     try {
       s = getSearcherAndTaxonomy(searchRequest, shardState, diagnostics, threadPoolExecutor);
 
-      searchContext =
-          SearchRequestProcessor.buildContextForRequest(
-              searchRequest, indexState, shardState, s, diagnostics);
-
       ProfileResult.Builder profileResultBuilder = null;
       if (searchRequest.getProfile()) {
         profileResultBuilder = ProfileResult.newBuilder();
       }
 
+      searchContext =
+          SearchRequestProcessor.buildContextForRequest(
+              searchRequest, indexState, shardState, s, profileResultBuilder);
+
       long searchStartTime = System.nanoTime();
 
+      SearcherResult searcherResult;
       TopDocs hits;
       if (!searchRequest.getFacetsList().isEmpty()) {
         if (!(searchContext.getQuery() instanceof DrillDownQuery)) {
@@ -123,8 +139,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 grpcFacetResults,
                 threadPoolExecutor,
                 diagnostics);
-        DrillSideways.ConcurrentDrillSidewaysResult<? extends TopDocs>
-            concurrentDrillSidewaysResult;
+        DrillSideways.ConcurrentDrillSidewaysResult<SearcherResult> concurrentDrillSidewaysResult;
         try {
           concurrentDrillSidewaysResult =
               drillS.search(ddq, searchContext.getCollector().getWrappedManager());
@@ -138,7 +153,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           }
           throw e;
         }
-        hits = concurrentDrillSidewaysResult.collectorResult;
+        searcherResult = concurrentDrillSidewaysResult.collectorResult;
+        hits = searcherResult.getTopDocs();
         searchContext.getResponseBuilder().addAllFacetResult(grpcFacetResults);
         searchContext
             .getResponseBuilder()
@@ -146,12 +162,21 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 FacetTopDocs.facetTopDocsSample(
                     hits, searchRequest.getFacetsList(), indexState, s.searcher, diagnostics));
       } else {
-        hits =
+        searcherResult =
             s.searcher.search(
                 searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
+        hits = searcherResult.getTopDocs();
       }
 
+      // add results from any extra collectors
+      searchContext
+          .getResponseBuilder()
+          .putAllCollectorResults(searcherResult.getCollectorResults());
+
       searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
+      searchContext
+          .getResponseBuilder()
+          .setTerminatedEarly(searchContext.getCollector().terminatedEarly());
 
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 
@@ -164,9 +189,12 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       if (!searchContext.getRescorers().isEmpty()) {
         for (RescoreTask rescorer : searchContext.getRescorers()) {
-          hits = rescorer.rescore(s.searcher, hits);
+          long startNS = System.nanoTime();
+          hits = rescorer.rescore(hits, searchContext);
+          long endNS = System.nanoTime();
+          diagnostics.putRescorersTimeMs(rescorer.getName(), (endNS - startNS) / 1000000.0);
         }
-        diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
+        diagnostics.setRescoreTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
       }
 
       long t0 = System.nanoTime();
@@ -176,36 +204,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       // create Hit.Builder for each hit, and populate with lucene doc id and ranking info
       setResponseHits(searchContext, hits);
 
-      // fill all other needed fields into each Hit.Builder
-      List<Hit.Builder> hitBuilders = searchContext.getResponseBuilder().getHitsBuilderList();
-      List<LeafReaderContext> leaves = s.searcher.getIndexReader().leaves();
-      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
-        var hitResponse = hitBuilders.get(hitIndex);
-
-        LeafReaderContext leaf =
-            leaves.get(ReaderUtil.subIndex(hitResponse.getLuceneDocId(), leaves));
-
-        if (!searchContext.getRetrieveFields().isEmpty()) {
-          var fieldValueMap =
-              fillFields(
-                  indexState,
-                  null,
-                  s.searcher,
-                  hitResponse,
-                  leaf,
-                  searchContext.getRetrieveFields().keySet(),
-                  Collections.emptyMap(),
-                  hitIndex,
-                  searchContext.getRetrieveFields());
-          hitResponse.putAllFields(fieldValueMap);
-        }
-
-        searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
-      }
-
-      searchContext
-          .getFetchTasks()
-          .processAllHits(searchContext, searchContext.getResponseBuilder().getHitsBuilderList());
+      // fill Hit.Builder with requested fields
+      fetchFields(searchContext);
 
       SearchState.Builder searchState = SearchState.newBuilder();
       searchContext.getResponseBuilder().setSearchState(searchState);
@@ -227,7 +227,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       if (profileResultBuilder != null) {
         searchContext.getResponseBuilder().setProfileResult(profileResultBuilder);
       }
-    } catch (IOException | InterruptedException e) {
+    } catch (IOException | InterruptedException | ExecutionException e) {
       logger.warn(e.getMessage(), e);
       throw new SearchHandlerException(e);
     } finally {
@@ -249,7 +249,141 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
     }
 
+    // Add searchRequest to warmer if needed
+    try {
+      if (!warming && indexState.getWarmer() != null) {
+        indexState.getWarmer().addSearchRequest(searchRequest);
+      }
+    } catch (Exception e) {
+      logger.error("Unable to add warming query", e);
+    }
+
     return searchContext.getResponseBuilder().build();
+  }
+
+  /**
+   * Fetch/compute field values for the top hits. This operation may be done in parallel, based on
+   * the setting for the fetch thread pool. In addition to filling hit fields, any query {@link
+   * com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask}s are executed.
+   *
+   * @param searchContext search parameters
+   * @throws IOException on error reading index data
+   * @throws ExecutionException on error when performing parallel fetch
+   * @throws InterruptedException if parallel fetch is interrupted
+   */
+  private void fetchFields(SearchContext searchContext)
+      throws IOException, ExecutionException, InterruptedException {
+    if (searchContext.getResponseBuilder().getHitsBuilderList().isEmpty()) {
+      return;
+    }
+
+    // sort hits by lucene doc id
+    List<Hit.Builder> hitBuilders =
+        new ArrayList<>(searchContext.getResponseBuilder().getHitsBuilderList());
+    hitBuilders.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
+
+    IndexState indexState = searchContext.getIndexState();
+    int fetch_thread_pool_size = indexState.getThreadPoolConfiguration().getMaxFetchThreads();
+    int min_parallel_fetch_num_fields =
+        indexState.getThreadPoolConfiguration().getMinParallelFetchNumFields();
+    int min_parallel_fetch_num_hits =
+        indexState.getThreadPoolConfiguration().getMinParallelFetchNumHits();
+    boolean parallelFetchByField =
+        indexState.getThreadPoolConfiguration().getParallelFetchByField();
+
+    if (parallelFetchByField
+        && fetch_thread_pool_size > 1
+        && searchContext.getRetrieveFields().keySet().size() > min_parallel_fetch_num_fields
+        && hitBuilders.size() > min_parallel_fetch_num_hits) {
+      // Fetch fields in parallel
+
+      List<LeafReaderContext> leaves =
+          searchContext.getSearcherAndTaxonomy().searcher.getIndexReader().leaves();
+      List<LeafReaderContext> hitIdToLeaves = new ArrayList<>();
+      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+        var hitResponse = hitBuilders.get(hitIndex);
+        LeafReaderContext leaf =
+            leaves.get(ReaderUtil.subIndex(hitResponse.getLuceneDocId(), leaves));
+        hitIdToLeaves.add(hitIndex, leaf);
+      }
+      List<String> fields = new ArrayList<>(searchContext.getRetrieveFields().keySet());
+
+      // parallelism is min of fetchThreadPoolSize and fields.size() / MIN_PARALLEL_NUM_FIELDS
+      // round up
+      int parallelism =
+          Math.min(
+              fetch_thread_pool_size,
+              (fields.size() + min_parallel_fetch_num_fields - 1) / min_parallel_fetch_num_fields);
+      List<List<String>> fieldsChunks =
+          Lists.partition(fields, (fields.size() + parallelism - 1) / parallelism);
+      List<Future<List<Map<String, CompositeFieldValue>>>> futures = new ArrayList<>();
+
+      // Only parallel by fields here, which should work well for doc values and virtual fields
+      // For row based stored fields, we should do it by hit id.
+      // Stored fields are not widely used for NRTSearch (not recommended for memory usage)
+      for (List<String> fieldsChunk : fieldsChunks) {
+        futures.add(
+            indexState
+                .getFetchThreadPoolExecutor()
+                .submit(
+                    new FillFieldsTask(
+                        indexState,
+                        searchContext.getSearcherAndTaxonomy().searcher,
+                        hitIdToLeaves,
+                        hitBuilders,
+                        fieldsChunk,
+                        searchContext)));
+      }
+      for (Future<List<Map<String, CompositeFieldValue>>> future : futures) {
+        List<Map<String, CompositeFieldValue>> values = future.get();
+        for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+          var hitResponse = hitBuilders.get(hitIndex);
+          hitResponse.putAllFields(values.get(hitIndex));
+        }
+      }
+
+      // execute per hit fetch tasks
+      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+        var hitResponse = hitBuilders.get(hitIndex);
+        LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
+        searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
+      }
+    } else if (!parallelFetchByField
+        && fetch_thread_pool_size > 1
+        && hitBuilders.size() > min_parallel_fetch_num_hits) {
+      // Fetch docs in parallel
+
+      // parallelism is min of fetchThreadPoolSize and hitsBuilder.size() / MIN_PARALLEL_NUM_HITS
+      // round up
+      int parallelism =
+          Math.min(
+              fetch_thread_pool_size,
+              (hitBuilders.size() + min_parallel_fetch_num_hits - 1) / min_parallel_fetch_num_hits);
+      List<List<Hit.Builder>> docChunks =
+          Lists.partition(hitBuilders, (hitBuilders.size() + parallelism - 1) / parallelism);
+
+      // process each document chunk in parallel
+      List<Future<?>> futures = new ArrayList<>();
+      for (List<Hit.Builder> docChunk : docChunks) {
+        futures.add(
+            indexState
+                .getFetchThreadPoolExecutor()
+                .submit(new FillDocsTask(searchContext, docChunk)));
+      }
+      for (Future<?> future : futures) {
+        future.get();
+      }
+      // no need to run the per hit fetch tasks here, since they were done in the FillDocsTask
+    } else {
+      // single threaded fetch
+      FillDocsTask fillDocsTask = new FillDocsTask(searchContext, hitBuilders);
+      fillDocsTask.run();
+    }
+
+    // execute all hits fetch tasks
+    searchContext
+        .getFetchTasks()
+        .processAllHits(searchContext, searchContext.getResponseBuilder().getHitsBuilderList());
   }
 
   /**
@@ -504,7 +638,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                   new MyIndexSearcher.ExecutorWithParams(
                       threadPoolExecutor,
                       state.indexState.getSliceMaxDocs(),
-                      state.indexState.getSliceMaxSegments())),
+                      state.indexState.getSliceMaxSegments(),
+                      state.indexState.getVirtualShards())),
               s.taxonomyReader);
       state.slm.record(result.searcher);
       long t1 = System.nanoTime();
@@ -517,120 +652,342 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     }
   }
 
-  /**
-   * Fills in the returned fields (some hilited) for one hit:
-   *
-   * @return
-   */
-  private Map<String, CompositeFieldValue> fillFields(
-      IndexState state,
-      Object highlighter,
-      IndexSearcher s,
-      Hit.Builder hit,
-      LeafReaderContext leaf,
-      Set<String> fields,
-      Map<String, Object[]> highlights,
-      int hiliteHitIndex,
-      Map<String, FieldDef> dynamicFields)
-      throws IOException {
-    Map<String, CompositeFieldValue> fieldValueMap = new HashMap<>();
-    if (fields != null) {
-      // Add requested stored fields (no highlighting):
+  public static class FillFieldsTask implements Callable<List<Map<String, CompositeFieldValue>>> {
 
-      // even if they were not stored ...
+    private IndexState state;
+    private IndexSearcher s;
+    private List<LeafReaderContext> hitIdToleaves;
+    private List<Hit.Builder> hitBuilders;
+    private List<String> fields;
+    private SearchContext searchContext;
+
+    public FillFieldsTask(
+        IndexState indexState,
+        IndexSearcher indexSearcher,
+        List<LeafReaderContext> hitIdToleaves,
+        List<Hit.Builder> hitBuilders,
+        List<String> fields,
+        SearchContext searchContext) {
+      this.state = indexState;
+      this.s = indexSearcher;
+      this.fields = fields;
+      this.searchContext = searchContext;
+      this.hitBuilders = hitBuilders;
+      this.hitIdToleaves = hitIdToleaves;
+    }
+
+    private List<Map<String, CompositeFieldValue>> fillFields(
+        IndexState state,
+        IndexSearcher s,
+        List<Hit.Builder> hitBuilders,
+        List<String> fields,
+        SearchContext searchContext)
+        throws IOException {
+      List<Map<String, CompositeFieldValue>> values = new ArrayList<>();
+      for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+        values.add(new HashMap<>());
+      }
+      for (String field : fields) {
+        for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
+          var hitResponse = hitBuilders.get(hitIndex);
+          LeafReaderContext leaf = hitIdToleaves.get(hitIndex);
+          CompositeFieldValue v =
+              getFieldForHit(state, s, hitResponse, leaf, field, searchContext.getRetrieveFields());
+          values.get(hitIndex).put(field, v);
+        }
+      }
+      return values;
+    }
+
+    /**
+     * retrieve one field (some hilited) for one hit:
+     *
+     * @return
+     */
+    private CompositeFieldValue getFieldForHit(
+        IndexState state,
+        IndexSearcher s,
+        Hit.Builder hit,
+        LeafReaderContext leaf,
+        String field,
+        Map<String, FieldDef> dynamicFields)
+        throws IOException {
+      assert field != null;
+      CompositeFieldValue.Builder compositeFieldValue = CompositeFieldValue.newBuilder();
+      FieldDef fd = dynamicFields.get(field);
+
       // TODO: get highlighted fields as well
       // Map<String,Object> doc = highlighter.getDocument(state, s, hit.doc);
       Map<String, Object> doc = new HashMap<>();
       boolean docIdAdvanced = false;
-      for (String name : fields) {
-        CompositeFieldValue.Builder compositeFieldValue = CompositeFieldValue.newBuilder();
-        FieldDef fd = dynamicFields.get(name);
 
-        // We detect invalid field above:
-        assert fd != null;
+      // We detect invalid field above:
+      assert fd != null;
 
-        // retrieve from doc values
-        if (fd instanceof VirtualFieldDef) {
-          VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
+      if (fd instanceof VirtualFieldDef) {
+        VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
 
-          int docID = hit.getLuceneDocId() - leaf.docBase;
+        int docID = hit.getLuceneDocId() - leaf.docBase;
 
-          assert !Double.isNaN(hit.getScore()) || !virtualFieldDef.getValuesSource().needsScores();
-          DoubleValues scoreValue =
-              new DoubleValues() {
-                @Override
-                public double doubleValue() throws IOException {
-                  return hit.getScore();
-                }
+        assert !Double.isNaN(hit.getScore()) || !virtualFieldDef.getValuesSource().needsScores();
+        DoubleValues scoreValue =
+            new DoubleValues() {
+              @Override
+              public double doubleValue() throws IOException {
+                return hit.getScore();
+              }
 
-                @Override
-                public boolean advanceExact(int doc) throws IOException {
-                  return !Double.isNaN(hit.getScore());
-                }
-              };
-          DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
-          doubleValues.advanceExact(docID);
-          compositeFieldValue.addFieldValue(
-              FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
-        } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
-          int docID = hit.getLuceneDocId() - leaf.docBase;
-          // it may be possible to cache this if there are multiple hits in the same segment
-          LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);
-          docValues.setDocId(docID);
-          for (int i = 0; i < docValues.size(); ++i) {
-            compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
+              @Override
+              public boolean advanceExact(int doc) throws IOException {
+                return !Double.isNaN(hit.getScore());
+              }
+            };
+        DoubleValues doubleValues = virtualFieldDef.getValuesSource().getValues(leaf, scoreValue);
+        doubleValues.advanceExact(docID);
+        compositeFieldValue.addFieldValue(
+            FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
+      } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
+        int docID = hit.getLuceneDocId() - leaf.docBase;
+        // it may be possible to cache this if there are multiple hits in the same segment
+        LoadedDocValues<?> docValues = ((IndexableFieldDef) fd).getDocValues(leaf);
+        docValues.setDocId(docID);
+        for (int i = 0; i < docValues.size(); ++i) {
+          compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
+        }
+      }
+      // retrieve stored fields
+      else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
+        String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.getLuceneDocId()));
+        for (String fieldValue : values) {
+          if (fd instanceof ObjectFieldDef || fd instanceof PolygonfieldDef) {
+            Struct.Builder builder = Struct.newBuilder();
+            JsonFormat.parser().merge(fieldValue, builder);
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(builder));
+          } else {
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
           }
         }
-        // retrieve stored fields
-        else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
-          String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.getLuceneDocId()));
-          for (String fieldValue : values) {
-            if (fd instanceof ObjectFieldDef || fd instanceof PolygonfieldDef) {
-              Map<String, Object> map = gson.fromJson(fieldValue, Map.class);
-              Struct struct = StructJsonUtils.convertMapToStruct(map);
-              compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(struct));
-            } else {
-              compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
-            }
-          }
-        } else {
-          Object v = doc.get(name); // FIXME: doc is never updated, not sure if this is correct
-          if (v != null) {
-            if (fd instanceof IndexableFieldDef && !((IndexableFieldDef) fd).isMultiValue()) {
+      } else {
+        Object v = doc.get(field); // FIXME: doc is never updated, not sure if this is correct
+        if (v != null) {
+          if (fd instanceof IndexableFieldDef && !((IndexableFieldDef) fd).isMultiValue()) {
+            compositeFieldValue.addFieldValue(convertType(fd, v));
+          } else {
+            if (!(v instanceof List)) {
+              // FIXME: not sure this is serializable to string?
               compositeFieldValue.addFieldValue(convertType(fd, v));
             } else {
-              if (!(v instanceof List)) {
+              for (Object o : (List<Object>) v) {
                 // FIXME: not sure this is serializable to string?
-                compositeFieldValue.addFieldValue(convertType(fd, v));
-              } else {
-                for (Object o : (List<Object>) v) {
-                  // FIXME: not sure this is serializable to string?
-                  compositeFieldValue.addFieldValue(convertType(fd, o));
-                }
+                compositeFieldValue.addFieldValue(convertType(fd, o));
               }
             }
           }
         }
+      }
 
-        fieldValueMap.put(name, compositeFieldValue.build());
+      return compositeFieldValue.build();
+    }
+
+    @Override
+    public List<Map<String, CompositeFieldValue>> call() throws IOException {
+      return fillFields(state, s, hitBuilders, fields, searchContext);
+    }
+  }
+
+  /** Task to fetch all the fields for a chunk of hits. Also executes any per hit fetch tasks. */
+  public static class FillDocsTask implements Runnable {
+    private final SearchContext searchContext;
+    private final List<Hit.Builder> docChunk;
+
+    /**
+     * Constructor.
+     *
+     * @param searchContext search parameters
+     * @param docChunk list of hit builders for query response, must be in lucene doc id order
+     */
+    public FillDocsTask(SearchContext searchContext, List<Hit.Builder> docChunk) {
+      this.searchContext = searchContext;
+      this.docChunk = docChunk;
+    }
+
+    @Override
+    public void run() {
+      List<LeafReaderContext> leaves =
+          searchContext.getSearcherAndTaxonomy().searcher.getIndexReader().leaves();
+      int hitIndex = 0;
+      // process documents, grouped by lucene segment
+      while (hitIndex < docChunk.size()) {
+        int leafIndex = ReaderUtil.subIndex(docChunk.get(hitIndex).getLuceneDocId(), leaves);
+        LeafReaderContext sliceSegment = leaves.get(leafIndex);
+
+        // get all hits in the same segment and process them together for better resource reuse
+        List<Hit.Builder> sliceHits = getSliceHits(docChunk, hitIndex, sliceSegment);
+        try {
+          fetchSlice(searchContext, sliceHits, sliceSegment);
+        } catch (IOException e) {
+          throw new RuntimeException("Error fetching field data", e);
+        }
+
+        hitIndex += sliceHits.size();
       }
     }
 
-    if (highlights != null) {
-      for (Map.Entry<String, Object[]> ent : highlights.entrySet()) {
-        Object v = ent.getValue()[hiliteHitIndex];
-        if (v != null) {
-          // FIXME: not sure this is serializable to string?
-          CompositeFieldValue value =
-              CompositeFieldValue.newBuilder()
-                  .addFieldValue(FieldValue.newBuilder().setTextValue(v.toString()).build())
-                  .build();
-          fieldValueMap.put(ent.getKey(), value);
+    /** Get all hits belonging to the same lucene segment */
+    private static List<SearchResponse.Hit.Builder> getSliceHits(
+        List<SearchResponse.Hit.Builder> sortedHits,
+        int startIndex,
+        LeafReaderContext sliceSegment) {
+      int endDoc = sliceSegment.docBase + sliceSegment.reader().maxDoc();
+      int endIndex = startIndex + 1;
+      while (endIndex < sortedHits.size()) {
+        if (sortedHits.get(endIndex).getLuceneDocId() >= endDoc) {
+          break;
+        }
+        endIndex++;
+      }
+      return sortedHits.subList(startIndex, endIndex);
+    }
+
+    /**
+     * Fetch all the required field data For a slice of hits. All these hit reside in the same
+     * lucene segment.
+     *
+     * @param context search context
+     * @param sliceHits hits in this slice
+     * @param sliceSegment lucene segment context for slice
+     * @throws IOException on issue reading document data
+     */
+    private static void fetchSlice(
+        SearchContext context,
+        List<SearchResponse.Hit.Builder> sliceHits,
+        LeafReaderContext sliceSegment)
+        throws IOException {
+      for (Map.Entry<String, FieldDef> fieldDefEntry : context.getRetrieveFields().entrySet()) {
+        if (fieldDefEntry.getValue() instanceof VirtualFieldDef) {
+          fetchFromValueSource(
+              sliceHits,
+              sliceSegment,
+              fieldDefEntry.getKey(),
+              (VirtualFieldDef) fieldDefEntry.getValue());
+        } else if (fieldDefEntry.getValue() instanceof IndexableFieldDef) {
+          IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDefEntry.getValue();
+          if (indexableFieldDef.hasDocValues()) {
+            fetchFromDocVales(sliceHits, sliceSegment, fieldDefEntry.getKey(), indexableFieldDef);
+          } else if (indexableFieldDef.isStored()) {
+            fetchFromStored(context, sliceHits, fieldDefEntry.getKey(), indexableFieldDef);
+          } else {
+            throw new IllegalStateException(
+                "No valid method to retrieve indexable field: " + fieldDefEntry.getKey());
+          }
+        } else {
+          throw new IllegalStateException(
+              "No valid method to retrieve field: " + fieldDefEntry.getKey());
         }
       }
+
+      // execute any per hit fetch tasks
+      for (Hit.Builder hit : sliceHits) {
+        context.getFetchTasks().processHit(context, sliceSegment, hit);
+      }
     }
 
-    return fieldValueMap;
+    /**
+     * Fetch field value from virtual field's {@link org.apache.lucene.search.DoubleValuesSource}
+     */
+    private static void fetchFromValueSource(
+        List<SearchResponse.Hit.Builder> sliceHits,
+        LeafReaderContext sliceSegment,
+        String name,
+        VirtualFieldDef virtualFieldDef)
+        throws IOException {
+      SettableScoreDoubleValues scoreValue = new SettableScoreDoubleValues();
+      DoubleValues doubleValues =
+          virtualFieldDef.getValuesSource().getValues(sliceSegment, scoreValue);
+      for (SearchResponse.Hit.Builder hit : sliceHits) {
+        int docID = hit.getLuceneDocId() - sliceSegment.docBase;
+        scoreValue.setScore(hit.getScore());
+        doubleValues.advanceExact(docID);
+
+        SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
+            SearchResponse.Hit.CompositeFieldValue.newBuilder();
+        compositeFieldValue.addFieldValue(
+            SearchResponse.Hit.FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
+        hit.putFields(name, compositeFieldValue.build());
+      }
+    }
+
+    /** Fetch field value from its doc value */
+    private static void fetchFromDocVales(
+        List<SearchResponse.Hit.Builder> sliceHits,
+        LeafReaderContext sliceSegment,
+        String name,
+        IndexableFieldDef indexableFieldDef)
+        throws IOException {
+      LoadedDocValues<?> docValues = indexableFieldDef.getDocValues(sliceSegment);
+      for (SearchResponse.Hit.Builder hit : sliceHits) {
+        int docID = hit.getLuceneDocId() - sliceSegment.docBase;
+        docValues.setDocId(docID);
+
+        SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
+            SearchResponse.Hit.CompositeFieldValue.newBuilder();
+        for (int i = 0; i < docValues.size(); ++i) {
+          compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
+        }
+        hit.putFields(name, compositeFieldValue.build());
+      }
+    }
+
+    /** Fetch field value stored in the index */
+    private static void fetchFromStored(
+        SearchContext context,
+        List<SearchResponse.Hit.Builder> sliceHits,
+        String name,
+        IndexableFieldDef indexableFieldDef)
+        throws IOException {
+      for (SearchResponse.Hit.Builder hit : sliceHits) {
+        String[] values =
+            indexableFieldDef.getStored(
+                context.getSearcherAndTaxonomy().searcher.doc(hit.getLuceneDocId()));
+
+        SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
+            SearchResponse.Hit.CompositeFieldValue.newBuilder();
+        for (String fieldValue : values) {
+          if (indexableFieldDef instanceof ObjectFieldDef
+              || indexableFieldDef instanceof PolygonfieldDef) {
+            Struct.Builder builder = Struct.newBuilder();
+            JsonFormat.parser().merge(fieldValue, builder);
+            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(builder));
+          } else {
+            compositeFieldValue.addFieldValue(
+                SearchResponse.Hit.FieldValue.newBuilder().setTextValue(fieldValue));
+          }
+        }
+        hit.putFields(name, compositeFieldValue.build());
+      }
+    }
+
+    /**
+     * {@link DoubleValues} implementation used to inject the document score into the execution of
+     * scripts to populate virtual fields.
+     */
+    private static class SettableScoreDoubleValues extends DoubleValues {
+      private double score = Double.NaN;
+
+      @Override
+      public double doubleValue() {
+        return score;
+      }
+
+      @Override
+      public boolean advanceExact(int doc) {
+        return !Double.isNaN(score);
+      }
+
+      public void setScore(double score) {
+        this.score = score;
+      }
+    }
   }
 
   private static FieldValue convertType(FieldDef fd, Object o) {

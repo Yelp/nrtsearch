@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -59,6 +60,7 @@ public class GlobalState implements Closeable, Restorable {
   Logger logger = LoggerFactory.getLogger(GlobalState.class);
   private long lastIndicesGen;
   private final JsonParser jsonParser = new JsonParser();
+  private final String ephemeralId = UUID.randomUUID().toString();
 
   public final String nodeName;
 
@@ -79,6 +81,7 @@ public class GlobalState implements Closeable, Restorable {
   private final JsonObject indexNames = new JsonObject();
 
   private final ExecutorService indexService;
+  private final ExecutorService fetchService;
   private final ThreadPoolExecutor searchThreadPoolExecutor;
 
   public GlobalState(LuceneServerConfiguration luceneServerConfiguration) throws IOException {
@@ -101,6 +104,10 @@ public class GlobalState implements Closeable, Restorable {
     this.searchThreadPoolExecutor =
         ThreadPoolExecutorFactory.getThreadPoolExecutor(
             ThreadPoolExecutorFactory.ExecutorType.SEARCH,
+            luceneServerConfiguration.getThreadPoolConfiguration());
+    this.fetchService =
+        ThreadPoolExecutorFactory.getThreadPoolExecutor(
+            ThreadPoolExecutorFactory.ExecutorType.FETCH,
             luceneServerConfiguration.getThreadPoolConfiguration());
     this.configuration = luceneServerConfiguration;
     loadIndexNames();
@@ -178,8 +185,9 @@ public class GlobalState implements Closeable, Restorable {
       // remove old gens
       try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateDir)) {
         for (Path sub : stream) {
-          if (sub.toString().startsWith("indices.")) {
-            long gen = Long.parseLong(sub.toString().substring(8));
+          String filename = sub.getFileName().toString();
+          if (filename.startsWith("indices.")) {
+            long gen = Long.parseLong(filename.substring(8));
             if (gen != lastIndicesGen) {
               Files.delete(sub);
             }
@@ -270,9 +278,10 @@ public class GlobalState implements Closeable, Restorable {
   }
 
   /** Remove the specified index. */
-  public void deleteIndex(String name) {
+  public void deleteIndex(String name) throws IOException {
     synchronized (indices) {
       indexNames.remove(name);
+      saveIndexNames();
     }
   }
 
@@ -290,5 +299,13 @@ public class GlobalState implements Closeable, Restorable {
 
   public ThreadPoolExecutor getSearchThreadPoolExecutor() {
     return searchThreadPoolExecutor;
+  }
+
+  public ExecutorService getFetchService() {
+    return fetchService;
+  }
+
+  public String getEphemeralId() {
+    return ephemeralId;
   }
 }

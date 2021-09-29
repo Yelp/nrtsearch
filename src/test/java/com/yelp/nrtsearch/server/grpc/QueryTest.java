@@ -16,9 +16,10 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.google.protobuf.Any;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
@@ -26,6 +27,7 @@ import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import org.junit.After;
 import org.junit.Before;
@@ -101,6 +103,29 @@ public class QueryTest {
                     .setQueryText("SECOND")
                     .build());
 
+    assertEquals(1, searchResponse.getTotalHits().getValue());
+    assertEquals(1, searchResponse.getHitsList().size());
+    SearchResponse.Hit hit = searchResponse.getHits(0);
+    String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+    assertEquals("2", docId);
+    LuceneServerTest.checkHits(hit);
+  }
+
+  @Test
+  public void testSearchV2QueryText() throws InvalidProtocolBufferException {
+    Any anyResponse =
+        grpcServer
+            .getBlockingStub()
+            .searchV2(
+                SearchRequest.newBuilder()
+                    .setIndexName(grpcServer.getTestIndex())
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .setQueryText("SECOND")
+                    .build());
+    assertTrue(anyResponse.is(SearchResponse.class));
+    SearchResponse searchResponse = anyResponse.unpack(SearchResponse.class);
     assertEquals(1, searchResponse.getTotalHits().getValue());
     assertEquals(1, searchResponse.getHitsList().size());
     SearchResponse.Hit hit = searchResponse.getHits(0);
@@ -335,6 +360,7 @@ public class QueryTest {
     Rescorer queryRescorer =
         Rescorer.newBuilder()
             .setWindowSize(2)
+            .setName("query_rescorer")
             .setQueryRescorer(
                 QueryRescorer.newBuilder()
                     .setQueryWeight(1.0)
@@ -344,6 +370,9 @@ public class QueryTest {
 
     Consumer<SearchResponse> responseTester =
         searchResponse -> {
+          assertEquals(
+              Set.of("query_rescorer"),
+              searchResponse.getDiagnostics().getRescorersTimeMsMap().keySet());
           assertEquals(1, searchResponse.getTotalHits().getValue());
           assertEquals(1, searchResponse.getHitsList().size());
           SearchResponse.Hit hit = searchResponse.getHits(0);
@@ -356,6 +385,26 @@ public class QueryTest {
         };
 
     testQueryWithRescorers(firstPassQuery, List.of(queryRescorer), responseTester);
+
+    // Rescorers are not required to have a name
+    Rescorer queryRescorerNoName =
+        Rescorer.newBuilder()
+            .setWindowSize(2)
+            .setQueryRescorer(
+                QueryRescorer.newBuilder()
+                    .setQueryWeight(1.0)
+                    .setRescoreQueryWeight(4.0)
+                    .setRescoreQuery(rescoreQuery))
+            .build();
+
+    Consumer<SearchResponse> responseTesterNoName =
+        searchResponse -> {
+          assertEquals(
+              Set.of("rescorer_0"),
+              searchResponse.getDiagnostics().getRescorersTimeMsMap().keySet());
+        };
+
+    testQueryWithRescorers(firstPassQuery, List.of(queryRescorerNoName), responseTesterNoName);
   }
 
   @Test
@@ -784,8 +833,6 @@ public class QueryTest {
   }
 
   private void verifyDiagnostics(SearchResponse.Diagnostics diagnostics) {
-    assertFalse(diagnostics.getParsedQuery().isEmpty());
-    assertFalse(diagnostics.getRewrittenQuery().isEmpty());
     assertTrue(diagnostics.getFirstPassSearchTimeMs() > 0);
     assertTrue(diagnostics.getGetFieldsTimeMs() > 0);
   }

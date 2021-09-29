@@ -1,3 +1,18 @@
+/*
+ * Copyright 2021 Yelp Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.chase.app.plugins;
 
 import com.chase.app.analyzers.CustomStamAnalyzer;
@@ -21,112 +36,144 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalysisProvider;
 import com.yelp.nrtsearch.server.plugins.AnalysisPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
-
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 
-import java.util.Map;
-import java.io.IOException;
-import java.util.HashMap;
-
 public class ChaseAnalyzersPlugin extends Plugin implements AnalysisPlugin {
 
-  public ChaseAnalyzersPlugin(LuceneServerConfiguration config) {
-
-  }
+  public ChaseAnalyzersPlugin(LuceneServerConfiguration config) {}
 
   public Map<String, AnalysisProvider<? extends Analyzer>> getAnalyzers() {
-    Map<String, AnalysisProvider<? extends Analyzer>> map = new HashMap<String, AnalysisProvider<? extends Analyzer>>();
-    map.put("customeStam", new AnalysisProvider<CustomStamAnalyzer>() {
-      public CustomStamAnalyzer get(String name) {
-        return new CustomStamAnalyzer();
-      }
-    });
-    map.put("customTokens", new AnalysisProvider<CustomTokensAnalyzer>() {
-      public CustomTokensAnalyzer get(String name) {
-        return new CustomTokensAnalyzer();
-      }
-    });
-    map.put("highlightingPrefix", new AnalysisProvider<HighlightingPrefixAnalyzer>() {
-      public HighlightingPrefixAnalyzer get(String name) {
-        return new HighlightingPrefixAnalyzer();
-      }
-    });
-    map.put("highlightingSearch", new AnalysisProvider<HighlightingSearchAnalyzer>() {
-      public HighlightingSearchAnalyzer get(String name) {
-        return new HighlightingSearchAnalyzer();
-      }
-    });
-    map.put("pathLiteDelimition", new AnalysisProvider<PathLiteDelimitionAnalyzer>() {
-      public PathLiteDelimitionAnalyzer get(String name) {
-        return new PathLiteDelimitionAnalyzer();
-      }
-    });
-    map.put("pathLiteDelimitionPrefix", new AnalysisProvider<PathLiteDelimitionPrefixAnalyzer>() {
-      public PathLiteDelimitionPrefixAnalyzer get(String name) {
-        return new PathLiteDelimitionPrefixAnalyzer();
-      }
-    });
-    map.put("textAggressiveDelimition", new AnalysisProvider<TextAggressiveDelimitionAnalyzer>() {
-      public TextAggressiveDelimitionAnalyzer get(String name) {
-        return new TextAggressiveDelimitionAnalyzer();
-      }
-    });
-    map.put("textAggressiveDelimitionPrefix", new AnalysisProvider<TextAggressiveDelimitionPrefixAnalyzer>() {
-      public TextAggressiveDelimitionPrefixAnalyzer get(String name) {
-        return new TextAggressiveDelimitionPrefixAnalyzer();
-      }
-    });
-    map.put("textBasic", new AnalysisProvider<TextBasicAnalyzer>() {
-      public TextBasicAnalyzer get(String name) {
-        return new TextBasicAnalyzer();
-      }
-    });
-    map.put("textLiteDelimition", new AnalysisProvider<TextLiteDelimitionAnalyzer>() {
-      public TextLiteDelimitionAnalyzer get(String name) {
-        return new TextLiteDelimitionAnalyzer();
-      }
-    });
-    map.put("textPrefix", new AnalysisProvider<TextPrefixAnalyzer>() {
-      public TextPrefixAnalyzer get(String name) {
-        return new TextPrefixAnalyzer();
-      }
-    });
-    map.put("textPrefixSearch", new AnalysisProvider<TextPrefixSearchAnalyzer>() {
-      public TextPrefixSearchAnalyzer get(String name) {
-        return new TextPrefixSearchAnalyzer();
-      }
-    });
-    map.put("textShingle", new AnalysisProvider<TextShingleAnalyzer>() {
-      public TextShingleAnalyzer get(String name) {
-        return new TextShingleAnalyzer();
-      }
-    });
-    map.put("textStemming", new AnalysisProvider<TextStemmingAnalyzer>() {
-      public TextStemmingAnalyzer get(String name) {
-        return new TextStemmingAnalyzer();
-      }
-    });
-    map.put("typeAggressiveDelimition", new AnalysisProvider<TypeAggressiveDelimitionAnalyzer>() {
-      public TypeAggressiveDelimitionAnalyzer get(String name) {
-        return new TypeAggressiveDelimitionAnalyzer();
-      }
-    });
-    map.put("typeLiteDelimition", new AnalysisProvider<TypeLiteDelimitionAnalyzer>() {
-      public TypeLiteDelimitionAnalyzer get(String name) {
-        return new TypeLiteDelimitionAnalyzer();
-      }
-    });
-    map.put("typePrefix", new AnalysisProvider<TypePrefixAnalyzer>() {
-      public TypePrefixAnalyzer get(String name) {
-        return new TypePrefixAnalyzer();
-      }
-    });
-    map.put("keyword", new AnalysisProvider<KeywordAnalyzer>() {
-      public KeywordAnalyzer get(String name) {
-        return new KeywordAnalyzer();
-      }
-    });
+    Map<String, AnalysisProvider<? extends Analyzer>> map =
+        new HashMap<String, AnalysisProvider<? extends Analyzer>>();
+    map.put(
+        "customeStam",
+        new AnalysisProvider<CustomStamAnalyzer>() {
+          public CustomStamAnalyzer get(String name) {
+            return new CustomStamAnalyzer();
+          }
+        });
+    map.put(
+        "customTokens",
+        new AnalysisProvider<CustomTokensAnalyzer>() {
+          public CustomTokensAnalyzer get(String name) {
+            return new CustomTokensAnalyzer();
+          }
+        });
+    map.put(
+        "highlightingPrefix",
+        new AnalysisProvider<HighlightingPrefixAnalyzer>() {
+          public HighlightingPrefixAnalyzer get(String name) {
+            return new HighlightingPrefixAnalyzer();
+          }
+        });
+    map.put(
+        "highlightingSearch",
+        new AnalysisProvider<HighlightingSearchAnalyzer>() {
+          public HighlightingSearchAnalyzer get(String name) {
+            return new HighlightingSearchAnalyzer();
+          }
+        });
+    map.put(
+        "pathLiteDelimition",
+        new AnalysisProvider<PathLiteDelimitionAnalyzer>() {
+          public PathLiteDelimitionAnalyzer get(String name) {
+            return new PathLiteDelimitionAnalyzer();
+          }
+        });
+    map.put(
+        "pathLiteDelimitionPrefix",
+        new AnalysisProvider<PathLiteDelimitionPrefixAnalyzer>() {
+          public PathLiteDelimitionPrefixAnalyzer get(String name) {
+            return new PathLiteDelimitionPrefixAnalyzer();
+          }
+        });
+    map.put(
+        "textAggressiveDelimition",
+        new AnalysisProvider<TextAggressiveDelimitionAnalyzer>() {
+          public TextAggressiveDelimitionAnalyzer get(String name) {
+            return new TextAggressiveDelimitionAnalyzer();
+          }
+        });
+    map.put(
+        "textAggressiveDelimitionPrefix",
+        new AnalysisProvider<TextAggressiveDelimitionPrefixAnalyzer>() {
+          public TextAggressiveDelimitionPrefixAnalyzer get(String name) {
+            return new TextAggressiveDelimitionPrefixAnalyzer();
+          }
+        });
+    map.put(
+        "textBasic",
+        new AnalysisProvider<TextBasicAnalyzer>() {
+          public TextBasicAnalyzer get(String name) {
+            return new TextBasicAnalyzer();
+          }
+        });
+    map.put(
+        "textLiteDelimition",
+        new AnalysisProvider<TextLiteDelimitionAnalyzer>() {
+          public TextLiteDelimitionAnalyzer get(String name) {
+            return new TextLiteDelimitionAnalyzer();
+          }
+        });
+    map.put(
+        "textPrefix",
+        new AnalysisProvider<TextPrefixAnalyzer>() {
+          public TextPrefixAnalyzer get(String name) {
+            return new TextPrefixAnalyzer();
+          }
+        });
+    map.put(
+        "textPrefixSearch",
+        new AnalysisProvider<TextPrefixSearchAnalyzer>() {
+          public TextPrefixSearchAnalyzer get(String name) {
+            return new TextPrefixSearchAnalyzer();
+          }
+        });
+    map.put(
+        "textShingle",
+        new AnalysisProvider<TextShingleAnalyzer>() {
+          public TextShingleAnalyzer get(String name) {
+            return new TextShingleAnalyzer();
+          }
+        });
+    map.put(
+        "textStemming",
+        new AnalysisProvider<TextStemmingAnalyzer>() {
+          public TextStemmingAnalyzer get(String name) {
+            return new TextStemmingAnalyzer();
+          }
+        });
+    map.put(
+        "typeAggressiveDelimition",
+        new AnalysisProvider<TypeAggressiveDelimitionAnalyzer>() {
+          public TypeAggressiveDelimitionAnalyzer get(String name) {
+            return new TypeAggressiveDelimitionAnalyzer();
+          }
+        });
+    map.put(
+        "typeLiteDelimition",
+        new AnalysisProvider<TypeLiteDelimitionAnalyzer>() {
+          public TypeLiteDelimitionAnalyzer get(String name) {
+            return new TypeLiteDelimitionAnalyzer();
+          }
+        });
+    map.put(
+        "typePrefix",
+        new AnalysisProvider<TypePrefixAnalyzer>() {
+          public TypePrefixAnalyzer get(String name) {
+            return new TypePrefixAnalyzer();
+          }
+        });
+    map.put(
+        "keyword",
+        new AnalysisProvider<KeywordAnalyzer>() {
+          public KeywordAnalyzer get(String name) {
+            return new KeywordAnalyzer();
+          }
+        });
     return map;
   }
 }

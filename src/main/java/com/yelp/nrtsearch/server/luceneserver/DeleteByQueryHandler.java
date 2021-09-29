@@ -48,7 +48,10 @@ public class DeleteByQueryHandler implements Handler<DeleteByQueryRequest, AddDo
       throw new DeleteByQueryHandlerException(e);
     }
     long genId = shardState.writer.getMaxCompletedSequenceNumber();
-    return AddDocumentResponse.newBuilder().setGenId(String.valueOf(genId)).build();
+    return AddDocumentResponse.newBuilder()
+        .setGenId(String.valueOf(genId))
+        .setPrimaryId(indexState.globalState.getEphemeralId())
+        .build();
   }
 
   public static class DeleteByQueryHandlerException extends Handler.HandlerException {

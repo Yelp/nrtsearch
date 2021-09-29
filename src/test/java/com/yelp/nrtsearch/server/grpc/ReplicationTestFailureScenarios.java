@@ -19,6 +19,7 @@ import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static com.yelp.nrtsearch.server.grpc.LuceneServerTest.RETRIEVED_VALUES;
 import static com.yelp.nrtsearch.server.grpc.LuceneServerTest.checkHits;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
@@ -412,6 +413,35 @@ public class ReplicationTestFailureScenarios {
                 .setPrimaryAddress("localhost")
                 .setPort(9001) // primary port for replication server
                 .build());
+  }
+
+  @Test
+  public void testPrimaryEphemeralIdChanges() throws IOException, InterruptedException {
+    // startIndex primary
+    GrpcServer.TestServer testServerPrimary =
+        new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
+
+    // add docs to primary and check ephemeral id
+    AddDocumentResponse response = testServerPrimary.addDocuments();
+    String firstId = response.getPrimaryId();
+    response = testServerPrimary.addDocuments();
+    assertEquals(firstId, response.getPrimaryId());
+
+    // backup index
+    backupIndex();
+    // non-graceful primary shutdown (i.e. blow away index and state directory)
+    shutdownPrimaryServer();
+    // start primary again with latest commit point
+    startPrimaryServer();
+    // startIndex Primary with primaryGen = 1
+    testServerPrimary = new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY, 1, true);
+
+    // add docs to primary and check ephemeral id
+    response = testServerPrimary.addDocuments();
+    String secondId = response.getPrimaryId();
+    assertNotEquals(firstId, secondId);
+    response = testServerPrimary.addDocuments();
+    assertEquals(secondId, response.getPrimaryId());
   }
 
   private void gracefullRestartPrimary(int primaryGen) {
