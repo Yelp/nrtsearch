@@ -33,7 +33,8 @@ public class ThreadPoolExecutorFactory {
     SEARCH,
     INDEX,
     LUCENESERVER,
-    REPLICATIONSERVER
+    REPLICATIONSERVER,
+    FETCH
   }
 
   private static final Logger logger =
@@ -108,6 +109,19 @@ public class ThreadPoolExecutorFactory {
               TimeUnit.SECONDS,
               docsToIndex,
               new NamedThreadFactory("GrpcReplicationServerExecutor"));
+    } else if (executorType.equals(ExecutorType.FETCH)) {
+      logger.info(
+          "Creating LuceneFetchExecutor of size " + threadPoolConfiguration.getMaxFetchThreads());
+      BlockingQueue<Runnable> docsToIndex =
+          new LinkedBlockingQueue<Runnable>(threadPoolConfiguration.getMaxSearchBufferedItems());
+      threadPoolExecutor =
+          new ThreadPoolExecutor(
+              threadPoolConfiguration.getMaxFetchThreads(),
+              threadPoolConfiguration.getMaxFetchThreads(),
+              0,
+              TimeUnit.SECONDS,
+              docsToIndex,
+              new NamedThreadFactory("LuceneFetchExecutor"));
     } else {
       throw new RuntimeException("Invalid executor type provided " + executorType.toString());
     }

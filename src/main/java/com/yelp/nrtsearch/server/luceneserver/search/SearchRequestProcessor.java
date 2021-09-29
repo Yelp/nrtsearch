@@ -15,7 +15,9 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search;
 
+import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
+import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -23,14 +25,19 @@ import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
+import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreator;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.LargeNumHitsCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.RelevanceCollector;
@@ -42,14 +49,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Rescorer;
 import org.apache.lucene.util.QueryBuilder;
 
 /**
@@ -75,7 +83,7 @@ public class SearchRequestProcessor {
    * @param indexState index state
    * @param shardState shard state
    * @param searcherAndTaxonomy index searcher
-   * @param diagnostics container message for returned diagnostic info
+   * @param profileResult container message for returned debug info
    * @return context info needed to execute the search query
    * @throws IOException if query rewrite fails
    */
@@ -84,7 +92,7 @@ public class SearchRequestProcessor {
       IndexState indexState,
       ShardState shardState,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy,
-      SearchResponse.Diagnostics.Builder diagnostics)
+      ProfileResult.Builder profileResult)
       throws IOException {
 
     SearchContext.Builder contextBuilder = SearchContext.newBuilder();
@@ -105,28 +113,37 @@ public class SearchRequestProcessor {
     addIndexFields(indexState, queryFields);
     contextBuilder.setQueryFields(Collections.unmodifiableMap(queryFields));
 
-    Map<String, FieldDef> retrieveFields = new HashMap<>(queryVirtualFields);
-    addRetrieveFields(indexState, searchRequest, retrieveFields);
+    Map<String, FieldDef> retrieveFields = getRetrieveFields(searchRequest, queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
     Query query = extractQuery(indexState, searchRequest);
-    diagnostics.setParsedQuery(query.toString());
+    if (profileResult != null) {
+      profileResult.setParsedQuery(query.toString());
+    }
 
     query = searcherAndTaxonomy.searcher.rewrite(query);
-    diagnostics.setRewrittenQuery(query.toString());
+    if (profileResult != null) {
+      profileResult.setRewrittenQuery(query.toString());
+    }
 
     if (searchRequest.getFacetsCount() > 0) {
       query = addDrillDowns(indexState, query);
-      diagnostics.setDrillDownQuery(query.toString());
+      if (profileResult != null) {
+        profileResult.setDrillDownQuery(query.toString());
+      }
     }
 
     contextBuilder.setFetchTasks(new FetchTasks(searchRequest.getFetchTasksList()));
 
     contextBuilder.setQuery(query);
-    contextBuilder.setCollector(buildDocCollector(queryFields, searchRequest));
+
+    CollectorCreatorContext collectorCreatorContext =
+        new CollectorCreatorContext(searchRequest, indexState, shardState, queryFields);
+    contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
 
     contextBuilder.setRescorers(
         getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
+    contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
     return contextBuilder.build(true);
   }
@@ -160,22 +177,31 @@ public class SearchRequestProcessor {
   }
 
   /**
-   * Add specified retrieve fields to given query fields map.
+   * Get map of fields that need to be retrieved for the given request.
    *
-   * @param indexState state for query index
-   * @param searchRequest request
-   * @param queryFields mutable current map of query fields
-   * @throws IllegalArgumentException if any retrieve field already exists
+   * @param request search requests
+   * @param queryFields all valid fields for this query
+   * @return map of all fields to retrieve
+   * @throws IllegalArgumentException if a field does not exist, or is not retrievable
    */
-  private static void addRetrieveFields(
-      IndexState indexState, SearchRequest searchRequest, Map<String, FieldDef> queryFields) {
-    for (String field : searchRequest.getRetrieveFieldsList()) {
-      FieldDef fieldDef = getFieldDef(field, indexState);
-      FieldDef current = queryFields.put(field, fieldDef);
-      if (current != null) {
-        throw new IllegalArgumentException("QueryFields: " + field + " specified multiple times");
+  private static Map<String, FieldDef> getRetrieveFields(
+      SearchRequest request, Map<String, FieldDef> queryFields) {
+    Map<String, FieldDef> retrieveFields = new HashMap<>();
+    for (String field : request.getRetrieveFieldsList()) {
+      FieldDef fieldDef = queryFields.get(field);
+      if (fieldDef == null) {
+        throw new IllegalArgumentException("RetrieveFields: " + field + " does not exist");
       }
+      if (!isRetrievable(fieldDef)) {
+        throw new IllegalArgumentException(
+            "RetrieveFields: "
+                + field
+                + " is not retrievable, must be stored"
+                + " or have doc values enabled");
+      }
+      retrieveFields.put(field, fieldDef);
     }
+    return retrieveFields;
   }
 
   /**
@@ -193,29 +219,6 @@ public class SearchRequestProcessor {
             "QueryFields: " + entry.getKey() + " specified multiple times");
       }
     }
-  }
-
-  /**
-   * Find {@link FieldDef} for field name.
-   *
-   * @param name name of field
-   * @param indexState state for query index
-   * @return definition object for field
-   * @throws IllegalArgumentException if field does not exist or is not retrievable
-   */
-  private static FieldDef getFieldDef(String name, IndexState indexState) {
-    FieldDef fieldDef = indexState.getField(name);
-    if (fieldDef == null) {
-      throw new IllegalArgumentException("QueryFields: " + name + " does not exist");
-    }
-    if (!isRetrievable(fieldDef)) {
-      throw new IllegalArgumentException(
-          "QueryFields: "
-              + name
-              + " is not retrievable, must be stored"
-              + " or have doc values enabled");
-    }
-    return fieldDef;
   }
 
   /** If a field's value can be retrieved */
@@ -293,20 +296,26 @@ public class SearchRequestProcessor {
    * Build {@link DocCollector} to provide the {@link org.apache.lucene.search.CollectorManager} for
    * collecting hits for this query.
    *
-   * @param queryFields all valid fields for this query
-   * @param searchRequest request
    * @return collector
    */
-  private static DocCollector buildDocCollector(
-      Map<String, FieldDef> queryFields, SearchRequest searchRequest) {
+  private static DocCollector buildDocCollector(CollectorCreatorContext collectorCreatorContext) {
+    SearchRequest searchRequest = collectorCreatorContext.getRequest();
+    List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
+        additionalCollectors =
+            searchRequest.getCollectorsMap().entrySet().stream()
+                .map(
+                    e ->
+                        CollectorCreator.createCollectorManager(
+                            collectorCreatorContext, e.getKey(), e.getValue()))
+                .collect(Collectors.toList());
     if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
       if (hasLargeNumHits(searchRequest)) {
-        return new LargeNumHitsCollector(searchRequest);
+        return new LargeNumHitsCollector(collectorCreatorContext, additionalCollectors);
       } else {
-        return new RelevanceCollector(searchRequest);
+        return new RelevanceCollector(collectorCreatorContext, additionalCollectors);
       }
     } else {
-      return new SortFieldCollector(queryFields, searchRequest);
+      return new SortFieldCollector(collectorCreatorContext, additionalCollectors);
     }
   }
 
@@ -324,16 +333,17 @@ public class SearchRequestProcessor {
 
     List<RescoreTask> rescorers = new ArrayList<>();
 
-    for (com.yelp.nrtsearch.server.grpc.Rescorer rescorer : searchRequest.getRescorersList()) {
-
-      Rescorer thisRescorer;
+    for (int i = 0; i < searchRequest.getRescorersList().size(); ++i) {
+      com.yelp.nrtsearch.server.grpc.Rescorer rescorer = searchRequest.getRescorers(i);
+      String rescorerName = rescorer.getName();
+      RescoreOperation thisRescoreOperation;
 
       if (rescorer.hasQueryRescorer()) {
         QueryRescorer queryRescorer = rescorer.getQueryRescorer();
         Query query = QUERY_NODE_MAPPER.getQuery(queryRescorer.getRescoreQuery(), indexState);
         query = searcher.rewrite(query);
 
-        thisRescorer =
+        thisRescoreOperation =
             QueryRescore.newBuilder()
                 .setQuery(query)
                 .setQueryWeight(queryRescorer.getQueryWeight())
@@ -341,7 +351,7 @@ public class SearchRequestProcessor {
                 .build();
       } else if (rescorer.hasPluginRescorer()) {
         PluginRescorer plugin = rescorer.getPluginRescorer();
-        thisRescorer = RescorerCreator.getInstance().createRescorer(plugin);
+        thisRescoreOperation = RescorerCreator.getInstance().createRescorer(plugin);
       } else {
         throw new IllegalArgumentException(
             "Rescorer should define either QueryRescorer or PluginRescorer");
@@ -349,8 +359,12 @@ public class SearchRequestProcessor {
 
       rescorers.add(
           RescoreTask.newBuilder()
-              .setRescorer(thisRescorer)
+              .setRescoreOperation(thisRescoreOperation)
               .setWindowSize(rescorer.getWindowSize())
+              .setName(
+                  rescorerName != null && !rescorerName.equals("")
+                      ? rescorerName
+                      : String.format("rescorer_%d", i))
               .build());
     }
     return rescorers;

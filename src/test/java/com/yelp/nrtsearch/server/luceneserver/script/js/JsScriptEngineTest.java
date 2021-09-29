@@ -202,6 +202,8 @@ public class JsScriptEngineTest extends ServerTestCase {
                     .setStartHit(0)
                     .setTopHits(10)
                     .addAllVirtualFields(fields)
+                    .addRetrieveFields("expr_1")
+                    .addRetrieveFields("expr_2")
                     .build());
     assertEquals(2, searchResponse.getHitsCount());
     assertEquals(

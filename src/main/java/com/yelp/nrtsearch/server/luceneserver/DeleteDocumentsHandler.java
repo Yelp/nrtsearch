@@ -22,12 +22,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.lucene.index.Term;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class DeleteDocumentsHandler implements Handler<AddDocumentRequest, AddDocumentResponse> {
-  private static final Logger logger = Logger.getLogger(DeleteDocumentsHandler.class.getName());
+  private static final Logger logger =
+      LoggerFactory.getLogger(DeleteDocumentsHandler.class.getName());
 
   @Override
   public AddDocumentResponse handle(IndexState indexState, AddDocumentRequest addDocumentRequest)
@@ -50,15 +51,16 @@ public class DeleteDocumentsHandler implements Handler<AddDocumentRequest, AddDo
     try {
       shardState.writer.deleteDocuments(terms.stream().toArray(Term[]::new));
     } catch (IOException e) {
-      logger.log(
-          Level.WARNING,
-          String.format(
-              "ThreadId: %s, writer.deleteDocuments failed",
-              Thread.currentThread().getName() + Thread.currentThread().getId()));
+      logger.warn(
+          "ThreadId: {}, writer.deleteDocuments failed",
+          Thread.currentThread().getName() + Thread.currentThread().getId());
       throw new DeleteDocumentsHandlerException(e);
     }
     long genId = shardState.writer.getMaxCompletedSequenceNumber();
-    return AddDocumentResponse.newBuilder().setGenId(String.valueOf(genId)).build();
+    return AddDocumentResponse.newBuilder()
+        .setGenId(String.valueOf(genId))
+        .setPrimaryId(indexState.globalState.getEphemeralId())
+        .build();
   }
 
   public static class DeleteDocumentsHandlerException extends Handler.HandlerException {

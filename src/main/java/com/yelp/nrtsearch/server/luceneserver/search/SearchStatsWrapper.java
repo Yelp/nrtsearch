@@ -31,7 +31,6 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.TopDocs;
 
 /**
  * CollectorManager that wraps another manager and collects timing stats for the search execution.
@@ -39,13 +38,12 @@ import org.apache.lucene.search.TopDocs;
  * segment.
  *
  * @param <C> collector type of wrapped manager
- * @param <T> <T> top docs type of wrapped manager
  */
-public class SearchStatsWrapper<C extends Collector, T extends TopDocs>
-    implements CollectorManager<SearchStatsWrapper<C, T>.SearchStatsCollectorWrapper, T> {
+public class SearchStatsWrapper<C extends Collector>
+    implements CollectorManager<SearchStatsWrapper<C>.SearchStatsCollectorWrapper, SearcherResult> {
 
   private Collection<SearchStatsCollectorWrapper> collectors;
-  private final CollectorManager<C, T> in;
+  private final CollectorManager<C, SearcherResult> in;
   long collectStartNano = -1;
   long collectEndNano = -1;
   long reduceStartNano = -1;
@@ -56,7 +54,7 @@ public class SearchStatsWrapper<C extends Collector, T extends TopDocs>
    *
    * @param in manager to wrap
    */
-  public SearchStatsWrapper(CollectorManager<C, T> in) {
+  public SearchStatsWrapper(CollectorManager<C, SearcherResult> in) {
     this.in = in;
   }
 
@@ -70,8 +68,8 @@ public class SearchStatsWrapper<C extends Collector, T extends TopDocs>
   }
 
   @Override
-  public T reduce(Collection<SearchStatsWrapper<C, T>.SearchStatsCollectorWrapper> collectors)
-      throws IOException {
+  public SearcherResult reduce(
+      Collection<SearchStatsWrapper<C>.SearchStatsCollectorWrapper> collectors) throws IOException {
     this.collectors = collectors;
     collectEndNano = System.nanoTime();
 
@@ -89,7 +87,7 @@ public class SearchStatsWrapper<C extends Collector, T extends TopDocs>
   }
 
   /** Get the collector manager being wrapped. */
-  public CollectorManager<C, T> getWrapped() {
+  public CollectorManager<C, SearcherResult> getWrapped() {
     return in;
   }
 
@@ -117,17 +115,24 @@ public class SearchStatsWrapper<C extends Collector, T extends TopDocs>
     for (SearchStatsCollectorWrapper collector : collectors) {
       CollectorStats.Builder collectorStatsBuilder = CollectorStats.newBuilder();
       collectorStatsBuilder.setTerminated(collector.terminated);
+      int totalCollected = 0;
+      double totalCollectTimeMs = 0;
       for (SearchStatsLeafCollectorWrapper leafCollector : collector.leafCollectors) {
         SegmentStats.Builder segmentStatsBuilder = SegmentStats.newBuilder();
         segmentStatsBuilder.setMaxDoc(leafCollector.context.reader().maxDoc());
         segmentStatsBuilder.setNumDocs(leafCollector.context.reader().numDocs());
         segmentStatsBuilder.setCollectedCount(leafCollector.collectedCount);
+        totalCollected += leafCollector.collectedCount;
         segmentStatsBuilder.setRelativeStartTimeMs(
             (leafCollector.leafStartNano - collectStartNano) / 1000000.0);
-        segmentStatsBuilder.setCollectTimeMs(
-            (leafCollector.leafEndNano - leafCollector.leafStartNano) / 1000000.0);
+        double collectTimeMs =
+            (leafCollector.leafEndNano - leafCollector.leafStartNano) / 1000000.0;
+        segmentStatsBuilder.setCollectTimeMs(collectTimeMs);
+        totalCollectTimeMs += collectTimeMs;
         collectorStatsBuilder.addSegmentStats(segmentStatsBuilder.build());
       }
+      collectorStatsBuilder.setTotalCollectedCount(totalCollected);
+      collectorStatsBuilder.setTotalCollectTimeMs(totalCollectTimeMs);
       searchStatsBuilder.addCollectorStats(collectorStatsBuilder.build());
     }
     profileResultBuilder.setSearchStats(searchStatsBuilder);

@@ -19,7 +19,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValueType;
+import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
+import com.yelp.nrtsearch.server.utils.FileUtil;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.StatusRuntimeException;
 import java.io.Closeable;
@@ -28,8 +30,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.InetAddress;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -83,6 +83,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ShardState implements Closeable {
+  private static final long INITIAL_SYNC_PRIMARY_WAIT_MS = 30000;
   public static final int REPLICA_ID = 0;
   final ThreadPoolExecutor searchExecutor;
   Logger logger = LoggerFactory.getLogger(ShardState.class);
@@ -167,11 +168,13 @@ public class ShardState implements Closeable {
 
   public final Map<IndexReader.CacheKey, Map<String, SortedSetDocValuesReaderState>> ssdvStates =
       new HashMap<>();
+  private final Object ordinalBuilderLock = new Object();
 
   public final String name;
   private KeepAlive keepAlive;
   // is this shard restored
   private boolean restored;
+  private volatile boolean started = false;
 
   /** Restarts the reopen thread (called when the live settings have changed). */
   public void restartReopenThread() {
@@ -206,7 +209,7 @@ public class ShardState implements Closeable {
 
   /** True if this index is started. */
   public boolean isStarted() {
-    return writer != null || nrtReplicaNode != null || nrtPrimaryNode != null;
+    return started;
   }
 
   public boolean isRestored() {
@@ -225,26 +228,7 @@ public class ShardState implements Closeable {
   /** Delete this shard. */
   public void deleteShard() throws IOException {
     if (rootDir != null) {
-      deleteAllFiles(rootDir);
-    }
-  }
-
-  private static void deleteAllFiles(Path dir) throws IOException {
-    if (Files.exists(dir)) {
-      if (Files.isRegularFile(dir)) {
-        Files.delete(dir);
-      } else {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
-          for (Path path : stream) {
-            if (Files.isDirectory(path)) {
-              deleteAllFiles(path);
-            } else {
-              Files.delete(path);
-            }
-          }
-        }
-        Files.delete(dir);
-      }
+      FileUtil.deleteAllFiles(rootDir);
     }
   }
 
@@ -457,7 +441,10 @@ public class ShardState implements Closeable {
           new MyIndexSearcher(
               reader,
               new MyIndexSearcher.ExecutorWithParams(
-                  searchExecutor, indexState.getSliceMaxDocs(), indexState.getSliceMaxSegments()));
+                  searchExecutor,
+                  indexState.getSliceMaxDocs(),
+                  indexState.getSliceMaxSegments(),
+                  indexState.getVirtualShards()));
       searcher.setSimilarity(indexState.sim);
       if (loadEagerOrdinals) {
         loadEagerGlobalOrdinals(reader);
@@ -492,7 +479,6 @@ public class ShardState implements Closeable {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
 
-    boolean success = false;
     try {
 
       if (indexState.saveLoadState == null) {
@@ -596,9 +582,9 @@ public class ShardState implements Closeable {
       restartReopenThread();
 
       startSearcherPruningThread(indexState.globalState.shutdownNow);
-      success = true;
+      started = true;
     } finally {
-      if (!success) {
+      if (!started) {
         IOUtils.closeWhileHandlingException(
             reopenThread,
             manager,
@@ -624,7 +610,6 @@ public class ShardState implements Closeable {
 
     // nocommit share code better w/ start and startReplica!
 
-    boolean success = false;
     try {
       // we have backups and are not creating a new index
       // use that to load indexes and other state (registeredFields, settings)
@@ -680,7 +665,7 @@ public class ShardState implements Closeable {
 
       // TODO: get facets working!
 
-      boolean verbose = indexState.getBooleanSetting("indexVerbose", false);
+      boolean verbose = indexState.globalState.configuration.getIndexVerbose();
 
       writer =
           new IndexWriter(
@@ -732,7 +717,8 @@ public class ShardState implements Closeable {
                           new MyIndexSearcher.ExecutorWithParams(
                               searchExecutor,
                               indexState.getSliceMaxDocs(),
-                              indexState.getSliceMaxSegments()));
+                              indexState.getSliceMaxSegments(),
+                              indexState.getVirtualShards()));
                   searcher.setSimilarity(indexState.sim);
                   return searcher;
                 }
@@ -740,9 +726,9 @@ public class ShardState implements Closeable {
       restartReopenThread();
 
       startSearcherPruningThread(indexState.globalState.shutdownNow);
-      success = true;
+      started = true;
     } finally {
-      if (!success) {
+      if (!started) {
         IOUtils.closeWhileHandlingException(
             reopenThread,
             nrtPrimaryNode,
@@ -782,8 +768,9 @@ public class ShardState implements Closeable {
   public SortedSetDocValuesReaderState getSSDVStateForReader(IndexReader reader, FieldDef fd)
       throws IOException {
     FacetsConfig.DimConfig dimConfig = indexState.facetsConfig.getDimConfig(fd.getName());
+    IndexReader.CacheKey cacheKey = reader.getReaderCacheHelper().getKey();
+    SortedSetDocValuesReaderState ssdvState;
     synchronized (ssdvStates) {
-      IndexReader.CacheKey cacheKey = reader.getReaderCacheHelper().getKey();
       Map<String, SortedSetDocValuesReaderState> readerSSDVStates = ssdvStates.get(cacheKey);
       if (readerSSDVStates == null) {
         readerSSDVStates = new HashMap<>();
@@ -791,41 +778,59 @@ public class ShardState implements Closeable {
         reader.getReaderCacheHelper().addClosedListener(removeSSDVStates);
       }
 
-      SortedSetDocValuesReaderState ssdvState = readerSSDVStates.get(dimConfig.indexFieldName);
-      if (ssdvState == null) {
-        // TODO: maybe we should do this up front when reader is first opened instead
-        ssdvState =
-            new DefaultSortedSetDocValuesReaderState(reader, dimConfig.indexFieldName) {
-              @Override
-              public SortedSetDocValues getDocValues() throws IOException {
-                SortedSetDocValues values = super.getDocValues();
-                if (values == null) {
-                  values = DocValues.emptySortedSet();
-                }
-                return values;
-              }
-
-              @Override
-              public OrdRange getOrdRange(String dim) {
-                OrdRange result = super.getOrdRange(dim);
-                if (result == null) {
-                  result = new OrdRange(0, -1);
-                }
-                return result;
-              }
-            };
-        // nocommit maybe we shouldn't make this a hard error
-        // ... ie just return 0 facets
-        if (ssdvState == null) {
-          throw new IllegalArgumentException(
-              String.format(
-                  "field %s was properly registered with facet=sortedSetDocValues, however no documents were indexed as of this searcher"));
-        }
-        readerSSDVStates.put(dimConfig.indexFieldName, ssdvState);
-      }
-
-      return ssdvState;
+      ssdvState = readerSSDVStates.get(dimConfig.indexFieldName);
     }
+
+    if (ssdvState == null) {
+      // Lock building SSDV state with different lock, so it won't block readers accessing
+      // the cache. Uses a single lock for now, could be made better by scoping it to the
+      // field and reader key.
+      synchronized (ordinalBuilderLock) {
+        // make sure state was not built while we were waiting for the lock
+        synchronized (ssdvStates) {
+          Map<String, SortedSetDocValuesReaderState> readerSSDVStates = ssdvStates.get(cacheKey);
+          if (readerSSDVStates == null) {
+            // we added this above, so we really should never get here
+            throw new IllegalStateException("SSDV State cache does not exist for reader");
+          }
+          ssdvState = readerSSDVStates.get(dimConfig.indexFieldName);
+        }
+        if (ssdvState == null) {
+          ssdvState =
+              new DefaultSortedSetDocValuesReaderState(reader, dimConfig.indexFieldName) {
+                @Override
+                public SortedSetDocValues getDocValues() throws IOException {
+                  SortedSetDocValues values = super.getDocValues();
+                  if (values == null) {
+                    values = DocValues.emptySortedSet();
+                  }
+                  return values;
+                }
+
+                @Override
+                public OrdRange getOrdRange(String dim) {
+                  OrdRange result = super.getOrdRange(dim);
+                  if (result == null) {
+                    result = new OrdRange(0, -1);
+                  }
+                  return result;
+                }
+              };
+
+          // add state to cache
+          synchronized (ssdvStates) {
+            Map<String, SortedSetDocValuesReaderState> readerSSDVStates = ssdvStates.get(cacheKey);
+            if (readerSSDVStates == null) {
+              // we added this above, so we really should never get here
+              throw new IllegalStateException("SSDV State cache does not exist for reader");
+            }
+            readerSSDVStates.put(dimConfig.indexFieldName, ssdvState);
+          }
+        }
+      }
+    }
+
+    return ssdvState;
   }
 
   /* TODO: read remote state from s3 */
@@ -882,7 +887,6 @@ public class ShardState implements Closeable {
     }
 
     // nocommit share code better w/ start and startPrimary!
-    boolean success = false;
     try {
       if (indexState.saveLoadState == null) {
         indexState.initSaveLoadState();
@@ -913,7 +917,7 @@ public class ShardState implements Closeable {
       manager = null;
       nrtPrimaryNode = null;
 
-      boolean verbose = indexState.getBooleanSetting("indexVerbose", false);
+      boolean verbose = indexState.globalState.configuration.getIndexVerbose();
 
       HostPort hostPort =
           new HostPort(
@@ -927,7 +931,12 @@ public class ShardState implements Closeable {
               indexDir,
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
-              primaryGen);
+              primaryGen,
+              indexState.globalState.configuration.getFileCopyConfig().getAckedCopy());
+
+      if (indexState.globalState.configuration.getSyncInitialNrtPoint()) {
+        nrtReplicaNode.syncFromCurrentPrimary(INITIAL_SYNC_PRIMARY_WAIT_MS);
+      }
 
       startSearcherPruningThread(indexState.globalState.shutdownNow);
 
@@ -950,9 +959,14 @@ public class ShardState implements Closeable {
           });
       keepAlive = new KeepAlive(this);
       new Thread(keepAlive, "KeepAlive").start();
-      success = true;
+
+      WarmerConfig warmerConfig = indexState.globalState.configuration.getWarmerConfig();
+      if (warmerConfig.isWarmOnStartup() && indexState.getWarmer() != null) {
+        indexState.getWarmer().warmFromS3(indexState, warmerConfig.getWarmingParallelism());
+      }
+      started = true;
     } finally {
-      if (!success) {
+      if (!started) {
         IOUtils.closeWhileHandlingException(
             reopenThread,
             nrtReplicaNode,

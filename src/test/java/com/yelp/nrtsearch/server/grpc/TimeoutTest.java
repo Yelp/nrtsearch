@@ -24,10 +24,12 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.facet.DrillSidewaysImpl;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
+import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,15 +126,16 @@ public class TimeoutTest extends ServerTestCase {
     }
   }
 
-  private static class TimeoutWrapper extends SearchCutoffWrapper<Collector, TopDocs> {
+  private static class TimeoutWrapper<T extends Collector> extends SearchCutoffWrapper<T> {
     long currentTime = 10000;
 
     public TimeoutWrapper(
-        CollectorManager<Collector, TopDocs> in,
+        CollectorManager<T, SearcherResult> in,
         double timeoutSec,
+        int checkEvery,
         boolean noPartialResults,
         Runnable onTimeout) {
-      super(in, timeoutSec, noPartialResults, onTimeout);
+      super(in, timeoutSec, checkEvery, noPartialResults, onTimeout);
     }
 
     @Override
@@ -190,6 +193,37 @@ public class TimeoutTest extends ServerTestCase {
     verifyNoTimeout(request);
   }
 
+  @Test
+  public void testQueryCheckEveryNoTimeout() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(1000)
+            .setTimeoutCheckEvery(5)
+            .build();
+
+    verifyNoTimeout(request);
+  }
+
+  @Test
+  public void testFacetQueryCheckEveryNoTimeout() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(1000)
+            .setTimeoutCheckEvery(5)
+            .addFacets(getTestFacet())
+            .build();
+
+    verifyNoTimeout(request);
+  }
+
   private void verifyNoTimeout(SearchRequest request) throws Exception {
     TopDocs hits =
         queryWithFunction(
@@ -218,7 +252,7 @@ public class TimeoutTest extends ServerTestCase {
             .setTimeoutSec(5)
             .build();
 
-    verifyPartialResults(request);
+    verifyPartialResults(request, 20);
   }
 
   @Test
@@ -233,10 +267,41 @@ public class TimeoutTest extends ServerTestCase {
             .addFacets(getTestFacet())
             .build();
 
-    verifyPartialResults(request);
+    verifyPartialResults(request, 20);
   }
 
-  private void verifyPartialResults(SearchRequest request) throws Exception {
+  @Test
+  public void testQueryCheckEveryPartialResults() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(7)
+            .setTimeoutCheckEvery(5)
+            .build();
+
+    verifyPartialResults(request, 15);
+  }
+
+  @Test
+  public void testFacetQueryCheckEveryPartialResults() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(7)
+            .setTimeoutCheckEvery(5)
+            .addFacets(getTestFacet())
+            .build();
+
+    verifyPartialResults(request, 15);
+  }
+
+  private void verifyPartialResults(SearchRequest request, int expectedHits) throws Exception {
     TopDocs hits =
         queryWithFunction(
             request,
@@ -247,9 +312,10 @@ public class TimeoutTest extends ServerTestCase {
                     getTopDocs(
                         context,
                         new TimeoutWrapper(
-                            (CollectorManager<Collector, TopDocs>)
-                                context.getCollector().getManager(),
-                            5,
+                            new SearchCollectorManager(
+                                context.getCollector(), Collections.emptyList()),
+                            request.getTimeoutSec(),
+                            request.getTimeoutCheckEvery(),
                             false,
                             () -> hasTimeout[0] = true));
                 assertTrue(hasTimeout[0]);
@@ -258,7 +324,7 @@ public class TimeoutTest extends ServerTestCase {
                 throw new RuntimeException(e);
               }
             });
-    assertEquals(20, hits.totalHits.value);
+    assertEquals(expectedHits, hits.totalHits.value);
   }
 
   @Test(expected = CollectionTimeoutException.class)
@@ -300,6 +366,47 @@ public class TimeoutTest extends ServerTestCase {
     }
   }
 
+  @Test(expected = CollectionTimeoutException.class)
+  public void testQueryCheckEveryTimeoutException() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(7)
+            .setTimeoutCheckEvery(5)
+            .build();
+
+    verifyTimeoutException(request);
+  }
+
+  @Test(expected = CollectionTimeoutException.class)
+  public void testFacetQueryCheckEveryTimeoutException() throws Exception {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(TEST_INDEX)
+            .setTopHits(NUM_DOCS)
+            .addAllRetrieveFields(RETRIEVE_LIST)
+            .setQuery(getQuery())
+            .setTimeoutSec(7)
+            .setTimeoutCheckEvery(5)
+            .addFacets(getTestFacet())
+            .build();
+
+    // re-wrap the exception type if it was caused by a timeout,
+    // duplicates behavior in SearchHandler
+    try {
+      verifyTimeoutException(request);
+    } catch (RuntimeException e) {
+      CollectionTimeoutException timeoutException = findTimeoutException(e);
+      if (timeoutException != null) {
+        throw new CollectionTimeoutException(timeoutException.getMessage(), e);
+      }
+      throw e;
+    }
+  }
+
   private CollectionTimeoutException findTimeoutException(Throwable e) {
     if (e instanceof CollectionTimeoutException) {
       return (CollectionTimeoutException) e;
@@ -320,8 +427,9 @@ public class TimeoutTest extends ServerTestCase {
                 getTopDocs(
                     context,
                     new TimeoutWrapper(
-                        (CollectorManager<Collector, TopDocs>) context.getCollector().getManager(),
-                        5,
+                        new SearchCollectorManager(context.getCollector(), Collections.emptyList()),
+                        request.getTimeoutSec(),
+                        request.getTimeoutCheckEvery(),
                         true,
                         () -> hasTimeout[0] = true));
             assertTrue(hasTimeout[0]);
@@ -341,7 +449,7 @@ public class TimeoutTest extends ServerTestCase {
       s = shardState.acquire();
       SearchContext context =
           SearchRequestProcessor.buildContextForRequest(
-              request, indexState, shardState, s, Diagnostics.newBuilder());
+              request, indexState, shardState, s, ProfileResult.newBuilder());
       return func.apply(context);
     } finally {
       if (s != null) {
@@ -368,7 +476,7 @@ public class TimeoutTest extends ServerTestCase {
         .build();
   }
 
-  private TopDocs getTopDocs(SearchContext context, CollectorManager<?, ? extends TopDocs> manager)
+  private TopDocs getTopDocs(SearchContext context, CollectorManager<?, SearcherResult> manager)
       throws IOException {
     TopDocs topDocs;
     if (context.getQuery() instanceof DrillDownQuery) {
@@ -385,11 +493,16 @@ public class TimeoutTest extends ServerTestCase {
               grpcFacetResults,
               searchThreadPoolExecutor,
               Diagnostics.newBuilder());
-      DrillSideways.ConcurrentDrillSidewaysResult<? extends TopDocs> concurrentDrillSidewaysResult =
+      DrillSideways.ConcurrentDrillSidewaysResult<SearcherResult> concurrentDrillSidewaysResult =
           drillS.search((DrillDownQuery) context.getQuery(), manager);
-      topDocs = concurrentDrillSidewaysResult.collectorResult;
+      topDocs = concurrentDrillSidewaysResult.collectorResult.getTopDocs();
     } else {
-      topDocs = context.getSearcherAndTaxonomy().searcher.search(context.getQuery(), manager);
+      topDocs =
+          context
+              .getSearcherAndTaxonomy()
+              .searcher
+              .search(context.getQuery(), manager)
+              .getTopDocs();
     }
     return topDocs;
   }

@@ -15,14 +15,20 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
+import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerProvider;
 import java.util.Collections;
 import java.util.Map;
-import org.apache.lucene.search.Rescorer;
 
+/**
+ * Plugin interface for providing custom {@link RescoreOperation}s. Provides info for registration
+ * of rescorers by name. These rescorers can be invoked by sending {@link
+ * com.yelp.nrtsearch.server.grpc.Rescorer} messages as part of the {@link
+ * com.yelp.nrtsearch.server.grpc.SearchRequest}.
+ */
 public interface RescorerPlugin {
-
-  default Map<String, RescorerProvider<? extends Rescorer>> getRescorers() {
+  /** Get map of rescorer name to {@link RescorerProvider} for registration. */
+  default Map<String, RescorerProvider<? extends RescoreOperation>> getRescorers() {
     return Collections.emptyMap();
   }
 }

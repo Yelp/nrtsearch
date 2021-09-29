@@ -1,8 +1,7 @@
-FROM ubuntu:20.04
+FROM azul/zulu-openjdk-debian:14
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y wget unzip htop \
-    openjdk-14-jdk \
     golang-go \
     git
 
@@ -23,7 +22,7 @@ COPY / ${BASEPATH}/
 WORKDIR  $BASEPATH
 
 ENV JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF8
-RUN ./gradlew clean && ./gradlew installDist
+RUN ./gradlew clean installDist
 
 RUN mkdir /go
 ENV GOPATH /go
@@ -35,7 +34,9 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 ENV GO111MODULE=on
 ENV GRPC_GATEWAY_VERSION=1.15.2
 ENV PROTOC_GEN_GO_VERSION=1.5.1
-ENV GRPC_VERSION=1.36.0
+ENV GRPC_VERSION=1.38.0
+
+RUN go mod init github.com/Yelp/nrtsearch
 
 #install required go protoc plugins to build grpc-gateway server
 RUN go get \
@@ -82,6 +83,7 @@ $PROTO_PATH/yelp/nrtsearch/search.proto \
 $PROTO_PATH/yelp/nrtsearch/suggest.proto
 
 RUN cp $OUTPATH/yelp/nrtsearch/* grpc-gateway/
+RUN cp $OUTPATH/github.com/Yelp/nrtsearch/* grpc-gateway/
 
 # build go executables for various platforms
 RUN for GOOS in darwin linux windows; do \

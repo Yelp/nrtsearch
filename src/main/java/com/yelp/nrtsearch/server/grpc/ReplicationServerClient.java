@@ -16,8 +16,10 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import com.google.protobuf.GeneratedMessageV3;
+import com.yelp.nrtsearch.server.luceneserver.SimpleCopyJob.FileChunkStreamingIterator;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.stub.StreamObserver;
 import java.io.Closeable;
 import java.util.Iterator;
 import java.util.Map;
@@ -129,6 +131,19 @@ public class ReplicationServerClient implements Closeable {
             .setIndexName(indexName)
             .build();
     return this.blockingStub.recvRawFile(fileInfo);
+  }
+
+  public void recvRawFileV2(
+      String fileName, long fpOffset, String indexName, FileChunkStreamingIterator observer) {
+    FileInfo fileInfoV2 =
+        FileInfo.newBuilder()
+            .setFileName(fileName)
+            .setFpStart(fpOffset)
+            .setIndexName(indexName)
+            .build();
+    StreamObserver<FileInfo> responseObserver = this.asyncStub.recvRawFileV2(observer);
+    observer.init(responseObserver);
+    responseObserver.onNext(fileInfoV2);
   }
 
   public CopyState recvCopyState(String indexName, int replicaId) {

@@ -52,6 +52,23 @@ public class LuceneServerStubBuilder implements Closeable {
   }
 
   /**
+   * Constructor that accepts a host and port and creates a plaintext netty channel
+   *
+   * @param host server host
+   * @param port server port
+   * @param objectMapper object mapper
+   * @param channelConfig additional channel configuration
+   */
+  public LuceneServerStubBuilder(
+      String host, int port, ObjectMapper objectMapper, ChannelConfig channelConfig) {
+    this(
+        channelConfig
+            .configureChannelBuilder(ManagedChannelBuilder.forAddress(host, port), objectMapper)
+            .usePlaintext()
+            .build());
+  }
+
+  /**
    * Create {@link LuceneServerStubBuilder} with a {@link io.grpc.Channel} which finds Nrtsearch
    * node addresses from a file. The file must contain host and port as properties in list in json
    * format. The file be checked for updates every {@link #DEFAULT_UPDATE_INTERVAL} milliseconds.
@@ -67,6 +84,23 @@ public class LuceneServerStubBuilder implements Closeable {
   }
 
   /**
+   * Create {@link LuceneServerStubBuilder} with a {@link io.grpc.Channel} which finds Nrtsearch
+   * node addresses from a file. The file must contain host and port as properties in list in json
+   * format. The file be checked for updates every {@link #DEFAULT_UPDATE_INTERVAL} milliseconds.
+   * E.g.: [{"host":"10.10.1.1", "port": 12000}, {"host":"10.20.1.1", "port": 14000}] If there are
+   * additional properties than host and port, the {@link ObjectMapper} must be configured to ignore
+   * them before passing it to this constructor.
+   *
+   * @param nodeAddressFile Path to file containing node addresses
+   * @param objectMapper {@link ObjectMapper} to use to deserialize the json file
+   * @param channelConfig additional channel configuration
+   */
+  public LuceneServerStubBuilder(
+      String nodeAddressFile, ObjectMapper objectMapper, ChannelConfig channelConfig) {
+    this(nodeAddressFile, objectMapper, DEFAULT_UPDATE_INTERVAL, channelConfig);
+  }
+
+  /**
    * Like {@link #LuceneServerStubBuilder(String, ObjectMapper)} but additionally provide an
    * interval to check the node address file for updates.
    *
@@ -78,6 +112,30 @@ public class LuceneServerStubBuilder implements Closeable {
       String nodeAddressFile, ObjectMapper objectMapper, int updateInterval) {
     this(
         ManagedChannelBuilder.forTarget(nodeAddressFile)
+            .defaultLoadBalancingPolicy("round_robin")
+            .nameResolverFactory(
+                new NodeAddressesFileNameResolverProvider(objectMapper, updateInterval))
+            .usePlaintext()
+            .build());
+  }
+
+  /**
+   * Like {@link #LuceneServerStubBuilder(String, ObjectMapper)} but additionally provide an
+   * interval to check the node address file for updates.
+   *
+   * @param nodeAddressFile Path to file containing node addresses
+   * @param objectMapper {@link ObjectMapper} to use to deserialize the json file
+   * @param updateInterval Time-between checks for changes to node addresses file in milli-seconds
+   * @param channelConfig additional channel configuration
+   */
+  public LuceneServerStubBuilder(
+      String nodeAddressFile,
+      ObjectMapper objectMapper,
+      int updateInterval,
+      ChannelConfig channelConfig) {
+    this(
+        channelConfig
+            .configureChannelBuilder(ManagedChannelBuilder.forTarget(nodeAddressFile), objectMapper)
             .defaultLoadBalancingPolicy("round_robin")
             .nameResolverFactory(
                 new NodeAddressesFileNameResolverProvider(objectMapper, updateInterval))

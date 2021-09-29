@@ -186,6 +186,6 @@ public class MyIndexSearcherTest extends ServerTestCase {
 
   @Test(expected = NullPointerException.class)
   public void testNullWrappedExecutor() throws IOException {
-    new ExecutorWithParams(null, 10, 10);
+    new ExecutorWithParams(null, 10, 10, 1);
   }
 }
