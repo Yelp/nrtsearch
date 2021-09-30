@@ -5,5 +5,6 @@ Nrtsearch mostly exposes the query classes in Lucene along with some other types
 
 .. toctree::
    :maxdepth: 1
+   :glob:
 
    queries/*
