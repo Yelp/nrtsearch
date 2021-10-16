@@ -51,6 +51,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hamcrest.core.IsCollectionContaining;
@@ -990,7 +992,11 @@ public class LuceneServerTest {
                   .build());
       fail("Expecting exception on the previous line");
     } catch (StatusRuntimeException e) {
-      assertEquals("UNKNOWN: Unable to backup warming queries", e.getMessage().substring(0, 41));
+      Pattern pattern =
+          Pattern.compile(
+              "UNKNOWN: Unable to backup warming queries since uptime is [0-9] minutes, which is less than threshold 1000");
+      Matcher m = pattern.matcher(e.getMessage());
+      assertTrue(m.matches());
     }
 
     // Should fail; does not meet NumQueriesThreshold
