@@ -990,9 +990,7 @@ public class LuceneServerTest {
                   .build());
       fail("Expecting exception on the previous line");
     } catch (StatusRuntimeException e) {
-      assertEquals(
-          "UNKNOWN: Unable to backup warming queries since uptime is 0 minutes, which is less than threshold 1000",
-          e.getMessage());
+      assertEquals("UNKNOWN: Unable to backup warming queries", e.getMessage().substring(0, 41));
     }
 
     // Should fail; does not meet NumQueriesThreshold
