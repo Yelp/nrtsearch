@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.yelp.nrtsearch.server.utils.Archiver;
+import com.yelp.nrtsearch.server.backup.Archiver;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;

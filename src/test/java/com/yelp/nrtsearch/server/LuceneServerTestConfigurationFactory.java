@@ -54,8 +54,8 @@ public class LuceneServerTestConfigurationFactory {
               "nodeName: standalone",
               "stateDir: " + stateDir,
               "indexDir: " + indexDir,
-              "port: " + (9000 + atomicLong.intValue()),
-              "replicationPort: " + (10000 + atomicLong.intValue()),
+              "port: " + (9700 + atomicLong.intValue()),
+              "replicationPort: " + (17000 + atomicLong.intValue()),
               "archiveDirectory: " + archiverDirectory.toString(),
               extraConfig);
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));

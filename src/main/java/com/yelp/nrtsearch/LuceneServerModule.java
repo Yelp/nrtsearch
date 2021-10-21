@@ -27,12 +27,12 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
+import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.backup.ArchiverImpl;
+import com.yelp.nrtsearch.server.backup.Tar;
+import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LuceneServer;
-import com.yelp.nrtsearch.server.utils.Archiver;
-import com.yelp.nrtsearch.server.utils.ArchiverImpl;
-import com.yelp.nrtsearch.server.utils.Tar;
-import com.yelp.nrtsearch.server.utils.TarImpl;
 import io.prometheus.client.CollectorRegistry;
 import java.io.File;
 import java.io.FileInputStream;
@@ -91,6 +91,11 @@ public class LuceneServerModule extends AbstractModule {
         region = "us-east-1";
       }
       String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
+      System.out.println("***********");
+      System.out.println("***********");
+      System.out.println(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
+      System.out.println("***********");
+      System.out.println("***********");
       return AmazonS3ClientBuilder.standard()
           .withCredentials(awsCredentialsProvider)
           .withEndpointConfiguration(

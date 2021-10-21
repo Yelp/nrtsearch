@@ -16,13 +16,13 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.gson.Gson;
+import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.BackupIndexRequest;
 import com.yelp.nrtsearch.server.grpc.BackupIndexResponse;
 import com.yelp.nrtsearch.server.grpc.CreateSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotResponse;
 import com.yelp.nrtsearch.server.grpc.SnapshotId;
-import com.yelp.nrtsearch.server.utils.Archiver;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.file.Files;

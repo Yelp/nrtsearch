@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.utils;
+package com.yelp.nrtsearch.server.backup;
 
 import static org.junit.Assert.*;
 
@@ -137,5 +137,16 @@ public class VersionManagerTest {
 
     assertTrue(objectKeys.contains(key2));
     assertFalse(objectKeys.contains(key1));
+  }
+
+  @Test
+  public void getVersionString() throws IOException {
+    s3.putObject(BUCKET_NAME, "testservice/_version/testresource/versionHash", "0");
+    String result = versionManager.getVersionString("testservice", "testresource", "versionHash");
+    assertEquals("0", result);
+
+    s3.putObject(BUCKET_NAME, "testservice/_version/testresource/versionHash", "2");
+    result = versionManager.getVersionString("testservice", "testresource", "versionHash");
+    assertEquals("2", result);
   }
 }

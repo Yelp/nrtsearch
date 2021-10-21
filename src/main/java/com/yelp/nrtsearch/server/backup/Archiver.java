@@ -13,14 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.utils;
+package com.yelp.nrtsearch.server.backup;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
-public interface Archiver {
+public interface Archiver extends VersionHashDownloader {
   Path download(final String serviceName, final String resource) throws IOException;
 
   /**

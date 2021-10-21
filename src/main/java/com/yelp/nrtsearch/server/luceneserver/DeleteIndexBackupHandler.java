@@ -15,10 +15,10 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.backup.VersionedResource;
 import com.yelp.nrtsearch.server.grpc.DeleteIndexBackupRequest;
 import com.yelp.nrtsearch.server.grpc.DeleteIndexBackupResponse;
-import com.yelp.nrtsearch.server.utils.Archiver;
-import com.yelp.nrtsearch.server.utils.VersionedResource;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
