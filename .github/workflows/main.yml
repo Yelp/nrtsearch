@@ -1,0 +1,166 @@
+Skip to content
+Search or jump to…
+Pull requests
+Issues
+Marketplace
+Explore
+ 
+@vim345 
+Yelp
+/
+nrtsearch
+Public
+10
+131
+19
+Code
+Issues
+18
+Pull requests
+4
+Actions
+Projects
+Wiki
+Security
+Insights
+nrtsearch
+/
+.github
+/
+workflows
+/
+main.yml
+in
+master
+ 
+
+Spaces
+
+2
+
+No wrap
+1
+# This is a basic workflow to help you get started with Actions
+2
+​
+3
+name: CI
+4
+​
+5
+# Controls when the workflow will run
+6
+on:
+7
+  # Triggers the workflow on push or pull request events but only for the master branch
+8
+  push:
+9
+    branches: [ master ]
+10
+  pull_request:
+11
+    branches: [ master ]
+12
+​
+13
+  # Allows you to run this workflow manually from the Actions tab
+14
+  workflow_dispatch:
+15
+​
+16
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+17
+jobs:
+18
+  # This workflow contains a single job called "build"
+19
+  build:
+20
+    # The type of runner that the job will run on
+21
+    runs-on: ubuntu-latest
+22
+​
+23
+    # Steps represent a sequence of tasks that will be executed as part of the job
+24
+    steps:
+25
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+26
+      - uses: actions/checkout@v2
+27
+​
+28
+      # Runs a single command using the runners shell
+29
+      - name: Run a one-line script
+30
+        run: echo Hello, world!
+31
+​
+32
+      # Runs a set of commands using the runners shell
+33
+      - name: Run a multi-line script
+34
+        run: |
+35
+          echo Add other actions to build,
+36
+          echo test, and deploy your project.
+37
+​
+Use Control + Space to trigger autocomplete in most situations.
+ /  / jacoco-badge-generator
+jacoco-badge-generator
+ v2.4.1
+ 13
+JaCoCo coverage badges and pull request coverage checks in GitHub Actions
+
+View full Marketplace listing
+Installation
+Copy and paste the following snippet into your .yml file.
+
+Version: v2.4.1 
+- name: jacoco-badge-generator
+  # You may pin to the exact commit or the version.
+  # uses: cicirello/jacoco-badge-generator@19063b7db4fc4638ce8604f4262da6d21300ed38
+  uses: cicirello/jacoco-badge-generator@v2.4.1
+  with:
+    # Full path, relative to the root of the repository, to the jacoco csv file(s), including filename(s)
+    jacoco-csv-file: # optional, default is target/site/jacoco/jacoco.csv
+    # The directory for storing badges, relative to the root of the repository.
+    badges-directory: # optional, default is .github/badges
+    # The filename of the coverage badge.
+    coverage-badge-filename: # optional, default is jacoco.svg
+    # The filename of the branches coverage badge.
+    branches-badge-filename: # optional, default is branches.svg
+    # Controls whether or not to generate the coverage badge.
+    generate-coverage-badge: # optional, default is true
+    # Controls whether or not to generate the branches coverage badge.
+    generate-branches-badge: # optional
+    # Controls what happens if one or more jacoco.csv files do not exist.
+    on-missing-report: # optional, default is fail
+    # Enables failing workflow run when coverage below specified threshold.
+    fail-if-coverage-less-than: # optional, default is 0
+    # Enables failing workflow run when branches coverage below specified threshold.
+    fail-if-branches-less-than: # optional, default is 0
+    # Enables failing workflow if coverage is less than it was on previous run.
+    fail-on-coverage-decrease: # optional
+    # Enables failing workflow if branches coverage is less than it was on previous run.
+    fail-on-branches-decrease: # optional
+    # List of coverage percentages as cutoffs for each color.
+    intervals: # optional, default is 100 90 80 70 60 0
+    # List of colors to use ordered by coverage interval, best coverage to worst.
+    colors: # optional, default is #4c1 #97ca00 #a4a61d #dfb317 #fe7d37 #e05d44
+    # Controls whether or not to generate the coverage JSON endpoint.
+    generate-coverage-endpoint: # optional
+    # Controls whether or not to generate the branches coverage JSON endpoint.
+    generate-branches-endpoint: # optional
+    # The filename of the coverage JSON endpoint.
+    coverage-endpoint-filename: # optional, default is jacoco.json
+    # The filename of the branches coverage JSON endpoint.
+    branches-endpoint-filename: # optional, default is branches.json
