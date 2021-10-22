@@ -31,3 +31,12 @@ jobs:
       run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
     - name: Merge behavior tests
       run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.grpc.MergeBehaviorTests" --info
+    - name: jacoco-badge-generator
+      uses: cicirello/jacoco-badge-generator@v2.4.1
+      with:
+        jacoco-csv-file: build/reports/jacoco/test/jacocoTestReport.csv
+        generate-coverage-badge: true
+        generate-branches-badge: true
+        on-missing-report: fail
+        fail-on-coverage-decrease: true
+        fail-on-branches-decrease: true
