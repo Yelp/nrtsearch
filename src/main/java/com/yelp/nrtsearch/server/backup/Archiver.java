@@ -20,7 +20,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
-public interface Archiver extends VersionHashDownloader {
+public interface Archiver {
   Path download(final String serviceName, final String resource) throws IOException;
 
   /**

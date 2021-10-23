@@ -34,11 +34,17 @@ public class VersionManager {
     this.bucketName = bucketName;
   }
 
+  /**
+   * @param serviceName
+   * @param resourceName
+   * @return -1 if no prior versions found else most recent version number of this resource
+   * @throws IOException
+   */
   /*
   Gets the latest version number of a service and a resource
   Returns: The latest version number in s3 of a service and resource
   */
-  long getLatestVersionNumber(String serviceName, String resourceName) throws IOException {
+  public long getLatestVersionNumber(String serviceName, String resourceName) throws IOException {
     final String versionPath = String.format("%s/_version/%s", serviceName, resourceName);
     long maxVersion = getListedLatestVersionNumber(versionPath);
     return ensureLatestVersionNumber(versionPath, maxVersion);

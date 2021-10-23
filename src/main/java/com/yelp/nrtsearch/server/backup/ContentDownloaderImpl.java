@@ -68,7 +68,7 @@ public class ContentDownloaderImpl implements ContentDownloader {
   }
 
   @Override
-  public void getVersionContent(
+  public boolean getVersionContent(
       final String serviceName, final String resource, final String hash, final Path destDirectory)
       throws IOException {
     final String absoluteResourcePath = String.format("%s/%s/%s", serviceName, resource, hash);
@@ -117,7 +117,7 @@ public class ContentDownloaderImpl implements ContentDownloader {
         new TarArchiveInputStream(compressorInputStream); ) {
       if (Files.exists(destDirectory)) {
         logger.info("Directory {} already exists, not re-downloading from Archiver", destDirectory);
-        return;
+        return false;
       }
       final Path tmpDirectory = parentDirectory.resolve(getTmpName());
       try {
@@ -137,6 +137,7 @@ public class ContentDownloaderImpl implements ContentDownloader {
         }
       }
     }
+    return true;
   }
 
   @Override

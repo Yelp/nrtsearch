@@ -78,9 +78,40 @@ public class ContentDownloaderImplTest {
         s3, BUCKET_NAME, Arrays.asList(tarEntry), "testservice/testresource/abcdef");
     Path downloadDir =
         archiverDirectory.resolve("downloads"); // this dir will be created by getVersionContent
-    contentDownloader.getVersionContent("testservice", "testresource", "abcdef", downloadDir);
+    assertEquals(
+        true,
+        contentDownloader.getVersionContent("testservice", "testresource", "abcdef", downloadDir));
     assertEquals(
         "testcontent", new String(Files.readAllBytes(Paths.get(downloadDir.toString(), "file1"))));
+  }
+
+  @Test
+  public void getVersionContentMultipleFiles() throws IOException {
+    final TarEntry tarEntry1 = new TarEntry("file1", "testcontent1");
+    final TarEntry tarEntry2 = new TarEntry("file2", "testcontent2");
+    TarEntry.uploadToS3(
+        s3, BUCKET_NAME, Arrays.asList(tarEntry1, tarEntry2), "testservice/testresource/abcdef");
+    Path downloadDir =
+        archiverDirectory.resolve("downloads"); // this dir will be created by getVersionContent
+    assertEquals(
+        true,
+        contentDownloader.getVersionContent("testservice", "testresource", "abcdef", downloadDir));
+    assertEquals(
+        "testcontent1", new String(Files.readAllBytes(Paths.get(downloadDir.toString(), "file1"))));
+    assertEquals(
+        "testcontent2", new String(Files.readAllBytes(Paths.get(downloadDir.toString(), "file2"))));
+  }
+
+  @Test
+  public void getVersionContentdownloadDirExists() throws IOException {
+    final TarEntry tarEntry = new TarEntry("file1", "testcontent");
+    TarEntry.uploadToS3(
+        s3, BUCKET_NAME, Arrays.asList(tarEntry), "testservice/testresource/abcdef");
+    Path downloadDir = archiverDirectory.resolve("downloads");
+    Files.createDirectories(downloadDir);
+    assertEquals(
+        false,
+        contentDownloader.getVersionContent("testservice", "testresource", "abcdef", downloadDir));
   }
 
   @Test

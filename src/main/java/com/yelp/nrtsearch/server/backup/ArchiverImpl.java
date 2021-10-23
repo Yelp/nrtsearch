@@ -356,7 +356,6 @@ public class ArchiverImpl implements Archiver {
     };
   }
 
-  @Override
   public void getVersionContent(
       final String serviceName, final String resource, final String hash, final Path destDirectory)
       throws IOException {

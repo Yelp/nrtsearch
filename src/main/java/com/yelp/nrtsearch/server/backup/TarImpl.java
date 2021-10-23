@@ -129,7 +129,7 @@ public class TarImpl implements Tar {
       Collection<String> parentDirectoriesToInclude)
       throws IOException {
     if (!Files.exists(sourceDir)) {
-      throw new IOException("source directory doesn't exist: " + sourceDir);
+      throw new IOException("source path doesn't exist: " + sourceDir);
     }
     addFilestoTarGz(
         sourceDir.toString(),

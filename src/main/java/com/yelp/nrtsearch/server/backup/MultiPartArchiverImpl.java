@@ -104,7 +104,7 @@ public class MultiPartArchiverImpl implements Archiver {
         serviceName,
         versionHash,
         versionDirectory);
-    baseArchiver.getVersionContent(serviceName, resource, versionHash, versionDirectory);
+    // baseArchiver.getVersionContent(serviceName, resource, versionHash, versionDirectory);
     return versionDirectory;
   }
 
@@ -219,11 +219,5 @@ public class MultiPartArchiverImpl implements Archiver {
   @Override
   public List<VersionedResource> getVersionedResource(String serviceName, String resource) {
     return null;
-  }
-
-  @Override
-  public void getVersionContent(
-      String serviceName, String resource, String hash, Path destDirectory) throws IOException {
-    baseArchiver.getVersionContent(serviceName, resource, hash, destDirectory);
   }
 }
