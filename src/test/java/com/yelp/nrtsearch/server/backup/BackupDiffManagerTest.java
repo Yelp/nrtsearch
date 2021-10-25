@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.backup;
 
+import static java.util.UUID.randomUUID;
 import static org.junit.Assert.assertEquals;
 
 import com.amazonaws.auth.AnonymousAWSCredentials;
@@ -24,6 +25,7 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
+import com.amazonaws.util.IOUtils;
 import com.google.common.collect.ImmutableSet;
 import io.findify.s3mock.S3Mock;
 import java.io.File;
@@ -233,9 +235,31 @@ public class BackupDiffManagerTest {
     testUpload("testservice", "testresource", diffName, "1\n2\n");
   }
 
+  private Path getTmpDir() throws IOException {
+    return Files.createDirectory(Paths.get(archiverDirectory.toString(), randomUUID().toString()));
+  }
+
   @Test
-  public void upload() throws IOException {
+  public void download() throws IOException {
     Map<String, String> filesAndContents = Map.of("file1", "contents1", "file2", "contents2");
+    uploadBlessAndValidate(filesAndContents);
+    BackupDiffManager backupDiffManager =
+        new BackupDiffManager(
+            contentDownloader, fileCompressAndUploader, versionManager, archiverDirectory);
+    Path downloadPath = backupDiffManager.download("testservice", "testresource");
+    for (Map.Entry<String, String> entry : filesAndContents.entrySet()) {
+      assertEquals(true, Files.exists(Paths.get(downloadPath.toString(), entry.getKey())));
+      assertEquals(
+          entry.getValue(), Files.readString(Paths.get(downloadPath.toString(), entry.getKey())));
+    }
+  }
+
+  @Test
+  public void uploadNoPriorBackup() throws IOException {
+    uploadBlessAndValidate(Map.of("file1", "contents1", "file2", "contents2"));
+  }
+
+  private String uploadBlessAndValidate(Map<String, String> filesAndContents) throws IOException {
     Path indexDir = createIndexDir(filesAndContents);
     BackupDiffManager backupDiffManager =
         new BackupDiffManager(
@@ -248,20 +272,58 @@ public class BackupDiffManagerTest {
             filesAndContents.keySet(),
             Collections.emptyList(),
             true);
-    assertEquals(true, s3.doesObjectExist(BUCKET_NAME, "testservice/testresource/file1"));
-    assertEquals(true, s3.doesObjectExist(BUCKET_NAME, "testservice/testresource/file2"));
+    assertEquals(true, backupDiffManager.blessVersion("testservice", "testresource", versionHash));
+    // files are uploaded
+    for (String file : filesAndContents.keySet()) {
+      assertEquals(
+          true,
+          s3.doesObjectExist(BUCKET_NAME, String.format("testservice/testresource/%s", file)));
+    }
+    // versionHash is uploaded
     assertEquals(
         true,
         s3.doesObjectExist(BUCKET_NAME, String.format("testservice/testresource/%s", versionHash)));
+    // latest versionHash exists
+    assertEquals(
+        true, s3.doesObjectExist(BUCKET_NAME, "testservice/_version/testresource/_latest_version"));
+    return versionHash;
+  }
+
+  @Test
+  public void uploadWhenPriorBackup() throws IOException {
+    // 1st backup
+    String versionHashOld =
+        uploadBlessAndValidate(Map.of("file1", "contents1", "file2", "contents2"));
+    // Incremental Backup
+    String versionHashNew =
+        uploadBlessAndValidate(Map.of("file2", "contents2", "file3", "contents3"));
+    // old backup file still exists
+    assertEquals(true, s3.doesObjectExist(BUCKET_NAME, "testservice/testresource/file1"));
+    // confirm latest_version matches the most recent one
+    assertEquals(
+        "1",
+        IOUtils.toString(
+            s3.getObject(
+                    BUCKET_NAME,
+                    String.format("testservice/_version/testresource/_latest_version/"))
+                .getObjectContent()));
+    assertEquals(
+        versionHashNew,
+        IOUtils.toString(
+            s3.getObject(BUCKET_NAME, String.format("testservice/_version/testresource/1"))
+                .getObjectContent()));
   }
 
   private Path createIndexDir(Map<String, String> fileAndContents) throws IOException {
-    Path indexDir = Files.createDirectory(archiverDirectory.resolve("index"));
+    Path indexDir = archiverDirectory.resolve("index");
+    if (!Files.exists(indexDir)) {
+      Files.createDirectory(indexDir);
+    }
     for (Map.Entry<String, String> entry : fileAndContents.entrySet()) {
-      Files.writeString(
-          Files.createFile(Paths.get(indexDir.toString(), entry.getKey())),
-          entry.getValue(),
-          StandardCharsets.UTF_8);
+      Path file = Paths.get(indexDir.toString(), entry.getKey());
+      if (!Files.exists(file)) {
+        Files.writeString(Files.createFile(file), entry.getValue(), StandardCharsets.UTF_8);
+      }
     }
     return indexDir;
   }

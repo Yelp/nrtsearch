@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.backup;
 
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.UUID.randomUUID;
 
 import com.google.common.collect.ImmutableSet;
@@ -216,13 +217,15 @@ public class BackupDiffManager implements Archiver {
   public Path download(String serviceName, String resource) throws IOException {
     // get the latest backup file names
     List<String> backupIndexFileNames = getLatestBackupIdxFileNames(serviceName, resource);
-    Path downloadDir = Paths.get(archiverDirectory.toString(), randomUUID().toString());
     LinkedList<Future<Boolean>> futures = new LinkedList<>();
+    List<Path> downloadDirs = new LinkedList<>();
     for (String indexFileName : backupIndexFileNames) {
       futures.add(
           executor.submit(
               () -> {
                 try {
+                  Path downloadDir = getTmpDir();
+                  downloadDirs.add(Paths.get(downloadDir.toString(), indexFileName));
                   return contentDownloader.getVersionContent(
                       serviceName, resource, indexFileName, downloadDir);
                 } catch (IOException e) {
@@ -232,16 +235,26 @@ public class BackupDiffManager implements Archiver {
     }
     while (!futures.isEmpty()) {
       try {
-        boolean result = futures.pollFirst().get();
-        if (!result) {
-          // TODO return fileName from contentDownloader.getVersionContent
-          throw new RuntimeException("Unable to do download file");
-        }
+        futures.pollFirst().get();
       } catch (Exception e) {
         throw new RuntimeException("Error downloading index File", e);
       }
     }
+    Path downloadDir = collectDownloadedFiles(downloadDirs);
     return downloadDir;
+  }
+
+  private Path collectDownloadedFiles(List<Path> downloadDirs) throws IOException {
+    Path downloadDir = Files.createDirectory(getTmpDir());
+    for (Path source : downloadDirs) {
+      Files.move(source, downloadDir.resolve(source.getFileName()), REPLACE_EXISTING);
+      Files.delete(source.getParent());
+    }
+    return downloadDir;
+  }
+
+  private Path getTmpDir() {
+    return Paths.get(archiverDirectory.toString(), randomUUID().toString());
   }
 
   @Override
