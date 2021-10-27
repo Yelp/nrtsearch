@@ -15,13 +15,15 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.geo;
 
+import it.unimi.dsi.fastutil.doubles.DoubleDoublePair;
 import org.apache.lucene.util.SloppyMath;
 
 /**
  * Class to encapsulate a geo location loaded out of a doc value. Currently represents a lat/lon
- * value.
+ * value. Also provides point with a {@link DoubleDoublePair} view, with left/first being latitude
+ * and right/second being longitude.
  */
-public final class GeoPoint {
+public final class GeoPoint implements DoubleDoublePair {
   private final double latitude;
   private final double longitude;
 
@@ -66,5 +68,15 @@ public final class GeoPoint {
         .append(longitude)
         .append(")")
         .toString();
+  }
+
+  @Override
+  public double leftDouble() {
+    return latitude;
+  }
+
+  @Override
+  public double rightDouble() {
+    return longitude;
   }
 }
