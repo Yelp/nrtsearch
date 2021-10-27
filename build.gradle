@@ -7,6 +7,7 @@ plugins {
     id 'signing'
     id "com.diffplug.gradle.spotless" version "4.3.0"
     id 'java-library'
+    id 'jacoco'
 }
 
 repositories {
@@ -144,6 +145,7 @@ task buildGrpcGateway(dependsOn: installDist, type: Exec) {
 //e.g. default is to exclude perfTests: ./gradlew test
 test {
     finalizedBy 'spotlessJavaCheck'
+    finalizedBy 'jacocoTestReport'
     if (!project.hasProperty('includePerfTests')) {
         exclude '**/YelpReviewsTest.class'
         exclude '**/YelpSuggestTest.class'
@@ -157,6 +159,12 @@ test {
         events "failed"
         exceptionFormat "full"
         showStackTraces true
+    }
+}
+
+jacocoTestReport {
+    reports {
+        csv.enabled true
     }
 }
 
