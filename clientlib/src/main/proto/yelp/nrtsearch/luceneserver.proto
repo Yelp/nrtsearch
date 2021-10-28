@@ -246,6 +246,14 @@ service LuceneServer {
     };
     }
 
+    /* backs up a resource (index) and it associated metadata e.g. settings, schema to s3 */
+    rpc backupIndexV2 (BackupIndexRequestV2) returns (BackupIndexResponseV2) {
+        option (google.api.http) = {
+            post: "/v2/backup_index"
+            body: "*"
+        };
+    }
+
     rpc deleteIndexBackup (DeleteIndexBackupRequest) returns (DeleteIndexBackupResponse) {
         option (google.api.http) = {
             post: "/v1/delete_index_backup"
@@ -719,6 +727,16 @@ message BackupIndexRequest {
 message BackupIndexResponse {
     string dataVersionHash = 1; //version identifier for data on s3
     string metadataVersionHash = 2; //version identifier for metadata on s3
+}
+
+message BackupIndexRequestV2 {
+    string indexName = 1; //name of the index to backup
+    string serviceName = 2; // remote storage namespace qualifier for service
+    string resourceName = 3; //remote storage namespace qualifier for resource e.g.indexName
+}
+
+message BackupIndexResponseV2 {
+    string metadataVersionHash = 2; //version identifier for incremental index master file on s3
 }
 
 message BackupWarmingQueriesRequest {

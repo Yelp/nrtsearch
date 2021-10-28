@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.UUID;
 import org.junit.Test;
 import scala.util.Random;
 
@@ -32,13 +33,13 @@ public class ArchiverPerfTest {
   private static final String BUCKET_NAME = "yelp-service-data-dev";
   private static final String BOTO_CFG_PATH = "/etc/boto_cfg/elasticlucy.cfg";
   private static final String ARCHIVE_DIR = "/nail/home/umesh/scratch/archiver";
-  private static final String SERVICE_NAME = "nrtsearch-lucy-awn";
-  private static final String RESOURCE_NAME = "americas_west_north_data";
+  private static final String SERVICE_NAME = "nrtsearch-lucy-aws";
+  private static final String RESOURCE_NAME = "americas_west_south_data";
 
   @Test
   public void runArchiverPerfDownloadTest() throws IOException, InterruptedException {
     Random rand = new Random();
-    ArchiverPerfTest.main(new String[] {String.valueOf(rand.nextString(5))});
+    ArchiverPerfTest.main(null);
   }
 
   public static void main(String[] args) throws IOException {
@@ -48,7 +49,7 @@ public class ArchiverPerfTest {
         new ArchiverImpl(
             amazonS3,
             BUCKET_NAME,
-            Paths.get(ARCHIVE_DIR, args[0]),
+            Paths.get(ARCHIVE_DIR, UUID.randomUUID().toString()),
             new TarImpl(Tar.CompressionMode.LZ4),
             true);
     Path downloadPath = archiver.download(SERVICE_NAME, RESOURCE_NAME);

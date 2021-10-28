@@ -24,6 +24,7 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
+import com.amazonaws.util.IOUtils;
 import io.findify.s3mock.S3Mock;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,7 +40,8 @@ import org.junit.rules.TemporaryFolder;
 
 public class FileCompressAndUploaderTest {
   private final String BUCKET_NAME = "content-uploader-unittest";
-  private FileCompressAndUploader fileCompressAndUploader;
+  private FileCompressAndUploader fileCompressAndUploader1;
+  private FileCompressAndUploader fileCompressAndUploader2;
   private S3Mock api;
   private AmazonS3 s3;
   private Path s3Directory;
@@ -61,9 +63,11 @@ public class FileCompressAndUploaderTest {
     TransferManager transferManager =
         TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
 
-    fileCompressAndUploader =
+    fileCompressAndUploader1 =
         new FileCompressAndUploader(
             new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, BUCKET_NAME);
+    fileCompressAndUploader2 =
+        new FileCompressAndUploader(new NoTarImpl(), transferManager, BUCKET_NAME);
   }
 
   @After
@@ -72,12 +76,22 @@ public class FileCompressAndUploaderTest {
   }
 
   @Test
-  public void upload() throws IOException {
+  public void uploadWithTarImpl() throws IOException {
     Path indexDir = Files.createDirectory(archiverDirectory.resolve("testIndex"));
     Path indexFile = Paths.get(indexDir.toString(), "file1");
     Files.writeString(indexFile, "testcontent");
-    fileCompressAndUploader.upload("testservice", "testresource", "file1", indexDir);
+    fileCompressAndUploader1.upload("testservice", "testresource", "file1", indexDir);
     testUpload("testservice", "testresource", "file1", "testcontent");
+  }
+
+  @Test
+  public void uploadWithNoTarImpl() throws IOException {
+    Path indexDir = Files.createDirectory(archiverDirectory.resolve("testIndex"));
+    Path indexFile = Paths.get(indexDir.toString(), "file1");
+    Files.writeString(indexFile, "abcdef");
+    fileCompressAndUploader2.upload("testservice", "testresource", "file1", indexDir);
+    S3Object s3Object = s3.getObject(BUCKET_NAME, "testservice/testresource/file1");
+    assertEquals("abcdef", IOUtils.toString(s3Object.getObjectContent()));
   }
 
   private void testUpload(String service, String resource, String fileName, String testContent)

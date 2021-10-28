@@ -15,8 +15,7 @@
  */
 package com.yelp.nrtsearch.server.backup;
 
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.nio.file.Path;
 import java.util.Collection;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -27,6 +26,13 @@ public interface Tar {
 
   void extractTar(final TarArchiveInputStream tarArchiveInputStream, final Path destDirectory)
       throws IOException;
+
+  default void extractTar(
+      final InputStream inputStream, final Path destDirectory, final String fileName)
+      throws IOException {
+    throw new UnsupportedEncodingException(
+        "Extracting from fileInputStream not supported by default");
+  }
 
   /**
    * Build a tar at destinationFile with the directory and files at sourceDir. If either
@@ -68,6 +74,7 @@ public interface Tar {
 
   enum CompressionMode {
     GZIP,
-    LZ4
+    LZ4,
+    NONE
   }
 }

@@ -82,6 +82,9 @@ public class FileCompressAndUploader {
           uploadStream,
           Collections.emptyList(),
           Collections.emptyList());
+      if (tar instanceof NoTarImpl) {
+        uploadStream.close();
+      }
       uploadStream.complete();
     } catch (Exception e) {
       if (uploadStream != null) {

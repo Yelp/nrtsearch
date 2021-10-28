@@ -68,7 +68,7 @@ public class ContentDownloaderImpl implements ContentDownloader {
   }
 
   @Override
-  public boolean getVersionContent(
+  public Path getVersionContent(
       final String serviceName, final String resource, final String hash, final Path destDirectory)
       throws IOException {
     final String absoluteResourcePath = String.format("%s/%s/%s", serviceName, resource, hash);
@@ -107,37 +107,66 @@ public class ContentDownloaderImpl implements ContentDownloader {
       s3InputStream = new FileInputStream(tmpFile.toFile());
     }
 
+    return wrapInputStream(destDirectory, parentDirectory, tmpFile, s3InputStream, hash);
+  }
+
+  private Path wrapInputStream(
+      Path destDirectory,
+      Path parentDirectory,
+      Path tmpFile,
+      InputStream s3InputStream,
+      String hash)
+      throws IOException {
     final InputStream compressorInputStream;
     if (tar.getCompressionMode().equals(Tar.CompressionMode.LZ4)) {
       compressorInputStream = new LZ4FrameInputStream(s3InputStream);
-    } else {
+    } else if (tar.getCompressionMode().equals(Tar.CompressionMode.GZIP)) {
       compressorInputStream = new GzipCompressorInputStream(s3InputStream, true);
+    } else {
+      compressorInputStream = s3InputStream;
     }
     try (final TarArchiveInputStream tarArchiveInputStream =
         new TarArchiveInputStream(compressorInputStream); ) {
-      if (Files.exists(destDirectory)) {
-        logger.info("Directory {} already exists, not re-downloading from Archiver", destDirectory);
-        return false;
-      }
-      final Path tmpDirectory = parentDirectory.resolve(getTmpName());
-      try {
-        long tarBefore = System.nanoTime();
-        logger.info("Extract tar started...");
+      return extractContent(
+          destDirectory, parentDirectory, tmpFile, tarArchiveInputStream, s3InputStream, hash);
+    }
+  }
+
+  private Path extractContent(
+      Path destDirectory,
+      Path parentDirectory,
+      Path tmpFile,
+      TarArchiveInputStream tarArchiveInputStream,
+      InputStream s3InputStream,
+      String hash)
+      throws IOException {
+    if (Files.exists(destDirectory)) {
+      logger.info("Directory {} already exists, not re-downloading from Archiver", destDirectory);
+      return destDirectory;
+    }
+    final Path tmpDirectory = parentDirectory.resolve(getTmpName());
+    try {
+      long tarBefore = System.nanoTime();
+      logger.info("Extract tar started...");
+      if (tar instanceof TarImpl) {
         tar.extractTar(tarArchiveInputStream, tmpDirectory);
-        long tarAfter = System.nanoTime();
-        logger.info(
-            "Extract tar time " + (tarAfter - tarBefore) / (1000 * 1000 * 1000) + " seconds");
-        Files.move(tmpDirectory, destDirectory);
-      } finally {
-        if (Files.exists(tmpDirectory)) {
-          FileUtils.deleteDirectory(tmpDirectory.toFile());
-        }
-        if (Files.exists(tmpFile)) {
-          Files.delete(tmpFile);
-        }
+      } else if (tar instanceof NoTarImpl) {
+        tar.extractTar(s3InputStream, tmpDirectory, hash);
+      } else {
+        throw new RuntimeException("Invalid Tar instance initialized");
+      }
+      long tarAfter = System.nanoTime();
+      logger.info("Extract tar time " + (tarAfter - tarBefore) / (1000 * 1000 * 1000) + " seconds");
+      Files.move(tmpDirectory, destDirectory);
+    } finally {
+      if (Files.exists(tmpDirectory)) {
+        FileUtils.deleteDirectory(tmpDirectory.toFile());
+      }
+      if (Files.exists(tmpFile)) {
+        Files.delete(tmpFile);
       }
     }
-    return true;
+    return destDirectory;
   }
 
   @Override

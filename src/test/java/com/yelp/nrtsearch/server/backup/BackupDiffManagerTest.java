@@ -150,7 +150,10 @@ public class BackupDiffManagerTest {
 
   private final String BUCKET_NAME = "backup-diff-computer-unittest";
   private ContentDownloader contentDownloader;
+  private ContentDownloaderImpl contentDownloader2;
   private FileCompressAndUploader fileCompressAndUploader;
+  private FileCompressAndUploader fileCompressAndUploader2;
+
   private VersionManager versionManager;
   private S3Mock api;
   private AmazonS3 s3;
@@ -181,6 +184,11 @@ public class BackupDiffManagerTest {
     fileCompressAndUploader =
         new FileCompressAndUploader(
             new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, BUCKET_NAME);
+    contentDownloader2 =
+        new ContentDownloaderImpl(new NoTarImpl(), transferManager, BUCKET_NAME, downloadAsStream);
+    fileCompressAndUploader2 =
+        new FileCompressAndUploader(new NoTarImpl(), transferManager, BUCKET_NAME);
+
     versionManager = new VersionManager(s3, BUCKET_NAME);
   }
 
@@ -235,6 +243,18 @@ public class BackupDiffManagerTest {
     testUpload("testservice", "testresource", diffName, "1\n2\n");
   }
 
+  @Test
+  public void uploadDiffNoTar() throws IOException {
+    ImmutableSet<String> toBeAdded = ImmutableSet.of("1", "2");
+    BackupDiffManager.BackupDiffInfo backupDiffInfo =
+        new BackupDiffManager.BackupDiffInfo(ImmutableSet.of(), toBeAdded, ImmutableSet.of());
+    BackupDiffManager backupDiffManager =
+        new BackupDiffManager(
+            contentDownloader2, fileCompressAndUploader2, versionManager, archiverDirectory);
+    String diffName = backupDiffManager.uploadDiff("testservice", "testresource", backupDiffInfo);
+    testUploadNoTar("testservice", "testresource", diffName, "1\n2\n");
+  }
+
   private Path getTmpDir() throws IOException {
     return Files.createDirectory(Paths.get(archiverDirectory.toString(), randomUUID().toString()));
   }
@@ -242,7 +262,10 @@ public class BackupDiffManagerTest {
   @Test
   public void download() throws IOException {
     Map<String, String> filesAndContents = Map.of("file1", "contents1", "file2", "contents2");
-    uploadBlessAndValidate(filesAndContents);
+    uploadBlessAndValidate(
+        filesAndContents,
+        new BackupDiffManager(
+            contentDownloader, fileCompressAndUploader, versionManager, archiverDirectory));
     BackupDiffManager backupDiffManager =
         new BackupDiffManager(
             contentDownloader, fileCompressAndUploader, versionManager, archiverDirectory);
@@ -255,15 +278,40 @@ public class BackupDiffManagerTest {
   }
 
   @Test
-  public void uploadNoPriorBackup() throws IOException {
-    uploadBlessAndValidate(Map.of("file1", "contents1", "file2", "contents2"));
-  }
-
-  private String uploadBlessAndValidate(Map<String, String> filesAndContents) throws IOException {
-    Path indexDir = createIndexDir(filesAndContents);
+  public void downloadNoTar() throws IOException {
+    Map<String, String> filesAndContents = Map.of("file1", "contents1", "file2", "contents2");
     BackupDiffManager backupDiffManager =
         new BackupDiffManager(
-            contentDownloader, fileCompressAndUploader, versionManager, archiverDirectory);
+            contentDownloader2, fileCompressAndUploader2, versionManager, archiverDirectory);
+    uploadBlessAndValidate(filesAndContents, backupDiffManager);
+    Path downloadPath = backupDiffManager.download("testservice", "testresource");
+    for (Map.Entry<String, String> entry : filesAndContents.entrySet()) {
+      assertEquals(true, Files.exists(Paths.get(downloadPath.toString(), entry.getKey())));
+      assertEquals(
+          entry.getValue(), Files.readString(Paths.get(downloadPath.toString(), entry.getKey())));
+    }
+  }
+
+  @Test
+  public void uploadNoPriorBackup() throws IOException {
+    uploadBlessAndValidate(
+        Map.of("file1", "contents1", "file2", "contents2"),
+        new BackupDiffManager(
+            contentDownloader, fileCompressAndUploader, versionManager, archiverDirectory));
+  }
+
+  @Test
+  public void uploadNoPriorBackupNoTar() throws IOException {
+    uploadBlessAndValidate(
+        Map.of("file1", "contents1", "file2", "contents2"),
+        new BackupDiffManager(
+            contentDownloader2, fileCompressAndUploader2, versionManager, archiverDirectory));
+  }
+
+  private String uploadBlessAndValidate(
+      Map<String, String> filesAndContents, BackupDiffManager backupDiffManager)
+      throws IOException {
+    Path indexDir = createIndexDir(filesAndContents);
     String versionHash =
         backupDiffManager.upload(
             "testservice",
@@ -292,11 +340,29 @@ public class BackupDiffManagerTest {
   @Test
   public void uploadWhenPriorBackup() throws IOException {
     // 1st backup
+    BackupDiffManager backupDiffManager =
+        new BackupDiffManager(
+            contentDownloader, fileCompressAndUploader, versionManager, archiverDirectory);
+    validateBackups(backupDiffManager);
+  }
+
+  @Test
+  public void uploadWhenPriorBackupNoTar() throws IOException {
+    // 1st backup
+    BackupDiffManager backupDiffManager =
+        new BackupDiffManager(
+            contentDownloader2, fileCompressAndUploader2, versionManager, archiverDirectory);
+    validateBackups(backupDiffManager);
+  }
+
+  private void validateBackups(BackupDiffManager backupDiffManager) throws IOException {
     String versionHashOld =
-        uploadBlessAndValidate(Map.of("file1", "contents1", "file2", "contents2"));
+        uploadBlessAndValidate(
+            Map.of("file1", "contents1", "file2", "contents2"), backupDiffManager);
     // Incremental Backup
     String versionHashNew =
-        uploadBlessAndValidate(Map.of("file2", "contents2", "file3", "contents3"));
+        uploadBlessAndValidate(
+            Map.of("file2", "contents2", "file3", "contents3"), backupDiffManager);
     // old backup file still exists
     assertEquals(true, s3.doesObjectExist(BUCKET_NAME, "testservice/testresource/file1"));
     // confirm latest_version matches the most recent one
@@ -342,5 +408,12 @@ public class BackupDiffManagerTest {
       assertEquals(
           testContent, new String(Files.readAllBytes(actualDownloadDir.resolve(fileName))));
     }
+  }
+
+  private void testUploadNoTar(String service, String resource, String fileName, String testContent)
+      throws IOException {
+    S3Object s3Object =
+        s3.getObject(BUCKET_NAME, String.format("%s/%s/%s", service, resource, fileName));
+    assertEquals(testContent, IOUtils.toString(s3Object.getObjectContent()));
   }
 }

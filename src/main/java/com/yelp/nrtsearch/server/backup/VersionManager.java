@@ -29,7 +29,7 @@ public class VersionManager {
   private final AmazonS3 s3;
   private final String bucketName;
 
-  VersionManager(final AmazonS3 s3, final String bucketName) {
+  public VersionManager(final AmazonS3 s3, final String bucketName) {
     this.s3 = s3;
     this.bucketName = bucketName;
   }

@@ -217,15 +217,13 @@ public class BackupDiffManager implements Archiver {
   public Path download(String serviceName, String resource) throws IOException {
     // get the latest backup file names
     List<String> backupIndexFileNames = getLatestBackupIdxFileNames(serviceName, resource);
-    LinkedList<Future<Boolean>> futures = new LinkedList<>();
-    List<Path> downloadDirs = new LinkedList<>();
+    LinkedList<Future<Path>> futures = new LinkedList<>();
     for (String indexFileName : backupIndexFileNames) {
       futures.add(
           executor.submit(
               () -> {
                 try {
                   Path downloadDir = getTmpDir();
-                  downloadDirs.add(Paths.get(downloadDir.toString(), indexFileName));
                   return contentDownloader.getVersionContent(
                       serviceName, resource, indexFileName, downloadDir);
                 } catch (IOException e) {
@@ -233,9 +231,10 @@ public class BackupDiffManager implements Archiver {
                 }
               }));
     }
+    List<Path> downloadDirs = new LinkedList<>();
     while (!futures.isEmpty()) {
       try {
-        futures.pollFirst().get();
+        downloadDirs.add(futures.pollFirst().get());
       } catch (Exception e) {
         throw new RuntimeException("Error downloading index File", e);
       }
@@ -247,8 +246,11 @@ public class BackupDiffManager implements Archiver {
   private Path collectDownloadedFiles(List<Path> downloadDirs) throws IOException {
     Path downloadDir = Files.createDirectory(getTmpDir());
     for (Path source : downloadDirs) {
-      Files.move(source, downloadDir.resolve(source.getFileName()), REPLACE_EXISTING);
-      Files.delete(source.getParent());
+      String fileName = Files.list(source).findFirst().get().getFileName().toString();
+      logger.debug(
+          String.format("Moving file %s to location: %s", source.resolve(fileName), downloadDir));
+      Files.move(source.resolve(fileName), downloadDir.resolve(fileName), REPLACE_EXISTING);
+      Files.delete(source);
     }
     return downloadDir;
   }
@@ -342,17 +344,7 @@ public class BackupDiffManager implements Archiver {
           serviceName,
           versionHash,
           tmpPath);
-      boolean result =
-          contentDownloader.getVersionContent(serviceName, indexName, versionHash, tmpPath);
-      if (!result) {
-        // TODO: should this be an Exception?
-        logger.warn(
-            "Downloading latest file info: index {}, service: {}, version: {} to directory {} failed since dir already exists",
-            indexName,
-            serviceName,
-            versionHash,
-            tmpPath);
-      }
+      Path path = contentDownloader.getVersionContent(serviceName, indexName, versionHash, tmpPath);
       // confirm there is only 1 file within this directory
       Path metaFile = BackupDiffDirValidator.validateMetaFile(tmpPath);
       return BackupDiffMarshaller.deserializeFileNames(metaFile);
