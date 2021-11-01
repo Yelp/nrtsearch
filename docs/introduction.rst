@@ -50,18 +50,30 @@ Below is a depiction of how the system works in regards to Near-real-time (NRT) 
 Build Server and Client
 ---------------------------
 
-In the home directory.
+In the home directory is a Dockerfile that will build a base image that can be used for the client and server.
+This Dockerfile is based off of a Java-14 image, installs the distribution via gradle, and can be built like this:
 
 .. code-block::
-  ./gradlew clean installDist test
-
-Note: This code has been tested on *Java14*.
+  shell% docker build --tag nrtsearch .
 
 Run gRPC Server
 ---------------------------
 
+The server can be run via the base image created in the step above. 
 .. code-block::
-  ./build/install/nrtsearch/bin/lucene-server
+  shell% docker run -d --network host nrtsearch /user/app/build/install/nrtsearch/bin/lucene-server
+
+Run gRPC Slient
+---------------------------
+
+The client can be accessed via a running Docker image built and run in the steps above.  For example, if one 
+wants to create an index, this command would work:
+.. code-block::
+  shell% CONTAINER_ID=$(docker ps -a | grep nrtsearch | awk '{print $1}')
+  shell% docker exec $CONTAINER_ID /user/app/build/install/nrtsearch/bin/lucene-client createIndex --indexName  testIdx
+  [INFO ] 2021-10-24 16:39:40.047 [main] LuceneServerClient - Will try to create index: testIdx
+  [INFO ] 2021-10-24 16:39:40.713 [main] LuceneServerClient - Server returned : Created Index name: testIdx
+
 
 Run REST Server
 ---------------------------
