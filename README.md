@@ -1,3 +1,4 @@
+![Coverage](.github/badges/jacoco.svg)
 # nrtSearch
 A high performance gRPC server, with optional REST APIs on top of [Apache Lucene](http://lucene.apache.org/) version 8.x source, exposing lucene's
 core functionality over a simple gRPC based API.
