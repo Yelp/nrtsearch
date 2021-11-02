@@ -49,6 +49,11 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * This implementation is deprecated. IndexArchiver is the current implementation that facilitates
+ * incremental backups and faster downloads.
+ */
+@Deprecated
 public class ArchiverImpl implements Archiver {
   private static final int NUM_S3_THREADS = 20;
   public static final String DELIMITER = "/";

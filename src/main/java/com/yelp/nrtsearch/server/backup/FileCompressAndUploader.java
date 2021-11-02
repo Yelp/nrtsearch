@@ -45,12 +45,19 @@ public class FileCompressAndUploader {
   /**
    * @param serviceName name of the service as stored on s3 key namespace
    * @param resource name of the resource as stored on s3 key namespace
-   * @param fileName file that will be compressed and uploaded to s3
+   * @param fileName file that will be compressed and uploaded to s3 if uploadEntireDir is false
+   *     else versionHash that completes the s3 key {serviceName/resourceName/fileName}
    * @param sourceDir Directory path containing the fileName
+   * @param uploadEntireDir boolean to indicate if all files under sourceDir need to be uploaded
+   *     instead of just fileName Uploading entire dir is only possible when using TarImpl
    * @throws IOException
    */
   public void upload(
-      final String serviceName, final String resource, final String fileName, Path sourceDir)
+      final String serviceName,
+      final String resource,
+      final String fileName,
+      Path sourceDir,
+      boolean uploadEntireDir)
       throws IOException {
     if (!Files.exists(sourceDir)) {
       throw new IOException(
@@ -58,11 +65,15 @@ public class FileCompressAndUploader {
               "Source directory %s, for service %s, and resource %s does not exist",
               sourceDir, serviceName, resource));
     }
-    uploadAsStream(serviceName, resource, fileName, sourceDir);
+    uploadAsStream(serviceName, resource, fileName, sourceDir, uploadEntireDir);
   }
 
   private void uploadAsStream(
-      final String serviceName, final String resource, final String fileName, Path sourceDir)
+      final String serviceName,
+      final String resource,
+      final String fileName,
+      Path sourceDir,
+      boolean uploadEntireDir)
       throws IOException {
     final String absoluteResourcePath = String.format("%s/%s/%s", serviceName, resource, fileName);
     long uncompressedSize = getTotalSize(sourceDir.toString(), fileName);
@@ -77,16 +88,24 @@ public class FileCompressAndUploader {
               uncompressedSize,
               transferManager.getAmazonS3Client(),
               executor);
-      tar.buildTar(
-          Paths.get(sourceDir.toString(), fileName),
-          uploadStream,
-          Collections.emptyList(),
-          Collections.emptyList());
-      if (tar instanceof NoTarImpl) {
-        uploadStream.close();
+      if (!uploadEntireDir) {
+        tar.buildTar(
+            Paths.get(sourceDir.toString(), fileName),
+            uploadStream,
+            Collections.emptyList(),
+            Collections.emptyList());
+      } else {
+        if (!(tar instanceof TarImpl)) {
+          uploadStream = null;
+          throw new IllegalStateException("Need to use TarImpl to upload entire directory to s3");
+        }
+        tar.buildTar(sourceDir, uploadStream, Collections.emptyList(), Collections.emptyList());
       }
+      //      if (tar instanceof NoTarImpl) {
+      //        uploadStream.close();
+      //      }
       uploadStream.complete();
-    } catch (Exception e) {
+    } catch (IOException e) {
       if (uploadStream != null) {
         uploadStream.cancel();
       }

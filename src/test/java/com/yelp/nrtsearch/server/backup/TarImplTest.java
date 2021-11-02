@@ -215,6 +215,6 @@ public class TarImplTest {
 
   @Test
   public void runTarExtractPerfTest() throws IOException, InterruptedException {
-    TarImplTest.main(null);
+    //    TarImplTest.main(null);
   }
 }

@@ -18,6 +18,8 @@ package com.yelp.nrtsearch.server.backup;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.UUID.randomUUID;
 
+import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import java.io.*;
@@ -33,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class BackupDiffManager implements Archiver {
+  public static final String DELIMITER = "/";
   private static final int NUM_S3_THREADS = 20;
   private final ThreadPoolExecutor executor =
       (ThreadPoolExecutor) Executors.newFixedThreadPool(NUM_S3_THREADS);
@@ -199,7 +202,7 @@ public class BackupDiffManager implements Archiver {
           serviceName,
           diffFile);
       String diffFileName = diffFile.getFileName().toString();
-      fileCompressAndUploader.upload(serviceName, resourceName, diffFileName, tmpPath);
+      fileCompressAndUploader.upload(serviceName, resourceName, diffFileName, tmpPath, false);
       return diffFileName;
     } catch (Exception e) {
       throw new RuntimeException(e);
@@ -287,7 +290,7 @@ public class BackupDiffManager implements Archiver {
               () -> {
                 try {
                   fileCompressAndUploader.upload(
-                      serviceName, resourceName, currFileName, indexFilePath);
+                      serviceName, resourceName, currFileName, indexFilePath, false);
                 } catch (IOException e) {
                   // TODO: need to catch this upstream and handle appropriately
                   throw new RuntimeException(e);
@@ -310,17 +313,57 @@ public class BackupDiffManager implements Archiver {
   @Override
   public boolean deleteVersion(String serviceName, String resource, String versionHash)
       throws IOException {
-    return false;
+    // Note: only deletes the diffFile, we choose to leave all index files on s3 for now. They
+    // can be garbage collected by an offline tool as needed.
+    return versionManager.deleteVersion(serviceName, resource, versionHash);
   }
 
   @Override
   public List<String> getResources(String serviceName) {
-    return null;
+    List<String> resources = new ArrayList<>();
+    ListObjectsRequest listObjectsRequest =
+        new ListObjectsRequest()
+            .withBucketName(contentDownloader.getBucketName())
+            .withPrefix(serviceName + DELIMITER)
+            .withDelimiter(DELIMITER);
+    List<String> resourcePrefixes =
+        contentDownloader.getS3Client().listObjects(listObjectsRequest).getCommonPrefixes();
+    for (String resource : resourcePrefixes) {
+      String[] prefix = resource.split(DELIMITER);
+      String potentialResourceName = prefix[prefix.length - 1];
+      if (!potentialResourceName.equals("_version")) {
+        resources.add(potentialResourceName);
+      }
+    }
+    return resources;
   }
 
   @Override
   public List<VersionedResource> getVersionedResource(String serviceName, String resource) {
-    return null;
+    List<VersionedResource> resources = new ArrayList<>();
+    ListObjectsRequest listObjectsRequest =
+        new ListObjectsRequest()
+            .withBucketName(contentDownloader.getBucketName())
+            .withPrefix(serviceName + DELIMITER + resource + DELIMITER)
+            .withDelimiter(DELIMITER);
+
+    List<S3ObjectSummary> objects =
+        contentDownloader.getS3Client().listObjects(listObjectsRequest).getObjectSummaries();
+
+    for (S3ObjectSummary object : objects) {
+      String key = object.getKey();
+      String[] prefix = key.split(DELIMITER);
+      String versionHash = prefix[prefix.length - 1];
+      VersionedResource versionedResource =
+          VersionedResource.builder()
+              .setServiceName(serviceName)
+              .setResourceName(resource)
+              .setVersionHash(versionHash)
+              .setCreationTimestamp(object.getLastModified().toInstant())
+              .createVersionedResource();
+      resources.add(versionedResource);
+    }
+    return resources;
   }
 
   private List<String> getLatestBackupIdxFileNames(String serviceName, String indexName)

@@ -17,21 +17,13 @@ package com.yelp.nrtsearch.server.backup;
 
 import static org.junit.Assert.assertEquals;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.amazonaws.util.IOUtils;
-import io.findify.s3mock.S3Mock;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import net.jpountz.lz4.LZ4FrameInputStream;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import java.util.Map;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -39,74 +31,86 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class FileCompressAndUploaderTest {
-  private final String BUCKET_NAME = "content-uploader-unittest";
-  private FileCompressAndUploader fileCompressAndUploader1;
-  private FileCompressAndUploader fileCompressAndUploader2;
-  private S3Mock api;
-  private AmazonS3 s3;
-  private Path s3Directory;
-  private Path archiverDirectory;
-  private boolean downloadAsStream = true;
-
+  private final String BUCKET_NAME = "filecompressanduploader-unittest";
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+  private BackupHelper backupHelper;
 
   @Before
   public void setup() throws IOException {
-    s3Directory = folder.newFolder("s3").toPath();
-    archiverDirectory = folder.newFolder("archiver").toPath();
-
-    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-    api.start();
-    s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
-    s3.createBucket(BUCKET_NAME);
-    TransferManager transferManager =
-        TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
-
-    fileCompressAndUploader1 =
-        new FileCompressAndUploader(
-            new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, BUCKET_NAME);
-    fileCompressAndUploader2 =
-        new FileCompressAndUploader(new NoTarImpl(), transferManager, BUCKET_NAME);
+    backupHelper = new BackupHelper(BUCKET_NAME, folder);
   }
 
   @After
   public void teardown() {
-    api.shutdown();
+    backupHelper.shutdown();
   }
 
   @Test
-  public void uploadWithTarImpl() throws IOException {
-    Path indexDir = Files.createDirectory(archiverDirectory.resolve("testIndex"));
+  public void uploadWithTarImplSingleFile() throws IOException {
+    Path indexDir = Files.createDirectory(backupHelper.getArchiverDirectory().resolve("testIndex"));
     Path indexFile = Paths.get(indexDir.toString(), "file1");
     Files.writeString(indexFile, "testcontent");
-    fileCompressAndUploader1.upload("testservice", "testresource", "file1", indexDir);
-    testUpload("testservice", "testresource", "file1", "testcontent");
+    backupHelper
+        .getFileCompressAndUploaderWithTar()
+        .upload("testservice", "testresource", "file1", indexDir, false);
+    backupHelper.testUpload(
+        "testservice", "testresource", "file1", Map.of("file1", "testcontent"), null);
+  }
+
+  public void createDirWithContents(Map<String, String> filesAndContents, Path dir)
+      throws IOException {
+    Path indexDir = Files.createDirectories(dir);
+    for (Map.Entry<String, String> entry : filesAndContents.entrySet()) {
+      Files.writeString(Paths.get(indexDir.toString(), entry.getKey()), entry.getValue());
+    }
+  }
+
+  @Test
+  public void createDirWithContents() throws IOException {
+    createDirWithContents(
+        Map.of("file1", "testcontent1", "file2", "testcontent2"),
+        backupHelper.getArchiverDirectory().resolve("testIndex"));
+    backupHelper
+        .getFileCompressAndUploaderWithTar()
+        .upload(
+            "testservice",
+            "testresource",
+            "abcdef",
+            backupHelper.getArchiverDirectory().resolve("testIndex"),
+            true);
+    backupHelper.testUpload(
+        "testservice",
+        "testresource",
+        "abcdef",
+        Map.of("file1", "testcontent1", "file2", "testcontent2"),
+        null);
+  }
+
+  @Test(expected = IllegalStateException.class)
+  public void uploadEntireDirNoTar() throws IOException {
+    createDirWithContents(
+        Map.of("file1", "testcontent1", "file2", "testcontent2"),
+        backupHelper.getArchiverDirectory().resolve("testIndex"));
+    backupHelper
+        .getFileCompressAndUploaderWithNoTar()
+        .upload(
+            "testservice",
+            "testresource",
+            "abcdef",
+            backupHelper.getArchiverDirectory().resolve("testIndex"),
+            true);
   }
 
   @Test
   public void uploadWithNoTarImpl() throws IOException {
-    Path indexDir = Files.createDirectory(archiverDirectory.resolve("testIndex"));
+    Path indexDir = Files.createDirectory(backupHelper.getArchiverDirectory().resolve("testIndex"));
     Path indexFile = Paths.get(indexDir.toString(), "file1");
     Files.writeString(indexFile, "abcdef");
-    fileCompressAndUploader2.upload("testservice", "testresource", "file1", indexDir);
-    S3Object s3Object = s3.getObject(BUCKET_NAME, "testservice/testresource/file1");
+    backupHelper
+        .getFileCompressAndUploaderWithNoTar()
+        .upload("testservice", "testresource", "file1", indexDir, false);
+    S3Object s3Object =
+        backupHelper.getS3().getObject(BUCKET_NAME, "testservice/testresource/file1");
     assertEquals("abcdef", IOUtils.toString(s3Object.getObjectContent()));
-  }
-
-  private void testUpload(String service, String resource, String fileName, String testContent)
-      throws IOException {
-    Path actualDownloadDir = Files.createDirectory(archiverDirectory.resolve("actualDownload"));
-    try (S3Object s3Object =
-            s3.getObject(BUCKET_NAME, String.format("%s/%s/%s", service, resource, fileName));
-        S3ObjectInputStream s3ObjectInputStream = s3Object.getObjectContent();
-        LZ4FrameInputStream lz4CompressorInputStream =
-            new LZ4FrameInputStream(s3ObjectInputStream);
-        TarArchiveInputStream tarArchiveInputStream =
-            new TarArchiveInputStream(lz4CompressorInputStream)) {
-      new TarImpl(TarImpl.CompressionMode.LZ4).extractTar(tarArchiveInputStream, actualDownloadDir);
-      assertEquals(
-          "testcontent", new String(Files.readAllBytes(actualDownloadDir.resolve(fileName))));
-    }
   }
 }

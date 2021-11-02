@@ -71,8 +71,9 @@ public class NoTarImpl implements Tar {
       throws IOException {
     File file = new File(sourceDir.toString());
     if (file.isFile()) {
-      try (FileInputStream fileInputStream = new FileInputStream(file)) {
-        long copied = IOUtils.copyLarge(fileInputStream, destinationStream);
+      try (FileInputStream fileInputStream = new FileInputStream(file);
+          BufferedOutputStream outStream = new BufferedOutputStream(destinationStream)) {
+        long copied = IOUtils.copyLarge(fileInputStream, outStream);
         logger.info("Total Size of file copied to destination is " + copied);
       }
     }

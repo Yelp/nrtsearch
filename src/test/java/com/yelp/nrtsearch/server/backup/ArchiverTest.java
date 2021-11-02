@@ -42,7 +42,6 @@ import org.junit.rules.TemporaryFolder;
 public class ArchiverTest {
   private final String BUCKET_NAME = "archiver-unittest";
   private Archiver archiver;
-  private Archiver multiPartArchiver;
   private S3Mock api;
   private AmazonS3 s3;
   private Path s3Directory;
@@ -66,7 +65,6 @@ public class ArchiverTest {
     archiver =
         new ArchiverImpl(
             s3, BUCKET_NAME, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4));
-    multiPartArchiver = new MultiPartArchiverImpl(archiver, archiverDirectory, s3, BUCKET_NAME);
   }
 
   @After
@@ -186,22 +184,6 @@ public class ArchiverTest {
     return resourceDir;
   }
 
-  private Path createSingleDirWithLargeFiles(String service, String resource) throws IOException {
-    Path serviceDir = Files.createDirectory(archiverDirectory.resolve(service));
-    Path resourceDir = Files.createDirectory(serviceDir.resolve(resource));
-    char[] data = new char[1024 * 1024 * 10];
-    try (ByteArrayInputStream test1content = new ByteArrayInputStream(new String(data).getBytes());
-        ByteArrayInputStream test2content = new ByteArrayInputStream(new String(data).getBytes());
-        FileOutputStream fileOutputStream1 =
-            new FileOutputStream(resourceDir.resolve("test1").toFile());
-        FileOutputStream fileOutputStream2 =
-            new FileOutputStream(resourceDir.resolve("test2").toFile()); ) {
-      IOUtils.copy(test1content, fileOutputStream1);
-      IOUtils.copy(test2content, fileOutputStream2);
-    }
-    return resourceDir;
-  }
-
   @Test
   public void testCleanup() throws IOException {
     final Path dontDeleteThisDirectory =
@@ -307,62 +289,5 @@ public class ArchiverTest {
     Assert.assertFalse(versionHashes.contains(versionHash1));
     Assert.assertTrue(versionHashes.contains(versionHash2));
     Assert.assertEquals(1, versionHashes.size());
-  }
-
-  @Test
-  public void testMultiPartArchiverUpload() throws IOException {
-    String service = "testservice";
-    String resource = "testresource";
-    Path sourceDir = createSingleDirWithLargeFiles(service, resource);
-    testMultiPartUploadWithParameters(
-        service, resource, sourceDir, List.of("test1", "test2"), List.of(), List.of(), true);
-  }
-
-  @Test
-  public void testMultiParthArchiverDownload() throws IOException {
-    String service = "testservice";
-    String resource = "testresource";
-    Path sourceDir = createSingleDirWithLargeFiles(service, resource);
-    String metaVersionHash =
-        multiPartArchiver.upload(
-            service, resource, sourceDir, List.of("test1", "test2"), List.of(), true);
-    boolean success = multiPartArchiver.blessVersion(service, resource, metaVersionHash);
-    assertEquals(true, success);
-    multiPartArchiver.download(service, resource);
-  }
-
-  private void testMultiPartUploadWithParameters(
-      String service,
-      String resource,
-      Path sourceDir,
-      List<String> includeFiles,
-      List<String> includeDirs,
-      List<String> ignoreVerifying,
-      boolean stream)
-      throws IOException {
-    String versionHash =
-        multiPartArchiver.upload(service, resource, sourceDir, includeFiles, includeDirs, stream);
-
-    Path actualDownloadDir = Files.createDirectory(archiverDirectory.resolve("actualDownload"));
-    try (S3Object s3Object =
-            s3.getObject(
-                BUCKET_NAME,
-                String.format(
-                    "%s/%s/%s",
-                    service,
-                    MultiPartArchiverImpl.getMultiPartMetaResourceName(resource),
-                    versionHash));
-        S3ObjectInputStream s3ObjectInputStream = s3Object.getObjectContent();
-        LZ4FrameInputStream lz4CompressorInputStream =
-            new LZ4FrameInputStream(s3ObjectInputStream);
-        TarArchiveInputStream tarArchiveInputStream =
-            new TarArchiveInputStream(lz4CompressorInputStream)) {
-      new TarImpl(TarImpl.CompressionMode.LZ4).extractTar(tarArchiveInputStream, actualDownloadDir);
-    }
-    assertTrue(
-        TarImplTest.dirsMatch(
-            actualDownloadDir.resolve(resource).toFile(), sourceDir.toFile(), ignoreVerifying));
-
-    rmDir(actualDownloadDir);
   }
 }

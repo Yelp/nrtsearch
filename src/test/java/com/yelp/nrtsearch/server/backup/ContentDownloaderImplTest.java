@@ -17,12 +17,6 @@ package com.yelp.nrtsearch.server.backup;
 
 import static org.junit.Assert.assertEquals;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
-import io.findify.s3mock.S3Mock;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,69 +29,54 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class ContentDownloaderImplTest {
-  private final String BUCKET_NAME = "content-downloader-unittest";
-  private ContentDownloader contentDownloaderTar;
-  private ContentDownloader contentDownloaderNoTar;
-  private S3Mock api;
-  private AmazonS3 s3;
-  private Path s3Directory;
-  private Path archiverDirectory;
-  private boolean downloadAsStream = true;
+  private final String BUCKET_NAME = "contentdownloader-unittest";
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+  private BackupHelper backupHelper;
 
   @Before
   public void setup() throws IOException {
-    s3Directory = folder.newFolder("s3").toPath();
-    archiverDirectory = folder.newFolder("archiver").toPath();
-
-    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-    api.start();
-    s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
-    s3.createBucket(BUCKET_NAME);
-    TransferManager transferManager =
-        TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
-
-    contentDownloaderTar =
-        new ContentDownloaderImpl(
-            new TarImpl(TarImpl.CompressionMode.LZ4),
-            transferManager,
-            BUCKET_NAME,
-            downloadAsStream);
-    contentDownloaderNoTar =
-        new ContentDownloaderImpl(new NoTarImpl(), transferManager, BUCKET_NAME, downloadAsStream);
+    backupHelper = new BackupHelper(BUCKET_NAME, folder);
   }
 
   @After
   public void teardown() {
-    api.shutdown();
+    backupHelper.shutdown();
   }
 
   @Test
   public void getVersionContentTar() throws IOException {
     final TarEntry tarEntry = new TarEntry("file1", "testcontent");
     TarEntry.uploadToS3(
-        s3, BUCKET_NAME, Arrays.asList(tarEntry), "testservice/testresource/abcdef");
+        backupHelper.getS3(),
+        BUCKET_NAME,
+        Arrays.asList(tarEntry),
+        "testservice/testresource/abcdef");
     Path downloadDir =
-        archiverDirectory.resolve("downloads"); // this dir will be created by getVersionContent
+        backupHelper
+            .getArchiverDirectory()
+            .resolve("downloads"); // this dir will be created by getVersionContent
     assertEquals(
         downloadDir,
-        contentDownloaderTar.getVersionContent(
-            "testservice", "testresource", "abcdef", downloadDir));
+        backupHelper
+            .getContentDownloaderTar()
+            .getVersionContent("testservice", "testresource", "abcdef", downloadDir));
     assertEquals(
         "testcontent", new String(Files.readAllBytes(Paths.get(downloadDir.toString(), "file1"))));
   }
 
   @Test
   public void getVersionContentNoTar() throws IOException {
-    s3.putObject(BUCKET_NAME, "testservice/testresource/abcdef", "testcontent");
+    backupHelper.getS3().putObject(BUCKET_NAME, "testservice/testresource/abcdef", "testcontent");
     Path downloadDir =
-        archiverDirectory.resolve("downloads"); // this dir will be created by getVersionContent
+        backupHelper
+            .getArchiverDirectory()
+            .resolve("downloads"); // this dir will be created by getVersionContent
     assertEquals(
         downloadDir,
-        contentDownloaderNoTar.getVersionContent(
-            "testservice", "testresource", "abcdef", downloadDir));
+        backupHelper
+            .getContentDownloaderNoTar()
+            .getVersionContent("testservice", "testresource", "abcdef", downloadDir));
     assertEquals(
         "testcontent", new String(Files.readAllBytes(Paths.get(downloadDir.toString(), "abcdef"))));
   }
@@ -107,13 +86,19 @@ public class ContentDownloaderImplTest {
     final TarEntry tarEntry1 = new TarEntry("file1", "testcontent1");
     final TarEntry tarEntry2 = new TarEntry("file2", "testcontent2");
     TarEntry.uploadToS3(
-        s3, BUCKET_NAME, Arrays.asList(tarEntry1, tarEntry2), "testservice/testresource/abcdef");
+        backupHelper.getS3(),
+        BUCKET_NAME,
+        Arrays.asList(tarEntry1, tarEntry2),
+        "testservice/testresource/abcdef");
     Path downloadDir =
-        archiverDirectory.resolve("downloads"); // this dir will be created by getVersionContent
+        backupHelper
+            .getArchiverDirectory()
+            .resolve("downloads"); // this dir will be created by getVersionContent
     assertEquals(
         downloadDir,
-        contentDownloaderTar.getVersionContent(
-            "testservice", "testresource", "abcdef", downloadDir));
+        backupHelper
+            .getContentDownloaderTar()
+            .getVersionContent("testservice", "testresource", "abcdef", downloadDir));
     assertEquals(
         "testcontent1", new String(Files.readAllBytes(Paths.get(downloadDir.toString(), "file1"))));
     assertEquals(
@@ -124,27 +109,26 @@ public class ContentDownloaderImplTest {
   public void getVersionContentdownloadDirExists() throws IOException {
     final TarEntry tarEntry = new TarEntry("file1", "testcontent");
     TarEntry.uploadToS3(
-        s3, BUCKET_NAME, Arrays.asList(tarEntry), "testservice/testresource/abcdef");
-    Path downloadDir = archiverDirectory.resolve("downloads");
+        backupHelper.getS3(),
+        BUCKET_NAME,
+        Arrays.asList(tarEntry),
+        "testservice/testresource/abcdef");
+    Path downloadDir = backupHelper.getArchiverDirectory().resolve("downloads");
     Files.createDirectories(downloadDir);
     assertEquals(
         downloadDir,
-        contentDownloaderTar.getVersionContent(
-            "testservice", "testresource", "abcdef", downloadDir));
+        backupHelper
+            .getContentDownloaderTar()
+            .getVersionContent("testservice", "testresource", "abcdef", downloadDir));
   }
 
   @Test
   public void getS3Client() {
-    assertEquals(s3, contentDownloaderTar.getS3Client());
+    assertEquals(backupHelper.getS3(), backupHelper.getContentDownloaderTar().getS3Client());
   }
 
   @Test
   public void getBucketName() {
-    assertEquals(BUCKET_NAME, contentDownloaderTar.getBucketName());
-  }
-
-  @Test
-  public void downloadAsStream() {
-    assertEquals(downloadAsStream, contentDownloaderTar.downloadAsStream());
+    assertEquals(BUCKET_NAME, backupHelper.getContentDownloaderTar().getBucketName());
   }
 }
