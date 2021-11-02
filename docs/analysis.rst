@@ -19,7 +19,7 @@ To use a predefined analyzer you need to provide the name of the analyzer in ``p
 Predefined Analyzers
 -----------------------------
 
-Following are the predefined analyzers available in Nrtsearch. These are derived from the analyzer classes available in `Lucene <https://lucene.apache.org/core/8_4_0/analyzers-common/index.html>`.
+Following are the predefined analyzers available in Nrtsearch. These are derived from the analyzer classes available in `Lucene <https://lucene.apache.org/core/8_4_0/analyzers-common/index.html>`_.
 
   * ar.Arabic
 
