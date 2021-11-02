@@ -50,7 +50,7 @@ Below is a depiction of how the system works in regards to Near-real-time (NRT) 
 Build Server and Client
 ---------------------------
 
-In the home directory is a Dockerfile that will build a base image that can be used for the client and server.
+The home directory contains a Dockerfile that will build a base image, which can be used for both the client and server.
 This Dockerfile is based off of a Java-14 image, installs the distribution via gradle, and can be built like this:
 
 .. code-block::
@@ -63,7 +63,7 @@ The server can be run via the base image created in the step above.
 .. code-block::
   shell% docker run -d --network host nrtsearch /user/app/build/install/nrtsearch/bin/lucene-server
 
-Run gRPC Slient
+Run gRPC Client 
 ---------------------------
 
 The client can be accessed via a running Docker image built and run in the steps above.  For example, if one 
