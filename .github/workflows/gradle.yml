@@ -35,8 +35,8 @@ jobs:
       uses: cicirello/jacoco-badge-generator@v2.4.1
       with:
         jacoco-csv-file: build/reports/jacoco/test/jacocoTestReport.csv
-        generate-coverage-badge: true
-        generate-branches-badge: true
-        on-missing-report: fail
-        fail-on-coverage-decrease: true
-        fail-on-branches-decrease: true
+        # generate-coverage-badge: true
+        # generate-branches-badge: true
+        # on-missing-report: fail
+        # fail-on-coverage-decrease: true
+        # fail-on-branches-decrease: true
