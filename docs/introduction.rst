@@ -61,7 +61,7 @@ Build Server and Client (Docker Version)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The home directory also contains a Dockerfile that will build a base image, which can be used for both the client and server.
-This Dockerfile is based off of a Java-14 image, installs the distribution via gradle, and can be built like this:
+This Dockerfile is based off of a *Java14* image, installs the distribution via gradle, and can be built like this:
 
 .. code-block::
   shell% docker build --tag nrtsearch .
