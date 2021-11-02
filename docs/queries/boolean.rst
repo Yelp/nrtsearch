@@ -3,10 +3,14 @@ Boolean Query
 
 A Query that matches documents matching boolean combinations of other queries, e.g. TermQuery, PhraseQuery or other BooleanQuery. This query maps to BooleanQuery in Lucene.
 The query consists of one or more clauses, each clause containing an occurrence which defines how the clause may occur in matching documents and a query for the clause. There are four types of occurrences:
-* SHOULD - the query may appear in matching documents but if the query doesn't appear in a document which is matched by another clause, this clause will still be used for scoring
-* MUST - the query must appear in matching documents and will be used for scoring
-* FILTER - the query must appear in matching documents but will not be used for scoring
-* MUST_NOT - the query must not appear in matching documents and will not be used for scoring
+
+  * ``SHOULD`` - the query may appear in matching documents but if the query doesn't appear in a document which is matched by another clause, this clause will still be used for scoring
+
+  * ``MUST`` - the query must appear in matching documents and will be used for scoring
+
+  * ``FILTER`` - the query must appear in matching documents but will not be used for scoring
+
+  * ``MUST_NOT`` - the query must not appear in matching documents and will not be used for scoring
 
 Proto definition:
 
