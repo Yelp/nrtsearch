@@ -15,7 +15,8 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
-import com.yelp.nrtsearch.server.backup.BackupDiffManager;
+import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.backup.IndexArchiver;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -44,16 +45,16 @@ public class BackupHelper implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    BackupDiffManager backupDiffManager = baseCmd.getBackupDiffManager();
+    Archiver archiver = baseCmd.getArchiver();
     List<String> files =
-        Files.list(Path.of(this.getIndexDir()))
+        Files.list(IndexArchiver.getIndexDataDir(Path.of(this.getIndexDir())))
             .filter(Files::isRegularFile)
             .map(Path::getFileName)
             .map(Path::toString)
             .collect(Collectors.toList());
     long t1 = System.nanoTime();
     String versionHash =
-        backupDiffManager.upload(
+        archiver.upload(
             baseCmd.getServiceName(),
             baseCmd.getResourceName(),
             Path.of(this.getIndexDir()),
@@ -66,8 +67,7 @@ public class BackupHelper implements Callable<Integer> {
             "Time taken to upload %s milliseconds, versionHash uploaded: %s",
             (t2 - t1) / (1000 * 1000), versionHash));
     boolean result =
-        backupDiffManager.blessVersion(
-            baseCmd.getServiceName(), baseCmd.getResourceName(), versionHash);
+        archiver.blessVersion(baseCmd.getServiceName(), baseCmd.getResourceName(), versionHash);
     if (result) {
       logger.info(
           String.format(

@@ -50,8 +50,8 @@ public class RestoreHelper implements Callable<Integer> {
               true);
       restore(archiver);
     } else {
-      BackupDiffManager backupDiffManager = baseCmd.getBackupDiffManager();
-      restore(backupDiffManager);
+      Archiver archiver = baseCmd.getArchiver();
+      restore(archiver);
     }
     return 0;
   }

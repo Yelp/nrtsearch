@@ -124,7 +124,7 @@ public class BackupRestoreCommand implements Callable<Integer> {
     return 0;
   }
 
-  public BackupDiffManager getBackupDiffManager() {
+  public Archiver getArchiver() {
     AmazonS3 s3 = providesAmazonS3(this);
     TransferManager transferManager =
         TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
@@ -135,8 +135,24 @@ public class BackupRestoreCommand implements Callable<Integer> {
         new FileCompressAndUploader(currentTar, transferManager, this.getBucket());
     VersionManager versionManager = new VersionManager(s3, this.getBucket());
 
-    return new BackupDiffManager(
-        contentDownloader, fileCompressAndUploader, versionManager, Path.of(this.getArchiveDir()));
+    BackupDiffManager backupDiffManager =
+        new BackupDiffManager(
+            contentDownloader,
+            fileCompressAndUploader,
+            versionManager,
+            Path.of(this.getArchiveDir()));
+    ContentDownloaderImpl contentDownloaderTar =
+        new ContentDownloaderImpl(
+            new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, this.getBucket(), true);
+    FileCompressAndUploader fileCompressAndUploaderTar =
+        new FileCompressAndUploader(
+            new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, this.getBucket());
+    return new IndexArchiver(
+        backupDiffManager,
+        fileCompressAndUploaderTar,
+        contentDownloaderTar,
+        versionManager,
+        Path.of(this.getArchiveDir()));
   }
 
   public AmazonS3 getAmazonS3() {
