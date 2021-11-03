@@ -407,6 +407,16 @@ public class ScoreScriptTest {
         assertEquals(fieldName + " latitude", expectedPoint.getLat(), loadedPoint.getLat(), 0.0001);
         assertEquals(
             fieldName + " longitude", expectedPoint.getLon(), loadedPoint.getLon(), 0.0001);
+        assertEquals(
+            fieldName + " latitude (left)",
+            expectedPoint.getLat(),
+            loadedPoint.leftDouble(),
+            0.0001);
+        assertEquals(
+            fieldName + " longitude (right)",
+            expectedPoint.getLon(),
+            loadedPoint.rightDouble(),
+            0.0001);
 
         fieldName = "lat_lon_multi";
         docValues = getDoc().get(fieldName);

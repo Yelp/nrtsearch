@@ -50,18 +50,55 @@ Below is a depiction of how the system works in regards to Near-real-time (NRT) 
 Build Server and Client
 ---------------------------
 
-In the home directory.
+In the home directory, one can build nrtSearch locally like this:
 
 .. code-block::
+
   ./gradlew clean installDist test
 
 Note: This code has been tested on *Java14*.
 
+Build Server and Client (Docker Version)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The home directory also contains a Dockerfile that will build a base image, which can be used for both the client and server.
+This Dockerfile is based off of a *Java14* image, installs the distribution via gradle, and can be built like this:
+
+.. code-block::
+
+  shell% docker build --tag nrtsearch .
+
 Run gRPC Server
 ---------------------------
 
+The server can be run locally like this:
+
 .. code-block::
+
   ./build/install/nrtsearch/bin/lucene-server
+
+Run gRPC Server (Docker Version)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The Dockerized server can be run via the base image created in the step above like this:
+
+.. code-block::
+
+  shell% docker run -d --network host nrtsearch /user/app/build/install/nrtsearch/bin/lucene-server
+
+Run gRPC Client (Docker Version)
+---------------------------
+
+The client can be accessed via a running Docker image built and run in the steps above.  For example, if one 
+wants to create an index, this command would work:
+
+.. code-block::
+
+  shell% CONTAINER_ID=$(docker ps -a | grep nrtsearch | awk '{print $1}')
+  shell% docker exec $CONTAINER_ID /user/app/build/install/nrtsearch/bin/lucene-client createIndex --indexName  testIdx
+  [INFO ] 2021-10-24 16:39:40.047 [main] LuceneServerClient - Will try to create index: testIdx
+  [INFO ] 2021-10-24 16:39:40.713 [main] LuceneServerClient - Server returned : Created Index name: testIdx
+
 
 Run REST Server
 ---------------------------
@@ -69,4 +106,5 @@ Run REST Server
 Use the appropriate binary for your platform e.g. for Mac OS X:
 
 .. code-block::
+
   ./build/install/nrtsearch/bin/http_wrapper-darwin-amd64 <gRPC_PORT> <REST_PORT>
