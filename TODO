@@ -11,6 +11,17 @@
 - Call commit after registerFields? Else the Field states is not durable
 - Separate out committing state (for registerFields, settings, liveSettings) from being done only upon committing an index
 
+*Documentation*
+- Add docs for setting up more than one node and how to wire them together
+- Document all possible settings (valid for lucene_server_configuration.yaml or "lucene_server_default_configuration.yaml") and their respective default values 
+- Provide accessible formatted API documentation based on 
+  - https://github.com/Yelp/nrtsearch/issues/16
+  - https://github.com/Yelp/nrtsearch/pull/283
+  and strike all references to protoc-gen-doc because it's no longer used
+- Add docs about how to configure remote storage and backup/restore
+- Add docs about how to configure persistent storage
+- Add docs how nrtsearch can be monitored
+
 *Enhancements*
 - Support highlights at search time
 - Support facets at search time
