@@ -27,10 +27,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
-import com.yelp.nrtsearch.server.backup.Archiver;
-import com.yelp.nrtsearch.server.backup.ArchiverImpl;
-import com.yelp.nrtsearch.server.backup.Tar;
-import com.yelp.nrtsearch.server.backup.TarImpl;
+import com.yelp.nrtsearch.server.backup.*;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LuceneServer;
 import io.prometheus.client.CollectorRegistry;
@@ -40,11 +37,14 @@ import java.io.FileNotFoundException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class LuceneServerModule extends AbstractModule {
   private static final String DEFAULT_CONFIG_FILE_RESOURCE =
       "/lucene_server_default_configuration.yaml";
   private final LuceneServer.LuceneServerCommand args;
+  private static final Logger logger = LoggerFactory.getLogger(LuceneServerModule.class);
 
   public LuceneServerModule(LuceneServer.LuceneServerCommand args) {
     this.args = args;
@@ -91,11 +91,7 @@ public class LuceneServerModule extends AbstractModule {
         region = "us-east-1";
       }
       String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
-      System.out.println("***********");
-      System.out.println("***********");
-      System.out.println(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
-      System.out.println("***********");
-      System.out.println("***********");
+      logger.info(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
       return AmazonS3ClientBuilder.standard()
           .withCredentials(awsCredentialsProvider)
           .withEndpointConfiguration(

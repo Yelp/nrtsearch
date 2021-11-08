@@ -175,46 +175,26 @@ public class TarImplTest {
   public static void main(String[] args) throws IOException {
     // lz4
     TarImpl lz4Tar = new TarImpl(Tar.CompressionMode.LZ4);
-    //    long t1 = System.nanoTime();
-    //    lz4Tar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".lz4"), List.of(), List.of());
-    //    long t2 = System.nanoTime();
-    //    System.out.println("buildTar with lz4 took " + (t2 - t1) / (1000 * 1000 ) + "
-    // milliseconds");
+    long t1 = System.nanoTime();
+    lz4Tar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".lz4"), List.of(), List.of());
+    long t2 = System.nanoTime();
+    System.out.println("buildTar with lz4 took " + (t2 - t1) / (1000 * 1000) + " milliseconds");
 
-    //   lz4Tar.extractTar(Paths.get(args[1] + ".lz4"), Paths.get(args[0], "lz4"));
-    //    long t3 = System.nanoTime();
-    //    System.out.println("extractTar with lz4 took " + (t3 - t2) / (1000 * 1000 ) +
-    // "milliseconds");
+    lz4Tar.extractTar(Paths.get(args[1] + ".lz4"), Paths.get(args[0], "lz4"));
+    long t3 = System.nanoTime();
+    System.out.println("extractTar with lz4 took " + (t3 - t2) / (1000 * 1000) + "milliseconds");
 
     // gzip
-    //    TarImpl gzipTar = new TarImpl(Tar.CompressionMode.GZIP);
-    //    t1 = System.nanoTime();
-    //    gzipTar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".gzip"), List.of(), List.of());
-    //    t2 = System.nanoTime();
-    //    System.out.println(
-    //        "buildTar with with gzip took " + (t2 - t1) / (1000 * 1000 ) + " milliseconds");
-
-    //    gzipTar.extractTar(Paths.get(args[1] + ".gzip"), Paths.get(args[0], "gzip"));
-    //    t3 = System.nanoTime();
-    //    System.out.println(
-    //        "extractTar with gzip took " + (t3 - t2) / (1000 * 1000 * 1000) + " seconds");
-
-    Path sourceTar =
-        Paths.get(
-            "/nail/home/umesh/scratch/2021-09-13_12-02-47_data_66447300-5092-4682-8502-49b3899dc89d");
-    BufferedInputStream bufferedInputStream =
-        new BufferedInputStream(new FileInputStream(sourceTar.toString()));
-    LZ4FrameInputStream compressorInputStream = new LZ4FrameInputStream(bufferedInputStream);
-    TarArchiveInputStream tarArchiveInputStream = new TarArchiveInputStream(compressorInputStream);
-    long tarBefore = System.nanoTime();
-    lz4Tar.extractTar(tarArchiveInputStream, Paths.get("/nail/home/umesh/scratch/tarimpltest/"));
-    long tarAfter = System.nanoTime();
+    TarImpl gzipTar = new TarImpl(Tar.CompressionMode.GZIP);
+    t1 = System.nanoTime();
+    gzipTar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".gzip"), List.of(), List.of());
+    t2 = System.nanoTime();
     System.out.println(
-        "extractTar with lz4 took " + (tarAfter - tarBefore) / (1000 * 1000 * 1000) + "seconds");
-  }
+        "buildTar with with gzip took " + (t2 - t1) / (1000 * 1000) + " milliseconds");
 
-  @Test
-  public void runTarExtractPerfTest() throws IOException, InterruptedException {
-    //    TarImplTest.main(null);
+    gzipTar.extractTar(Paths.get(args[1] + ".gzip"), Paths.get(args[0], "gzip"));
+    t3 = System.nanoTime();
+    System.out.println(
+        "extractTar with gzip took " + (t3 - t2) / (1000 * 1000 * 1000) + " seconds");
   }
 }

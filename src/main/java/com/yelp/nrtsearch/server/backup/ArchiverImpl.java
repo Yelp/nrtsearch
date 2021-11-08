@@ -15,20 +15,12 @@
  */
 package com.yelp.nrtsearch.server.backup;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.auth.profile.ProfilesConfigFile;
-import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.event.ProgressEvent;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.s3.transfer.*;
 import com.amazonaws.services.s3.transfer.internal.S3ProgressListener;
 import com.google.inject.Inject;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import java.io.*;
 import java.nio.file.*;
 import java.time.Duration;
@@ -361,7 +353,7 @@ public class ArchiverImpl implements Archiver {
     };
   }
 
-  public void getVersionContent(
+  private void getVersionContent(
       final String serviceName, final String resource, final String hash, final Path destDirectory)
       throws IOException {
     final String absoluteResourcePath = String.format("%s/%s/%s", serviceName, resource, hash);
@@ -528,43 +520,6 @@ public class ArchiverImpl implements Archiver {
           lock.release();
         }
       }
-    }
-  }
-
-  protected AmazonS3 providesAmazonS3(LuceneServerConfiguration luceneServerConfiguration) {
-    if (luceneServerConfiguration
-        .getBotoCfgPath()
-        .equals(LuceneServerConfiguration.DEFAULT_BOTO_CFG_PATH.toString())) {
-      return AmazonS3ClientBuilder.standard()
-          .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
-          .withEndpointConfiguration(
-              new AwsClientBuilder.EndpointConfiguration("dummyService", "dummyRegion"))
-          .build();
-    } else {
-      Path botoCfgPath = Paths.get(luceneServerConfiguration.getBotoCfgPath());
-      final ProfilesConfigFile profilesConfigFile = new ProfilesConfigFile(botoCfgPath.toFile());
-      final AWSCredentialsProvider awsCredentialsProvider =
-          new ProfileCredentialsProvider(profilesConfigFile, "default");
-      AmazonS3 s3ClientInterim =
-          AmazonS3ClientBuilder.standard().withCredentials(awsCredentialsProvider).build();
-      String region = s3ClientInterim.getBucketLocation(luceneServerConfiguration.getBucketName());
-      // In useast-1, the region is returned as "US" which is an equivalent to "us-east-1"
-      // https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/model/Region.html#US_Standard
-      // However, this causes an UnknownHostException so we override it to the full region name
-      if (region.equals("US")) {
-        region = "us-east-1";
-      }
-      String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
-      System.out.println("***********");
-      System.out.println("***********");
-      System.out.println(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
-      System.out.println("***********");
-      System.out.println("***********");
-      return AmazonS3ClientBuilder.standard()
-          .withCredentials(awsCredentialsProvider)
-          .withEndpointConfiguration(
-              new AwsClientBuilder.EndpointConfiguration(serviceEndpoint, region))
-          .build();
     }
   }
 }
