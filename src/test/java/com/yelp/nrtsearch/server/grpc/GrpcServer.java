@@ -223,7 +223,7 @@ public class GrpcServer {
             ServerBuilder.forPort(port)
                 .addService(
                     new LuceneServer.LuceneServerImpl(
-                            globalState, configuration, archiver, collectorRegistry, plugins)
+                            globalState, configuration, archiver, null, collectorRegistry, plugins)
                         .bindService())
                 .build()
                 .start();
@@ -241,7 +241,7 @@ public class GrpcServer {
                 .addService(
                     ServerInterceptors.intercept(
                         new LuceneServer.LuceneServerImpl(
-                            globalState, configuration, archiver, collectorRegistry, plugins),
+                            globalState, configuration, archiver, null, collectorRegistry, plugins),
                         monitoringInterceptor))
                 .build()
                 .start();

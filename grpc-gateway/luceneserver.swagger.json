@@ -1714,6 +1714,9 @@
         },
         "stream": {
           "type": "boolean"
+        },
+        "disableV0Archiver": {
+          "type": "boolean"
         }
       }
     },
@@ -1873,6 +1876,9 @@
       "properties": {
         "indexName": {
           "type": "string"
+        },
+        "disableV0Archiver": {
+          "type": "boolean"
         }
       }
     },
@@ -2173,7 +2179,7 @@
           "type": "string"
         }
       },
-      "description": "A query that matches documents which contain an value for a field."
+      "description": "A query that matches documents which contain a value for a field."
     },
     "luceneserverFacet": {
       "type": "object",
@@ -2663,7 +2669,7 @@
           "$ref": "#/definitions/typeLatLng"
         }
       },
-      "description": "A query that matches documents with geopoint within the geo box. The topLeft and bottomRight values though provided as strings will be converted to the Double."
+      "description": "A query that matches documents with geopoint within the geo box."
     },
     "luceneserverGeoPointQuery": {
       "type": "object",
@@ -3696,6 +3702,9 @@
         },
         "restore": {
           "$ref": "#/definitions/luceneserverRestoreIndex"
+        },
+        "disableV0Archiver": {
+          "type": "boolean"
         }
       },
       "title": "Start the index"

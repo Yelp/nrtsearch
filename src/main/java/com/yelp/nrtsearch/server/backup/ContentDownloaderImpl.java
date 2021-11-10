@@ -25,6 +25,7 @@ import com.amazonaws.services.s3.transfer.Download;
 import com.amazonaws.services.s3.transfer.PersistableTransfer;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.internal.S3ProgressListener;
+import com.google.inject.Inject;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,6 +60,7 @@ public class ContentDownloaderImpl implements ContentDownloader {
   private final ThreadPoolExecutor executor =
       (ThreadPoolExecutor) Executors.newFixedThreadPool(NUM_S3_THREADS);
 
+  @Inject
   public ContentDownloaderImpl(
       Tar tar, TransferManager transferManager, String bucketName, boolean downloadAsStream) {
     this.tar = tar;

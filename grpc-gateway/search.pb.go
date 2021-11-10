@@ -1520,7 +1520,7 @@ func (x *RangeQuery) GetUpperExclusive() bool {
 	return false
 }
 
-// A query that matches documents with geopoint within the geo box. The topLeft and bottomRight values though provided as strings will be converted to the Double.
+// A query that matches documents with geopoint within the geo box.
 type GeoBoundingBoxQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1704,7 +1704,7 @@ func (x *GeoPointQuery) GetPoint() *latlng.LatLng {
 	return nil
 }
 
-// A query that matches documents which contain an value for a field.
+// A query that matches documents which contain a value for a field.
 type ExistsQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

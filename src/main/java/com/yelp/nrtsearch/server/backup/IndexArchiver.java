@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.backup;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.inject.Inject;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -41,6 +42,7 @@ public class IndexArchiver implements Archiver {
   private final VersionManager versionManager;
   private final Path archiverDirectory;
 
+  @Inject
   public IndexArchiver(
       BackupDiffManager backupDiffManager,
       FileCompressAndUploader fileCompressAndUploader,

@@ -45,14 +45,22 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
   private static final String BACKUP_INDICATOR_FILE_NAME = "backup.txt";
   private static final ReentrantLock LOCK = new ReentrantLock();
   private static String lastBackedUpIndex = "";
+  private final boolean disableLegacy;
+  private final Archiver incrementalArchiver;
   Logger logger = LoggerFactory.getLogger(BackupIndexRequestHandler.class);
   private final Archiver archiver;
   private final Path archiveDirectory;
   private final Path backupIndicatorFilePath;
 
-  public BackupIndexRequestHandler(Archiver archiver, String archiveDirectory) {
+  public BackupIndexRequestHandler(
+      Archiver archiver,
+      Archiver incrementalArchiver,
+      String archiveDirectory,
+      boolean disableLegacy) {
     this.archiver = archiver;
+    this.incrementalArchiver = incrementalArchiver;
     this.archiveDirectory = Paths.get(archiveDirectory);
+    this.disableLegacy = disableLegacy;
     this.backupIndicatorFilePath = Paths.get(archiveDirectory, BACKUP_INDICATOR_FILE_NAME);
   }
 
@@ -119,7 +127,8 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
             backupIndexResponseBuilder,
             segmentFiles,
             stateDirectory,
-            backupIndexRequest.getStream());
+            backupIndexRequest.getStream(),
+            snapshotId);
       }
 
     } catch (IOException e) {
@@ -288,18 +297,36 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       BackupIndexResponse.Builder backupIndexResponseBuilder,
       Collection<String> filesToInclude,
       Collection<String> parentDirectoriesToInclude,
-      boolean stream)
+      boolean stream,
+      SnapshotId snapshotId)
       throws IOException {
     String resourceData = IndexBackupUtils.getResourceData(resourceName);
-    String versionHash =
-        archiver.upload(
-            serviceName,
-            resourceData,
-            indexState.rootDir,
-            filesToInclude,
-            parentDirectoriesToInclude,
-            stream);
-    archiver.blessVersion(serviceName, resourceData, versionHash);
+    String versionHash;
+    if (!disableLegacy) {
+      versionHash =
+          archiver.upload(
+              serviceName,
+              resourceData,
+              indexState.rootDir,
+              filesToInclude,
+              parentDirectoriesToInclude,
+              stream);
+      archiver.blessVersion(serviceName, resourceData, versionHash);
+    } else {
+      // incremental backup needs to know current files/segments on disk
+      if (filesToInclude.isEmpty()) {
+        filesToInclude = getSegmentFilesInSnapshot(indexState, snapshotId);
+      }
+      versionHash =
+          incrementalArchiver.upload(
+              serviceName,
+              resourceData,
+              indexState.rootDir,
+              filesToInclude,
+              parentDirectoriesToInclude,
+              stream);
+      incrementalArchiver.blessVersion(serviceName, resourceData, versionHash);
+    }
     backupIndexResponseBuilder.setDataVersionHash(versionHash);
 
     uploadMetadata(serviceName, resourceName, indexState, backupIndexResponseBuilder, stream);
