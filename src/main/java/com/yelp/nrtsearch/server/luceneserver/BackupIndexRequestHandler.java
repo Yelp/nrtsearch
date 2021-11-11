@@ -28,10 +28,7 @@ import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
@@ -41,6 +38,9 @@ import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/* The functionality of this class will be used only within the scope of Commit. Where commit will take care of uploading
+ * files to remote storage*/
+@Deprecated
 public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, BackupIndexResponse> {
   private static final String BACKUP_INDICATOR_FILE_NAME = "backup.txt";
   private static final ReentrantLock LOCK = new ReentrantLock();
@@ -96,7 +96,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
             backupIndexResponseBuilder,
             backupIndexRequest.getStream());
       } else {
-        indexState.commit();
+        indexState.commit(Optional.empty());
 
         CreateSnapshotRequest createSnapshotRequest =
             CreateSnapshotRequest.newBuilder().setIndexName(indexName).build();
@@ -151,8 +151,8 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     return backupIndexResponseBuilder.build();
   }
 
-  private Collection<String> getSegmentFilesInSnapshot(IndexState indexState, SnapshotId snapshotId)
-      throws IOException {
+  public static Collection<String> getSegmentFilesInSnapshot(
+      IndexState indexState, SnapshotId snapshotId) throws IOException {
     String snapshotIdAsString = CreateSnapshotHandler.getSnapshotIdAsString(snapshotId);
     IndexState.Gens snapshot = new IndexState.Gens(snapshotIdAsString);
     if (indexState.shards.size() != 1) {
@@ -352,7 +352,8 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     backupIndexResponseBuilder.setMetadataVersionHash(versionHash);
   }
 
-  private void releaseSnapshot(IndexState indexState, String indexName, SnapshotId snapshotId) {
+  public static void releaseSnapshot(
+      IndexState indexState, String indexName, SnapshotId snapshotId) {
     ReleaseSnapshotRequest releaseSnapshotRequest =
         ReleaseSnapshotRequest.newBuilder()
             .setIndexName(indexName)

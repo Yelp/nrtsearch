@@ -102,7 +102,7 @@ public class LuceneServer {
   }
 
   private void start() throws IOException {
-    GlobalState globalState = new GlobalState(luceneServerConfiguration);
+    GlobalState globalState = new GlobalState(luceneServerConfiguration, Optional.of(incArchiver));
 
     registerMetrics();
 
@@ -783,7 +783,11 @@ public class LuceneServer {
             () -> {
               try {
                 IndexState indexState = globalState.getIndex(commitRequest.getIndexName());
-                long gen = indexState.commit();
+                long gen =
+                    indexState.commit(
+                        commitRequest.getDisableV0Archiver()
+                            ? Optional.of(commitRequest)
+                            : Optional.empty());
                 CommitResponse reply =
                     CommitResponse.newBuilder()
                         .setGen(gen)
