@@ -31,3 +31,26 @@ jobs:
       run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
     - name: Merge behavior tests
       run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.grpc.MergeBehaviorTests" --info
+    - name: Run Test Coverage
+      run: ./gradlew jacocoTestReport
+    - name: Generate JaCoCo Badge
+      id: jacoco
+      uses: cicirello/jacoco-badge-generator@v2.1.0
+      with:
+        jacoco-csv-file: build/reports/jacoco/test/jacocoTestReport.csv
+    - name: Log coverage percentage
+      run: |
+        echo "coverage = ${{ steps.jacoco.outputs.coverage }}"
+        echo "branch coverage = ${{ steps.jacoco.outputs.branches }}"
+    - name: Add new badge
+      uses: EndBug/add-and-commit@v7
+      with:
+        default_author: github_actions
+        message: 'upload badge'
+        add: '*.svg'
+        branch: master
+    - name: Upload JaCoCo coverage report
+      uses: actions/upload-artifact@v2
+      with:
+        name: jacoco-report
+        path: build/reports/jacoco/
