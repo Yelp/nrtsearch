@@ -258,8 +258,14 @@ public class LuceneServer {
     @Override
     public Integer call() throws Exception {
       Injector injector = Guice.createInjector(new LuceneServerModule(this));
-      LuceneServer luceneServer = injector.getInstance(LuceneServer.class);
-      luceneServer.start();
+      LuceneServer luceneServer;
+      try {
+        luceneServer = injector.getInstance(LuceneServer.class);
+        luceneServer.start();
+      } catch (Throwable t) {
+        logger.error("Uncaught exception", t);
+        throw t;
+      }
       luceneServer.blockUntilShutdown();
       return 0;
     }
