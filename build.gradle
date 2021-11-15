@@ -148,7 +148,6 @@ task buildGrpcGateway(dependsOn: installDist, type: Exec) {
 //e.g. default is to exclude perfTests: ./gradlew test
 test {
     finalizedBy 'spotlessJavaCheck'
-    finalizedBy 'jacocoTestReport'
     if (!project.hasProperty('includePerfTests')) {
         exclude '**/YelpReviewsTest.class'
         exclude '**/YelpSuggestTest.class'
