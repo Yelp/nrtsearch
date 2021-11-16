@@ -76,7 +76,8 @@ public class RestoreStateHandlerTest {
 
   @Test
   public void handleBadServiceName() throws IOException {
-    List<String> indexes = RestoreStateHandler.restore(archiver, globalState, "NoSuchService");
+    List<String> indexes =
+        RestoreStateHandler.restore(archiver, null, globalState, "NoSuchService", false);
     Assert.assertEquals(0, indexes.size());
   }
 
@@ -84,7 +85,8 @@ public class RestoreStateHandlerTest {
   public void handleNoResource() throws IOException {
     s3.putObject(BUCKET_NAME, "testservice/_version/testresource/_latest_version", "1");
     s3.putObject(BUCKET_NAME, "testservice/_version/testresource/1", "abcdef");
-    List<String> indexes = RestoreStateHandler.restore(archiver, globalState, "testservice");
+    List<String> indexes =
+        RestoreStateHandler.restore(archiver, null, globalState, "testservice", false);
     Assert.assertEquals(0, indexes.size());
   }
 
@@ -95,7 +97,8 @@ public class RestoreStateHandlerTest {
     final TarEntry tarEntry = new TarEntry("foo", "testcontent");
     TarEntry.uploadToS3(
         s3, BUCKET_NAME, Arrays.asList(tarEntry), "testservice/testresource_metadata/abcdef");
-    List<String> indexes = RestoreStateHandler.restore(archiver, globalState, "testservice");
+    List<String> indexes =
+        RestoreStateHandler.restore(archiver, null, globalState, "testservice", false);
     Assert.assertEquals(1, indexes.size());
     Assert.assertEquals("testresource_metadata", indexes.get(0));
   }

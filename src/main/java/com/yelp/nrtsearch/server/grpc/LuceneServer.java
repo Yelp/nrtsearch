@@ -114,7 +114,11 @@ public class LuceneServer {
       logger.info("Loading state for any previously backed up indexes");
       List<String> indexes =
           RestoreStateHandler.restore(
-              archiver, globalState, luceneServerConfiguration.getServiceName());
+              archiver,
+              incArchiver,
+              globalState,
+              luceneServerConfiguration.getServiceName(),
+              luceneServerConfiguration.getRestoreFromIncArchiver());
       for (String index : indexes) {
         logger.info("Loaded state for index " + index);
       }

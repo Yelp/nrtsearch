@@ -456,7 +456,7 @@ public class GrpcServer {
                 .build();
         startIndexBuilder.setRestore(restoreIndex);
         RestoreStateHandler.restore(
-            grpcServer.getArchiver(), grpcServer.getGlobalState(), "testservice");
+            grpcServer.getArchiver(), null, grpcServer.getGlobalState(), "testservice", false);
       }
       blockingStub.startIndex(startIndexBuilder.build());
 
