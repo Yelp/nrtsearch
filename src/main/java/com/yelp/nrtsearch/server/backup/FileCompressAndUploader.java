@@ -101,9 +101,6 @@ public class FileCompressAndUploader {
         }
         tar.buildTar(sourceDir, uploadStream, Collections.emptyList(), Collections.emptyList());
       }
-      //      if (tar instanceof NoTarImpl) {
-      //        uploadStream.close();
-      //      }
       uploadStream.complete();
     } catch (IOException e) {
       if (uploadStream != null) {

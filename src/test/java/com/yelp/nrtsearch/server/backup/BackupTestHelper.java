@@ -42,7 +42,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.junit.Assert;
 import org.junit.rules.TemporaryFolder;
 
-public class BackupHelper {
+public class BackupTestHelper {
   private final String bucketName;
   private final ContentDownloaderImpl contentDownloaderTar;
   private final ContentDownloaderImpl contentDownloaderNoTar;
@@ -58,10 +58,9 @@ public class BackupHelper {
 
   private final Path archiverDirectory;
 
-  // @Rule public final TemporaryFolder folder = new TemporaryFolder();
   private final Path s3Directory;
 
-  public BackupHelper(String bucketName, TemporaryFolder folder) throws IOException {
+  public BackupTestHelper(String bucketName, TemporaryFolder folder) throws IOException {
     this.bucketName = bucketName;
     s3Directory = folder.newFolder("s3").toPath();
     archiverDirectory = folder.newFolder("archiver").toPath();
@@ -118,11 +117,7 @@ public class BackupHelper {
   }
 
   public void testUploadNoTar(
-      String service,
-      String resource,
-      String fileName,
-      Map<String, String> fileContents,
-      Archiver archiver)
+      String service, String resource, Map<String, String> fileContents, Archiver archiver)
       throws IOException {
     for (Map.Entry<String, String> entry : fileContents.entrySet()) {
       S3Object s3Object =

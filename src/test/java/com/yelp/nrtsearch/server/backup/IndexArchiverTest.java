@@ -35,16 +35,16 @@ public class IndexArchiverTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
   private final String BUCKET_NAME = "indexarchiver-unittest";
-  private BackupHelper backupHelper;
+  private BackupTestHelper backupTestHelper;
 
   @Before
   public void setup() throws IOException {
-    backupHelper = new BackupHelper(BUCKET_NAME, folder);
+    backupTestHelper = new BackupTestHelper(BUCKET_NAME, folder);
   }
 
   @After
   public void teardown() {
-    backupHelper.shutdown();
+    backupTestHelper.shutdown();
   }
 
   @Test
@@ -52,16 +52,16 @@ public class IndexArchiverTest {
     IndexArchiver indexArchiver =
         new IndexArchiver(
             new BackupDiffManager(
-                backupHelper.getContentDownloaderNoTar(),
-                backupHelper.getFileCompressAndUploaderWithNoTar(),
-                backupHelper.getVersionManager(),
-                backupHelper.getArchiverDirectory()),
-            backupHelper.getFileCompressAndUploaderWithTar(),
-            backupHelper.getContentDownloaderTar(),
-            backupHelper.getVersionManager(),
-            backupHelper.getArchiverDirectory());
+                backupTestHelper.getContentDownloaderNoTar(),
+                backupTestHelper.getFileCompressAndUploaderWithNoTar(),
+                backupTestHelper.getVersionManager(),
+                backupTestHelper.getArchiverDirectory()),
+            backupTestHelper.getFileCompressAndUploaderWithTar(),
+            backupTestHelper.getContentDownloaderTar(),
+            backupTestHelper.getVersionManager(),
+            backupTestHelper.getArchiverDirectory());
     Map<String, String> filesAndContents = Map.of("file1", "testcontent1", "file2", "testcontent2");
-    backupHelper.uploadBlessAndValidate(
+    backupTestHelper.uploadBlessAndValidate(
         filesAndContents, indexArchiver, "testservice", "testresource");
 
     Path resourcePath = indexArchiver.download("testservice", "testresource");
@@ -80,15 +80,15 @@ public class IndexArchiverTest {
     IndexArchiver indexArchiver =
         new IndexArchiver(
             new BackupDiffManager(
-                backupHelper.getContentDownloaderNoTar(),
-                backupHelper.getFileCompressAndUploaderWithNoTar(),
-                backupHelper.getVersionManager(),
-                backupHelper.getArchiverDirectory()),
-            backupHelper.getFileCompressAndUploaderWithTar(),
-            backupHelper.getContentDownloaderTar(),
-            backupHelper.getVersionManager(),
-            backupHelper.getArchiverDirectory());
-    backupHelper.uploadBlessAndValidate(
+                backupTestHelper.getContentDownloaderNoTar(),
+                backupTestHelper.getFileCompressAndUploaderWithNoTar(),
+                backupTestHelper.getVersionManager(),
+                backupTestHelper.getArchiverDirectory()),
+            backupTestHelper.getFileCompressAndUploaderWithTar(),
+            backupTestHelper.getContentDownloaderTar(),
+            backupTestHelper.getVersionManager(),
+            backupTestHelper.getArchiverDirectory());
+    backupTestHelper.uploadBlessAndValidate(
         Map.of("file1", "testcontent1", "file2", "testcontent2"),
         indexArchiver,
         "testservice",
@@ -100,15 +100,15 @@ public class IndexArchiverTest {
     IndexArchiver indexArchiver =
         new IndexArchiver(
             new BackupDiffManager(
-                backupHelper.getContentDownloaderNoTar(),
-                backupHelper.getFileCompressAndUploaderWithNoTar(),
-                backupHelper.getVersionManager(),
-                backupHelper.getArchiverDirectory()),
-            backupHelper.getFileCompressAndUploaderWithTar(),
-            backupHelper.getContentDownloaderTar(),
-            backupHelper.getVersionManager(),
-            backupHelper.getArchiverDirectory());
-    backupHelper.testDeleteVersion(indexArchiver);
+                backupTestHelper.getContentDownloaderNoTar(),
+                backupTestHelper.getFileCompressAndUploaderWithNoTar(),
+                backupTestHelper.getVersionManager(),
+                backupTestHelper.getArchiverDirectory()),
+            backupTestHelper.getFileCompressAndUploaderWithTar(),
+            backupTestHelper.getContentDownloaderTar(),
+            backupTestHelper.getVersionManager(),
+            backupTestHelper.getArchiverDirectory());
+    backupTestHelper.testDeleteVersion(indexArchiver);
   }
 
   @Test
@@ -116,15 +116,15 @@ public class IndexArchiverTest {
     IndexArchiver indexArchiver =
         new IndexArchiver(
             new BackupDiffManager(
-                backupHelper.getContentDownloaderNoTar(),
-                backupHelper.getFileCompressAndUploaderWithNoTar(),
-                backupHelper.getVersionManager(),
-                backupHelper.getArchiverDirectory()),
-            backupHelper.getFileCompressAndUploaderWithTar(),
-            backupHelper.getContentDownloaderTar(),
-            backupHelper.getVersionManager(),
-            backupHelper.getArchiverDirectory());
-    backupHelper.testGetResources(indexArchiver);
+                backupTestHelper.getContentDownloaderNoTar(),
+                backupTestHelper.getFileCompressAndUploaderWithNoTar(),
+                backupTestHelper.getVersionManager(),
+                backupTestHelper.getArchiverDirectory()),
+            backupTestHelper.getFileCompressAndUploaderWithTar(),
+            backupTestHelper.getContentDownloaderTar(),
+            backupTestHelper.getVersionManager(),
+            backupTestHelper.getArchiverDirectory());
+    backupTestHelper.testGetResources(indexArchiver);
   }
 
   @Test
@@ -132,36 +132,36 @@ public class IndexArchiverTest {
     IndexArchiver indexArchiver =
         new IndexArchiver(
             new BackupDiffManager(
-                backupHelper.getContentDownloaderNoTar(),
-                backupHelper.getFileCompressAndUploaderWithNoTar(),
-                backupHelper.getVersionManager(),
-                backupHelper.getArchiverDirectory()),
-            backupHelper.getFileCompressAndUploaderWithTar(),
-            backupHelper.getContentDownloaderTar(),
-            backupHelper.getVersionManager(),
-            backupHelper.getArchiverDirectory());
-    backupHelper.testGetVersionedResources(indexArchiver);
+                backupTestHelper.getContentDownloaderNoTar(),
+                backupTestHelper.getFileCompressAndUploaderWithNoTar(),
+                backupTestHelper.getVersionManager(),
+                backupTestHelper.getArchiverDirectory()),
+            backupTestHelper.getFileCompressAndUploaderWithTar(),
+            backupTestHelper.getContentDownloaderTar(),
+            backupTestHelper.getVersionManager(),
+            backupTestHelper.getArchiverDirectory());
+    backupTestHelper.testGetVersionedResources(indexArchiver);
   }
 
   @Test
   public void validGlobalStateDir() throws IOException {
     IndexArchiver indexArchiver = new IndexArchiver();
-    Files.createFile(backupHelper.getArchiverDirectory().resolve("indices.0"));
-    assertEquals(true, indexArchiver.validGlobalStateDir(backupHelper.getArchiverDirectory()));
+    Files.createFile(backupTestHelper.getArchiverDirectory().resolve("indices.0"));
+    assertEquals(true, indexArchiver.validGlobalStateDir(backupTestHelper.getArchiverDirectory()));
   }
 
   @Test
   public void invalidGlobalStateDir() throws IOException {
     IndexArchiver indexArchiver = new IndexArchiver();
-    Files.createFile(backupHelper.getArchiverDirectory().resolve("bad_apple.0"));
-    assertEquals(false, indexArchiver.validGlobalStateDir(backupHelper.getArchiverDirectory()));
+    Files.createFile(backupTestHelper.getArchiverDirectory().resolve("bad_apple.0"));
+    assertEquals(false, indexArchiver.validGlobalStateDir(backupTestHelper.getArchiverDirectory()));
   }
 
   @Test
   public void validIndexDir() throws IOException {
     IndexArchiver indexArchiver = new IndexArchiver();
     createValidIndexDir();
-    assertEquals(true, indexArchiver.validIndexDir(backupHelper.getArchiverDirectory()));
+    assertEquals(true, indexArchiver.validIndexDir(backupTestHelper.getArchiverDirectory()));
   }
 
   @Test
@@ -169,28 +169,26 @@ public class IndexArchiverTest {
     IndexArchiver indexArchiver = new IndexArchiver();
     createValidIndexDir();
     Files.delete(
-        backupHelper
+        backupTestHelper
             .getArchiverDirectory()
             .resolve(IndexArchiver.SHARD_0)
             .resolve(IndexArchiver.INDEX));
-    assertEquals(false, indexArchiver.validIndexDir(backupHelper.getArchiverDirectory()));
+    assertEquals(false, indexArchiver.validIndexDir(backupTestHelper.getArchiverDirectory()));
   }
 
   @Test
   public void invalidIndexDirNoState() throws IOException {
     IndexArchiver indexArchiver = new IndexArchiver();
     createValidIndexDir();
-    Files.delete(backupHelper.getArchiverDirectory().resolve(IndexArchiver.STATE));
-    assertEquals(false, indexArchiver.validIndexDir(backupHelper.getArchiverDirectory()));
+    Files.delete(backupTestHelper.getArchiverDirectory().resolve(IndexArchiver.STATE));
+    assertEquals(false, indexArchiver.validIndexDir(backupTestHelper.getArchiverDirectory()));
   }
 
   private void createValidIndexDir() throws IOException {
-    Path indexStateDir = backupHelper.getArchiverDirectory().resolve(IndexArchiver.STATE);
-    Path shardDir = backupHelper.getArchiverDirectory().resolve(IndexArchiver.SHARD_0);
+    Path indexStateDir = backupTestHelper.getArchiverDirectory().resolve(IndexArchiver.STATE);
+    Path shardDir = backupTestHelper.getArchiverDirectory().resolve(IndexArchiver.SHARD_0);
     Path indexDataDir = shardDir.resolve(IndexArchiver.INDEX);
     Files.createDirectories(indexDataDir);
     Files.createDirectory(indexStateDir);
   }
-
-  private void create() throws IOException {}
 }

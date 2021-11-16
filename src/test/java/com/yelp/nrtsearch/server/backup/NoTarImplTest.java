@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -42,8 +43,12 @@ public class NoTarImplTest {
     }
   }
 
-  @Test
-  public void testExtractTar() {}
+  @Test(expected = UnsupportedOperationException.class)
+  public void testExtractTar() throws IOException {
+    new NoTarImpl()
+        .extractTar(
+            new TarArchiveInputStream(new ByteArrayInputStream("test1content".getBytes())), null);
+  }
 
   @Test
   public void buildTar() throws IOException {
@@ -65,12 +70,18 @@ public class NoTarImplTest {
     assertEquals("test1content", Files.readString(sourceDir.resolve("output")));
   }
 
-  @Test
-  public void testBuildTar() {}
+  @Test(expected = UnsupportedOperationException.class)
+  public void testBuildTar() throws IOException {
+    new NoTarImpl()
+        .buildTar(
+            folder.newFolder("sourceDir").toPath(),
+            folder.newFolder("destFile").toPath(),
+            Collections.emptyList(),
+            Collections.emptyList());
+  }
 
   @Test
-  public void testBuildTar1() {}
-
-  @Test
-  public void getCompressionMode() {}
+  public void getCompressionMode() {
+    assertEquals(Tar.CompressionMode.NONE, new NoTarImpl().getCompressionMode());
+  }
 }

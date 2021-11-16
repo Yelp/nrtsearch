@@ -52,7 +52,10 @@ public class NoTarImpl implements Tar {
 
   @Override
   public void extractTar(TarArchiveInputStream tarArchiveInputStream, Path destDirectory)
-      throws IOException {}
+      throws IOException {
+    throw new UnsupportedOperationException(
+        "NoTarImpl does not support extracting from TarArchiverInputStream");
+  }
 
   @Override
   public void buildTar(
@@ -60,7 +63,9 @@ public class NoTarImpl implements Tar {
       Path destinationFile,
       Collection<String> filesToInclude,
       Collection<String> parentDirectoriesToInclude)
-      throws IOException {}
+      throws IOException {
+    throw new UnsupportedOperationException("NoTarImpl only supports streaming mode");
+  }
 
   @Override
   public void buildTar(

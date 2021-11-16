@@ -156,9 +156,7 @@ public class BackupDiffManager implements Archiver {
 
     public static void serializeFileNames(List<String> indexFileNames, Path destBackupDiffFile)
         throws IOException {
-      try (BufferedWriter bw =
-          new BufferedWriter(
-              new OutputStreamWriter(new FileOutputStream(destBackupDiffFile.toFile())))) {
+      try (BufferedWriter bw = Files.newBufferedWriter(destBackupDiffFile)) {
         for (String indexFileName : indexFileNames) {
           bw.write(indexFileName);
           bw.newLine();

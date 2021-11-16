@@ -31,7 +31,7 @@ import picocli.CommandLine;
 public class BackupHelper implements Callable<Integer> {
   public static final String BACKUP = "backup";
   @CommandLine.ParentCommand private BackupRestoreCommand baseCmd;
-  public static final Logger logger = LoggerFactory.getLogger(BackupHelper.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(BackupHelper.class.getName());
 
   @CommandLine.Option(
       names = {"-i", "--index_dir"},

@@ -30,7 +30,7 @@ import picocli.CommandLine;
 public class RestoreHelper implements Callable<Integer> {
   public static final String BACKUP = "restore";
   @CommandLine.ParentCommand private BackupRestoreCommand baseCmd;
-  public static final Logger logger = LoggerFactory.getLogger(RestoreHelper.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(RestoreHelper.class.getName());
 
   @CommandLine.Option(
       names = {"-l", "--legacy"},

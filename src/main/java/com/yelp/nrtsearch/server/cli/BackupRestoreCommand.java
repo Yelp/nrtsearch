@@ -37,12 +37,8 @@ import picocli.CommandLine;
     synopsisSubcommandLabel = "COMMAND",
     subcommands = {BackupHelper.class, RestoreHelper.class})
 public class BackupRestoreCommand implements Callable<Integer> {
-  public static final Logger logger = LoggerFactory.getLogger(BackupRestoreCommand.class.getName());
-  private static final String BUCKET_NAME = "yelp-service-data-dev";
-  private static final String BOTO_CFG_PATH = "/etc/boto_cfg/elasticlucy.cfg";
-  private static final String ARCHIVE_DIR = "/nail/home/umesh/scratch/archiver";
-  private static final String SERVICE_NAME = "nrtsearch-lucy-awn";
-  private static final String RESOURCE_NAME = "americas_west_north_data";
+  private static final Logger logger =
+      LoggerFactory.getLogger(BackupRestoreCommand.class.getName());
 
   @CommandLine.Option(
       names = {"-s", "--serviceName"},

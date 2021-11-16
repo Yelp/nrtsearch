@@ -33,27 +33,28 @@ import org.junit.rules.TemporaryFolder;
 public class FileCompressAndUploaderTest {
   private final String BUCKET_NAME = "filecompressanduploader-unittest";
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
-  private BackupHelper backupHelper;
+  private BackupTestHelper backupTestHelper;
 
   @Before
   public void setup() throws IOException {
-    backupHelper = new BackupHelper(BUCKET_NAME, folder);
+    backupTestHelper = new BackupTestHelper(BUCKET_NAME, folder);
   }
 
   @After
   public void teardown() {
-    backupHelper.shutdown();
+    backupTestHelper.shutdown();
   }
 
   @Test
   public void uploadWithTarImplSingleFile() throws IOException {
-    Path indexDir = Files.createDirectory(backupHelper.getArchiverDirectory().resolve("testIndex"));
+    Path indexDir =
+        Files.createDirectory(backupTestHelper.getArchiverDirectory().resolve("testIndex"));
     Path indexFile = Paths.get(indexDir.toString(), "file1");
     Files.writeString(indexFile, "testcontent");
-    backupHelper
+    backupTestHelper
         .getFileCompressAndUploaderWithTar()
         .upload("testservice", "testresource", "file1", indexDir, false);
-    backupHelper.testUpload(
+    backupTestHelper.testUpload(
         "testservice", "testresource", "file1", Map.of("file1", "testcontent"), null);
   }
 
@@ -69,16 +70,16 @@ public class FileCompressAndUploaderTest {
   public void createDirWithContents() throws IOException {
     createDirWithContents(
         Map.of("file1", "testcontent1", "file2", "testcontent2"),
-        backupHelper.getArchiverDirectory().resolve("testIndex"));
-    backupHelper
+        backupTestHelper.getArchiverDirectory().resolve("testIndex"));
+    backupTestHelper
         .getFileCompressAndUploaderWithTar()
         .upload(
             "testservice",
             "testresource",
             "abcdef",
-            backupHelper.getArchiverDirectory().resolve("testIndex"),
+            backupTestHelper.getArchiverDirectory().resolve("testIndex"),
             true);
-    backupHelper.testUpload(
+    backupTestHelper.testUpload(
         "testservice",
         "testresource",
         "abcdef",
@@ -90,27 +91,28 @@ public class FileCompressAndUploaderTest {
   public void uploadEntireDirNoTar() throws IOException {
     createDirWithContents(
         Map.of("file1", "testcontent1", "file2", "testcontent2"),
-        backupHelper.getArchiverDirectory().resolve("testIndex"));
-    backupHelper
+        backupTestHelper.getArchiverDirectory().resolve("testIndex"));
+    backupTestHelper
         .getFileCompressAndUploaderWithNoTar()
         .upload(
             "testservice",
             "testresource",
             "abcdef",
-            backupHelper.getArchiverDirectory().resolve("testIndex"),
+            backupTestHelper.getArchiverDirectory().resolve("testIndex"),
             true);
   }
 
   @Test
   public void uploadWithNoTarImpl() throws IOException {
-    Path indexDir = Files.createDirectory(backupHelper.getArchiverDirectory().resolve("testIndex"));
+    Path indexDir =
+        Files.createDirectory(backupTestHelper.getArchiverDirectory().resolve("testIndex"));
     Path indexFile = Paths.get(indexDir.toString(), "file1");
     Files.writeString(indexFile, "abcdef");
-    backupHelper
+    backupTestHelper
         .getFileCompressAndUploaderWithNoTar()
         .upload("testservice", "testresource", "file1", indexDir, false);
     S3Object s3Object =
-        backupHelper.getS3().getObject(BUCKET_NAME, "testservice/testresource/file1");
+        backupTestHelper.getS3().getObject(BUCKET_NAME, "testservice/testresource/file1");
     assertEquals("abcdef", IOUtils.toString(s3Object.getObjectContent()));
   }
 }

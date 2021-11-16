@@ -244,7 +244,7 @@ public class ContentDownloaderImpl implements ContentDownloader {
     return UUID.randomUUID().toString() + TMP_SUFFIX;
   }
 
-  private static class S3ProgressListenerImpl implements S3ProgressListener {
+  public static class S3ProgressListenerImpl implements S3ProgressListener {
     private static final Logger logger =
         LoggerFactory.getLogger(ContentDownloaderImpl.S3ProgressListenerImpl.class);
 

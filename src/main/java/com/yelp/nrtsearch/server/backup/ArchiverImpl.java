@@ -15,22 +15,16 @@
  */
 package com.yelp.nrtsearch.server.backup;
 
-import com.amazonaws.event.ProgressEvent;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.s3.transfer.*;
-import com.amazonaws.services.s3.transfer.internal.S3ProgressListener;
 import com.google.inject.Inject;
 import java.io.*;
 import java.nio.file.*;
-import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicLong;
 import net.jpountz.lz4.LZ4FrameInputStream;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
@@ -221,7 +215,8 @@ public class ArchiverImpl implements Archiver {
         String.format("%s/%s/%s", serviceName, resource, versionHash);
     PutObjectRequest request =
         new PutObjectRequest(bucketName, absoluteResourcePath, path.toFile());
-    request.setGeneralProgressListener(new S3ProgressListenerImpl(serviceName, resource, "upload"));
+    request.setGeneralProgressListener(
+        new ContentDownloaderImpl.S3ProgressListenerImpl(serviceName, resource, "upload"));
     Upload upload = transferManager.upload(request);
     try {
       upload.waitForUploadResult();
@@ -381,7 +376,7 @@ public class ArchiverImpl implements Archiver {
           transferManager.download(
               new GetObjectRequest(bucketName, absoluteResourcePath),
               tmpFile.toFile(),
-              new S3ProgressListenerImpl(serviceName, resource, "download"));
+              new ContentDownloaderImpl.S3ProgressListenerImpl(serviceName, resource, "download"));
       try {
         download.waitForCompletion();
         logger.info("S3 Download complete");
@@ -467,58 +462,6 @@ public class ArchiverImpl implements Archiver {
       for (final Path entry : stream) {
         logger.info("Cleaning up old directory: {}", entry);
         FileUtils.deleteDirectory(entry.toFile());
-      }
-    }
-  }
-
-  private static class S3ProgressListenerImpl implements S3ProgressListener {
-    private static final Logger logger = LoggerFactory.getLogger(S3ProgressListenerImpl.class);
-
-    private static final long LOG_THRESHOLD_BYTES = 1024 * 1024 * 500; // 500 MB
-    private static final long LOG_THRESHOLD_SECONDS = 30;
-
-    private final String serviceName;
-    private final String resource;
-    private final String operation;
-
-    private final Semaphore lock = new Semaphore(1);
-    private final AtomicLong totalBytesTransferred = new AtomicLong();
-    private long bytesTransferredSinceLastLog = 0;
-    private LocalDateTime lastLoggedTime = LocalDateTime.now();
-
-    public S3ProgressListenerImpl(String serviceName, String resource, String operation) {
-      this.serviceName = serviceName;
-      this.resource = resource;
-      this.operation = operation;
-    }
-
-    @Override
-    public void onPersistableTransfer(PersistableTransfer persistableTransfer) {}
-
-    @Override
-    public void progressChanged(ProgressEvent progressEvent) {
-      long totalBytes = totalBytesTransferred.addAndGet(progressEvent.getBytesTransferred());
-
-      boolean acquired = lock.tryAcquire();
-
-      if (acquired) {
-        try {
-          bytesTransferredSinceLastLog += progressEvent.getBytesTransferred();
-          long secondsSinceLastLog =
-              Duration.between(lastLoggedTime, LocalDateTime.now()).getSeconds();
-
-          if (bytesTransferredSinceLastLog > LOG_THRESHOLD_BYTES
-              || secondsSinceLastLog > LOG_THRESHOLD_SECONDS) {
-            logger.info(
-                String.format(
-                    "service: %s, resource: %s, %s transferred bytes: %s",
-                    serviceName, resource, operation, totalBytes));
-            bytesTransferredSinceLastLog = 0;
-            lastLoggedTime = LocalDateTime.now();
-          }
-        } finally {
-          lock.release();
-        }
       }
     }
   }
