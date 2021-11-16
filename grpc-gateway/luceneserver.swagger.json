@@ -1877,6 +1877,18 @@
         "indexName": {
           "type": "string"
         },
+        "serviceName": {
+          "type": "string"
+        },
+        "resourceName": {
+          "type": "string"
+        },
+        "completeDirectory": {
+          "type": "boolean"
+        },
+        "stream": {
+          "type": "boolean"
+        },
         "disableV0Archiver": {
           "type": "boolean"
         }
