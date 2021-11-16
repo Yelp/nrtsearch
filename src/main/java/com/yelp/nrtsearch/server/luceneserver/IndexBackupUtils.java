@@ -32,4 +32,8 @@ public class IndexBackupUtils {
   public static String getResourceVersionData(String resourceName) {
     return String.format("_version/%s_data", resourceName);
   }
+
+  public static boolean isMetadata(String resourceName) {
+    return resourceName.contains("_metadata");
+  }
 }

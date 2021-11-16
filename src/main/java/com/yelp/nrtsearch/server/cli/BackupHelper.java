@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.cli;
 
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.backup.IndexArchiver;
+import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -43,6 +44,16 @@ public class BackupHelper implements Callable<Integer> {
     return indexDir;
   }
 
+  @CommandLine.Option(
+      names = {"-s", "--state_dir"},
+      description = "Path to directory containing current global state on disk",
+      required = true)
+  private String stateDir;
+
+  public String getStateDir() {
+    return stateDir;
+  }
+
   @Override
   public Integer call() throws Exception {
     Archiver archiver = baseCmd.getArchiver();
@@ -56,7 +67,7 @@ public class BackupHelper implements Callable<Integer> {
     String versionHash =
         archiver.upload(
             baseCmd.getServiceName(),
-            baseCmd.getResourceName(),
+            IndexBackupUtils.getResourceData(baseCmd.getResourceName()),
             Path.of(this.getIndexDir()),
             files,
             Collections.emptyList(),
@@ -64,20 +75,52 @@ public class BackupHelper implements Callable<Integer> {
     long t2 = System.nanoTime();
     logger.info(
         String.format(
-            "Time taken to upload %s milliseconds, versionHash uploaded: %s",
+            "Time taken to upload data %s milliseconds, versionHash uploaded: %s",
             (t2 - t1) / (1000 * 1000), versionHash));
     boolean result =
-        archiver.blessVersion(baseCmd.getServiceName(), baseCmd.getResourceName(), versionHash);
-    if (result) {
+        archiver.blessVersion(
+            baseCmd.getServiceName(),
+            IndexBackupUtils.getResourceData(baseCmd.getResourceName()),
+            versionHash);
+    t1 = System.nanoTime();
+    String versionHashMetadata =
+        archiver.upload(
+            baseCmd.getServiceName(),
+            IndexBackupUtils.getResourceMetadata(baseCmd.getResourceName()),
+            Path.of(this.getStateDir()),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            true);
+    t2 = System.nanoTime();
+    logger.info(
+        String.format(
+            "Time taken to upload data %s milliseconds, versionHash uploaded: %s",
+            (t2 - t1) / (1000 * 1000), versionHashMetadata));
+    boolean resultMetadata =
+        archiver.blessVersion(
+            baseCmd.getServiceName(),
+            IndexBackupUtils.getResourceMetadata(baseCmd.getResourceName()),
+            versionHashMetadata);
+    if (result && resultMetadata) {
       logger.info(
           String.format(
               "Blessed, service: %s, resource: %s, version: %s",
-              baseCmd.getServiceName(), baseCmd.getResourceName(), versionHash));
+              baseCmd.getServiceName(),
+              IndexBackupUtils.getResourceData(baseCmd.getResourceName()),
+              versionHash));
+      logger.info(
+          String.format(
+              "Blessed, service: %s, resource: %s, version: %s",
+              baseCmd.getServiceName(),
+              IndexBackupUtils.getResourceMetadata(baseCmd.getResourceName()),
+              versionHashMetadata));
     } else {
       logger.info(
           String.format(
               "Failed to bless: service: %s, resource: %s, version: %s",
-              baseCmd.getServiceName(), baseCmd.getResourceName(), versionHash));
+              baseCmd.getServiceName(),
+              IndexBackupUtils.getResourceData(baseCmd.getResourceName()),
+              versionHash));
     }
     return 0;
   }

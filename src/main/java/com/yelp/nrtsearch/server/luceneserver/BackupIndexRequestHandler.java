@@ -340,15 +340,29 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       boolean stream)
       throws IOException {
     String resourceMetadata = IndexBackupUtils.getResourceMetadata(resourceName);
-    String versionHash =
-        archiver.upload(
-            serviceName,
-            resourceMetadata,
-            indexState.globalState.stateDir,
-            Collections.emptyList(),
-            Collections.emptyList(),
-            stream);
-    archiver.blessVersion(serviceName, resourceMetadata, versionHash);
+    String versionHash;
+    if (!disableLegacy) {
+      versionHash =
+          archiver.upload(
+              serviceName,
+              resourceMetadata,
+              indexState.globalState.stateDir,
+              Collections.emptyList(),
+              Collections.emptyList(),
+              stream);
+      archiver.blessVersion(serviceName, resourceMetadata, versionHash);
+
+    } else {
+      versionHash =
+          incrementalArchiver.upload(
+              serviceName,
+              resourceMetadata,
+              indexState.globalState.stateDir,
+              Collections.emptyList(),
+              Collections.emptyList(),
+              stream);
+      incrementalArchiver.blessVersion(serviceName, resourceMetadata, versionHash);
+    }
     backupIndexResponseBuilder.setMetadataVersionHash(versionHash);
   }
 

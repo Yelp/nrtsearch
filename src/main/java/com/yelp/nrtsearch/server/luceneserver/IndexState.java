@@ -739,6 +739,7 @@ public class IndexState implements Closeable, Restorable {
 
         snapshotId =
             new CreateSnapshotHandler().createSnapshot(this, createSnapshotRequest).getSnapshotId();
+        // upload data
         Collection<String> segmentFiles = getSegmentFilesInSnapshot(this, snapshotId);
         String resourceData = IndexBackupUtils.getResourceData(this.name);
         String versionHash =
@@ -756,6 +757,24 @@ public class IndexState implements Closeable, Restorable {
             .getIncArchiver()
             .get()
             .blessVersion(globalState.configuration.getServiceName(), resourceData, versionHash);
+        // upload metadata
+        String resourceMetadata = IndexBackupUtils.getResourceMetadata(this.name);
+        versionHash =
+            globalState
+                .getIncArchiver()
+                .get()
+                .upload(
+                    globalState.configuration.getServiceName(),
+                    resourceMetadata,
+                    this.globalState.stateDir,
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    true);
+        globalState
+            .getIncArchiver()
+            .get()
+            .blessVersion(
+                globalState.configuration.getServiceName(), resourceMetadata, versionHash);
       }
     } finally {
       if (snapshotId != null) {

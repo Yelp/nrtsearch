@@ -47,7 +47,7 @@ public class RestoreStateHandler {
     List<String> indexNames = new ArrayList<>();
     List<String> resources = archiver.getResources(serviceName);
     for (String resource : resources) {
-      if (resource.contains("_metadata")) {
+      if (IndexBackupUtils.isMetadata(resource)) {
         Path path = archiver.download(serviceName, resource);
         logger.info(
             String.format(
