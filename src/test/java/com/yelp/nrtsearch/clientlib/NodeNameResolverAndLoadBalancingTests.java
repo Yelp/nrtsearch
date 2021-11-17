@@ -251,7 +251,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
-  @Test(timeout = 1500)
+  @Test(timeout = 1000)
   public void testNodeRemovedFromAddressFile() throws IOException, InterruptedException {
     // Use a lower update interval for this test
     int updateInterval = 10;
