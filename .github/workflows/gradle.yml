@@ -45,7 +45,8 @@ jobs:
     - name: Add new badge
       uses: EndBug/add-and-commit@v7
       with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        default_author: github_actions
+        github_token: ${{ secrets.GITHUB_TOKEN }}
         message: 'upload badge'
         add: '*.svg'
         branch: master
