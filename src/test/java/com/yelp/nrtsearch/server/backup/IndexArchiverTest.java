@@ -100,11 +100,11 @@ public class IndexArchiverTest {
     IndexArchiver indexArchiver =
         new IndexArchiver(
             null,
-            backupHelper.getFileCompressAndUploaderWithTar(),
+            backupTestHelper.getFileCompressAndUploaderWithTar(),
             null,
-            backupHelper.getVersionManager(),
-            backupHelper.getArchiverDirectory());
-    backupHelper.uploadBlessAndValidateMetadata(
+            backupTestHelper.getVersionManager(),
+            backupTestHelper.getArchiverDirectory());
+    backupTestHelper.uploadBlessAndValidateMetadata(
         Map.of("indices1", "testcontent1", "indices2", "testcontent2"),
         indexArchiver,
         "testservice",
@@ -116,13 +116,13 @@ public class IndexArchiverTest {
     IndexArchiver indexArchiver =
         new IndexArchiver(
             null,
-            backupHelper.getFileCompressAndUploaderWithTar(),
-            backupHelper.getContentDownloaderTar(),
-            backupHelper.getVersionManager(),
-            backupHelper.getArchiverDirectory());
+            backupTestHelper.getFileCompressAndUploaderWithTar(),
+            backupTestHelper.getContentDownloaderTar(),
+            backupTestHelper.getVersionManager(),
+            backupTestHelper.getArchiverDirectory());
     Map<String, String> filesAndContents =
         Map.of("indices1", "testcontent1", "indices2", "testcontent2");
-    backupHelper.uploadBlessAndValidateMetadata(
+    backupTestHelper.uploadBlessAndValidateMetadata(
         filesAndContents, indexArchiver, "testservice", "testresource_metadata");
     Path resourcePath = indexArchiver.download("testservice", "testresource_metadata");
     Path path = IndexArchiver.getIndexStateDir(resourcePath);
