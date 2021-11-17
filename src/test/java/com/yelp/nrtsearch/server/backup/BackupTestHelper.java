@@ -98,7 +98,14 @@ public class BackupTestHelper {
       throws IOException {
     Path actualDownloadDir = Files.createDirectory(archiverDirectory.resolve("actualDownload"));
     try (S3Object s3Object =
-            s3.getObject(bucketName, getS3ResourceKey(service, resource, versionHash, archiver));
+            s3.getObject(
+                bucketName,
+                getS3ResourceKey(
+                    service,
+                    resource,
+                    versionHash,
+                    archiver,
+                    archiver != null && archiver instanceof IndexArchiver));
         S3ObjectInputStream s3ObjectInputStream = s3Object.getObjectContent();
         LZ4FrameInputStream lz4CompressorInputStream =
             new LZ4FrameInputStream(s3ObjectInputStream);
@@ -121,7 +128,14 @@ public class BackupTestHelper {
       throws IOException {
     for (Map.Entry<String, String> entry : fileContents.entrySet()) {
       S3Object s3Object =
-          s3.getObject(bucketName, getS3ResourceKey(service, resource, entry.getKey(), archiver));
+          s3.getObject(
+              bucketName,
+              getS3ResourceKey(
+                  service,
+                  resource,
+                  entry.getKey(),
+                  archiver,
+                  archiver != null && archiver instanceof IndexArchiver));
       assertEquals(entry.getValue(), IOUtils.toString(s3Object.getObjectContent()));
     }
   }
@@ -187,14 +201,28 @@ public class BackupTestHelper {
     for (String file : filesAndContents.keySet()) {
       assertEquals(
           true,
-          getS3().doesObjectExist(bucketName, getS3ResourceKey(service, resource, file, archiver)));
+          getS3()
+              .doesObjectExist(
+                  bucketName,
+                  getS3ResourceKey(
+                      service,
+                      resource,
+                      file,
+                      archiver,
+                      archiver != null && archiver instanceof IndexArchiver)));
     }
     // versionHash is uploaded
     assertEquals(
         true,
         getS3()
             .doesObjectExist(
-                bucketName, getS3ResourceKey(service, resource, versionHash, archiver)));
+                bucketName,
+                getS3ResourceKey(
+                    service,
+                    resource,
+                    versionHash,
+                    archiver,
+                    archiver != null && archiver instanceof IndexArchiver)));
 
     // Extra check for IndexArchiver only - check state files uploaded under versionHash
     if (archiver != null && archiver instanceof IndexArchiver) {
@@ -217,8 +245,9 @@ public class BackupTestHelper {
     return versionHash;
   }
 
-  private String getS3ResourceKey(String service, String resource, String file, Archiver archiver) {
-    if (archiver != null && archiver instanceof IndexArchiver) {
+  private String getS3ResourceKey(
+      String service, String resource, String file, Archiver archiver, boolean isIndexArchiver) {
+    if (isIndexArchiver) {
       return String.format(
           "%s/%s/%s", service, IndexArchiver.getIndexDataResourceName(resource), file);
     } else {

@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.backup;
 import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -56,11 +57,9 @@ public class ContentDownloaderImplTest {
         backupTestHelper
             .getArchiverDirectory()
             .resolve("downloads"); // this dir will be created by getVersionContent
-    assertEquals(
-        downloadDir,
-        backupTestHelper
-            .getContentDownloaderTar()
-            .getVersionContent("testservice", "testresource", "abcdef", downloadDir));
+    backupTestHelper
+        .getContentDownloaderTar()
+        .getVersionContent("testservice", "testresource", "abcdef", downloadDir);
     assertEquals("testcontent", new String(Files.readAllBytes(downloadDir.resolve("file1"))));
   }
 
@@ -73,11 +72,9 @@ public class ContentDownloaderImplTest {
         backupTestHelper
             .getArchiverDirectory()
             .resolve("downloads"); // this dir will be created by getVersionContent
-    assertEquals(
-        downloadDir,
-        backupTestHelper
-            .getContentDownloaderNoTar()
-            .getVersionContent("testservice", "testresource", "abcdef", downloadDir));
+    backupTestHelper
+        .getContentDownloaderNoTar()
+        .getVersionContent("testservice", "testresource", "abcdef", downloadDir);
     assertEquals(
         "testcontent", new String(Files.readAllBytes(Paths.get(downloadDir.toString(), "abcdef"))));
   }
@@ -95,11 +92,9 @@ public class ContentDownloaderImplTest {
         backupTestHelper
             .getArchiverDirectory()
             .resolve("downloads"); // this dir will be created by getVersionContent
-    assertEquals(
-        downloadDir,
-        backupTestHelper
-            .getContentDownloaderTar()
-            .getVersionContent("testservice", "testresource", "abcdef", downloadDir));
+    backupTestHelper
+        .getContentDownloaderTar()
+        .getVersionContent("testservice", "testresource", "abcdef", downloadDir);
     assertEquals(
         "testcontent1", new String(Files.readAllBytes(Paths.get(downloadDir.toString(), "file1"))));
     assertEquals(
@@ -116,11 +111,12 @@ public class ContentDownloaderImplTest {
         "testservice/testresource/abcdef");
     Path downloadDir = backupTestHelper.getArchiverDirectory().resolve("downloads");
     Files.createDirectories(downloadDir);
-    assertEquals(
-        downloadDir,
-        backupTestHelper
-            .getContentDownloaderTar()
-            .getVersionContent("testservice", "testresource", "abcdef", downloadDir));
+    Files.writeString(
+        Files.createFile(downloadDir.resolve("file1")), "localcontent", StandardCharsets.UTF_8);
+    backupTestHelper
+        .getContentDownloaderNoTar()
+        .getVersionContent("testservice", "testresource", "abcdef", downloadDir);
+    assertEquals("localcontent", new String(Files.readAllBytes(downloadDir.resolve("file1"))));
   }
 
   @Test

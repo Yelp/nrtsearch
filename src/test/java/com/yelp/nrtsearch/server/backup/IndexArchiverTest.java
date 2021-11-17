@@ -147,7 +147,7 @@ public class IndexArchiverTest {
   public void validGlobalStateDir() throws IOException {
     IndexArchiver indexArchiver = new IndexArchiver();
     Files.createFile(backupTestHelper.getArchiverDirectory().resolve("indices.0"));
-    assertEquals(true, indexArchiver.validGlobalStateDir(backupTestHelper.getArchiverDirectory()));
+    assertTrue(indexArchiver.validGlobalStateDir(backupTestHelper.getArchiverDirectory()));
   }
 
   @Test
