@@ -13,19 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.utils;
+package com.yelp.nrtsearch.server.backup;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.util.IOUtils;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -183,11 +178,11 @@ public class TarImplTest {
     long t1 = System.nanoTime();
     lz4Tar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".lz4"), List.of(), List.of());
     long t2 = System.nanoTime();
-    System.out.println("buildTar with lz4 took " + (t2 - t1) / (1000 * 1000 * 1000) + " seconds");
+    System.out.println("buildTar with lz4 took " + (t2 - t1) / (1000 * 1000) + " milliseconds");
 
     lz4Tar.extractTar(Paths.get(args[1] + ".lz4"), Paths.get(args[0], "lz4"));
     long t3 = System.nanoTime();
-    System.out.println("extractTar with lz4 took " + (t3 - t2) / (1000 * 1000 * 1000) + " seconds");
+    System.out.println("extractTar with lz4 took " + (t3 - t2) / (1000 * 1000) + "milliseconds");
 
     // gzip
     TarImpl gzipTar = new TarImpl(Tar.CompressionMode.GZIP);
@@ -195,7 +190,7 @@ public class TarImplTest {
     gzipTar.buildTar(Paths.get(args[0]), Paths.get(args[1] + ".gzip"), List.of(), List.of());
     t2 = System.nanoTime();
     System.out.println(
-        "buildTar with with gzip took " + (t2 - t1) / (1000 * 1000 * 1000) + " seconds");
+        "buildTar with with gzip took " + (t2 - t1) / (1000 * 1000) + " milliseconds");
 
     gzipTar.extractTar(Paths.get(args[1] + ".gzip"), Paths.get(args[0], "gzip"));
     t3 = System.nanoTime();

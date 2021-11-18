@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.utils;
+package com.yelp.nrtsearch.server.backup;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
@@ -36,11 +36,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import net.jpountz.lz4.LZ4FrameInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
 public class ArchiverTest {

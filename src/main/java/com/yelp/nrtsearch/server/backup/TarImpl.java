@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.utils;
+package com.yelp.nrtsearch.server.backup;
 
 import com.google.inject.Inject;
 import java.io.BufferedInputStream;
@@ -129,7 +129,7 @@ public class TarImpl implements Tar {
       Collection<String> parentDirectoriesToInclude)
       throws IOException {
     if (!Files.exists(sourceDir)) {
-      throw new IOException("source directory doesn't exist: " + sourceDir);
+      throw new IOException("source path doesn't exist: " + sourceDir);
     }
     addFilestoTarGz(
         sourceDir.toString(),

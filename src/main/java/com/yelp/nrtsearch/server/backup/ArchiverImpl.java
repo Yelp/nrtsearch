@@ -13,47 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.utils;
+package com.yelp.nrtsearch.server.backup;
 
-import com.amazonaws.event.ProgressEvent;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.amazonaws.services.s3.transfer.Download;
-import com.amazonaws.services.s3.transfer.PersistableTransfer;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
-import com.amazonaws.services.s3.transfer.Upload;
-import com.amazonaws.services.s3.transfer.internal.S3ProgressListener;
+import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.s3.transfer.*;
 import com.google.inject.Inject;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.SequenceInputStream;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Enumeration;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.UUID;
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicLong;
 import net.jpountz.lz4.LZ4FrameInputStream;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
@@ -64,6 +35,11 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * This implementation is deprecated. IndexArchiver is the current implementation that facilitates
+ * incremental backups and faster downloads.
+ */
+@Deprecated
 public class ArchiverImpl implements Archiver {
   private static final int NUM_S3_THREADS = 20;
   public static final String DELIMITER = "/";
@@ -120,7 +96,7 @@ public class ArchiverImpl implements Archiver {
     final Path versionDirectory = resourceDestDirectory.resolve(versionHash);
     final Path currentDirectory = resourceDestDirectory.resolve("current");
     final Path tempCurrentLink = resourceDestDirectory.resolve(getTmpName());
-    final Path relativVersionDirectory = Paths.get(versionHash);
+    final Path relativeVersionDirectory = Paths.get(versionHash);
     logger.info(
         "Downloading resource {} for service {} version {} to directory {}",
         resource,
@@ -130,7 +106,7 @@ public class ArchiverImpl implements Archiver {
     getVersionContent(serviceName, resource, versionHash, versionDirectory);
     try {
       logger.info("Point current version symlink to new resource {}", resource);
-      Files.createSymbolicLink(tempCurrentLink, relativVersionDirectory);
+      Files.createSymbolicLink(tempCurrentLink, relativeVersionDirectory);
       Files.move(tempCurrentLink, currentDirectory, StandardCopyOption.REPLACE_EXISTING);
     } finally {
       if (Files.exists(tempCurrentLink)) {
@@ -239,7 +215,8 @@ public class ArchiverImpl implements Archiver {
         String.format("%s/%s/%s", serviceName, resource, versionHash);
     PutObjectRequest request =
         new PutObjectRequest(bucketName, absoluteResourcePath, path.toFile());
-    request.setGeneralProgressListener(new S3ProgressListenerImpl(serviceName, resource, "upload"));
+    request.setGeneralProgressListener(
+        new ContentDownloaderImpl.S3ProgressListenerImpl(serviceName, resource, "upload"));
     Upload upload = transferManager.upload(request);
     try {
       upload.waitForUploadResult();
@@ -399,7 +376,7 @@ public class ArchiverImpl implements Archiver {
           transferManager.download(
               new GetObjectRequest(bucketName, absoluteResourcePath),
               tmpFile.toFile(),
-              new S3ProgressListenerImpl(serviceName, resource, "download"));
+              new ContentDownloaderImpl.S3ProgressListenerImpl(serviceName, resource, "download"));
       try {
         download.waitForCompletion();
         logger.info("S3 Download complete");
@@ -424,7 +401,12 @@ public class ArchiverImpl implements Archiver {
       }
       final Path tmpDirectory = parentDirectory.resolve(getTmpName());
       try {
+        long tarBefore = System.nanoTime();
+        logger.info("Extract tar started...");
         tar.extractTar(tarArchiveInputStream, tmpDirectory);
+        long tarAfter = System.nanoTime();
+        logger.info(
+            "Extract tar time " + (tarAfter - tarBefore) / (1000 * 1000 * 1000) + " seconds");
         Files.move(tmpDirectory, destDirectory);
       } finally {
         if (Files.exists(tmpDirectory)) {
@@ -480,58 +462,6 @@ public class ArchiverImpl implements Archiver {
       for (final Path entry : stream) {
         logger.info("Cleaning up old directory: {}", entry);
         FileUtils.deleteDirectory(entry.toFile());
-      }
-    }
-  }
-
-  private static class S3ProgressListenerImpl implements S3ProgressListener {
-    private static final Logger logger = LoggerFactory.getLogger(S3ProgressListenerImpl.class);
-
-    private static final long LOG_THRESHOLD_BYTES = 1024 * 1024 * 500; // 500 MB
-    private static final long LOG_THRESHOLD_SECONDS = 30;
-
-    private final String serviceName;
-    private final String resource;
-    private final String operation;
-
-    private final Semaphore lock = new Semaphore(1);
-    private final AtomicLong totalBytesTransferred = new AtomicLong();
-    private long bytesTransferredSinceLastLog = 0;
-    private LocalDateTime lastLoggedTime = LocalDateTime.now();
-
-    public S3ProgressListenerImpl(String serviceName, String resource, String operation) {
-      this.serviceName = serviceName;
-      this.resource = resource;
-      this.operation = operation;
-    }
-
-    @Override
-    public void onPersistableTransfer(PersistableTransfer persistableTransfer) {}
-
-    @Override
-    public void progressChanged(ProgressEvent progressEvent) {
-      long totalBytes = totalBytesTransferred.addAndGet(progressEvent.getBytesTransferred());
-
-      boolean acquired = lock.tryAcquire();
-
-      if (acquired) {
-        try {
-          bytesTransferredSinceLastLog += progressEvent.getBytesTransferred();
-          long secondsSinceLastLog =
-              Duration.between(lastLoggedTime, LocalDateTime.now()).getSeconds();
-
-          if (bytesTransferredSinceLastLog > LOG_THRESHOLD_BYTES
-              || secondsSinceLastLog > LOG_THRESHOLD_SECONDS) {
-            logger.info(
-                String.format(
-                    "service: %s, resource: %s, %s transferred bytes: %s",
-                    serviceName, resource, operation, totalBytes));
-            bytesTransferredSinceLastLog = 0;
-            lastLoggedTime = LocalDateTime.now();
-          }
-        } finally {
-          lock.release();
-        }
       }
     }
   }

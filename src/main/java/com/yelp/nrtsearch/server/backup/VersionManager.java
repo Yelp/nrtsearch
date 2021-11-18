@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.utils;
+package com.yelp.nrtsearch.server.backup;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.DeleteObjectRequest;
@@ -29,16 +29,22 @@ public class VersionManager {
   private final AmazonS3 s3;
   private final String bucketName;
 
-  VersionManager(final AmazonS3 s3, final String bucketName) {
+  public VersionManager(final AmazonS3 s3, final String bucketName) {
     this.s3 = s3;
     this.bucketName = bucketName;
   }
 
+  /**
+   * @param serviceName
+   * @param resourceName
+   * @return -1 if no prior versions found else most recent version number of this resource
+   * @throws IOException
+   */
   /*
   Gets the latest version number of a service and a resource
   Returns: The latest version number in s3 of a service and resource
   */
-  long getLatestVersionNumber(String serviceName, String resourceName) throws IOException {
+  public long getLatestVersionNumber(String serviceName, String resourceName) throws IOException {
     final String versionPath = String.format("%s/_version/%s", serviceName, resourceName);
     long maxVersion = getListedLatestVersionNumber(versionPath);
     return ensureLatestVersionNumber(versionPath, maxVersion);
@@ -130,5 +136,21 @@ public class VersionManager {
     DeleteObjectRequest deleteObjectRequest = new DeleteObjectRequest(bucketName, resourceKey);
     s3.deleteObject(deleteObjectRequest);
     return true;
+  }
+
+  /**
+   * @param serviceName name of cluster or service
+   * @param resource name of index or resource
+   * @param version name or versionHash of specific entity/file within namespace
+   *     serviceName/resource
+   * @throws IOException
+   */
+  public String getVersionString(
+      final String serviceName, final String resource, final String version) throws IOException {
+    final String absoluteResourcePath =
+        String.format("%s/_version/%s/%s", serviceName, resource, version);
+    try (final S3Object s3Object = s3.getObject(bucketName, absoluteResourcePath)) {
+      return IOUtils.toString(s3Object.getObjectContent());
+    }
   }
 }

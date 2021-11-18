@@ -15,12 +15,12 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
-import com.yelp.nrtsearch.server.utils.Archiver;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -155,6 +155,10 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
     FileUtil.deleteAllFiles(Paths.get(archiveDirectory, resourceDataDirectory));
   }
 
+  /**
+   * Returns: path to "current" dir containing symlink to point to versionHash dirName that contains
+   * index data
+   */
   public Path downloadArtifact(
       String serviceName, String resourceName, INDEXED_DATA_TYPE indexDataType) {
     String resource;
@@ -169,16 +173,6 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       return archiver.download(serviceName, resource);
     } catch (IOException e) {
       throw new RuntimeException(e);
-    }
-  }
-
-  public static class RestorePathInfo {
-    public final Path dataPath;
-    public final Path metadataPath;
-
-    RestorePathInfo(Path dataPath, Path metadataPath) {
-      this.dataPath = dataPath;
-      this.metadataPath = metadataPath;
     }
   }
 

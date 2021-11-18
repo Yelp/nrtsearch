@@ -17,13 +17,13 @@ package com.yelp.nrtsearch.server.grpc;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.RestoreStateHandler;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.plugins.Plugin;
-import com.yelp.nrtsearch.server.utils.Archiver;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
