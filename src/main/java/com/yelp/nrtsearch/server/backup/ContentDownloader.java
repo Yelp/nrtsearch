@@ -25,10 +25,9 @@ public interface ContentDownloader {
    * @param resource name of index or resource
    * @param hash name or hash of specific entity/file within namespace serviceName/resource
    * @param destDirectory local Path to download the serviceName/resource/hash to
-   * @returns destDirectory
    * @throws IOException
    */
-  Path getVersionContent(
+  void getVersionContent(
       final String serviceName, final String resource, final String hash, final Path destDirectory)
       throws IOException;
 

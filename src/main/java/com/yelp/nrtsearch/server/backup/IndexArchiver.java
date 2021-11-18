@@ -17,7 +17,11 @@ package com.yelp.nrtsearch.server.backup;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;

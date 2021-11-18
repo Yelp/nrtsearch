@@ -15,7 +15,10 @@
  */
 package com.yelp.nrtsearch.server.backup;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.util.Collection;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;

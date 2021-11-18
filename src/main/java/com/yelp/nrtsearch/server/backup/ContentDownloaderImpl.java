@@ -68,7 +68,7 @@ public class ContentDownloaderImpl implements ContentDownloader {
   }
 
   @Override
-  public Path getVersionContent(
+  public void getVersionContent(
       final String serviceName, final String resource, final String hash, final Path destDirectory)
       throws IOException {
     final String absoluteResourcePath = String.format("%s/%s/%s", serviceName, resource, hash);
@@ -107,10 +107,10 @@ public class ContentDownloaderImpl implements ContentDownloader {
       s3InputStream = new FileInputStream(tmpFile.toFile());
     }
 
-    return wrapInputStream(destDirectory, parentDirectory, tmpFile, s3InputStream, hash);
+    wrapInputStream(destDirectory, parentDirectory, tmpFile, s3InputStream, hash);
   }
 
-  private Path wrapInputStream(
+  private void wrapInputStream(
       Path destDirectory,
       Path parentDirectory,
       Path tmpFile,
@@ -127,12 +127,12 @@ public class ContentDownloaderImpl implements ContentDownloader {
     }
     try (final TarArchiveInputStream tarArchiveInputStream =
         new TarArchiveInputStream(compressorInputStream); ) {
-      return extractContent(
+      extractContent(
           destDirectory, parentDirectory, tmpFile, tarArchiveInputStream, s3InputStream, hash);
     }
   }
 
-  private Path extractContent(
+  private void extractContent(
       Path destDirectory,
       Path parentDirectory,
       Path tmpFile,
@@ -142,7 +142,7 @@ public class ContentDownloaderImpl implements ContentDownloader {
       throws IOException {
     if (Files.exists(destDirectory)) {
       logger.info("Directory {} already exists, not re-downloading from Archiver", destDirectory);
-      return destDirectory;
+      return;
     }
     final Path tmpDirectory = parentDirectory.resolve(getTmpName());
     try {
@@ -166,7 +166,6 @@ public class ContentDownloaderImpl implements ContentDownloader {
         Files.delete(tmpFile);
       }
     }
-    return destDirectory;
   }
 
   @Override

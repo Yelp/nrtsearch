@@ -104,13 +104,13 @@ public class BackupDiffManagerTest {
   public static class BackupDiffDirValidatorTest {
     @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-    @Test(expected = RuntimeException.class)
+    @Test(expected = BackupDiffManager.BackupDiffDirValidator.InvalidMetaFileException.class)
     public void baseDirDoesNotExist() throws IOException {
       Path path = folder.newFolder().toPath().resolve("temp");
       BackupDiffManager.BackupDiffDirValidator.validateMetaFile(path);
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test(expected = BackupDiffManager.BackupDiffDirValidator.InvalidMetaFileException.class)
     public void baseDirHasSubDir() throws IOException {
       Path path = folder.newFolder("subDir").toPath();
       Path parentDir = path.getParent();
@@ -118,7 +118,7 @@ public class BackupDiffManagerTest {
       BackupDiffManager.BackupDiffDirValidator.validateMetaFile(parentDir);
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test(expected = BackupDiffManager.BackupDiffDirValidator.InvalidMetaFileException.class)
     public void baseDirHasMultipleFiles() throws IOException {
       File f1 = folder.newFile("file1");
       folder.newFile("file2");

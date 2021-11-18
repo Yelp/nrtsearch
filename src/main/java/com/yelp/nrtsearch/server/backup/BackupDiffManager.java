@@ -22,12 +22,22 @@ import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -115,23 +125,30 @@ public class BackupDiffManager implements Archiver {
   }
 
   public static class BackupDiffDirValidator {
+    public static class InvalidMetaFileException extends RuntimeException {
+
+      public InvalidMetaFileException(String errorMessage) {
+        super(errorMessage);
+      }
+    }
+
     public static Path validateMetaFile(Path downloadedDir) throws IOException {
       List<Path> files = new ArrayList<>();
       if (!Files.exists(downloadedDir)) {
-        throw new RuntimeException(
+        throw new InvalidMetaFileException(
             String.format("File Info Directory %s does not exist locally", downloadedDir));
       }
       try (DirectoryStream<Path> ds = Files.newDirectoryStream(downloadedDir)) {
         for (Path file : ds) {
           if (Files.isDirectory(file)) {
-            throw new RuntimeException(
+            throw new InvalidMetaFileException(
                 String.format(
                     "File Info Directory %s cannot contain subdirs: %s", downloadedDir, file));
           }
           files.add(file.getFileName());
         }
         if (files.size() != 1) {
-          throw new RuntimeException(
+          throw new InvalidMetaFileException(
               String.format(
                   "File Info Directory %s: cannot contain multiple files %s",
                   downloadedDir, files.size()));
@@ -225,8 +242,9 @@ public class BackupDiffManager implements Archiver {
               () -> {
                 try {
                   Path downloadDir = getTmpDir();
-                  return contentDownloader.getVersionContent(
+                  contentDownloader.getVersionContent(
                       serviceName, resource, indexFileName, downloadDir);
+                  return downloadDir;
                 } catch (IOException e) {
                   throw new RuntimeException();
                 }
@@ -385,7 +403,7 @@ public class BackupDiffManager implements Archiver {
           serviceName,
           versionHash,
           tmpPath);
-      Path path = contentDownloader.getVersionContent(serviceName, indexName, versionHash, tmpPath);
+      contentDownloader.getVersionContent(serviceName, indexName, versionHash, tmpPath);
       // confirm there is only 1 file within this directory
       Path metaFile = BackupDiffDirValidator.validateMetaFile(tmpPath);
       return BackupDiffMarshaller.deserializeFileNames(metaFile);
