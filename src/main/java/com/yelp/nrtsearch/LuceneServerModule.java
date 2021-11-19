@@ -31,7 +31,6 @@ public class LuceneServerModule extends AbstractModule {
   private static final String DEFAULT_CONFIG_FILE_RESOURCE =
       "/lucene_server_default_configuration.yaml";
   private final LuceneServer.LuceneServerCommand args;
-  private static final Logger logger = LoggerFactory.getLogger(LuceneServerModule.class);
 
   public LuceneServerModule(LuceneServer.LuceneServerCommand args) {
     this.args = args;
