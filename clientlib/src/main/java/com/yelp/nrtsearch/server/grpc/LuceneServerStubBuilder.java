@@ -20,6 +20,9 @@ import com.yelp.nrtsearch.clientlib.NodeAddressesFileNameResolverProvider;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc.LuceneServerBlockingStub;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc.LuceneServerFutureStub;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc.LuceneServerStub;
+import com.yelp.nrtsearch.server.grpc.codec.LZ4Codec;
+import io.grpc.CompressorRegistry;
+import io.grpc.DecompressorRegistry;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import java.io.Closeable;
@@ -28,6 +31,16 @@ import java.util.concurrent.TimeUnit;
 
 /** Easy entrypoint for clients to create a Lucene Server Stub. */
 public class LuceneServerStubBuilder implements Closeable {
+  // Create registries with LZ4 compression support
+  public static final CompressorRegistry COMPRESSOR_REGISTRY =
+      CompressorRegistry.getDefaultInstance();
+  public static final DecompressorRegistry DECOMPRESSOR_REGISTRY =
+      DecompressorRegistry.getDefaultInstance().with(LZ4Codec.INSTANCE, true);
+
+  static {
+    COMPRESSOR_REGISTRY.register(LZ4Codec.INSTANCE);
+  }
+
   private static final int DEFAULT_UPDATE_INTERVAL = 10 * 1000; // 10 seconds
 
   public ManagedChannel channel;
@@ -48,7 +61,12 @@ public class LuceneServerStubBuilder implements Closeable {
    * @param port server port
    */
   public LuceneServerStubBuilder(String host, int port) {
-    this(ManagedChannelBuilder.forAddress(host, port).usePlaintext().build());
+    this(
+        ManagedChannelBuilder.forAddress(host, port)
+            .decompressorRegistry(DECOMPRESSOR_REGISTRY)
+            .compressorRegistry(COMPRESSOR_REGISTRY)
+            .usePlaintext()
+            .build());
   }
 
   /**
@@ -64,6 +82,8 @@ public class LuceneServerStubBuilder implements Closeable {
     this(
         channelConfig
             .configureChannelBuilder(ManagedChannelBuilder.forAddress(host, port), objectMapper)
+            .decompressorRegistry(DECOMPRESSOR_REGISTRY)
+            .compressorRegistry(COMPRESSOR_REGISTRY)
             .usePlaintext()
             .build());
   }
@@ -115,6 +135,8 @@ public class LuceneServerStubBuilder implements Closeable {
             .defaultLoadBalancingPolicy("round_robin")
             .nameResolverFactory(
                 new NodeAddressesFileNameResolverProvider(objectMapper, updateInterval))
+            .decompressorRegistry(DECOMPRESSOR_REGISTRY)
+            .compressorRegistry(COMPRESSOR_REGISTRY)
             .usePlaintext()
             .build());
   }
@@ -137,6 +159,8 @@ public class LuceneServerStubBuilder implements Closeable {
         channelConfig
             .configureChannelBuilder(ManagedChannelBuilder.forTarget(nodeAddressFile), objectMapper)
             .defaultLoadBalancingPolicy("round_robin")
+            .decompressorRegistry(DECOMPRESSOR_REGISTRY)
+            .compressorRegistry(COMPRESSOR_REGISTRY)
             .nameResolverFactory(
                 new NodeAddressesFileNameResolverProvider(objectMapper, updateInterval))
             .usePlaintext()

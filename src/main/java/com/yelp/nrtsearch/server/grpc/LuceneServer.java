@@ -55,6 +55,7 @@ import io.grpc.ServerInterceptors;
 import io.grpc.Status;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.protobuf.services.ProtoReflectionService;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.hotspot.DefaultExports;
@@ -142,6 +143,8 @@ public class LuceneServer {
                     ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
                     luceneServerConfiguration.getThreadPoolConfiguration()))
             .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+            .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
+            .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
             .build()
             .start();
     logger.info(
@@ -315,6 +318,28 @@ public class LuceneServer {
       RescorerCreator.initialize(configuration, plugins);
       ScriptService.initialize(configuration, plugins);
       SimilarityCreator.initialize(configuration, plugins);
+    }
+
+    /**
+     * Set response compression on the provided {@link StreamObserver}. Should be a valid
+     * compression type from the {@link LuceneServerStubBuilder#COMPRESSOR_REGISTRY}, or empty
+     * string for default. Falls back to uncompressed on any error.
+     *
+     * @param compressionType compression type, or empty string
+     * @param responseObserver observer to set compression on
+     */
+    private void setResponseCompression(
+        String compressionType, StreamObserver<?> responseObserver) {
+      if (!compressionType.isEmpty()) {
+        try {
+          ServerCallStreamObserver<?> serverCallStreamObserver =
+              (ServerCallStreamObserver<?>) responseObserver;
+          serverCallStreamObserver.setCompression(compressionType);
+        } catch (Exception e) {
+          logger.warn(
+              "Unable to set response compression to type '" + compressionType + "' : " + e);
+        }
+      }
     }
 
     @Override
@@ -868,6 +893,8 @@ public class LuceneServer {
         SearchRequest searchRequest, StreamObserver<SearchResponse> searchResponseStreamObserver) {
       try {
         IndexState indexState = globalState.getIndex(searchRequest.getIndexName());
+        setResponseCompression(
+            searchRequest.getResponseCompression(), searchResponseStreamObserver);
         SearchHandler searchHandler = new SearchHandler(searchThreadPoolExecutor);
         SearchResponse reply = searchHandler.handle(indexState, searchRequest);
         searchResponseStreamObserver.onNext(reply);
@@ -913,6 +940,8 @@ public class LuceneServer {
         SearchRequest searchRequest, StreamObserver<Any> searchResponseStreamObserver) {
       try {
         IndexState indexState = globalState.getIndex(searchRequest.getIndexName());
+        setResponseCompression(
+            searchRequest.getResponseCompression(), searchResponseStreamObserver);
         SearchHandler searchHandler = new SearchHandler(searchThreadPoolExecutor);
         SearchResponse reply = searchHandler.handle(indexState, searchRequest);
         searchResponseStreamObserver.onNext(Any.pack(reply));

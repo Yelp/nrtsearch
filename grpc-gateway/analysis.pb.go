@@ -187,11 +187,11 @@ type CustomAnalyzer struct {
 
 	CharFilters             []*NameAndParams          `protobuf:"bytes,1,rep,name=charFilters,proto3" json:"charFilters,omitempty"`                         // Available char filters as of Lucene 8.2.0: htmlstrip, mapping, persian, patternreplace
 	Tokenizer               *NameAndParams            `protobuf:"bytes,2,opt,name=tokenizer,proto3" json:"tokenizer,omitempty"`                             // Specify a Lucene tokenizer (https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/Tokenizer.html). Possible options as of Lucene 8.2.0: keyword, letter, whitespace, edgengram, pathhierarchy, pattern, simplepatternsplit, classic, standard, uax29urlemail, thai, wikipedia.
-	TokenFilters            []*NameAndParams          `protobuf:"bytes,3,rep,name=tokenFilters,proto3" json:"tokenFilters,omitempty"`                       // Specify a Lucene token filter (https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/TokenFilter.html). The possible options can be seen at https://lucene.apache.org/core/8_2_0/analyzers-common/org/apache/lucene/analysis/util/TokenFilterFactory.html or by calling TokenFilterFactory.availableTokenFilters().
+	TokenFilters            []*NameAndParams          `protobuf:"bytes,3,rep,name=tokenFilters,proto3" json:"tokenFilters,omitempty"`                       // Specify a Lucene token filter (https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/TokenFilter.html). The possible options can be seen at https://lucene.apache.org/core/8_2_0/analyzers-common/org/apache/lucene/analysis/util/TokenFilterFactory.html and subclasses of TokenFilter at https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/package-tree.html or by calling TokenFilterFactory.availableTokenFilters().
 	ConditionalTokenFilters []*ConditionalTokenFilter `protobuf:"bytes,4,rep,name=conditionalTokenFilters,proto3" json:"conditionalTokenFilters,omitempty"` // TODO: this is not properly supported yet, the only impl requires a protected terms file. Can support this properly later if needed
 	DefaultMatchVersion     string                    `protobuf:"bytes,5,opt,name=defaultMatchVersion,proto3" json:"defaultMatchVersion,omitempty"`         // Lucene version as LUCENE_X_Y_Z or X.Y.Z, LATEST by default
-	PositionIncrementGap    *IntObject                `protobuf:"bytes,6,opt,name=positionIncrementGap,proto3" json:"positionIncrementGap,omitempty"`
-	OffsetGap               *IntObject                `protobuf:"bytes,7,opt,name=offsetGap,proto3" json:"offsetGap,omitempty"`
+	PositionIncrementGap    *IntObject                `protobuf:"bytes,6,opt,name=positionIncrementGap,proto3" json:"positionIncrementGap,omitempty"`       // Must be >= 0
+	OffsetGap               *IntObject                `protobuf:"bytes,7,opt,name=offsetGap,proto3" json:"offsetGap,omitempty"`                             // Must be >= 0
 }
 
 func (x *CustomAnalyzer) Reset() {
