@@ -262,7 +262,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
 
     @Override
     public SearchResponse.Hit.FieldValue toFieldValue(int index) {
-      return SearchResponse.Hit.FieldValue.newBuilder().setLongValue(index).build();
+      return SearchResponse.Hit.FieldValue.newBuilder().setLongValue(get(index)).build();
     }
   }
 
