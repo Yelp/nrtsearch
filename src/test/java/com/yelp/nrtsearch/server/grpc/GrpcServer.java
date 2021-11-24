@@ -225,6 +225,8 @@ public class GrpcServer {
                     new LuceneServer.LuceneServerImpl(
                             globalState, configuration, archiver, collectorRegistry, plugins)
                         .bindService())
+                .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
+                .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
                 .build()
                 .start();
       } else {
@@ -243,6 +245,8 @@ public class GrpcServer {
                         new LuceneServer.LuceneServerImpl(
                             globalState, configuration, archiver, collectorRegistry, plugins),
                         monitoringInterceptor))
+                .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
+                .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
                 .build()
                 .start();
       }
@@ -266,6 +270,8 @@ public class GrpcServer {
       Server server =
           ServerBuilder.forPort(port)
               .addService(new LuceneServer.ReplicationServerImpl(globalState))
+              .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
+              .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
               .build()
               .start();
       grpcCleanup.register(server);

@@ -137,7 +137,7 @@ public class QueryTest {
 
   @Test
   public void testSearchQueryResponseCompression() {
-    List<String> compressionTypes = Arrays.asList("", "identity", "gzip", "invalid");
+    List<String> compressionTypes = Arrays.asList("", "identity", "gzip", "lz4", "invalid");
 
     for (String compressionType : compressionTypes) {
       SearchResponse searchResponse =
@@ -164,7 +164,7 @@ public class QueryTest {
 
   @Test
   public void testSearchV2ResponseCompression() throws InvalidProtocolBufferException {
-    List<String> compressionTypes = Arrays.asList("", "identity", "gzip", "invalid");
+    List<String> compressionTypes = Arrays.asList("", "identity", "gzip", "lz4", "invalid");
 
     for (String compressionType : compressionTypes) {
       Any anyResponse =
