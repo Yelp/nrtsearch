@@ -77,10 +77,10 @@ public class RestoreHelper implements Callable<Integer> {
             IndexBackupUtils.getResourceMetadata(baseCmd.getResourceName()));
     t2 = System.nanoTime();
     logger.info(
-            "Downloaded service: %s, resource: %s to path: %s. Time taken %s milliseconds",
-            baseCmd.getServiceName(),
-            baseCmd.getResourceName(),
-            downloadPath.toAbsolutePath(),
-            (t2 - t1) / (1000 * 1000));
+        "Downloaded service: %s, resource: %s to path: %s. Time taken %s milliseconds",
+        baseCmd.getServiceName(),
+        baseCmd.getResourceName(),
+        downloadPath.toAbsolutePath(),
+        (t2 - t1) / (1000 * 1000));
   }
 }

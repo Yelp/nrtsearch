@@ -86,8 +86,7 @@ public class GlobalState implements Closeable, Restorable {
     return incArchiver;
   }
 
-  public GlobalState(
-      LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
+  public GlobalState(LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
       throws IOException {
     this(luceneServerConfiguration);
     this.incArchiver = Optional.ofNullable(incArchiver);
