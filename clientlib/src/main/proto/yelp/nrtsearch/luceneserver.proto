@@ -538,7 +538,6 @@ message StartIndexRequest {
     string primaryAddress = 4; //replica, the IP address or host name of the remote primary
     int32 port = 5; //replica, the TCP port of the remote primary
     RestoreIndex restore = 6; // restore index from backup
-    bool disableV0Archiver = 7; //if set to true; use IndexArchiver (IncrementalArchiver)
 }
 
 enum Mode {
@@ -585,7 +584,6 @@ message RefreshResponse {
 
 message CommitRequest {
   string indexName = 1; //index to commit
-  bool disableV0Archiver = 2; //if set to true; use IndexArchiver (IncrementalArchiver)
 }
 
 message CommitResponse {
@@ -716,7 +714,6 @@ message BackupIndexRequest {
     string resourceName = 3; //remote storage namespace qualifier for resource e.g. indexName
     bool completeDirectory = 4; // backup complete directory including all current snapshots if true (may backup corrupt segments if backup is created while indexing is happening), otherwise only backup the required segments and segment files
     bool stream = 5; // if the built tar should be directly streamed to s3, instead of being written to a file first (experimental)
-    bool disableV0Archiver = 6; //if set to true; use IndexArchiver (IncrementalArchiver)
 }
 
 message BackupIndexResponse {

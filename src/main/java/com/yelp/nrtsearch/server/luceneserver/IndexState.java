@@ -699,10 +699,10 @@ public class IndexState implements Closeable, Restorable {
   }
 
   /**
-   * Commit all state and shards. If commitRequest is passed in it will also attempt to use
+   * Commit all state and shards. If backupFromIncArchiver is passed in it will also attempt to use
    * IndexArchiver to upload files to remote storage
    */
-  public synchronized long commit(Optional<CommitRequest> commitRequest) throws IOException {
+  public synchronized long commit(boolean backupFromIncArchiver) throws IOException {
 
     if (saveLoadState == null) {
       initSaveLoadState();
@@ -731,11 +731,9 @@ public class IndexState implements Closeable, Restorable {
     try {
       if (this.getShard(0).isPrimary()
           && globalState.getIncArchiver().isPresent()
-          && commitRequest.isPresent()) {
+          && backupFromIncArchiver) {
         CreateSnapshotRequest createSnapshotRequest =
-            CreateSnapshotRequest.newBuilder()
-                .setIndexName(commitRequest.get().getIndexName())
-                .build();
+            CreateSnapshotRequest.newBuilder().setIndexName(this.name).build();
 
         snapshotId =
             new CreateSnapshotHandler().createSnapshot(this, createSnapshotRequest).getSnapshotId();

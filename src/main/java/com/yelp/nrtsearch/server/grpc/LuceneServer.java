@@ -288,6 +288,8 @@ public class LuceneServer {
     private final CollectorRegistry collectorRegistry;
     private final ThreadPoolExecutor searchThreadPoolExecutor;
     private final String archiveDirectory;
+    private final boolean backupFromIncArchiver;
+    private final boolean restoreFromIncArchiver;
 
     LuceneServerImpl(
         GlobalState globalState,
@@ -302,6 +304,8 @@ public class LuceneServer {
       this.archiveDirectory = configuration.getArchiveDirectory();
       this.collectorRegistry = collectorRegistry;
       this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
+      this.backupFromIncArchiver = configuration.getBackupWithInArchiver();
+      this.restoreFromIncArchiver = configuration.getRestoreFromIncArchiver();
 
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
@@ -526,7 +530,12 @@ public class LuceneServer {
       try {
         IndexState indexState = null;
         StartIndexHandler startIndexHandler =
-            new StartIndexHandler(archiver, incArchiver, archiveDirectory);
+            new StartIndexHandler(
+                archiver,
+                incArchiver,
+                archiveDirectory,
+                backupFromIncArchiver,
+                restoreFromIncArchiver);
         indexState =
             globalState.getIndex(startIndexRequest.getIndexName(), startIndexRequest.hasRestore());
         StartIndexResponse reply = startIndexHandler.handle(indexState, startIndexRequest);
@@ -787,11 +796,7 @@ public class LuceneServer {
             () -> {
               try {
                 IndexState indexState = globalState.getIndex(commitRequest.getIndexName());
-                long gen =
-                    indexState.commit(
-                        commitRequest.getDisableV0Archiver()
-                            ? Optional.of(commitRequest)
-                            : Optional.empty());
+                long gen = indexState.commit(backupFromIncArchiver);
                 CommitResponse reply =
                     CommitResponse.newBuilder()
                         .setGen(gen)
@@ -1338,7 +1343,7 @@ public class LuceneServer {
         IndexState indexState = globalState.getIndex(backupIndexRequest.getIndexName());
         BackupIndexRequestHandler backupIndexRequestHandler =
             new BackupIndexRequestHandler(
-                archiver, incArchiver, archiveDirectory, backupIndexRequest.getDisableV0Archiver());
+                archiver, incArchiver, archiveDirectory, backupFromIncArchiver);
         BackupIndexResponse reply =
             backupIndexRequestHandler.handle(indexState, backupIndexRequest);
         logger.info(String.format("BackupRequestHandler returned results %s", reply.toString()));

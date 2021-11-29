@@ -39,12 +39,21 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
   private final Archiver archiver;
   private final Archiver incArchiver;
   private final String archiveDirectory;
+  private final boolean backupFromIncArchiver;
+  private final boolean restoreFromIncArchiver;
   Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
 
-  public StartIndexHandler(Archiver archiver, Archiver incArchiver, String archiveDirectory) {
+  public StartIndexHandler(
+      Archiver archiver,
+      Archiver incArchiver,
+      String archiveDirectory,
+      boolean backupFromIncArchiver,
+      boolean restoreFromIncArchiver) {
     this.archiver = archiver;
     this.incArchiver = incArchiver;
     this.archiveDirectory = archiveDirectory;
+    this.backupFromIncArchiver = backupFromIncArchiver;
+    this.restoreFromIncArchiver = restoreFromIncArchiver;
   }
 
   @Override
@@ -76,7 +85,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
                     restoreIndex.getServiceName(),
                     restoreIndex.getResourceName(),
                     INDEXED_DATA_TYPE.DATA,
-                    startIndexRequest.getDisableV0Archiver());
+                    restoreFromIncArchiver);
             shardState.setRestored(true);
           } else {
             throw new IllegalStateException("Index " + indexState.name + " already restored");
@@ -107,7 +116,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         shardState.startPrimary(primaryGen, dataPath);
         BackupIndexRequestHandler backupIndexRequestHandler =
             new BackupIndexRequestHandler(
-                archiver, incArchiver, archiveDirectory, startIndexRequest.getDisableV0Archiver());
+                archiver, incArchiver, archiveDirectory, backupFromIncArchiver);
         if (backupIndexRequestHandler.wasBackupPotentiallyInterrupted()) {
           if (backupIndexRequestHandler.getIndexNameOfInterruptedBackup().equals(indexState.name)) {
             backupIndexRequestHandler.interruptedBackupCleanup(

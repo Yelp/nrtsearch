@@ -96,7 +96,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
             backupIndexResponseBuilder,
             backupIndexRequest.getStream());
       } else {
-        indexState.commit(Optional.empty());
+        indexState.commit(false);
 
         CreateSnapshotRequest createSnapshotRequest =
             CreateSnapshotRequest.newBuilder().setIndexName(indexName).build();

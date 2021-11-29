@@ -1714,9 +1714,6 @@
         },
         "stream": {
           "type": "boolean"
-        },
-        "disableV0Archiver": {
-          "type": "boolean"
         }
       }
     },
@@ -1876,21 +1873,6 @@
       "properties": {
         "indexName": {
           "type": "string"
-        },
-        "serviceName": {
-          "type": "string"
-        },
-        "resourceName": {
-          "type": "string"
-        },
-        "completeDirectory": {
-          "type": "boolean"
-        },
-        "stream": {
-          "type": "boolean"
-        },
-        "disableV0Archiver": {
-          "type": "boolean"
         }
       }
     },
@@ -3714,9 +3696,6 @@
         },
         "restore": {
           "$ref": "#/definitions/luceneserverRestoreIndex"
-        },
-        "disableV0Archiver": {
-          "type": "boolean"
         }
       },
       "title": "Start the index"
