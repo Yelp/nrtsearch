@@ -284,6 +284,8 @@ message SearchRequest {
     map<string, Collector> collectors = 21;
     //Stop document collection in search phase after this many documents, 0 for unlimited.
     int32 terminateAfter = 22;
+    //Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to uncompressed. Valid codecs: identity, gzip, lz4
+    string responseCompression = 23;
 }
 
 /* Virtual field used during search */
