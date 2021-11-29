@@ -93,9 +93,8 @@ public class BackupHelper implements Callable<Integer> {
             true);
     t2 = System.nanoTime();
     logger.info(
-        String.format(
             "Time taken to upload data %s milliseconds, versionHash uploaded: %s",
-            (t2 - t1) / (1000 * 1000), versionHashMetadata));
+            (t2 - t1) / (1000 * 1000), versionHashMetadata);
     boolean resultMetadata =
         archiver.blessVersion(
             baseCmd.getServiceName(),

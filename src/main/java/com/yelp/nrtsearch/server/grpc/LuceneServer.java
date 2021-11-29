@@ -102,7 +102,7 @@ public class LuceneServer {
   }
 
   private void start() throws IOException {
-    GlobalState globalState = new GlobalState(luceneServerConfiguration, Optional.of(incArchiver));
+    GlobalState globalState = new GlobalState(luceneServerConfiguration, incArchiver);
 
     registerMetrics();
 
