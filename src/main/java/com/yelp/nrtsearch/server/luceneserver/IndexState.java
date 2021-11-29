@@ -740,39 +740,29 @@ public class IndexState implements Closeable, Restorable {
         // upload data
         Collection<String> segmentFiles = getSegmentFilesInSnapshot(this, snapshotId);
         String resourceData = IndexBackupUtils.getResourceData(this.name);
+        Archiver incArchiver = globalState.getIncArchiver().get();
         String versionHash =
-            globalState
-                .getIncArchiver()
-                .get()
-                .upload(
-                    globalState.configuration.getServiceName(),
-                    resourceData,
-                    this.rootDir,
-                    segmentFiles,
-                    Collections.emptyList(),
-                    true);
-        globalState
-            .getIncArchiver()
-            .get()
-            .blessVersion(globalState.configuration.getServiceName(), resourceData, versionHash);
+            incArchiver.upload(
+                globalState.configuration.getServiceName(),
+                resourceData,
+                this.rootDir,
+                segmentFiles,
+                Collections.emptyList(),
+                true);
+        incArchiver.blessVersion(
+            globalState.configuration.getServiceName(), resourceData, versionHash);
         // upload metadata
         String resourceMetadata = IndexBackupUtils.getResourceMetadata(this.name);
         versionHash =
-            globalState
-                .getIncArchiver()
-                .get()
-                .upload(
-                    globalState.configuration.getServiceName(),
-                    resourceMetadata,
-                    this.globalState.stateDir,
-                    Collections.emptyList(),
-                    Collections.emptyList(),
-                    true);
-        globalState
-            .getIncArchiver()
-            .get()
-            .blessVersion(
-                globalState.configuration.getServiceName(), resourceMetadata, versionHash);
+            incArchiver.upload(
+                globalState.configuration.getServiceName(),
+                resourceMetadata,
+                this.globalState.stateDir,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                true);
+        incArchiver.blessVersion(
+            globalState.configuration.getServiceName(), resourceMetadata, versionHash);
       }
     } finally {
       if (snapshotId != null) {
