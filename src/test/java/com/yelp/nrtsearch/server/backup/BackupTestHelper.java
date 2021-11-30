@@ -164,6 +164,20 @@ public class BackupTestHelper {
     return s3;
   }
 
+  public Path createStateDir(Map<String, String> fileAndContents) throws IOException {
+    Path stateDir = IndexArchiver.getIndexStateDir(archiverDirectory);
+    if (!Files.exists(stateDir)) {
+      Files.createDirectories(stateDir);
+    }
+    for (Map.Entry<String, String> entry : fileAndContents.entrySet()) {
+      Path file = Paths.get(stateDir.toString(), entry.getKey());
+      if (!Files.exists(file)) {
+        Files.writeString(Files.createFile(file), entry.getValue(), StandardCharsets.UTF_8);
+      }
+    }
+    return stateDir;
+  }
+
   public Path createIndexDir(Map<String, String> fileAndContents, Archiver archiver)
       throws IOException {
     Path indexDir = IndexArchiver.getIndexDataDir(archiverDirectory);
@@ -187,6 +201,28 @@ public class BackupTestHelper {
     } else {
       return indexDir;
     }
+  }
+
+  public void uploadBlessAndValidateMetadata(
+      Map<String, String> fileAndContents, Archiver archiver, String service, String resource)
+      throws IOException {
+    Path stateDir = createStateDir(fileAndContents);
+    String versionHash =
+        archiver.upload(
+            service, resource, stateDir, fileAndContents.keySet(), Collections.emptyList(), true);
+    // versionHash is uploaded
+    assertEquals(
+        true,
+        getS3()
+            .doesObjectExist(
+                bucketName, String.format("%s/%s/%s", service, resource, versionHash)));
+    assertEquals(true, archiver.blessVersion(service, resource, versionHash));
+    // latest versionHash exists
+    assertEquals(
+        true,
+        getS3()
+            .doesObjectExist(
+                bucketName, String.format("%s/_version/%s/_latest_version", service, resource)));
   }
 
   public String uploadBlessAndValidate(

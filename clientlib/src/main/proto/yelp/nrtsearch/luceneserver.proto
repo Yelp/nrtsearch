@@ -583,7 +583,7 @@ message RefreshResponse {
 }
 
 message CommitRequest {
-    string indexName = 1; //index to commit
+  string indexName = 1; //index to commit
 }
 
 message CommitResponse {

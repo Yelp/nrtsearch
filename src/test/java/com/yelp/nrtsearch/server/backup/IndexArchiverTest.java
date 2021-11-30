@@ -96,6 +96,43 @@ public class IndexArchiverTest {
   }
 
   @Test
+  public void uploadMetadata() throws IOException {
+    IndexArchiver indexArchiver =
+        new IndexArchiver(
+            null,
+            backupTestHelper.getFileCompressAndUploaderWithTar(),
+            null,
+            backupTestHelper.getVersionManager(),
+            backupTestHelper.getArchiverDirectory());
+    backupTestHelper.uploadBlessAndValidateMetadata(
+        Map.of("indices1", "testcontent1", "indices2", "testcontent2"),
+        indexArchiver,
+        "testservice",
+        "testresource_metadata");
+  }
+
+  @Test
+  public void downloadMetadata() throws IOException {
+    IndexArchiver indexArchiver =
+        new IndexArchiver(
+            null,
+            backupTestHelper.getFileCompressAndUploaderWithTar(),
+            backupTestHelper.getContentDownloaderTar(),
+            backupTestHelper.getVersionManager(),
+            backupTestHelper.getArchiverDirectory());
+    Map<String, String> filesAndContents =
+        Map.of("indices1", "testcontent1", "indices2", "testcontent2");
+    backupTestHelper.uploadBlessAndValidateMetadata(
+        filesAndContents, indexArchiver, "testservice", "testresource_metadata");
+    Path resourcePath = indexArchiver.download("testservice", "testresource_metadata");
+    Path path = IndexArchiver.getIndexStateDir(resourcePath);
+    for (Map.Entry<String, String> entry : filesAndContents.entrySet()) {
+      assertEquals(true, Files.exists(Paths.get(path.toString(), entry.getKey())));
+      assertEquals(entry.getValue(), Files.readString(Paths.get(path.toString(), entry.getKey())));
+    }
+  }
+
+  @Test
   public void deleteVersion() throws IOException {
     IndexArchiver indexArchiver =
         new IndexArchiver(

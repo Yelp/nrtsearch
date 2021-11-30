@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.backup;
 
+import com.google.inject.Inject;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +28,9 @@ import org.slf4j.LoggerFactory;
 
 public class NoTarImpl implements Tar {
   private static final Logger logger = LoggerFactory.getLogger(NoTarImpl.class);
+
+  @Inject
+  public NoTarImpl() {}
 
   @Override
   public void extractTar(Path sourceFile, Path destDir) throws IOException {

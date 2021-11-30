@@ -19,6 +19,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
+import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
@@ -32,11 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -55,6 +52,7 @@ public class GlobalState implements Closeable, Restorable {
   private final int port;
   private final int replicationPort;
   private final ThreadPoolConfiguration threadPoolConfiguration;
+  private Optional<Archiver> incArchiver;
   private int replicaReplicationPortPingInterval;
 
   Logger logger = LoggerFactory.getLogger(GlobalState.class);
@@ -84,7 +82,18 @@ public class GlobalState implements Closeable, Restorable {
   private final ExecutorService fetchService;
   private final ThreadPoolExecutor searchThreadPoolExecutor;
 
+  public Optional<Archiver> getIncArchiver() {
+    return incArchiver;
+  }
+
+  public GlobalState(LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
+      throws IOException {
+    this(luceneServerConfiguration);
+    this.incArchiver = Optional.ofNullable(incArchiver);
+  }
+
   public GlobalState(LuceneServerConfiguration luceneServerConfiguration) throws IOException {
+    this.incArchiver = Optional.empty();
     this.nodeName = luceneServerConfiguration.getNodeName();
     this.stateDir = Paths.get(luceneServerConfiguration.getStateDir());
     this.indexDirBase = Paths.get(luceneServerConfiguration.getIndexDir());

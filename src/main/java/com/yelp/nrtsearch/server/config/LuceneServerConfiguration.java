@@ -73,6 +73,8 @@ public class LuceneServerConfiguration {
   private final String pluginSearchPath;
   private final String serviceName;
   private final boolean restoreState;
+  private final boolean restoreFromIncArchiver;
+  private final boolean backupWithIncArchiver;
   private final ThreadPoolConfiguration threadPoolConfiguration;
   private final IndexPreloadConfig preloadConfig;
   private final QueryCacheConfig queryCacheConfig;
@@ -128,6 +130,8 @@ public class LuceneServerConfiguration {
         configReader.getString("pluginSearchPath", DEFAULT_PLUGIN_SEARCH_PATH.toString());
     serviceName = configReader.getString("serviceName", DEFAULT_SERVICE_NAME);
     restoreState = configReader.getBoolean("restoreState", false);
+    restoreFromIncArchiver = configReader.getBoolean("restoreFromIncArchiver", false);
+    backupWithIncArchiver = configReader.getBoolean("backupWithIncArchiver", false);
     preloadConfig = IndexPreloadConfig.fromConfig(configReader);
     queryCacheConfig = QueryCacheConfig.fromConfig(configReader);
     warmerConfig = WarmerConfig.fromConfig(configReader);
@@ -210,6 +214,14 @@ public class LuceneServerConfiguration {
 
   public boolean getRestoreState() {
     return restoreState;
+  }
+
+  public boolean getRestoreFromIncArchiver() {
+    return restoreFromIncArchiver;
+  }
+
+  public boolean getBackupWithInArchiver() {
+    return backupWithIncArchiver;
   }
 
   public IndexPreloadConfig getPreloadConfig() {

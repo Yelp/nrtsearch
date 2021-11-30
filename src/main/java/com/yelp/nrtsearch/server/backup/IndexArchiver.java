@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.backup;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.inject.Inject;
+import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -41,6 +43,7 @@ public class IndexArchiver implements Archiver {
   private final VersionManager versionManager;
   private final Path archiverDirectory;
 
+  @Inject
   public IndexArchiver(
       BackupDiffManager backupDiffManager,
       FileCompressAndUploader fileCompressAndUploader,
@@ -69,47 +72,64 @@ public class IndexArchiver implements Archiver {
 
   @Override
   public Path download(String serviceName, String resource) throws IOException {
-    String indexDataResource = getIndexDataResourceName(resource);
-    if (versionManager.getLatestVersionNumber(serviceName, indexDataResource) < 0) {
-      logger.warn(
-          String.format(
-              "No prior backups found for service: %s, resource: %s. Nothing to download",
-              serviceName, getIndexDataResourceName(resource)));
-      return null;
-    }
-    String versionHash = getVersionHash(serviceName, indexDataResource);
-
     final Path resourceDestDirectory = archiverDirectory.resolve(resource);
-    final Path versionDirectory = resourceDestDirectory.resolve(versionHash);
     final Path currentDirectory = resourceDestDirectory.resolve("current");
     final Path tempCurrentLink = resourceDestDirectory.resolve(getTmpName());
-    final Path relativeVersionDirectory = Paths.get(versionHash);
+    Path relativeVersionDirectory;
 
-    final Path downloadedIndexDir = getIndexDataDir(versionDirectory.resolve(resource));
-    Files.createDirectories(downloadedIndexDir);
-    // get index_data
-    Path tmpIndexDir = backupDiffManager.download(serviceName, indexDataResource);
-    try (DirectoryStream<Path> ds = Files.newDirectoryStream(tmpIndexDir)) {
-      for (Path file : ds) {
-        Files.move(
-            file, downloadedIndexDir.resolve(file.getFileName()), StandardCopyOption.ATOMIC_MOVE);
+    if (IndexBackupUtils.isMetadata(resource)) {
+      if (versionManager.getLatestVersionNumber(serviceName, resource) < 0) {
+        logger.warn(
+            String.format(
+                "No prior backups found for service: %s, resource: %s. Nothing to download",
+                serviceName, getIndexDataResourceName(resource)));
+        return null;
       }
-      Files.delete(tmpIndexDir);
-    }
-    // get index_state
-    final Path indexStateDir = getIndexStateDir(versionDirectory.resolve(resource));
-    Files.createDirectories(indexStateDir);
-    final Path tempStateDir = resourceDestDirectory.resolve(getTmpName());
-    contentDownloader.getVersionContent(
-        serviceName, getIndexStateResourceName(resource), versionHash, tempStateDir);
-    try (DirectoryStream<Path> ds = Files.newDirectoryStream(getIndexStateDir(tempStateDir))) {
-      for (Path file : ds) {
-        Files.move(file, indexStateDir.resolve(file.getFileName()), StandardCopyOption.ATOMIC_MOVE);
+      String versionHash = getVersionHash(serviceName, resource);
+      final Path versionDirectory = resourceDestDirectory.resolve(versionHash);
+      relativeVersionDirectory = Paths.get(versionHash);
+      contentDownloader.getVersionContent(serviceName, resource, versionHash, versionDirectory);
+
+    } else {
+      String indexDataResource = getIndexDataResourceName(resource);
+      if (versionManager.getLatestVersionNumber(serviceName, indexDataResource) < 0) {
+        logger.warn(
+            String.format(
+                "No prior backups found for service: %s, resource: %s. Nothing to download",
+                serviceName, getIndexDataResourceName(resource)));
+        return null;
       }
-      if (Files.exists(getIndexStateDir(tempStateDir))) {
-        Files.delete(getIndexStateDir(tempStateDir));
+      String versionHash = getVersionHash(serviceName, indexDataResource);
+      final Path versionDirectory = resourceDestDirectory.resolve(versionHash);
+      relativeVersionDirectory = Paths.get(versionHash);
+
+      final Path downloadedIndexDir = getIndexDataDir(versionDirectory.resolve(resource));
+      Files.createDirectories(downloadedIndexDir);
+      // get index_data
+      Path tmpIndexDir = backupDiffManager.download(serviceName, indexDataResource);
+      try (DirectoryStream<Path> ds = Files.newDirectoryStream(tmpIndexDir)) {
+        for (Path file : ds) {
+          Files.move(
+              file, downloadedIndexDir.resolve(file.getFileName()), StandardCopyOption.ATOMIC_MOVE);
+        }
+        Files.delete(tmpIndexDir);
       }
-      Files.delete(tempStateDir);
+      // get index_state
+      final Path indexStateDir = getIndexStateDir(versionDirectory.resolve(resource));
+      Files.createDirectories(indexStateDir);
+      final Path tempStateDir = resourceDestDirectory.resolve(getTmpName());
+      contentDownloader.getVersionContent(
+          serviceName, getIndexStateResourceName(resource), versionHash, tempStateDir);
+      try (DirectoryStream<Path> ds = Files.newDirectoryStream(getIndexStateDir(tempStateDir))) {
+        for (Path file : ds) {
+          Files.move(
+              file, indexStateDir.resolve(file.getFileName()), StandardCopyOption.ATOMIC_MOVE);
+        }
+        if (Files.exists(getIndexStateDir(tempStateDir))) {
+          Files.delete(getIndexStateDir(tempStateDir));
+        }
+        Files.delete(tempStateDir);
+      }
     }
 
     try {
@@ -153,9 +173,13 @@ public class IndexArchiver implements Archiver {
           getIndexStateDir(path),
           true);
       return diffVersionHash;
+    } else if (validGlobalStateDir(path)) {
+      String versionHash = UUID.randomUUID().toString();
+      fileCompressAndUploader.upload(serviceName, resource, versionHash, path, true);
+      return versionHash;
     } else {
       throw new UnsupportedOperationException(
-          "IndexArchiver only supports archiving valid index directory");
+          "IndexArchiver only supports archiving valid index directory and valid state directory");
     }
   }
 
@@ -196,8 +220,12 @@ public class IndexArchiver implements Archiver {
   @Override
   public boolean blessVersion(String serviceName, String resource, String versionHash)
       throws IOException {
-    return backupDiffManager.blessVersion(
-        serviceName, getIndexDataResourceName(resource), versionHash);
+    if (IndexBackupUtils.isMetadata(resource)) {
+      return versionManager.blessVersion(serviceName, resource, versionHash);
+    } else {
+      return backupDiffManager.blessVersion(
+          serviceName, getIndexDataResourceName(resource), versionHash);
+    }
   }
 
   public static String getIndexDataResourceName(String resource) {
@@ -211,10 +239,14 @@ public class IndexArchiver implements Archiver {
   @Override
   public boolean deleteVersion(String serviceName, String resource, String versionHash)
       throws IOException {
-    return versionManager.deleteVersion(
-            serviceName, getIndexDataResourceName(resource), versionHash)
-        && versionManager.deleteVersion(
-            serviceName, getIndexStateResourceName(resource), versionHash);
+    if (IndexBackupUtils.isMetadata(resource)) {
+      return versionManager.deleteVersion(serviceName, resource, versionHash);
+    } else {
+      return versionManager.deleteVersion(
+              serviceName, getIndexDataResourceName(resource), versionHash)
+          && versionManager.deleteVersion(
+              serviceName, getIndexStateResourceName(resource), versionHash);
+    }
   }
 
   @Override

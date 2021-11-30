@@ -25,6 +25,7 @@ import com.google.common.collect.Sets;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
+import com.google.inject.name.Named;
 import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
@@ -80,6 +81,7 @@ public class LuceneServer {
   private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
   private static final Splitter COMMA_SPLITTER = Splitter.on(",");
   private final Archiver archiver;
+  private final Archiver incArchiver;
   private final CollectorRegistry collectorRegistry;
   private final PluginsService pluginsService;
 
@@ -90,21 +92,22 @@ public class LuceneServer {
   @Inject
   public LuceneServer(
       LuceneServerConfiguration luceneServerConfiguration,
-      Archiver archiver,
+      @Named("legacyArchiver") Archiver archiver,
+      @Named("incArchiver") Archiver incArchiver,
       CollectorRegistry collectorRegistry) {
     this.luceneServerConfiguration = luceneServerConfiguration;
     this.archiver = archiver;
+    this.incArchiver = incArchiver;
     this.collectorRegistry = collectorRegistry;
     this.pluginsService = new PluginsService(luceneServerConfiguration);
   }
 
   private void start() throws IOException {
-    GlobalState globalState = new GlobalState(luceneServerConfiguration);
+    GlobalState globalState = new GlobalState(luceneServerConfiguration, incArchiver);
 
     registerMetrics();
 
     List<Plugin> plugins = pluginsService.loadPlugins();
-
     String serviceName = luceneServerConfiguration.getServiceName();
     String nodeName = luceneServerConfiguration.getNodeName();
 
@@ -112,7 +115,11 @@ public class LuceneServer {
       logger.info("Loading state for any previously backed up indexes");
       List<String> indexes =
           RestoreStateHandler.restore(
-              archiver, globalState, luceneServerConfiguration.getServiceName());
+              archiver,
+              incArchiver,
+              globalState,
+              luceneServerConfiguration.getServiceName(),
+              luceneServerConfiguration.getRestoreFromIncArchiver());
       for (String index : indexes) {
         logger.info("Loaded state for index " + index);
       }
@@ -134,6 +141,7 @@ public class LuceneServer {
                         globalState,
                         luceneServerConfiguration,
                         archiver,
+                        incArchiver,
                         collectorRegistry,
                         plugins),
                     monitoringInterceptor))
@@ -279,21 +287,28 @@ public class LuceneServer {
         JsonFormat.printer().omittingInsignificantWhitespace();
     private final GlobalState globalState;
     private final Archiver archiver;
+    private final Archiver incArchiver;
     private final CollectorRegistry collectorRegistry;
     private final ThreadPoolExecutor searchThreadPoolExecutor;
     private final String archiveDirectory;
+    private final boolean backupFromIncArchiver;
+    private final boolean restoreFromIncArchiver;
 
     LuceneServerImpl(
         GlobalState globalState,
         LuceneServerConfiguration configuration,
         Archiver archiver,
+        Archiver incArchiver,
         CollectorRegistry collectorRegistry,
         List<Plugin> plugins) {
       this.globalState = globalState;
       this.archiver = archiver;
+      this.incArchiver = incArchiver;
       this.archiveDirectory = configuration.getArchiveDirectory();
       this.collectorRegistry = collectorRegistry;
       this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
+      this.backupFromIncArchiver = configuration.getBackupWithInArchiver();
+      this.restoreFromIncArchiver = configuration.getRestoreFromIncArchiver();
 
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
@@ -539,7 +554,13 @@ public class LuceneServer {
         StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
       try {
         IndexState indexState = null;
-        StartIndexHandler startIndexHandler = new StartIndexHandler(archiver, archiveDirectory);
+        StartIndexHandler startIndexHandler =
+            new StartIndexHandler(
+                archiver,
+                incArchiver,
+                archiveDirectory,
+                backupFromIncArchiver,
+                restoreFromIncArchiver);
         indexState =
             globalState.getIndex(startIndexRequest.getIndexName(), startIndexRequest.hasRestore());
         StartIndexResponse reply = startIndexHandler.handle(indexState, startIndexRequest);
@@ -800,7 +821,7 @@ public class LuceneServer {
             () -> {
               try {
                 IndexState indexState = globalState.getIndex(commitRequest.getIndexName());
-                long gen = indexState.commit();
+                long gen = indexState.commit(backupFromIncArchiver);
                 CommitResponse reply =
                     CommitResponse.newBuilder()
                         .setGen(gen)
@@ -1350,7 +1371,8 @@ public class LuceneServer {
       try {
         IndexState indexState = globalState.getIndex(backupIndexRequest.getIndexName());
         BackupIndexRequestHandler backupIndexRequestHandler =
-            new BackupIndexRequestHandler(archiver, archiveDirectory);
+            new BackupIndexRequestHandler(
+                archiver, incArchiver, archiveDirectory, backupFromIncArchiver);
         BackupIndexResponse reply =
             backupIndexRequestHandler.handle(indexState, backupIndexRequest);
         logger.info(String.format("BackupRequestHandler returned results %s", reply.toString()));

@@ -15,6 +15,9 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import static com.yelp.nrtsearch.server.luceneserver.BackupIndexRequestHandler.getSegmentFilesInSnapshot;
+import static com.yelp.nrtsearch.server.luceneserver.BackupIndexRequestHandler.releaseSnapshot;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -29,11 +32,7 @@ import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
-import com.yelp.nrtsearch.server.grpc.Field;
-import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.grpc.FieldType;
-import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
-import com.yelp.nrtsearch.server.grpc.SettingsRequest;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
@@ -58,13 +57,7 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -705,8 +698,11 @@ public class IndexState implements Closeable, Restorable {
     }
   }
 
-  /** Commit all state and shards. */
-  public synchronized long commit() throws IOException {
+  /**
+   * Commit all state and shards. If backupFromIncArchiver is passed in it will also attempt to use
+   * IndexArchiver to upload files to remote storage
+   */
+  public synchronized long commit(boolean backupFromIncArchiver) throws IOException {
 
     if (saveLoadState == null) {
       initSaveLoadState();
@@ -731,6 +727,48 @@ public class IndexState implements Closeable, Restorable {
     JsonObject saveState = new JsonObject();
     saveState.add("state", getSaveState());
     saveLoadState.save(saveState);
+    SnapshotId snapshotId = null;
+    try {
+      if (this.getShard(0).isPrimary()
+          && globalState.getIncArchiver().isPresent()
+          && backupFromIncArchiver) {
+        CreateSnapshotRequest createSnapshotRequest =
+            CreateSnapshotRequest.newBuilder().setIndexName(this.name).build();
+
+        snapshotId =
+            new CreateSnapshotHandler().createSnapshot(this, createSnapshotRequest).getSnapshotId();
+        // upload data
+        Collection<String> segmentFiles = getSegmentFilesInSnapshot(this, snapshotId);
+        String resourceData = IndexBackupUtils.getResourceData(this.name);
+        Archiver incArchiver = globalState.getIncArchiver().get();
+        String versionHash =
+            incArchiver.upload(
+                globalState.configuration.getServiceName(),
+                resourceData,
+                this.rootDir,
+                segmentFiles,
+                Collections.emptyList(),
+                true);
+        incArchiver.blessVersion(
+            globalState.configuration.getServiceName(), resourceData, versionHash);
+        // upload metadata
+        String resourceMetadata = IndexBackupUtils.getResourceMetadata(this.name);
+        versionHash =
+            incArchiver.upload(
+                globalState.configuration.getServiceName(),
+                resourceMetadata,
+                this.globalState.stateDir,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                true);
+        incArchiver.blessVersion(
+            globalState.configuration.getServiceName(), resourceMetadata, versionHash);
+      }
+    } finally {
+      if (snapshotId != null) {
+        releaseSnapshot(this, this.name, snapshotId);
+      }
+    }
 
     return gen;
   }

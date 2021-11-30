@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.cli;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.backup.*;
+import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -58,7 +59,9 @@ public class RestoreHelper implements Callable<Integer> {
 
   public void restore(Archiver archiver) throws IOException {
     long t1 = System.nanoTime();
-    Path downloadPath = archiver.download(baseCmd.getServiceName(), baseCmd.getResourceName());
+    Path downloadPath =
+        archiver.download(
+            baseCmd.getServiceName(), IndexBackupUtils.getResourceData(baseCmd.getResourceName()));
     long t2 = System.nanoTime();
     logger.info(
         String.format(
@@ -67,5 +70,17 @@ public class RestoreHelper implements Callable<Integer> {
             baseCmd.getResourceName(),
             downloadPath.toAbsolutePath(),
             (t2 - t1) / (1000 * 1000)));
+    t1 = System.nanoTime();
+    downloadPath =
+        archiver.download(
+            baseCmd.getServiceName(),
+            IndexBackupUtils.getResourceMetadata(baseCmd.getResourceName()));
+    t2 = System.nanoTime();
+    logger.info(
+        "Downloaded service: %s, resource: %s to path: %s. Time taken %s milliseconds",
+        baseCmd.getServiceName(),
+        baseCmd.getResourceName(),
+        downloadPath.toAbsolutePath(),
+        (t2 - t1) / (1000 * 1000));
   }
 }

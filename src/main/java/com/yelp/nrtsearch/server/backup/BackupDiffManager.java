@@ -22,6 +22,7 @@ import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import com.google.inject.Inject;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileInputStream;
@@ -182,6 +183,7 @@ public class BackupDiffManager implements Archiver {
     }
   }
 
+  @Inject
   public BackupDiffManager(
       final ContentDownloader contentDownloader,
       final FileCompressAndUploader fileCompressAndUploader,

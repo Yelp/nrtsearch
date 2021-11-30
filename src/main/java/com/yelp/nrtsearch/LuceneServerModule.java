@@ -15,46 +15,30 @@
  */
 package com.yelp.nrtsearch;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.auth.profile.ProfilesConfigFile;
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
-import com.yelp.nrtsearch.server.backup.*;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LuceneServer;
 import io.prometheus.client.CollectorRegistry;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class LuceneServerModule extends AbstractModule {
   private static final String DEFAULT_CONFIG_FILE_RESOURCE =
       "/lucene_server_default_configuration.yaml";
   private final LuceneServer.LuceneServerCommand args;
-  private static final Logger logger = LoggerFactory.getLogger(LuceneServerModule.class);
 
   public LuceneServerModule(LuceneServer.LuceneServerCommand args) {
     this.args = args;
   }
 
-  @Inject
-  @Singleton
-  @Provides
-  public Tar providesTar() {
-    return new TarImpl(Tar.CompressionMode.LZ4);
+  @Override
+  protected void configure() {
+    install(new ArchiverModule());
   }
 
   @Inject
@@ -62,56 +46,6 @@ public class LuceneServerModule extends AbstractModule {
   @Provides
   public CollectorRegistry providesCollectorRegistry() {
     return new CollectorRegistry();
-  }
-
-  @Inject
-  @Singleton
-  @Provides
-  protected AmazonS3 providesAmazonS3(LuceneServerConfiguration luceneServerConfiguration) {
-    if (luceneServerConfiguration
-        .getBotoCfgPath()
-        .equals(LuceneServerConfiguration.DEFAULT_BOTO_CFG_PATH.toString())) {
-      return AmazonS3ClientBuilder.standard()
-          .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
-          .withEndpointConfiguration(
-              new AwsClientBuilder.EndpointConfiguration("dummyService", "dummyRegion"))
-          .build();
-    } else {
-      Path botoCfgPath = Paths.get(luceneServerConfiguration.getBotoCfgPath());
-      final ProfilesConfigFile profilesConfigFile = new ProfilesConfigFile(botoCfgPath.toFile());
-      final AWSCredentialsProvider awsCredentialsProvider =
-          new ProfileCredentialsProvider(profilesConfigFile, "default");
-      AmazonS3 s3ClientInterim =
-          AmazonS3ClientBuilder.standard().withCredentials(awsCredentialsProvider).build();
-      String region = s3ClientInterim.getBucketLocation(luceneServerConfiguration.getBucketName());
-      // In useast-1, the region is returned as "US" which is an equivalent to "us-east-1"
-      // https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/model/Region.html#US_Standard
-      // However, this causes an UnknownHostException so we override it to the full region name
-      if (region.equals("US")) {
-        region = "us-east-1";
-      }
-      String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
-      logger.info(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
-      return AmazonS3ClientBuilder.standard()
-          .withCredentials(awsCredentialsProvider)
-          .withEndpointConfiguration(
-              new AwsClientBuilder.EndpointConfiguration(serviceEndpoint, region))
-          .build();
-    }
-  }
-
-  @Inject
-  @Singleton
-  @Provides
-  protected Archiver providesArchiver(
-      LuceneServerConfiguration luceneServerConfiguration, AmazonS3 amazonS3, Tar tar) {
-    Path archiveDir = Paths.get(luceneServerConfiguration.getArchiveDirectory());
-    return new ArchiverImpl(
-        amazonS3,
-        luceneServerConfiguration.getBucketName(),
-        archiveDir,
-        tar,
-        luceneServerConfiguration.getDownloadAsStream());
   }
 
   @Inject

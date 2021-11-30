@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.backup;
 
 import com.amazonaws.services.s3.transfer.TransferManager;
+import com.google.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -36,6 +37,7 @@ public class FileCompressAndUploader {
   private final TransferManager transferManager;
   private final String bucketName;
 
+  @Inject
   public FileCompressAndUploader(Tar tar, TransferManager transferManager, String bucketName) {
     this.tar = tar;
     this.transferManager = transferManager;

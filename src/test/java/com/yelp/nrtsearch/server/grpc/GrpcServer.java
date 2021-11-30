@@ -223,7 +223,7 @@ public class GrpcServer {
             ServerBuilder.forPort(port)
                 .addService(
                     new LuceneServer.LuceneServerImpl(
-                            globalState, configuration, archiver, collectorRegistry, plugins)
+                            globalState, configuration, archiver, null, collectorRegistry, plugins)
                         .bindService())
                 .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
                 .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
@@ -243,7 +243,7 @@ public class GrpcServer {
                 .addService(
                     ServerInterceptors.intercept(
                         new LuceneServer.LuceneServerImpl(
-                            globalState, configuration, archiver, collectorRegistry, plugins),
+                            globalState, configuration, archiver, null, collectorRegistry, plugins),
                         monitoringInterceptor))
                 .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
                 .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
@@ -462,7 +462,7 @@ public class GrpcServer {
                 .build();
         startIndexBuilder.setRestore(restoreIndex);
         RestoreStateHandler.restore(
-            grpcServer.getArchiver(), grpcServer.getGlobalState(), "testservice");
+            grpcServer.getArchiver(), null, grpcServer.getGlobalState(), "testservice", false);
       }
       blockingStub.startIndex(startIndexBuilder.build());
 

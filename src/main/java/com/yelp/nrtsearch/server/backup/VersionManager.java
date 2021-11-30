@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.backup;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.google.inject.Inject;
 import java.io.IOException;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -29,6 +30,7 @@ public class VersionManager {
   private final AmazonS3 s3;
   private final String bucketName;
 
+  @Inject
   public VersionManager(final AmazonS3 s3, final String bucketName) {
     this.s3 = s3;
     this.bucketName = bucketName;
