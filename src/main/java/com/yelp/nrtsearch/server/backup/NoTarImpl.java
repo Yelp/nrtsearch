@@ -46,7 +46,7 @@ public class NoTarImpl implements Tar {
     File file = destDirectory.resolve(fileName).toFile();
     try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
       long copied = IOUtils.copyLarge(inputStream, fileOutputStream);
-      logger.info(
+      logger.debug(
           "Total Size of file in bytes: "
               + file.length()
               + " bytes copied to destination "
@@ -83,7 +83,7 @@ public class NoTarImpl implements Tar {
       try (FileInputStream fileInputStream = new FileInputStream(file);
           BufferedOutputStream outStream = new BufferedOutputStream(destinationStream)) {
         long copied = IOUtils.copyLarge(fileInputStream, outStream);
-        logger.info("Total Size of file copied to destination is " + copied);
+        logger.debug("Total Size of file copied to destination is " + copied);
       }
     }
   }

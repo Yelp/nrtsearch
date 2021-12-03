@@ -79,8 +79,8 @@ public class FileCompressAndUploader {
       throws IOException {
     final String absoluteResourcePath = String.format("%s/%s/%s", serviceName, resource, fileName);
     long uncompressedSize = getTotalSize(sourceDir.toString(), fileName);
-    logger.info("Uploading: " + absoluteResourcePath);
-    logger.info("Uncompressed total size: " + uncompressedSize);
+    logger.debug("Uploading: " + absoluteResourcePath);
+    logger.debug("Uncompressed total size: " + uncompressedSize);
     TarUploadOutputStream uploadStream = null;
     try {
       uploadStream =

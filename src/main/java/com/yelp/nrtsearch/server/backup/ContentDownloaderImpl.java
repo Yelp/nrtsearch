@@ -84,15 +84,15 @@ public class ContentDownloaderImpl implements ContentDownloader {
           new GetObjectMetadataRequest(bucketName, absoluteResourcePath);
       ObjectMetadata fullMetadata =
           transferManager.getAmazonS3Client().getObjectMetadata(metadataRequest);
-      logger.info("Full object size: " + fullMetadata.getContentLength());
+      logger.debug("Full object size: " + fullMetadata.getContentLength());
 
       // get metadata for the 1st file part, needed to find the total number of parts
       ObjectMetadata partMetadata =
           transferManager.getAmazonS3Client().getObjectMetadata(metadataRequest.withPartNumber(1));
       int numParts = partMetadata.getPartCount() != null ? partMetadata.getPartCount() : 1;
-      logger.info("Object parts: " + numParts);
+      logger.debug("Object parts: " + numParts);
       s3InputStream = getObjectStream(absoluteResourcePath, numParts);
-      logger.info("Object streaming started...");
+      logger.debug("Object streaming started...");
     } else {
       Download download =
           transferManager.download(
@@ -101,7 +101,7 @@ public class ContentDownloaderImpl implements ContentDownloader {
               new ContentDownloaderImpl.S3ProgressListenerImpl(serviceName, resource, "download"));
       try {
         download.waitForCompletion();
-        logger.info("S3 Download complete");
+        logger.debug("S3 Download complete");
       } catch (InterruptedException e) {
         throw new IOException("S3 Download failed", e);
       }
@@ -149,7 +149,7 @@ public class ContentDownloaderImpl implements ContentDownloader {
     final Path tmpDirectory = parentDirectory.resolve(getTmpName());
     try {
       long tarBefore = System.nanoTime();
-      logger.info("Extract tar started...");
+      logger.debug("Extract tar started...");
       if (tar instanceof TarImpl) {
         tar.extractTar(tarArchiveInputStream, tmpDirectory);
       } else if (tar instanceof NoTarImpl) {
@@ -158,7 +158,8 @@ public class ContentDownloaderImpl implements ContentDownloader {
         throw new RuntimeException("Invalid Tar instance initialized");
       }
       long tarAfter = System.nanoTime();
-      logger.info("Extract tar time " + (tarAfter - tarBefore) / (1000 * 1000 * 1000) + " seconds");
+      logger.debug(
+          "Extract tar time " + (tarAfter - tarBefore) / (1000 * 1000 * 1000) + " seconds");
       Files.move(tmpDirectory, destDirectory);
     } finally {
       if (Files.exists(tmpDirectory)) {
