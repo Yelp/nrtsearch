@@ -492,4 +492,18 @@ public class ReplicationServerTest {
     SearchResponse.Hit secondHit = searchResponse.getHits(1);
     LuceneServerTest.checkHits(secondHit);
   }
+
+  @Test
+  public void testAddDocumentsOnReplicaFailure() throws IOException, InterruptedException {
+    // startIndex primary
+    GrpcServer.TestServer testServerPrimary =
+        new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
+
+    // startIndex replica
+    GrpcServer.TestServer testServerReplica =
+        new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
+    testServerReplica.addDocuments();
+    assertEquals(testServerReplica.error, true);
+    assertEquals(testServerReplica.completed, false);
+  }
 }

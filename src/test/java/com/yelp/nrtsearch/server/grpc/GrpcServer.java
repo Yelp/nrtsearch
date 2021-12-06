@@ -345,7 +345,9 @@ public class GrpcServer {
         throws IOException, InterruptedException {
       Stream<AddDocumentRequest> addDocumentRequestStream = getAddDocumentRequestStream(fileName);
       addDocumentsFromStream(addDocumentRequestStream);
-      refresh();
+      if (addDocumentResponse != null) {
+        refresh();
+      }
       return addDocumentResponse;
     }
 
