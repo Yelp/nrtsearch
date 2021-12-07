@@ -20,6 +20,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.ScriptCacheConfig;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -56,12 +57,12 @@ public class ScriptService {
     // add provided javascript engine
     scriptEngineMap.put("js", new JsScriptEngine());
 
-    // TODO make configurable
+    ScriptCacheConfig scriptCacheConfig = configuration.getScriptCacheConfig();
     scriptCache =
         CacheBuilder.newBuilder()
-            .concurrencyLevel(4)
-            .maximumSize(1000)
-            .expireAfterAccess(1, TimeUnit.DAYS)
+            .concurrencyLevel(scriptCacheConfig.getConcurrencyLevel())
+            .maximumSize(scriptCacheConfig.getMaximumSize())
+            .expireAfterAccess(scriptCacheConfig.getExpirationTime(), TimeUnit.DAYS)
             .build(new ScriptLoader(this));
   }
 
