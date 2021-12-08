@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Class to manage to compilation of scripts. Scripting languages can be added through the addition
@@ -62,7 +61,8 @@ public class ScriptService {
         CacheBuilder.newBuilder()
             .concurrencyLevel(scriptCacheConfig.getConcurrencyLevel())
             .maximumSize(scriptCacheConfig.getMaximumSize())
-            .expireAfterAccess(scriptCacheConfig.getExpirationTime(), TimeUnit.DAYS)
+            .expireAfterAccess(
+                scriptCacheConfig.getExpirationTime(), scriptCacheConfig.getTimeUnit())
             .build(new ScriptLoader(this));
   }
 

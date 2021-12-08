@@ -15,9 +15,12 @@
  */
 package com.yelp.nrtsearch.server.config;
 
+import static com.yelp.nrtsearch.server.config.ScriptCacheConfig.getTimeUnitFromString;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 import java.io.ByteArrayInputStream;
+import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 public class ScriptCacheConfigTest {
@@ -33,21 +36,47 @@ public class ScriptCacheConfigTest {
     assertEquals(ScriptCacheConfig.DEFAULT_CONCURRENCY_LEVEL, config.getConcurrencyLevel());
     assertEquals(ScriptCacheConfig.DEFAULT_SIZE, config.getMaximumSize());
     assertEquals(ScriptCacheConfig.DEFAULT_EXPIRATION_TIME, config.getExpirationTime());
+    assertEquals(TimeUnit.valueOf(ScriptCacheConfig.DEFAULT_TIME_UNIT), config.getTimeUnit());
   }
 
   @Test
-  public void testConfig() {
+  public void testValidConfig() {
     String configFile =
         String.join(
             "\n",
             "nodeName: \"lucene_server_foo\"",
             "ScriptCacheConfig:",
-            "  concurrencyLevel: 4",
-            "  maximumSize: 1000",
-            "  expirationTime: 1");
+            "  concurrencyLevel: 2",
+            "  maximumSize: 2000",
+            "  expirationTime: 5000",
+            "  timeUnit: \"MILLISECONDS\"");
     ScriptCacheConfig config = getConfig(configFile);
-    assertEquals(4, config.getConcurrencyLevel());
-    assertEquals(1000, config.getMaximumSize());
-    assertEquals(1, config.getExpirationTime());
+    assertEquals(2, config.getConcurrencyLevel());
+    assertEquals(2000, config.getMaximumSize());
+    assertEquals(5000, config.getExpirationTime());
+    assertEquals(TimeUnit.MILLISECONDS, config.getTimeUnit());
+  }
+
+  @Test
+  public void testInvalidTimeUnitConfig() {
+    String configFile =
+        String.join(
+            "\n", "nodeName: \"lucene_server_foo\"", "ScriptCacheConfig:", "  timeUnit: \"ABCD\"");
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> {
+              ScriptCacheConfig config = getConfig(configFile);
+              assertEquals(
+                  TimeUnit.valueOf(ScriptCacheConfig.DEFAULT_TIME_UNIT), config.getTimeUnit());
+            });
+    assertEquals(exception.getMessage(), "No enum constant java.util.concurrent.TimeUnit.ABCD");
+  }
+
+  @Test
+  public void testNullTimeUnitConfig() {
+    IllegalArgumentException exception =
+        assertThrows(IllegalArgumentException.class, () -> getTimeUnitFromString(null));
+    assertEquals(exception.getMessage(), "script cache expiration time unit cannot be null");
   }
 }

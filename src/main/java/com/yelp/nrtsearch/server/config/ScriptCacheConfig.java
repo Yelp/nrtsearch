@@ -15,15 +15,19 @@
  */
 package com.yelp.nrtsearch.server.config;
 
+import java.util.concurrent.TimeUnit;
+
 /** Configuration class for script cache. */
 public class ScriptCacheConfig {
   static final int DEFAULT_CONCURRENCY_LEVEL = 4;
   static final int DEFAULT_SIZE = 1000;
-  static final int DEFAULT_EXPIRATION_TIME = 1;
+  static final long DEFAULT_EXPIRATION_TIME = 1;
+  static final String DEFAULT_TIME_UNIT = "DAYS";
 
   private final int concurrencyLevel;
   private final int maximumSize;
-  private final int expirationTime;
+  private final long expirationTime;
+  private final TimeUnit timeUnit;
 
   /**
    * Create instance from provided configuration reader.
@@ -35,9 +39,25 @@ public class ScriptCacheConfig {
     int concurrencyLevel =
         configReader.getInteger("ScriptCacheConfig.concurrencyLevel", DEFAULT_CONCURRENCY_LEVEL);
     int maximumSize = configReader.getInteger("ScriptCacheConfig.maximumSize", DEFAULT_SIZE);
-    int expirationTime =
-        configReader.getInteger("ScriptCacheConfig.expirationTime", DEFAULT_EXPIRATION_TIME);
-    return new ScriptCacheConfig(concurrencyLevel, maximumSize, expirationTime);
+    long expirationTime =
+        configReader.getLong("ScriptCacheConfig.expirationTime", DEFAULT_EXPIRATION_TIME);
+    TimeUnit timeUnit =
+        getTimeUnitFromString(
+            configReader.getString("ScriptCacheConfig.timeUnit", DEFAULT_TIME_UNIT));
+    return new ScriptCacheConfig(concurrencyLevel, maximumSize, expirationTime, timeUnit);
+  }
+
+  /**
+   * @param timeUnitStr
+   * @return expiration time unit from config
+   * @throws IllegalArgumentException
+   */
+  public static TimeUnit getTimeUnitFromString(String timeUnitStr) throws IllegalArgumentException {
+    if (timeUnitStr == null) {
+      throw new IllegalArgumentException("script cache expiration time unit cannot be null");
+    }
+    TimeUnit timeUnit = TimeUnit.valueOf(timeUnitStr);
+    return timeUnit;
   }
 
   /**
@@ -47,10 +67,12 @@ public class ScriptCacheConfig {
    * @param maximumSize cache size
    * @param expirationTime cache expiration time config
    */
-  public ScriptCacheConfig(int concurrencyLevel, int maximumSize, int expirationTime) {
+  public ScriptCacheConfig(
+      int concurrencyLevel, int maximumSize, long expirationTime, TimeUnit timeUnit) {
     this.concurrencyLevel = concurrencyLevel;
     this.maximumSize = maximumSize;
     this.expirationTime = expirationTime;
+    this.timeUnit = timeUnit;
   }
 
   /** Get cache concurrency level. */
@@ -64,7 +86,12 @@ public class ScriptCacheConfig {
   }
 
   /** Get expiration time. */
-  public int getExpirationTime() {
+  public long getExpirationTime() {
     return expirationTime;
+  }
+
+  /** Get time unit for expiration. */
+  public TimeUnit getTimeUnit() {
+    return timeUnit;
   }
 }
