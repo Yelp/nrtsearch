@@ -503,7 +503,12 @@ public class ReplicationServerTest {
     GrpcServer.TestServer testServerReplica =
         new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
     testServerReplica.addDocuments();
-    assertEquals(testServerReplica.error, true);
-    assertEquals(testServerReplica.completed, false);
+    assertEquals(false, testServerReplica.completed);
+    assertEquals(true, testServerReplica.error);
+    assertTrue(
+        testServerReplica
+            .throwable
+            .getMessage()
+            .contains("Adding documents to an index on a replica node is not supported"));
   }
 }
