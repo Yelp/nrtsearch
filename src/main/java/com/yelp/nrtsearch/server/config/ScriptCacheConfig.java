@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.config;
 
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 /** Configuration class for script cache. */
@@ -48,15 +49,16 @@ public class ScriptCacheConfig {
   }
 
   /**
-   * @param timeUnitStr
+   * @param timeUnitStr time unit string
    * @return expiration time unit from config
-   * @throws IllegalArgumentException
+   * @throws IllegalArgumentException if timeUnitStr is invalid and NullPointerException if it is
+   *     null
    */
-  public static TimeUnit getTimeUnitFromString(String timeUnitStr) throws IllegalArgumentException {
-    if (timeUnitStr == null) {
-      throw new IllegalArgumentException("script cache expiration time unit cannot be null");
-    }
-    TimeUnit timeUnit = TimeUnit.valueOf(timeUnitStr);
+  public static TimeUnit getTimeUnitFromString(String timeUnitStr) {
+    TimeUnit timeUnit =
+        TimeUnit.valueOf(
+            Objects.requireNonNull(
+                timeUnitStr, "script cache expiration time unit cannot be null"));
     return timeUnit;
   }
 
@@ -65,7 +67,8 @@ public class ScriptCacheConfig {
    *
    * @param concurrencyLevel cache concurrency level
    * @param maximumSize cache size
-   * @param expirationTime cache expiration time config
+   * @param expirationTime cache expiration time
+   * @param timeUnit cache expiration time unit
    */
   public ScriptCacheConfig(
       int concurrencyLevel, int maximumSize, long expirationTime, TimeUnit timeUnit) {

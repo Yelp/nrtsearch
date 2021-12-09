@@ -63,20 +63,14 @@ public class ScriptCacheConfigTest {
         String.join(
             "\n", "nodeName: \"lucene_server_foo\"", "ScriptCacheConfig:", "  timeUnit: \"ABCD\"");
     IllegalArgumentException exception =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> {
-              ScriptCacheConfig config = getConfig(configFile);
-              assertEquals(
-                  TimeUnit.valueOf(ScriptCacheConfig.DEFAULT_TIME_UNIT), config.getTimeUnit());
-            });
+        assertThrows(IllegalArgumentException.class, () -> getConfig(configFile));
     assertEquals(exception.getMessage(), "No enum constant java.util.concurrent.TimeUnit.ABCD");
   }
 
   @Test
   public void testNullTimeUnitConfig() {
-    IllegalArgumentException exception =
-        assertThrows(IllegalArgumentException.class, () -> getTimeUnitFromString(null));
+    NullPointerException exception =
+        assertThrows(NullPointerException.class, () -> getTimeUnitFromString(null));
     assertEquals(exception.getMessage(), "script cache expiration time unit cannot be null");
   }
 }
