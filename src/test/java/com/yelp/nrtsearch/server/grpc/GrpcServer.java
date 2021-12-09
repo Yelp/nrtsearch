@@ -317,6 +317,7 @@ public class GrpcServer {
     public AddDocumentResponse addDocumentResponse;
     public boolean completed = false;
     public boolean error = false;
+    public Throwable throwable = null;
 
     public TestServer(
         GrpcServer grpcServer, boolean startIndex, Mode mode, int primaryGen, boolean startOldIndex)
@@ -345,7 +346,9 @@ public class GrpcServer {
         throws IOException, InterruptedException {
       Stream<AddDocumentRequest> addDocumentRequestStream = getAddDocumentRequestStream(fileName);
       addDocumentsFromStream(addDocumentRequestStream);
-      refresh();
+      if (!error) {
+        refresh();
+      }
       return addDocumentResponse;
     }
 
@@ -363,6 +366,7 @@ public class GrpcServer {
             @Override
             public void onError(Throwable t) {
               error = true;
+              throwable = t;
               finishLatch.countDown();
             }
 

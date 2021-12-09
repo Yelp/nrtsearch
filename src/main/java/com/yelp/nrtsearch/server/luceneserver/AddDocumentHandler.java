@@ -314,6 +314,10 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
     }
 
     private void addDocuments(Queue<Document> documents, ShardState shardState) throws IOException {
+      if (shardState.isReplica()) {
+        throw new IllegalStateException(
+            "Adding documents to an index on a replica node is not supported");
+      }
       shardState.writer.addDocuments(
           (Iterable<Document>)
               () ->
