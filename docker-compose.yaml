@@ -11,19 +11,6 @@ services:
 
   replica-node-1:
     build: ./
-    command: >
-      bash -c "/user/app/build/install/nrtsearch/bin/lucene-server /user/app/docker-compose-config/lucene_server_configuration_replica_1.yaml"
-    hostname: replica-node-1
-
-  replica-node-2:
-    build: ./
-    command: >
-      bash -c "/user/app/build/install/nrtsearch/bin/lucene-server /user/app/docker-compose-config/lucene_server_configuration_replica_2.yaml"
-    hostname: replica-node-2
-
-#  grpc-gateway:
-#    build: ./grpc-gateway
-#    container_name: grpc-gateway
-#    hostname: grpc-gateway
-#    volumes:
-#      - 'myshare:/shared'
+    command: ./docker-compose-config/entrypoint_replica.sh
+    deploy:
+      replicas: 3

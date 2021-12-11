@@ -1,5 +1,5 @@
-nodeName: "lucene_server_replica_2"
-hostName: "replica-node-2"
+nodeName: "node-name-replica"
+hostName: "host-name-replica"
 port: "8002"
 replicationPort: "8003"
 stateDir: "/user/app/replica_state"

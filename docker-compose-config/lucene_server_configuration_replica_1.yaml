@@ -1,9 +1,0 @@
-nodeName: "lucene_server_replica_1"
-hostName: "replica-node-1"
-port: "8002"
-replicationPort: "8003"
-stateDir: "/user/app/replica_state"
-indexDir: "/user/app/replica_index_base"
-threadPoolConfiguration:
-  maxSearchingThreads: 16
-  maxIndexingThreads: 4
