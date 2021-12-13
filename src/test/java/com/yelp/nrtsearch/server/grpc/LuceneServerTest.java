@@ -30,13 +30,16 @@ import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.backup.ArchiverImpl;
 import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.search.cache.NrtQueryCache;
 import io.findify.s3mock.S3Mock;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
 import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,6 +58,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryCache;
 import org.hamcrest.core.IsCollectionContaining;
 import org.junit.After;
 import org.junit.Before;
@@ -1225,6 +1230,24 @@ public class LuceneServerTest {
     HealthCheckResponse response =
         blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames("index2").build());
     assertEquals(response.getHealth(), TransferStatusCode.Done);
+  }
+
+  @Test
+  public void testQueryCache() {
+    QueryCache queryCache = IndexSearcher.getDefaultQueryCache();
+    assertTrue(queryCache instanceof NrtQueryCache);
+
+    String configStr = String.join("\n", "queryCache:", "  enabled: false");
+    LuceneServerConfiguration configuration =
+        new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    LuceneServerImpl.initQueryCache(configuration);
+    assertNull(IndexSearcher.getDefaultQueryCache());
+
+    configStr = String.join("\n", "queryCache:", "  enabled: true");
+    configuration = new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    LuceneServerImpl.initQueryCache(configuration);
+    queryCache = IndexSearcher.getDefaultQueryCache();
+    assertTrue(queryCache instanceof NrtQueryCache);
   }
 
   public static List<VirtualField> getQueryVirtualFields() {

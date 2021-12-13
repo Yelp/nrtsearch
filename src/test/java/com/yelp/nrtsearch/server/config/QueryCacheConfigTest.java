@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.config;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -36,6 +37,7 @@ public class QueryCacheConfigTest {
   public void testDefault() {
     String configFile = "nodeName: \"lucene_server_foo\"";
     QueryCacheConfig config = getConfig(configFile);
+    assertTrue(config.getEnabled());
     assertEquals(config.getMaxQueries(), QueryCacheConfig.DEFAULT_MAX_QUERIES);
     assertEquals(config.getMaxMemoryBytes(), (32L * 1024 * 1024));
     assertEquals(config.getSkipCacheFactor(), QueryCacheConfig.DEFAULT_SKIP_CACHE_FACTOR, 0.0);
@@ -54,12 +56,14 @@ public class QueryCacheConfigTest {
             "\n",
             "nodeName: \"lucene_server_foo\"",
             "queryCache:",
+            "  enabled: false",
             "  maxQueries: 5000",
             "  maxMemory: '128MB'",
             "  minDocs: 7000",
             "  minSizeRatio: 0.05",
             "  skipCacheFactor: 400");
     QueryCacheConfig config = getConfig(configFile);
+    assertFalse(config.getEnabled());
     assertEquals(config.getMaxQueries(), 5000);
     assertEquals(config.getMaxMemoryBytes(), (128L * 1024 * 1024));
     assertEquals(config.getSkipCacheFactor(), 400.0, 0.0);

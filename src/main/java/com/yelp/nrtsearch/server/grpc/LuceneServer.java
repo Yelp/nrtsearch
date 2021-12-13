@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.grpc;
 import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE;
 
 import com.google.api.HttpBody;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
@@ -43,6 +44,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
+import com.yelp.nrtsearch.server.luceneserver.search.cache.NrtQueryCache;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.monitoring.*;
@@ -69,7 +71,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LRUQueryCache;
+import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -314,14 +316,18 @@ public class LuceneServer {
       initExtendableComponents(configuration, plugins);
     }
 
-    private void initQueryCache(LuceneServerConfiguration configuration) {
+    @VisibleForTesting
+    static void initQueryCache(LuceneServerConfiguration configuration) {
       QueryCacheConfig cacheConfig = configuration.getQueryCacheConfig();
-      LRUQueryCache queryCache =
-          new LRUQueryCache(
-              cacheConfig.getMaxQueries(),
-              cacheConfig.getMaxMemoryBytes(),
-              cacheConfig.getLeafPredicate(),
-              cacheConfig.getSkipCacheFactor());
+      QueryCache queryCache = null;
+      if (cacheConfig.getEnabled()) {
+        queryCache =
+            new NrtQueryCache(
+                cacheConfig.getMaxQueries(),
+                cacheConfig.getMaxMemoryBytes(),
+                cacheConfig.getLeafPredicate(),
+                cacheConfig.getSkipCacheFactor());
+      }
       IndexSearcher.setDefaultQueryCache(queryCache);
     }
 
