@@ -85,6 +85,7 @@ public class LuceneServerConfiguration {
   private final boolean syncInitialNrtPoint;
   private final boolean indexVerbose;
   private final FileCopyConfig fileCopyConfig;
+  private final ScriptCacheConfig scriptCacheConfig;
 
   private final YamlConfigReader configReader;
   private final long maxConnectionAgeForReplication;
@@ -142,6 +143,7 @@ public class LuceneServerConfiguration {
     indexVerbose = configReader.getBoolean("indexVerbose", false);
     fileCopyConfig = FileCopyConfig.fromConfig(configReader);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
+    scriptCacheConfig = ScriptCacheConfig.fromConfig(configReader);
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
@@ -262,6 +264,10 @@ public class LuceneServerConfiguration {
 
   public YamlConfigReader getConfigReader() {
     return configReader;
+  }
+
+  public ScriptCacheConfig getScriptCacheConfig() {
+    return scriptCacheConfig;
   }
 
   /**
