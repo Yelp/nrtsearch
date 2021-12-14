@@ -20,8 +20,8 @@ This version has been tested with docker version and docker-compose version:
   shell$ docker-compose -v
   docker-compose version 1.27.4, build 40524192
 
-Starting Docker Compose
------------------------------
+1. Starting Containers
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 There is a Dockerfile in the main directory, which is used by docker-compose to build the image used for both the primary and replica nodes.   Currently there are 3 replicas started, but that can be increased in the docker-compose.yaml file.
 
@@ -30,13 +30,13 @@ There is a Dockerfile in the main directory, which is used by docker-compose to 
   shell% docker-compose -f docker-compose.yaml up
 
 Indexing and Replication
------------------------------
+"""""""""""""""""""""""""""
 
 There are configuration files, and one data file, under the sub-directory docker-compose-config.
 
 At the start of containers, no index is created. The index has to be started, documents entered in the primary, and commited.   When the replicas are started, they register with the primary. After the primary commits the documents, they are synced with the replicas. A step-by-step example is below.
 
-Primary: Start Index and Add Documents
+2. Primary: Start Index and Add Documents
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Start primary index, and add docs for indexing:
@@ -51,7 +51,7 @@ Start primary index, and add docs for indexing:
   # ./build/install/nrtsearch/bin/lucene-client -h primary-node -p 8000 startIndex -f docker-compose-config/startIndex_primary.json
   # ./build/install/nrtsearch/bin/lucene-client -h primary-node -p 8000 addDocuments -i testIdx -f docker-compose-config/docs.csv -t csv
 
-Replica: Start Index
+3. Replica: Start Index
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Next go into any one of the replicas (i.e. nrtsearch_replica-node-1 here), and run the commands to start the index and register with the primary.  Do **not** enter docs:
@@ -65,7 +65,7 @@ Next go into any one of the replicas (i.e. nrtsearch_replica-node-1 here), and r
   # ./build/install/nrtsearch/bin/lucene-client -h replica-node-1 -p 8002 registerFields -f docker-compose-config/registerFields.json
   # ./build/install/nrtsearch/bin/lucene-client -h replica-node-1 -p 8002 startIndex -f docker-compose-config/startIndex_replica.json
 
-Primary: Commit Documents
+4. Primary: Commit Documents
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Commit the documents on the Primary
@@ -75,7 +75,7 @@ Commit the documents on the Primary
   shell% docker exec -it $PRIMARY_CONTAINER_ID sh
   # ./build/install/nrtsearch/bin/lucene-client -h primary-node -p 8000 commit -i testIdx
 
-Replica: Search
+5. Replica: Search Should Work
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The search should now work on any of the replicas where the the index was started and registered on the primary.
@@ -98,7 +98,7 @@ The search should now work on any of the replicas where the the index was starte
   }
 
 Logging
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""""""""""
 
 To view the logs in the containers use docker-compose logs:
 
@@ -110,7 +110,7 @@ To view the logs in the containers use docker-compose logs:
   primary-node      | [INFO ] 2021-12-13 18:58:28.530 [main] LuceneServer - Server started, listening on 8001 for replication messages
 
 Stop
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+"""""""""""""""""""""""""""
 
 To stop all the containers use docker-compose
 
