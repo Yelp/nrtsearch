@@ -268,9 +268,9 @@ public class LuceneServer {
 
     @Override
     public Integer call() throws Exception {
-      Injector injector = Guice.createInjector(new LuceneServerModule(this));
       LuceneServer luceneServer;
       try {
+        Injector injector = Guice.createInjector(new LuceneServerModule(this));
         luceneServer = injector.getInstance(LuceneServer.class);
         luceneServer.start();
       } catch (Throwable t) {
