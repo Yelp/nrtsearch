@@ -15,11 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.yelp.nrtsearch.server.grpc.FileMetadata;
-import com.yelp.nrtsearch.server.grpc.FilesMetadata;
-import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
-import com.yelp.nrtsearch.server.grpc.NodeInfo;
-import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import java.io.IOException;
@@ -30,11 +26,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.lucene.replicator.nrt.CopyJob;
+import org.apache.lucene.replicator.nrt.*;
 import org.apache.lucene.replicator.nrt.CopyState;
-import org.apache.lucene.replicator.nrt.FileMetaData;
-import org.apache.lucene.replicator.nrt.NodeCommunicationException;
-import org.apache.lucene.replicator.nrt.ReplicaNode;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.store.Directory;
 import org.slf4j.Logger;
@@ -75,7 +68,13 @@ public class NRTReplicaNode extends ReplicaNode {
     jobs.setName("R" + id + ".copyJobs");
     jobs.setDaemon(true);
     jobs.start();
-    start(primaryGen);
+    if (!this.primaryAddress.isPrimaryAvailable()) {
+      // HACK: The default replica pull sync will not check the primary's availability.
+      // We set the curPrimaryGen into -1 to skip the sync when the primary is down.
+      start(-1);
+    } else {
+      start(primaryGen);
+    }
   }
 
   @Override

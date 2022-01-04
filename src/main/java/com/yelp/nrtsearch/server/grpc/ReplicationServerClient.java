@@ -17,13 +17,16 @@ package com.yelp.nrtsearch.server.grpc;
 
 import com.google.protobuf.GeneratedMessageV3;
 import com.yelp.nrtsearch.server.luceneserver.SimpleCopyJob.FileChunkStreamingIterator;
+import io.grpc.ConnectivityState;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.io.Closeable;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
@@ -32,6 +35,8 @@ import org.slf4j.LoggerFactory;
 public class ReplicationServerClient implements Closeable {
   public static final int BINARY_MAGIC = 0x3414f5c;
   public static final int MAX_MESSAGE_BYTES_SIZE = 1 * 1024 * 1024 * 1024;
+  private static final Set<ConnectivityState> AVAILABLE_STATES =
+      Set.of(ConnectivityState.READY, ConnectivityState.IDLE, ConnectivityState.CONNECTING);
   Logger logger = LoggerFactory.getLogger(ReplicationServerClient.class);
   private final String host;
   private final int port;
@@ -195,6 +200,14 @@ public class ReplicationServerClient implements Closeable {
   public GetNodesResponse getConnectedNodes(String indexName) {
     return blockingStub.getConnectedNodes(
         GetNodesRequest.newBuilder().setIndexName(indexName).build());
+  }
+
+  public boolean isPrimaryAvailable() {
+    try {
+      return AVAILABLE_STATES.contains(channel.getState(false));
+    } catch (StatusRuntimeException exec) {
+      return false;
+    }
   }
 
   @Override
