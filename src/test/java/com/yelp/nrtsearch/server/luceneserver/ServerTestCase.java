@@ -21,26 +21,12 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
-import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
-import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
-import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.grpc.GrpcServer;
-import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
-import com.yelp.nrtsearch.server.grpc.LuceneServerClientBuilder;
-import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
-import com.yelp.nrtsearch.server.grpc.Mode;
-import com.yelp.nrtsearch.server.grpc.RefreshRequest;
-import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -201,8 +187,10 @@ public class ServerTestCase {
 
   private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
     String testIndex = "test_index";
+    LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory =
+        new LuceneServerTestConfigurationFactory();
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(
+        luceneServerTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), getExtraConfig());
     globalState = new GlobalState(luceneServerConfiguration);
     return new GrpcServer(

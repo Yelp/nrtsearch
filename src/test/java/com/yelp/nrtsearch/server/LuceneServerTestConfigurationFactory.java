@@ -24,23 +24,25 @@ import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class LuceneServerTestConfigurationFactory {
-  static AtomicLong atomicLong = new AtomicLong();
+  private AtomicLong atomicLong;
 
-  public static LuceneServerConfiguration getConfig(Mode mode, File dataRootDir) {
+  public LuceneServerTestConfigurationFactory() {
+    this.atomicLong = new AtomicLong();
+  }
+
+  public LuceneServerConfiguration getConfig(Mode mode, File dataRootDir) {
     return getConfig(mode, dataRootDir, Paths.get(dataRootDir.toString(), "archiver"), "");
   }
 
-  public static LuceneServerConfiguration getConfig(
-      Mode mode, File dataRootDir, String extraConfig) {
+  public LuceneServerConfiguration getConfig(Mode mode, File dataRootDir, String extraConfig) {
     return getConfig(mode, dataRootDir, Paths.get(dataRootDir.toString(), "archiver"), extraConfig);
   }
 
-  public static LuceneServerConfiguration getConfig(
-      Mode mode, File dataRootDir, Path archiverDirectory) {
+  public LuceneServerConfiguration getConfig(Mode mode, File dataRootDir, Path archiverDirectory) {
     return getConfig(mode, dataRootDir, archiverDirectory, "");
   }
 
-  public static LuceneServerConfiguration getConfig(
+  public LuceneServerConfiguration getConfig(
       Mode mode, File dataRootDir, Path archiverDirectory, String extraConfig) {
     String dirNum = String.valueOf(atomicLong.addAndGet(1));
     if (mode.equals(Mode.STANDALONE)) {
@@ -76,6 +78,8 @@ public class LuceneServerTestConfigurationFactory {
               extraConfig);
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     } else if (mode.equals(Mode.REPLICA)) {
+      // allow creating more than one replica without collision
+      long portOffset = atomicLong.addAndGet(2);
       String stateDir =
           Paths.get(dataRootDir.getAbsolutePath(), "replica", dirNum, "state").toString();
       String indexDir =
@@ -86,8 +90,8 @@ public class LuceneServerTestConfigurationFactory {
               "nodeName: replica",
               "stateDir: " + stateDir,
               "indexDir: " + indexDir,
-              "port: " + 9902,
-              "replicationPort: " + 9003,
+              "port: " + (9902 + portOffset),
+              "replicationPort: " + (9003 + portOffset),
               extraConfig);
       return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
     }

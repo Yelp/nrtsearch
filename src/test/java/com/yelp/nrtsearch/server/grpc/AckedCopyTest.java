@@ -61,6 +61,7 @@ public class AckedCopyTest {
   private AmazonS3 s3;
   private Path s3Directory;
   private Path archiverDirectory;
+  private LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory;
 
   @After
   public void tearDown() throws IOException {
@@ -94,8 +95,9 @@ public class AckedCopyTest {
 
     // set up primary servers
     String testIndex = "test_index";
+    luceneServerTestConfigurationFactory = new LuceneServerTestConfigurationFactory();
     LuceneServerConfiguration luceneServerPrimaryConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot(), extraConfig);
+        luceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot(), extraConfig);
     GlobalState globalStatePrimary = new GlobalState(luceneServerPrimaryConfiguration);
     luceneServerPrimary =
         new GrpcServer(
@@ -121,7 +123,7 @@ public class AckedCopyTest {
             archiver);
     // set up secondary servers
     LuceneServerConfiguration luceneServerSecondaryConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot(), extraConfig);
+        luceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot(), extraConfig);
     GlobalState globalStateSecondary = new GlobalState(luceneServerSecondaryConfiguration);
 
     luceneServerSecondary =

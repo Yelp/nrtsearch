@@ -16,25 +16,11 @@
 package com.yelp.nrtsearch.server.luceneserver.script;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
-import com.yelp.nrtsearch.server.grpc.FunctionScoreQuery;
-import com.yelp.nrtsearch.server.grpc.GrpcServer;
-import com.yelp.nrtsearch.server.grpc.MatchQuery;
-import com.yelp.nrtsearch.server.grpc.Mode;
-import com.yelp.nrtsearch.server.grpc.Query;
-import com.yelp.nrtsearch.server.grpc.RefreshRequest;
-import com.yelp.nrtsearch.server.grpc.Script;
-import com.yelp.nrtsearch.server.grpc.SearchRequest;
-import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.grpc.VirtualField;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
@@ -49,11 +35,7 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.junit.After;
@@ -95,8 +77,10 @@ public class ScoreScriptTest {
 
   private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
     String testIndex = "test_index";
+    LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory =
+        new LuceneServerTestConfigurationFactory();
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
+        luceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     GlobalState globalState = new GlobalState(luceneServerConfiguration);
     return new GrpcServer(
         collectorRegistry,

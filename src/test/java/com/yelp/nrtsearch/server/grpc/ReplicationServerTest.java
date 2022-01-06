@@ -31,11 +31,13 @@ import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.findify.s3mock.S3Mock;
+import io.grpc.ConnectivityState;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
+import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -68,6 +70,7 @@ public class ReplicationServerTest {
   private AmazonS3 s3;
   private Path s3Directory;
   private Path archiverDirectory;
+  private LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory;
 
   @After
   public void tearDown() throws IOException {
@@ -93,8 +96,9 @@ public class ReplicationServerTest {
 
     // set up primary servers
     String testIndex = "test_index";
+    luceneServerTestConfigurationFactory = new LuceneServerTestConfigurationFactory();
     LuceneServerConfiguration luceneServerPrimaryConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
+        luceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
     GlobalState globalStatePrimary = new GlobalState(luceneServerPrimaryConfiguration);
     luceneServerPrimary =
         new GrpcServer(
@@ -120,7 +124,7 @@ public class ReplicationServerTest {
             archiver);
     // set up secondary servers
     LuceneServerConfiguration luceneServerSecondaryConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot());
+        luceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot());
     GlobalState globalStateSecondary = new GlobalState(luceneServerSecondaryConfiguration);
 
     luceneServerSecondary =
@@ -296,7 +300,7 @@ public class ReplicationServerTest {
             .getConnectedNodes(GetNodesRequest.newBuilder().setIndexName("test_index").build());
     assertEquals(1, getNodesResponse.getNodesCount());
     assertEquals("localhost", getNodesResponse.getNodesList().get(0).getHostname());
-    assertEquals(9003, getNodesResponse.getNodesList().get(0).getPort());
+    assertEquals(9007, getNodesResponse.getNodesList().get(0).getPort());
   }
 
   @Test
@@ -510,5 +514,78 @@ public class ReplicationServerTest {
             .throwable
             .getMessage()
             .contains("Adding documents to an index on a replica node is not supported"));
+  }
+
+  @Test
+  public void testReplicaCanStartWhenPrimaryPortIsDown() throws IOException {
+    String testIndex = "test_index";
+    LuceneServerConfiguration luceneServerTertiaryConfiguration =
+        luceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot());
+    GlobalState globalStateTertiary = new GlobalState(luceneServerTertiaryConfiguration);
+
+    GrpcServer luceneServerTertiary =
+        new GrpcServer(
+            grpcCleanup,
+            luceneServerTertiaryConfiguration,
+            folder,
+            false,
+            globalStateTertiary,
+            luceneServerTertiaryConfiguration.getIndexDir(),
+            testIndex,
+            globalStateTertiary.getPort(),
+            archiver,
+            "deadHost",
+            11111); // no primary here
+    new GrpcServer(
+        grpcCleanup,
+        luceneServerTertiaryConfiguration,
+        folder,
+        true,
+        globalStateTertiary,
+        luceneServerTertiaryConfiguration.getIndexDir(),
+        testIndex,
+        globalStateTertiary.getReplicationPort(),
+        archiver,
+        "deadHost",
+        11111);
+
+    new GrpcServer.TestServer(luceneServerTertiary, true, Mode.REPLICA);
+  }
+
+  @Test
+  public void testReplicaCanStartWhenPrimaryIsShutdown() throws IOException, InterruptedException {
+    luceneServerPrimary.luceneServerManagedChannel.shutdownNow();
+    luceneServerPrimary.luceneServerManagedChannel.awaitTermination(25, TimeUnit.SECONDS);
+    assertEquals(
+        luceneServerPrimary.luceneServerManagedChannel.getState(false), ConnectivityState.SHUTDOWN);
+
+    String testIndex = "test_index";
+    LuceneServerConfiguration luceneServerTertiaryConfiguration =
+        luceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot());
+    GlobalState globalStateTertiary = new GlobalState(luceneServerTertiaryConfiguration);
+
+    GrpcServer luceneServerTertiary =
+        new GrpcServer(
+            grpcCleanup,
+            luceneServerTertiaryConfiguration,
+            folder,
+            false,
+            globalStateTertiary,
+            luceneServerTertiaryConfiguration.getIndexDir(),
+            testIndex,
+            globalStateTertiary.getPort(),
+            archiver);
+    new GrpcServer(
+        grpcCleanup,
+        luceneServerTertiaryConfiguration,
+        folder,
+        true,
+        globalStateTertiary,
+        luceneServerTertiaryConfiguration.getIndexDir(),
+        testIndex,
+        globalStateTertiary.getReplicationPort(),
+        archiver);
+
+    new GrpcServer.TestServer(luceneServerTertiary, true, Mode.REPLICA);
   }
 }

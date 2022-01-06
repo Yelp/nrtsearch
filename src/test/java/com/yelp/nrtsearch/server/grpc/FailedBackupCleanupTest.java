@@ -17,9 +17,7 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static com.yelp.nrtsearch.server.grpc.LuceneServerTest.RETRIEVED_VALUES;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
@@ -52,6 +50,9 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class FailedBackupCleanupTest {
+  private static LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory =
+      new LuceneServerTestConfigurationFactory();
+
   private final String BUCKET_NAME = "archiver-unittest";
   private Archiver archiver;
   private AmazonS3 s3;
@@ -77,7 +78,7 @@ public class FailedBackupCleanupTest {
     archiver =
         new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl(Tar.CompressionMode.LZ4));
     luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(
+        luceneServerTestConfigurationFactory.getConfig(
             Mode.PRIMARY, folder.getRoot(), archiverDirectory);
     grpcServer = setUpGrpcServer();
   }

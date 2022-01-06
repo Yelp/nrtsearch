@@ -24,11 +24,7 @@ import com.yelp.nrtsearch.server.luceneserver.RestoreStateHandler;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.plugins.Plugin;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
+import io.grpc.*;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
@@ -66,9 +62,11 @@ public class GrpcServer {
   private GlobalState globalState;
   private LuceneServerConfiguration configuration;
   private Server luceneServer;
-  private ManagedChannel luceneServerManagedChannel;
+  ManagedChannel luceneServerManagedChannel;
   private Server replicationServer;
   private ManagedChannel replicationServerManagedChannel;
+  private String primaryLuceneServerHost = "localhost";
+  private int primaryLuceneServerPort = 9001; // primary port for replication server
 
   public GrpcServer(
       CollectorRegistry collectorRegistry,
@@ -138,6 +136,33 @@ public class GrpcServer {
         index,
         port,
         null);
+  }
+
+  public GrpcServer(
+      GrpcCleanupRule grpcCleanup,
+      LuceneServerConfiguration configuration,
+      TemporaryFolder temporaryFolder,
+      boolean isReplication,
+      GlobalState globalState,
+      String indexDir,
+      String index,
+      int port,
+      Archiver archiver,
+      String primaryLuceneServerHost,
+      int primaryLuceneServerPort)
+      throws IOException {
+    this(
+        grpcCleanup,
+        configuration,
+        temporaryFolder,
+        isReplication,
+        globalState,
+        indexDir,
+        index,
+        port,
+        archiver);
+    this.primaryLuceneServerHost = primaryLuceneServerHost;
+    this.primaryLuceneServerPort = primaryLuceneServerPort;
   }
 
   public String getIndexDir() {
@@ -253,7 +278,8 @@ public class GrpcServer {
       grpcCleanup.register(server);
 
       // Create a client channel and register for automatic graceful shutdown.
-      LuceneServerStubBuilder stubBuilder = new LuceneServerStubBuilder("localhost", port);
+      LuceneServerStubBuilder stubBuilder =
+          new LuceneServerStubBuilder(primaryLuceneServerHost, port);
       grpcCleanup.register(stubBuilder.channel);
       luceneServer = server;
       luceneServerManagedChannel = stubBuilder.channel;
@@ -278,7 +304,7 @@ public class GrpcServer {
 
       // Create a client channel and register for automatic graceful shutdown.
       ManagedChannel managedChannel =
-          ManagedChannelBuilder.forAddress("localhost", port).usePlaintext().build();
+          ManagedChannelBuilder.forAddress(primaryLuceneServerHost, port).usePlaintext().build();
       grpcCleanup.register(managedChannel);
       replicationServer = server;
       replicationServerManagedChannel = managedChannel;
@@ -456,7 +482,7 @@ public class GrpcServer {
       } else if (mode.equals(Mode.REPLICA)) {
         startIndexBuilder.setMode(Mode.REPLICA);
         startIndexBuilder.setPrimaryAddress("localhost");
-        startIndexBuilder.setPort(9001); // primary port for replication server
+        startIndexBuilder.setPort(grpcServer.primaryLuceneServerPort);
       }
       if (startOldIndex) {
         RestoreIndex restoreIndex =

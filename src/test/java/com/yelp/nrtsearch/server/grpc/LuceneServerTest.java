@@ -44,13 +44,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -181,8 +175,10 @@ public class LuceneServerTest {
 
   private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
     String testIndex = "test_index";
+    LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory =
+        new LuceneServerTestConfigurationFactory();
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
+        luceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     GlobalState globalState = new GlobalState(luceneServerConfiguration);
     return new GrpcServer(
         collectorRegistry,
@@ -201,8 +197,10 @@ public class LuceneServerTest {
   private GrpcServer setUpReplicaGrpcServer(CollectorRegistry collectorRegistry)
       throws IOException {
     String testIndex = "test_index";
+    LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory =
+        new LuceneServerTestConfigurationFactory();
     LuceneServerConfiguration luceneServerReplicaConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(
+        luceneServerTestConfigurationFactory.getConfig(
             Mode.REPLICA, folder.getRoot(), getExtraConfig());
     GlobalState globalStateSecondary = new GlobalState(luceneServerReplicaConfiguration);
 

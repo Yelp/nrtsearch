@@ -665,16 +665,20 @@ public class IndexStateTest {
   }
 
   public GlobalState getInitState() throws IOException {
+    LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory =
+        new LuceneServerTestConfigurationFactory();
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
+        luceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     FieldDefCreator.initialize(luceneServerConfiguration, Collections.emptyList());
     SimilarityCreator.initialize(luceneServerConfiguration, Collections.emptyList());
     return new GlobalState(luceneServerConfiguration);
   }
 
   public GlobalState getInitStateVirtualSharding() throws IOException {
+    LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory =
+        new LuceneServerTestConfigurationFactory();
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(
+        luceneServerTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), "virtualSharding: true");
     FieldDefCreator.initialize(luceneServerConfiguration, Collections.emptyList());
     SimilarityCreator.initialize(luceneServerConfiguration, Collections.emptyList());

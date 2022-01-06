@@ -97,8 +97,10 @@ public class ReplicationTestFailureScenarios {
   }
 
   public void startPrimaryServer() throws IOException {
+    LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory =
+        new LuceneServerTestConfigurationFactory();
     LuceneServerConfiguration luceneServerPrimaryConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
+        luceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
     GlobalState globalStatePrimary = new GlobalState(luceneServerPrimaryConfiguration);
     luceneServerPrimary =
         new GrpcServer(
@@ -125,8 +127,10 @@ public class ReplicationTestFailureScenarios {
   }
 
   public void startSecondaryServer() throws IOException {
+    LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory =
+        new LuceneServerTestConfigurationFactory();
     LuceneServerConfiguration luceneSecondaryConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot());
+        luceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot());
     GlobalState globalStateSecondary = new GlobalState(luceneSecondaryConfiguration);
 
     luceneServerSecondary =

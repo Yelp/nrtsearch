@@ -22,20 +22,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
-import com.yelp.nrtsearch.server.grpc.CommitRequest;
-import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
-import com.yelp.nrtsearch.server.grpc.Field;
-import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.grpc.FieldType;
-import com.yelp.nrtsearch.server.grpc.GrpcServer;
-import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
-import com.yelp.nrtsearch.server.grpc.LuceneServerStubBuilder;
-import com.yelp.nrtsearch.server.grpc.Mode;
-import com.yelp.nrtsearch.server.grpc.RefreshRequest;
-import com.yelp.nrtsearch.server.grpc.SearchRequest;
-import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
@@ -43,17 +30,16 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class NodeNameResolverAndLoadBalancingTests {
@@ -90,9 +76,11 @@ public class NodeNameResolverAndLoadBalancingTests {
   public void setup() throws IOException, InterruptedException {
     addressesFile = folder.newFile(NODE_ADDRESSES_FILE_NAME);
 
-    server1 = createGrpcServer();
-    server2 = createGrpcServer();
-    server3 = createGrpcServer();
+    LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory =
+        new LuceneServerTestConfigurationFactory();
+    server1 = createGrpcServer(luceneServerTestConfigurationFactory);
+    server2 = createGrpcServer(luceneServerTestConfigurationFactory);
+    server3 = createGrpcServer(luceneServerTestConfigurationFactory);
 
     port1 = server1.getGlobalState().getPort();
     port2 = server2.getGlobalState().getPort();
@@ -106,9 +94,11 @@ public class NodeNameResolverAndLoadBalancingTests {
     luceneServerStubBuilder = new LuceneServerStubBuilder(addressesFile.toString(), OBJECT_MAPPER);
   }
 
-  private GrpcServer createGrpcServer() throws IOException {
+  private GrpcServer createGrpcServer(
+      LuceneServerTestConfigurationFactory luceneServerTestConfigurationFactory)
+      throws IOException {
     LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
+        luceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     GlobalState globalState = new GlobalState(luceneServerConfiguration);
     return new GrpcServer(
         grpcCleanup,
