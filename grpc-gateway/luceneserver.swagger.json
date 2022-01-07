@@ -2374,6 +2374,9 @@
         },
         "nestedDoc": {
           "type": "boolean"
+        },
+        "vectorDimensions": {
+          "type": "int32"
         }
       }
     },
