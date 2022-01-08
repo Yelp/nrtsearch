@@ -15,8 +15,10 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.field;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.Field;
-import java.util.Arrays;
+import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -26,7 +28,8 @@ import org.apache.lucene.util.BytesRef;
 /** VectorFieldDef extends IndexableFieldDef to add vector type data to the index */
 public class VectorFieldDef extends IndexableFieldDef {
 
-  private final int vectorDimensions;
+  private static int vectorDimensions;
+  private static Gson gson;
 
   /**
    * @param name name of field
@@ -35,30 +38,39 @@ public class VectorFieldDef extends IndexableFieldDef {
   protected VectorFieldDef(String name, Field requestField) {
     super(name, requestField);
     this.vectorDimensions = requestField.getVectorDimensions();
+    gson = new GsonBuilder().serializeNulls().create();
   }
 
-  public int getVectorDimensions() {
+  /** @return vector field dimension property */
+  public static int getVectorDimensions() {
     return vectorDimensions;
   }
 
   @Override
   protected void validateRequest(Field requestField) {
     if (requestField.getStore()) {
-      throw new IllegalArgumentException("vector fields cannot be stored");
+      throw new IllegalArgumentException("Vector fields cannot be stored");
     }
 
     if (requestField.getSearch()) {
-      throw new IllegalArgumentException("vector fields cannot be searched");
+      throw new IllegalArgumentException("Vector fields cannot be searched");
+    }
+
+    if (requestField.getMultiValued()) {
+      throw new IllegalArgumentException("Vector fields cannot be multivalued");
+    }
+
+    if (requestField.getVectorDimensions() <= 0) {
+      throw new IllegalArgumentException("Vector dimension should be > 0");
     }
   }
 
   @Override
   protected DocValuesType parseDocValuesType(Field requestField) {
-    if (requestField.getMultiValued()) {
-      throw new IllegalArgumentException("Multivalue vectors are not supported");
-    } else {
+    if (requestField.getStoreDocValues()) {
       return DocValuesType.BINARY;
     }
+    return DocValuesType.NONE;
   }
 
   @Override
@@ -69,35 +81,41 @@ public class VectorFieldDef extends IndexableFieldDef {
   @Override
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
-    for (String fieldStr : fieldValues) {
-      String value = parseVectorString(fieldStr);
+    if (fieldValues.size() > 1 && !isMultiValue()) {
+      throw new IllegalArgumentException("Cannot index multiple values into single value field");
+    } else if (fieldValues.size() == 1) {
+      float[] floatArr = parseVectorFieldToFloatArr(fieldValues.get(0));
+      byte[] floatBytes = convertFloatArrToBytes(floatArr);
       if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
-        document.add(new BinaryDocValuesField(getName(), new BytesRef(value)));
+        document.add(new BinaryDocValuesField(getName(), new BytesRef(floatBytes)));
       }
-      document.add(new FieldWithData(getName(), fieldType, value));
     }
   }
 
   /**
-   * Parses and evaluated a string list of floats and returns a string Any other value is invalid
-   * and will result in an exception.
+   * Parses a vector type json string and returns to float[]
    *
-   * @param vectorString string to convert to list of float. Ex:"[0.1,0.2]"
-   * @return string of float represented by input string
-   * @throws IllegalArgumentException if input string does not represent a float
+   * @param fieldValueJson string to convert to float[]. Ex:"[0.1,0.2]"
+   * @return float[] arr represented by input field json
+   * @throws IllegalArgumentException if size of vector does not match vector dimensions field
+   *     property
    */
-  public String parseVectorString(String vectorString) {
-    String[] floats = vectorString.replaceAll("^\\[|]$", "").split(",");
-    if (floats.length != getVectorDimensions()) {
+  protected static float[] parseVectorFieldToFloatArr(String fieldValueJson) {
+    float[] fieldValue = gson.fromJson(fieldValueJson, float[].class);
+    if (fieldValue.length != getVectorDimensions()) {
       throw new IllegalArgumentException(
           "The size of the vector data should match vectorDimensions field property");
-    } else {
-      try {
-        return Arrays.stream(floats).map(Float::parseFloat).toString();
-      } catch (Exception e) {
-        throw new IllegalArgumentException(
-            "Vector data entry <" + vectorString + "> is malformed. " + e.getMessage());
-      }
     }
+    return fieldValue;
+  }
+
+  /**
+   * @param floatArr float[] representing vector field values
+   * @return byte[] of the input vector field value
+   */
+  protected static byte[] convertFloatArrToBytes(float[] floatArr) {
+    ByteBuffer floatBuffer = ByteBuffer.allocate(4 * floatArr.length);
+    floatBuffer.asFloatBuffer().put(floatArr);
+    return floatBuffer.array();
   }
 }

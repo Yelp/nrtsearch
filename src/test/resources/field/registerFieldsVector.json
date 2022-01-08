@@ -7,6 +7,13 @@
       "storeDocValues": true,
       "multiValued": false,
       "vectorDimensions": 3
+    },
+    {
+      "name": "vector_field_dimension_mismatch",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "multiValued": false,
+      "vectorDimensions": 3
     }
   ]
 }
