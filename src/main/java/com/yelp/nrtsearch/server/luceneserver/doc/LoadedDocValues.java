@@ -21,8 +21,11 @@ import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 import java.time.Instant;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -492,6 +495,69 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     @Override
     public int size() {
       return values.size();
+    }
+  }
+
+  public static final class SingleVectorDocValues extends LoadedDocValues<VectorType> {
+    private final BinaryDocValues docValues;
+    private VectorType value;
+
+    public SingleVectorDocValues(BinaryDocValues docValues) {
+      this.docValues = docValues;
+    }
+
+    /**
+     * Set method to set the lucene level doc id to lookup value from index and initialize the
+     * loaded doc value index by loading vector data
+     */
+    public void setDocId(int docID) throws IOException {
+      if (docValues.advanceExact(docID)) {
+        value = decodeBytesRefToVectorType(docValues.binaryValue());
+      } else {
+        value = null;
+      }
+    }
+
+    /**
+     * /** Decoded binary doc value to float array and wraps it into a VectorType
+     *
+     * @param bytesRef binary doc value
+     * @return VectorType of vector doc value
+     */
+    private static VectorType decodeBytesRefToVectorType(BytesRef bytesRef) {
+      byte[] byteArray = bytesRef.bytes;
+      ByteBuffer buffer = ByteBuffer.wrap(byteArray);
+      FloatBuffer floatBuffer = buffer.asFloatBuffer();
+      float[] floats = new float[byteArray.length / 4];
+      for (int i = 0; i < byteArray.length / 4; i++) {
+        floats[i] = floatBuffer.get();
+      }
+      return new VectorType(floats);
+    }
+
+    @Override
+    // TODO: To be implemented
+    public FieldValue toFieldValue(int index) {
+      return null;
+    }
+
+    @Override
+    public VectorType get(int index) {
+      if (value == null) {
+        throw new IllegalStateException("No doc values for document");
+      } else if (index != 0) {
+        throw new IndexOutOfBoundsException("No doc value for index: " + index);
+      }
+      return value;
+    }
+
+    @Override
+    public int size() {
+      return value == null ? 0 : 1;
+    }
+
+    public VectorType getValue() {
+      return get(0);
     }
   }
 }

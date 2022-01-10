@@ -38,6 +38,7 @@ import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.doc.VectorType;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
@@ -169,6 +170,8 @@ public class ScoreScriptTest {
           return new TestNoParamsScript(params, docLookup, ctx, scores);
         case "test_params":
           return new TestParamsScript(params, docLookup, ctx, scores);
+        case "verify_vector_type_doc_values":
+          return new VerifyVectorTypeScript(params, docLookup, ctx, scores);
       }
       throw new IllegalArgumentException("Unknown script id: " + scriptId);
     }
@@ -656,6 +659,49 @@ public class ScoreScriptTest {
     }
   }
 
+  static class VerifyVectorTypeScript extends ScoreScript {
+
+    public VerifyVectorTypeScript(
+        Map<String, Object> params,
+        DocLookup docLookup,
+        LeafReaderContext context,
+        DoubleValues scores) {
+      super(params, docLookup, context, scores);
+    }
+
+    @Override
+    public double execute() {
+      try {
+        String fieldName = "vector_field";
+        float[] vector1 = {0.1f, 0.2f, 0.3f};
+        float[] vector2 = {0.0f, 1.0f, 0.0f};
+        List<VectorType> expectedVectorValues =
+            Arrays.asList(new VectorType(vector1), new VectorType(vector2));
+
+        LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
+        assertEquals("doc_id size", 1, idDocValues.size());
+        assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
+        String id = ((LoadedDocValues.SingleString) idDocValues).get(0);
+
+        LoadedDocValues<?> docValues = getDoc().get(fieldName);
+        assertNotNull(fieldName + " is null", docValues);
+        assertEquals(LoadedDocValues.SingleVectorDocValues.class, docValues.getClass());
+        LoadedDocValues.SingleVectorDocValues vectorDocValues =
+            (LoadedDocValues.SingleVectorDocValues) docValues;
+        float[] loadedVectorValue = vectorDocValues.get(0).getVectorData();
+
+        if (id.equals("1")) {
+          assertTrue(Arrays.equals(expectedVectorValues.get(0).getVectorData(), loadedVectorValue));
+        } else if (id.equals("2")) {
+          assertTrue(Arrays.equals(expectedVectorValues.get(1).getVectorData(), loadedVectorValue));
+        }
+      } catch (Error e) {
+        throw new RuntimeException(e.getMessage(), e.getCause());
+      }
+      return 0;
+    }
+  }
+
   @Test
   public void testScriptDocValues() throws Exception {
     testQueryFieldScript("verify_doc_values", "registerFieldsBasic.json", "addDocs.csv", 1.5);
@@ -740,6 +786,12 @@ public class ScoreScriptTest {
   @Test
   public void testDocValuesExceptions() throws Exception {
     testQueryFieldScript("doc_values_errors", "registerFieldsBasic.json", "addDocs.csv", 3.5);
+  }
+
+  @Test
+  public void testVectorTypeDocValues() throws Exception {
+    testQueryFieldScript(
+        "verify_vector_type_doc_values", "registerFieldsVector.json", "addDocsVectorType.csv", 0);
   }
 
   @Test

@@ -18,11 +18,16 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 
 /** VectorFieldDef extends IndexableFieldDef to add vector type data to the index */
@@ -117,5 +122,13 @@ public class VectorFieldDef extends IndexableFieldDef {
     ByteBuffer floatBuffer = ByteBuffer.allocate(4 * floatArr.length);
     floatBuffer.asFloatBuffer().put(floatArr);
     return floatBuffer.array();
+  }
+
+  public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+    if (docValuesType == DocValuesType.BINARY) {
+      BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
+      return new LoadedDocValues.SingleVectorDocValues(binaryDocValues);
+    }
+    throw new IllegalStateException("Unsupported doc value type: " + docValuesType);
   }
 }
