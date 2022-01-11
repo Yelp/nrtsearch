@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,9 +30,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.Assert;
+import org.junit.ClassRule;
 import org.junit.Test;
 
 public class VectorFieldDefTest extends ServerTestCase {
+
+  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   private static final String FIELD_NAME = "vector_field";
   private static final String FIELD_TYPE = "VECTOR";
@@ -81,7 +85,7 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
-  public void vectorFieldDefDimensionMismatchTest() throws Exception {
+  public void vectorFieldDefDimensionMismatchTest() {
     List<String> vectorFields = Arrays.asList("[1.0, 2.5]");
     List<AddDocumentRequest> documents = buildDocuments(DEFAULT_TEST_INDEX, vectorFields);
     Exception exception =

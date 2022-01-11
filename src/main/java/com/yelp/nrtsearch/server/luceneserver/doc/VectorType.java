@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.doc;
 
 import com.google.common.primitives.Floats;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -24,15 +25,24 @@ import java.util.ListIterator;
 /** Placeholder for vectorType and associated operations */
 public final class VectorType implements List<Float> {
 
+  /** Default vector capacity */
+  private static final int DEFAULT_CAPACITY = 10;
+
   /** float[] array used to hold the vector data */
-  protected float[] vectorData;
+  private float[] vectorData;
 
   /** The number of elements in the vector */
-  protected int vectorSize;
+  private int vectorSize;
 
-  /** Constructor to create a float array with a default size of 10 */
+  /**
+   * Amount by which to inflate the vector capacity when size exceeds capacity. If capacityIncrement
+   * <= 0, the vector size is doubled
+   */
+  private int capacityIncrement;
+
+  /** Constructor to create a float array with default size */
   public VectorType() {
-    this(10);
+    this(DEFAULT_CAPACITY);
   }
 
   /**
@@ -45,26 +55,32 @@ public final class VectorType implements List<Float> {
     this.vectorSize = vectorData.length;
   }
 
-  /**
-   * Construct an empty VectorType with the given capacity
-   *
-   * @param vectorCapacity @Throws IllegalArgumentException – if the specified capacity is negative
-   */
-  public VectorType(int vectorCapacity) {
-    if (vectorCapacity < 0) {
-      throw new IllegalArgumentException("vector array capacity cannot be less than 0");
+  public VectorType(int initialCapacity, int capacityIncrement) {
+    super();
+    if (initialCapacity < 0) {
+      throw new IllegalArgumentException("vector capacity should be >= 0");
     }
-    this.vectorData = new float[vectorCapacity];
-    this.vectorSize = vectorCapacity;
+    this.vectorData = new float[initialCapacity];
+    this.capacityIncrement = capacityIncrement;
   }
 
-  /** @return the number of elements in the vectorType */
+  /**
+   * Constructor to create a float array with given initial capacity
+   *
+   * @param initialCapacity initial vector capacity @Throws IllegalArgumentException – if the
+   *     specified capacity is negative
+   */
+  public VectorType(int initialCapacity) {
+    this(initialCapacity, 0);
+  }
+
+  /** @return number of elements in the vector */
   @Override
   public int size() {
     return vectorSize;
   }
 
-  /** @return current allocated capacity of vectorType */
+  /** @return current allocated capacity of the vector */
   public int getCapacity() {
     return vectorData.length;
   }
@@ -82,19 +98,26 @@ public final class VectorType implements List<Float> {
   @Override
   public boolean add(Float vectorElement) {
     if (vectorSize == vectorData.length) {
-      checkVectorCapacity(vectorSize + 1);
+      ensureCapacity(vectorSize + 1);
       vectorData[vectorSize++] = vectorElement;
     }
     return true;
   }
 
-  public void checkVectorCapacity(int requiredCapacity) {
-    if (vectorData.length >= requiredCapacity) {
-      return;
+  public void ensureCapacity(int requiredCapacity) {
+    if (requiredCapacity > 0 && requiredCapacity > vectorData.length) {
+      growVector(requiredCapacity);
     }
-    float[] newArray = new float[requiredCapacity];
-    System.arraycopy(vectorData, 0, newArray, 0, vectorSize);
-    vectorData = newArray;
+  }
+
+  private float[] growVector(int capacity) {
+    /**
+     * float[] newArray = new float[requiredCapacity]; System.arraycopy(vectorData, 0, newArray, 0,
+     * vectorSize); vectorData = newArray;
+     */
+    int oldCapacity = vectorData.length;
+    int newCapacity = (capacityIncrement <= 0) ? oldCapacity * 2 : oldCapacity + capacityIncrement;
+    return vectorData = Arrays.copyOf(vectorData, Math.max(newCapacity, capacity));
   }
 
   public float[] getVectorData() {
@@ -103,7 +126,35 @@ public final class VectorType implements List<Float> {
 
   @Override
   public boolean remove(Object elem) {
+    return removeElement(elem);
+  }
+
+  public boolean removeElement(Object obj) {
+    int idx = indexOf(obj, 0);
+    if (idx >= 0) {
+      remove(idx);
+      return true;
+    }
     return false;
+  }
+
+  public int indexOf(Object obj, int index) {
+    if (obj instanceof Float) {
+      for (int i = index; i < vectorSize; i++) {
+        if (equals(((Float) obj).floatValue(), vectorData[i])) {
+          return i;
+        }
+      }
+    }
+    return -1;
+  }
+
+  private boolean equals(float floatValue1, float floatValue2) {
+    return Float.compare(floatValue1, floatValue2) == 0;
+  }
+
+  public void removeElementAt(int index) {
+    remove(index);
   }
 
   // TODO: Needs to be implemented
@@ -124,72 +175,87 @@ public final class VectorType implements List<Float> {
     return null;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public boolean containsAll(Collection<?> c) {
     return false;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public boolean addAll(Collection<? extends Float> c) {
     return false;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public boolean addAll(int index, Collection<? extends Float> c) {
     return false;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public boolean removeAll(Collection<?> c) {
     return false;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public boolean retainAll(Collection<?> c) {
     return false;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public void clear() {}
 
+  // TODO: Needs to be implemented
   @Override
   public Float get(int index) {
     return null;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public Float set(int index, Float element) {
     return null;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public void add(int index, Float element) {}
 
+  // TODO: Needs to be implemented
   @Override
   public Float remove(int index) {
     return null;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public int indexOf(Object o) {
     return 0;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public int lastIndexOf(Object o) {
     return 0;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public ListIterator<Float> listIterator() {
     return null;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public ListIterator<Float> listIterator(int index) {
     return null;
   }
 
+  // TODO: Needs to be implemented
   @Override
   public List<Float> subList(int fromIndex, int toIndex) {
     return null;
