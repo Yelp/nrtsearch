@@ -409,6 +409,7 @@ message SearchResponse {
                 double doubleValue = 6; // Value for DOUBLE FieldType
                 google.type.LatLng latLngValue = 7; // Value for LAT_LON FieldType
                 google.protobuf.Struct structValue = 8; // Value for structured data
+                Vector vectorValue = 9;
             }
         }
 
@@ -591,4 +592,8 @@ message BucketResult {
     int32 totalBuckets = 2;
     //Number of other collected counts not represented in the buckets' counts.
     int32 totalOtherCounts = 3;
+}
+
+message Vector {
+    repeated float value = 1;
 }

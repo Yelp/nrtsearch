@@ -19,6 +19,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleVector;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -34,7 +35,7 @@ import org.apache.lucene.util.BytesRef;
 public class VectorFieldDef extends IndexableFieldDef {
 
   private static int vectorDimensions;
-  private static Gson gson;
+  private static final Gson gson = new GsonBuilder().serializeNulls().create();;
 
   /**
    * @param name name of field
@@ -43,7 +44,6 @@ public class VectorFieldDef extends IndexableFieldDef {
   protected VectorFieldDef(String name, Field requestField) {
     super(name, requestField);
     this.vectorDimensions = requestField.getVectorDimensions();
-    gson = new GsonBuilder().serializeNulls().create();
   }
 
   /** @return vector field dimension property */
@@ -89,9 +89,9 @@ public class VectorFieldDef extends IndexableFieldDef {
     if (fieldValues.size() > 1 && !isMultiValue()) {
       throw new IllegalArgumentException("Cannot index multiple values into single value field");
     } else if (fieldValues.size() == 1) {
-      float[] floatArr = parseVectorFieldToFloatArr(fieldValues.get(0));
-      byte[] floatBytes = convertFloatArrToBytes(floatArr);
       if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
+        float[] floatArr = parseVectorFieldToFloatArr(fieldValues.get(0));
+        byte[] floatBytes = convertFloatArrToBytes(floatArr);
         document.add(new BinaryDocValuesField(getName(), new BytesRef(floatBytes)));
       }
     }
@@ -119,7 +119,7 @@ public class VectorFieldDef extends IndexableFieldDef {
    * @return byte[] of the input vector field value
    */
   protected static byte[] convertFloatArrToBytes(float[] floatArr) {
-    ByteBuffer floatBuffer = ByteBuffer.allocate(4 * floatArr.length);
+    ByteBuffer floatBuffer = ByteBuffer.allocate(Float.BYTES * floatArr.length);
     floatBuffer.asFloatBuffer().put(floatArr);
     return floatBuffer.array();
   }
@@ -127,7 +127,7 @@ public class VectorFieldDef extends IndexableFieldDef {
   public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.BINARY) {
       BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
-      return new LoadedDocValues.SingleVectorDocValues(binaryDocValues);
+      return new SingleVector(binaryDocValues);
     }
     throw new IllegalStateException("Unsupported doc value type: " + docValuesType);
   }

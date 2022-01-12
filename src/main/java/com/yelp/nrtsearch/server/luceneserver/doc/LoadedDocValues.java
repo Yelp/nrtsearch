@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.doc;
 
+import com.google.common.primitives.Floats;
 import com.google.gson.Gson;
 import com.google.protobuf.ListValue;
 import com.google.protobuf.Struct;
@@ -22,6 +23,8 @@ import com.google.protobuf.util.JsonFormat;
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
+import com.yelp.nrtsearch.server.grpc.Vector;
+import com.yelp.nrtsearch.server.grpc.Vector.Builder;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -498,11 +501,11 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
   }
 
-  public static final class SingleVectorDocValues extends LoadedDocValues<VectorType> {
+  public static final class SingleVector extends LoadedDocValues<VectorType> {
     private final BinaryDocValues docValues;
     private VectorType value;
 
-    public SingleVectorDocValues(BinaryDocValues docValues) {
+    public SingleVector(BinaryDocValues docValues) {
       this.docValues = docValues;
     }
 
@@ -519,26 +522,28 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
 
     /**
-     * /** Decoded binary doc value to float array and wraps it into a VectorType
+     * Decodes binary doc value to float array and wraps it into a VectorType
      *
      * @param bytesRef binary doc value
-     * @return VectorType of vector doc value
+     * @return vector data wrapped by VectorType
      */
     private static VectorType decodeBytesRefToVectorType(BytesRef bytesRef) {
       byte[] byteArray = bytesRef.bytes;
-      ByteBuffer buffer = ByteBuffer.wrap(byteArray);
-      FloatBuffer floatBuffer = buffer.asFloatBuffer();
-      float[] floats = new float[byteArray.length / 4];
-      for (int i = 0; i < byteArray.length / 4; i++) {
-        floats[i] = floatBuffer.get();
-      }
+      float[] floats = new float[byteArray.length / Float.BYTES];
+      FloatBuffer fb = ByteBuffer.wrap(byteArray, 0, byteArray.length).asFloatBuffer();
+      fb.get(floats);
       return new VectorType(floats);
     }
 
+    /** Provide field value containing the doc value data for a given index */
     @Override
-    // TODO: To be implemented
     public FieldValue toFieldValue(int index) {
-      return null;
+      VectorType vector = get(index);
+      Builder vectorBuilder =
+          Vector.newBuilder().addAllValue(Floats.asList(vector.getVectorData()));
+      return SearchResponse.Hit.FieldValue.newBuilder()
+          .setVectorValue(vectorBuilder.build())
+          .build();
     }
 
     @Override

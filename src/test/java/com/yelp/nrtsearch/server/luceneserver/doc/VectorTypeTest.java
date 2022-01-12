@@ -18,30 +18,46 @@ package com.yelp.nrtsearch.server.luceneserver.doc;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 public class VectorTypeTest {
 
+  private static final int INITIAL_CAPACITY = 5;
+  private static final int DEFAULT_CAPACITY = 10;
+  private static final float[] TEST_ARRAY = {1.0f, 2.5f, 1000.1000f};
+
+  /** Test VectorType constructors, size(), getCapacity() and isEmpty() methods */
   @Test
-  public void basicVectorTest() {
-    float[] floatArr = {1.0f, 2.5f, 1000.1000f};
-    VectorType vector = new VectorType(floatArr);
-    assertEquals(floatArr.length, vector.size());
+  public void vectorTypeConstructorTest() {
+    VectorType vector = new VectorType(TEST_ARRAY);
+    assertEquals(TEST_ARRAY.length, vector.size());
+
+    VectorType vectorWithCapacity = new VectorType(INITIAL_CAPACITY);
+    assertEquals(INITIAL_CAPACITY, vectorWithCapacity.getCapacity());
+    assertTrue(vectorWithCapacity.isEmpty());
+
+    VectorType vectorWithDefaultCapacity = new VectorType();
+    assertEquals(DEFAULT_CAPACITY, vectorWithDefaultCapacity.getCapacity());
+    assertTrue(vectorWithDefaultCapacity.isEmpty());
   }
 
   @Test
-  public void addTest() {
-    float[] floatArr = {1.0f, 2.5f, 1000.1000f};
-    VectorType vector = new VectorType(floatArr);
-    boolean addResponse = vector.add(2.0f);
-    assertEquals(4, vector.size());
-    assertTrue(addResponse);
+  public void vectorTypeExceptionTest() {
+    Exception exception =
+        Assert.assertThrows(IllegalArgumentException.class, () -> new VectorType(-2));
+    assertTrue(exception.getMessage().contains("vector capacity should be >= 0"));
   }
 
   @Test
   public void getVectorDataTest() {
-    float[] floatArr = {1.0f, 2.5f, 1000.1000f};
-    VectorType vector = new VectorType(floatArr);
-    assertEquals(floatArr, vector.getVectorData());
+    VectorType vector = new VectorType(TEST_ARRAY);
+    assertEquals(TEST_ARRAY, vector.getVectorData());
+  }
+
+  @Test
+  public void getFloatTest() {
+    VectorType vector = new VectorType(TEST_ARRAY);
+    assertTrue(Float.compare(2.5f, vector.get(1)) == 0);
   }
 }

@@ -73,15 +73,16 @@ public class VectorFieldDefTest extends ServerTestCase {
     addDocuments(documents.stream());
   }
 
+  public FieldDef getFieldDef(String testIndex, String fieldName) throws IOException {
+    FieldDef fieldDef = getGrpcServer().getGlobalState().getIndex(testIndex).getField(fieldName);
+    return fieldDef;
+  }
+
   @Test
   public void vectorFieldDefTest() throws IOException {
     FieldDef vectorFieldDef = getFieldDef(DEFAULT_TEST_INDEX, FIELD_NAME);
     assertEquals(FIELD_TYPE, vectorFieldDef.getType());
-  }
-
-  public FieldDef getFieldDef(String testIndex, String fieldName) throws IOException {
-    FieldDef fieldDef = getGrpcServer().getGlobalState().getIndex(testIndex).getField(fieldName);
-    return fieldDef;
+    assertEquals(FIELD_NAME, vectorFieldDef.getName());
   }
 
   @Test

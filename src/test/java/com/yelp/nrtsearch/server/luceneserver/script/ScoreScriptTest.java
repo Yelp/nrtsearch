@@ -22,6 +22,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import com.google.common.primitives.Floats;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
@@ -38,7 +39,7 @@ import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
-import com.yelp.nrtsearch.server.luceneserver.doc.VectorType;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleVector;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
@@ -672,28 +673,30 @@ public class ScoreScriptTest {
     @Override
     public double execute() {
       try {
-        String fieldName = "vector_field";
-        float[] vector1 = {0.1f, 0.2f, 0.3f};
-        float[] vector2 = {0.0f, 1.0f, 0.0f};
-        List<VectorType> expectedVectorValues =
-            Arrays.asList(new VectorType(vector1), new VectorType(vector2));
+        String vectorFieldName = "vector_field";
+        float[] expectedVector1 = {0.1f, 0.2f, 0.3f};
+        float[] expectedVector2 = {0.0f, 1.0f, 0.0f};
 
         LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
         assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
         String id = ((LoadedDocValues.SingleString) idDocValues).get(0);
 
-        LoadedDocValues<?> docValues = getDoc().get(fieldName);
-        assertNotNull(fieldName + " is null", docValues);
-        assertEquals(LoadedDocValues.SingleVectorDocValues.class, docValues.getClass());
-        LoadedDocValues.SingleVectorDocValues vectorDocValues =
-            (LoadedDocValues.SingleVectorDocValues) docValues;
+        LoadedDocValues<?> docValues = getDoc().get(vectorFieldName);
+        assertNotNull(vectorFieldName + " is null", docValues);
+        assertEquals(SingleVector.class, docValues.getClass());
+
+        SingleVector vectorDocValues = (SingleVector) docValues;
         float[] loadedVectorValue = vectorDocValues.get(0).getVectorData();
+        List<Float> vectorFieldValues =
+            vectorDocValues.toFieldValue(0).getVectorValue().getValueList();
 
         if (id.equals("1")) {
-          assertTrue(Arrays.equals(expectedVectorValues.get(0).getVectorData(), loadedVectorValue));
+          assertTrue(Arrays.equals(expectedVector1, loadedVectorValue));
+          assertEquals(Floats.asList(expectedVector1), vectorFieldValues);
         } else if (id.equals("2")) {
-          assertTrue(Arrays.equals(expectedVectorValues.get(1).getVectorData(), loadedVectorValue));
+          assertTrue(Arrays.equals(expectedVector2, loadedVectorValue));
+          assertEquals(Floats.asList(expectedVector2), vectorFieldValues);
         }
       } catch (Error e) {
         throw new RuntimeException(e.getMessage(), e.getCause());
