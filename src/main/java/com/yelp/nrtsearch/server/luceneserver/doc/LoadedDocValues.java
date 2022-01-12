@@ -521,12 +521,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
       }
     }
 
-    /**
-     * Decodes binary doc value to float array and wraps it into a VectorType
-     *
-     * @param bytesRef binary doc value
-     * @return vector data wrapped by VectorType
-     */
+    /** Decodes binary doc value to float array and wraps it into a VectorType */
     private static VectorType decodeBytesRefToVectorType(BytesRef bytesRef) {
       byte[] byteArray = bytesRef.bytes;
       float[] floats = new float[byteArray.length / Float.BYTES];

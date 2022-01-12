@@ -31,7 +31,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 
-/** VectorFieldDef extends IndexableFieldDef to add vector type data to the index */
 public class VectorFieldDef extends IndexableFieldDef {
 
   private static int vectorDimensions;
@@ -46,7 +45,6 @@ public class VectorFieldDef extends IndexableFieldDef {
     this.vectorDimensions = requestField.getVectorDimensions();
   }
 
-  /** @return vector field dimension property */
   public static int getVectorDimensions() {
     return vectorDimensions;
   }
@@ -115,6 +113,8 @@ public class VectorFieldDef extends IndexableFieldDef {
   }
 
   /**
+   * Convert float array into byte array
+   *
    * @param floatArr float[] representing vector field values
    * @return byte[] of the input vector field value
    */

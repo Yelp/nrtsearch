@@ -98,6 +98,24 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void vectorFieldDefMultiValueExceptionTest() {
+    List<AddDocumentRequest> documentRequests = new ArrayList<>();
+    documentRequests.add(
+        AddDocumentRequest.newBuilder()
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .putFields(
+                FIELD_NAME,
+                AddDocumentRequest.MultiValuedField.newBuilder()
+                    .addAllValue(VECTOR_FIELD_VALUES)
+                    .build())
+            .build());
+    Exception exception =
+        Assert.assertThrows(RuntimeException.class, () -> addDocuments(documentRequests.stream()));
+    assertTrue(
+        exception.getMessage().contains("Cannot index multiple values into single value field"));
+  }
+
+  @Test
   public void parseVectorFieldToFloatArrTest() {
     float[] expected = {1.0f, 2.5f, 1000.1000f};
     String testJson = "[1.0, 2.5, 1000.1000]";
