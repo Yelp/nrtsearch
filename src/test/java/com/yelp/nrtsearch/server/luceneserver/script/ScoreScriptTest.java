@@ -59,6 +59,7 @@ import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -698,6 +699,9 @@ public class ScoreScriptTest {
           assertTrue(Arrays.equals(expectedVector2, loadedVectorValue));
           assertEquals(Floats.asList(expectedVector2), vectorFieldValues);
         }
+
+        // Test IndexOutOfBoundsException
+        Assert.assertThrows(IndexOutOfBoundsException.class, () -> vectorDocValues.get(1));
       } catch (Error e) {
         throw new RuntimeException(e.getMessage(), e.getCause());
       }

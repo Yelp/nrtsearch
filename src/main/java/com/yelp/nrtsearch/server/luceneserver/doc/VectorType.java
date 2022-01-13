@@ -20,15 +20,9 @@ import java.util.AbstractList;
 
 public final class VectorType extends AbstractList<Float> {
 
-  private static final int DEFAULT_CAPACITY = 10;
-
   private float[] vectorData;
 
   private int vectorSize;
-
-  public VectorType() {
-    this(DEFAULT_CAPACITY);
-  }
 
   /**
    * Construct VectorType with given vector data
@@ -59,12 +53,23 @@ public final class VectorType extends AbstractList<Float> {
     return Array.getFloat(vectorData, index);
   }
 
+  @Override
+  public Float set(int index, Float element) {
+    if (index < 0 || index >= getCapacity()) {
+      throw new IndexOutOfBoundsException(
+          "vector index value: <" + index + "> is not within vector capacity");
+    }
+    float currentValue = get(index);
+    vectorData[index] = element;
+    return currentValue;
+  }
+
   /** @return number of elements in the vector */
   public int size() {
     return vectorSize;
   }
 
-  /** @return current allocated capacity of the vector */
+  /** @return allocated capacity of the vector */
   public int getCapacity() {
     return vectorData.length;
   }

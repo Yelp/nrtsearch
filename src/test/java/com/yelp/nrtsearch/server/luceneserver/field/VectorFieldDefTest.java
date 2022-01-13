@@ -18,9 +18,16 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.google.common.primitives.Floats;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
+import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.grpc.FieldType;
+import com.yelp.nrtsearch.server.grpc.Query;
+import com.yelp.nrtsearch.server.grpc.SearchRequest;
+import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -79,14 +86,35 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
-  public void vectorFieldDefTest() throws IOException {
+  public void validVectorFieldDefTest() throws IOException {
     FieldDef vectorFieldDef = getFieldDef(DEFAULT_TEST_INDEX, FIELD_NAME);
     assertEquals(FIELD_TYPE, vectorFieldDef.getType());
     assertEquals(FIELD_NAME, vectorFieldDef.getName());
+
+    float[] expectedVector1 = {1.0f, 2.5f, 1000.1000f};
+    float[] expectedVector2 = {0.1f, -2.0f, 5.6f};
+
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .addRetrieveFields(FIELD_NAME)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .setQuery(Query.newBuilder().build())
+                    .build());
+    Vector fieldValue1 =
+        searchResponse.getHits(0).getFieldsOrThrow(FIELD_NAME).getFieldValue(0).getVectorValue();
+    Vector fieldValue2 =
+        searchResponse.getHits(1).getFieldsOrThrow(FIELD_NAME).getFieldValue(0).getVectorValue();
+    assertEquals(Floats.asList(expectedVector1), fieldValue1.getValueList());
+    assertEquals(Floats.asList(expectedVector2), fieldValue2.getValueList());
   }
 
   @Test
-  public void vectorFieldDefDimensionMismatchTest() {
+  public void vectorDimensionMismatchTest() {
     List<String> vectorFields = Arrays.asList("[1.0, 2.5]");
     List<AddDocumentRequest> documents = buildDocuments(DEFAULT_TEST_INDEX, vectorFields);
     Exception exception =
@@ -98,7 +126,7 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
-  public void vectorFieldDefMultiValueExceptionTest() {
+  public void vectorFieldMultiValueExceptionTest() {
     List<AddDocumentRequest> documentRequests = new ArrayList<>();
     documentRequests.add(
         AddDocumentRequest.newBuilder()
@@ -122,5 +150,102 @@ public class VectorFieldDefTest extends ServerTestCase {
 
     float[] resultVector = VectorFieldDef.parseVectorFieldToFloatArr(testJson);
     assertTrue(Arrays.equals(expected, resultVector));
+  }
+
+  @Test
+  public void parseVectorFieldToFloatArrFailTest() {
+    List<String> invalidJsonList =
+        Arrays.asList("0.5f", "1", "random_string", "[true, false]", "[a, b]", "");
+    for (String invalidJson : invalidJsonList) {
+      Assert.assertThrows(
+          Exception.class, () -> VectorFieldDef.parseVectorFieldToFloatArr(invalidJson));
+    }
+  }
+
+  @Test
+  public void vectorStoreRequestFailTest() {
+    Exception exception =
+        Assert.assertThrows(
+            RuntimeException.class,
+            () ->
+                getGrpcServer()
+                    .getBlockingStub()
+                    .updateFields(
+                        FieldDefRequest.newBuilder()
+                            .setIndexName(DEFAULT_TEST_INDEX)
+                            .addField(
+                                Field.newBuilder()
+                                    .setName("vector_field_store")
+                                    .setType(FieldType.VECTOR)
+                                    .setStoreDocValues(true)
+                                    .setStore(true)
+                                    .build())
+                            .build()));
+    assertTrue(exception.getMessage().contains("Vector fields cannot be stored"));
+  }
+
+  @Test
+  public void vectorSearchRequestFailTest() {
+    Exception exception =
+        Assert.assertThrows(
+            RuntimeException.class,
+            () ->
+                getGrpcServer()
+                    .getBlockingStub()
+                    .updateFields(
+                        FieldDefRequest.newBuilder()
+                            .setIndexName(DEFAULT_TEST_INDEX)
+                            .addField(
+                                Field.newBuilder()
+                                    .setName("vector_field_search")
+                                    .setType(FieldType.VECTOR)
+                                    .setStoreDocValues(true)
+                                    .setSearch(true)
+                                    .build())
+                            .build()));
+    assertTrue(exception.getMessage().contains("Vector fields cannot be searched"));
+  }
+
+  @Test
+  public void vectorMultiValueRequestFailTest() {
+    Exception exception =
+        Assert.assertThrows(
+            RuntimeException.class,
+            () ->
+                getGrpcServer()
+                    .getBlockingStub()
+                    .updateFields(
+                        FieldDefRequest.newBuilder()
+                            .setIndexName(DEFAULT_TEST_INDEX)
+                            .addField(
+                                Field.newBuilder()
+                                    .setName("vector_field_multi_value")
+                                    .setType(FieldType.VECTOR)
+                                    .setStoreDocValues(true)
+                                    .setMultiValued(true)
+                                    .build())
+                            .build()));
+    assertTrue(exception.getMessage().contains("Vector fields cannot be multivalued"));
+  }
+
+  @Test
+  public void vectorInvalidDimensionRequestFailTest() {
+    Exception exception =
+        Assert.assertThrows(
+            RuntimeException.class,
+            () ->
+                getGrpcServer()
+                    .getBlockingStub()
+                    .updateFields(
+                        FieldDefRequest.newBuilder()
+                            .setIndexName(DEFAULT_TEST_INDEX)
+                            .addField(
+                                Field.newBuilder()
+                                    .setName("vector_field_missing_dimensions")
+                                    .setType(FieldType.VECTOR)
+                                    .setStoreDocValues(true)
+                                    .build())
+                            .build()));
+    assertTrue(exception.getMessage().contains("Vector dimension should be > 0"));
   }
 }

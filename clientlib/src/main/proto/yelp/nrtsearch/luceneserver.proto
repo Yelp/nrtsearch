@@ -435,7 +435,8 @@ enum FieldType {
     _ID = 12; // Field which will be used as document IDs
     POLYGON = 13; // Geojson string for polygon
     OBJECT = 14; // JSON
-    VECTOR = 15; // List of float values
+    // List of float values
+    VECTOR = 15;
 }
 
 //How the tokens should be indexed.

@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.doc;
 
-import com.google.common.primitives.Floats;
 import com.google.gson.Gson;
 import com.google.protobuf.ListValue;
 import com.google.protobuf.Struct;
@@ -23,8 +22,8 @@ import com.google.protobuf.util.JsonFormat;
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
-import com.yelp.nrtsearch.server.grpc.Vector;
-import com.yelp.nrtsearch.server.grpc.Vector.Builder;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector.Builder;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -523,9 +522,9 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
 
     /** Decodes binary doc value to float array and wraps it into a VectorType */
     private static VectorType decodeBytesRefToVectorType(BytesRef bytesRef) {
-      byte[] byteArray = bytesRef.bytes;
-      float[] floats = new float[byteArray.length / Float.BYTES];
-      FloatBuffer fb = ByteBuffer.wrap(byteArray, 0, byteArray.length).asFloatBuffer();
+      float[] floats = new float[bytesRef.length / Float.BYTES];
+      FloatBuffer fb =
+          ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length).asFloatBuffer();
       fb.get(floats);
       return new VectorType(floats);
     }
@@ -534,8 +533,10 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     @Override
     public FieldValue toFieldValue(int index) {
       VectorType vector = get(index);
-      Builder vectorBuilder =
-          Vector.newBuilder().addAllValue(Floats.asList(vector.getVectorData()));
+      Builder vectorBuilder = Vector.newBuilder();
+      for (float value : vector.getVectorData()) {
+        vectorBuilder.addValue(value);
+      }
       return SearchResponse.Hit.FieldValue.newBuilder()
           .setVectorValue(vectorBuilder.build())
           .build();

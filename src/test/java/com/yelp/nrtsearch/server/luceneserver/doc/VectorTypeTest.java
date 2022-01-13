@@ -36,17 +36,22 @@ public class VectorTypeTest {
     VectorType vectorWithCapacity = new VectorType(INITIAL_CAPACITY);
     assertEquals(INITIAL_CAPACITY, vectorWithCapacity.getCapacity());
     assertTrue(vectorWithCapacity.isEmpty());
-
-    VectorType vectorWithDefaultCapacity = new VectorType();
-    assertEquals(DEFAULT_CAPACITY, vectorWithDefaultCapacity.getCapacity());
-    assertTrue(vectorWithDefaultCapacity.isEmpty());
   }
 
   @Test
-  public void vectorTypeExceptionTest() {
-    Exception exception =
-        Assert.assertThrows(IllegalArgumentException.class, () -> new VectorType(-2));
-    assertTrue(exception.getMessage().contains("vector capacity should be >= 0"));
+  public void getTest() {
+    VectorType vector = new VectorType(TEST_ARRAY);
+    assertTrue(Float.compare(2.5f, vector.get(1)) == 0);
+  }
+
+  @Test
+  public void setTest() {
+    VectorType vectorWithCapacity = new VectorType(INITIAL_CAPACITY);
+    int index = 2;
+    float newValue = 2.5f;
+    float oldValue = vectorWithCapacity.set(index, newValue);
+    assertTrue(0 == oldValue);
+    assertTrue(vectorWithCapacity.get(index) == newValue);
   }
 
   @Test
@@ -56,8 +61,21 @@ public class VectorTypeTest {
   }
 
   @Test
-  public void getFloatTest() {
-    VectorType vector = new VectorType(TEST_ARRAY);
-    assertTrue(Float.compare(2.5f, vector.get(1)) == 0);
+  public void vectorTypeExceptionTest() {
+    Exception capacityException =
+        Assert.assertThrows(IllegalArgumentException.class, () -> new VectorType(-2));
+    assertTrue(capacityException.getMessage().contains("vector capacity should be >= 0"));
+
+    Exception illegalIndexException =
+        Assert.assertThrows(
+            IndexOutOfBoundsException.class,
+            () -> {
+              VectorType vector = new VectorType(INITIAL_CAPACITY);
+              vector.set(10, 1.0f);
+            });
+    assertTrue(
+        illegalIndexException
+            .getMessage()
+            .contains("vector index value: <10> is not within vector capacity"));
   }
 }
