@@ -22,8 +22,6 @@ public final class VectorType extends AbstractList<Float> {
 
   private float[] vectorData;
 
-  private int vectorSize;
-
   /**
    * Construct VectorType with given vector data
    *
@@ -31,7 +29,6 @@ public final class VectorType extends AbstractList<Float> {
    */
   public VectorType(float[] vectorData) {
     this.vectorData = vectorData;
-    this.vectorSize = vectorData.length;
   }
 
   /**
@@ -55,7 +52,7 @@ public final class VectorType extends AbstractList<Float> {
 
   @Override
   public Float set(int index, Float element) {
-    if (index < 0 || index >= getCapacity()) {
+    if (index < 0 || index >= size()) {
       throw new IndexOutOfBoundsException(
           "vector index value: <" + index + "> is not within vector capacity");
     }
@@ -65,17 +62,9 @@ public final class VectorType extends AbstractList<Float> {
   }
 
   /** @return number of elements in the vector */
+  @Override
   public int size() {
-    return vectorSize;
-  }
-
-  /** @return allocated capacity of the vector */
-  public int getCapacity() {
     return vectorData.length;
-  }
-
-  public boolean isEmpty() {
-    return vectorSize == 0;
   }
 
   public float[] getVectorData() {

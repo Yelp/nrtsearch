@@ -27,21 +27,20 @@ public class VectorTypeTest {
   private static final int DEFAULT_CAPACITY = 10;
   private static final float[] TEST_ARRAY = {1.0f, 2.5f, 1000.1000f};
 
-  /** Test VectorType constructors, size(), getCapacity() and isEmpty() methods */
+  /** Test VectorType constructors and size() methods */
   @Test
   public void vectorTypeConstructorTest() {
     VectorType vector = new VectorType(TEST_ARRAY);
     assertEquals(TEST_ARRAY.length, vector.size());
 
     VectorType vectorWithCapacity = new VectorType(INITIAL_CAPACITY);
-    assertEquals(INITIAL_CAPACITY, vectorWithCapacity.getCapacity());
-    assertTrue(vectorWithCapacity.isEmpty());
+    assertEquals(INITIAL_CAPACITY, vectorWithCapacity.size());
   }
 
   @Test
   public void getTest() {
     VectorType vector = new VectorType(TEST_ARRAY);
-    assertTrue(Float.compare(2.5f, vector.get(1)) == 0);
+    assertEquals(2.5f, vector.get(1), Math.ulp(2.5f));
   }
 
   @Test
