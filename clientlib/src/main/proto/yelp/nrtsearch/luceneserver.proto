@@ -435,6 +435,8 @@ enum FieldType {
     _ID = 12; // Field which will be used as document IDs
     POLYGON = 13; // Geojson string for polygon
     OBJECT = 14; // JSON
+    // List of float values
+    VECTOR = 15;
 }
 
 //How the tokens should be indexed.
@@ -495,6 +497,7 @@ message Field {
 
     bool eagerGlobalOrdinals = 27; // Compute facet global ordinals for this field up front, otherwise this is done lazily on first query. Currently only for SORTED_SET_DOC_VALUES facet type.
     bool nestedDoc = 28; // True if object data should be indexed as child documents
+    int32 vectorDimensions = 29; // Dimensions for vector field type
 }
 
 /* Input to registerFields */

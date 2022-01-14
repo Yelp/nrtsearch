@@ -22,6 +22,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import com.google.common.primitives.Floats;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
@@ -38,6 +39,7 @@ import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleVector;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.ScriptPlugin;
@@ -57,6 +59,7 @@ import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -169,6 +172,8 @@ public class ScoreScriptTest {
           return new TestNoParamsScript(params, docLookup, ctx, scores);
         case "test_params":
           return new TestParamsScript(params, docLookup, ctx, scores);
+        case "verify_vector_type_doc_values":
+          return new VerifyVectorTypeScript(params, docLookup, ctx, scores);
       }
       throw new IllegalArgumentException("Unknown script id: " + scriptId);
     }
@@ -656,6 +661,54 @@ public class ScoreScriptTest {
     }
   }
 
+  static class VerifyVectorTypeScript extends ScoreScript {
+
+    public VerifyVectorTypeScript(
+        Map<String, Object> params,
+        DocLookup docLookup,
+        LeafReaderContext context,
+        DoubleValues scores) {
+      super(params, docLookup, context, scores);
+    }
+
+    @Override
+    public double execute() {
+      try {
+        String vectorFieldName = "vector_field";
+        float[] expectedVector1 = {0.1f, 0.2f, 0.3f};
+        float[] expectedVector2 = {0.0f, 1.0f, 0.0f};
+
+        LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
+        assertEquals("doc_id size", 1, idDocValues.size());
+        assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
+        String id = ((LoadedDocValues.SingleString) idDocValues).get(0);
+
+        LoadedDocValues<?> docValues = getDoc().get(vectorFieldName);
+        assertNotNull(vectorFieldName + " is null", docValues);
+        assertEquals(SingleVector.class, docValues.getClass());
+
+        SingleVector vectorDocValues = (SingleVector) docValues;
+        float[] loadedVectorValue = vectorDocValues.get(0).getVectorData();
+        List<Float> vectorFieldValues =
+            vectorDocValues.toFieldValue(0).getVectorValue().getValueList();
+
+        if (id.equals("1")) {
+          assertTrue(Arrays.equals(expectedVector1, loadedVectorValue));
+          assertEquals(Floats.asList(expectedVector1), vectorFieldValues);
+        } else if (id.equals("2")) {
+          assertTrue(Arrays.equals(expectedVector2, loadedVectorValue));
+          assertEquals(Floats.asList(expectedVector2), vectorFieldValues);
+        }
+
+        // Test IndexOutOfBoundsException
+        Assert.assertThrows(IndexOutOfBoundsException.class, () -> vectorDocValues.get(1));
+      } catch (Error e) {
+        throw new RuntimeException(e.getMessage(), e.getCause());
+      }
+      return 0;
+    }
+  }
+
   @Test
   public void testScriptDocValues() throws Exception {
     testQueryFieldScript("verify_doc_values", "registerFieldsBasic.json", "addDocs.csv", 1.5);
@@ -740,6 +793,12 @@ public class ScoreScriptTest {
   @Test
   public void testDocValuesExceptions() throws Exception {
     testQueryFieldScript("doc_values_errors", "registerFieldsBasic.json", "addDocs.csv", 3.5);
+  }
+
+  @Test
+  public void testVectorTypeDocValues() throws Exception {
+    testQueryFieldScript(
+        "verify_vector_type_doc_values", "registerFieldsVector.json", "addDocsVectorType.csv", 0);
   }
 
   @Test

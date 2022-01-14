@@ -1211,6 +1211,18 @@
         }
       }
     },
+    "FieldValueVector": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      }
+    },
     "HitCompositeFieldValue": {
       "type": "object",
       "properties": {
@@ -1252,6 +1264,10 @@
         },
         "structValue": {
           "type": "object"
+        },
+        "vectorValue": {
+          "$ref": "#/definitions/FieldValueVector",
+          "title": "Value for VECTOR FieldType"
         }
       }
     },
@@ -2374,6 +2390,10 @@
         },
         "nestedDoc": {
           "type": "boolean"
+        },
+        "vectorDimensions": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -2418,10 +2438,11 @@
         "CUSTOM",
         "_ID",
         "POLYGON",
-        "OBJECT"
+        "OBJECT",
+        "VECTOR"
       ],
       "default": "ATOM",
-      "description": "- VIRTUAL: TODO name this \"dynamic\" instead of \"virtual\"?\n - INTERNAL: TODO need tests for internal:",
+      "description": "- VIRTUAL: TODO name this \"dynamic\" instead of \"virtual\"?\n - INTERNAL: TODO need tests for internal:\n - VECTOR: List of float values",
       "title": "Type of the field"
     },
     "luceneserverFileMetadata": {

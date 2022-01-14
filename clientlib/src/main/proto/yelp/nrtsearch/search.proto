@@ -409,7 +409,14 @@ message SearchResponse {
                 double doubleValue = 6; // Value for DOUBLE FieldType
                 google.type.LatLng latLngValue = 7; // Value for LAT_LON FieldType
                 google.protobuf.Struct structValue = 8; // Value for structured data
+                // Value for VECTOR FieldType
+                Vector vectorValue = 9;
             }
+
+            message Vector {
+                repeated float value = 1;
+            }
+
         }
 
         message CompositeFieldValue {
