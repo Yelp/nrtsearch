@@ -126,6 +126,35 @@ public class WarmerTest {
   }
 
   @Test
+  public void testWarmFromS3_multiple()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
+    try (BufferedWriter writer =
+        Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
+      List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
+      for (String line : testSearchRequestsJson) {
+        writer.write(line);
+        writer.newLine();
+      }
+      writer.flush();
+    }
+    String versionHash =
+        archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), false);
+    archiver.blessVersion(service, resource, versionHash);
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+
+    warmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+    warmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    for (SearchRequest testRequest : getTestSearchRequests()) {
+      verify(mockSearchHandler, times(2)).handle(mockIndexState, testRequest);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  @Test
   public void testWarmFromS3_parallel()
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();

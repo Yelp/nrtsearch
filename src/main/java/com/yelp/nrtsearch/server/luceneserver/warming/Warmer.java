@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -167,20 +166,9 @@ public class Warmer {
         threadPoolExecutor.shutdown();
         threadPoolExecutor.awaitTermination(10, TimeUnit.SECONDS);
       }
-      // TODO: If index start fails during or after warming and is attempted again, the startIndex
-      // will fail due to previous downloaded parent directory still being present.
-      // We need to manually clean up the directory to be able to start the index. Either don't
-      // delete at all so the file is present and can be found or delete the parent and version
-      // directory created by archiver.
-      if (Files.exists(warmingRequestsDir)) {
-        for (Path file : Files.list(warmingRequestsDir).collect(Collectors.toList())) {
-          Files.delete(file);
-        }
-        Files.delete(warmingRequestsDir);
-      }
-      if (Files.exists(downloadDir)) {
-        Files.delete(downloadDir);
-      }
+      // Leave warming files on disk, for use if the index is restarted.
+      // If we find these files end up being too large, we could consider adding
+      // some kind of local resource cache purging to the Archiver interface.
     }
   }
 
