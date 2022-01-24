@@ -1269,6 +1269,11 @@ public class LuceneServerTest {
     return fields;
   }
 
+  @Test
+  public void testCancellationDefaultDisabled() {
+    assertFalse(DeadlineUtils.getCancellationEnabled());
+  }
+
   public static void checkHits(SearchResponse.Hit hit) {
     Map<String, CompositeFieldValue> fields = hit.getFieldsMap();
     checkFieldNames(RETRIEVED_VALUES, fields);
