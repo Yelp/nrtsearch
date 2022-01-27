@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.google.common.collect.Lists;
 import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
@@ -93,6 +94,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
   @Override
   public SearchResponse handle(IndexState indexState, SearchRequest searchRequest)
       throws SearchHandlerException {
+    // this request may have been waiting in the grpc queue too long
+    DeadlineUtils.checkDeadline("SearchHandler: start", "SEARCH");
+
     ShardState shardState = indexState.getShard(0);
 
     // Index won't be started if we are currently warming
@@ -180,6 +184,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 
+      DeadlineUtils.checkDeadline("SearchHandler: post recall", "SEARCH");
+
       // add detailed timing metrics for query execution
       if (profileResultBuilder != null) {
         searchContext.getCollector().maybeAddProfiling(profileResultBuilder);
@@ -193,6 +199,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           hits = rescorer.rescore(hits, searchContext);
           long endNS = System.nanoTime();
           diagnostics.putRescorersTimeMs(rescorer.getName(), (endNS - startNS) / 1000000.0);
+          DeadlineUtils.checkDeadline("SearchHandler: post " + rescorer.getName(), "SEARCH");
         }
         diagnostics.setRescoreTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
       }
@@ -258,6 +265,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       logger.error("Unable to add warming query", e);
     }
 
+    // if we are out of time, don't bother with serialization
+    DeadlineUtils.checkDeadline("SearchHandler: end", "SEARCH");
     return searchContext.getResponseBuilder().build();
   }
 

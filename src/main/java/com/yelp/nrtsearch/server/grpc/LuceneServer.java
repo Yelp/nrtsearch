@@ -56,6 +56,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.ServerCallStreamObserver;
@@ -244,6 +245,8 @@ public class LuceneServer {
     IndexMetrics.register(collectorRegistry);
     // register query cache metrics
     new QueryCacheCollector().register(collectorRegistry);
+    // register deadline cancellation metrics
+    DeadlineMetrics.register(collectorRegistry);
   }
 
   /** Main launches the server from the command line. */
@@ -311,6 +314,8 @@ public class LuceneServer {
       this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
       this.backupFromIncArchiver = configuration.getBackupWithInArchiver();
       this.restoreFromIncArchiver = configuration.getRestoreFromIncArchiver();
+
+      DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
 
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
@@ -951,14 +956,18 @@ public class LuceneServer {
                 "error while trying to execute search for index %s: request: %s",
                 searchRequest.getIndexName(), searchRequestJson),
             e);
-        searchResponseStreamObserver.onError(
-            Status.UNKNOWN
-                .withDescription(
-                    String.format(
-                        "error while trying to execute search for index %s. check logs for full searchRequest.",
-                        searchRequest.getIndexName()))
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
+        if (e instanceof StatusRuntimeException) {
+          searchResponseStreamObserver.onError(e);
+        } else {
+          searchResponseStreamObserver.onError(
+              Status.UNKNOWN
+                  .withDescription(
+                      String.format(
+                          "error while trying to execute search for index %s. check logs for full searchRequest.",
+                          searchRequest.getIndexName()))
+                  .augmentDescription(e.getMessage())
+                  .asRuntimeException());
+        }
       }
     }
 
@@ -998,14 +1007,18 @@ public class LuceneServer {
                 "error while trying to execute search for index %s: request: %s",
                 searchRequest.getIndexName(), searchRequestJson),
             e);
-        searchResponseStreamObserver.onError(
-            Status.UNKNOWN
-                .withDescription(
-                    String.format(
-                        "error while trying to execute search for index %s. check logs for full searchRequest.",
-                        searchRequest.getIndexName()))
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
+        if (e instanceof StatusRuntimeException) {
+          searchResponseStreamObserver.onError(e);
+        } else {
+          searchResponseStreamObserver.onError(
+              Status.UNKNOWN
+                  .withDescription(
+                      String.format(
+                          "error while trying to execute search for index %s. check logs for full searchRequest.",
+                          searchRequest.getIndexName()))
+                  .augmentDescription(e.getMessage())
+                  .asRuntimeException());
+        }
       }
     }
 
