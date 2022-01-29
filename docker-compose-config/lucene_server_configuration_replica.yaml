@@ -7,3 +7,11 @@ indexDir: "/user/app/replica_index_base"
 threadPoolConfiguration:
   maxSearchingThreads: 16
   maxIndexingThreads: 4
+botoCfgPath: "/user/app/boto.cfg"
+bucketName: "nrtsearch-bucket"
+archiveDirectory: "/user/app/replica_index_archiver"
+serviceName: "host-name-replica"
+restoreState: False
+restoreFromIncArchiver: "true"
+backupWithIncArchiver: "true"
+downloadAsStream: "true"
