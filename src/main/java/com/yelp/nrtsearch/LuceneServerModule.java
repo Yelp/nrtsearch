@@ -70,9 +70,6 @@ public class LuceneServerModule extends AbstractModule {
   @Singleton
   @Provides
   protected AmazonS3 providesAmazonS3(LuceneServerConfiguration luceneServerConfiguration) {
-    System.out.println(" ************* luceneServerConfiguration.getBotoCfgPath()="+luceneServerConfiguration.getBotoCfgPath());
-    System.out.println(" ************* LuceneServerConfiguration.DEFAULT_BOTO_CFG_PATH.toString()="+LuceneServerConfiguration.DEFAULT_BOTO_CFG_PATH.toString());
-
     if (luceneServerConfiguration
         .getBotoCfgPath()
         .equals(LuceneServerConfiguration.DEFAULT_BOTO_CFG_PATH.toString())) {
@@ -83,30 +80,12 @@ public class LuceneServerModule extends AbstractModule {
           .build();
     } else {
       Path botoCfgPath = Paths.get(luceneServerConfiguration.getBotoCfgPath());
-      System.out.println(" ****** botoCfgPath="+botoCfgPath.toString());
       final ProfilesConfigFile profilesConfigFile = new ProfilesConfigFile(botoCfgPath.toFile());
-      System.out.println(" ****** profilesConfigFile:");
-      for (Map.Entry<String, BasicProfile> entry : profilesConfigFile.getAllBasicProfiles().entrySet()) {
-        if (entry.getKey().equals("default")) {
-          System.out.println("     key / Region ****** " + entry.getKey() + "  /  " + entry.getValue().getRegion());
-          System.out.println("     key/ AccessId ****** " + entry.getKey() + "  /  " + entry.getValue().getAwsAccessIdKey().toString());
-          System.out.println("     key/ SecretAccessKe ****** " + entry.getKey() + "  /  " + entry.getValue().getAwsSecretAccessKey().toString());
-        }
-        if (entry.getKey().equals("Credentials")) {
-          System.out.println("     key/ AccessId ****** " + entry.getKey() + "  /  " + entry.getValue().getAwsAccessIdKey().toString());
-          System.out.println("     key/ SecretAccessKe ****** " + entry.getKey() + "  /  " + entry.getValue().getAwsSecretAccessKey().toString());
-        }
-      }
       final AWSCredentialsProvider awsCredentialsProvider =
           new ProfileCredentialsProvider(profilesConfigFile, "default");
 
-      System.out.println("   ******  AWSAccessKeyId: " + awsCredentialsProvider.getCredentials().getAWSAccessKeyId());
-      System.out.println("   ******  AWSSecretKey: " + awsCredentialsProvider.getCredentials().getAWSSecretKey());
-
-      System.out.println("   ****** BucketName()" + luceneServerConfiguration.getBucketName());
       AmazonS3 s3ClientInterim =
           AmazonS3ClientBuilder.standard().withCredentials(awsCredentialsProvider).build();
-      System.out.println("   ****** region: " + s3ClientInterim.getBucketLocation(luceneServerConfiguration.getBucketName()));
       String region = s3ClientInterim.getBucketLocation(luceneServerConfiguration.getBucketName());
       // In useast-1, the region is returned as "US" which is an equivalent to "us-east-1"
       // https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/model/Region.html#US_Standard
