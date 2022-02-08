@@ -87,6 +87,7 @@ public class LuceneServerConfiguration {
   private final FileCopyConfig fileCopyConfig;
   private final ScriptCacheConfig scriptCacheConfig;
   private final boolean deadlineCancellation;
+  private final StateConfig stateConfig;
 
   private final YamlConfigReader configReader;
   private final long maxConnectionAgeForReplication;
@@ -146,6 +147,7 @@ public class LuceneServerConfiguration {
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
     scriptCacheConfig = ScriptCacheConfig.fromConfig(configReader);
     deadlineCancellation = configReader.getBoolean("deadlineCancellation", false);
+    stateConfig = StateConfig.fromConfig(configReader);
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
@@ -274,6 +276,10 @@ public class LuceneServerConfiguration {
 
   public boolean getDeadlineCancellation() {
     return deadlineCancellation;
+  }
+
+  public StateConfig getStateConfig() {
+    return stateConfig;
   }
 
   /**

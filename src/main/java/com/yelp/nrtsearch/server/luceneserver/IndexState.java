@@ -542,7 +542,7 @@ public class IndexState implements Closeable, Restorable {
   }
 
   public void initWarmer(Archiver archiver) {
-    LuceneServerConfiguration configuration = globalState.configuration;
+    LuceneServerConfiguration configuration = globalState.getConfiguration();
     WarmerConfig warmerConfig = configuration.getWarmerConfig();
     if (warmerConfig.isWarmOnStartup() || warmerConfig.getMaxWarmingQueries() > 0) {
       this.warmer =
@@ -654,7 +654,7 @@ public class IndexState implements Closeable, Restorable {
     // all IS.indices and closes ...:
     // nocommit need sync:
 
-    globalState.indices.remove(name);
+    globalState.indexClosed(name);
   }
 
   /** True if this generation is still referenced by at least one snapshot. */
@@ -743,26 +743,26 @@ public class IndexState implements Closeable, Restorable {
         Archiver incArchiver = globalState.getIncArchiver().get();
         String versionHash =
             incArchiver.upload(
-                globalState.configuration.getServiceName(),
+                globalState.getConfiguration().getServiceName(),
                 resourceData,
                 this.rootDir,
                 segmentFiles,
                 Collections.emptyList(),
                 true);
         incArchiver.blessVersion(
-            globalState.configuration.getServiceName(), resourceData, versionHash);
+            globalState.getConfiguration().getServiceName(), resourceData, versionHash);
         // upload metadata
         String resourceMetadata = IndexBackupUtils.getResourceMetadata(this.name);
         versionHash =
             incArchiver.upload(
-                globalState.configuration.getServiceName(),
+                globalState.getConfiguration().getServiceName(),
                 resourceMetadata,
-                this.globalState.stateDir,
+                this.globalState.getStateDir(),
                 Collections.emptyList(),
                 Collections.emptyList(),
                 true);
         incArchiver.blessVersion(
-            globalState.configuration.getServiceName(), resourceMetadata, versionHash);
+            globalState.getConfiguration().getServiceName(), resourceMetadata, versionHash);
       }
     } finally {
       if (snapshotId != null) {
@@ -956,7 +956,7 @@ public class IndexState implements Closeable, Restorable {
       throw new IllegalArgumentException("Number of virtual shards must be greater than 0.");
     }
 
-    if (!globalState.configuration.getVirtualSharding() && shards > 1) {
+    if (!globalState.getConfiguration().getVirtualSharding() && shards > 1) {
       logger.warn(
           String.format("Setting virtual shards to %d, but virtual sharding is disabled.", shards));
     }
@@ -970,7 +970,7 @@ public class IndexState implements Closeable, Restorable {
    * returns 1.
    */
   public int getVirtualShards() {
-    if (!globalState.configuration.getVirtualSharding()) {
+    if (!globalState.getConfiguration().getVirtualSharding()) {
       return 1;
     }
     return virtualShards;
@@ -1242,7 +1242,7 @@ public class IndexState implements Closeable, Restorable {
       throws IOException {
     IndexWriterConfig iwc = new IndexWriterConfig(indexAnalyzer);
     iwc.setOpenMode(openMode);
-    if (globalState.configuration.getIndexVerbose()) {
+    if (globalState.getConfiguration().getIndexVerbose()) {
       logger.info("Enabling verbose logging for Lucene NRT");
       iwc.setInfoStream(new PrintStreamInfoStream(System.out));
     }
@@ -1292,7 +1292,7 @@ public class IndexState implements Closeable, Restorable {
     iwc.setCodec(new ServerCodec(this));
 
     TieredMergePolicy mergePolicy;
-    if (globalState.configuration.getVirtualSharding()) {
+    if (globalState.getConfiguration().getVirtualSharding()) {
       mergePolicy = new BucketedTieredMergePolicy(this::getVirtualShards);
     } else {
       mergePolicy = new TieredMergePolicy();

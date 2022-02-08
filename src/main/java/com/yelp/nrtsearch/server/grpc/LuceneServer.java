@@ -106,7 +106,7 @@ public class LuceneServer {
   }
 
   private void start() throws IOException {
-    GlobalState globalState = new GlobalState(luceneServerConfiguration, incArchiver);
+    GlobalState globalState = GlobalState.createState(luceneServerConfiguration, incArchiver);
 
     registerMetrics();
 
@@ -114,7 +114,10 @@ public class LuceneServer {
     String serviceName = luceneServerConfiguration.getServiceName();
     String nodeName = luceneServerConfiguration.getNodeName();
 
-    if (luceneServerConfiguration.getRestoreState()) {
+    // Only do state restore if using legacy state management.
+    // Otherwise, this will be done during GlobalState initialization.
+    if (luceneServerConfiguration.getStateConfig().useLegacyStateManagement()
+        && luceneServerConfiguration.getRestoreState()) {
       logger.info("Loading state for any previously backed up indexes");
       List<String> indexes =
           RestoreStateHandler.restore(
@@ -1789,7 +1792,7 @@ public class LuceneServer {
                     .build();
             rawFileChunkStreamObserver.onNext(rawFileChunk);
             totalRead += chunkSize;
-            if (globalState.configuration.getFileSendDelay()) {
+            if (globalState.getConfiguration().getFileSendDelay()) {
               randomDelay(ThreadLocalRandom.current());
             }
           }
@@ -1813,9 +1816,10 @@ public class LuceneServer {
         private IndexState indexState;
         private IndexInput luceneFile;
         private byte[] buffer;
-        private final int ackEvery = globalState.configuration.getFileCopyConfig().getAckEvery();
+        private final int ackEvery =
+            globalState.getConfiguration().getFileCopyConfig().getAckEvery();
         private final int maxInflight =
-            globalState.configuration.getFileCopyConfig().getMaxInFlight();
+            globalState.getConfiguration().getFileCopyConfig().getMaxInFlight();
         private int lastAckedSeq = 0;
         private int currentSeq = 0;
         private long fileOffset;
@@ -1837,7 +1841,7 @@ public class LuceneServer {
               luceneFile.seek(fileInfoRequest.getFpStart());
               fileOffset = fileInfoRequest.getFpStart();
               fileLength = luceneFile.length();
-              buffer = new byte[globalState.configuration.getFileCopyConfig().getChunkSize()];
+              buffer = new byte[globalState.getConfiguration().getFileCopyConfig().getChunkSize()];
             } else {
               // ack existing transfer
               lastAckedSeq = fileInfoRequest.getAckSeqNum();

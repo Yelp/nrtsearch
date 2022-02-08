@@ -32,7 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class IndexArchiver implements Archiver {
-  private static final Logger logger = LoggerFactory.getLogger(BackupDiffManager.class);
+  private static final Logger logger = LoggerFactory.getLogger(IndexArchiver.class);
   public static final String STATE = "state";
   public static final String SHARD_0 = "shard0";
   public static final String INDEX = "index";
@@ -77,12 +77,12 @@ public class IndexArchiver implements Archiver {
     final Path tempCurrentLink = resourceDestDirectory.resolve(getTmpName());
     Path relativeVersionDirectory;
 
-    if (IndexBackupUtils.isMetadata(resource)) {
+    if (IndexBackupUtils.isMetadata(resource) || IndexBackupUtils.isBackendGlobalState(resource)) {
       if (versionManager.getLatestVersionNumber(serviceName, resource) < 0) {
         logger.warn(
             String.format(
                 "No prior backups found for service: %s, resource: %s. Nothing to download",
-                serviceName, getIndexDataResourceName(resource)));
+                serviceName, resource));
         return null;
       }
       String versionHash = getVersionHash(serviceName, resource);
@@ -173,7 +173,7 @@ public class IndexArchiver implements Archiver {
           getIndexStateDir(path),
           true);
       return diffVersionHash;
-    } else if (validGlobalStateDir(path)) {
+    } else if (validGlobalStateDir(path) || IndexBackupUtils.isBackendGlobalState(resource)) {
       String versionHash = UUID.randomUUID().toString();
       fileCompressAndUploader.upload(serviceName, resource, versionHash, path, true);
       return versionHash;
@@ -220,7 +220,7 @@ public class IndexArchiver implements Archiver {
   @Override
   public boolean blessVersion(String serviceName, String resource, String versionHash)
       throws IOException {
-    if (IndexBackupUtils.isMetadata(resource)) {
+    if (IndexBackupUtils.isMetadata(resource) || IndexBackupUtils.isBackendGlobalState(resource)) {
       return versionManager.blessVersion(serviceName, resource, versionHash);
     } else {
       return backupDiffManager.blessVersion(

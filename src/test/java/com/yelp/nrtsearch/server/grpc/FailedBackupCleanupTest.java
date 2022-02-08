@@ -83,7 +83,7 @@ public class FailedBackupCleanupTest {
   }
 
   private GrpcServer setUpGrpcServer() throws IOException {
-    GlobalState globalState = new GlobalState(luceneServerConfiguration);
+    GlobalState globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         grpcCleanup,
         luceneServerConfiguration,

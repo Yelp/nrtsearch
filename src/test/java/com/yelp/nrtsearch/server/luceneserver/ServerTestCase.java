@@ -204,7 +204,7 @@ public class ServerTestCase {
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), getExtraConfig());
-    globalState = new GlobalState(luceneServerConfiguration);
+    globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         collectorRegistry,
         grpcCleanup,

@@ -109,7 +109,7 @@ public class NodeNameResolverAndLoadBalancingTests {
   private GrpcServer createGrpcServer() throws IOException {
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    GlobalState globalState = new GlobalState(luceneServerConfiguration);
+    GlobalState globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         grpcCleanup,
         luceneServerConfiguration,

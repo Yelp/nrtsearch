@@ -492,7 +492,8 @@ public class ShardState implements Closeable {
         indexDirFile = rootDir.resolve("index");
       }
       origIndexDir =
-          indexState.df.open(indexDirFile, indexState.globalState.configuration.getPreloadConfig());
+          indexState.df.open(
+              indexDirFile, indexState.globalState.getConfiguration().getPreloadConfig());
 
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
@@ -530,7 +531,8 @@ public class ShardState implements Closeable {
         taxoDirFile = rootDir.resolve("taxonomy");
       }
       taxoDir =
-          indexState.df.open(taxoDirFile, indexState.globalState.configuration.getPreloadConfig());
+          indexState.df.open(
+              taxoDirFile, indexState.globalState.getConfiguration().getPreloadConfig());
 
       taxoSnapshots =
           new PersistentSnapshotDeletionPolicy(
@@ -581,7 +583,7 @@ public class ShardState implements Closeable {
 
       restartReopenThread();
 
-      startSearcherPruningThread(indexState.globalState.shutdownNow);
+      startSearcherPruningThread(indexState.globalState.getShutdownLatch());
       started = true;
     } finally {
       if (!started) {
@@ -634,7 +636,8 @@ public class ShardState implements Closeable {
         indexDirFile = rootDir.resolve("index");
       }
       origIndexDir =
-          indexState.df.open(indexDirFile, indexState.globalState.configuration.getPreloadConfig());
+          indexState.df.open(
+              indexDirFile, indexState.globalState.getConfiguration().getPreloadConfig());
 
       if ((origIndexDir instanceof MMapDirectory) == false) {
         double maxMergeSizeMB =
@@ -665,7 +668,7 @@ public class ShardState implements Closeable {
 
       // TODO: get facets working!
 
-      boolean verbose = indexState.globalState.configuration.getIndexVerbose();
+      boolean verbose = indexState.globalState.getConfiguration().getIndexVerbose();
 
       writer =
           new IndexWriter(
@@ -725,7 +728,7 @@ public class ShardState implements Closeable {
               });
       restartReopenThread();
 
-      startSearcherPruningThread(indexState.globalState.shutdownNow);
+      startSearcherPruningThread(indexState.globalState.getShutdownLatch());
       started = true;
     } finally {
       if (!started) {
@@ -898,7 +901,8 @@ public class ShardState implements Closeable {
         indexDirFile = rootDir.resolve("index");
       }
       origIndexDir =
-          indexState.df.open(indexDirFile, indexState.globalState.configuration.getPreloadConfig());
+          indexState.df.open(
+              indexDirFile, indexState.globalState.getConfiguration().getPreloadConfig());
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
       if ((origIndexDir instanceof MMapDirectory) == false) {
@@ -917,7 +921,7 @@ public class ShardState implements Closeable {
       manager = null;
       nrtPrimaryNode = null;
 
-      boolean verbose = indexState.globalState.configuration.getIndexVerbose();
+      boolean verbose = indexState.globalState.getConfiguration().getIndexVerbose();
 
       HostPort hostPort =
           new HostPort(
@@ -932,13 +936,13 @@ public class ShardState implements Closeable {
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               primaryGen,
-              indexState.globalState.configuration.getFileCopyConfig().getAckedCopy());
+              indexState.globalState.getConfiguration().getFileCopyConfig().getAckedCopy());
 
-      if (indexState.globalState.configuration.getSyncInitialNrtPoint()) {
+      if (indexState.globalState.getConfiguration().getSyncInitialNrtPoint()) {
         nrtReplicaNode.syncFromCurrentPrimary(INITIAL_SYNC_PRIMARY_WAIT_MS);
       }
 
-      startSearcherPruningThread(indexState.globalState.shutdownNow);
+      startSearcherPruningThread(indexState.globalState.getShutdownLatch());
 
       // Necessary so that the replica "hang onto" all versions sent to it, since the version is
       // sent back to the user on writeNRTPoint
@@ -960,7 +964,7 @@ public class ShardState implements Closeable {
       keepAlive = new KeepAlive(this);
       new Thread(keepAlive, "KeepAlive").start();
 
-      WarmerConfig warmerConfig = indexState.globalState.configuration.getWarmerConfig();
+      WarmerConfig warmerConfig = indexState.globalState.getConfiguration().getWarmerConfig();
       if (warmerConfig.isWarmOnStartup() && indexState.getWarmer() != null) {
         indexState.getWarmer().warmFromS3(indexState, warmerConfig.getWarmingParallelism());
       }
