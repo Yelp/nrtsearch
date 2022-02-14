@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.Restorable;
+import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -66,7 +67,7 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
 
   // need to call this first time LuceneServer comes up and upon StartIndex with restore
   private void loadIndexNames() throws IOException {
-    long gen = IndexState.getLastGen(getStateDir(), "indices");
+    long gen = LegacyIndexState.getLastGen(getStateDir(), "indices");
     lastIndicesGen = gen;
     if (gen != -1) {
       Path path = getStateDir().resolve("indices." + gen);
@@ -153,7 +154,7 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
         indexNames.addProperty(name, name);
       }
       saveIndexNames();
-      IndexState state = new IndexState(this, name, rootDir, true, false);
+      IndexState state = IndexState.createState(this, name, rootDir, true, false);
       indices.put(name, state);
       return state;
     }
@@ -175,9 +176,9 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
         }
         if (rootPath != null) {
           if (rootPath.equals(NULL)) {
-            state = new IndexState(this, name, null, false, hasRestore);
+            state = IndexState.createState(this, name, null, false, hasRestore);
           } else {
-            state = new IndexState(this, name, Paths.get(rootPath), false, hasRestore);
+            state = IndexState.createState(this, name, Paths.get(rootPath), false, hasRestore);
           }
           // nocommit we need to also persist which shards are here?
           state.addShard(0, false);

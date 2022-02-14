@@ -26,7 +26,7 @@ public class AddReplicaHandler implements Handler<AddReplicaRequest, AddReplicaR
     ShardState shardState = indexState.getShard(0);
     if (shardState.isPrimary() == false) {
       throw new IllegalArgumentException(
-          "index \"" + indexState.name + "\" was not started or is not a primary");
+          "index \"" + indexState.getName() + "\" was not started or is not a primary");
     }
 
     if (!isValidMagicHeader(addReplicaRequest.getMagicNumber())) {

@@ -155,13 +155,13 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       IndexState indexState, SnapshotId snapshotId) throws IOException {
     String snapshotIdAsString = CreateSnapshotHandler.getSnapshotIdAsString(snapshotId);
     IndexState.Gens snapshot = new IndexState.Gens(snapshotIdAsString);
-    if (indexState.shards.size() != 1) {
+    if (indexState.getShards().size() != 1) {
       throw new IllegalStateException(
           String.format(
               "%s shards found index %s instead of exactly 1",
-              indexState.shards.size(), indexState.name));
+              indexState.getShards().size(), indexState.getName()));
     }
-    ShardState state = indexState.shards.entrySet().iterator().next().getValue();
+    ShardState state = indexState.getShards().entrySet().iterator().next().getValue();
     SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy = null;
     IndexReader indexReader = null;
     try {
@@ -307,7 +307,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
           archiver.upload(
               serviceName,
               resourceData,
-              indexState.rootDir,
+              indexState.getRootDir(),
               filesToInclude,
               parentDirectoriesToInclude,
               stream);
@@ -321,7 +321,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
           incrementalArchiver.upload(
               serviceName,
               resourceData,
-              indexState.rootDir,
+              indexState.getRootDir(),
               filesToInclude,
               parentDirectoriesToInclude,
               stream);
@@ -329,7 +329,11 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     }
     backupIndexResponseBuilder.setDataVersionHash(versionHash);
 
-    if (indexState.globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
+    if (indexState
+        .getGlobalState()
+        .getConfiguration()
+        .getStateConfig()
+        .useLegacyStateManagement()) {
       uploadMetadata(serviceName, resourceName, indexState, backupIndexResponseBuilder, stream);
     }
   }
@@ -348,7 +352,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
           archiver.upload(
               serviceName,
               resourceMetadata,
-              indexState.globalState.getStateDir(),
+              indexState.getGlobalState().getStateDir(),
               Collections.emptyList(),
               Collections.emptyList(),
               stream);
@@ -359,7 +363,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
           incrementalArchiver.upload(
               serviceName,
               resourceMetadata,
-              indexState.globalState.getStateDir(),
+              indexState.getGlobalState().getStateDir(),
               Collections.emptyList(),
               Collections.emptyList(),
               stream);

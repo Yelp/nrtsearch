@@ -141,7 +141,7 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
       FacetsConfig.DimConfig dimConfig =
           getGlobalState()
               .getIndex(DEFAULT_TEST_INDEX)
-              .facetsConfig
+              .getFacetsConfig()
               .getDimConfig(fieldDef.getName());
       SortedSetDocValuesReaderState ssdvState = readerSSDVStates.get(dimConfig.indexFieldName);
       assertNull(ssdvState);
@@ -158,7 +158,10 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
     assertNotNull(readerSSDVStates);
 
     FacetsConfig.DimConfig dimConfig =
-        getGlobalState().getIndex(DEFAULT_TEST_INDEX).facetsConfig.getDimConfig(fieldDef.getName());
+        getGlobalState()
+            .getIndex(DEFAULT_TEST_INDEX)
+            .getFacetsConfig()
+            .getDimConfig(fieldDef.getName());
     SortedSetDocValuesReaderState ssdvState = readerSSDVStates.get(dimConfig.indexFieldName);
     assertNotNull(ssdvState);
   }

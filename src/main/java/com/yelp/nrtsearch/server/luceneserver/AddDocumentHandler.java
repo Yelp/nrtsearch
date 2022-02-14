@@ -196,7 +196,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
       for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {
         try {
           indexState = globalState.getIndex(addDocumentRequest.getIndexName());
-          idFieldDef = indexState.getIdFieldDef();
+          idFieldDef = indexState.getIdFieldDef().orElse(null);
           shardState = indexState.getShard(0);
 
           DocumentsContext documentsContext =
@@ -347,7 +347,7 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
       final boolean hasFacets = shardState.indexState.hasFacets();
       if (hasFacets) {
         try {
-          nextDoc = shardState.indexState.facetsConfig.build(shardState.taxoWriter, nextDoc);
+          nextDoc = shardState.indexState.getFacetsConfig().build(shardState.taxoWriter, nextDoc);
         } catch (IOException ioe) {
           throw new RuntimeException(
               String.format("document: %s hit exception building facets", nextDoc), ioe);

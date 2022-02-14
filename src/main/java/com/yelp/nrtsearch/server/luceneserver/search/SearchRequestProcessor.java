@@ -289,7 +289,7 @@ public class SearchRequestProcessor {
 
   /** Fold in any drillDowns requests into the query. */
   private static DrillDownQuery addDrillDowns(IndexState state, Query q) {
-    return new DrillDownQuery(state.facetsConfig, q);
+    return new DrillDownQuery(state.getFacetsConfig(), q);
   }
 
   /**

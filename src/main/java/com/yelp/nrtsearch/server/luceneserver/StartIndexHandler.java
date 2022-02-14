@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.Mode;
-import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
@@ -61,7 +60,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       throws StartIndexHandlerException {
     if (indexState.isStarted()) {
       throw new IllegalArgumentException(
-          String.format("Index %s is already started", indexState.name));
+          String.format("Index %s is already started", indexState.getName()));
     }
 
     final ShardState shardState = indexState.getShard(0);
@@ -88,7 +87,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
                     restoreFromIncArchiver);
             shardState.setRestored(true);
           } else {
-            throw new IllegalStateException("Index " + indexState.name + " already restored");
+            throw new IllegalStateException("Index " + indexState.getName() + " already restored");
           }
         } catch (IOException e) {
           logger.info("Unable to delete existing index data", e);
@@ -112,25 +111,24 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
 
     long t0 = System.nanoTime();
     try {
+      if (mode.equals(Mode.REPLICA)) {
+        indexState.initWarmer(archiver);
+      }
+
+      indexState.start(mode, dataPath, primaryGen, primaryAddress, primaryPort);
+
       if (mode.equals(Mode.PRIMARY)) {
-        shardState.startPrimary(primaryGen, dataPath);
         BackupIndexRequestHandler backupIndexRequestHandler =
             new BackupIndexRequestHandler(
                 archiver, incArchiver, archiveDirectory, backupFromIncArchiver);
         if (backupIndexRequestHandler.wasBackupPotentiallyInterrupted()) {
-          if (backupIndexRequestHandler.getIndexNameOfInterruptedBackup().equals(indexState.name)) {
+          if (backupIndexRequestHandler
+              .getIndexNameOfInterruptedBackup()
+              .equals(indexState.getName())) {
             backupIndexRequestHandler.interruptedBackupCleanup(
                 indexState, shardState.snapshotGenToVersion.keySet());
           }
         }
-      } else if (mode.equals(Mode.REPLICA)) {
-        // channel for replica to talk to primary on
-        ReplicationServerClient primaryNodeClient =
-            new ReplicationServerClient(primaryAddress, primaryPort);
-        indexState.initWarmer(archiver);
-        shardState.startReplica(primaryNodeClient, primaryGen, dataPath);
-      } else {
-        indexState.start(dataPath);
       }
     } catch (Exception e) {
       logger.error("Cannot start IndexState/ShardState", e);

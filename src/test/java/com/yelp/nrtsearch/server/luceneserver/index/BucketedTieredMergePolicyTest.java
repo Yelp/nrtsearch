@@ -184,9 +184,11 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
 
   private void setLiveSettings(int virtualShards, int maxDocs, int maxSegments) throws IOException {
     IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
-    indexState.setVirtualShards(virtualShards);
-    indexState.setSliceMaxDocs(maxDocs);
-    indexState.setSliceMaxSegments(maxSegments);
+    assertTrue(indexState instanceof LegacyIndexState);
+    LegacyIndexState legacyIndexState = (LegacyIndexState) indexState;
+    legacyIndexState.setVirtualShards(virtualShards);
+    legacyIndexState.setSliceMaxDocs(maxDocs);
+    legacyIndexState.setSliceMaxSegments(maxSegments);
   }
 
   private void addData(int count) throws Exception {

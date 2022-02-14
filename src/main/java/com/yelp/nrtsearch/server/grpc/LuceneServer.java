@@ -1596,7 +1596,7 @@ public class LuceneServer {
 
       try {
         IndexState indexState = globalState.getIndex(forceMergeRequest.getIndexName());
-        ShardState shardState = indexState.shards.get(0);
+        ShardState shardState = indexState.getShards().get(0);
         logger.info("Beginning force merge for index: {}", forceMergeRequest.getIndexName());
         shardState.writer.forceMerge(
             forceMergeRequest.getMaxNumSegments(), forceMergeRequest.getDoWait());
@@ -1632,7 +1632,7 @@ public class LuceneServer {
 
       try {
         IndexState indexState = globalState.getIndex(forceMergeRequest.getIndexName());
-        ShardState shardState = indexState.shards.get(0);
+        ShardState shardState = indexState.getShards().get(0);
         logger.info(
             "Beginning force merge deletes for index: {}", forceMergeRequest.getIndexName());
         shardState.writer.forceMergeDeletes(forceMergeRequest.getDoWait());

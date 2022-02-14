@@ -134,7 +134,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         DrillSideways drillS =
             new DrillSidewaysImpl(
                 s.searcher,
-                indexState.facetsConfig,
+                indexState.getFacetsConfig(),
                 s.taxonomyReader,
                 searchRequest.getFacetsList(),
                 s,

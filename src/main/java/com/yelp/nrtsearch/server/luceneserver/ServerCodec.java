@@ -49,7 +49,7 @@ public class ServerCodec extends Lucene84Codec {
     } catch (IllegalArgumentException iae) {
       // The indexed facets field will have drill-downs,
       // which will pull the postings format:
-      if (state.internalFacetFieldNames.contains(field)) {
+      if (state.getInternalFacetFieldNames().contains(field)) {
         return super.getPostingsFormatForField(field);
       } else {
         throw iae;
@@ -69,7 +69,7 @@ public class ServerCodec extends Lucene84Codec {
         throw new IllegalArgumentException("Field " + field + " is not indexable");
       }
     } catch (IllegalArgumentException iae) {
-      if (state.internalFacetFieldNames.contains(field)) {
+      if (state.getInternalFacetFieldNames().contains(field)) {
         return super.getDocValuesFormatForField(field);
       } else {
         throw iae;
