@@ -53,7 +53,7 @@ Start primary index, and add docs for indexing:
 3. Replica: Start Index
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Next go into any one of the replicas (i.e. nrtsearch_replica-node-1 here), and run the commands to start the index and register with the primary.  Do **not** enter docs:
+Next go into any one of the replicas (i.e. nrtsearch_replica-node-1 here), and run the commands to start the index and register with the primary.  There is no need to add the documents in the replica.
 
 .. code-block::
 
