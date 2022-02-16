@@ -163,14 +163,14 @@ public class MultiIndexAddDocumentsTest extends ServerTestCase {
   }
 
   /**
-   * Setting AddDocumentsMaxBufferLen to 2 so that 2 documents are indexed after queue is full
-   * and 1 document after there are no more documents but queue is not full.
+   * Setting AddDocumentsMaxBufferLen to 2 so that 2 documents are indexed after queue is full and 1
+   * document after there are no more documents but queue is not full.
    */
   @Override
   protected LiveSettingsRequest getLiveSettings(String name) {
     return LiveSettingsRequest.newBuilder()
-            .setIndexName(name)
-            .setAddDocumentsMaxBufferLen(2)
-            .build();
+        .setIndexName(name)
+        .setAddDocumentsMaxBufferLen(2)
+        .build();
   }
 }
