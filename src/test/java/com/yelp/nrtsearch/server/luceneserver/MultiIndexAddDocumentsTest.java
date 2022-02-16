@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.LuceneServerClientBuilder;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.RefreshRequest;
@@ -135,10 +136,10 @@ public class MultiIndexAddDocumentsTest extends ServerTestCase {
   public void testMultiIndexIndexing() {
     SearchResponse searchResponse =
         getGrpcServer().getBlockingStub().search(getMatchAllDocsQuery(INDEX_1));
-    assertIdsInResponse(searchResponse, "1", "2");
+    assertIdsInResponse(searchResponse, "1", "2", "3");
 
     searchResponse = getGrpcServer().getBlockingStub().search(getMatchAllDocsQuery(INDEX_2));
-    assertIdsInResponse(searchResponse, "3", "4");
+    assertIdsInResponse(searchResponse, "7", "8", "9");
   }
 
   private SearchRequest getMatchAllDocsQuery(String index) {
@@ -159,5 +160,17 @@ public class MultiIndexAddDocumentsTest extends ServerTestCase {
             .map(SearchResponse.Hit.FieldValue::getTextValue)
             .collect(Collectors.toList());
     assertThat(actualIds).containsExactlyInAnyOrder(expectedIds);
+  }
+
+  /**
+   * Setting AddDocumentsMaxBufferLen to 2 so that 2 documents are indexed after queue is full
+   * and 1 document after there are no more documents but queue is not full.
+   */
+  @Override
+  protected LiveSettingsRequest getLiveSettings(String name) {
+    return LiveSettingsRequest.newBuilder()
+            .setIndexName(name)
+            .setAddDocumentsMaxBufferLen(2)
+            .build();
   }
 }
