@@ -108,7 +108,7 @@ public class LuceneServer {
   private void start() throws IOException {
     GlobalState globalState = new GlobalState(luceneServerConfiguration, incArchiver);
 
-    registerMetrics();
+    registerMetrics(globalState);
 
     List<Plugin> plugins = pluginsService.loadPlugins();
     String serviceName = luceneServerConfiguration.getServiceName();
@@ -231,7 +231,7 @@ public class LuceneServer {
   }
 
   /** Register prometheus metrics exposed by /status/metrics */
-  private void registerMetrics() {
+  private void registerMetrics(GlobalState globalState) {
     // register jvm metrics
     if (luceneServerConfiguration.getPublishJvmMetrics()) {
       DefaultExports.register(collectorRegistry);
@@ -247,6 +247,8 @@ public class LuceneServer {
     new QueryCacheCollector().register(collectorRegistry);
     // register deadline cancellation metrics
     DeadlineMetrics.register(collectorRegistry);
+    // register directory size metrics
+    new DirSizeCollector(globalState).register(collectorRegistry);
   }
 
   /** Main launches the server from the command line. */
