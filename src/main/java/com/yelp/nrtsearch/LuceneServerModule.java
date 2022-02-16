@@ -20,7 +20,6 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.auth.profile.ProfilesConfigFile;
-import com.amazonaws.auth.profile.internal.BasicProfile;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -40,7 +39,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Map;
 import java.util.Optional;
 
 public class LuceneServerModule extends AbstractModule {
@@ -83,7 +81,6 @@ public class LuceneServerModule extends AbstractModule {
       final ProfilesConfigFile profilesConfigFile = new ProfilesConfigFile(botoCfgPath.toFile());
       final AWSCredentialsProvider awsCredentialsProvider =
           new ProfileCredentialsProvider(profilesConfigFile, "default");
-
       AmazonS3 s3ClientInterim =
           AmazonS3ClientBuilder.standard().withCredentials(awsCredentialsProvider).build();
       String region = s3ClientInterim.getBucketLocation(luceneServerConfiguration.getBucketName());
