@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.google.protobuf.Any;
 import com.google.protobuf.ProtocolStringList;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FacetHierarchyPath;
@@ -37,15 +36,8 @@ import org.apache.lucene.index.IndexableField;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
+public class AddDocumentHandler {
   private static final Logger logger = LoggerFactory.getLogger(AddDocumentHandler.class);
-
-  @Override
-  public Any handle(IndexState indexState, AddDocumentRequest addDocumentRequest)
-      throws AddDocumentHandlerException {
-    // this is silly we dont really about about the return value here
-    return Any.newBuilder().build();
-  }
 
   /**
    * DocumentsContext is created for each GRPC AddDocumentRequest It hold all lucene documents
@@ -177,11 +169,15 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
   public static class DocumentIndexer implements Callable<Long> {
     private final GlobalState globalState;
     private final List<AddDocumentRequest> addDocumentRequestList;
+    private final String indexName;
 
     public DocumentIndexer(
-        GlobalState globalState, List<AddDocumentRequest> addDocumentRequestList) {
+        GlobalState globalState,
+        List<AddDocumentRequest> addDocumentRequestList,
+        String indexName) {
       this.globalState = globalState;
       this.addDocumentRequestList = addDocumentRequestList;
+      this.indexName = indexName;
     }
 
     public long runIndexingJob() throws Exception {
@@ -190,15 +186,11 @@ public class AddDocumentHandler implements Handler<AddDocumentRequest, Any> {
               "running indexing job on threadId: %s",
               Thread.currentThread().getName() + Thread.currentThread().getId()));
       Queue<Document> documents = new LinkedBlockingDeque<>();
-      IndexState indexState = null;
-      ShardState shardState = null;
-      IdFieldDef idFieldDef = null;
+      IndexState indexState = globalState.getIndex(this.indexName);
+      ShardState shardState = indexState.getShard(0);
+      IdFieldDef idFieldDef = indexState.getIdFieldDef();
       for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {
         try {
-          indexState = globalState.getIndex(addDocumentRequest.getIndexName());
-          idFieldDef = indexState.getIdFieldDef();
-          shardState = indexState.getShard(0);
-
           DocumentsContext documentsContext =
               AddDocumentHandler.LuceneDocumentBuilder.getDocumentsContext(
                   addDocumentRequest, indexState);

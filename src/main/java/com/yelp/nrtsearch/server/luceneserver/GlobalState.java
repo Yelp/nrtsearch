@@ -282,7 +282,7 @@ public class GlobalState implements Closeable, Restorable {
     return getIndex(name, false);
   }
 
-  public Future<Long> submitIndexingTask(Callable job) {
+  public Future<Long> submitIndexingTask(Callable<Long> job) {
     return indexService.submit(job);
   }
 

@@ -219,9 +219,8 @@ public class ServerTestCase {
         getPlugins());
   }
 
-  private void initIndices() throws Exception {
+  protected void initIndices() throws Exception {
     for (String indexName : getIndices()) {
-      String rootDirName = grpcServer.getIndexDir();
       LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
 
       // create the index

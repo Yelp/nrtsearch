@@ -1,0 +1,31 @@
+{
+  "indexName": "test_index_1",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "storeDocValues": true
+    },
+    {
+      "name": "vendor_name",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "analyzer": {
+        "custom": {
+          "tokenizer": {
+            "name": "standard"
+          },
+          "tokenFilters": [
+            {
+              "name": "lowercase"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
