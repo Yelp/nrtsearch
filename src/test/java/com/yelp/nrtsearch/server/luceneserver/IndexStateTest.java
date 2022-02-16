@@ -669,7 +669,7 @@ public class IndexStateTest {
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     FieldDefCreator.initialize(luceneServerConfiguration, Collections.emptyList());
     SimilarityCreator.initialize(luceneServerConfiguration, Collections.emptyList());
-    return new GlobalState(luceneServerConfiguration);
+    return GlobalState.createState(luceneServerConfiguration);
   }
 
   public GlobalState getInitStateVirtualSharding() throws IOException {
@@ -678,6 +678,6 @@ public class IndexStateTest {
             Mode.STANDALONE, folder.getRoot(), "virtualSharding: true");
     FieldDefCreator.initialize(luceneServerConfiguration, Collections.emptyList());
     SimilarityCreator.initialize(luceneServerConfiguration, Collections.emptyList());
-    return new GlobalState(luceneServerConfiguration);
+    return GlobalState.createState(luceneServerConfiguration);
   }
 }

@@ -329,7 +329,9 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     }
     backupIndexResponseBuilder.setDataVersionHash(versionHash);
 
-    uploadMetadata(serviceName, resourceName, indexState, backupIndexResponseBuilder, stream);
+    if (indexState.globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
+      uploadMetadata(serviceName, resourceName, indexState, backupIndexResponseBuilder, stream);
+    }
   }
 
   public void uploadMetadata(
@@ -346,7 +348,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
           archiver.upload(
               serviceName,
               resourceMetadata,
-              indexState.globalState.stateDir,
+              indexState.globalState.getStateDir(),
               Collections.emptyList(),
               Collections.emptyList(),
               stream);
@@ -357,7 +359,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
           incrementalArchiver.upload(
               serviceName,
               resourceMetadata,
-              indexState.globalState.stateDir,
+              indexState.globalState.getStateDir(),
               Collections.emptyList(),
               Collections.emptyList(),
               stream);

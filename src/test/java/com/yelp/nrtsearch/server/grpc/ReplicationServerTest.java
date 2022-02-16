@@ -95,7 +95,7 @@ public class ReplicationServerTest {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerPrimaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
-    GlobalState globalStatePrimary = new GlobalState(luceneServerPrimaryConfiguration);
+    GlobalState globalStatePrimary = GlobalState.createState(luceneServerPrimaryConfiguration);
     luceneServerPrimary =
         new GrpcServer(
             grpcCleanup,
@@ -121,7 +121,7 @@ public class ReplicationServerTest {
     // set up secondary servers
     LuceneServerConfiguration luceneServerSecondaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot());
-    GlobalState globalStateSecondary = new GlobalState(luceneServerSecondaryConfiguration);
+    GlobalState globalStateSecondary = GlobalState.createState(luceneServerSecondaryConfiguration);
 
     luceneServerSecondary =
         new GrpcServer(

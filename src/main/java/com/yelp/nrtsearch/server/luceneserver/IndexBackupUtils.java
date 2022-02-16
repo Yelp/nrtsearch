@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
+
 public class IndexBackupUtils {
 
   public static String getResourceMetadata(String resourceName) {
@@ -35,5 +37,9 @@ public class IndexBackupUtils {
 
   public static boolean isMetadata(String resourceName) {
     return resourceName.contains("_metadata");
+  }
+
+  public static boolean isBackendGlobalState(String resourceName) {
+    return RemoteStateBackend.GLOBAL_STATE_RESOURCE.equals(resourceName);
   }
 }

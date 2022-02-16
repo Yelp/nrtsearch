@@ -188,7 +188,7 @@ public class LuceneServerTest {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    GlobalState globalState = new GlobalState(luceneServerConfiguration);
+    GlobalState globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         collectorRegistry,
         grpcCleanup,
@@ -209,7 +209,7 @@ public class LuceneServerTest {
     LuceneServerConfiguration luceneServerReplicaConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.REPLICA, folder.getRoot(), getExtraConfig());
-    GlobalState globalStateSecondary = new GlobalState(luceneServerReplicaConfiguration);
+    GlobalState globalStateSecondary = GlobalState.createState(luceneServerReplicaConfiguration);
 
     return new GrpcServer(
         grpcCleanup,
