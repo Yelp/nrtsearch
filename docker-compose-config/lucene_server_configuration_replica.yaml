@@ -10,7 +10,7 @@ threadPoolConfiguration:
 botoCfgPath: "/user/app/boto.cfg"
 bucketName: "nrtsearch-bucket"
 archiveDirectory: "/user/app/replica_index_archiver"
-serviceName: "host-name-replica"
+serviceName: "nrtsearch-service-test"
 restoreState: False
 restoreFromIncArchiver: "true"
 backupWithIncArchiver: "true"

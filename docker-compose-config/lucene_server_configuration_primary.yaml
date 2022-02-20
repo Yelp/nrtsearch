@@ -11,7 +11,7 @@ fileSendDelay: false
 botoCfgPath: "/user/app/boto.cfg"
 bucketName: "nrtsearch-bucket"
 archiveDirectory: "/user/app/primary_index_archiver"
-serviceName: "primary-node"
+serviceName: "nrtsearch-service-test"
 restoreState: False
 restoreFromIncArchiver: "true"
 backupWithIncArchiver: "true"
