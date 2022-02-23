@@ -208,7 +208,8 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     if (fieldValues.size() > 1 && !isMultiValue()) {
-      throw new IllegalArgumentException("Cannot index multiple values into single value field");
+      throw new IllegalArgumentException(
+          "Cannot index multiple values into single value field: " + getName());
     }
 
     for (String fieldStr : fieldValues) {
