@@ -140,7 +140,9 @@ public class VectorFieldDefTest extends ServerTestCase {
     Exception exception =
         Assert.assertThrows(RuntimeException.class, () -> addDocuments(documentRequests.stream()));
     assertTrue(
-        exception.getMessage().contains("Cannot index multiple values into single value field"));
+        exception
+            .getMessage()
+            .contains("Cannot index multiple values into single value field: vector_field"));
   }
 
   @Test
