@@ -186,11 +186,15 @@ public class AddDocumentHandler {
               "running indexing job on threadId: %s",
               Thread.currentThread().getName() + Thread.currentThread().getId()));
       Queue<Document> documents = new LinkedBlockingDeque<>();
-      IndexState indexState = globalState.getIndex(this.indexName);
-      ShardState shardState = indexState.getShard(0);
-      IdFieldDef idFieldDef = indexState.getIdFieldDef();
-      for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {
-        try {
+      IndexState indexState;
+      ShardState shardState;
+      IdFieldDef idFieldDef;
+
+      try {
+        indexState = globalState.getIndex(this.indexName);
+        shardState = indexState.getShard(0);
+        idFieldDef = indexState.getIdFieldDef();
+        for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {
           DocumentsContext documentsContext =
               AddDocumentHandler.LuceneDocumentBuilder.getDocumentsContext(
                   addDocumentRequest, indexState);
@@ -217,10 +221,10 @@ public class AddDocumentHandler {
           } else {
             documents.add(documentsContext.getRootDocument());
           }
-        } catch (Exception e) {
-          logger.warn("addDocuments Cancelled", e);
-          throw e; // parent thread should catch and send error back to client
         }
+      } catch (Exception e) {
+        logger.warn("addDocuments Cancelled", e);
+        throw e; // parent thread should catch and send error back to client
       }
 
       try {
