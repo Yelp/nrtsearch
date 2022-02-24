@@ -17,9 +17,9 @@
                 "object7_inner_object1_a_inner_field1_b"
             ],
             "inner_field2": [
-                "object7_inner_object2_a_inner_field1_a",
-                "object7_inner_object2_a_inner_field1_b",
-                "object7_inner_object2_a_inner_field1_c"
+                "object7_inner_object1_a_inner_field2_a",
+                "object7_inner_object1_a_inner_field2_b",
+                "object7_inner_object1_a_inner_field2_c"
             ],
             "inner_object2": [
                 {
@@ -37,9 +37,9 @@
                 "object7_inner_object1_b_inner_field1_b"
             ],
             "inner_field2": [
-                "object7_inner_object2_b_inner_field1_a",
-                "object7_inner_object2_b_inner_field1_b",
-                "object7_inner_object2_b_inner_field1_c"
+                "object7_inner_object1_b_inner_field2_a",
+                "object7_inner_object1_b_inner_field2_b",
+                "object7_inner_object1_b_inner_field2_c"
             ],
             "inner_object2": [
                 {
@@ -57,8 +57,8 @@
                 "object7_inner_object1_c_inner_field1_c"
             ],
             "inner_field2": [
-                "object7_inner_object2_c_inner_field1_a",
-                "object7_inner_object2_c_inner_field1_b"
+                "object7_inner_object1_c_inner_field2_a",
+                "object7_inner_object1_c_inner_field2_b"
             ],
             "inner_object2": [
                 {

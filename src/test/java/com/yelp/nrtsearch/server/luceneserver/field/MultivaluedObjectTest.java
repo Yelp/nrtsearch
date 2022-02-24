@@ -64,41 +64,35 @@ public class MultivaluedObjectTest extends ServerTestCase {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-  private static final Map<Integer, String> MULTIVALUED_OBJECTS_JSON =
-      Map.of(
-          1, readObjectFromResource("object1.json"),
-          2, readObjectFromResource("object2.json"),
-          3, readObjectFromResource("object3.json"),
-          4, readObjectFromResource("object4.json"),
-          5, readObjectFromResource("object5.json"),
-          6, readObjectFromResource("object6.json"),
-          7, readObjectFromResource("object7.json"),
-          8, readObjectFromResource("object8.json"));
+  private static final Map<Integer, String> MULTIVALUED_OBJECTS_JSON;
 
-  private static final Map<Integer, Map<String, Object>> MULTIVALUED_OBJECTS =
-      Map.of(
-          1, convertJsonToMap(getMultivaluedObject(1)),
-          2, convertJsonToMap(getMultivaluedObject(2)),
-          3, convertJsonToMap(getMultivaluedObject(3)),
-          4, convertJsonToMap(getMultivaluedObject(4)),
-          5, convertJsonToMap(getMultivaluedObject(5)),
-          6, convertJsonToMap(getMultivaluedObject(6)),
-          7, convertJsonToMap(getMultivaluedObject(7)),
-          8, convertJsonToMap(getMultivaluedObject(8)));
+  private static final Map<Integer, Map<String, Object>> MULTIVALUED_OBJECTS;
+
+  static {
+    MULTIVALUED_OBJECTS_JSON = new HashMap<>();
+    MULTIVALUED_OBJECTS = new HashMap<>();
+
+    for (int i = 1; i <= 13; i++) {
+      String fileName = String.format("object%d.json", i);
+      MULTIVALUED_OBJECTS_JSON.put(i, readObjectFromResource(fileName));
+      MULTIVALUED_OBJECTS.put(i, convertJsonToMap(getMultivaluedObject(i)));
+    }
+  }
 
   private static final Map<Integer, List<Map<String, Object>>> DOC_ID_TO_MULTIVALUED_OBJECTS =
       Map.of(
-          1, List.of(MULTIVALUED_OBJECTS.get(1)),
+          1,
+          List.of(MULTIVALUED_OBJECTS.get(1)),
           2,
-              List.of(
-                  MULTIVALUED_OBJECTS.get(2),
-                  MULTIVALUED_OBJECTS.get(3),
-                  MULTIVALUED_OBJECTS.get(4)),
+          List.of(
+              MULTIVALUED_OBJECTS.get(2), MULTIVALUED_OBJECTS.get(3), MULTIVALUED_OBJECTS.get(4)),
           3,
-              List.of(
-                  MULTIVALUED_OBJECTS.get(5),
-                  MULTIVALUED_OBJECTS.get(6),
-                  MULTIVALUED_OBJECTS.get(7)));
+          List.of(
+              MULTIVALUED_OBJECTS.get(5), MULTIVALUED_OBJECTS.get(6), MULTIVALUED_OBJECTS.get(7)),
+          4,
+          List.of(MULTIVALUED_OBJECTS.get(8), MULTIVALUED_OBJECTS.get(9)),
+          5,
+          List.of(MULTIVALUED_OBJECTS.get(12), MULTIVALUED_OBJECTS.get(13)));
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
@@ -136,7 +130,9 @@ public class MultivaluedObjectTest extends ServerTestCase {
         List.of(
             buildAddDocumentRequest(name, "1", 1),
             buildAddDocumentRequest(name, "2", 2, 3, 4),
-            buildAddDocumentRequest(name, "3", 5, 6, 7));
+            buildAddDocumentRequest(name, "3", 5, 6, 7),
+            buildAddDocumentRequest(name, "4", 8, 9),
+            buildAddDocumentRequest(name, "5", 12, 13));
     addDocuments(docs.stream());
   }
 
@@ -170,7 +166,7 @@ public class MultivaluedObjectTest extends ServerTestCase {
                 3),
             List.of(
                 "multivalued_object.inner_object1.inner_field2",
-                "object6_inner_object2_b_inner_field1",
+                "object6_inner_object1_b_inner_field2",
                 3),
             List.of(
                 "multivalued_object.inner_object1.inner_field1",
@@ -178,7 +174,7 @@ public class MultivaluedObjectTest extends ServerTestCase {
                 3),
             List.of(
                 "multivalued_object.inner_object1.inner_field2",
-                "object7_inner_object2_b_inner_field1_c",
+                "object7_inner_object1_b_inner_field2_c",
                 3));
 
     for (List inputAndExpectedOutput : inputsAndExpectedOutput) {
@@ -188,7 +184,7 @@ public class MultivaluedObjectTest extends ServerTestCase {
 
       SearchResponse response = doQuery(buildTermQuery(field, value));
 
-      assertEquals(response.getHitsCount(), 1);
+      assertEquals(1, response.getHitsCount());
       SearchResponse.Hit hit = response.getHits(0);
       assertEquals(
           String.valueOf(docId), hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue());
@@ -210,7 +206,7 @@ public class MultivaluedObjectTest extends ServerTestCase {
                             BooleanClause.newBuilder()
                                 .setOccur(BooleanClause.Occur.SHOULD)
                                 .setQuery(
-                                    buildTermQuery("multivalued_object.field1", "32")
+                                    buildTermQuery("multivalued_object.field1", "22")
                                         .toBuilder()
                                         .setBoost(2))
                                 .build())
@@ -220,12 +216,12 @@ public class MultivaluedObjectTest extends ServerTestCase {
                                 .setQuery(
                                     buildTermQuery(
                                         "multivalued_object.inner_object1.inner_field2",
-                                        "object6_inner_object2_b_inner_field1"))
+                                        "object6_inner_object1_b_inner_field2"))
                                 .build())
                         .build())
                 .build());
 
-    assertEquals(response.getHitsCount(), 2);
+    assertEquals(2, response.getHitsCount());
 
     SearchResponse.Hit hit = response.getHits(0);
     assertEquals("2", hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue());
@@ -242,8 +238,9 @@ public class MultivaluedObjectTest extends ServerTestCase {
 
   @Test
   public void testMultivaluedObjectUpdate() throws Exception {
-    // Test uses document with doc_id 3
-    AddDocumentRequest addDocumentRequest = buildAddDocumentRequest(DEFAULT_TEST_INDEX, "3", 6, 8);
+    // Test uses document with doc_id 4
+    AddDocumentRequest addDocumentRequest =
+        buildAddDocumentRequest(DEFAULT_TEST_INDEX, "4", 10, 11);
     addDocuments(Stream.of(addDocumentRequest));
     getGrpcServer()
         .getBlockingStub()
@@ -252,27 +249,26 @@ public class MultivaluedObjectTest extends ServerTestCase {
     SearchResponse response =
         doQuery(
             buildTermQuery(
-                "multivalued_object.inner_object1.inner_field2",
-                "object8_inner_object2_a_inner_field1_b"));
+                "multivalued_object.inner_object1.inner_field2", "object10_inner_field2"));
 
-    assertEquals(response.getHitsCount(), 1);
+    assertEquals(1, response.getHitsCount());
     SearchResponse.Hit hit = response.getHits(0);
-    assertEquals("3", hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue());
+    assertEquals("4", hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue());
     HashSet<Map<String, Object>> expectedObjects =
-        new HashSet<>(List.of(MULTIVALUED_OBJECTS.get(6), MULTIVALUED_OBJECTS.get(8)));
+        new HashSet<>(List.of(MULTIVALUED_OBJECTS.get(10), MULTIVALUED_OBJECTS.get(11)));
     assertEquals(expectedObjects, new HashSet<>(getMultivaluedObjectsFromHit(hit)));
   }
 
   @Test
   public void testMultivaluedObjectDelete() {
-    // Test uses document with doc_id 2
-    SearchResponse response = doQuery(buildTermQuery("doc_id", "2"));
+    // Test uses document with doc_id 5
+    SearchResponse response = doQuery(buildTermQuery("doc_id", "5"));
 
-    assertEquals(response.getHitsCount(), 1);
+    assertEquals(1, response.getHitsCount());
     SearchResponse.Hit hit = response.getHits(0);
-    assertEquals("2", hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue());
+    assertEquals("5", hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue());
     assertEquals(
-        new HashSet<>(DOC_ID_TO_MULTIVALUED_OBJECTS.get(2)),
+        new HashSet<>(DOC_ID_TO_MULTIVALUED_OBJECTS.get(5)),
         new HashSet<>(getMultivaluedObjectsFromHit(hit)));
 
     getGrpcServer()
@@ -282,16 +278,17 @@ public class MultivaluedObjectTest extends ServerTestCase {
                 .setIndexName(DEFAULT_TEST_INDEX)
                 .addQuery(
                     buildTermQuery(
-                        "multivalued_object.inner_object1.inner_field2", "object3_inner_field2"))
+                        "multivalued_object.inner_object1.inner_field1",
+                        "object13_inner_object1_b_inner_field1_b"))
                 .build());
 
     getGrpcServer()
         .getBlockingStub()
         .refresh(RefreshRequest.newBuilder().setIndexName(DEFAULT_TEST_INDEX).build());
 
-    response = doQuery(buildTermQuery("doc_id", "2"));
+    response = doQuery(buildTermQuery("doc_id", "5"));
 
-    assertEquals(response.getHitsCount(), 0);
+    assertEquals(0, response.getHitsCount());
   }
 
   @Test
