@@ -30,6 +30,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -40,17 +41,16 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for multivalued objects. These tests verify that:
@@ -251,6 +251,25 @@ public class MultivaluedObjectTest extends ServerTestCase {
     response = doQuery(buildTermQuery("doc_id", "2"));
 
     assertEquals(response.getHitsCount(), 0);
+  }
+
+  @Test
+  public void testSearchObjectWithoutDefinedFields() {
+    StatusRuntimeException exception = null;
+    try {
+      doQuery(buildTermQuery("multivalued_object.inner_object1.inner_object2.object", "anything"));
+    } catch (StatusRuntimeException e) {
+      exception = e;
+    }
+    assertTrue(exception.getMessage().contains("field \"multivalued_object.inner_object1.inner_object2.object\" is unknown: it was not registered with registerField"));
+
+    exception = null;
+    try {
+      doQuery(buildTermQuery("multivalued_object.inner_object1.inner_object2", "object"));
+    } catch (StatusRuntimeException e) {
+      exception = e;
+    }
+    assertTrue(exception.getMessage().contains("field type: OBJECT is not supported for TermQuery"));
   }
 
   private Query buildTermQuery(String doc_id, String s) {
