@@ -680,7 +680,7 @@ public class LuceneServer {
               List<AddDocumentRequest> addDocRequestList = new ArrayList<>(addDocumentRequestQueue);
               Future<Long> future =
                   globalState.submitIndexingTask(
-                      new DocumentIndexer(globalState, addDocRequestList));
+                      new DocumentIndexer(globalState, addDocRequestList, indexName));
               futures.put(indexName, future);
             } catch (Exception e) {
               responseObserver.onError(e);
@@ -716,7 +716,8 @@ public class LuceneServer {
               // multiple indices but avoids deadlocking if there aren't more threads than the
               // maximum
               // number of parallel addDocuments calls.
-              long gen = new DocumentIndexer(globalState, addDocRequestList).runIndexingJob();
+              long gen =
+                  new DocumentIndexer(globalState, addDocRequestList, indexName).runIndexingJob();
               if (gen > highestGen) {
                 highestGen = gen;
               }

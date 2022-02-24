@@ -85,7 +85,8 @@ public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     if (fieldValues.size() > 1) {
-      throw new IllegalArgumentException("Cannot index multiple values into _id fields");
+      throw new IllegalArgumentException(
+          "Cannot index multiple values into _id fields, field name: " + getName());
     }
     String fieldStr = fieldValues.get(0);
     if (hasDocValues()) {

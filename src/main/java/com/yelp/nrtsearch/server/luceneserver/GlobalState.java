@@ -179,7 +179,7 @@ public abstract class GlobalState implements Closeable {
 
   public abstract void indexClosed(String name);
 
-  public Future<Long> submitIndexingTask(Callable job) {
+  public Future<Long> submitIndexingTask(Callable<Long> job) {
     return indexService.submit(job);
   }
 

@@ -85,7 +85,8 @@ public class VectorFieldDef extends IndexableFieldDef {
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     if (fieldValues.size() > 1 && !isMultiValue()) {
-      throw new IllegalArgumentException("Cannot index multiple values into single value field");
+      throw new IllegalArgumentException(
+          "Cannot index multiple values into single value field: " + getName());
     } else if (fieldValues.size() == 1) {
       if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
         float[] floatArr = parseVectorFieldToFloatArr(fieldValues.get(0));
