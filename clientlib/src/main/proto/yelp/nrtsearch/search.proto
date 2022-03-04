@@ -2,6 +2,7 @@
 syntax = "proto3";
 
 import "google/protobuf/struct.proto";
+import "google/protobuf/any.proto";
 import "google/type/latlng.proto";
 import "yelp/nrtsearch/analysis.proto";
 
@@ -566,7 +567,14 @@ message Collector {
     oneof Collectors {
         //Collector for aggregating based on term values.
         TermsCollector terms = 1;
+        PluginCollector pluginCollector = 2;
     }
+}
+
+// Defines an entry point for using a collector from a plugin
+message PluginCollector {
+    string name = 1;
+    google.protobuf.Struct params = 2; // arguments passed to the plugin
 }
 
 //Definition of term aggregating collector.
@@ -585,6 +593,7 @@ message CollectorResult {
     oneof CollectorResults {
         //Result of collector that produces buckets and counts.
         BucketResult bucketResult = 1;
+        google.protobuf.Any anyResult = 2;
     }
 }
 

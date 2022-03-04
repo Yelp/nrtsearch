@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCollectorManager;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchStatsWrapper;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
@@ -47,6 +48,7 @@ public abstract class DocCollector {
   private boolean terminatedEarly = false;
   private SearchStatsWrapper<? extends Collector> statsWrapper = null;
   private List<CollectorStatsWrapper<?, ?>> collectorStatsWrappers = null;
+  private SearchContext searchContext;
 
   /**
    * Constructor
@@ -215,6 +217,15 @@ public abstract class DocCollector {
       return wrappedCollectors;
     } else {
       return additionalCollectors;
+    }
+  }
+
+  /** Sets the search context in the underlying additional collectors */
+  public void setSearchContext(SearchContext searchContext) {
+    for (AdditionalCollectorManager<? extends Collector, ? extends CollectorResult> collector :
+        additionalCollectors) {
+      collector.setSearchContext(searchContext);
+      this.searchContext = searchContext;
     }
   }
 }

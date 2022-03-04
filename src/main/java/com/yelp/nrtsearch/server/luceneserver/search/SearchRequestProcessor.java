@@ -139,13 +139,17 @@ public class SearchRequestProcessor {
 
     CollectorCreatorContext collectorCreatorContext =
         new CollectorCreatorContext(searchRequest, indexState, shardState, queryFields);
-    contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
+    DocCollector docCollector = buildDocCollector(collectorCreatorContext);
+    contextBuilder.setCollector(docCollector);
 
     contextBuilder.setRescorers(
         getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
     contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
-    return contextBuilder.build(true);
+    SearchContext searchContext = contextBuilder.build(true);
+    // Give underlying collectors access to the search context
+    docCollector.setSearchContext(searchContext);
+    return searchContext;
   }
 
   /**
@@ -305,8 +309,9 @@ public class SearchRequestProcessor {
             searchRequest.getCollectorsMap().entrySet().stream()
                 .map(
                     e ->
-                        CollectorCreator.createCollectorManager(
-                            collectorCreatorContext, e.getKey(), e.getValue()))
+                        CollectorCreator.getInstance()
+                            .createCollectorManager(
+                                collectorCreatorContext, e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
     if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
       if (hasLargeNumHits(searchRequest)) {
