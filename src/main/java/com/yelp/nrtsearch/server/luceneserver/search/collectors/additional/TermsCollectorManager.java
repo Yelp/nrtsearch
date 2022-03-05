@@ -48,7 +48,6 @@ public class TermsCollectorManager
   private final String name;
   private final int size;
   private final FacetScript.SegmentFactory scriptFactory;
-  private SearchContext searchContext;
 
   /**
    * Constructor.
