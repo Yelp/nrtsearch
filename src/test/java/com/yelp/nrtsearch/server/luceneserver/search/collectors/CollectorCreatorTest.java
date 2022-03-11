@@ -25,7 +25,6 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.PluginCollector;
-import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.plugins.CollectorPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.io.ByteArrayInputStream;
@@ -101,9 +100,6 @@ public class CollectorCreatorTest {
       public String getName() {
         return name;
       }
-
-      @Override
-      public void setSearchContext(SearchContext searchContext) {}
 
       @Override
       public CustomCollector newCollector() throws IOException {

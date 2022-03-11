@@ -593,6 +593,7 @@ message CollectorResult {
     oneof CollectorResults {
         //Result of collector that produces buckets and counts.
         BucketResult bucketResult = 1;
+        //Flexible collector result for additional document collectors
         google.protobuf.Any anyResult = 2;
     }
 }

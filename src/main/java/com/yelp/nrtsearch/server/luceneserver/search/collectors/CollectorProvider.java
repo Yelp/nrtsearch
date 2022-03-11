@@ -35,7 +35,7 @@ public interface CollectorProvider<
    * parameters.
    *
    * @param name collection name
-   * @param context search context
+   * @param context collector creator context
    * @param params collector parameters decoded from {@link PluginCollector}
    * @return {@link AdditionalCollectorManager} instance
    */

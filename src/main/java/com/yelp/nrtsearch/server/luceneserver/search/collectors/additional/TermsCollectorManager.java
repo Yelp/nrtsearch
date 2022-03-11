@@ -20,7 +20,6 @@ import com.yelp.nrtsearch.server.grpc.BucketResult.Bucket;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.luceneserver.script.FacetScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
-import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
@@ -83,9 +82,6 @@ public class TermsCollectorManager
   public String getName() {
     return name;
   }
-
-  @Override
-  public void setSearchContext(SearchContext searchContext) {}
 
   @Override
   public TermsCollector newCollector() throws IOException {

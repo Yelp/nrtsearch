@@ -31,5 +31,5 @@ public interface AdditionalCollectorManager<C extends Collector, T> extends Coll
   String getName();
 
   /** Sets the search context. This must be called before collecting */
-  void setSearchContext(SearchContext searchContext);
+  default void setSearchContext(SearchContext searchContext) {}
 }

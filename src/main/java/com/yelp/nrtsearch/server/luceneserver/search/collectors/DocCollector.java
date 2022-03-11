@@ -48,7 +48,6 @@ public abstract class DocCollector {
   private boolean terminatedEarly = false;
   private SearchStatsWrapper<? extends Collector> statsWrapper = null;
   private List<CollectorStatsWrapper<?, ?>> collectorStatsWrappers = null;
-  private SearchContext searchContext;
 
   /**
    * Constructor
@@ -225,7 +224,6 @@ public abstract class DocCollector {
     for (AdditionalCollectorManager<? extends Collector, ? extends CollectorResult> collector :
         additionalCollectors) {
       collector.setSearchContext(searchContext);
-      this.searchContext = searchContext;
     }
   }
 }
