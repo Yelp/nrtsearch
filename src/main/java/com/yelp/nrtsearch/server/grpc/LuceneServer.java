@@ -45,6 +45,7 @@ import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
 import com.yelp.nrtsearch.server.luceneserver.search.cache.NrtQueryCache;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreator;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.monitoring.*;
@@ -344,6 +345,7 @@ public class LuceneServer {
     private void initExtendableComponents(
         LuceneServerConfiguration configuration, List<Plugin> plugins) {
       AnalyzerCreator.initialize(configuration, plugins);
+      CollectorCreator.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);
       FieldDefCreator.initialize(configuration, plugins);
       RescorerCreator.initialize(configuration, plugins);
