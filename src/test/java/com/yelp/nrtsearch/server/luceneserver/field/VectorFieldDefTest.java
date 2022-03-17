@@ -81,8 +81,7 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   public FieldDef getFieldDef(String testIndex, String fieldName) throws IOException {
-    FieldDef fieldDef = getGrpcServer().getGlobalState().getIndex(testIndex).getField(fieldName);
-    return fieldDef;
+    return getGrpcServer().getGlobalState().getIndex(testIndex).getField(fieldName);
   }
 
   @Test
@@ -122,7 +121,8 @@ public class VectorFieldDefTest extends ServerTestCase {
     assertTrue(
         exception
             .getMessage()
-            .contains("The size of the vector data should match vectorDimensions field property"));
+            .contains(
+                "The size of the vector data: 2 should match vectorDimensions field property: 3"));
   }
 
   @Test
@@ -146,22 +146,36 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
-  public void parseVectorFieldToFloatArrTest() {
+  public void parseVectorFieldToFloatArrTest() throws Exception {
     float[] expected = {1.0f, 2.5f, 1000.1000f};
-    String testJson = "[1.0, 2.5, 1000.1000]";
 
-    float[] resultVector = VectorFieldDef.parseVectorFieldToFloatArr(testJson);
-    assertTrue(Arrays.equals(expected, resultVector));
+    List<String> vectorFields = Arrays.asList("[1.0, 2.5, 1000.1000]");
+    List<AddDocumentRequest> documents = buildDocuments(DEFAULT_TEST_INDEX, vectorFields);
+    addDocuments(documents.stream());
+
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .addRetrieveFields(FIELD_NAME)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .setQuery(Query.newBuilder().build())
+                    .build());
+    Vector fieldValue =
+        searchResponse.getHits(0).getFieldsOrThrow(FIELD_NAME).getFieldValue(0).getVectorValue();
+    assertEquals(Floats.asList(expected), fieldValue.getValueList());
   }
 
   @Test
   public void parseVectorFieldToFloatArrFailTest() {
-    List<String> invalidJsonList =
-        Arrays.asList("0.5f", "1", "random_string", "[true, false]", "[a, b]", "");
-    for (String invalidJson : invalidJsonList) {
-      Assert.assertThrows(
-          Exception.class, () -> VectorFieldDef.parseVectorFieldToFloatArr(invalidJson));
-    }
+    List<String> invalidJsonList = Arrays.asList("[a, b, c]");
+    List<AddDocumentRequest> documents = buildDocuments(DEFAULT_TEST_INDEX, invalidJsonList);
+    Exception exception =
+        Assert.assertThrows(RuntimeException.class, () -> addDocuments(documents.stream()));
+    assertTrue(exception.getMessage().contains("For input string: \"a\""));
   }
 
   @Test
