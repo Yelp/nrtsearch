@@ -33,7 +33,7 @@ import org.apache.lucene.util.BytesRef;
 
 public class VectorFieldDef extends IndexableFieldDef {
 
-  private int vectorDimensions;
+  private final int vectorDimensions;
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
   /**
