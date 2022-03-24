@@ -46,7 +46,10 @@ public class ChannelConfig {
    * @param serviceConfig additional service configuration
    */
   public ChannelConfig(
-          Boolean enableRetry, Integer maxHedgedAttempts, Integer maxInboundMessageSize, ServiceConfig serviceConfig) {
+      Boolean enableRetry,
+      Integer maxHedgedAttempts,
+      Integer maxInboundMessageSize,
+      ServiceConfig serviceConfig) {
     this.enableRetry = enableRetry;
     this.maxHedgedAttempts = maxHedgedAttempts;
     this.maxInboundMessageSize = maxInboundMessageSize;
@@ -77,7 +80,7 @@ public class ChannelConfig {
    * @return builder with properties set
    */
   public ManagedChannelBuilder<?> configureChannelBuilder(
-          ManagedChannelBuilder<?> builder, ObjectMapper mapper) {
+      ManagedChannelBuilder<?> builder, ObjectMapper mapper) {
     if (enableRetry != null) {
       if (enableRetry) {
         builder.enableRetry();
