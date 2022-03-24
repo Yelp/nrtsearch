@@ -1,0 +1,17 @@
+nodeName: "node-name-replica"
+hostName: "host-name-replica"
+port: "8002"
+replicationPort: "8003"
+stateDir: "/user/app/replica_state"
+indexDir: "/user/app/replica_index_base"
+threadPoolConfiguration:
+  maxSearchingThreads: 16
+  maxIndexingThreads: 4
+botoCfgPath: "/user/app/boto.cfg"
+bucketName: "nrtsearch-bucket"
+archiveDirectory: "/user/app/replica_index_archiver"
+serviceName: "nrtsearch-service-test"
+restoreState: False
+restoreFromIncArchiver: "true"
+backupWithIncArchiver: "true"
+downloadAsStream: "true"

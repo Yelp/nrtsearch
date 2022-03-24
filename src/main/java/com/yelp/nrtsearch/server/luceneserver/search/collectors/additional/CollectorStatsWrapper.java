@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.ProfileResult.AdditionalCollectorStats;
 import com.yelp.nrtsearch.server.grpc.ProfileResult.CollectorStats;
 import com.yelp.nrtsearch.server.grpc.ProfileResult.SearchStats;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,6 +57,11 @@ public class CollectorStatsWrapper<C extends Collector, R extends CollectorResul
   @Override
   public String getName() {
     return wrapped.getName();
+  }
+
+  @Override
+  public void setSearchContext(SearchContext searchContext) {
+    wrapped.setSearchContext(searchContext);
   }
 
   @Override

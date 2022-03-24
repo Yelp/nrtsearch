@@ -2151,6 +2151,9 @@
         "terms": {
           "$ref": "#/definitions/luceneserverTermsCollector",
           "description": "Collector for aggregating based on term values."
+        },
+        "pluginCollector": {
+          "$ref": "#/definitions/luceneserverPluginCollector"
         }
       },
       "description": "Definition of additional document collector."
@@ -2161,6 +2164,10 @@
         "bucketResult": {
           "$ref": "#/definitions/luceneserverBucketResult",
           "description": "Result of collector that produces buckets and counts."
+        },
+        "anyResult": {
+          "$ref": "#/definitions/protobufAny",
+          "title": "Flexible collector result for additional document collectors"
         }
       }
     },
@@ -3518,6 +3525,18 @@
         }
       },
       "description": "A Query that matches documents containing a particular sequence of terms."
+    },
+    "luceneserverPluginCollector": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object"
+        }
+      },
+      "title": "Defines an entry point for using a collector from a plugin"
     },
     "luceneserverPluginRescorer": {
       "type": "object",

@@ -33,8 +33,8 @@ import org.apache.lucene.util.BytesRef;
 
 public class VectorFieldDef extends IndexableFieldDef {
 
-  private static int vectorDimensions;
-  private static final Gson GSON = new GsonBuilder().serializeNulls().create();;
+  private final int vectorDimensions;
+  private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
   /**
    * @param name name of field
@@ -45,7 +45,7 @@ public class VectorFieldDef extends IndexableFieldDef {
     this.vectorDimensions = requestField.getVectorDimensions();
   }
 
-  public static int getVectorDimensions() {
+  public int getVectorDimensions() {
     return vectorDimensions;
   }
 
@@ -104,11 +104,14 @@ public class VectorFieldDef extends IndexableFieldDef {
    * @throws IllegalArgumentException if size of vector does not match vector dimensions field
    *     property
    */
-  protected static float[] parseVectorFieldToFloatArr(String fieldValueJson) {
+  protected float[] parseVectorFieldToFloatArr(String fieldValueJson) {
     float[] fieldValue = GSON.fromJson(fieldValueJson, float[].class);
     if (fieldValue.length != getVectorDimensions()) {
       throw new IllegalArgumentException(
-          "The size of the vector data should match vectorDimensions field property");
+          "The size of the vector data: "
+              + fieldValue.length
+              + " should match vectorDimensions field property: "
+              + getVectorDimensions());
     }
     return fieldValue;
   }

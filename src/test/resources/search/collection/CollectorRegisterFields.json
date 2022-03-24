@@ -1,0 +1,23 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "review_id",
+      "type": "_ID",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "business_id",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "review_count",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    }
+  ]
+}

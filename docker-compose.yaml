@@ -1,0 +1,16 @@
+version: '3.7'
+
+services:
+
+  primary-node:
+    build: ./
+    container_name: primary-node
+    command: >
+      bash -c "/user/app/build/install/nrtsearch/bin/lucene-server /user/app/docker-compose-config/lucene_server_configuration_primary.yaml"
+    hostname: primary-node
+
+  replica-node-1:
+    build: ./
+    command: ./docker-compose-config/entrypoint_replica.sh
+    deploy:
+      replicas: 3

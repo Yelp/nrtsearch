@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 
@@ -28,4 +29,7 @@ import org.apache.lucene.search.CollectorManager;
 public interface AdditionalCollectorManager<C extends Collector, T> extends CollectorManager<C, T> {
   /** Get collection name as it should appear in the search response. */
   String getName();
+
+  /** Sets the search context. This must be called before collecting */
+  default void setSearchContext(SearchContext searchContext) {}
 }

@@ -1,0 +1,6 @@
+{
+  "indexName" : "testIdx",
+  "mode": 2,
+  "primaryAddress": "primary-node",
+  "port": 8001
+}
