@@ -80,6 +80,18 @@ public class ChannelConfigTest {
     verifyNoMoreInteractions(mockBuilder);
   }
 
+  @Test
+  public void testMaxInboundMessageSize() throws IOException {
+    String configJson = "{\"maxInboundMessageSize\": 8388608}";
+    ChannelConfig config = OBJECT_MAPPER.readValue(configJson, ChannelConfig.class);
+
+    ManagedChannelBuilder<?> mockBuilder = mock(ManagedChannelBuilder.class);
+    config.configureChannelBuilder(mockBuilder, OBJECT_MAPPER);
+
+    verify(mockBuilder, times(1)).maxInboundMessageSize(8388608);
+    verifyNoMoreInteractions(mockBuilder);
+  }
+
   @Test(expected = NullPointerException.class)
   public void testNullMethodName() {
     new MethodConfig(null, null, null);
