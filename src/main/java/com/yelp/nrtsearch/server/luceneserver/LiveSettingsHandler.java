@@ -17,15 +17,20 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsResponse;
+import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSettingsResponse> {
-  Logger logger = LoggerFactory.getLogger(LiveSettingsHandler.class);
+  private static final Logger logger = LoggerFactory.getLogger(LiveSettingsHandler.class);
 
   @Override
   public LiveSettingsResponse handle(
-      IndexState indexState, LiveSettingsRequest liveSettingsRequest) {
+      IndexState indexStateIn, LiveSettingsRequest liveSettingsRequest) {
+    if (!(indexStateIn instanceof LegacyIndexState)) {
+      throw new IllegalArgumentException("Only LegacyIndexState is supported");
+    }
+    LegacyIndexState indexState = (LegacyIndexState) indexStateIn;
     logger.info(
         String.format("update liveSettings for index:  %s", liveSettingsRequest.getIndexName()));
     if (liveSettingsRequest.getMaxRefreshSec() != 0
@@ -33,11 +38,11 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
       double maxSec =
           liveSettingsRequest.getMaxRefreshSec() != 0
               ? liveSettingsRequest.getMaxRefreshSec()
-              : indexState.maxRefreshSec;
+              : indexState.getMaxRefreshSec();
       double minSec =
           liveSettingsRequest.getMinRefreshSec() != 0
               ? liveSettingsRequest.getMinRefreshSec()
-              : indexState.minRefreshSec;
+              : indexState.getMinRefreshSec();
       indexState.setRefreshSec(minSec, maxSec);
       logger.info(String.format("set minRefreshSec: %s, maxRefreshSec: %s", minSec, maxSec));
     }
@@ -103,7 +108,6 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
               "set defaultTerminateAfter: %s", liveSettingsRequest.getDefaultTerminateAfter()));
     }
     String response = indexState.getLiveSettingsJSON();
-    LiveSettingsResponse reply = LiveSettingsResponse.newBuilder().setResponse(response).build();
-    return reply;
+    return LiveSettingsResponse.newBuilder().setResponse(response).build();
   }
 }

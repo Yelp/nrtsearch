@@ -119,7 +119,7 @@ public class BackendGlobalState extends GlobalState {
     if (Files.exists(rootDir)) {
       throw new IllegalArgumentException("rootDir \"" + rootDir + "\" already exists");
     }
-    IndexState state = new IndexState(this, name, rootDir, true, false);
+    IndexState state = IndexState.createState(this, name, rootDir, true, false);
 
     Map<String, IndexInfo> updatedIndexInfoMap =
         new HashMap<>(immutableState.persistentGlobalState.getIndices());
@@ -148,7 +148,7 @@ public class BackendGlobalState extends GlobalState {
           throw new IllegalArgumentException("index \"" + name + "\" was not saved or committed");
         }
         Path rootPath = getIndexDir(name);
-        state = new IndexState(this, name, rootPath, false, hasRestore);
+        state = IndexState.createState(this, name, rootPath, false, hasRestore);
         // nocommit we need to also persist which shards are here?
         state.addShard(0, false);
 

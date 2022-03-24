@@ -456,20 +456,20 @@ public class DrillSidewaysImpl extends DrillSideways {
         // drill-down; compute its facet counts from the
         // drill-sideways collector:
         String indexFieldName =
-            indexState.facetsConfig.getDimConfig(fieldDef.getName()).indexFieldName;
+            indexState.getFacetsConfig().getDimConfig(fieldDef.getName()).indexFieldName;
         if (useCachedOrds) {
           luceneFacets =
               new TaxonomyFacetCounts(
                   shardState.getOrdsCache(indexFieldName),
                   searcherAndTaxonomyManager.taxonomyReader,
-                  indexState.facetsConfig,
+                  indexState.getFacetsConfig(),
                   c);
         } else {
           luceneFacets =
               new FastTaxonomyFacetCounts(
                   indexFieldName,
                   searcherAndTaxonomyManager.taxonomyReader,
-                  indexState.facetsConfig,
+                  indexState.getFacetsConfig(),
                   c);
         }
       } else {
@@ -479,7 +479,7 @@ public class DrillSidewaysImpl extends DrillSideways {
         // See if we already computed facet
         // counts for this indexFieldName:
         String indexFieldName =
-            indexState.facetsConfig.getDimConfig(fieldDef.getName()).indexFieldName;
+            indexState.getFacetsConfig().getDimConfig(fieldDef.getName()).indexFieldName;
         Map<String, Facets> facetsMap = indexFieldNameToFacets;
         luceneFacets = facetsMap.get(indexFieldName);
         if (luceneFacets == null) {
@@ -488,14 +488,14 @@ public class DrillSidewaysImpl extends DrillSideways {
                 new TaxonomyFacetCounts(
                     shardState.getOrdsCache(indexFieldName),
                     searcherAndTaxonomyManager.taxonomyReader,
-                    indexState.facetsConfig,
+                    indexState.getFacetsConfig(),
                     drillDowns);
           } else {
             luceneFacets =
                 new FastTaxonomyFacetCounts(
                     indexFieldName,
                     searcherAndTaxonomyManager.taxonomyReader,
-                    indexState.facetsConfig,
+                    indexState.getFacetsConfig(),
                     drillDowns);
           }
           facetsMap.put(indexFieldName, luceneFacets);

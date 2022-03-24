@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
+import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -39,8 +40,12 @@ public class SettingsHandler implements Handler<SettingsRequest, SettingsRespons
   private final JsonParser jsonParser = new JsonParser();
 
   @Override
-  public SettingsResponse handle(final IndexState indexState, SettingsRequest settingsRequest)
+  public SettingsResponse handle(final IndexState indexStateIn, SettingsRequest settingsRequest)
       throws SettingsHandlerException {
+    if (!(indexStateIn instanceof LegacyIndexState)) {
+      throw new IllegalArgumentException("Only LegacyIndexState is supported");
+    }
+    LegacyIndexState indexState = (LegacyIndexState) indexStateIn;
     // nocommit how to / should we make this truly thread
     // safe?
     final DirectoryFactory df;

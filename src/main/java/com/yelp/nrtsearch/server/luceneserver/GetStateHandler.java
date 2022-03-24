@@ -33,7 +33,7 @@ public class GetStateHandler implements Handler<StateRequest, StateResponse> {
     try {
       savedState.add("state", indexState.getSaveState());
     } catch (IOException e) {
-      logger.error("Could not load state for index " + indexState.name, e);
+      logger.error("Could not load state for index " + indexState.getName(), e);
       throw new GetStateHandlerException(e);
     }
     builder.setResponse(savedState.toString());

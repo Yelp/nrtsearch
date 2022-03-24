@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver;
+package com.yelp.nrtsearch.server.luceneserver.index;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -23,6 +23,8 @@ import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.LiveSettingsHandler;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import java.io.IOException;
@@ -31,23 +33,23 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class IndexStateTest {
+public class LegacyIndexStateTest {
 
   @ClassRule public static final TemporaryFolder folder = new TemporaryFolder();
 
   @Test
   public void testDefaultSliceParams() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
-      assertEquals(IndexState.DEFAULT_SLICE_MAX_DOCS, indexState.getSliceMaxDocs());
-      assertEquals(IndexState.DEFAULT_SLICE_MAX_SEGMENTS, indexState.getSliceMaxSegments());
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
+      assertEquals(LegacyIndexState.DEFAULT_SLICE_MAX_DOCS, indexState.getSliceMaxDocs());
+      assertEquals(LegacyIndexState.DEFAULT_SLICE_MAX_SEGMENTS, indexState.getSliceMaxSegments());
     }
   }
 
   @Test
   public void testDefaultVirtualShards() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       assertEquals(1, indexState.getVirtualShards());
     }
   }
@@ -55,7 +57,7 @@ public class IndexStateTest {
   @Test
   public void testDefaultMaxMergedSegmentMB() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       assertEquals(0, indexState.getMaxMergedSegmentMB());
     }
   }
@@ -63,7 +65,7 @@ public class IndexStateTest {
   @Test
   public void testDefaultSegmentsPerTier() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       assertEquals(0, indexState.getSegmentsPerTier());
     }
   }
@@ -71,7 +73,7 @@ public class IndexStateTest {
   @Test
   public void testDefaultSearchTimeout() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       assertEquals(0, indexState.getDefaultSearchTimeoutSec(), 0);
     }
   }
@@ -79,7 +81,7 @@ public class IndexStateTest {
   @Test
   public void testDefaultTimeoutCheckEvery() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       assertEquals(0, indexState.getDefaultSearchTimeoutCheckEvery());
     }
   }
@@ -87,7 +89,7 @@ public class IndexStateTest {
   @Test
   public void testDefaultTerminateAfter() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       assertEquals(0, indexState.getDefaultTerminateAfter());
     }
   }
@@ -95,7 +97,7 @@ public class IndexStateTest {
   @Test
   public void testDefaultRefreshSec() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       assertEquals(0.05f, indexState.minRefreshSec, Math.ulp(0.05f));
       assertEquals(1.0f, indexState.maxRefreshSec, Math.ulp(1.0f));
     }
@@ -104,7 +106,7 @@ public class IndexStateTest {
   @Test
   public void testChangeSliceParams() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setSliceMaxDocs(100);
       indexState.setSliceMaxSegments(50);
       assertEquals(100, indexState.getSliceMaxDocs());
@@ -115,7 +117,7 @@ public class IndexStateTest {
   @Test
   public void testChangeVirtualShards() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setVirtualShards(10);
       assertEquals(10, indexState.getVirtualShards());
     }
@@ -124,7 +126,7 @@ public class IndexStateTest {
   @Test
   public void testChangeMaxMergedSegmentMB() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setMaxMergedSegmentMB(500);
       assertEquals(500, indexState.getMaxMergedSegmentMB());
     }
@@ -133,7 +135,7 @@ public class IndexStateTest {
   @Test
   public void testChangeSegmentsPerTier() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setSegmentsPerTier(5);
       assertEquals(5, indexState.getSegmentsPerTier());
     }
@@ -142,7 +144,7 @@ public class IndexStateTest {
   @Test
   public void testChangeSearchTimeout() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setDefaultSearchTimeoutSec(2.0);
       assertEquals(2.0, indexState.getDefaultSearchTimeoutSec(), 0);
     }
@@ -151,7 +153,7 @@ public class IndexStateTest {
   @Test
   public void testChangeCheckEvery() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setDefaultSearchTimeoutCheckEvery(10);
       assertEquals(10, indexState.getDefaultSearchTimeoutCheckEvery());
     }
@@ -160,7 +162,7 @@ public class IndexStateTest {
   @Test
   public void testChangeDefaultTerminateAfter() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setDefaultTerminateAfter(11);
       assertEquals(11, indexState.getDefaultTerminateAfter());
     }
@@ -169,7 +171,7 @@ public class IndexStateTest {
   @Test
   public void testChangeRefreshSec() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setRefreshSec(2.0, 3.0);
       assertEquals(2.0, indexState.minRefreshSec, 0);
       assertEquals(3.0, indexState.maxRefreshSec, 0);
@@ -179,7 +181,7 @@ public class IndexStateTest {
   @Test
   public void testDisabledVirtualShards() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setVirtualShards(10);
       assertEquals(1, indexState.getVirtualShards());
     }
@@ -189,7 +191,7 @@ public class IndexStateTest {
   public void testInvalidSliceDocs() throws IOException {
     String expectedMessage = "Max slice docs must be greater than 0.";
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       try {
         indexState.setSliceMaxDocs(0);
         fail();
@@ -209,7 +211,7 @@ public class IndexStateTest {
   public void testInvalidSliceSegments() throws IOException {
     String expectedMessage = "Max slice segments must be greater than 0.";
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       try {
         indexState.setSliceMaxSegments(0);
         fail();
@@ -229,7 +231,7 @@ public class IndexStateTest {
   public void testInvalidVirtualShards() throws IOException {
     String expectedMessage = "Number of virtual shards must be greater than 0.";
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       try {
         indexState.setVirtualShards(0);
         fail();
@@ -249,7 +251,7 @@ public class IndexStateTest {
   public void testInvalidMaxMergedSegmentMB() throws IOException {
     String expectedMessage = "Max merged segment size must be greater than 0.";
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       try {
         indexState.setMaxMergedSegmentMB(0);
         fail();
@@ -269,7 +271,7 @@ public class IndexStateTest {
   public void testInvalidSegmentsPerTier() throws IOException {
     String expectedMessage = "Segments per tier must be >= 2.";
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       try {
         indexState.setSegmentsPerTier(1);
         fail();
@@ -289,7 +291,7 @@ public class IndexStateTest {
   public void testInvalidSearchTimeout() throws IOException {
     String expectedMessage = "Default search timeout must be >= 0.";
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       try {
         indexState.setDefaultSearchTimeoutSec(-1);
         fail();
@@ -303,7 +305,7 @@ public class IndexStateTest {
   public void testInvalidTimeoutCheckEvery() throws IOException {
     String expectedMessage = "Default search timeout check every must be >= 0.";
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       try {
         indexState.setDefaultSearchTimeoutCheckEvery(-1);
         fail();
@@ -317,7 +319,7 @@ public class IndexStateTest {
   public void testInvalidDefaultTerminateAfter() throws IOException {
     String expectedMessage = "Default terminate after must be >= 0.";
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       try {
         indexState.setDefaultTerminateAfter(-1);
         fail();
@@ -332,7 +334,7 @@ public class IndexStateTest {
     String expectedMessage = "Min and Max refresh seconds must be > 0";
     String expectedMessage2 = "Max refresh seconds must be >= Min refresh seconds";
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       try {
         indexState.setRefreshSec(1.0, 0.0);
         fail();
@@ -357,7 +359,7 @@ public class IndexStateTest {
   @Test
   public void testSliceParamsLoad() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setSliceMaxDocs(200);
       indexState.setSliceMaxSegments(75);
 
@@ -372,7 +374,7 @@ public class IndexStateTest {
   @Test
   public void testVirtualShardsLoad() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setVirtualShards(20);
 
       JsonObject saveState = indexState.getSaveState();
@@ -385,7 +387,7 @@ public class IndexStateTest {
   @Test
   public void testMaxMergedSegmentMBLoad() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setMaxMergedSegmentMB(100);
 
       JsonObject saveState = indexState.getSaveState();
@@ -398,7 +400,7 @@ public class IndexStateTest {
   @Test
   public void testSegmentsPerTierLoad() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setSegmentsPerTier(4);
 
       JsonObject saveState = indexState.getSaveState();
@@ -411,7 +413,7 @@ public class IndexStateTest {
   @Test
   public void testSearchTimeoutLoad() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setDefaultSearchTimeoutSec(4.0);
 
       JsonObject saveState = indexState.getSaveState();
@@ -424,7 +426,7 @@ public class IndexStateTest {
   @Test
   public void testTimeoutCheckEveryLoad() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setDefaultSearchTimeoutCheckEvery(25);
 
       JsonObject saveState = indexState.getSaveState();
@@ -437,7 +439,7 @@ public class IndexStateTest {
   @Test
   public void testDefaultTerminateAfterLoad() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setDefaultTerminateAfter(50);
 
       JsonObject saveState = indexState.getSaveState();
@@ -450,7 +452,7 @@ public class IndexStateTest {
   @Test
   public void testRefreshSecLoad() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       indexState.setRefreshSec(5.0, 7.0);
 
       JsonObject saveState = indexState.getSaveState();
@@ -464,7 +466,7 @@ public class IndexStateTest {
   @Test
   public void testSliceParamsSetByLiveSettingsHandler() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest =
           LiveSettingsRequest.newBuilder().setSliceMaxDocs(300).setSliceMaxSegments(150).build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
@@ -477,7 +479,7 @@ public class IndexStateTest {
   @Test
   public void testVirtualShardsSetByLiveSettingsHandler() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest =
           LiveSettingsRequest.newBuilder().setVirtualShards(30).build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
@@ -489,7 +491,7 @@ public class IndexStateTest {
   @Test
   public void testMaxMergedSegmentMBSetByLiveSettingsHandler() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest =
           LiveSettingsRequest.newBuilder().setMaxMergedSegmentMB(100).build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
@@ -501,7 +503,7 @@ public class IndexStateTest {
   @Test
   public void testSegmentsPerTierSetByLiveSettingsHandler() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest =
           LiveSettingsRequest.newBuilder().setSegmentsPerTier(11).build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
@@ -513,7 +515,7 @@ public class IndexStateTest {
   @Test
   public void testSearchTimeoutSetByLiveSettingsHandler() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest =
           LiveSettingsRequest.newBuilder().setDefaultSearchTimeoutSec(10.0).build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
@@ -525,7 +527,7 @@ public class IndexStateTest {
   @Test
   public void testTimeoutCheckEverySetByLiveSettingsHandler() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest =
           LiveSettingsRequest.newBuilder().setDefaultSearchTimeoutCheckEvery(50).build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
@@ -537,7 +539,7 @@ public class IndexStateTest {
   @Test
   public void testDefaultTerminateAfterSetByLiveSettingsHandler() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest =
           LiveSettingsRequest.newBuilder().setDefaultTerminateAfter(60).build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
@@ -549,7 +551,7 @@ public class IndexStateTest {
   @Test
   public void testRefreshSecSetByLiveSettingsHandler() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest =
           LiveSettingsRequest.newBuilder().setMaxRefreshSec(4.0).setMinRefreshSec(3.0).build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
@@ -574,19 +576,19 @@ public class IndexStateTest {
   @Test
   public void testSliceParamsLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest = LiveSettingsRequest.newBuilder().build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
 
-      assertEquals(IndexState.DEFAULT_SLICE_MAX_DOCS, indexState.getSliceMaxDocs());
-      assertEquals(IndexState.DEFAULT_SLICE_MAX_SEGMENTS, indexState.getSliceMaxSegments());
+      assertEquals(LegacyIndexState.DEFAULT_SLICE_MAX_DOCS, indexState.getSliceMaxDocs());
+      assertEquals(LegacyIndexState.DEFAULT_SLICE_MAX_SEGMENTS, indexState.getSliceMaxSegments());
     }
   }
 
   @Test
   public void testVirtualShardsLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest = LiveSettingsRequest.newBuilder().build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
 
@@ -597,7 +599,7 @@ public class IndexStateTest {
   @Test
   public void testMaxMergedSegmentMBLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest = LiveSettingsRequest.newBuilder().build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
 
@@ -608,7 +610,7 @@ public class IndexStateTest {
   @Test
   public void testSegmentsPerTierLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitStateVirtualSharding()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest = LiveSettingsRequest.newBuilder().build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
 
@@ -619,7 +621,7 @@ public class IndexStateTest {
   @Test
   public void testSearchTimeoutLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest =
           LiveSettingsRequest.newBuilder().setDefaultSearchTimeoutSec(-1).build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
@@ -631,7 +633,7 @@ public class IndexStateTest {
   @Test
   public void testTimeoutCheckEveryLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest =
           LiveSettingsRequest.newBuilder().setDefaultSearchTimeoutCheckEvery(-1).build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
@@ -643,7 +645,7 @@ public class IndexStateTest {
   @Test
   public void testDefaultTerminateAfterLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest =
           LiveSettingsRequest.newBuilder().setDefaultTerminateAfter(-1).build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
@@ -655,7 +657,7 @@ public class IndexStateTest {
   @Test
   public void testRefreshSecLiveSettingsHandlerNoop() throws IOException {
     try (GlobalState globalState = getInitState()) {
-      IndexState indexState = new IndexState(globalState, "testIdx", null, true, false);
+      LegacyIndexState indexState = new LegacyIndexState(globalState, "testIdx", null, true, false);
       LiveSettingsRequest liveSettingsRequest = LiveSettingsRequest.newBuilder().build();
       new LiveSettingsHandler().handle(indexState, liveSettingsRequest);
 
