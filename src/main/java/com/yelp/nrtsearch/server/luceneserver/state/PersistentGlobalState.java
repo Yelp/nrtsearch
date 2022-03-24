@@ -100,11 +100,28 @@ public class PersistentGlobalState {
   @JsonIgnoreProperties(ignoreUnknown = true)
   @JsonInclude(Include.NON_NULL)
   public static class IndexInfo {
+    private final String id;
+
+    /**
+     * Constructor
+     *
+     * @param id index instance id generated at create time
+     */
+    @JsonCreator
+    public IndexInfo(@JsonProperty("id") String id) {
+      this.id = id;
+    }
+
+    /** Get index instance id (UUID). */
+    public String getId() {
+      return id;
+    }
 
     @Override
     public boolean equals(Object o) {
       if (o instanceof IndexInfo) {
-        return true;
+        IndexInfo other = (IndexInfo) o;
+        return Objects.equals(other.id, this.id);
       } else {
         return false;
       }

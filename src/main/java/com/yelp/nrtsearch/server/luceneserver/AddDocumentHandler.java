@@ -202,12 +202,12 @@ public class AddDocumentHandler {
             try {
               if (idFieldDef != null) {
                 // update documents in the queue to keep order
-                updateDocuments(documents, idFieldDef, shardState);
-                updateNestedDocuments(documentsContext, idFieldDef, shardState);
+                updateDocuments(documents, idFieldDef, indexState, shardState);
+                updateNestedDocuments(documentsContext, idFieldDef, indexState, shardState);
               } else {
                 // add documents in the queue to keep order
-                addDocuments(documents, shardState);
-                addNestedDocuments(documentsContext, shardState);
+                addDocuments(documents, indexState, shardState);
+                addNestedDocuments(documentsContext, indexState, shardState);
               }
               documents.clear();
             } catch (IOException e) { // This exception should be caught in parent to and set
@@ -229,9 +229,9 @@ public class AddDocumentHandler {
 
       try {
         if (idFieldDef != null) {
-          updateDocuments(documents, idFieldDef, shardState);
+          updateDocuments(documents, idFieldDef, indexState, shardState);
         } else {
-          addDocuments(documents, shardState);
+          addDocuments(documents, indexState, shardState);
         }
       } catch (IOException e) { // This exception should be caught in parent to and set
         // responseObserver.onError(e) so client knows the job failed
@@ -258,16 +258,19 @@ public class AddDocumentHandler {
      * @throws IOException
      */
     private void updateNestedDocuments(
-        DocumentsContext documentsContext, IdFieldDef idFieldDef, ShardState shardState)
+        DocumentsContext documentsContext,
+        IdFieldDef idFieldDef,
+        IndexState indexState,
+        ShardState shardState)
         throws IOException {
       List<Document> documents = new ArrayList<>();
       for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
         documents.addAll(
             e.getValue().stream()
-                .map(v -> handleFacets(shardState, v))
+                .map(v -> handleFacets(indexState, shardState, v))
                 .collect(Collectors.toList()));
       }
-      Document rootDoc = handleFacets(shardState, documentsContext.getRootDocument());
+      Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
 
       for (Document doc : documents) {
         for (IndexableField f : rootDoc.getFields(idFieldDef.getName())) {
@@ -286,30 +289,36 @@ public class AddDocumentHandler {
      * @param shardState
      * @throws IOException
      */
-    private void addNestedDocuments(DocumentsContext documentsContext, ShardState shardState)
+    private void addNestedDocuments(
+        DocumentsContext documentsContext, IndexState indexState, ShardState shardState)
         throws IOException {
       List<Document> documents = new ArrayList<>();
       for (Map.Entry<String, List<Document>> e : documentsContext.getChildDocuments().entrySet()) {
         documents.addAll(
             e.getValue().stream()
-                .map(v -> handleFacets(shardState, v))
+                .map(v -> handleFacets(indexState, shardState, v))
                 .collect(Collectors.toList()));
       }
-      Document rootDoc = handleFacets(shardState, documentsContext.getRootDocument());
+      Document rootDoc = handleFacets(indexState, shardState, documentsContext.getRootDocument());
       documents.add(rootDoc);
       shardState.writer.addDocuments(documents);
     }
 
     private void updateDocuments(
-        Queue<Document> documents, IdFieldDef idFieldDef, ShardState shardState)
+        Queue<Document> documents,
+        IdFieldDef idFieldDef,
+        IndexState indexState,
+        ShardState shardState)
         throws IOException {
       for (Document nextDoc : documents) {
-        nextDoc = handleFacets(shardState, nextDoc);
+        nextDoc = handleFacets(indexState, shardState, nextDoc);
         shardState.writer.updateDocument(idFieldDef.getTerm(nextDoc), nextDoc);
       }
     }
 
-    private void addDocuments(Queue<Document> documents, ShardState shardState) throws IOException {
+    private void addDocuments(
+        Queue<Document> documents, IndexState indexState, ShardState shardState)
+        throws IOException {
       if (shardState.isReplica()) {
         throw new IllegalStateException(
             "Adding documents to an index on a replica node is not supported");
@@ -324,7 +333,7 @@ public class AddDocumentHandler {
                     public boolean hasNext() {
                       if (!documents.isEmpty()) {
                         nextDoc = documents.poll();
-                        nextDoc = handleFacets(shardState, nextDoc);
+                        nextDoc = handleFacets(indexState, shardState, nextDoc);
                         return true;
                       } else {
                         nextDoc = null;
@@ -339,11 +348,11 @@ public class AddDocumentHandler {
                   });
     }
 
-    private Document handleFacets(ShardState shardState, Document nextDoc) {
-      final boolean hasFacets = shardState.indexState.hasFacets();
+    private Document handleFacets(IndexState indexState, ShardState shardState, Document nextDoc) {
+      final boolean hasFacets = indexState.hasFacets();
       if (hasFacets) {
         try {
-          nextDoc = shardState.indexState.getFacetsConfig().build(shardState.taxoWriter, nextDoc);
+          nextDoc = indexState.getFacetsConfig().build(shardState.taxoWriter, nextDoc);
         } catch (IOException ioe) {
           throw new RuntimeException(
               String.format("document: %s hit exception building facets", nextDoc), ioe);

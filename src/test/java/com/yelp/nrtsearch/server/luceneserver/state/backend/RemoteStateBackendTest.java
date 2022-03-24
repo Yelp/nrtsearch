@@ -30,6 +30,11 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
+import com.google.protobuf.BoolValue;
+import com.google.protobuf.DoubleValue;
+import com.google.protobuf.Int32Value;
+import com.google.protobuf.StringValue;
+import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.backup.BackupDiffManager;
 import com.yelp.nrtsearch.server.backup.ContentDownloader;
@@ -39,7 +44,14 @@ import com.yelp.nrtsearch.server.backup.IndexArchiver;
 import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.backup.VersionManager;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
+import com.yelp.nrtsearch.server.grpc.IndexSettings;
+import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
+import com.yelp.nrtsearch.server.grpc.SortFields;
+import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
+import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState.IndexInfo;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
@@ -55,6 +67,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import net.jpountz.lz4.LZ4FrameInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -136,6 +149,11 @@ public class RemoteStateBackendTest {
         StateUtils.GLOBAL_STATE_FILE);
   }
 
+  private Path getLocalIndexStateFilePath(String indexIdentifier) {
+    return Paths.get(
+        folder.getRoot().getAbsolutePath(), indexIdentifier, StateUtils.INDEX_STATE_FILE);
+  }
+
   private Path getS3FilePath(String versionHash) {
     return Paths.get(
         folder.getRoot().getAbsolutePath(),
@@ -143,6 +161,16 @@ public class RemoteStateBackendTest {
         TEST_BUCKET,
         TEST_SERVICE_NAME,
         RemoteStateBackend.GLOBAL_STATE_RESOURCE,
+        versionHash);
+  }
+
+  private Path getS3IndexFilePath(String indexIdentifier, String versionHash) {
+    return Paths.get(
+        folder.getRoot().getAbsolutePath(),
+        "s3",
+        TEST_BUCKET,
+        TEST_SERVICE_NAME,
+        indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX,
         versionHash);
   }
 
@@ -181,6 +209,43 @@ public class RemoteStateBackendTest {
     return stateFromTar;
   }
 
+  private IndexStateInfo getS3IndexState(String indexIdentifier) throws IOException {
+    long currentVersion =
+        versionManager.getLatestVersionNumber(
+            TEST_SERVICE_NAME, indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX);
+    if (currentVersion < 0) {
+      return null;
+    }
+    String versionHash =
+        versionManager.getVersionString(
+            TEST_SERVICE_NAME,
+            indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX,
+            String.valueOf(currentVersion));
+    Path s3FilePath = getS3IndexFilePath(indexIdentifier, versionHash);
+    assertTrue(s3FilePath.toFile().exists());
+    assertTrue(s3FilePath.toFile().isFile());
+
+    TarArchiveInputStream tarArchiveInputStream =
+        new TarArchiveInputStream(
+            new LZ4FrameInputStream(new FileInputStream(s3FilePath.toFile())));
+    IndexStateInfo stateFromTar = null;
+    for (TarArchiveEntry tarArchiveEntry = tarArchiveInputStream.getNextTarEntry();
+        tarArchiveEntry != null;
+        tarArchiveEntry = tarArchiveInputStream.getNextTarEntry()) {
+      if (tarArchiveEntry.getName().endsWith(StateUtils.INDEX_STATE_FILE)) {
+        String stateStr;
+        try (DataInputStream dataInputStream = new DataInputStream(tarArchiveInputStream)) {
+          stateStr = dataInputStream.readUTF();
+        }
+        IndexStateInfo.Builder stateBuilder = IndexStateInfo.newBuilder();
+        JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
+        stateFromTar = stateBuilder.build();
+        break;
+      }
+    }
+    return stateFromTar;
+  }
+
   private void writeStateToS3(PersistentGlobalState state) throws IOException {
     File tmpFolderFile = folder.newFolder();
     Path tmpGlobalStatePath =
@@ -196,6 +261,24 @@ public class RemoteStateBackendTest {
             Collections.emptyList(),
             true);
     archiver.blessVersion(TEST_SERVICE_NAME, RemoteStateBackend.GLOBAL_STATE_RESOURCE, version);
+  }
+
+  private void writeIndexStateToS3(String indexIdentifier, IndexStateInfo state)
+      throws IOException {
+    File tmpFolderFile = folder.newFolder();
+    Path tmpIndexStatePath = Paths.get(tmpFolderFile.getAbsolutePath(), indexIdentifier);
+    StateUtils.ensureDirectory(tmpIndexStatePath);
+    StateUtils.writeIndexStateToFile(state, tmpIndexStatePath, StateUtils.INDEX_STATE_FILE);
+    String version =
+        archiver.upload(
+            TEST_SERVICE_NAME,
+            indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX,
+            tmpIndexStatePath,
+            Collections.singletonList(StateUtils.INDEX_STATE_FILE),
+            Collections.emptyList(),
+            true);
+    archiver.blessVersion(
+        TEST_SERVICE_NAME, indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX, version);
   }
 
   @Test
@@ -236,8 +319,8 @@ public class RemoteStateBackendTest {
     assertFalse(localFilePath.toFile().exists());
 
     Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo());
-    indicesMap.put("test_index_2", new IndexInfo());
+    indicesMap.put("test_index", new IndexInfo("test_id_1"));
+    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
     PersistentGlobalState initialState = new PersistentGlobalState(indicesMap);
 
     writeStateToS3(initialState);
@@ -259,8 +342,8 @@ public class RemoteStateBackendTest {
     PersistentGlobalState initialState = stateBackend.loadOrCreateGlobalState();
 
     Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo());
-    indicesMap.put("test_index_2", new IndexInfo());
+    indicesMap.put("test_index", new IndexInfo("test_id_1"));
+    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
     PersistentGlobalState updatedState = new PersistentGlobalState(indicesMap);
     assertNotEquals(initialState, updatedState);
 
@@ -271,7 +354,7 @@ public class RemoteStateBackendTest {
     assertEquals(updatedState, loadedLocalState);
 
     indicesMap = new HashMap<>();
-    indicesMap.put("test_index_3", new IndexInfo());
+    indicesMap.put("test_index_3", new IndexInfo("test_id_3"));
     PersistentGlobalState updatedState2 = new PersistentGlobalState(indicesMap);
     assertNotEquals(updatedState, updatedState2);
     stateBackend.commitGlobalState(updatedState2);
@@ -306,8 +389,8 @@ public class RemoteStateBackendTest {
     StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(true));
 
     Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo());
-    indicesMap.put("test_index_2", new IndexInfo());
+    indicesMap.put("test_index", new IndexInfo("test_id_1"));
+    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
     PersistentGlobalState initialState = new PersistentGlobalState(indicesMap);
 
     writeStateToS3(initialState);
@@ -320,8 +403,8 @@ public class RemoteStateBackendTest {
     StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(true));
 
     Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo());
-    indicesMap.put("test_index_2", new IndexInfo());
+    indicesMap.put("test_index", new IndexInfo("test_id_1"));
+    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
     PersistentGlobalState initialState = new PersistentGlobalState(indicesMap);
 
     writeStateToS3(initialState);
@@ -329,9 +412,9 @@ public class RemoteStateBackendTest {
     assertEquals(initialState, loadedState);
 
     indicesMap = new HashMap<>();
-    indicesMap.put("test_index_3", new IndexInfo());
-    indicesMap.put("test_index_4", new IndexInfo());
-    indicesMap.put("test_index_5", new IndexInfo());
+    indicesMap.put("test_index_3", new IndexInfo("test_id_3"));
+    indicesMap.put("test_index_4", new IndexInfo("test_id_4"));
+    indicesMap.put("test_index_5", new IndexInfo("test_id_5"));
     PersistentGlobalState updatedState = new PersistentGlobalState(indicesMap);
     try {
       stateBackend.commitGlobalState(updatedState);
@@ -352,6 +435,299 @@ public class RemoteStateBackendTest {
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals("Archiver must be provided for remote state usage", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testIndexStateNotExist() throws IOException {
+    StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(false));
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+    assertNull(stateBackend.loadIndexState(indexIdentifier));
+  }
+
+  @Test
+  public void testLoadsSavedIndexState() throws IOException {
+    StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(false));
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+    Path localFilePath = getLocalIndexStateFilePath(indexIdentifier);
+    assertFalse(localFilePath.toFile().exists());
+
+    IndexStateInfo initialState =
+        IndexStateInfo.newBuilder()
+            .setIndexName("test_index")
+            .setGen(5)
+            .setCommitted(true)
+            .setSettings(
+                IndexSettings.newBuilder()
+                    .setConcurrentMergeSchedulerMaxThreadCount(
+                        Int32Value.newBuilder().setValue(10).build())
+                    .setDirectory(StringValue.newBuilder().setValue("MMapDirectory").build())
+                    .setIndexMergeSchedulerAutoThrottle(
+                        BoolValue.newBuilder().setValue(true).build())
+                    .setIndexSort(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("field1")
+                                    .setReverse(true)
+                                    .build())
+                            .addSortedFields(SortType.newBuilder().setFieldName("field2").build())
+                            .build())
+                    .build())
+            .setLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(100).build())
+                    .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(300.0).build())
+                    .setMaxRefreshSec(DoubleValue.newBuilder().setValue(100.0).build())
+                    .build())
+            .build();
+
+    writeIndexStateToS3(indexIdentifier, initialState);
+
+    IndexStateInfo loadedState = stateBackend.loadIndexState(indexIdentifier);
+    assertEquals(initialState, loadedState);
+
+    assertTrue(localFilePath.toFile().exists());
+    assertTrue(localFilePath.toFile().isFile());
+
+    IndexStateInfo loadedLocalState = StateUtils.readIndexStateFromFile(localFilePath);
+    assertEquals(initialState, loadedLocalState);
+  }
+
+  @Test
+  public void testCommitIndexState() throws IOException {
+    StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(false));
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+    Path localFilePath = getLocalIndexStateFilePath(indexIdentifier);
+    assertNull(stateBackend.loadIndexState(indexIdentifier));
+
+    IndexStateInfo updatedState =
+        IndexStateInfo.newBuilder()
+            .setIndexName("test_index_2")
+            .setGen(5)
+            .setCommitted(true)
+            .setSettings(
+                IndexSettings.newBuilder()
+                    .setConcurrentMergeSchedulerMaxThreadCount(
+                        Int32Value.newBuilder().setValue(15).build())
+                    .setDirectory(StringValue.newBuilder().setValue("FSDirectory").build())
+                    .setIndexMergeSchedulerAutoThrottle(
+                        BoolValue.newBuilder().setValue(false).build())
+                    .setIndexSort(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("field1")
+                                    .setReverse(false)
+                                    .build())
+                            .addSortedFields(SortType.newBuilder().setFieldName("field2").build())
+                            .build())
+                    .build())
+            .setLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(200).build())
+                    .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(100.0).build())
+                    .setMaxRefreshSec(DoubleValue.newBuilder().setValue(50.0).build())
+                    .build())
+            .build();
+
+    stateBackend.commitIndexState(indexIdentifier, updatedState);
+    IndexStateInfo loadedState = getS3IndexState(indexIdentifier);
+    assertEquals(updatedState, loadedState);
+    IndexStateInfo loadedLocalState = StateUtils.readIndexStateFromFile(localFilePath);
+    assertEquals(updatedState, loadedLocalState);
+
+    IndexStateInfo updatedState2 =
+        IndexStateInfo.newBuilder()
+            .setIndexName("test_index_2")
+            .setGen(6)
+            .setCommitted(true)
+            .setSettings(
+                IndexSettings.newBuilder()
+                    .setConcurrentMergeSchedulerMaxThreadCount(
+                        Int32Value.newBuilder().setValue(16).build())
+                    .setDirectory(StringValue.newBuilder().setValue("MMapDirectory").build())
+                    .setIndexMergeSchedulerAutoThrottle(
+                        BoolValue.newBuilder().setValue(true).build())
+                    .setIndexSort(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("field2")
+                                    .setReverse(true)
+                                    .build())
+                            .build())
+                    .build())
+            .setLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(300).build())
+                    .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(200.0).build())
+                    .setMaxRefreshSec(DoubleValue.newBuilder().setValue(75.0).build())
+                    .build())
+            .build();
+    assertNotEquals(updatedState, updatedState2);
+    stateBackend.commitIndexState(indexIdentifier, updatedState2);
+
+    loadedState = getS3IndexState(indexIdentifier);
+    assertEquals(updatedState2, loadedState);
+    loadedLocalState = StateUtils.readIndexStateFromFile(localFilePath);
+    assertEquals(updatedState2, loadedLocalState);
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testLoadNullIndexState() throws IOException {
+    StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(false));
+    stateBackend.loadIndexState(null);
+  }
+
+  @Test
+  public void testCommitNullIndexState() throws IOException {
+    StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(false));
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+    stateBackend.loadIndexState(indexIdentifier);
+    try {
+      stateBackend.commitIndexState(indexIdentifier, null);
+      fail();
+    } catch (NullPointerException ignore) {
+
+    }
+
+    try {
+      stateBackend.commitIndexState(null, IndexStateInfo.newBuilder().build());
+      fail();
+    } catch (NullPointerException ignore) {
+
+    }
+  }
+
+  @Test
+  public void testReadOnlyNoInitialIndexState() throws IOException {
+    StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(true));
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+    assertNull(getS3IndexState(indexIdentifier));
+    assertNull(stateBackend.loadIndexState(indexIdentifier));
+  }
+
+  @Test
+  public void testReadOnlyWithInitialIndexState() throws IOException {
+    StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(true));
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+
+    IndexStateInfo initialState =
+        IndexStateInfo.newBuilder()
+            .setIndexName("test_index")
+            .setGen(5)
+            .setCommitted(true)
+            .setSettings(
+                IndexSettings.newBuilder()
+                    .setConcurrentMergeSchedulerMaxThreadCount(
+                        Int32Value.newBuilder().setValue(10).build())
+                    .setDirectory(StringValue.newBuilder().setValue("MMapDirectory").build())
+                    .setIndexMergeSchedulerAutoThrottle(
+                        BoolValue.newBuilder().setValue(true).build())
+                    .setIndexSort(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("field1")
+                                    .setReverse(true)
+                                    .build())
+                            .addSortedFields(SortType.newBuilder().setFieldName("field2").build())
+                            .build())
+                    .build())
+            .setLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(100).build())
+                    .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(300.0).build())
+                    .setMaxRefreshSec(DoubleValue.newBuilder().setValue(100.0).build())
+                    .build())
+            .build();
+
+    writeIndexStateToS3(indexIdentifier, initialState);
+    IndexStateInfo loadedState = stateBackend.loadIndexState(indexIdentifier);
+    assertEquals(initialState, loadedState);
+  }
+
+  @Test
+  public void testReadOnlyIndexCommit() throws IOException {
+    StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(true));
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+
+    IndexStateInfo initialState =
+        IndexStateInfo.newBuilder()
+            .setIndexName("test_index_2")
+            .setGen(5)
+            .setCommitted(true)
+            .setSettings(
+                IndexSettings.newBuilder()
+                    .setConcurrentMergeSchedulerMaxThreadCount(
+                        Int32Value.newBuilder().setValue(15).build())
+                    .setDirectory(StringValue.newBuilder().setValue("FSDirectory").build())
+                    .setIndexMergeSchedulerAutoThrottle(
+                        BoolValue.newBuilder().setValue(false).build())
+                    .setIndexSort(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("field1")
+                                    .setReverse(false)
+                                    .build())
+                            .addSortedFields(SortType.newBuilder().setFieldName("field2").build())
+                            .build())
+                    .build())
+            .setLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(200).build())
+                    .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(100.0).build())
+                    .setMaxRefreshSec(DoubleValue.newBuilder().setValue(50.0).build())
+                    .build())
+            .build();
+
+    writeIndexStateToS3(indexIdentifier, initialState);
+    IndexStateInfo loadedState = stateBackend.loadIndexState(indexIdentifier);
+    assertEquals(initialState, loadedState);
+
+    IndexStateInfo updatedState =
+        IndexStateInfo.newBuilder()
+            .setIndexName("test_index_2")
+            .setGen(6)
+            .setCommitted(true)
+            .setSettings(
+                IndexSettings.newBuilder()
+                    .setConcurrentMergeSchedulerMaxThreadCount(
+                        Int32Value.newBuilder().setValue(16).build())
+                    .setDirectory(StringValue.newBuilder().setValue("MMapDirectory").build())
+                    .setIndexMergeSchedulerAutoThrottle(
+                        BoolValue.newBuilder().setValue(true).build())
+                    .setIndexSort(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("field2")
+                                    .setReverse(true)
+                                    .build())
+                            .build())
+                    .build())
+            .setLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(300).build())
+                    .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(200.0).build())
+                    .setMaxRefreshSec(DoubleValue.newBuilder().setValue(75.0).build())
+                    .build())
+            .build();
+
+    try {
+      stateBackend.commitIndexState(indexIdentifier, updatedState);
+      fail();
+    } catch (IllegalStateException e) {
+      assertEquals("Cannot update remote state when configured as read only", e.getMessage());
     }
   }
 }

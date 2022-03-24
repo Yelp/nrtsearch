@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -35,19 +36,22 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
     STATE
   }
 
+  private final GlobalState globalState;
   private final Archiver archiver;
   private final Archiver incArchiver;
   private final String archiveDirectory;
   private final boolean backupFromIncArchiver;
   private final boolean restoreFromIncArchiver;
-  Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
+  private static final Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
 
   public StartIndexHandler(
+      GlobalState globalState,
       Archiver archiver,
       Archiver incArchiver,
       String archiveDirectory,
       boolean backupFromIncArchiver,
       boolean restoreFromIncArchiver) {
+    this.globalState = globalState;
     this.archiver = archiver;
     this.incArchiver = incArchiver;
     this.archiveDirectory = archiveDirectory;
@@ -76,13 +80,14 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
             RestoreIndex restoreIndex = startIndexRequest.getRestore();
             if (restoreIndex.getDeleteExistingData()) {
               indexState.deleteIndexRootDir();
+              Files.createDirectories(indexState.getRootDir());
               deleteDownloadedBackupDirectories(restoreIndex.getResourceName());
             }
 
             dataPath =
                 downloadArtifact(
                     restoreIndex.getServiceName(),
-                    restoreIndex.getResourceName(),
+                    globalState.getDataResourceForIndex(restoreIndex.getResourceName()),
                     INDEXED_DATA_TYPE.DATA,
                     restoreFromIncArchiver);
             shardState.setRestored(true);
@@ -115,7 +120,13 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
         indexState.initWarmer(archiver);
       }
 
-      indexState.start(mode, dataPath, primaryGen, primaryAddress, primaryPort);
+      if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
+        indexState.start(mode, dataPath, primaryGen, primaryAddress, primaryPort);
+      } else {
+        globalState
+            .getIndexStateManager(indexState.getName())
+            .start(mode, dataPath, primaryGen, primaryAddress, primaryPort);
+      }
 
       if (mode.equals(Mode.PRIMARY)) {
         BackupIndexRequestHandler backupIndexRequestHandler =

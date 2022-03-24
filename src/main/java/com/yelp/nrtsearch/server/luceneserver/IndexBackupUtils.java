@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
 
 public class IndexBackupUtils {
+  public static final String INDEX_STATE_SUFFIX = "-state";
 
   public static String getResourceMetadata(String resourceName) {
     return String.format("%s_metadata", resourceName);
@@ -41,5 +42,10 @@ public class IndexBackupUtils {
 
   public static boolean isBackendGlobalState(String resourceName) {
     return RemoteStateBackend.GLOBAL_STATE_RESOURCE.equals(resourceName);
+  }
+
+  /** Get if this resource applies for index state. */
+  public static boolean isIndexState(String resourceName) {
+    return resourceName.endsWith(INDEX_STATE_SUFFIX);
   }
 }
