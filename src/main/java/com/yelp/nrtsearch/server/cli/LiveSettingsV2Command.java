@@ -66,17 +66,17 @@ public class LiveSettingsV2Command implements Callable<Integer> {
 
   @CommandLine.Option(
       names = {"--sliceMaxDocs"},
-      description = "Max documents per index slice, or 0 to keep current value")
+      description = "Max documents per index slice")
   private Integer sliceMaxDocs;
 
   @CommandLine.Option(
       names = {"--sliceMaxSegments"},
-      description = "Max segments per index slice, or 0 to keep current value")
+      description = "Max segments per index slice")
   private Integer sliceMaxSegments;
 
   @CommandLine.Option(
       names = {"--virtualShards"},
-      description = "Number of virtual shards to partition index into, or 0 to keep current value")
+      description = "Number of virtual shards to partition index into")
   private Integer virtualShards;
 
   @CommandLine.Option(
