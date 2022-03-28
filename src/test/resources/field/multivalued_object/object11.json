@@ -1,0 +1,21 @@
+{
+    "field1": 1100.0,
+    "field2": [
+        "object11_a_field2"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object11_inner_object1_a_inner_field1"
+            ],
+            "inner_field2": [
+                "object11_inner_object2_a_inner_field1"
+            ],
+            "inner_object2": [
+                {
+                    "11": 111.0
+                }
+            ]
+        }
+    ]
+}

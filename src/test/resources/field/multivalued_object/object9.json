@@ -1,0 +1,45 @@
+{
+    "field1": [
+        99.0
+    ],
+    "field2": [
+        "object9_field2_a",
+        "object9_field2_b",
+        "object9_field2_c",
+        "object9_field2_d"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object9_inner_object1_a_inner_field1_a",
+                "object9_inner_object1_a_inner_field1_b"
+            ],
+            "inner_field2": [
+                "object9_inner_field2"
+            ],
+            "inner_object2": [
+                {
+                    "9": 99.0
+                },
+                {
+                    "ab": "cd",
+                    "ef": "gh"
+                }
+            ]
+        },
+        {
+            "inner_field1": [
+                "object9_inner_object1_b_inner_field1_a",
+                "object9_inner_object1_b_inner_field1_b"
+            ],
+            "inner_field2": [
+                "inner_value2_2_2"
+            ],
+            "inner_object2": [
+                {
+                    "999": 9999.0
+                }
+            ]
+        }
+    ]
+}

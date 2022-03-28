@@ -1,0 +1,45 @@
+{
+    "field1": [
+        22.0
+    ],
+    "field2": [
+        "object2_field2_a",
+        "object2_field2_b",
+        "object2_field2_c",
+        "object2_field2_d"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object2_inner_object1_a_inner_field1_a",
+                "object2_inner_object1_a_inner_field1_b"
+            ],
+            "inner_field2": [
+                "object2_inner_object1_a_inner_field2"
+            ],
+            "inner_object2": [
+                {
+                    "2": 22.0
+                },
+                {
+                    "ab": "cd",
+                    "ef": "gh"
+                }
+            ]
+        },
+        {
+            "inner_field1": [
+                "object2_inner_object1_b_inner_field1_a",
+                "object2_inner_object1_b_inner_field1_b"
+            ],
+            "inner_field2": [
+                "object2_inner_object1_b_inner_field2"
+            ],
+            "inner_object2": [
+                {
+                    "222": 2222.0
+                }
+            ]
+        }
+    ]
+}
