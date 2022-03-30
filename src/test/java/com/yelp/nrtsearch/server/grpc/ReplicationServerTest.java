@@ -102,7 +102,7 @@ public class ReplicationServerTest {
 
   @Test
   public void copyFiles() throws IOException, InterruptedException {
-    initNonSyncedInitialNrtPointServers();
+    initServerSyncInitialNrtPointFalse();
 
     GrpcServer.TestServer testServerPrimary =
         new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
@@ -282,7 +282,7 @@ public class ReplicationServerTest {
 
   @Test
   public void testSyncOnIndexStart() throws IOException, InterruptedException {
-    initDefaultLuceneServer();
+    initServerSyncInitialNrtPointFalse();
 
     // index 4 documents to primary
     GrpcServer.TestServer testServerPrimary =
@@ -309,7 +309,7 @@ public class ReplicationServerTest {
                     .setTopHits(10)
                     .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
                     .build());
-    assertEquals(4, searchResponseSecondary.getHitsCount());
+    assertEquals(0, searchResponseSecondary.getHitsCount());
 
     luceneServerSecondary
         .getGlobalState()
@@ -366,7 +366,7 @@ public class ReplicationServerTest {
 
   @Test
   public void testInitialSyncWithCurrentVersion() throws IOException, InterruptedException {
-    initDefaultLuceneServer();
+    initServerSyncInitialNrtPointFalse();
 
     // index 4 documents to primary
     GrpcServer.TestServer testServerPrimary =
@@ -393,7 +393,7 @@ public class ReplicationServerTest {
                     .setTopHits(10)
                     .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
                     .build());
-    assertEquals(4, searchResponseSecondary.getHitsCount());
+    assertEquals(0, searchResponseSecondary.getHitsCount());
 
     luceneServerSecondary
         .getGlobalState()
@@ -459,7 +459,7 @@ public class ReplicationServerTest {
     initLuceneServers("");
   }
 
-  private void initNonSyncedInitialNrtPointServers() throws IOException {
+  private void initServerSyncInitialNrtPointFalse() throws IOException {
     initLuceneServers("syncInitialNrtPoint: false");
   }
 
