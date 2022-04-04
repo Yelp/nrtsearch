@@ -37,7 +37,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -62,12 +61,7 @@ public class ReplicationServerTest {
   private GrpcServer luceneServerSecondary;
   private GrpcServer replicationServerSecondary;
 
-  private final String BUCKET_NAME = "archiver-unittest";
-  private Archiver archiver;
   private S3Mock api;
-  private AmazonS3 s3;
-  private Path s3Directory;
-  private Path archiverDirectory;
 
   @After
   public void tearDown() throws IOException {
@@ -78,77 +72,10 @@ public class ReplicationServerTest {
     rmDir(Paths.get(luceneServerSecondary.getIndexDir()).getParent());
   }
 
-  @Before
-  public void setUp() throws IOException {
-    // setup S3 for backup/restore
-    s3Directory = folder.newFolder("s3").toPath();
-    archiverDirectory = folder.newFolder("archiver").toPath();
-    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-    api.start();
-    s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
-    s3.createBucket(BUCKET_NAME);
-    archiver =
-        new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl(Tar.CompressionMode.LZ4));
-
-    // set up primary servers
-    String testIndex = "test_index";
-    LuceneServerConfiguration luceneServerPrimaryConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
-    GlobalState globalStatePrimary = GlobalState.createState(luceneServerPrimaryConfiguration);
-    luceneServerPrimary =
-        new GrpcServer(
-            grpcCleanup,
-            luceneServerPrimaryConfiguration,
-            folder,
-            false,
-            globalStatePrimary,
-            luceneServerPrimaryConfiguration.getIndexDir(),
-            testIndex,
-            globalStatePrimary.getPort(),
-            archiver);
-    replicationServerPrimary =
-        new GrpcServer(
-            grpcCleanup,
-            luceneServerPrimaryConfiguration,
-            folder,
-            true,
-            globalStatePrimary,
-            luceneServerPrimaryConfiguration.getIndexDir(),
-            testIndex,
-            luceneServerPrimaryConfiguration.getReplicationPort(),
-            archiver);
-    // set up secondary servers
-    LuceneServerConfiguration luceneServerSecondaryConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot());
-    GlobalState globalStateSecondary = GlobalState.createState(luceneServerSecondaryConfiguration);
-
-    luceneServerSecondary =
-        new GrpcServer(
-            grpcCleanup,
-            luceneServerSecondaryConfiguration,
-            folder,
-            false,
-            globalStateSecondary,
-            luceneServerSecondaryConfiguration.getIndexDir(),
-            testIndex,
-            globalStateSecondary.getPort(),
-            archiver);
-    replicationServerSecondary =
-        new GrpcServer(
-            grpcCleanup,
-            luceneServerSecondaryConfiguration,
-            folder,
-            true,
-            globalStateSecondary,
-            luceneServerSecondaryConfiguration.getIndexDir(),
-            testIndex,
-            globalStateSecondary.getReplicationPort(),
-            archiver);
-  }
-
   @Test
   public void recvCopyState() throws IOException, InterruptedException {
+    initDefaultLuceneServer();
+
     GrpcServer.TestServer testServer =
         new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
     testServer.addDocuments();
@@ -175,6 +102,8 @@ public class ReplicationServerTest {
 
   @Test
   public void copyFiles() throws IOException, InterruptedException {
+    initServerSyncInitialNrtPointFalse();
+
     GrpcServer.TestServer testServerPrimary =
         new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
     testServerPrimary.addDocuments();
@@ -231,6 +160,8 @@ public class ReplicationServerTest {
 
   @Test
   public void basicReplication() throws IOException, InterruptedException {
+    initDefaultLuceneServer();
+
     // index 2 documents to primary
     GrpcServer.TestServer testServerPrimary =
         new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
@@ -283,6 +214,8 @@ public class ReplicationServerTest {
 
   @Test
   public void getConnectedNodes() throws IOException, InterruptedException {
+    initDefaultLuceneServer();
+
     // startIndex primary
     GrpcServer.TestServer testServerPrimary =
         new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
@@ -301,6 +234,8 @@ public class ReplicationServerTest {
 
   @Test
   public void replicaConnectivity() throws IOException, InterruptedException {
+    initDefaultLuceneServer();
+
     // set ping interval to 10 ms
     luceneServerSecondary.getGlobalState().setReplicaReplicationPortPingInterval(10);
     // startIndex replica
@@ -347,6 +282,8 @@ public class ReplicationServerTest {
 
   @Test
   public void testSyncOnIndexStart() throws IOException, InterruptedException {
+    initServerSyncInitialNrtPointFalse();
+
     // index 4 documents to primary
     GrpcServer.TestServer testServerPrimary =
         new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
@@ -398,6 +335,8 @@ public class ReplicationServerTest {
 
   @Test
   public void testInitialSyncTimeout() throws IOException {
+    initDefaultLuceneServer();
+
     // startIndex replica
     GrpcServer.TestServer testServerReplica =
         new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
@@ -427,6 +366,8 @@ public class ReplicationServerTest {
 
   @Test
   public void testInitialSyncWithCurrentVersion() throws IOException, InterruptedException {
+    initServerSyncInitialNrtPointFalse();
+
     // index 4 documents to primary
     GrpcServer.TestServer testServerPrimary =
         new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
@@ -495,6 +436,8 @@ public class ReplicationServerTest {
 
   @Test
   public void testAddDocumentsOnReplicaFailure() throws IOException, InterruptedException {
+    initDefaultLuceneServer();
+
     // startIndex primary
     GrpcServer.TestServer testServerPrimary =
         new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
@@ -510,5 +453,82 @@ public class ReplicationServerTest {
             .throwable
             .getMessage()
             .contains("Adding documents to an index on a replica node is not supported"));
+  }
+
+  private void initDefaultLuceneServer() throws IOException {
+    initLuceneServers("");
+  }
+
+  private void initServerSyncInitialNrtPointFalse() throws IOException {
+    initLuceneServers("syncInitialNrtPoint: false");
+  }
+
+  private void initLuceneServers(String extraConfig) throws IOException {
+    // setup S3 for backup/restore
+    Path s3Directory = folder.newFolder("s3").toPath();
+    Path archiverDirectory = folder.newFolder("archiver").toPath();
+    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
+    api.start();
+    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
+    s3.setEndpoint("http://127.0.0.1:8011");
+    String BUCKET_NAME = "archiver-unittest";
+    s3.createBucket(BUCKET_NAME);
+    Archiver archiver =
+        new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl(Tar.CompressionMode.LZ4));
+
+    // set up primary servers
+    String testIndex = "test_index";
+    LuceneServerConfiguration luceneServerPrimaryConfiguration =
+        LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot(), extraConfig);
+    GlobalState globalStatePrimary = GlobalState.createState(luceneServerPrimaryConfiguration);
+    luceneServerPrimary =
+        new GrpcServer(
+            grpcCleanup,
+            luceneServerPrimaryConfiguration,
+            folder,
+            false,
+            globalStatePrimary,
+            luceneServerPrimaryConfiguration.getIndexDir(),
+            testIndex,
+            globalStatePrimary.getPort(),
+            archiver);
+    replicationServerPrimary =
+        new GrpcServer(
+            grpcCleanup,
+            luceneServerPrimaryConfiguration,
+            folder,
+            true,
+            globalStatePrimary,
+            luceneServerPrimaryConfiguration.getIndexDir(),
+            testIndex,
+            luceneServerPrimaryConfiguration.getReplicationPort(),
+            archiver);
+    // set up secondary servers
+    LuceneServerConfiguration luceneServerSecondaryConfiguration =
+        LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot(), extraConfig);
+    GlobalState globalStateSecondary = GlobalState.createState(luceneServerSecondaryConfiguration);
+
+    luceneServerSecondary =
+        new GrpcServer(
+            grpcCleanup,
+            luceneServerSecondaryConfiguration,
+            folder,
+            false,
+            globalStateSecondary,
+            luceneServerSecondaryConfiguration.getIndexDir(),
+            testIndex,
+            globalStateSecondary.getPort(),
+            archiver);
+    replicationServerSecondary =
+        new GrpcServer(
+            grpcCleanup,
+            luceneServerSecondaryConfiguration,
+            folder,
+            true,
+            globalStateSecondary,
+            luceneServerSecondaryConfiguration.getIndexDir(),
+            testIndex,
+            globalStateSecondary.getReplicationPort(),
+            archiver);
   }
 }

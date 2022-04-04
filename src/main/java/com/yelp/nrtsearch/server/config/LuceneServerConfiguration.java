@@ -127,7 +127,7 @@ public class LuceneServerConfiguration {
       metricsBuckets = DEFAULT_METRICS_BUCKETS;
     }
     this.metricsBuckets = metricsBuckets;
-    publishJvmMetrics = configReader.getBoolean("publishJvmMetrics", false);
+    publishJvmMetrics = configReader.getBoolean("publishJvmMetrics", true);
     plugins = configReader.getStringList("plugins", DEFAULT_PLUGINS).toArray(new String[0]);
     pluginSearchPath =
         configReader.getString("pluginSearchPath", DEFAULT_PLUGIN_SEARCH_PATH.toString());
@@ -138,10 +138,10 @@ public class LuceneServerConfiguration {
     preloadConfig = IndexPreloadConfig.fromConfig(configReader);
     queryCacheConfig = QueryCacheConfig.fromConfig(configReader);
     warmerConfig = WarmerConfig.fromConfig(configReader);
-    downloadAsStream = configReader.getBoolean("downloadAsStream", false);
-    fileSendDelay = configReader.getBoolean("fileSendDelay", true);
+    downloadAsStream = configReader.getBoolean("downloadAsStream", true);
+    fileSendDelay = configReader.getBoolean("fileSendDelay", false);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
-    syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", false);
+    syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", true);
     indexVerbose = configReader.getBoolean("indexVerbose", false);
     fileCopyConfig = FileCopyConfig.fromConfig(configReader);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
