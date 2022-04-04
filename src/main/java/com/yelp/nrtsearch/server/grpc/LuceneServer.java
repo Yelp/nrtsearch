@@ -40,6 +40,7 @@ import com.yelp.nrtsearch.server.config.QueryCacheConfig;
 import com.yelp.nrtsearch.server.luceneserver.*;
 import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler.DocumentIndexer;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
+import com.yelp.nrtsearch.server.luceneserver.custom.request.CustomRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
@@ -351,6 +352,7 @@ public class LuceneServer {
       RescorerCreator.initialize(configuration, plugins);
       ScriptService.initialize(configuration, plugins);
       SimilarityCreator.initialize(configuration, plugins);
+      CustomRequestProcessor.initialize(configuration, plugins);
     }
 
     /**
@@ -1661,6 +1663,17 @@ public class LuceneServer {
           ForceMergeDeletesResponse.newBuilder().setStatus(status).build();
       responseObserver.onNext(response);
       responseObserver.onCompleted();
+    }
+
+    @Override
+    public void custom(CustomRequest request, StreamObserver<CustomResponse> responseObserver) {
+      try {
+        CustomResponse response = CustomRequestProcessor.processCustomRequest(request);
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+      } catch (Exception e) {
+        responseObserver.onError(e);
+      }
     }
   }
 

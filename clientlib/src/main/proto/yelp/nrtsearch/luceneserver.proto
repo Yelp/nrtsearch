@@ -334,6 +334,16 @@ service LuceneServer {
       body: "*"
     };
     }
+
+    /*
+    Process request in a plugin which implements CustomRequestPlugin interface.
+    */
+    rpc custom(CustomRequest) returns (CustomResponse) {
+        option (google.api.http) = {
+            post: "/v1/custom"
+            body: "*"
+        };
+    }
 }
 
 //The ReplicationServer service definition.
@@ -935,4 +945,14 @@ message ForceMergeDeletesResponse {
         FORCE_MERGE_DELETES_SUBMITTED = 1;
     }
     Status status = 1;
+}
+
+message CustomRequest {
+    string id = 1; // ID defined for custom requests in a plugin
+    string path = 2; // Custom path that is defined in a plugin that maps to a route
+    map<string, string> params = 3; // Parameters that can be processed by the plugin at the specified path
+}
+
+message CustomResponse {
+    map<string, string> response = 1; // Custom response sent by the plugin
 }
