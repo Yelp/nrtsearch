@@ -201,6 +201,9 @@ public class ShardState implements Closeable {
 
   /** True if this index is started. */
   public boolean isStarted() {
+    if (!isReplica()) {
+      return started && writer != null && writer.isOpen();
+    }
     return started;
   }
 
@@ -257,7 +260,9 @@ public class ShardState implements Closeable {
   public synchronized void close() throws IOException {
     logger.info(String.format("ShardState.close name= %s", name));
 
-    commit();
+    if (writer != null && writer.isOpen()) {
+      commit();
+    }
 
     List<Closeable> closeables = new ArrayList<>();
     // nocommit catch exc & rollback:
