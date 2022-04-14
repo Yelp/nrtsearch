@@ -50,7 +50,7 @@ public class LegacyStateManagerTest {
     testFunc(manager::getLiveSettings);
     testFunc(() -> manager.updateLiveSettings(null));
     testFunc(() -> manager.updateFields(null));
-    testFunc(() -> manager.start(Mode.PRIMARY, null, 1, "", 1));
+    testFunc(() -> manager.start(Mode.PRIMARY, null, 1, null));
   }
 
   private void testFunc(MyRunnable func) throws IOException {

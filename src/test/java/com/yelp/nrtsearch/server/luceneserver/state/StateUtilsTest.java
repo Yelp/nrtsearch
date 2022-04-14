@@ -25,18 +25,17 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
+import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
+import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
-import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState.IndexInfo;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.Map;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -89,19 +88,25 @@ public class StateUtilsTest {
         Paths.get(folder.getRoot().getAbsolutePath(), StateUtils.GLOBAL_STATE_FILE);
     assertFalse(expectedStateFilePath.toFile().exists());
 
-    Map<String, IndexInfo> testIndices = new HashMap<>();
-    testIndices.put("test_index", new IndexInfo("test_id_1"));
-    testIndices.put("test_index_2", new IndexInfo("test_id_2"));
-    PersistentGlobalState persistentGlobalState = new PersistentGlobalState(testIndices);
+    GlobalStateInfo globalStateInfo =
+        GlobalStateInfo.newBuilder()
+            .setGen(10)
+            .putIndices(
+                "test_index",
+                IndexGlobalState.newBuilder().setId("test_id_1").setStarted(true).build())
+            .putIndices(
+                "test_index_2",
+                IndexGlobalState.newBuilder().setId("test_id_2").setStarted(false).build())
+            .build();
 
     StateUtils.writeStateToFile(
-        persistentGlobalState,
+        globalStateInfo,
         Paths.get(folder.getRoot().getAbsolutePath()),
         StateUtils.GLOBAL_STATE_FILE);
     assertTrue(expectedStateFilePath.toFile().exists());
 
-    PersistentGlobalState readState = StateUtils.readStateFromFile(expectedStateFilePath);
-    assertEquals(persistentGlobalState, readState);
+    GlobalStateInfo readState = StateUtils.readStateFromFile(expectedStateFilePath);
+    assertEquals(globalStateInfo, readState);
   }
 
   @Test
@@ -110,34 +115,48 @@ public class StateUtilsTest {
         Paths.get(folder.getRoot().getAbsolutePath(), StateUtils.GLOBAL_STATE_FILE);
     assertFalse(expectedStateFilePath.toFile().exists());
 
-    Map<String, IndexInfo> testIndices = new HashMap<>();
-    testIndices.put("test_index_3", new IndexInfo("test_id_3"));
-    testIndices.put("test_index_4", new IndexInfo("test_id_4"));
-    PersistentGlobalState persistentGlobalState = new PersistentGlobalState(testIndices);
+    GlobalStateInfo globalStateInfo =
+        GlobalStateInfo.newBuilder()
+            .setGen(11)
+            .putIndices(
+                "test_index_3",
+                IndexGlobalState.newBuilder().setId("test_id_3").setStarted(true).build())
+            .putIndices(
+                "test_index_4",
+                IndexGlobalState.newBuilder().setId("test_id_4").setStarted(true).build())
+            .build();
 
     StateUtils.writeStateToFile(
-        persistentGlobalState,
+        globalStateInfo,
         Paths.get(folder.getRoot().getAbsolutePath()),
         StateUtils.GLOBAL_STATE_FILE);
     assertTrue(expectedStateFilePath.toFile().exists());
 
-    PersistentGlobalState readState = StateUtils.readStateFromFile(expectedStateFilePath);
-    assertEquals(persistentGlobalState, readState);
+    GlobalStateInfo readState = StateUtils.readStateFromFile(expectedStateFilePath);
+    assertEquals(globalStateInfo, readState);
 
-    testIndices = new HashMap<>();
-    testIndices.put("test_index_5", new IndexInfo("test_id_5"));
-    testIndices.put("test_index_6", new IndexInfo("test_id_6"));
-    testIndices.put("test_index_7", new IndexInfo("test_id_7"));
-    PersistentGlobalState persistentGlobalState2 = new PersistentGlobalState(testIndices);
+    GlobalStateInfo globalStateInfo2 =
+        GlobalStateInfo.newBuilder()
+            .setGen(12)
+            .putIndices(
+                "test_index_5",
+                IndexGlobalState.newBuilder().setId("test_id_5").setStarted(false).build())
+            .putIndices(
+                "test_index_6",
+                IndexGlobalState.newBuilder().setId("test_id_6").setStarted(true).build())
+            .putIndices(
+                "test_index_7",
+                IndexGlobalState.newBuilder().setId("test_id_7").setStarted(false).build())
+            .build();
 
     StateUtils.writeStateToFile(
-        persistentGlobalState2,
+        globalStateInfo2,
         Paths.get(folder.getRoot().getAbsolutePath()),
         StateUtils.GLOBAL_STATE_FILE);
     assertTrue(expectedStateFilePath.toFile().exists());
 
-    PersistentGlobalState readState2 = StateUtils.readStateFromFile(expectedStateFilePath);
-    assertEquals(persistentGlobalState2, readState2);
+    GlobalStateInfo readState2 = StateUtils.readStateFromFile(expectedStateFilePath);
+    assertEquals(globalStateInfo2, readState2);
     assertNotEquals(readState, readState2);
   }
 
@@ -151,14 +170,17 @@ public class StateUtilsTest {
 
     }
     try {
-      StateUtils.writeStateToFile(new PersistentGlobalState(), null, StateUtils.GLOBAL_STATE_FILE);
+      StateUtils.writeStateToFile(
+          GlobalStateInfo.newBuilder().build(), null, StateUtils.GLOBAL_STATE_FILE);
       fail();
     } catch (NullPointerException ignore) {
 
     }
     try {
       StateUtils.writeStateToFile(
-          new PersistentGlobalState(), Paths.get(folder.getRoot().getAbsolutePath()), null);
+          GlobalStateInfo.newBuilder().build(),
+          Paths.get(folder.getRoot().getAbsolutePath()),
+          null);
       fail();
     } catch (NullPointerException ignore) {
 

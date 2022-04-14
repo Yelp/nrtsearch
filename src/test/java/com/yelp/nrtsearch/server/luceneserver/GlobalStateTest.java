@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
@@ -53,5 +54,22 @@ public class GlobalStateTest {
     LuceneServerConfiguration configuration = getConfig(configFile);
     GlobalState globalState = GlobalState.createState(configuration);
     assertTrue(globalState instanceof BackendGlobalState);
+  }
+
+  @Test
+  public void testGetGeneration() throws IOException {
+    String configFile = String.join("\n", "stateConfig:", "  backendType: LEGACY");
+    LuceneServerConfiguration configuration = getConfig(configFile);
+    GlobalState globalState = GlobalState.createState(configuration);
+    long gen = globalState.getGeneration();
+    assertTrue(gen > 0);
+    assertEquals(gen, globalState.getGeneration());
+
+    try {
+      Thread.sleep(50);
+    } catch (InterruptedException ignore) {
+    }
+    GlobalState globalState2 = GlobalState.createState(configuration);
+    assertTrue(globalState2.getGeneration() > gen);
   }
 }

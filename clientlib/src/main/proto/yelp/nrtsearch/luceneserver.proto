@@ -592,6 +592,8 @@ message StartIndexRequest {
     string primaryAddress = 4; //replica, the IP address or host name of the remote primary
     int32 port = 5; //replica, the TCP port of the remote primary
     RestoreIndex restore = 6; // restore index from backup
+    // replica, location of discovery file containing primary host/port. Used if primaryAddress is empty. If port is specified in this request, it overrides the value in the file
+    string primaryDiscoveryFile = 7;
 }
 
 enum Mode {
@@ -1048,4 +1050,18 @@ message IndexStateInfo {
     IndexLiveSettings liveSettings = 5;
     // Registered fields
     map<string, Field> fields = 6;
+}
+
+message IndexGlobalState {
+    // Unique identifier for index (UUID)
+    string id = 1;
+    // If index should be started
+    bool started = 2;
+}
+
+message GlobalStateInfo {
+    // State version generation
+    int64 gen = 1;
+    // Global state for indices
+    map<string, IndexGlobalState> indices = 2;
 }

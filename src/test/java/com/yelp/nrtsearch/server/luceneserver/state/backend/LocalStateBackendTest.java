@@ -29,6 +29,8 @@ import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
+import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
@@ -36,15 +38,11 @@ import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
-import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState;
-import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState.IndexInfo;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.Rule;
 import org.junit.Test;
@@ -104,13 +102,13 @@ public class LocalStateBackendTest {
     Path filePath = getStateFilePath();
     assertFalse(filePath.toFile().exists());
 
-    PersistentGlobalState globalState = stateBackend.loadOrCreateGlobalState();
-    assertEquals(globalState, new PersistentGlobalState());
+    GlobalStateInfo globalState = stateBackend.loadOrCreateGlobalState();
+    assertEquals(globalState, GlobalStateInfo.newBuilder().build());
 
     assertTrue(filePath.toFile().exists());
     assertTrue(filePath.toFile().isFile());
 
-    PersistentGlobalState loadedState = StateUtils.readStateFromFile(filePath);
+    GlobalStateInfo loadedState = StateUtils.readStateFromFile(filePath);
     assertEquals(globalState, loadedState);
   }
 
@@ -119,10 +117,16 @@ public class LocalStateBackendTest {
     StateBackend stateBackend = new LocalStateBackend(getMockGlobalState());
     Path filePath = getStateFilePath();
 
-    Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo("test_id_1"));
-    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
-    PersistentGlobalState initialState = new PersistentGlobalState(indicesMap);
+    GlobalStateInfo initialState =
+        GlobalStateInfo.newBuilder()
+            .setGen(20)
+            .putIndices(
+                "test_index",
+                IndexGlobalState.newBuilder().setId("test_id_1").setStarted(false).build())
+            .putIndices(
+                "test_index_2",
+                IndexGlobalState.newBuilder().setId("test_id_2").setStarted(true).build())
+            .build();
     StateUtils.writeStateToFile(
         initialState,
         Paths.get(folder.getRoot().getAbsolutePath(), StateUtils.GLOBAL_STATE_FOLDER),
@@ -130,7 +134,7 @@ public class LocalStateBackendTest {
     assertTrue(filePath.toFile().exists());
     assertTrue(filePath.toFile().isFile());
 
-    PersistentGlobalState loadedState = stateBackend.loadOrCreateGlobalState();
+    GlobalStateInfo loadedState = stateBackend.loadOrCreateGlobalState();
     assertEquals(initialState, loadedState);
   }
 
@@ -138,21 +142,31 @@ public class LocalStateBackendTest {
   public void testCommitGlobalState() throws IOException {
     StateBackend stateBackend = new LocalStateBackend(getMockGlobalState());
     Path filePath = getStateFilePath();
-    PersistentGlobalState initialState = stateBackend.loadOrCreateGlobalState();
+    GlobalStateInfo initialState = stateBackend.loadOrCreateGlobalState();
 
-    Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo("test_id_1"));
-    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
-    PersistentGlobalState updatedState = new PersistentGlobalState(indicesMap);
+    GlobalStateInfo updatedState =
+        GlobalStateInfo.newBuilder()
+            .setGen(21)
+            .putIndices(
+                "test_index",
+                IndexGlobalState.newBuilder().setId("test_id_1").setStarted(false).build())
+            .putIndices(
+                "test_index_2",
+                IndexGlobalState.newBuilder().setId("test_id_2").setStarted(true).build())
+            .build();
     assertNotEquals(initialState, updatedState);
 
     stateBackend.commitGlobalState(updatedState);
-    PersistentGlobalState loadedState = StateUtils.readStateFromFile(filePath);
+    GlobalStateInfo loadedState = StateUtils.readStateFromFile(filePath);
     assertEquals(updatedState, loadedState);
 
-    indicesMap = new HashMap<>();
-    indicesMap.put("test_index_3", new IndexInfo("test_id_3"));
-    PersistentGlobalState updatedState2 = new PersistentGlobalState(indicesMap);
+    GlobalStateInfo updatedState2 =
+        GlobalStateInfo.newBuilder()
+            .setGen(22)
+            .putIndices(
+                "test_index_3",
+                IndexGlobalState.newBuilder().setId("test_id_3").setStarted(true).build())
+            .build();
     assertNotEquals(updatedState, updatedState2);
     stateBackend.commitGlobalState(updatedState2);
 

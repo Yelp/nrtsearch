@@ -95,7 +95,7 @@ public class LuceneServer {
 
   private Server server;
   private Server replicationServer;
-  private LuceneServerConfiguration luceneServerConfiguration;
+  private final LuceneServerConfiguration luceneServerConfiguration;
 
   @Inject
   public LuceneServer(
@@ -704,18 +704,26 @@ public class LuceneServer {
     public void startIndex(
         StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
       try {
-        IndexState indexState = null;
-        StartIndexHandler startIndexHandler =
-            new StartIndexHandler(
-                globalState,
-                archiver,
-                incArchiver,
-                archiveDirectory,
-                backupFromIncArchiver,
-                restoreFromIncArchiver);
-        indexState =
-            globalState.getIndex(startIndexRequest.getIndexName(), startIndexRequest.hasRestore());
-        StartIndexResponse reply = startIndexHandler.handle(indexState, startIndexRequest);
+        StartIndexResponse reply;
+        if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
+          IndexState indexState;
+          StartIndexHandler startIndexHandler =
+              new StartIndexHandler(
+                  archiver,
+                  incArchiver,
+                  archiveDirectory,
+                  backupFromIncArchiver,
+                  restoreFromIncArchiver,
+                  true,
+                  null);
+
+          indexState =
+              globalState.getIndex(
+                  startIndexRequest.getIndexName(), startIndexRequest.hasRestore());
+          reply = startIndexHandler.handle(indexState, startIndexRequest);
+        } else {
+          reply = globalState.startIndex(startIndexRequest);
+        }
         logger.info("StartIndexHandler returned " + reply.toString());
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
@@ -1265,8 +1273,13 @@ public class LuceneServer {
     public void stopIndex(
         StopIndexRequest stopIndexRequest, StreamObserver<DummyResponse> responseObserver) {
       try {
-        IndexState indexState = globalState.getIndex(stopIndexRequest.getIndexName());
-        DummyResponse reply = new StopIndexHandler().handle(indexState, stopIndexRequest);
+        DummyResponse reply;
+        if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
+          IndexState indexState = globalState.getIndex(stopIndexRequest.getIndexName());
+          reply = new StopIndexHandler().handle(indexState, stopIndexRequest);
+        } else {
+          reply = globalState.stopIndex(stopIndexRequest);
+        }
         logger.info("StopIndexHandler returned " + reply.toString());
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
@@ -1312,7 +1325,7 @@ public class LuceneServer {
 
       // If specific index names are provided we will check only those indices, otherwise check all
       if (request.getIndexNames().isEmpty()) {
-        indexNames = globalState.getIndexNames();
+        indexNames = globalState.getIndicesToStart();
       } else {
         List<String> indexNamesToCheck = COMMA_SPLITTER.splitToList(request.getIndexNames());
 

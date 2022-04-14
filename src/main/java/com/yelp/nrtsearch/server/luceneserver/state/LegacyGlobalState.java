@@ -21,6 +21,10 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.DummyResponse;
+import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
+import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.Restorable;
@@ -226,7 +230,22 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
   }
 
   @Override
+  public StartIndexResponse startIndex(StartIndexRequest startIndexRequest) throws IOException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public DummyResponse stopIndex(StopIndexRequest stopIndexRequest) throws IOException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public Set<String> getIndexNames() {
     return Collections.unmodifiableSet(indexNames.keySet());
+  }
+
+  @Override
+  public Set<String> getIndicesToStart() {
+    return getIndexNames();
   }
 }

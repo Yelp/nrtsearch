@@ -15,12 +15,12 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.state.backend;
 
+import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
-import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState;
 import java.io.IOException;
 
 /**
- * Interface for a backend managing the loading/storing of {@link PersistentGlobalState} and {@link
+ * Interface for a backend managing the loading/storing of {@link GlobalStateInfo} and {@link
  * IndexStateInfo}. It can be assumed that external synchronization will prevent interface methods
  * from being called concurrently.
  */
@@ -33,15 +33,15 @@ public interface StateBackend {
    * @return current state value
    * @throws IOException
    */
-  PersistentGlobalState loadOrCreateGlobalState() throws IOException;
+  GlobalStateInfo loadOrCreateGlobalState() throws IOException;
 
   /**
    * Commit the given state value to the backend.
    *
-   * @param persistentGlobalState state value to commit
+   * @param globalStateInfo state value to commit
    * @throws IOException
    */
-  void commitGlobalState(PersistentGlobalState persistentGlobalState) throws IOException;
+  void commitGlobalState(GlobalStateInfo globalStateInfo) throws IOException;
 
   /**
    * Load the current state value for an index from the backend.

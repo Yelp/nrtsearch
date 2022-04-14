@@ -400,12 +400,11 @@ public abstract class IndexState implements Closeable {
    * @param serverMode server mode
    * @param dataPath path to restored data, or null
    * @param primaryGen primary generation, only valid for PRIMARY or REPLICA modes
-   * @param primaryAddress primary address, only valid for REPLICA mode
-   * @param primaryPort primary port, only valid for REPLICA mode
+   * @param primaryClient replication client for talking with primary, only valid for REPLICA mode
    * @throws IOException on filesystem error
    */
   public abstract void start(
-      Mode serverMode, Path dataPath, long primaryGen, String primaryAddress, int primaryPort)
+      Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
       throws IOException;
 
   /** Records a new field in the internal {@code fields} state. */

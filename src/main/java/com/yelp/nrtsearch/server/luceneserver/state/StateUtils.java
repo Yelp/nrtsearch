@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.state;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -56,23 +57,22 @@ public class StateUtils {
   }
 
   /**
-   * Write the json representation of the given {@link PersistentGlobalState} into a file in the
-   * specified directory. Data is written to a temp file, then moved to replace any existing
-   * version. File is synced for durability.
+   * Write the json representation of the given {@link GlobalStateInfo} into a file in the specified
+   * directory. Data is written to a temp file, then moved to replace any existing version. File is
+   * synced for durability.
    *
-   * @param persistentGlobalState global state to write
+   * @param globalStateInfo global state to write
    * @param directory directory to write state file into
    * @param fileName final name of state file
    * @throws IOException on filesystem error
    */
   public static void writeStateToFile(
-      PersistentGlobalState persistentGlobalState, Path directory, String fileName)
-      throws IOException {
-    Objects.requireNonNull(persistentGlobalState);
+      GlobalStateInfo globalStateInfo, Path directory, String fileName) throws IOException {
+    Objects.requireNonNull(globalStateInfo);
     Objects.requireNonNull(directory);
     Objects.requireNonNull(fileName);
 
-    String stateStr = MAPPER.writeValueAsString(persistentGlobalState);
+    String stateStr = JsonFormat.printer().print(globalStateInfo);
     writeToFile(stateStr, directory, fileName);
   }
 
@@ -123,20 +123,22 @@ public class StateUtils {
   }
 
   /**
-   * Read {@link PersistentGlobalState} from json representation in the given file.
+   * Read {@link GlobalStateInfo} from json representation in the given file.
    *
    * @param filePath state json file
    * @return global state
    * @throws IOException on filesystem error
    */
-  public static PersistentGlobalState readStateFromFile(Path filePath) throws IOException {
+  public static GlobalStateInfo readStateFromFile(Path filePath) throws IOException {
     Objects.requireNonNull(filePath);
     String stateStr;
     FileInputStream fileInputStream = new FileInputStream(filePath.toFile());
     try (DataInputStream dataInputStream = new DataInputStream(fileInputStream)) {
       stateStr = dataInputStream.readUTF();
     }
-    return MAPPER.readValue(stateStr, PersistentGlobalState.class);
+    GlobalStateInfo.Builder stateBuilder = GlobalStateInfo.newBuilder();
+    JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
+    return stateBuilder.build();
   }
 
   /**

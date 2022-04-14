@@ -44,6 +44,8 @@ import com.yelp.nrtsearch.server.backup.IndexArchiver;
 import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.backup.VersionManager;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
+import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
@@ -52,8 +54,6 @@ import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
-import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState;
-import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState.IndexInfo;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import io.findify.s3mock.S3Mock;
 import java.io.ByteArrayInputStream;
@@ -64,8 +64,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import net.jpountz.lz4.LZ4FrameInputStream;
@@ -174,7 +172,7 @@ public class RemoteStateBackendTest {
         versionHash);
   }
 
-  private PersistentGlobalState getS3State() throws IOException {
+  private GlobalStateInfo getS3State() throws IOException {
     long currentVersion =
         versionManager.getLatestVersionNumber(
             TEST_SERVICE_NAME, RemoteStateBackend.GLOBAL_STATE_RESOURCE);
@@ -193,7 +191,7 @@ public class RemoteStateBackendTest {
     TarArchiveInputStream tarArchiveInputStream =
         new TarArchiveInputStream(
             new LZ4FrameInputStream(new FileInputStream(s3FilePath.toFile())));
-    PersistentGlobalState stateFromTar = null;
+    GlobalStateInfo stateFromTar = null;
     for (TarArchiveEntry tarArchiveEntry = tarArchiveInputStream.getNextTarEntry();
         tarArchiveEntry != null;
         tarArchiveEntry = tarArchiveInputStream.getNextTarEntry()) {
@@ -202,7 +200,9 @@ public class RemoteStateBackendTest {
         try (DataInputStream dataInputStream = new DataInputStream(tarArchiveInputStream)) {
           stateStr = dataInputStream.readUTF();
         }
-        stateFromTar = StateUtils.MAPPER.readValue(stateStr, PersistentGlobalState.class);
+        GlobalStateInfo.Builder stateBuilder = GlobalStateInfo.newBuilder();
+        JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
+        stateFromTar = stateBuilder.build();
         break;
       }
     }
@@ -246,7 +246,7 @@ public class RemoteStateBackendTest {
     return stateFromTar;
   }
 
-  private void writeStateToS3(PersistentGlobalState state) throws IOException {
+  private void writeStateToS3(GlobalStateInfo state) throws IOException {
     File tmpFolderFile = folder.newFolder();
     Path tmpGlobalStatePath =
         Paths.get(tmpFolderFile.getAbsolutePath(), StateUtils.GLOBAL_STATE_FOLDER);
@@ -298,16 +298,16 @@ public class RemoteStateBackendTest {
     assertFalse(localFilePath.toFile().exists());
     assertNull(getS3State());
 
-    PersistentGlobalState globalState = stateBackend.loadOrCreateGlobalState();
-    assertEquals(globalState, new PersistentGlobalState());
+    GlobalStateInfo globalState = stateBackend.loadOrCreateGlobalState();
+    assertEquals(globalState, GlobalStateInfo.newBuilder().build());
 
     assertTrue(localFilePath.toFile().exists());
     assertTrue(localFilePath.toFile().isFile());
 
-    PersistentGlobalState loadedLocalState = StateUtils.readStateFromFile(localFilePath);
+    GlobalStateInfo loadedLocalState = StateUtils.readStateFromFile(localFilePath);
     assertEquals(globalState, loadedLocalState);
 
-    PersistentGlobalState stateFromTar = getS3State();
+    GlobalStateInfo stateFromTar = getS3State();
     assertNotNull(stateFromTar);
     assertEquals(globalState, stateFromTar);
   }
@@ -318,20 +318,26 @@ public class RemoteStateBackendTest {
     Path localFilePath = getLocalStateFilePath();
     assertFalse(localFilePath.toFile().exists());
 
-    Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo("test_id_1"));
-    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
-    PersistentGlobalState initialState = new PersistentGlobalState(indicesMap);
+    GlobalStateInfo initialState =
+        GlobalStateInfo.newBuilder()
+            .setGen(25)
+            .putIndices(
+                "test_index",
+                IndexGlobalState.newBuilder().setId("test_id_1").setStarted(false).build())
+            .putIndices(
+                "test_index_2",
+                IndexGlobalState.newBuilder().setId("test_id_2").setStarted(true).build())
+            .build();
 
     writeStateToS3(initialState);
 
-    PersistentGlobalState loadedState = stateBackend.loadOrCreateGlobalState();
+    GlobalStateInfo loadedState = stateBackend.loadOrCreateGlobalState();
     assertEquals(initialState, loadedState);
 
     assertTrue(localFilePath.toFile().exists());
     assertTrue(localFilePath.toFile().isFile());
 
-    PersistentGlobalState loadedLocalState = StateUtils.readStateFromFile(localFilePath);
+    GlobalStateInfo loadedLocalState = StateUtils.readStateFromFile(localFilePath);
     assertEquals(initialState, loadedLocalState);
   }
 
@@ -339,23 +345,33 @@ public class RemoteStateBackendTest {
   public void testCommitGlobalState() throws IOException {
     StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(false));
     Path localFilePath = getLocalStateFilePath();
-    PersistentGlobalState initialState = stateBackend.loadOrCreateGlobalState();
+    GlobalStateInfo initialState = stateBackend.loadOrCreateGlobalState();
 
-    Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo("test_id_1"));
-    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
-    PersistentGlobalState updatedState = new PersistentGlobalState(indicesMap);
+    GlobalStateInfo updatedState =
+        GlobalStateInfo.newBuilder()
+            .setGen(26)
+            .putIndices(
+                "test_index",
+                IndexGlobalState.newBuilder().setId("test_id_1").setStarted(true).build())
+            .putIndices(
+                "test_index_2",
+                IndexGlobalState.newBuilder().setId("test_id_2").setStarted(false).build())
+            .build();
     assertNotEquals(initialState, updatedState);
 
     stateBackend.commitGlobalState(updatedState);
-    PersistentGlobalState loadedState = getS3State();
+    GlobalStateInfo loadedState = getS3State();
     assertEquals(updatedState, loadedState);
-    PersistentGlobalState loadedLocalState = StateUtils.readStateFromFile(localFilePath);
+    GlobalStateInfo loadedLocalState = StateUtils.readStateFromFile(localFilePath);
     assertEquals(updatedState, loadedLocalState);
 
-    indicesMap = new HashMap<>();
-    indicesMap.put("test_index_3", new IndexInfo("test_id_3"));
-    PersistentGlobalState updatedState2 = new PersistentGlobalState(indicesMap);
+    GlobalStateInfo updatedState2 =
+        GlobalStateInfo.newBuilder()
+            .setGen(27)
+            .putIndices(
+                "test_index_3",
+                IndexGlobalState.newBuilder().setId("test_id_3").setStarted(true).build())
+            .build();
     assertNotEquals(updatedState, updatedState2);
     stateBackend.commitGlobalState(updatedState2);
 
@@ -388,13 +404,19 @@ public class RemoteStateBackendTest {
   public void testReadOnlyWithInitialState() throws IOException {
     StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(true));
 
-    Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo("test_id_1"));
-    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
-    PersistentGlobalState initialState = new PersistentGlobalState(indicesMap);
+    GlobalStateInfo initialState =
+        GlobalStateInfo.newBuilder()
+            .setGen(30)
+            .putIndices(
+                "test_index",
+                IndexGlobalState.newBuilder().setId("test_id_1").setStarted(true).build())
+            .putIndices(
+                "test_index_2",
+                IndexGlobalState.newBuilder().setId("test_id_2").setStarted(false).build())
+            .build();
 
     writeStateToS3(initialState);
-    PersistentGlobalState loadedState = stateBackend.loadOrCreateGlobalState();
+    GlobalStateInfo loadedState = stateBackend.loadOrCreateGlobalState();
     assertEquals(initialState, loadedState);
   }
 
@@ -402,20 +424,35 @@ public class RemoteStateBackendTest {
   public void testReadOnlyCommit() throws IOException {
     StateBackend stateBackend = new RemoteStateBackend(getMockGlobalState(true));
 
-    Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo("test_id_1"));
-    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
-    PersistentGlobalState initialState = new PersistentGlobalState(indicesMap);
+    GlobalStateInfo initialState =
+        GlobalStateInfo.newBuilder()
+            .setGen(30)
+            .putIndices(
+                "test_index",
+                IndexGlobalState.newBuilder().setId("test_id_1").setStarted(true).build())
+            .putIndices(
+                "test_index_2",
+                IndexGlobalState.newBuilder().setId("test_id_2").setStarted(true).build())
+            .build();
 
     writeStateToS3(initialState);
-    PersistentGlobalState loadedState = stateBackend.loadOrCreateGlobalState();
+    GlobalStateInfo loadedState = stateBackend.loadOrCreateGlobalState();
     assertEquals(initialState, loadedState);
 
-    indicesMap = new HashMap<>();
-    indicesMap.put("test_index_3", new IndexInfo("test_id_3"));
-    indicesMap.put("test_index_4", new IndexInfo("test_id_4"));
-    indicesMap.put("test_index_5", new IndexInfo("test_id_5"));
-    PersistentGlobalState updatedState = new PersistentGlobalState(indicesMap);
+    GlobalStateInfo updatedState =
+        GlobalStateInfo.newBuilder()
+            .setGen(31)
+            .putIndices(
+                "test_index_3",
+                IndexGlobalState.newBuilder().setId("test_id_3").setStarted(false).build())
+            .putIndices(
+                "test_index_4",
+                IndexGlobalState.newBuilder().setId("test_id_4").setStarted(true).build())
+            .putIndices(
+                "test_index_5",
+                IndexGlobalState.newBuilder().setId("test_id_5").setStarted(false).build())
+            .build();
+
     try {
       stateBackend.commitGlobalState(updatedState);
       fail();
