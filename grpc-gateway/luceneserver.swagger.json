@@ -233,6 +233,39 @@
         ]
       }
     },
+    "/v1/custom": {
+      "post": {
+        "summary": "Process request in a plugin which implements CustomRequestPlugin interface.",
+        "operationId": "LuceneServer_custom",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverCustomResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverCustomRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/delete": {
       "post": {
         "summary": "Delete documents",
@@ -2069,6 +2102,34 @@
         },
         "offsetGap": {
           "$ref": "#/definitions/luceneserverIntObject"
+        }
+      }
+    },
+    "luceneserverCustomRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "luceneserverCustomResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },

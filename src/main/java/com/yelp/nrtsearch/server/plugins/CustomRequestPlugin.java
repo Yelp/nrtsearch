@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -25,14 +24,12 @@ import java.util.Map;
  */
 public interface CustomRequestPlugin {
 
-  interface Route {
-
-    String path();
-
+  @FunctionalInterface
+  interface RequestProcessor {
     Map<String, String> process(Map<String, String> request);
   }
 
   String id();
 
-  List<Route> getRoutes();
+  Map<String, RequestProcessor> getRoutes();
 }

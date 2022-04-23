@@ -21,13 +21,13 @@ import com.yelp.nrtsearch.server.grpc.CustomResponse;
 import com.yelp.nrtsearch.server.plugins.CustomRequestPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class CustomRequestProcessor {
 
   private static CustomRequestProcessor instance;
-  private Map<String, Map<String, CustomRequestPlugin.Route>> routeMapping = new HashMap<>();
+  private final Map<String, Map<String, CustomRequestPlugin.RequestProcessor>> routeMapping =
+      new HashMap<>();
 
   public CustomRequestProcessor(LuceneServerConfiguration configuration) {}
 
@@ -44,7 +44,8 @@ public class CustomRequestProcessor {
     if (!instance.routeMapping.containsKey(request.getId())) {
       throw new RouteNotFoundException(request.getId());
     }
-    Map<String, CustomRequestPlugin.Route> routesForId = instance.routeMapping.get(request.getId());
+    Map<String, CustomRequestPlugin.RequestProcessor> routesForId =
+        instance.routeMapping.get(request.getId());
     if (!routesForId.containsKey(request.getPath())) {
       throw new RouteNotFoundException(request.getId(), request.getPath());
     }
@@ -55,16 +56,14 @@ public class CustomRequestProcessor {
 
   private void registerRoutes(CustomRequestPlugin plugin) {
     String id = plugin.id();
-    List<CustomRequestPlugin.Route> routes = plugin.getRoutes();
     if (routeMapping.containsKey(id)) {
       throw new DuplicateRouteException(id);
     }
-    Map<String, CustomRequestPlugin.Route> routesForId = new HashMap<>();
-    for (CustomRequestPlugin.Route route : routes) {
-      if (routesForId.containsKey(route.path())) {
-        throw new DuplicateRouteException(id, route.path());
-      }
-      routesForId.put(route.path(), route);
+    Map<String, CustomRequestPlugin.RequestProcessor> routesForId = new HashMap<>();
+    for (Map.Entry<String, CustomRequestPlugin.RequestProcessor> route :
+        plugin.getRoutes().entrySet()) {
+      String path = route.getKey();
+      routesForId.put(path, route.getValue());
     }
     routeMapping.put(id, routesForId);
   }

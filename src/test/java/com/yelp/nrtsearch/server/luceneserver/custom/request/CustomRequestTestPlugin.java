@@ -15,15 +15,19 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.custom.request;
 
-import java.text.MessageFormat;
+import com.yelp.nrtsearch.server.plugins.CustomRequestPlugin;
+import com.yelp.nrtsearch.server.plugins.Plugin;
+import java.util.Map;
 
-public class RouteNotFoundException extends RuntimeException {
+public class CustomRequestTestPlugin extends Plugin implements CustomRequestPlugin {
 
-  public RouteNotFoundException(String id) {
-    super(MessageFormat.format("No routes found for id {0}", id));
+  @Override
+  public String id() {
+    return "test_custom_request_plugin";
   }
 
-  public RouteNotFoundException(String id, String path) {
-    super(MessageFormat.format("Path {0} not found for id {1}", path, id));
+  @Override
+  public Map<String, RequestProcessor> getRoutes() {
+    return Map.of("test_path", request -> Map.of("result", request.get("test_key") + " world!"));
   }
 }
