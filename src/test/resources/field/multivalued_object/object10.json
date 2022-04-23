@@ -1,0 +1,27 @@
+{
+    "field1": [
+        1000.0
+    ],
+    "field2": [
+        "object10_field2_a",
+        "object10_field2_b",
+        "object10_field2_c",
+        "object10_field2_d"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object10_inner_field1_a",
+                "object10_inner_field1_b"
+            ],
+            "inner_field2": [
+                "object10_inner_field2"
+            ],
+            "inner_object2": [
+                {
+                    "10": 5.0
+                }
+            ]
+        }
+    ]
+}

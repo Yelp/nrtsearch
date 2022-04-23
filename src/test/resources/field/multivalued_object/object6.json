@@ -1,0 +1,54 @@
+{
+    "field1": [
+        600.0,
+        601.0,
+        602.0
+    ],
+    "field2": [
+        "object6_field2_a",
+        "object6_field2_b",
+        "object6_field2_c",
+        "object6_field2_d"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object6_inner_object1_a_inner_field1"
+            ],
+            "inner_field2": [
+                "object6_inner_object1_a_inner_field2"
+            ],
+            "inner_object2": [
+                {
+                    "600": 66.0
+                }
+            ]
+        },
+        {
+            "inner_field1": [
+                "object6_inner_object1_b_inner_field1"
+            ],
+            "inner_field2": [
+                "object6_inner_object1_b_inner_field2"
+            ],
+            "inner_object2": [
+                {
+                    "6001": 661.0
+                }
+            ]
+        },
+        {
+            "inner_field1": [
+                "object6_inner_object1_c_inner_field1"
+            ],
+            "inner_field2": [
+                "object6_inner_object1_c_inner_field2"
+            ],
+            "inner_object2": [
+                {
+                    "60011": 6611.0
+                }
+            ]
+        }
+    ]
+}
