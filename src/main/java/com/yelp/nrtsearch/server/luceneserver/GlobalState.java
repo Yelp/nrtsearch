@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.LegacyGlobalState;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
@@ -158,9 +159,18 @@ public abstract class GlobalState implements Closeable {
     }
   }
 
+  /** Get base directory for all index data. */
+  public Path getIndexDirBase() {
+    return indexDirBase;
+  }
+
+  /** Get index data directory for given index name. */
   public Path getIndexDir(String indexName) {
     return Paths.get(indexDirBase.toString(), indexName);
   }
+
+  /** Get the data resource name for a given index. Used with incremental archiver functionality. */
+  public abstract String getDataResourceForIndex(String indexName);
 
   public abstract void setStateDir(Path source) throws IOException;
 
@@ -173,6 +183,15 @@ public abstract class GlobalState implements Closeable {
 
   /** Get the {@link IndexState} by index name. */
   public abstract IndexState getIndex(String name) throws IOException;
+
+  /**
+   * Get the state manager for a given index.
+   *
+   * @param name index name
+   * @return state manager
+   * @throws IOException on error reading index data
+   */
+  public abstract IndexStateManager getIndexStateManager(String name) throws IOException;
 
   /** Remove the specified index. */
   public abstract void deleteIndex(String name) throws IOException;

@@ -15,10 +15,12 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler.SearchHandlerException;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValueType;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.utils.FileUtil;
@@ -77,10 +79,11 @@ public class ShardState implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(ShardState.class);
   private static final long INITIAL_SYNC_PRIMARY_WAIT_MS = 30000;
   public static final int REPLICA_ID = 0;
+  public static final String INDEX_DATA_DIR_NAME = "index";
   final ThreadPoolExecutor searchExecutor;
 
-  /** {@link IndexState} for the index this shard belongs to */
-  public final IndexState indexState;
+  /** {@link IndexStateManager} for the index this shard belongs to */
+  private final IndexStateManager indexStateManager;
 
   /** Where Lucene's index is written */
   private final Path rootDir;
@@ -131,7 +134,7 @@ public class ShardState implements Closeable {
    * down/sideways/up, etc.) use the same searcher as the original search, as long as that searcher
    * hasn't expired.
    */
-  public final SearcherLifetimeManager slm = new SearcherLifetimeManager();
+  public volatile SearcherLifetimeManager slm = new SearcherLifetimeManager();
 
   /** Indexes changes, and provides the live searcher, possibly searching a specific generation. */
   private SearcherTaxonomyManager manager;
@@ -153,7 +156,7 @@ public class ShardState implements Closeable {
   /** Holds the persistent taxonomy snapshots */
   public PersistentSnapshotDeletionPolicy taxoSnapshots;
 
-  private final boolean doCreate;
+  private boolean doCreate;
 
   public final Map<IndexReader.CacheKey, Map<String, SortedSetDocValuesReaderState>> ssdvStates =
       new HashMap<>();
@@ -165,8 +168,35 @@ public class ShardState implements Closeable {
   private boolean restored;
   private volatile boolean started = false;
 
+  public static String getShardDirectoryName(int shardOrd) {
+    return "shard" + shardOrd;
+  }
+
+  /**
+   * Notify the shard that the index live settings have been updated and provide the update {@link
+   * IndexLiveSettings} message.
+   *
+   * @param updateMessage updated settings message
+   */
+  public void updatedLiveSettings(IndexLiveSettings updateMessage) {
+    if (isStarted()) {
+      if (updateMessage.hasMaxRefreshSec() || updateMessage.hasMinRefreshSec()) {
+        logger.info("Restarting reopen thread");
+        restartReopenThread();
+      }
+      IndexState currentState = indexStateManager.getCurrent();
+      if (updateMessage.hasIndexRamBufferSizeMB()) {
+        if (writer != null) {
+          logger.info("Setting ram buffer size");
+          writer.getConfig().setRAMBufferSizeMB(currentState.getIndexRamBufferSizeMB());
+        }
+      }
+    }
+  }
+
   /** Restarts the reopen thread (called when the live settings have changed). */
   public void restartReopenThread() {
+    IndexState indexState = indexStateManager.getCurrent();
     if (reopenThread != null) {
       reopenThread.close();
     }
@@ -240,17 +270,33 @@ public class ShardState implements Closeable {
     }
   }
 
-  public ShardState(IndexState indexState, int shardOrd, boolean doCreate) {
-    this.indexState = indexState;
+  /**
+   * Constructor.
+   *
+   * @param indexStateManager state manager for index
+   * @param indexName index name
+   * @param rootDir this index data root directory
+   * @param searchExecutor search thread pool
+   * @param shardOrd shard number
+   * @param doCreate if index should be created when started
+   */
+  public ShardState(
+      IndexStateManager indexStateManager,
+      String indexName,
+      Path rootDir,
+      ThreadPoolExecutor searchExecutor,
+      int shardOrd,
+      boolean doCreate) {
+    this.indexStateManager = indexStateManager;
     this.shardOrd = shardOrd;
-    if (indexState.getRootDir() == null) {
+    if (rootDir == null) {
       this.rootDir = null;
     } else {
-      this.rootDir = indexState.getRootDir().resolve("shard" + shardOrd);
+      this.rootDir = rootDir.resolve(getShardDirectoryName(shardOrd));
     }
-    this.name = indexState.getName() + ":" + shardOrd;
+    this.name = indexName + ":" + shardOrd;
     this.doCreate = doCreate;
-    this.searchExecutor = indexState.getSearchThreadPoolExecutor();
+    this.searchExecutor = searchExecutor;
   }
 
   @Override
@@ -259,6 +305,7 @@ public class ShardState implements Closeable {
 
     commit();
 
+    started = false;
     List<Closeable> closeables = new ArrayList<>();
     // nocommit catch exc & rollback:
     if (nrtPrimaryNode != null) {
@@ -271,6 +318,7 @@ public class ShardState implements Closeable {
       closeables.add(indexDir);
       closeables.add(taxoDir);
       nrtPrimaryNode = null;
+      writer = null;
     } else if (nrtReplicaNode != null) {
       closeables.add(keepAlive);
       closeables.add(reopenThreadPrimary);
@@ -292,8 +340,14 @@ public class ShardState implements Closeable {
       closeables.add(taxoDir);
       writer = null;
     }
+    slm = new SearcherLifetimeManager();
 
     IOUtils.close(closeables);
+  }
+
+  /** Set if the index should be created on next start. */
+  public void setDoCreate(boolean doCreate) {
+    this.doCreate = doCreate;
   }
 
   /** Commit all state. */
@@ -352,7 +406,8 @@ public class ShardState implements Closeable {
       while (!done) {
         try {
           final SearcherLifetimeManager.Pruner byAge =
-              new SearcherLifetimeManager.PruneByAge(indexState.getMaxSearcherAgeSec());
+              new SearcherLifetimeManager.PruneByAge(
+                  indexStateManager.getCurrent().getMaxSearcherAgeSec());
           final Set<Long> snapshots = new HashSet<>(snapshotGenToVersion.values());
           slm.prune(
               (ageSec, searcher) -> {
@@ -416,6 +471,7 @@ public class ShardState implements Closeable {
     @Override
     public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader)
         throws IOException {
+      IndexState indexState = indexStateManager.getCurrent();
       IndexSearcher searcher =
           new MyIndexSearcher(
               reader,
@@ -426,7 +482,7 @@ public class ShardState implements Closeable {
                   indexState.getVirtualShards()));
       searcher.setSimilarity(indexState.sim);
       if (loadEagerOrdinals) {
-        loadEagerGlobalOrdinals(reader);
+        loadEagerGlobalOrdinals(reader, indexState);
       }
       if (collectMetrics) {
         IndexMetrics.updateReaderStats(indexState.getName(), reader);
@@ -435,13 +491,14 @@ public class ShardState implements Closeable {
       return searcher;
     }
 
-    private void loadEagerGlobalOrdinals(IndexReader reader) throws IOException {
+    private void loadEagerGlobalOrdinals(IndexReader reader, IndexState indexState)
+        throws IOException {
       for (Map.Entry<String, FieldDef> entry :
           indexState.getEagerGlobalOrdinalFields().entrySet()) {
         // only sorted set doc values facet currently supported
         if (entry.getValue().getFacetValueType() == FacetValueType.SORTED_SET_DOC_VALUES) {
           // get state to populate cache
-          getSSDVStateForReader(reader, entry.getValue());
+          getSSDVStateForReader(indexState, reader, entry.getValue());
         } else {
           logger.warn(
               String.format(
@@ -458,13 +515,14 @@ public class ShardState implements Closeable {
     if (isStarted()) {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
+    IndexState indexState = indexStateManager.getCurrent();
 
     try {
       Path indexDirFile;
       if (rootDir == null) {
         indexDirFile = null;
       } else {
-        indexDirFile = rootDir.resolve("index");
+        indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
       }
       origIndexDir =
           indexState
@@ -574,6 +632,7 @@ public class ShardState implements Closeable {
             indexDir,
             taxoDir);
         writer = null;
+        slm = new SearcherLifetimeManager();
       }
     }
   }
@@ -586,7 +645,7 @@ public class ShardState implements Closeable {
     if (isStarted()) {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
-
+    IndexState indexState = indexStateManager.getCurrent();
     // nocommit share code better w/ start and startReplica!
 
     try {
@@ -594,7 +653,7 @@ public class ShardState implements Closeable {
       if (rootDir == null) {
         indexDirFile = null;
       } else {
-        indexDirFile = rootDir.resolve("index");
+        indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
       }
       origIndexDir =
           indexState
@@ -704,6 +763,7 @@ public class ShardState implements Closeable {
             indexDir,
             taxoDir);
         writer = null;
+        slm = new SearcherLifetimeManager();
       }
     }
   }
@@ -726,12 +786,13 @@ public class ShardState implements Closeable {
   }
 
   public SortedSetDocValuesReaderState getSSDVState(
-      SearcherTaxonomyManager.SearcherAndTaxonomy s, FieldDef fd) throws IOException {
-    return getSSDVStateForReader(s.searcher.getIndexReader(), fd);
+      IndexState indexState, SearcherTaxonomyManager.SearcherAndTaxonomy s, FieldDef fd)
+      throws IOException {
+    return getSSDVStateForReader(indexState, s.searcher.getIndexReader(), fd);
   }
 
-  public SortedSetDocValuesReaderState getSSDVStateForReader(IndexReader reader, FieldDef fd)
-      throws IOException {
+  public SortedSetDocValuesReaderState getSSDVStateForReader(
+      IndexState indexState, IndexReader reader, FieldDef fd) throws IOException {
     FacetsConfig.DimConfig dimConfig = indexState.getFacetsConfig().getDimConfig(fd.getName());
     IndexReader.CacheKey cacheKey = reader.getReaderCacheHelper().getKey();
     SortedSetDocValuesReaderState ssdvState;
@@ -804,13 +865,15 @@ public class ShardState implements Closeable {
     if (isStarted()) {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
+    IndexState indexState = indexStateManager.getCurrent();
+
     // nocommit share code better w/ start and startPrimary!
     try {
       Path indexDirFile;
       if (rootDir == null) {
         indexDirFile = null;
       } else {
-        indexDirFile = rootDir.resolve("index");
+        indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
       }
       origIndexDir =
           indexState
@@ -899,6 +962,7 @@ public class ShardState implements Closeable {
             indexDir,
             taxoDir);
         writer = null;
+        slm = new SearcherLifetimeManager();
       }
     }
   }
@@ -949,7 +1013,11 @@ public class ShardState implements Closeable {
     KeepAlive(ShardState shardState) {
       this.shardState = shardState;
       this.pingIntervalMs =
-          shardState.indexState.getGlobalState().getReplicaReplicationPortPingInterval();
+          shardState
+              .indexStateManager
+              .getCurrent()
+              .getGlobalState()
+              .getReplicaReplicationPortPingInterval();
     }
 
     @Override
@@ -965,7 +1033,7 @@ public class ShardState implements Closeable {
             nrtReplicaNode
                 .getPrimaryAddress()
                 .addReplicas(
-                    shardState.indexState.getName(),
+                    shardState.indexStateManager.getCurrent().getName(),
                     REPLICA_ID,
                     nrtReplicaNode.getHostPort().getHostName(),
                     nrtReplicaNode.getHostPort().getPort());

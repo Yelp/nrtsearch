@@ -16,15 +16,22 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.gson.JsonParser;
+import com.google.protobuf.BoolValue;
+import com.google.protobuf.DoubleValue;
+import com.google.protobuf.Int32Value;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.StringValue;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsResponse;
 import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -43,7 +50,7 @@ public class SettingsHandler implements Handler<SettingsRequest, SettingsRespons
   public SettingsResponse handle(final IndexState indexStateIn, SettingsRequest settingsRequest)
       throws SettingsHandlerException {
     if (!(indexStateIn instanceof LegacyIndexState)) {
-      throw new IllegalArgumentException("Only LegacyIndexState is supported");
+      return handleAsSettingsV2(indexStateIn, settingsRequest);
     }
     LegacyIndexState indexState = (LegacyIndexState) indexStateIn;
     // nocommit how to / should we make this truly thread
@@ -103,6 +110,65 @@ public class SettingsHandler implements Handler<SettingsRequest, SettingsRespons
     String response = indexState.getSettingsJSON();
     SettingsResponse reply = SettingsResponse.newBuilder().setResponse(response).build();
     return reply;
+  }
+
+  private SettingsResponse handleAsSettingsV2(
+      IndexState indexState, SettingsRequest settingsRequest) throws SettingsHandlerException {
+    IndexStateManager indexStateManager;
+    try {
+      indexStateManager = indexState.getGlobalState().getIndexStateManager(indexState.getName());
+    } catch (IOException e) {
+      throw new SettingsHandlerException("Unable to get index state manager", e);
+    }
+
+    IndexSettings.Builder indexSettingsBuilder = IndexSettings.newBuilder();
+
+    if (!settingsRequest.getDirectory().isEmpty()) {
+      indexSettingsBuilder.setDirectory(
+          StringValue.newBuilder().setValue(settingsRequest.getDirectory()).build());
+    }
+    if (settingsRequest.getConcurrentMergeSchedulerMaxThreadCount() != 0) {
+      indexSettingsBuilder.setConcurrentMergeSchedulerMaxThreadCount(
+          Int32Value.newBuilder()
+              .setValue(settingsRequest.getConcurrentMergeSchedulerMaxThreadCount())
+              .build());
+    }
+    if (settingsRequest.getConcurrentMergeSchedulerMaxMergeCount() != 0) {
+      indexSettingsBuilder.setConcurrentMergeSchedulerMaxMergeCount(
+          Int32Value.newBuilder()
+              .setValue(settingsRequest.getConcurrentMergeSchedulerMaxMergeCount())
+              .build());
+    }
+    if (settingsRequest.hasIndexSort()) {
+      indexSettingsBuilder.setIndexSort(settingsRequest.getIndexSort());
+    }
+    indexSettingsBuilder.setIndexMergeSchedulerAutoThrottle(
+        BoolValue.newBuilder()
+            .setValue(settingsRequest.getIndexMergeSchedulerAutoThrottle())
+            .build());
+    indexSettingsBuilder.setNrtCachingDirectoryMaxSizeMB(
+        DoubleValue.newBuilder()
+            .setValue(settingsRequest.getNrtCachingDirectoryMaxSizeMB())
+            .build());
+    indexSettingsBuilder.setNrtCachingDirectoryMaxMergeSizeMB(
+        DoubleValue.newBuilder()
+            .setValue(settingsRequest.getNrtCachingDirectoryMaxMergeSizeMB())
+            .build());
+
+    IndexSettings updatedSettings;
+    try {
+      updatedSettings = indexStateManager.updateSettings(indexSettingsBuilder.build());
+    } catch (IOException e) {
+      throw new SettingsHandlerException("Unable to update index settings", e);
+    }
+
+    String settingsStr;
+    try {
+      settingsStr = JsonFormat.printer().print(updatedSettings);
+    } catch (IOException e) {
+      throw new SettingsHandlerException("Unable to print updated settings to json", e);
+    }
+    return SettingsResponse.newBuilder().setResponse(settingsStr).build();
   }
 
   /** Decodes a list of SortType into the corresponding Sort. */

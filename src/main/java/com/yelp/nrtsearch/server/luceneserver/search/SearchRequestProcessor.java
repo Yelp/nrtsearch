@@ -107,7 +107,7 @@ public class SearchRequestProcessor {
         .setStartHit(searchRequest.getStartHit())
         .setTopHits(searchRequest.getTopHits());
 
-    Map<String, FieldDef> queryVirtualFields = getVirtualFields(shardState, searchRequest);
+    Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
 
     Map<String, FieldDef> queryFields = new HashMap<>(queryVirtualFields);
     addIndexFields(indexState, queryFields);
@@ -158,12 +158,11 @@ public class SearchRequestProcessor {
    * @throws IllegalArgumentException if there are multiple virtual fields with the same name
    */
   private static Map<String, FieldDef> getVirtualFields(
-      ShardState shardState, SearchRequest searchRequest) {
+      IndexState indexState, SearchRequest searchRequest) {
     if (searchRequest.getVirtualFieldsList().isEmpty()) {
       return new HashMap<>();
     }
 
-    IndexState indexState = shardState.indexState;
     Map<String, FieldDef> virtualFields = new HashMap<>();
     for (VirtualField vf : searchRequest.getVirtualFieldsList()) {
       if (virtualFields.containsKey(vf.getName())) {

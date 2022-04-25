@@ -109,7 +109,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
     SearchContext searchContext;
     try {
-      s = getSearcherAndTaxonomy(searchRequest, shardState, diagnostics, threadPoolExecutor);
+      s =
+          getSearcherAndTaxonomy(
+              searchRequest, indexState, shardState, diagnostics, threadPoolExecutor);
 
       ProfileResult.Builder profileResultBuilder = null;
       if (searchRequest.getProfile()) {
@@ -138,6 +140,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 s.taxonomyReader,
                 searchRequest.getFacetsList(),
                 s,
+                indexState,
                 shardState,
                 searchContext.getQueryFields(),
                 grpcFacetResults,
@@ -449,6 +452,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
    */
   public static SearcherTaxonomyManager.SearcherAndTaxonomy getSearcherAndTaxonomy(
       SearchRequest searchRequest,
+      IndexState indexState,
       ShardState state,
       SearchResponse.Diagnostics.Builder diagnostics,
       ThreadPoolExecutor threadPoolExecutor)
@@ -481,7 +485,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           // against since this server started, or the call
           // to createSnapshot didn't specify
           // openSearcher=true; now open the reader:
-          s = openSnapshotReader(state, snapshot, diagnostics, threadPoolExecutor);
+          s = openSnapshotReader(indexState, state, snapshot, diagnostics, threadPoolExecutor);
         } else {
           SearcherTaxonomyManager.SearcherAndTaxonomy current = state.acquire();
           long currentVersion = ((DirectoryReader) current.searcher.getIndexReader()).getVersion();
@@ -613,6 +617,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
   /** Returns a ref. */
   private static SearcherTaxonomyManager.SearcherAndTaxonomy openSnapshotReader(
+      IndexState indexState,
       ShardState state,
       IndexState.Gens snapshot,
       SearchResponse.Diagnostics.Builder diagnostics,
@@ -646,9 +651,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                   r,
                   new MyIndexSearcher.ExecutorWithParams(
                       threadPoolExecutor,
-                      state.indexState.getSliceMaxDocs(),
-                      state.indexState.getSliceMaxSegments(),
-                      state.indexState.getVirtualShards())),
+                      indexState.getSliceMaxDocs(),
+                      indexState.getSliceMaxSegments(),
+                      indexState.getVirtualShards())),
               s.taxonomyReader);
       state.slm.record(result.searcher);
       long t1 = System.nanoTime();

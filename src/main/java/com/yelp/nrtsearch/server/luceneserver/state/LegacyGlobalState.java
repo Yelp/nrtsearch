@@ -24,7 +24,9 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.Restorable;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
+import com.yelp.nrtsearch.server.luceneserver.index.LegacyStateManager;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -132,6 +134,11 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
   }
 
   @Override
+  public String getDataResourceForIndex(String indexName) {
+    return indexName;
+  }
+
+  @Override
   public synchronized void setStateDir(Path source) throws IOException {
     restoreDir(source, getStateDir());
     loadIndexNames();
@@ -195,6 +202,11 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
   @Override
   public IndexState getIndex(String name) throws IOException {
     return getIndex(name, false);
+  }
+
+  @Override
+  public IndexStateManager getIndexStateManager(String name) throws IOException {
+    return new LegacyStateManager(getIndex(name));
   }
 
   @Override

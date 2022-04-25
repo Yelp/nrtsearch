@@ -17,12 +17,17 @@ package com.yelp.nrtsearch.server.luceneserver.state.backend;
 
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.GLOBAL_STATE_FILE;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.GLOBAL_STATE_FOLDER;
+import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.INDEX_STATE_FILE;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.MAPPER;
+import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.ensureDirectory;
 
+import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.StateConfig;
+import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import java.io.IOException;
@@ -146,5 +151,65 @@ public class RemoteStateBackend implements StateBackend {
     archiver.blessVersion(
         globalState.getConfiguration().getServiceName(), GLOBAL_STATE_RESOURCE, version);
     logger.info("Committed state: " + MAPPER.writeValueAsString(persistentGlobalState));
+  }
+
+  @Override
+  public IndexStateInfo loadIndexState(String indexIdentifier) throws IOException {
+    Objects.requireNonNull(indexIdentifier);
+    logger.info("Loading remote state for index: " + indexIdentifier);
+    String indexStateResourceName = indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX;
+    Path downloadedPath =
+        archiver.download(globalState.getConfiguration().getServiceName(), indexStateResourceName);
+    if (downloadedPath == null) {
+      logger.info("Remote state not present for index: " + indexIdentifier);
+      return null;
+    } else {
+      Path downloadedStateFilePath =
+          downloadedPath.resolve(indexIdentifier).resolve(INDEX_STATE_FILE);
+      if (!downloadedStateFilePath.toFile().exists()) {
+        throw new IllegalStateException(
+            "No index state file present in downloaded directory: " + downloadedStateFilePath);
+      }
+      // copy restored state to local state directory, not strictly required but ensures a
+      // current copy of the state is always in the local directory
+      Path localIndexStateDirPath = globalState.getStateDir().resolve(indexIdentifier);
+      StateUtils.ensureDirectory(localIndexStateDirPath);
+      Path localIndexStateFilePath = localIndexStateDirPath.resolve(INDEX_STATE_FILE);
+      Files.copy(
+          downloadedStateFilePath, localIndexStateFilePath, StandardCopyOption.REPLACE_EXISTING);
+      IndexStateInfo loadedState = StateUtils.readIndexStateFromFile(localIndexStateFilePath);
+      logger.info(
+          "Loaded remote state for index: "
+              + indexIdentifier
+              + " : "
+              + JsonFormat.printer().print(loadedState));
+      return loadedState;
+    }
+  }
+
+  @Override
+  public void commitIndexState(String indexIdentifier, IndexStateInfo indexStateInfo)
+      throws IOException {
+    Objects.requireNonNull(indexIdentifier);
+    Objects.requireNonNull(indexStateInfo);
+    logger.info("Committing state for index: " + indexIdentifier);
+    if (config.getReadOnly()) {
+      throw new IllegalStateException("Cannot update remote state when configured as read only");
+    }
+    Path indexStatePath = globalState.getStateDir().resolve(indexIdentifier);
+    ensureDirectory(indexStatePath);
+    String indexStateResourceName = indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX;
+    StateUtils.writeIndexStateToFile(indexStateInfo, indexStatePath, INDEX_STATE_FILE);
+    String version =
+        archiver.upload(
+            globalState.getConfiguration().getServiceName(),
+            indexStateResourceName,
+            indexStatePath,
+            Collections.singletonList(INDEX_STATE_FILE),
+            Collections.emptyList(),
+            true);
+    archiver.blessVersion(
+        globalState.getConfiguration().getServiceName(), indexStateResourceName, version);
+    logger.info("Committed index state: " + JsonFormat.printer().print(indexStateInfo));
   }
 }

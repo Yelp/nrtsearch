@@ -9,6 +9,7 @@ import "google/api/httpbody.proto";
 import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/wrappers.proto";
 
 
 option java_multiple_files = true;
@@ -36,6 +37,18 @@ service LuceneServer {
       post: "/v1/live_settings"
       body: "*"
     };
+
+    }
+
+    /* Change global offline or online settings for this index. */
+    rpc liveSettingsV2 (LiveSettingsV2Request) returns (LiveSettingsV2Response) {
+        option (google.api.http) = {
+            post: "/v2/live_settings"
+            body: "*"
+            additional_bindings {
+                get: "/v2/live_settings/{indexName}"
+            }
+        };
 
     }
     /* Registers one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).
@@ -71,6 +84,20 @@ service LuceneServer {
     };
 
     }
+
+    /* Change global offline settings for this index.
+    This returns the currently set settings; pass no settings to retrieve current settings.*/
+    rpc settingsV2 (SettingsV2Request) returns (SettingsV2Response) {
+        option (google.api.http) = {
+            post: "/v2/settings"
+            body: "*"
+            additional_bindings {
+                get: "/v2/settings/{indexName}"
+            }
+        };
+
+    }
+
     /* Starts an index */
     rpc startIndex (StartIndexRequest) returns (StartIndexResponse) {
         option (google.api.http) = {
@@ -416,6 +443,18 @@ message LiveSettingsResponse {
     string response = 1;
 }
 
+message LiveSettingsV2Request {
+    // Index name
+    string indexName = 1;
+    // Live settings to merge into existing live settings, or unset to get current live settings
+    IndexLiveSettings liveSettings = 2;
+}
+
+message LiveSettingsV2Response {
+    // Current live settings, including default values
+    IndexLiveSettings liveSettings = 1;
+}
+
 //Type of the field
 enum FieldType {
     ATOM = 0; // Text that's indexed as a single token, with DOCS_ONLY and omitting norms.
@@ -531,6 +570,18 @@ message SettingsRequest {
 /* Settings Response returned from Server */
 message SettingsResponse {
     string response = 1;
+}
+
+message SettingsV2Request {
+    // Index name
+    string indexName = 1;
+    // Settings to merge into existing settings, or unset to get current settings
+    IndexSettings settings = 2;
+}
+
+message SettingsV2Response {
+    // Current index settings, including default values
+    IndexSettings settings = 1;
 }
 
 /* Start the index */
@@ -935,4 +986,66 @@ message ForceMergeDeletesResponse {
         FORCE_MERGE_DELETES_SUBMITTED = 1;
     }
     Status status = 1;
+}
+
+message IndexSettings {
+    // Largest merged segment size to cache in RAMDirectory, default: 5.0MB
+    google.protobuf.DoubleValue nrtCachingDirectoryMaxMergeSizeMB = 1;
+    // Largest overall size for all files cached in NRTCachingDirectory, default: 60.0MB
+    google.protobuf.DoubleValue nrtCachingDirectoryMaxSizeMB = 2;
+    // How many merge threads to allow at once
+    google.protobuf.Int32Value concurrentMergeSchedulerMaxThreadCount = 3;
+    // Maximum backlog of pending merges before indexing threads are stalled
+    google.protobuf.Int32Value concurrentMergeSchedulerMaxMergeCount = 4;
+    // Index time sorting; can only be written once", SearchHandler.SORT_TYPE
+    SortFields indexSort = 5;
+    // Turn on/off the merge scheduler's auto throttling, default: off
+    google.protobuf.BoolValue indexMergeSchedulerAutoThrottle = 6;
+    // Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
+    google.protobuf.StringValue directory = 7;
+
+}
+
+message IndexLiveSettings {
+    // Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen), default: 1.0
+    google.protobuf.DoubleValue maxRefreshSec = 1;
+    // Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen), default: 0.05
+    google.protobuf.DoubleValue minRefreshSec = 2;
+    // Non-current searchers older than this are pruned, default: 60.0
+    google.protobuf.DoubleValue maxSearcherAgeSec = 3;
+    // Size (in MB) of IndexWriter's RAM buffer, default: 16.0
+    google.protobuf.DoubleValue indexRamBufferSizeMB = 4;
+    // Max number of documents to add at a time, default: 100
+    google.protobuf.Int32Value addDocumentsMaxBufferLen = 5;
+    // Maximum number of documents allowed in a parallel search slice, default: 250,000
+    google.protobuf.Int32Value sliceMaxDocs = 6;
+    // Maximum number of segments allowed in a parallel search slice, default: 5
+    google.protobuf.Int32Value sliceMaxSegments = 7;
+    // Number of virtual shards to use for this index, default: 1
+    google.protobuf.Int32Value virtualShards = 8;
+    // Maximum sized segment to produce during normal merging, default: 5GB
+    google.protobuf.Int32Value maxMergedSegmentMB = 9;
+    // Number of segments per tier used by TieredMergePolicy, default: 10
+    google.protobuf.Int32Value segmentsPerTier = 10;
+    // Timeout value to used when not specified in the search request, or 0 for no timeout, default: 0
+    google.protobuf.DoubleValue defaultSearchTimeoutSec = 11;
+    // Timeout check every value to use when not specified in the search request, or 0 for none, default: 0
+    google.protobuf.Int32Value defaultSearchTimeoutCheckEvery = 12;
+    // Terminate after value to use when not specified in the search request, or 0 for none, default: 0
+    google.protobuf.Int32Value defaultTerminateAfter = 13;
+}
+
+message IndexStateInfo {
+    // Name of the index
+    string indexName = 1;
+    // State version generation
+    int64 gen = 2;
+    // If this index has ever been committed
+    bool committed = 3;
+    // Index settings
+    IndexSettings settings = 4;
+    // Index live settings
+    IndexLiveSettings liveSettings = 5;
+    // Registered fields
+    map<string, Field> fields = 6;
 }
