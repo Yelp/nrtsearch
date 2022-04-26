@@ -18,13 +18,24 @@ package com.yelp.nrtsearch.server.luceneserver.state.backend;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.google.protobuf.BoolValue;
+import com.google.protobuf.DoubleValue;
+import com.google.protobuf.Int32Value;
+import com.google.protobuf.StringValue;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
+import com.yelp.nrtsearch.server.grpc.IndexSettings;
+import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
+import com.yelp.nrtsearch.server.grpc.SortFields;
+import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState.IndexInfo;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
@@ -34,6 +45,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -65,6 +77,15 @@ public class LocalStateBackendTest {
         folder.getRoot().getAbsolutePath(),
         StateUtils.GLOBAL_STATE_FOLDER,
         StateUtils.GLOBAL_STATE_FILE);
+  }
+
+  private Path getIndexStateFilePath(String indexIdentifier) {
+    return Paths.get(
+        folder.getRoot().getAbsolutePath(), indexIdentifier, StateUtils.INDEX_STATE_FILE);
+  }
+
+  private void ensureIndexStateDirectory(String indexIdentifier) {
+    StateUtils.ensureDirectory(Paths.get(folder.getRoot().getAbsolutePath(), indexIdentifier));
   }
 
   @Test
@@ -99,8 +120,8 @@ public class LocalStateBackendTest {
     Path filePath = getStateFilePath();
 
     Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo());
-    indicesMap.put("test_index_2", new IndexInfo());
+    indicesMap.put("test_index", new IndexInfo("test_id_1"));
+    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
     PersistentGlobalState initialState = new PersistentGlobalState(indicesMap);
     StateUtils.writeStateToFile(
         initialState,
@@ -120,8 +141,8 @@ public class LocalStateBackendTest {
     PersistentGlobalState initialState = stateBackend.loadOrCreateGlobalState();
 
     Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo());
-    indicesMap.put("test_index_2", new IndexInfo());
+    indicesMap.put("test_index", new IndexInfo("test_id_1"));
+    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
     PersistentGlobalState updatedState = new PersistentGlobalState(indicesMap);
     assertNotEquals(initialState, updatedState);
 
@@ -130,7 +151,7 @@ public class LocalStateBackendTest {
     assertEquals(updatedState, loadedState);
 
     indicesMap = new HashMap<>();
-    indicesMap.put("test_index_3", new IndexInfo());
+    indicesMap.put("test_index_3", new IndexInfo("test_id_3"));
     PersistentGlobalState updatedState2 = new PersistentGlobalState(indicesMap);
     assertNotEquals(updatedState, updatedState2);
     stateBackend.commitGlobalState(updatedState2);
@@ -159,6 +180,182 @@ public class LocalStateBackendTest {
       fail();
     } catch (IllegalStateException e) {
       assertTrue(e.getMessage().contains("state.json is a directory"));
+    }
+  }
+
+  @Test
+  public void testIndexStateNotExist() throws IOException {
+    StateBackend stateBackend = new LocalStateBackend(getMockGlobalState());
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+    assertNull(stateBackend.loadIndexState(indexIdentifier));
+  }
+
+  @Test
+  public void testLoadsSavedIndexState() throws IOException {
+    StateBackend stateBackend = new LocalStateBackend(getMockGlobalState());
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+    ensureIndexStateDirectory(indexIdentifier);
+    Path filePath = getIndexStateFilePath(indexIdentifier);
+
+    IndexStateInfo initialState =
+        IndexStateInfo.newBuilder()
+            .setIndexName("test_index_2")
+            .setGen(5)
+            .setCommitted(true)
+            .setSettings(
+                IndexSettings.newBuilder()
+                    .setConcurrentMergeSchedulerMaxThreadCount(
+                        Int32Value.newBuilder().setValue(15).build())
+                    .setDirectory(StringValue.newBuilder().setValue("FSDirectory").build())
+                    .setIndexMergeSchedulerAutoThrottle(
+                        BoolValue.newBuilder().setValue(false).build())
+                    .setIndexSort(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("field1")
+                                    .setReverse(false)
+                                    .build())
+                            .addSortedFields(SortType.newBuilder().setFieldName("field2").build())
+                            .build())
+                    .build())
+            .setLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(200).build())
+                    .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(100.0).build())
+                    .setMaxRefreshSec(DoubleValue.newBuilder().setValue(50.0).build())
+                    .build())
+            .build();
+
+    StateUtils.writeIndexStateToFile(
+        initialState,
+        Paths.get(folder.getRoot().getAbsolutePath(), indexIdentifier),
+        StateUtils.INDEX_STATE_FILE);
+    assertTrue(filePath.toFile().exists());
+    assertTrue(filePath.toFile().isFile());
+
+    IndexStateInfo loadedState = stateBackend.loadIndexState(indexIdentifier);
+    assertEquals(initialState, loadedState);
+  }
+
+  @Test
+  public void testCommitIndexState() throws IOException {
+    StateBackend stateBackend = new LocalStateBackend(getMockGlobalState());
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+    Path filePath = getIndexStateFilePath(indexIdentifier);
+    assertNull(stateBackend.loadIndexState(indexIdentifier));
+
+    IndexStateInfo updatedState =
+        IndexStateInfo.newBuilder()
+            .setIndexName("test_index_2")
+            .setGen(5)
+            .setCommitted(true)
+            .setSettings(
+                IndexSettings.newBuilder()
+                    .setConcurrentMergeSchedulerMaxThreadCount(
+                        Int32Value.newBuilder().setValue(15).build())
+                    .setDirectory(StringValue.newBuilder().setValue("FSDirectory").build())
+                    .setIndexMergeSchedulerAutoThrottle(
+                        BoolValue.newBuilder().setValue(false).build())
+                    .setIndexSort(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("field1")
+                                    .setReverse(false)
+                                    .build())
+                            .addSortedFields(SortType.newBuilder().setFieldName("field2").build())
+                            .build())
+                    .build())
+            .setLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(200).build())
+                    .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(100.0).build())
+                    .setMaxRefreshSec(DoubleValue.newBuilder().setValue(50.0).build())
+                    .build())
+            .build();
+
+    stateBackend.commitIndexState(indexIdentifier, updatedState);
+    IndexStateInfo loadedState = StateUtils.readIndexStateFromFile(filePath);
+    assertEquals(updatedState, loadedState);
+
+    IndexStateInfo updatedState2 =
+        IndexStateInfo.newBuilder()
+            .setIndexName("test_index_2")
+            .setGen(6)
+            .setCommitted(true)
+            .setSettings(
+                IndexSettings.newBuilder()
+                    .setConcurrentMergeSchedulerMaxThreadCount(
+                        Int32Value.newBuilder().setValue(16).build())
+                    .setDirectory(StringValue.newBuilder().setValue("MMapDirectory").build())
+                    .setIndexMergeSchedulerAutoThrottle(
+                        BoolValue.newBuilder().setValue(true).build())
+                    .setIndexSort(
+                        SortFields.newBuilder()
+                            .addSortedFields(
+                                SortType.newBuilder()
+                                    .setFieldName("field2")
+                                    .setReverse(true)
+                                    .build())
+                            .build())
+                    .build())
+            .setLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(300).build())
+                    .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(200.0).build())
+                    .setMaxRefreshSec(DoubleValue.newBuilder().setValue(75.0).build())
+                    .build())
+            .build();
+
+    assertNotEquals(updatedState, updatedState2);
+    stateBackend.commitIndexState(indexIdentifier, updatedState2);
+
+    loadedState = StateUtils.readIndexStateFromFile(filePath);
+    assertEquals(updatedState2, loadedState);
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testLoadNullIndexState() throws IOException {
+    StateBackend stateBackend = new LocalStateBackend(getMockGlobalState());
+    stateBackend.loadIndexState(null);
+  }
+
+  @Test
+  public void testCommitNullIndexState() throws IOException {
+    StateBackend stateBackend = new LocalStateBackend(getMockGlobalState());
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+    stateBackend.loadIndexState(indexIdentifier);
+    try {
+      stateBackend.commitIndexState(indexIdentifier, null);
+      fail();
+    } catch (NullPointerException ignore) {
+
+    }
+
+    try {
+      stateBackend.commitIndexState(null, IndexStateInfo.newBuilder().build());
+      fail();
+    } catch (NullPointerException ignore) {
+
+    }
+  }
+
+  @Test
+  public void testIndexStateFileIsDirectory() throws IOException {
+    StateBackend stateBackend = new LocalStateBackend(getMockGlobalState());
+    String indexIdentifier =
+        BackendGlobalState.getUniqueIndexName("test_index", UUID.randomUUID().toString());
+    StateUtils.ensureDirectory(getIndexStateFilePath(indexIdentifier));
+    try {
+      stateBackend.loadIndexState(indexIdentifier);
+      fail();
+    } catch (IllegalStateException e) {
+      assertTrue(e.getMessage().contains("index_state.json is a directory"));
     }
   }
 }

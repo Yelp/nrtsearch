@@ -515,6 +515,12 @@ public abstract class IndexState implements Closeable {
   /** Max time to wait before pruning stale searchers. */
   public abstract double getMaxSearcherAgeSec();
 
+  /**
+   * Max document data the {@link org.apache.lucene.index.IndexWriter} should buffer before
+   * flushing.
+   */
+  public abstract double getIndexRamBufferSizeMB();
+
   /** Live setting: max number of documents to add at a time. */
   public abstract int getAddDocumentsMaxBufferLen();
 

@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.luceneserver.state;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -32,6 +34,7 @@ import org.apache.lucene.util.IOUtils;
 public class StateUtils {
   public static final String GLOBAL_STATE_FOLDER = "global_state";
   public static final String GLOBAL_STATE_FILE = "state.json";
+  public static final String INDEX_STATE_FILE = "index_state.json";
   public static final ObjectMapper MAPPER = new ObjectMapper();
 
   private StateUtils() {}
@@ -70,6 +73,40 @@ public class StateUtils {
     Objects.requireNonNull(fileName);
 
     String stateStr = MAPPER.writeValueAsString(persistentGlobalState);
+    writeToFile(stateStr, directory, fileName);
+  }
+
+  /**
+   * Write the json representation of the given {@link IndexStateInfo} into a file in the specified
+   * directory. Data is written to a temp file, then moved to replace any existing version. File is
+   * synced for durability.
+   *
+   * @param stateInfo index state to write
+   * @param directory directory to write state file into
+   * @param fileName final name of state file
+   * @throws IOException on filesystem error
+   */
+  public static void writeIndexStateToFile(
+      IndexStateInfo stateInfo, Path directory, String fileName) throws IOException {
+    Objects.requireNonNull(stateInfo);
+    Objects.requireNonNull(directory);
+    Objects.requireNonNull(fileName);
+
+    String stateStr = JsonFormat.printer().print(stateInfo);
+    writeToFile(stateStr, directory, fileName);
+  }
+
+  /**
+   * Write a string into a file in the specified directory. Data is written to a temp file, then
+   * moved to replace any existing version. File is synced for durability.
+   *
+   * @param stateStr file data string
+   * @param directory directory to write state file into
+   * @param fileName final name of state file
+   * @throws IOException on filesystem error
+   */
+  public static void writeToFile(String stateStr, Path directory, String fileName)
+      throws IOException {
     File tmpStateFile = File.createTempFile(fileName, ".tmp", directory.toFile());
     FileOutputStream fileOutputStream = new FileOutputStream(tmpStateFile);
     try (DataOutputStream dataOutputStream = new DataOutputStream(fileOutputStream)) {
@@ -100,5 +137,24 @@ public class StateUtils {
       stateStr = dataInputStream.readUTF();
     }
     return MAPPER.readValue(stateStr, PersistentGlobalState.class);
+  }
+
+  /**
+   * Read {@link IndexStateInfo} from json representation in the given file.
+   *
+   * @param filePath state json file
+   * @return index state
+   * @throws IOException on filesystem error
+   */
+  public static IndexStateInfo readIndexStateFromFile(Path filePath) throws IOException {
+    Objects.requireNonNull(filePath);
+    String stateStr;
+    FileInputStream fileInputStream = new FileInputStream(filePath.toFile());
+    try (DataInputStream dataInputStream = new DataInputStream(fileInputStream)) {
+      stateStr = dataInputStream.readUTF();
+    }
+    IndexStateInfo.Builder stateBuilder = IndexStateInfo.newBuilder();
+    JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
+    return stateBuilder.build();
   }
 }

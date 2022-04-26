@@ -488,6 +488,7 @@ public class TimeoutTest extends ServerTestCase {
               context.getSearcherAndTaxonomy().taxonomyReader,
               Collections.singletonList(getTestFacet()),
               context.getSearcherAndTaxonomy(),
+              context.getIndexState(),
               context.getIndexState().getShard(0),
               context.getQueryFields(),
               grpcFacetResults,

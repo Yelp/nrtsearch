@@ -152,6 +152,21 @@ public class LuceneServerClient {
     logger.info("Server returned : " + response.getResponse());
   }
 
+  public void liveSettingsV2(LiveSettingsV2Request liveSettingsV2Request) {
+    LiveSettingsV2Response response;
+    try {
+      response = blockingStub.liveSettingsV2(liveSettingsV2Request);
+    } catch (StatusRuntimeException e) {
+      logger.warn("RPC failed: {}", e.getStatus());
+      return;
+    }
+    try {
+      logger.info("Server returned : " + JsonFormat.printer().print(response.getLiveSettings()));
+    } catch (Exception e) {
+      logger.info("Error printing response message: " + response, e);
+    }
+  }
+
   public void registerFields(String jsonStr) {
     FieldDefRequest fieldDefRequest = getFieldDefRequest(jsonStr);
     FieldDefResponse response;
@@ -175,6 +190,29 @@ public class LuceneServerClient {
       return;
     }
     logger.info("Server returned : " + response.getResponse());
+  }
+
+  public void settingsV2(String indexName, Path filePath) throws IOException {
+    SettingsV2Request settingsRequest;
+    if (filePath != null) {
+      settingsRequest =
+          new LuceneServerClientBuilder.SettingsV2ClientBuilder().buildRequest(filePath);
+      settingsRequest = settingsRequest.toBuilder().setIndexName(indexName).build();
+    } else {
+      settingsRequest = SettingsV2Request.newBuilder().setIndexName(indexName).build();
+    }
+    SettingsV2Response response;
+    try {
+      response = blockingStub.settingsV2(settingsRequest);
+    } catch (StatusRuntimeException e) {
+      logger.warn("RPC failed: {}", e.getStatus());
+      return;
+    }
+    try {
+      logger.info("Server returned : " + JsonFormat.printer().print(response.getSettings()));
+    } catch (Exception e) {
+      logger.info("Error printing response message: " + response, e);
+    }
   }
 
   public void startIndex(Path filePath) throws IOException {

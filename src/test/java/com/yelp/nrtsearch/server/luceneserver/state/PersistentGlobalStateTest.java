@@ -35,8 +35,8 @@ public class PersistentGlobalStateTest {
   @Test
   public void testGlobalState() {
     Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo());
-    indicesMap.put("test_index_2", new IndexInfo());
+    indicesMap.put("test_index", new IndexInfo("test_id_1"));
+    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
     PersistentGlobalState state = new PersistentGlobalState(indicesMap);
     assertEquals(indicesMap, state.getIndices());
   }
@@ -44,14 +44,14 @@ public class PersistentGlobalStateTest {
   @Test(expected = UnsupportedOperationException.class)
   public void testUnmodifiableIndices() {
     PersistentGlobalState state = new PersistentGlobalState();
-    state.getIndices().put("test_index", new IndexInfo());
+    state.getIndices().put("test_index", new IndexInfo("test_id_1"));
   }
 
   @Test
   public void testBuilder() {
     Map<String, IndexInfo> indicesMap = new HashMap<>();
-    indicesMap.put("test_index", new IndexInfo());
-    indicesMap.put("test_index_2", new IndexInfo());
+    indicesMap.put("test_index", new IndexInfo("test_id_1"));
+    indicesMap.put("test_index_2", new IndexInfo("test_id_2"));
     PersistentGlobalState state = new PersistentGlobalState(indicesMap);
 
     PersistentGlobalState rebuilt = state.asBuilder().build();
@@ -59,8 +59,8 @@ public class PersistentGlobalStateTest {
     assertEquals(state, rebuilt);
 
     indicesMap = new HashMap<>();
-    indicesMap.put("test_index_3", new IndexInfo());
-    indicesMap.put("test_index_4", new IndexInfo());
+    indicesMap.put("test_index_3", new IndexInfo("test_id_3"));
+    indicesMap.put("test_index_4", new IndexInfo("test_id_4"));
     PersistentGlobalState updated = state.asBuilder().withIndices(indicesMap).build();
     assertNotEquals(state, updated);
     assertEquals(indicesMap, updated.getIndices());

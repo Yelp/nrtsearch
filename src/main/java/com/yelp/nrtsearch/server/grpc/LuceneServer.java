@@ -42,6 +42,10 @@ import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler.DocumentIndexer
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.custom.request.CustomRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler;
+import com.yelp.nrtsearch.server.luceneserver.index.handlers.LiveSettingsV2Handler;
+import com.yelp.nrtsearch.server.luceneserver.index.handlers.SettingsV2Handler;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
@@ -108,30 +112,51 @@ public class LuceneServer {
   }
 
   private void start() throws IOException {
-    GlobalState globalState = GlobalState.createState(luceneServerConfiguration, incArchiver);
-
-    registerMetrics(globalState);
-
     List<Plugin> plugins = pluginsService.loadPlugins();
     String serviceName = luceneServerConfiguration.getServiceName();
     String nodeName = luceneServerConfiguration.getNodeName();
 
-    // Only do state restore if using legacy state management.
-    // Otherwise, this will be done during GlobalState initialization.
-    if (luceneServerConfiguration.getStateConfig().useLegacyStateManagement()
-        && luceneServerConfiguration.getRestoreState()) {
-      logger.info("Loading state for any previously backed up indexes");
-      List<String> indexes =
-          RestoreStateHandler.restore(
+    GlobalState globalState;
+    LuceneServerImpl serverImpl;
+
+    // For legacy index state, the GlobalState is created first and passed into
+    // the LuceneServerImpl. For the newer state handling, the GlobalState loads the
+    // IndexState, and must be created after the extendable components are initialized
+    if (luceneServerConfiguration.getStateConfig().useLegacyStateManagement()) {
+      globalState = GlobalState.createState(luceneServerConfiguration, incArchiver);
+
+      // Only do state restore if using legacy state management.
+      // Otherwise, this will be done during GlobalState initialization.
+      if (luceneServerConfiguration.getRestoreState()) {
+        logger.info("Loading state for any previously backed up indexes");
+        List<String> indexes =
+            RestoreStateHandler.restore(
+                archiver,
+                incArchiver,
+                globalState,
+                luceneServerConfiguration.getServiceName(),
+                luceneServerConfiguration.getRestoreFromIncArchiver());
+        for (String index : indexes) {
+          logger.info("Loaded state for index " + index);
+        }
+      }
+
+      serverImpl =
+          new LuceneServerImpl(
+              globalState,
+              luceneServerConfiguration,
               archiver,
               incArchiver,
-              globalState,
-              luceneServerConfiguration.getServiceName(),
-              luceneServerConfiguration.getRestoreFromIncArchiver());
-      for (String index : indexes) {
-        logger.info("Loaded state for index " + index);
-      }
+              collectorRegistry,
+              plugins);
+    } else {
+      serverImpl =
+          new LuceneServerImpl(
+              luceneServerConfiguration, archiver, incArchiver, collectorRegistry, plugins);
+      globalState = serverImpl.getGlobalState();
     }
+
+    registerMetrics(globalState);
 
     LuceneServerMonitoringServerInterceptor monitoringInterceptor =
         LuceneServerMonitoringServerInterceptor.create(
@@ -143,16 +168,7 @@ public class LuceneServer {
     /* The port on which the server should run */
     server =
         ServerBuilder.forPort(luceneServerConfiguration.getPort())
-            .addService(
-                ServerInterceptors.intercept(
-                    new LuceneServerImpl(
-                        globalState,
-                        luceneServerConfiguration,
-                        archiver,
-                        incArchiver,
-                        collectorRegistry,
-                        plugins),
-                    monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
             .addService(ProtoReflectionService.newInstance())
             .executor(
                 ThreadPoolExecutorFactory.getThreadPoolExecutor(
@@ -328,6 +344,40 @@ public class LuceneServer {
       initExtendableComponents(configuration, plugins);
     }
 
+    /**
+     * Constructor used with newer state handling. Defers initialization of global state until after
+     * extendable components.
+     *
+     * @param configuration server configuration
+     * @param archiver archiver for external file transfer
+     * @param incArchiver archiver for incremental index data copy
+     * @param collectorRegistry metrics collector registry
+     * @param plugins loaded plugins
+     * @throws IOException
+     */
+    LuceneServerImpl(
+        LuceneServerConfiguration configuration,
+        Archiver archiver,
+        Archiver incArchiver,
+        CollectorRegistry collectorRegistry,
+        List<Plugin> plugins)
+        throws IOException {
+      this.archiver = archiver;
+      this.incArchiver = incArchiver;
+      this.archiveDirectory = configuration.getArchiveDirectory();
+      this.collectorRegistry = collectorRegistry;
+      this.backupFromIncArchiver = configuration.getBackupWithInArchiver();
+      this.restoreFromIncArchiver = configuration.getRestoreFromIncArchiver();
+
+      DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
+
+      initQueryCache(configuration);
+      initExtendableComponents(configuration, plugins);
+
+      this.globalState = GlobalState.createState(configuration, incArchiver);
+      this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
+    }
+
     @VisibleForTesting
     static void initQueryCache(LuceneServerConfiguration configuration) {
       QueryCacheConfig cacheConfig = configuration.getQueryCacheConfig();
@@ -353,6 +403,11 @@ public class LuceneServer {
       ScriptService.initialize(configuration, plugins);
       SimilarityCreator.initialize(configuration, plugins);
       CustomRequestProcessor.initialize(configuration, plugins);
+    }
+
+    /** Get the global cluster state. */
+    public GlobalState getGlobalState() {
+      return globalState;
     }
 
     /**
@@ -394,10 +449,13 @@ public class LuceneServer {
 
       try {
         IndexState indexState = globalState.createIndex(indexName);
-        // Create the first shard
-        logger.info("NOW ADD SHARD 0");
-        indexState.addShard(0, true);
-        logger.info("DONE ADD SHARD 0");
+        // shards are initialized elsewhere for non-legacy state
+        if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
+          // Create the first shard
+          logger.info("NOW ADD SHARD 0");
+          indexState.addShard(0, true);
+          logger.info("DONE ADD SHARD 0");
+        }
         String response = String.format("Created Index name: %s", indexName);
         CreateIndexResponse reply = CreateIndexResponse.newBuilder().setResponse(response).build();
         responseObserver.onNext(reply);
@@ -412,18 +470,11 @@ public class LuceneServer {
                 .asRuntimeException());
       } catch (Exception e) {
         logger.warn(
-            "error while trying to save index state to disk for indexName: "
-                + indexName
-                + "at rootDir: "
-                + globalState.getIndexDir(indexName),
-            e);
+            "error while trying to save index state to disk for indexName: " + indexName, e);
         responseObserver.onError(
             Status.INTERNAL
                 .withDescription(
-                    "error while trying to save index state to disk for indexName: "
-                        + indexName
-                        + "at rootDir: "
-                        + globalState.getIndexDir(indexName))
+                    "error while trying to save index state to disk for indexName: " + indexName)
                 .augmentDescription(e.getMessage())
                 .withCause(e)
                 .asRuntimeException());
@@ -463,11 +514,49 @@ public class LuceneServer {
     }
 
     @Override
+    public void liveSettingsV2(
+        LiveSettingsV2Request req, StreamObserver<LiveSettingsV2Response> responseObserver) {
+      try {
+        IndexStateManager indexStateManager = globalState.getIndexStateManager(req.getIndexName());
+        LiveSettingsV2Response reply = LiveSettingsV2Handler.handle(indexStateManager, req);
+        logger.info("LiveSettingsV2Handler returned " + JsonFormat.printer().print(reply));
+        responseObserver.onNext(reply);
+        responseObserver.onCompleted();
+      } catch (IllegalArgumentException e) {
+        logger.warn("index: " + req.getIndexName() + " was not yet created", e);
+        responseObserver.onError(
+            Status.ALREADY_EXISTS
+                .withDescription("invalid indexName: " + req.getIndexName())
+                .augmentDescription("IllegalArgumentException()")
+                .withCause(e)
+                .asRuntimeException());
+      } catch (Exception e) {
+        logger.warn(
+            "error while trying to process live settings for indexName: " + req.getIndexName(), e);
+        responseObserver.onError(
+            Status.INTERNAL
+                .withDescription(
+                    "error while trying to process live settings for indexName: "
+                        + req.getIndexName())
+                .augmentDescription("Exception()")
+                .withCause(e)
+                .asRuntimeException());
+      }
+    }
+
+    @Override
     public void registerFields(
         FieldDefRequest fieldDefRequest, StreamObserver<FieldDefResponse> responseObserver) {
       try {
-        IndexState indexState = globalState.getIndex(fieldDefRequest.getIndexName());
-        FieldDefResponse reply = new RegisterFieldsHandler().handle(indexState, fieldDefRequest);
+        FieldDefResponse reply;
+        if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
+          IndexState indexState = globalState.getIndex(fieldDefRequest.getIndexName());
+          reply = new RegisterFieldsHandler().handle(indexState, fieldDefRequest);
+        } else {
+          IndexStateManager indexStateManager =
+              globalState.getIndexStateManager(fieldDefRequest.getIndexName());
+          reply = FieldUpdateHandler.handle(indexStateManager, fieldDefRequest);
+        }
         logger.info("RegisterFieldsHandler registered fields " + reply.toString());
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
@@ -501,8 +590,15 @@ public class LuceneServer {
     public void updateFields(
         FieldDefRequest fieldDefRequest, StreamObserver<FieldDefResponse> responseObserver) {
       try {
-        IndexState indexState = globalState.getIndex(fieldDefRequest.getIndexName());
-        FieldDefResponse reply = new UpdateFieldsHandler().handle(indexState, fieldDefRequest);
+        FieldDefResponse reply;
+        if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
+          IndexState indexState = globalState.getIndex(fieldDefRequest.getIndexName());
+          reply = new UpdateFieldsHandler().handle(indexState, fieldDefRequest);
+        } else {
+          IndexStateManager indexStateManager =
+              globalState.getIndexStateManager(fieldDefRequest.getIndexName());
+          reply = FieldUpdateHandler.handle(indexStateManager, fieldDefRequest);
+        }
         logger.info("UpdateFieldsHandler registered fields " + reply.toString());
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
@@ -570,12 +666,50 @@ public class LuceneServer {
     }
 
     @Override
+    public void settingsV2(
+        SettingsV2Request settingsRequest, StreamObserver<SettingsV2Response> responseObserver) {
+      try {
+        IndexStateManager indexStateManager =
+            globalState.getIndexStateManager(settingsRequest.getIndexName());
+        SettingsV2Response reply = SettingsV2Handler.handle(indexStateManager, settingsRequest);
+        logger.info("SettingsV2Handler returned: " + JsonFormat.printer().print(reply));
+        responseObserver.onNext(reply);
+        responseObserver.onCompleted();
+      } catch (IOException e) {
+        logger.warn(
+            "error while trying to read index state dir for indexName: "
+                + settingsRequest.getIndexName(),
+            e);
+        responseObserver.onError(
+            Status.INTERNAL
+                .withDescription(
+                    "error while trying to read index state dir for indexName: "
+                        + settingsRequest.getIndexName())
+                .augmentDescription("IOException()")
+                .withCause(e)
+                .asRuntimeException());
+      } catch (Exception e) {
+        logger.warn(
+            "error while trying to update/get settings for index " + settingsRequest.getIndexName(),
+            e);
+        responseObserver.onError(
+            Status.INVALID_ARGUMENT
+                .withDescription(
+                    "error while trying to update/get settings for index: "
+                        + settingsRequest.getIndexName())
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+
+    @Override
     public void startIndex(
         StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
       try {
         IndexState indexState = null;
         StartIndexHandler startIndexHandler =
             new StartIndexHandler(
+                globalState,
                 archiver,
                 incArchiver,
                 archiveDirectory,

@@ -50,7 +50,6 @@ import com.yelp.nrtsearch.server.luceneserver.SaveState;
 import com.yelp.nrtsearch.server.luceneserver.ServerCodec;
 import com.yelp.nrtsearch.server.luceneserver.SettingsHandler;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
-import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
@@ -137,7 +136,14 @@ public class LegacyIndexState extends IndexState implements Restorable {
       throw new IllegalArgumentException(
           "shardOrd=" + shardOrd + " already exists in index + \"" + getName() + "\"");
     }
-    ShardState shard = new ShardState(this, shardOrd, doCreate);
+    ShardState shard =
+        new ShardState(
+            new LegacyStateManager(this),
+            getName(),
+            getRootDir(),
+            getSearchThreadPoolExecutor(),
+            shardOrd,
+            doCreate);
     // nocommit fail if there is already a shard here?
     shards.put(shardOrd, shard);
     return shard;
@@ -589,6 +595,11 @@ public class LegacyIndexState extends IndexState implements Restorable {
   @Override
   public double getMaxSearcherAgeSec() {
     return maxSearcherAgeSec;
+  }
+
+  @Override
+  public double getIndexRamBufferSizeMB() {
+    return indexRamBufferSizeMB;
   }
 
   @Override
@@ -1140,7 +1151,7 @@ public class LegacyIndexState extends IndexState implements Restorable {
             origIndexDir,
             IndexWriterConfig.OpenMode.CREATE_OR_APPEND));
 
-    iwc.setCodec(new ServerCodec(this));
+    iwc.setCodec(new ServerCodec(new LegacyStateManager(this)));
 
     TieredMergePolicy mergePolicy;
     if (getGlobalState().getConfiguration().getVirtualSharding()) {
@@ -1323,10 +1334,4 @@ public class LegacyIndexState extends IndexState implements Restorable {
   public Map<String, Lookup> getSuggesters() {
     return suggesters;
   }
-
-  /**
-   * Index level doc values lookup. Generates {@link
-   * com.yelp.nrtsearch.server.luceneserver.doc.SegmentDocLookup} for a given lucene segment.
-   */
-  public final DocLookup docLookup = new DocLookup(this);
 }

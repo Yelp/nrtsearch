@@ -545,7 +545,7 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
           // Specific searcher version:
           searcher =
               SearchHandler.getSearcherAndTaxonomy(
-                  searchRequestBuilder.build(), shardState, null, threadPoolExecutor);
+                  searchRequestBuilder.build(), indexState, shardState, null, threadPoolExecutor);
         } else {
           searcher = shardState.acquire();
         }
