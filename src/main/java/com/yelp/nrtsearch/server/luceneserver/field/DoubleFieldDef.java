@@ -47,7 +47,8 @@ public class DoubleFieldDef extends NumberFieldDef {
       return new SortedNumericDocValuesField(
           getName(), SORTED_DOUBLE_ENCODER.applyAsLong(fieldValue));
     }
-    throw new IllegalStateException("Unsupported doc value type: " + docValuesType);
+    throw new IllegalStateException(
+        String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
   }
 
   @Override

@@ -220,7 +220,9 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
         } else if (docValuesType == DocValuesType.SORTED_NUMERIC) {
           document.add(new SortedNumericDocValuesField(getName(), indexValue));
         } else {
-          throw new IllegalArgumentException("unsupported doc value type: " + docValuesType);
+          throw new IllegalArgumentException(
+              String.format(
+                  "Unsupported doc value type %s for field %s", docValuesType, this.getName()));
         }
       }
       if (isSearchable()) {
@@ -289,7 +291,8 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
           DocValues.getSortedNumeric(context.reader(), getName());
       return new LoadedDocValues.SortedDateTimes(sortedNumericDocValues);
     }
-    throw new IllegalStateException("Unsupported doc value type: " + docValuesType);
+    throw new IllegalStateException(
+        String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
   }
 
   @Override
