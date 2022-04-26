@@ -397,12 +397,12 @@ public class LuceneServer {
         LuceneServerConfiguration configuration, List<Plugin> plugins) {
       AnalyzerCreator.initialize(configuration, plugins);
       CollectorCreator.initialize(configuration, plugins);
+      CustomRequestProcessor.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);
       FieldDefCreator.initialize(configuration, plugins);
       RescorerCreator.initialize(configuration, plugins);
       ScriptService.initialize(configuration, plugins);
       SimilarityCreator.initialize(configuration, plugins);
-      CustomRequestProcessor.initialize(configuration, plugins);
     }
 
     /** Get the global cluster state. */
