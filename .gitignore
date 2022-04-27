@@ -50,3 +50,6 @@ replica_index_base/
 
 # AWS
 boto.cfg
+
+#vscode
+.vscode
