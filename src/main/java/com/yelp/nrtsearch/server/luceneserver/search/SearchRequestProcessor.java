@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
+import com.yelp.nrtsearch.server.luceneserver.field.ContextSuggestFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
@@ -228,6 +229,9 @@ public class SearchRequestProcessor {
   /** If a field's value can be retrieved */
   private static boolean isRetrievable(FieldDef fieldDef) {
     if (fieldDef instanceof VirtualFieldDef) {
+      return true;
+    }
+    if (fieldDef instanceof ContextSuggestFieldDef) {
       return true;
     }
     if (fieldDef instanceof IndexableFieldDef) {

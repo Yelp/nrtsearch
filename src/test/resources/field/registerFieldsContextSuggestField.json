@@ -1,0 +1,11 @@
+{
+    "indexName": "test_index",
+    "field": [
+      {
+        "name": "context_suggest_field_name",
+        "type": "CONTEXT_SUGGEST_FIELD",
+        "storeDocValues": true,
+        "multiValued": false
+      }
+    ]
+  }

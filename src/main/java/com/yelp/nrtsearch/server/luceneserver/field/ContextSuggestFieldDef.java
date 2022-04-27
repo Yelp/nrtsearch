@@ -18,10 +18,18 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleString;
 import com.yelp.nrtsearch.server.luceneserver.suggest.protocol.ContextSuggestFieldData;
+import java.io.IOException;
 import java.util.List;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
+import org.apache.lucene.search.suggest.document.SuggestIndexSearcher;
 
 public class ContextSuggestFieldDef extends IndexableFieldDef {
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
@@ -36,13 +44,13 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
 
   @Override
   protected void validateRequest(Field requestField) {
-    if (requestField.getStore()) {
-      throw new IllegalArgumentException("Context Suggest fields cannot be stored");
-    }
+    // if (requestField.getStore()) {
+    //   throw new IllegalArgumentException("Context Suggest fields cannot be stored");
+    // }
 
-    if (requestField.getSearch()) {
-      throw new IllegalArgumentException("Context Suggest fields cannot be searched");
-    }
+    // if (requestField.getSearch()) {
+    //   throw new IllegalArgumentException("Context Suggest fields cannot be searched");
+    // }
   }
 
   @Override
@@ -61,8 +69,9 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
           GSON.fromJson(fieldValues.get(0), ContextSuggestFieldData.class);
       CharSequence[] contexts =
           csfData.getContexts().toArray(new CharSequence[csfData.getContexts().size()]);
-      document.add(
-          new ContextSuggestField(getName(), csfData.getValue(), csfData.getWeight(), contexts));
+      ContextSuggestField csf =
+          new ContextSuggestField(getName(), csfData.getValue(), csfData.getWeight(), contexts);
+      document.add(csf);
     }
   }
 }

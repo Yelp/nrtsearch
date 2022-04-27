@@ -151,7 +151,7 @@ public class ServerTestCase {
     // Mark the end of requests
     requestObserver.onCompleted();
     // Receiving happens asynchronously, so block here 20 seconds
-    if (!finishLatch.await(20, TimeUnit.SECONDS)) {
+    if (!finishLatch.await(120, TimeUnit.SECONDS)) {
       throw new RuntimeException("addDocuments can not finish within 20 seconds");
     }
     // Re-throw exception
