@@ -231,7 +231,8 @@ public abstract class NumberFieldDef extends IndexableFieldDef
           DocValues.getSortedNumeric(context.reader(), getName());
       return getSortedNumericDocValues(sortedNumericDocValues);
     }
-    throw new IllegalStateException("Unsupported doc value type: " + docValuesType);
+    throw new IllegalStateException(
+        String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
   }
 
   @Override

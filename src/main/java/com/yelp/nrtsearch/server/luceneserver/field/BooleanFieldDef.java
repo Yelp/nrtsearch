@@ -131,7 +131,8 @@ public class BooleanFieldDef extends IndexableFieldDef implements TermQueryable 
           DocValues.getSortedNumeric(context.reader(), getName());
       return new LoadedDocValues.SortedBooleans(sortedNumericDocValues);
     }
-    throw new IllegalStateException("Unsupported doc value type: " + docValuesType);
+    throw new IllegalStateException(
+        String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
   }
 
   @Override

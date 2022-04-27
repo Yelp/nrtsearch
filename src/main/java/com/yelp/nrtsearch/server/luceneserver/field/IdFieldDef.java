@@ -118,7 +118,8 @@ public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
       BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
       return new LoadedDocValues.SingleString(binaryDocValues);
     }
-    throw new IllegalStateException("Unsupported doc value type: " + docValuesType);
+    throw new IllegalStateException(
+        String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
   }
 
   @Override
@@ -136,12 +137,12 @@ public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
     String fieldName = this.getName();
     if (fieldName == null) {
       throw new IllegalArgumentException(
-          "the keyable field should have a name to be able to build a Term for updating the document");
+          "The _ID field should have a name to be able to build a Term for updating the document");
     }
     String fieldValue = document.get(fieldName);
     if (fieldValue == null) {
       throw new IllegalArgumentException(
-          "document cannot have a null field value for a keyable field");
+          "Document cannot have a null field value for _ID field: " + fieldName);
     }
     return new Term(fieldName, fieldValue);
   }
