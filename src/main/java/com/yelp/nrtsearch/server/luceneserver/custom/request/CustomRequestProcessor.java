@@ -50,7 +50,7 @@ public class CustomRequestProcessor {
       throw new RouteNotFoundException(request.getId(), request.getPath());
     }
     Map<String, String> response =
-        routesForId.get(request.getPath()).process(request.getParamsMap());
+        routesForId.get(request.getPath()).process(request.getPath(), request.getParamsMap());
     return CustomResponse.newBuilder().putAllResponse(response).build();
   }
 

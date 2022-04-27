@@ -26,7 +26,7 @@ public interface CustomRequestPlugin {
 
   @FunctionalInterface
   interface RequestProcessor {
-    Map<String, String> process(Map<String, String> request);
+    Map<String, String> process(String path, Map<String, String> request);
   }
 
   String id();

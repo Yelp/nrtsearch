@@ -28,6 +28,6 @@ public class CustomRequestTestPlugin extends Plugin implements CustomRequestPlug
 
   @Override
   public Map<String, RequestProcessor> getRoutes() {
-    return Map.of("test_path", request -> Map.of("result", request.get("test_key") + " world!"));
+    return Map.of("test_path", (path, request) -> Map.of("result", request.get("test_key") + " world!"));
   }
 }
