@@ -233,7 +233,7 @@
         ]
       }
     },
-    "/v1/custom": {
+    "/v1/custom/{id}/{path}": {
       "post": {
         "summary": "Process request in a plugin which implements CustomRequestPlugin interface.",
         "operationId": "LuceneServer_custom",
@@ -252,6 +252,18 @@
           }
         },
         "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
           {
             "name": "body",
             "in": "body",

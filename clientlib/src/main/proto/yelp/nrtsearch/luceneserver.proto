@@ -367,7 +367,7 @@ service LuceneServer {
     */
     rpc custom(CustomRequest) returns (CustomResponse) {
         option (google.api.http) = {
-            post: "/v1/custom"
+            post: "/v1/custom/{id}/{path}"
             body: "*"
         };
     }
