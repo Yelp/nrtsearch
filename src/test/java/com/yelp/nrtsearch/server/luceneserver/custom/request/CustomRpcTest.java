@@ -47,6 +47,6 @@ public class CustomRpcTest extends ServerTestCase {
 
     CustomResponse response = getGrpcServer().getBlockingStub().custom(request);
 
-    assertEquals(Map.of("result", "hello world!"), response.getResponseMap());
+    assertEquals(Map.of("result", "test_path: hello world!"), response.getResponseMap());
   }
 }

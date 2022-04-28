@@ -42,7 +42,7 @@ public class CustomRequestProcessorTest {
             .build();
     CustomResponse response = CustomRequestProcessor.processCustomRequest(request);
 
-    assertEquals(Map.of("result", "hello world!"), response.getResponseMap());
+    assertEquals(Map.of("result", "test_path: hello world!"), response.getResponseMap());
   }
 
   @Test(expected = RouteNotFoundException.class)
