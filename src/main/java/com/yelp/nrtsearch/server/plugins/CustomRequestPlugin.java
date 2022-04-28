@@ -28,6 +28,7 @@ public interface CustomRequestPlugin {
   interface RequestProcessor {
     /**
      * Defines how a custom request must be processed.
+     *
      * @param path Path from {@link com.yelp.nrtsearch.server.grpc.CustomRequest}
      * @param request Parameters sent in the request
      * @return response as a {@code Map<String,String>}
