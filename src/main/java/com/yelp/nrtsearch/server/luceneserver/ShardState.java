@@ -201,10 +201,10 @@ public class ShardState implements Closeable {
 
   /** True if this index is started. */
   public boolean isStarted() {
-    if (!isReplica()) {
-      return started && writer != null && writer.isOpen();
+    if (started) {
+      return isReplica() || (writer != null && writer.isOpen());
     }
-    return started;
+    return false;
   }
 
   public boolean isRestored() {
