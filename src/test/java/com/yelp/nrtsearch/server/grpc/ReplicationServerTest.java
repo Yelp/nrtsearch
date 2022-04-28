@@ -316,7 +316,7 @@ public class ReplicationServerTest {
         .getIndex("test_index")
         .getShard(0)
         .nrtReplicaNode
-        .syncFromCurrentPrimary(120000);
+        .syncFromCurrentPrimary(120000, 300000);
 
     // search on replica: 4 documents!
     searchResponseSecondary =
@@ -331,6 +331,58 @@ public class ReplicationServerTest {
                     .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
                     .build());
     validateSearchResults(searchResponseSecondary);
+  }
+
+  @Test
+  public void testInitialSyncMaxTime() throws IOException, InterruptedException {
+    initServerSyncInitialNrtPointFalse();
+
+    // index 4 documents to primary
+    GrpcServer.TestServer testServerPrimary =
+        new GrpcServer.TestServer(luceneServerPrimary, true, Mode.PRIMARY);
+    testServerPrimary.addDocuments();
+    testServerPrimary.addDocuments();
+    // publish new NRT point (retrieve the current searcher version on primary)
+    SearcherVersion searcherVersionPrimary =
+        replicationServerPrimary
+            .getReplicationServerBlockingStub()
+            .writeNRTPoint(IndexName.newBuilder().setIndexName("test_index").build());
+
+    // startIndex replica
+    GrpcServer.TestServer testServerReplica =
+        new GrpcServer.TestServer(luceneServerSecondary, true, Mode.REPLICA);
+    // search on replica: no documents!
+    SearchResponse searchResponseSecondary =
+        luceneServerSecondary
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(luceneServerSecondary.getTestIndex())
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .build());
+    assertEquals(0, searchResponseSecondary.getHitsCount());
+
+    luceneServerSecondary
+        .getGlobalState()
+        .getIndex("test_index")
+        .getShard(0)
+        .nrtReplicaNode
+        .syncFromCurrentPrimary(120000, 0);
+
+    // search on replica: still no documents
+    searchResponseSecondary =
+        luceneServerSecondary
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(luceneServerSecondary.getTestIndex())
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .build());
+    assertEquals(0, searchResponseSecondary.getHitsCount());
   }
 
   @Test
@@ -359,7 +411,7 @@ public class ReplicationServerTest {
         .getIndex("test_index")
         .getShard(0)
         .nrtReplicaNode
-        .syncFromCurrentPrimary(2000);
+        .syncFromCurrentPrimary(2000, 30000);
     long endTime = System.currentTimeMillis();
     assertTrue((endTime - startTime) > 1000);
   }
@@ -400,7 +452,7 @@ public class ReplicationServerTest {
         .getIndex("test_index")
         .getShard(0)
         .nrtReplicaNode
-        .syncFromCurrentPrimary(120000);
+        .syncFromCurrentPrimary(120000, 300000);
 
     // sync again after we already have the current version
     luceneServerSecondary
@@ -408,7 +460,7 @@ public class ReplicationServerTest {
         .getIndex("test_index")
         .getShard(0)
         .nrtReplicaNode
-        .syncFromCurrentPrimary(120000);
+        .syncFromCurrentPrimary(120000, 300000);
 
     // search on replica: 4 documents!
     searchResponseSecondary =
