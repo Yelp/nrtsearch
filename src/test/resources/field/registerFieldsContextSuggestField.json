@@ -4,8 +4,9 @@
       {
         "name": "context_suggest_field_name",
         "type": "CONTEXT_SUGGEST_FIELD",
-        "storeDocValues": true,
-        "multiValued": false
+        "storeDocValues": false,
+        "multiValued": false,
+        "store": true
       }
     ]
   }

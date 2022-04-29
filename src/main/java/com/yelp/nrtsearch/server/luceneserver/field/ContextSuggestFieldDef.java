@@ -18,21 +18,17 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.Field;
-import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
-import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleString;
+import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.suggest.protocol.ContextSuggestFieldData;
-import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
-import org.apache.lucene.search.suggest.document.SuggestIndexSearcher;
 
 public class ContextSuggestFieldDef extends IndexableFieldDef {
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
+  private final Analyzer indexAnalyzer;
 
   /**
    * @param name name of field
@@ -40,17 +36,22 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
    */
   protected ContextSuggestFieldDef(String name, Field requestField) {
     super(name, requestField);
+    this.indexAnalyzer = this.parseIndexAnalyzer(requestField);
   }
 
   @Override
   protected void validateRequest(Field requestField) {
-    // if (requestField.getStore()) {
-    //   throw new IllegalArgumentException("Context Suggest fields cannot be stored");
-    // }
+    if (!requestField.getStore()) {
+      throw new IllegalArgumentException("Context Suggest fields must be stored");
+    }
 
-    // if (requestField.getSearch()) {
-    //   throw new IllegalArgumentException("Context Suggest fields cannot be searched");
-    // }
+    if (requestField.getStoreDocValues()) {
+      throw new IllegalArgumentException("Context Suggest fields cannot store doc values");
+    }
+
+    if (requestField.getSearch()) {
+      throw new IllegalArgumentException("Context Suggest fields cannot be searched");
+    }
   }
 
   @Override
@@ -72,6 +73,19 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
       ContextSuggestField csf =
           new ContextSuggestField(getName(), csfData.getValue(), csfData.getWeight(), contexts);
       document.add(csf);
+      document.add(new FieldWithData(getName(), fieldType, fieldValues.get(0)));
     }
+  }
+
+  protected Analyzer parseIndexAnalyzer(Field requestField) {
+    if (AnalyzerCreator.isAnalyzerDefined(requestField.getIndexAnalyzer())) {
+      return AnalyzerCreator.getInstance().getAnalyzer(requestField.getIndexAnalyzer());
+    } else {
+      return AnalyzerCreator.getStandardAnalyzer();
+    }
+  }
+
+  public Optional<Analyzer> getIndexAnalyzer() {
+    return Optional.ofNullable(this.indexAnalyzer);
   }
 }

@@ -24,7 +24,6 @@ import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.ContextSuggestField;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -43,12 +42,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
       List.of(
           gson.toJson(
               Map.of(
-                  "value",
-                  "test one",
-                  "contexts",
-                  List.of("context1", "context2"),
-                  "weight",
-                  "123")),
+                  "value", "test one", "contexts", List.of("context1", "context2"), "weight", 123)),
           gson.toJson(
               Map.of(
                   "value",
@@ -56,7 +50,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
                   "contexts",
                   List.of("context1", "context2"),
                   "weight",
-                  "123")));
+                  123)));
 
   private Map<String, MultiValuedField> getFieldsMapForOneDocument(String value) {
     Map<String, AddDocumentRequest.MultiValuedField> fieldsMap =
@@ -98,10 +92,9 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
     assertEquals(FIELD_TYPE, contextSuggestFieldDef.getType());
     assertEquals(FIELD_NAME, contextSuggestFieldDef.getName());
 
-    Map<String, Object> expectedCSF1 =
-        Map.of("value", "test one", "contexts", List.of("context1", "context2"), "weight", "123");
-    //  String expectedCSF2 = CONTEXT_SUGGEST_FIELD_VALUES.get(1);
+    String expectedCSF1 = CONTEXT_SUGGEST_FIELD_VALUES.get(0);
 
+    //TODO: Test this suggest field using the suggest api instead of the search api
     SearchResponse searchResponse =
         getGrpcServer()
             .getBlockingStub()
@@ -113,22 +106,10 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
                     .setTopHits(10)
                     .setQuery(Query.newBuilder().build())
                     .build());
-    Object a = searchResponse.getHits(0).getFieldsOrThrow(FIELD_NAME);
-    Object b = searchResponse.getHits(0);
 
-    ContextSuggestField fieldValue1 =
-        searchResponse
-            .getHits(0)
-            .getFieldsOrThrow(FIELD_NAME)
-            .getFieldValue(0)
-            .getContextSuggestFieldValue();
-    // ContextSuggestField fieldValue2 =
-    //     searchResponse
-    //         .getHits(1)
-    //         .getFieldsOrThrow(FIELD_NAME)
-    //         .getFieldValue(0)
-    //         .getContextSuggestFieldValue();
+    String fieldValue1 =
+        searchResponse.getHits(0).getFieldsOrThrow(FIELD_NAME).getFieldValue(0).getTextValue();
+
     assertEquals(expectedCSF1, fieldValue1);
-    // assertEquals(Floats.asList(expectedVector2), fieldValue2.getValueList());
   }
 }

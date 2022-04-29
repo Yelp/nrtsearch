@@ -17,6 +17,10 @@ package com.yelp.nrtsearch.server.luceneserver.suggest.protocol;
 
 import java.util.List;
 
+/**
+ * Class for context suggest field data. Values are field values to get suggestions on. Weights are
+ * field weights and contexts are contexts associated with the value
+ */
 public class ContextSuggestFieldData {
   private String value;
   private List<String> contexts;

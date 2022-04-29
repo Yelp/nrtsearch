@@ -412,18 +412,12 @@ message SearchResponse {
                 google.protobuf.Struct structValue = 8; // Value for structured data
                 // Value for VECTOR FieldType
                 Vector vectorValue = 9;
-                ContextSuggestField contextSuggestFieldValue = 10;
             }
 
             message Vector {
                 repeated float value = 1;
             }
 
-            message ContextSuggestField {
-                string value = 1;
-                repeated string contexts = 2;
-                int32 weight = 3;
-            }
 
         }
 
