@@ -94,7 +94,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
 
     String expectedCSF1 = CONTEXT_SUGGEST_FIELD_VALUES.get(0);
 
-    //TODO: Test this suggest field using the suggest api instead of the search api
+    // TODO: Test this suggest field using the suggest api instead of the search api
     SearchResponse searchResponse =
         getGrpcServer()
             .getBlockingStub()

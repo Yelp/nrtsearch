@@ -19,7 +19,7 @@ import java.util.List;
 
 /**
  * context suggest field data used to create a context suggest field
- * 
+ *
  * @param value field values to get suggestions on
  * @param contexts contexts associated with the value
  * @param weight field weight
