@@ -418,7 +418,6 @@ message SearchResponse {
                 repeated float value = 1;
             }
 
-
         }
 
         message CompositeFieldValue {
