@@ -2,11 +2,12 @@
     "indexName": "test_index",
     "field": [
       {
-        "name": "context_suggest_field_name",
-        "type": "CONTEXT_SUGGEST_FIELD",
+        "name": "context_suggest_name",
+        "type": "CONTEXT_SUGGEST",
         "storeDocValues": false,
         "multiValued": false,
-        "store": true
+        "store": true,
+        "search": false
       }
     ]
   }

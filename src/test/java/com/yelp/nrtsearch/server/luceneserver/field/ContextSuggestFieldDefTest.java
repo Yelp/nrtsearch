@@ -36,9 +36,9 @@ import org.junit.Test;
 public class ContextSuggestFieldDefTest extends ServerTestCase {
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
   private static Gson gson = new Gson();
-  private static final String FIELD_NAME = "context_suggest_field_name";
-  private static final String FIELD_TYPE = "CONTEXT_SUGGEST_FIELD";
-  private static final List<String> CONTEXT_SUGGEST_FIELD_VALUES =
+  private static final String FIELD_NAME = "context_suggest_name";
+  private static final String FIELD_TYPE = "CONTEXT_SUGGEST";
+  private static final List<String> CONTEXT_SUGGEST_VALUES =
       List.of(
           gson.toJson(
               Map.of(
@@ -77,12 +77,12 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
 
   @Override
   public FieldDefRequest getIndexDef(String name) throws IOException {
-    return getFieldsFromResourceFile("/field/registerFieldsContextSuggestField.json");
+    return getFieldsFromResourceFile("/field/registerFieldsContextSuggest.json");
   }
 
   @Override
   public void initIndex(String name) throws Exception {
-    List<AddDocumentRequest> documents = buildDocuments(name, CONTEXT_SUGGEST_FIELD_VALUES);
+    List<AddDocumentRequest> documents = buildDocuments(name, CONTEXT_SUGGEST_VALUES);
     addDocuments(documents.stream());
   }
 
@@ -92,7 +92,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
     assertEquals(FIELD_TYPE, contextSuggestFieldDef.getType());
     assertEquals(FIELD_NAME, contextSuggestFieldDef.getName());
 
-    String expectedCSF1 = CONTEXT_SUGGEST_FIELD_VALUES.get(0);
+    String expectedCSF1 = CONTEXT_SUGGEST_VALUES.get(0);
 
     // TODO: Test this suggest field using the suggest api instead of the search api
     SearchResponse searchResponse =

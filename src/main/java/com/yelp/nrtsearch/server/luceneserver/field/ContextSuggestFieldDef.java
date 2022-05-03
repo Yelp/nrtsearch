@@ -41,10 +41,6 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
 
   @Override
   protected void validateRequest(Field requestField) {
-    if (!requestField.getStore()) {
-      throw new IllegalArgumentException("Context Suggest fields must be stored");
-    }
-
     if (requestField.getStoreDocValues()) {
       throw new IllegalArgumentException("Context Suggest fields cannot store doc values");
     }
@@ -52,20 +48,21 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
     if (requestField.getSearch()) {
       throw new IllegalArgumentException("Context Suggest fields cannot be searched");
     }
+
+    if (requestField.getMultiValued()) {
+      throw new IllegalArgumentException("Cannot index multiple values into context suggest field");
+    }
   }
 
   @Override
   public String getType() {
-    return "CONTEXT_SUGGEST_FIELD";
+    return "CONTEXT_SUGGEST";
   }
 
   @Override
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
-    if (fieldValues.size() > 1) {
-      throw new IllegalArgumentException(
-          "Cannot index multiple values into single value field: " + getName());
-    } else if (fieldValues.size() == 1) {
+    if (fieldValues.size() == 1) {
       ContextSuggestFieldData csfData =
           GSON.fromJson(fieldValues.get(0), ContextSuggestFieldData.class);
       CharSequence[] contexts =
@@ -73,7 +70,9 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
       ContextSuggestField csf =
           new ContextSuggestField(getName(), csfData.getValue(), csfData.getWeight(), contexts);
       document.add(csf);
-      document.add(new FieldWithData(getName(), fieldType, fieldValues.get(0)));
+      if (isStored()) {
+        document.add(new FieldWithData(getName(), fieldType, fieldValues.get(0)));
+      }
     }
   }
 
