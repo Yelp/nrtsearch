@@ -73,6 +73,8 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
       if (isStored()) {
         document.add(new FieldWithData(getName(), fieldType, fieldValues.get(0)));
       }
+    } else{
+      throw new IllegalArgumentException("Context Suggest Field can only index exactly one value");
     }
   }
 
