@@ -486,6 +486,7 @@ enum FieldType {
     OBJECT = 14; // JSON
     // List of float values
     VECTOR = 15;
+    CONTEXT_SUGGEST = 16; //Field used for contextual suggest fields
 }
 
 //How the tokens should be indexed.
