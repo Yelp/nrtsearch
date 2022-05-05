@@ -322,6 +322,20 @@ public class LuceneServerClient {
     logger.info("Server returned sequence id: " + response);
   }
 
+  public boolean ready(String indices) {
+    logger.info("Will check if indices are ready: " + indices);
+    ReadyCheckRequest request = ReadyCheckRequest.newBuilder().setIndexNames(indices).build();
+    HealthCheckResponse response;
+    try {
+      response = blockingStub.ready(request);
+    } catch (StatusRuntimeException e) {
+      logger.warn("RPC failed: {}", e.getStatus());
+      return false;
+    }
+    logger.info("Server returned response: " + response);
+    return TransferStatusCode.Done.equals(response.getHealth());
+  }
+
   public void search(Path filePath) throws IOException {
     SearchRequest searchRequest =
         new LuceneServerClientBuilder.SearchClientBuilder().buildRequest(filePath);
