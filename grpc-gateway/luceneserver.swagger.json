@@ -233,6 +233,51 @@
         ]
       }
     },
+    "/v1/custom/{id}/{path}": {
+      "post": {
+        "summary": "Process request in a plugin which implements CustomRequestPlugin interface.",
+        "operationId": "LuceneServer_custom",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverCustomResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverCustomRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/delete": {
       "post": {
         "summary": "Delete documents",
@@ -1134,6 +1179,175 @@
         ]
       }
     },
+    "/v2/live_settings": {
+      "post": {
+        "summary": "Change global offline or online settings for this index.",
+        "operationId": "LuceneServer_liveSettingsV2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverLiveSettingsV2Response"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverLiveSettingsV2Request"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v2/live_settings/{indexName}": {
+      "get": {
+        "summary": "Change global offline or online settings for this index.",
+        "operationId": "LuceneServer_liveSettingsV22",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverLiveSettingsV2Response"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "indexName",
+            "description": "Index name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "liveSettings.maxRefreshSec",
+            "description": "Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen), default: 1.0.",
+            "in": "query",
+            "required": false,
+            "type": "number",
+            "format": "double"
+          },
+          {
+            "name": "liveSettings.minRefreshSec",
+            "description": "Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen), default: 0.05.",
+            "in": "query",
+            "required": false,
+            "type": "number",
+            "format": "double"
+          },
+          {
+            "name": "liveSettings.maxSearcherAgeSec",
+            "description": "Non-current searchers older than this are pruned, default: 60.0.",
+            "in": "query",
+            "required": false,
+            "type": "number",
+            "format": "double"
+          },
+          {
+            "name": "liveSettings.indexRamBufferSizeMB",
+            "description": "Size (in MB) of IndexWriter's RAM buffer, default: 16.0.",
+            "in": "query",
+            "required": false,
+            "type": "number",
+            "format": "double"
+          },
+          {
+            "name": "liveSettings.addDocumentsMaxBufferLen",
+            "description": "Max number of documents to add at a time, default: 100.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "liveSettings.sliceMaxDocs",
+            "description": "Maximum number of documents allowed in a parallel search slice, default: 250,000.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "liveSettings.sliceMaxSegments",
+            "description": "Maximum number of segments allowed in a parallel search slice, default: 5.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "liveSettings.virtualShards",
+            "description": "Number of virtual shards to use for this index, default: 1.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "liveSettings.maxMergedSegmentMB",
+            "description": "Maximum sized segment to produce during normal merging, default: 5GB.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "liveSettings.segmentsPerTier",
+            "description": "Number of segments per tier used by TieredMergePolicy, default: 10.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "liveSettings.defaultSearchTimeoutSec",
+            "description": "Timeout value to used when not specified in the search request, or 0 for no timeout, default: 0.",
+            "in": "query",
+            "required": false,
+            "type": "number",
+            "format": "double"
+          },
+          {
+            "name": "liveSettings.defaultSearchTimeoutCheckEvery",
+            "description": "Timeout check every value to use when not specified in the search request, or 0 for none, default: 0.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "liveSettings.defaultTerminateAfter",
+            "description": "Terminate after value to use when not specified in the search request, or 0 for none, default: 0.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v2/search": {
       "post": {
         "summary": "Search V2",
@@ -1160,6 +1374,117 @@
             "schema": {
               "$ref": "#/definitions/luceneserverSearchRequest"
             }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v2/settings": {
+      "post": {
+        "summary": "Change global offline settings for this index.\nThis returns the currently set settings; pass no settings to retrieve current settings.",
+        "operationId": "LuceneServer_settingsV2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverSettingsV2Response"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverSettingsV2Request"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v2/settings/{indexName}": {
+      "get": {
+        "summary": "Change global offline settings for this index.\nThis returns the currently set settings; pass no settings to retrieve current settings.",
+        "operationId": "LuceneServer_settingsV22",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverSettingsV2Response"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "indexName",
+            "description": "Index name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "settings.nrtCachingDirectoryMaxMergeSizeMB",
+            "description": "Largest merged segment size to cache in RAMDirectory, default: 5.0MB.",
+            "in": "query",
+            "required": false,
+            "type": "number",
+            "format": "double"
+          },
+          {
+            "name": "settings.nrtCachingDirectoryMaxSizeMB",
+            "description": "Largest overall size for all files cached in NRTCachingDirectory, default: 60.0MB.",
+            "in": "query",
+            "required": false,
+            "type": "number",
+            "format": "double"
+          },
+          {
+            "name": "settings.concurrentMergeSchedulerMaxThreadCount",
+            "description": "How many merge threads to allow at once.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "settings.concurrentMergeSchedulerMaxMergeCount",
+            "description": "Maximum backlog of pending merges before indexing threads are stalled.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "settings.indexMergeSchedulerAutoThrottle",
+            "description": "Turn on/off the merge scheduler's auto throttling, default: off.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "settings.directory",
+            "description": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -1211,6 +1536,18 @@
         }
       }
     },
+    "FieldValueVector": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      }
+    },
     "HitCompositeFieldValue": {
       "type": "object",
       "properties": {
@@ -1252,6 +1589,10 @@
         },
         "structValue": {
           "type": "object"
+        },
+        "vectorValue": {
+          "$ref": "#/definitions/FieldValueVector",
+          "title": "Value for VECTOR FieldType"
         }
       }
     },
@@ -1855,6 +2196,9 @@
         "terms": {
           "$ref": "#/definitions/luceneserverTermsCollector",
           "description": "Collector for aggregating based on term values."
+        },
+        "pluginCollector": {
+          "$ref": "#/definitions/luceneserverPluginCollector"
         }
       },
       "description": "Definition of additional document collector."
@@ -1865,6 +2209,10 @@
         "bucketResult": {
           "$ref": "#/definitions/luceneserverBucketResult",
           "description": "Result of collector that produces buckets and counts."
+        },
+        "anyResult": {
+          "$ref": "#/definitions/protobufAny",
+          "title": "Flexible collector result for additional document collectors"
         }
       }
     },
@@ -2049,6 +2397,34 @@
         }
       }
     },
+    "luceneserverCustomRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "luceneserverCustomResponse": {
+      "type": "object",
+      "properties": {
+        "response": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "luceneserverDeleteAllDocumentsRequest": {
       "type": "object",
       "properties": {
@@ -2173,7 +2549,7 @@
           "type": "string"
         }
       },
-      "description": "A query that matches documents which contain an value for a field."
+      "description": "A query that matches documents which contain a value for a field."
     },
     "luceneserverFacet": {
       "type": "object",
@@ -2375,6 +2751,10 @@
         "nestedDoc": {
           "type": "boolean"
         },
+        "vectorDimensions": {
+          "type": "integer",
+          "format": "int32"
+        },
         "eagerFieldGlobalOrdinals": {
           "type": "boolean",
           "description": "If field based global ordinals should be built up front, otherwise this is done lazily on first access. Currently only for fields with text doc values (TEXT/ATOM)."
@@ -2422,10 +2802,12 @@
         "CUSTOM",
         "_ID",
         "POLYGON",
-        "OBJECT"
+        "OBJECT",
+        "VECTOR",
+        "CONTEXT_SUGGEST"
       ],
       "default": "ATOM",
-      "description": "- VIRTUAL: TODO name this \"dynamic\" instead of \"virtual\"?\n - INTERNAL: TODO need tests for internal:",
+      "description": "- VIRTUAL: TODO name this \"dynamic\" instead of \"virtual\"?\n - INTERNAL: TODO need tests for internal:\n - VECTOR: List of float values",
       "title": "Type of the field"
     },
     "luceneserverFileMetadata": {
@@ -2667,7 +3049,7 @@
           "$ref": "#/definitions/typeLatLng"
         }
       },
-      "description": "A query that matches documents with geopoint within the geo box. The topLeft and bottomRight values though provided as strings will be converted to the Double."
+      "description": "A query that matches documents with geopoint within the geo box."
     },
     "luceneserverGeoPointQuery": {
       "type": "object",
@@ -2727,6 +3109,76 @@
         }
       }
     },
+    "luceneserverIndexLiveSettings": {
+      "type": "object",
+      "properties": {
+        "maxRefreshSec": {
+          "type": "number",
+          "format": "double",
+          "title": "Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen), default: 1.0"
+        },
+        "minRefreshSec": {
+          "type": "number",
+          "format": "double",
+          "title": "Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen), default: 0.05"
+        },
+        "maxSearcherAgeSec": {
+          "type": "number",
+          "format": "double",
+          "title": "Non-current searchers older than this are pruned, default: 60.0"
+        },
+        "indexRamBufferSizeMB": {
+          "type": "number",
+          "format": "double",
+          "title": "Size (in MB) of IndexWriter's RAM buffer, default: 16.0"
+        },
+        "addDocumentsMaxBufferLen": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Max number of documents to add at a time, default: 100"
+        },
+        "sliceMaxDocs": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Maximum number of documents allowed in a parallel search slice, default: 250,000"
+        },
+        "sliceMaxSegments": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Maximum number of segments allowed in a parallel search slice, default: 5"
+        },
+        "virtualShards": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Number of virtual shards to use for this index, default: 1"
+        },
+        "maxMergedSegmentMB": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Maximum sized segment to produce during normal merging, default: 5GB"
+        },
+        "segmentsPerTier": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Number of segments per tier used by TieredMergePolicy, default: 10"
+        },
+        "defaultSearchTimeoutSec": {
+          "type": "number",
+          "format": "double",
+          "title": "Timeout value to used when not specified in the search request, or 0 for no timeout, default: 0"
+        },
+        "defaultSearchTimeoutCheckEvery": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Timeout check every value to use when not specified in the search request, or 0 for none, default: 0"
+        },
+        "defaultTerminateAfter": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Terminate after value to use when not specified in the search request, or 0 for none, default: 0"
+        }
+      }
+    },
     "luceneserverIndexOptions": {
       "type": "string",
       "enum": [
@@ -2737,6 +3189,43 @@
       ],
       "default": "DOCS_FREQS_POSITIONS",
       "description": "How the tokens should be indexed."
+    },
+    "luceneserverIndexSettings": {
+      "type": "object",
+      "properties": {
+        "nrtCachingDirectoryMaxMergeSizeMB": {
+          "type": "number",
+          "format": "double",
+          "title": "Largest merged segment size to cache in RAMDirectory, default: 5.0MB"
+        },
+        "nrtCachingDirectoryMaxSizeMB": {
+          "type": "number",
+          "format": "double",
+          "title": "Largest overall size for all files cached in NRTCachingDirectory, default: 60.0MB"
+        },
+        "concurrentMergeSchedulerMaxThreadCount": {
+          "type": "integer",
+          "format": "int32",
+          "title": "How many merge threads to allow at once"
+        },
+        "concurrentMergeSchedulerMaxMergeCount": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Maximum backlog of pending merges before indexing threads are stalled"
+        },
+        "indexSort": {
+          "$ref": "#/definitions/luceneserverSortFields",
+          "title": "Index time sorting; can only be written once\", SearchHandler.SORT_TYPE"
+        },
+        "indexMergeSchedulerAutoThrottle": {
+          "type": "boolean",
+          "title": "Turn on/off the merge scheduler's auto throttling, default: off"
+        },
+        "directory": {
+          "type": "string",
+          "title": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory"
+        }
+      }
     },
     "luceneserverIndexStatsResponse": {
       "type": "object",
@@ -2879,6 +3368,28 @@
         }
       },
       "title": "Response from Server to liveSettings"
+    },
+    "luceneserverLiveSettingsV2Request": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string",
+          "title": "Index name"
+        },
+        "liveSettings": {
+          "$ref": "#/definitions/luceneserverIndexLiveSettings",
+          "title": "Live settings to merge into existing live settings, or unset to get current live settings"
+        }
+      }
+    },
+    "luceneserverLiveSettingsV2Response": {
+      "type": "object",
+      "properties": {
+        "liveSettings": {
+          "$ref": "#/definitions/luceneserverIndexLiveSettings",
+          "title": "Current live settings, including default values"
+        }
+      }
     },
     "luceneserverMatchOperator": {
       "type": "string",
@@ -3092,6 +3603,18 @@
         }
       },
       "description": "A Query that matches documents containing a particular sequence of terms."
+    },
+    "luceneserverPluginCollector": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object"
+        }
+      },
+      "title": "Defines an entry point for using a collector from a plugin"
     },
     "luceneserverPluginRescorer": {
       "type": "object",
@@ -3477,6 +4000,10 @@
           "type": "integer",
           "format": "int32",
           "description": "Stop document collection in search phase after this many documents, 0 for unlimited."
+        },
+        "responseCompression": {
+          "type": "string",
+          "title": "Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to uncompressed. Valid codecs: identity, gzip, lz4"
         }
       }
     },
@@ -3625,6 +4152,28 @@
         }
       },
       "title": "Settings Response returned from Server"
+    },
+    "luceneserverSettingsV2Request": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string",
+          "title": "Index name"
+        },
+        "settings": {
+          "$ref": "#/definitions/luceneserverIndexSettings",
+          "title": "Settings to merge into existing settings, or unset to get current settings"
+        }
+      }
+    },
+    "luceneserverSettingsV2Response": {
+      "type": "object",
+      "properties": {
+        "settings": {
+          "$ref": "#/definitions/luceneserverIndexSettings",
+          "title": "Current index settings, including default values"
+        }
+      }
     },
     "luceneserverSnapshotId": {
       "type": "object",

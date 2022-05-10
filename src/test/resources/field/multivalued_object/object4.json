@@ -1,0 +1,27 @@
+{
+    "field1": [
+        40.0
+    ],
+    "field2": [
+        "object4_field2_a",
+        "object4_field2_b",
+        "object4_field2_c",
+        "object4_field2_d"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object4_inner_field1_a",
+                "object4_inner_field1_b"
+            ],
+            "inner_field2": [
+                "object4_inner_field2"
+            ],
+            "inner_object2": [
+                {
+                    "4": 5.0
+                }
+            ]
+        }
+    ]
+}

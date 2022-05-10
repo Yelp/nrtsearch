@@ -1,3 +1,4 @@
+![Coverage](.github/badges/jacoco.svg)
 # nrtSearch
 A high performance gRPC server, with optional REST APIs on top of [Apache Lucene](http://lucene.apache.org/) version 8.x source, exposing Lucene's
 core functionality over a simple gRPC based API.
@@ -51,6 +52,12 @@ Note: This code has been tested on *Java14*
 
 ```
 ./build/install/nrtsearch/bin/lucene-server
+```
+
+# Build gRPC Gateway
+
+```
+./gradlew buildGrpcGateway
 ```
 
 # Run REST Server (use the appropriate binary for your platform e.g. for mac os)

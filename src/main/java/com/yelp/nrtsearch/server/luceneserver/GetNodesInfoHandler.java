@@ -32,7 +32,7 @@ public class GetNodesInfoHandler implements Handler<GetNodesRequest, GetNodesRes
     GetNodesResponse.Builder builder = GetNodesResponse.newBuilder();
     ShardState shardState = indexState.getShard(0);
     if (!shardState.isPrimary() || !shardState.isStarted()) {
-      logger.warn("index \"" + indexState.name + "\" is not a primary or was not started yet");
+      logger.warn("index \"" + indexState.getName() + "\" is not a primary or was not started yet");
     } else { // shard is a primary and started
       Collection<NRTPrimaryNode.ReplicaDetails> replicasInfo =
           shardState.nrtPrimaryNode.getNodesInfo();

@@ -38,7 +38,7 @@ public class WriteNRTPointHandler implements Handler<IndexName, SearcherVersion>
 
     if (shardState.isPrimary() == false) {
       throw new IllegalArgumentException(
-          "index \"" + shardState.name + "\" is either not started or is not a primary index");
+          "index \"" + indexState.getName() + "\" is either not started or is not a primary index");
     }
     SearcherVersion.Builder searchverVersionBuilder = SearcherVersion.newBuilder();
     try {
@@ -67,7 +67,7 @@ public class WriteNRTPointHandler implements Handler<IndexName, SearcherVersion>
             // TODO: ... replicas could copy from one another instead of just primary
             // TODO: we could also prioritize one replica at a time?
             currentReplicaServerClient.newNRTPoint(
-                indexState.name, shardState.nrtPrimaryNode.getPrimaryGen(), version);
+                indexState.getName(), shardState.nrtPrimaryNode.getPrimaryGen(), version);
           } catch (StatusRuntimeException e) {
             Status status = e.getStatus();
             if (status.getCode().equals(Status.UNAVAILABLE.getCode())) {

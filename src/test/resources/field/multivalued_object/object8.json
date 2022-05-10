@@ -1,0 +1,38 @@
+{
+    "field1": [
+        800.0,
+        801.0,
+        802.0
+    ],
+    "field2": [
+        "object8_field2_a",
+        "object8_field2_b",
+        "object8_field2_c",
+        "object8_field2_d"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object8_inner_object1_a_inner_field1_a",
+                "object8_inner_object1_a_inner_field1_b",
+                "object8_inner_object1_a_inner_field1_c"
+            ],
+            "inner_field2": [
+                "object8_inner_object2_a_inner_field1_a",
+                "object8_inner_object2_a_inner_field1_b",
+                "object8_inner_object2_a_inner_field1_c",
+                "object8_inner_object2_a_inner_field1_d"
+            ],
+            "inner_object2": [
+                {
+                    "800": 88.0
+                },
+                {
+                    "80": 808.0,
+                    "8088": 88088.0,
+                    "888": 880.0
+                }
+            ]
+        }
+    ]
+}

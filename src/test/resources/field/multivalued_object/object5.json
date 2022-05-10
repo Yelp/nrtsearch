@@ -1,0 +1,21 @@
+{
+    "field1": 500.0,
+    "field2": [
+        "object5_a_field2"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object5_inner_object1_a_inner_field1"
+            ],
+            "inner_field2": [
+                "object5_inner_object1_a_inner_field2"
+            ],
+            "inner_object2": [
+                {
+                    "5": 55.0
+                }
+            ]
+        }
+    ]
+}

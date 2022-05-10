@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -23,6 +24,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yelp.nrtsearch.server.grpc.codec.LZ4Codec;
+import io.grpc.Codec;
 import io.grpc.ManagedChannelBuilder;
 import java.util.function.Consumer;
 import org.junit.Test;
@@ -78,6 +81,30 @@ public class LuceneServerStubBuilderTest {
     verifyAppliesChannelConfig(
         (channelConfig ->
             new LuceneServerStubBuilder("node_file", OBJECT_MAPPER, 10, channelConfig)));
+  }
+
+  @Test
+  public void testCompressorRegistry() {
+    assertTrue(
+        LuceneServerStubBuilder.COMPRESSOR_REGISTRY.lookupCompressor("identity")
+            instanceof Codec.Identity);
+    assertTrue(
+        LuceneServerStubBuilder.COMPRESSOR_REGISTRY.lookupCompressor("gzip") instanceof Codec.Gzip);
+    assertTrue(
+        LuceneServerStubBuilder.COMPRESSOR_REGISTRY.lookupCompressor("lz4") instanceof LZ4Codec);
+  }
+
+  @Test
+  public void testDecompressorRegistry() {
+    assertTrue(
+        LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY.lookupDecompressor("identity")
+            instanceof Codec.Identity);
+    assertTrue(
+        LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY.lookupDecompressor("gzip")
+            instanceof Codec.Gzip);
+    assertTrue(
+        LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY.lookupDecompressor("lz4")
+            instanceof LZ4Codec);
   }
 
   private void verifyAppliesChannelConfig(Consumer<ChannelConfig> createStubBuilder) {

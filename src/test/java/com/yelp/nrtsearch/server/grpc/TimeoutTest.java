@@ -484,10 +484,11 @@ public class TimeoutTest extends ServerTestCase {
       DrillSideways drillS =
           new DrillSidewaysImpl(
               context.getSearcherAndTaxonomy().searcher,
-              context.getIndexState().facetsConfig,
+              context.getIndexState().getFacetsConfig(),
               context.getSearcherAndTaxonomy().taxonomyReader,
               Collections.singletonList(getTestFacet()),
               context.getSearcherAndTaxonomy(),
+              context.getIndexState(),
               context.getIndexState().getShard(0),
               context.getQueryFields(),
               grpcFacetResults,

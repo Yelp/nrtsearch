@@ -83,7 +83,7 @@ public class JsScriptEngine implements ScriptEngine {
             scriptParams = new HashMap<>(params);
             scriptParams.remove("bindings");
           } else {
-            fieldBindings = docLookup.getIndexState().exprBindings;
+            fieldBindings = docLookup.getIndexState().getExpressionBindings();
             scriptParams = params;
           }
           return expr.getDoubleValuesSource(new JsScriptBindings(fieldBindings, scriptParams));

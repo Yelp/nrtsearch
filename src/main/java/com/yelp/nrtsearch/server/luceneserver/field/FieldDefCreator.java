@@ -55,6 +55,8 @@ public class FieldDefCreator {
         (name, field) -> {
           throw new UnsupportedOperationException("Virtual fields should be created directly");
         });
+    register("VECTOR", VectorFieldDef::new);
+    register("CONTEXT_SUGGEST", ContextSuggestFieldDef::new);
   }
 
   /**

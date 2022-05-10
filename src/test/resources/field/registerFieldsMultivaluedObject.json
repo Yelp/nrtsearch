@@ -1,0 +1,64 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "_ID",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "multivalued_object",
+      "type": "OBJECT",
+      "search": true,
+      "store": false,
+      "storeDocValues": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "field1",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true,
+          "multiValued": true
+        },
+        {
+          "name": "field2",
+          "type": "ATOM",
+          "search": true,
+          "storeDocValues": true,
+          "multiValued": true
+        },
+        {
+          "name": "inner_object1",
+          "type": "OBJECT",
+          "search": true,
+          "multiValued": true,
+          "childFields": [
+            {
+              "name": "inner_field1",
+              "type": "ATOM",
+              "search": true,
+              "storeDocValues": true,
+              "multiValued": true
+            },
+            {
+              "name": "inner_field2",
+              "type": "ATOM",
+              "search": true,
+              "storeDocValues": true,
+              "multiValued": true
+            },
+            {
+              "name": "inner_object2",
+              "type": "OBJECT",
+              "search": true,
+              "storeDocValues": true,
+              "multiValued": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

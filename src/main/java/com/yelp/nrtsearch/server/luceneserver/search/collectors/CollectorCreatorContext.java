@@ -19,12 +19,14 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.util.Map;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 
 /**
  * Context information needed to create collectors. Used for {@link DocCollector} and {@link
- * AdditionalCollectorManager} building.
+ * AdditionalCollectorManager} building. The search context can be accessed through {@link
+ * AdditionalCollectorManager#setSearchContext(SearchContext)}
  */
 public class CollectorCreatorContext {
   private final SearchRequest request;

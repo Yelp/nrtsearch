@@ -273,7 +273,8 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     if (fieldValues.size() > 1 && !isMultiValue()) {
-      throw new IllegalArgumentException("Cannot index multiple values into single value field");
+      throw new IllegalArgumentException(
+          "Cannot index multiple values into single value field: " + getName());
     }
 
     for (int i = 0; i < fieldValues.size(); i++) {
@@ -297,7 +298,9 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
         } else if (docValuesType == DocValuesType.SORTED_SET) {
           document.add(new SortedSetDocValuesField(getName(), stringBytes));
         } else {
-          throw new IllegalArgumentException("unsupported doc value type: " + docValuesType);
+          throw new IllegalArgumentException(
+              String.format(
+                  "Unsupported doc value type %s for field %s", docValuesType, this.getName()));
         }
       }
 

@@ -40,6 +40,9 @@ dependencies {
     implementation "org.slf4j:slf4j-api:${rootProject.slf4jVersion}"
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.9.8'
 
+    // for lz4 message compression
+    implementation "org.lz4:lz4-java:${rootProject.lz4Version}"
+
     // examples/advanced need this for JsonFormat
     api "com.google.protobuf:protobuf-java-util:${protobufVersion}"
 

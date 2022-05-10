@@ -21,8 +21,13 @@ import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector.Builder;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 import java.time.Instant;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -262,7 +267,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
 
     @Override
     public SearchResponse.Hit.FieldValue toFieldValue(int index) {
-      return SearchResponse.Hit.FieldValue.newBuilder().setLongValue(index).build();
+      return SearchResponse.Hit.FieldValue.newBuilder().setLongValue(get(index)).build();
     }
   }
 
@@ -492,6 +497,68 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     @Override
     public int size() {
       return values.size();
+    }
+  }
+
+  public static final class SingleVector extends LoadedDocValues<VectorType> {
+    private final BinaryDocValues docValues;
+    private VectorType value;
+
+    public SingleVector(BinaryDocValues docValues) {
+      this.docValues = docValues;
+    }
+
+    /**
+     * Set method to set the lucene level doc id to lookup value from index and initialize the
+     * loaded doc value index by loading vector data
+     */
+    public void setDocId(int docID) throws IOException {
+      if (docValues.advanceExact(docID)) {
+        value = decodeBytesRefToVectorType(docValues.binaryValue());
+      } else {
+        value = null;
+      }
+    }
+
+    /** Decodes binary doc value to float array and wraps it into a VectorType */
+    private static VectorType decodeBytesRefToVectorType(BytesRef bytesRef) {
+      float[] floats = new float[bytesRef.length / Float.BYTES];
+      FloatBuffer fb =
+          ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length).asFloatBuffer();
+      fb.get(floats);
+      return new VectorType(floats);
+    }
+
+    /** Provide field value containing the doc value data for a given index */
+    @Override
+    public FieldValue toFieldValue(int index) {
+      VectorType vector = get(index);
+      Builder vectorBuilder = Vector.newBuilder();
+      for (float value : vector.getVectorData()) {
+        vectorBuilder.addValue(value);
+      }
+      return SearchResponse.Hit.FieldValue.newBuilder()
+          .setVectorValue(vectorBuilder.build())
+          .build();
+    }
+
+    @Override
+    public VectorType get(int index) {
+      if (value == null) {
+        throw new IllegalStateException("No doc values for document");
+      } else if (index != 0) {
+        throw new IndexOutOfBoundsException("No doc value for index: " + index);
+      }
+      return value;
+    }
+
+    @Override
+    public int size() {
+      return value == null ? 0 : 1;
+    }
+
+    public VectorType getValue() {
+      return get(0);
     }
   }
 }

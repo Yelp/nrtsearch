@@ -102,10 +102,10 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
     ShardState shardState = indexState.getShard(0);
 
-    Lookup oldSuggester = indexState.suggesters.get(suggestName);
+    Lookup oldSuggester = indexState.getSuggesters().get(suggestName);
     if (oldSuggester != null && oldSuggester instanceof Closeable) {
       ((Closeable) oldSuggester).close();
-      indexState.suggesters.remove(suggestName);
+      indexState.getSuggesters().remove(suggestName);
     }
 
     Analyzer indexAnalyzer;
@@ -227,9 +227,11 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
       suggester =
           new AnalyzingInfixSuggester(
-              indexState.df.open(
-                  indexState.rootDir.resolve("suggest." + suggestName + ".infix"),
-                  IndexPreloadConfig.PRELOAD_ALL),
+              indexState
+                  .getDirectoryFactory()
+                  .open(
+                      indexState.getRootDir().resolve("suggest." + suggestName + ".infix"),
+                      IndexPreloadConfig.PRELOAD_ALL),
               indexAnalyzer,
               queryAnalyzer,
               AnalyzingInfixSuggester.DEFAULT_MIN_PREFIX_CHARS,
@@ -320,9 +322,11 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
       suggester =
           new CompletionInfixSuggester(
-              indexState.df.open(
-                  indexState.rootDir.resolve("suggest." + suggestName + ".infix"),
-                  IndexPreloadConfig.PRELOAD_ALL),
+              indexState
+                  .getDirectoryFactory()
+                  .open(
+                      indexState.getRootDir().resolve("suggest." + suggestName + ".infix"),
+                      IndexPreloadConfig.PRELOAD_ALL),
               indexAnalyzer,
               queryAnalyzer);
     } else if (buildSuggestRequest.hasFuzzyInfixSuggester()) {
@@ -359,9 +363,11 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
 
       suggester =
           new FuzzyInfixSuggester(
-              indexState.df.open(
-                  indexState.rootDir.resolve("suggest." + suggestName + ".infix"),
-                  IndexPreloadConfig.PRELOAD_ALL),
+              indexState
+                  .getDirectoryFactory()
+                  .open(
+                      indexState.getRootDir().resolve("suggest." + suggestName + ".infix"),
+                      IndexPreloadConfig.PRELOAD_ALL),
               indexAnalyzer,
               queryAnalyzer,
               maxEdits,
@@ -374,7 +380,7 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
           "Suggester provided must be one of AnalyzingSuggester, InfixSuggester, FuzzySuggester");
     }
 
-    indexState.suggesters.put(suggestName, suggester);
+    indexState.getSuggesters().put(suggestName, suggester);
 
     return suggester;
   }
@@ -539,7 +545,7 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
           // Specific searcher version:
           searcher =
               SearchHandler.getSearcherAndTaxonomy(
-                  searchRequestBuilder.build(), shardState, null, threadPoolExecutor);
+                  searchRequestBuilder.build(), indexState, shardState, null, threadPoolExecutor);
         } else {
           searcher = shardState.acquire();
         }
@@ -595,14 +601,16 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
               new DocumentValueSourceDictionary(
                   searcher.searcher.getIndexReader(),
                   suggestField,
-                  expr.getDoubleValuesSource(indexState.exprBindings).toLongValuesSource(),
+                  expr.getDoubleValuesSource(indexState.getExpressionBindings())
+                      .toLongValuesSource(),
                   payloadField);
         } else {
           dict =
               new DocumentValueSourceDictionary(
                   searcher.searcher.getIndexReader(),
                   suggestField,
-                  expr.getDoubleValuesSource(indexState.exprBindings).toLongValuesSource(),
+                  expr.getDoubleValuesSource(indexState.getExpressionBindings())
+                      .toLongValuesSource(),
                   payloadField,
                   contextField);
         }

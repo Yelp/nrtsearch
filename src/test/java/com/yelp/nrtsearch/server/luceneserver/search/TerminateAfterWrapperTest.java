@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -114,12 +115,12 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
   public void testDefaultTerminateAfter() throws IOException {
     IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
     try {
-      indexState.setDefaultTerminateAfter(15);
+      setDefaultTerminateAfter(indexState, 15);
       SearchResponse response = doQuery(0, 0.0, false);
       assertEquals(15, response.getHitsCount());
       assertTrue(response.getTerminatedEarly());
     } finally {
-      indexState.setDefaultTerminateAfter(0);
+      setDefaultTerminateAfter(indexState, 0);
     }
   }
 
@@ -127,12 +128,12 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
   public void testOverrideDefaultTerminateAfter() throws IOException {
     IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
     try {
-      indexState.setDefaultTerminateAfter(15);
+      setDefaultTerminateAfter(indexState, 15);
       SearchResponse response = doQuery(5, 0.0, false);
       assertEquals(5, response.getHitsCount());
       assertTrue(response.getTerminatedEarly());
     } finally {
-      indexState.setDefaultTerminateAfter(0);
+      setDefaultTerminateAfter(indexState, 0);
     }
   }
 
@@ -141,6 +142,12 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
     SearchResponse response = doQuery(10, 1000.0, true);
     assertEquals(10, response.getHitsCount());
     assertTrue(response.getTerminatedEarly());
+  }
+
+  private void setDefaultTerminateAfter(IndexState indexState, int defaultTerminateAfter) {
+    assertTrue(indexState instanceof LegacyIndexState);
+    LegacyIndexState legacyIndexState = (LegacyIndexState) indexState;
+    legacyIndexState.setDefaultTerminateAfter(defaultTerminateAfter);
   }
 
   private SearchResponse doQuery(int terminateAfter, double timeout, boolean profile) {

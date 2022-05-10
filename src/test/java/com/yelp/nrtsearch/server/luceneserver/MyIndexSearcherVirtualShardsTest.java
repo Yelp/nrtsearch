@@ -20,6 +20,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -125,10 +126,13 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
   }
 
   private void setLiveSettings(int virtualShards, int maxDocs, int maxSegments) throws IOException {
+    ;
     IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
-    indexState.setVirtualShards(virtualShards);
-    indexState.setSliceMaxDocs(maxDocs);
-    indexState.setSliceMaxSegments(maxSegments);
+    assertTrue(indexState instanceof LegacyIndexState);
+    LegacyIndexState legacyIndexState = (LegacyIndexState) indexState;
+    legacyIndexState.setVirtualShards(virtualShards);
+    legacyIndexState.setSliceMaxDocs(maxDocs);
+    legacyIndexState.setSliceMaxSegments(maxSegments);
   }
 
   private void addSegments(Iterable<Integer> sizes) throws Exception {

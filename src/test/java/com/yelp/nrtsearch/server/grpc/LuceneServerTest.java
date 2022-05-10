@@ -26,17 +26,20 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
+import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.backup.ArchiverImpl;
+import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import com.yelp.nrtsearch.server.utils.Archiver;
-import com.yelp.nrtsearch.server.utils.ArchiverImpl;
-import com.yelp.nrtsearch.server.utils.TarImpl;
+import com.yelp.nrtsearch.server.luceneserver.search.cache.NrtQueryCache;
 import io.findify.s3mock.S3Mock;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
 import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,8 +54,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryCache;
 import org.hamcrest.core.IsCollectionContaining;
 import org.junit.After;
 import org.junit.Before;
@@ -181,7 +188,7 @@ public class LuceneServerTest {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    GlobalState globalState = new GlobalState(luceneServerConfiguration);
+    GlobalState globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         collectorRegistry,
         grpcCleanup,
@@ -202,7 +209,7 @@ public class LuceneServerTest {
     LuceneServerConfiguration luceneServerReplicaConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.REPLICA, folder.getRoot(), getExtraConfig());
-    GlobalState globalStateSecondary = new GlobalState(luceneServerReplicaConfiguration);
+    GlobalState globalStateSecondary = GlobalState.createState(luceneServerReplicaConfiguration);
 
     return new GrpcServer(
         grpcCleanup,
@@ -990,9 +997,11 @@ public class LuceneServerTest {
                   .build());
       fail("Expecting exception on the previous line");
     } catch (StatusRuntimeException e) {
-      assertEquals(
-          "UNKNOWN: Unable to backup warming queries since uptime is 0 minutes, which is less than threshold 1000",
-          e.getMessage());
+      Pattern pattern =
+          Pattern.compile(
+              "UNKNOWN: Unable to backup warming queries since uptime is [0-9] minutes, which is less than threshold 1000");
+      Matcher m = pattern.matcher(e.getMessage());
+      assertTrue(m.matches());
     }
 
     // Should fail; does not meet NumQueriesThreshold
@@ -1184,23 +1193,39 @@ public class LuceneServerTest {
   }
 
   @Test
-  public void testReady() {
+  public void testReady() throws IOException {
     LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
     String index1 = "index1";
     String index2 = "index2";
-    for (String indexName : List.of(index1, index2)) {
+    String index3 = "index3";
+
+    // Create all indices
+    for (String indexName : List.of(index1, index2, index3)) {
       CreateIndexResponse createIndexResponse =
           blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
       String expectedResponse =
           String.format("Created Index name: %s", indexName, grpcServer.getIndexDir());
       assertEquals(expectedResponse, createIndexResponse.getResponse());
     }
-    StartIndexRequest startIndexRequest =
-        StartIndexRequest.newBuilder().setIndexName(index2).setMode(Mode.STANDALONE).build();
-    StartIndexResponse startIndexResponse = blockingStub.startIndex(startIndexRequest);
-    assertEquals(0, startIndexResponse.getNumDocs());
 
-    for (String indexNames : Arrays.asList("", "index1", "index1,index2")) {
+    // Start indices 2 and 3
+    for (String indexName : List.of(index2, index3)) {
+      StartIndexRequest startIndexRequest =
+          StartIndexRequest.newBuilder().setIndexName(indexName).setMode(Mode.STANDALONE).build();
+      StartIndexResponse startIndexResponse = blockingStub.startIndex(startIndexRequest);
+      assertEquals(0, startIndexResponse.getNumDocs());
+    }
+
+    grpcServer.getGlobalState().getIndex(index3).getShard(0).writer.close();
+
+    try {
+      blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames("").build());
+      fail("Expecting exception on the previous line");
+    } catch (StatusRuntimeException e) {
+      assertEquals(e.getMessage(), "UNAVAILABLE: Indices not started: [index1, index3]");
+    }
+
+    for (String indexNames : Arrays.asList("index1", "index1,index2")) {
       try {
         blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames(indexNames).build());
         fail("Expecting exception on the previous line");
@@ -1209,18 +1234,45 @@ public class LuceneServerTest {
       }
     }
 
-    for (String indexNames : Arrays.asList("index3", "index1,index3", "index3,index2,index1")) {
+    for (String indexNames : Arrays.asList("index3", "index2,index3")) {
       try {
         blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames(indexNames).build());
         fail("Expecting exception on the previous line");
       } catch (StatusRuntimeException e) {
-        assertEquals(e.getMessage(), "UNAVAILABLE: Indices do not exist: [index3]");
+        assertEquals(e.getMessage(), "UNAVAILABLE: Indices not started: [index3]");
+      }
+    }
+
+    for (String indexNames : Arrays.asList("index4", "index1,index4", "index4,index2,index1")) {
+      try {
+        blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames(indexNames).build());
+        fail("Expecting exception on the previous line");
+      } catch (StatusRuntimeException e) {
+        assertEquals(e.getMessage(), "UNAVAILABLE: Indices do not exist: [index4]");
       }
     }
 
     HealthCheckResponse response =
         blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames("index2").build());
     assertEquals(response.getHealth(), TransferStatusCode.Done);
+  }
+
+  @Test
+  public void testQueryCache() {
+    QueryCache queryCache = IndexSearcher.getDefaultQueryCache();
+    assertTrue(queryCache instanceof NrtQueryCache);
+
+    String configStr = String.join("\n", "queryCache:", "  enabled: false");
+    LuceneServerConfiguration configuration =
+        new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    LuceneServerImpl.initQueryCache(configuration);
+    assertNull(IndexSearcher.getDefaultQueryCache());
+
+    configStr = String.join("\n", "queryCache:", "  enabled: true");
+    configuration = new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    LuceneServerImpl.initQueryCache(configuration);
+    queryCache = IndexSearcher.getDefaultQueryCache();
+    assertTrue(queryCache instanceof NrtQueryCache);
   }
 
   public static List<VirtualField> getQueryVirtualFields() {
@@ -1240,6 +1292,11 @@ public class LuceneServerTest {
             .setScript(Script.newBuilder().setLang("js").setSource("5.0*_score").build())
             .build());
     return fields;
+  }
+
+  @Test
+  public void testCancellationDefaultDisabled() {
+    assertFalse(DeadlineUtils.getCancellationEnabled());
   }
 
   public static void checkHits(SearchResponse.Hit hit) {
