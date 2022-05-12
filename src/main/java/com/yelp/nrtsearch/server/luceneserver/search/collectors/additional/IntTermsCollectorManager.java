@@ -19,14 +19,22 @@ import com.yelp.nrtsearch.server.grpc.BucketResult;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.NestedCollectorManagers.NestedCollectors;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.NestedCollectorManagers.NestedCollectors.NestedLeafCollectors;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntMaps;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -42,13 +50,16 @@ public class IntTermsCollectorManager extends TermsCollectorManager {
    * @param grpcTermsCollector Collector parameters from request
    * @param context context info for collector building
    * @param indexableFieldDef field def
+   * @param nestedCollectorSuppliers suppliers to create nested collector managers
    */
   public IntTermsCollectorManager(
       String name,
       com.yelp.nrtsearch.server.grpc.TermsCollector grpcTermsCollector,
       CollectorCreatorContext context,
-      IndexableFieldDef indexableFieldDef) {
-    super(name, grpcTermsCollector.getSize());
+      IndexableFieldDef indexableFieldDef,
+      Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
+          nestedCollectorSuppliers) {
+    super(name, grpcTermsCollector.getSize(), nestedCollectorSuppliers);
     this.fieldDef = indexableFieldDef;
   }
 
@@ -61,8 +72,14 @@ public class IntTermsCollectorManager extends TermsCollectorManager {
   public CollectorResult reduce(Collection<TermsCollector> collectors) throws IOException {
     Int2IntMap combinedCounts = combineCounts(collectors);
     BucketResult.Builder bucketBuilder = BucketResult.newBuilder();
-    fillBucketResult(bucketBuilder, combinedCounts);
-
+    Collection<NestedCollectors> nestedCollectors;
+    if (hasNestedCollectors()) {
+      nestedCollectors =
+          collectors.stream().map(TermsCollector::getNestedCollectors).collect(Collectors.toList());
+    } else {
+      nestedCollectors = Collections.emptyList();
+    }
+    fillBucketResult(bucketBuilder, combinedCounts, nestedCollectors);
     return CollectorResult.newBuilder().setBucketResult(bucketBuilder.build()).build();
   }
 
@@ -95,26 +112,41 @@ public class IntTermsCollectorManager extends TermsCollectorManager {
     }
 
     @Override
-    public ScoreMode scoreMode() {
+    public ScoreMode implementationScoreMode() {
       return ScoreMode.COMPLETE_NO_SCORES;
     }
 
     /** Leaf Collector implementation to record term counts from Integer {@link LoadedDocValues}. */
     public class TermsLeafCollector implements LeafCollector {
       final LoadedDocValues<Integer> docValues;
+      final NestedLeafCollectors nestedLeafCollectors;
 
       public TermsLeafCollector(LeafReaderContext leafContext) throws IOException {
         docValues = (LoadedDocValues<Integer>) fieldDef.getDocValues(leafContext);
+        NestedCollectors nestedCollectors = getNestedCollectors();
+        if (nestedCollectors != null) {
+          nestedLeafCollectors = nestedCollectors.getLeafCollector(leafContext);
+        } else {
+          nestedLeafCollectors = null;
+        }
       }
 
       @Override
-      public void setScorer(Scorable scorer) throws IOException {}
+      public void setScorer(Scorable scorer) throws IOException {
+        if (nestedLeafCollectors != null) {
+          nestedLeafCollectors.setScorer(scorer);
+        }
+      }
 
       @Override
       public void collect(int doc) throws IOException {
         docValues.setDocId(doc);
         for (int i = 0; i < docValues.size(); ++i) {
-          countsMap.addTo(docValues.get(i), 1);
+          Integer value = docValues.get(i);
+          countsMap.addTo(value, 1);
+          if (nestedLeafCollectors != null) {
+            nestedLeafCollectors.collect(value, doc);
+          }
         }
       }
     }

@@ -28,18 +28,24 @@ import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.search.GlobalOrdinalLookup;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.NestedCollectorManagers.NestedCollectors;
 import it.unimi.dsi.fastutil.doubles.Double2IntMap;
 import it.unimi.dsi.fastutil.floats.Float2IntMap;
 import it.unimi.dsi.fastutil.ints.Int2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.function.Supplier;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ScoreMode;
 
 /** Base class for all collector managers that aggregates terms into buckets. */
 public abstract class TermsCollectorManager
@@ -47,6 +53,7 @@ public abstract class TermsCollectorManager
 
   private final String name;
   private final int size;
+  private final NestedCollectorManagers nestedCollectorManagers;
 
   /**
    * Produce a collector implementation for term aggregation based on the provided {@link
@@ -55,14 +62,18 @@ public abstract class TermsCollectorManager
    * @param name collection name
    * @param grpcTermsCollector term collection definition from query
    * @param context context info for collector building
+   * @param nestedCollectorSuppliers suppliers to create nested collector managers
    */
   public static TermsCollectorManager buildManager(
       String name,
       com.yelp.nrtsearch.server.grpc.TermsCollector grpcTermsCollector,
-      CollectorCreatorContext context) {
+      CollectorCreatorContext context,
+      Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
+          nestedCollectorSuppliers) {
     switch (grpcTermsCollector.getTermsSourceCase()) {
       case SCRIPT:
-        return new ScriptTermsCollectorManager(name, grpcTermsCollector, context);
+        return new ScriptTermsCollectorManager(
+            name, grpcTermsCollector, context, nestedCollectorSuppliers);
       case FIELD:
         FieldDef field = context.getQueryFields().get(grpcTermsCollector.getField());
         if (field == null) {
@@ -77,16 +88,16 @@ public abstract class TermsCollectorManager
           // Pick implementation based on field type
           if (indexableFieldDef instanceof IntFieldDef) {
             return new IntTermsCollectorManager(
-                name, grpcTermsCollector, context, indexableFieldDef);
+                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
           } else if (indexableFieldDef instanceof LongFieldDef) {
             return new LongTermsCollectorManager(
-                name, grpcTermsCollector, context, indexableFieldDef);
+                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
           } else if (indexableFieldDef instanceof FloatFieldDef) {
             return new FloatTermsCollectorManager(
-                name, grpcTermsCollector, context, indexableFieldDef);
+                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
           } else if (indexableFieldDef instanceof DoubleFieldDef) {
             return new DoubleTermsCollectorManager(
-                name, grpcTermsCollector, context, indexableFieldDef);
+                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
           } else if (indexableFieldDef instanceof TextBaseFieldDef) {
             if (indexableFieldDef instanceof GlobalOrdinalable
                 && ((GlobalOrdinalable) indexableFieldDef).usesOrdinals()) {
@@ -95,15 +106,16 @@ public abstract class TermsCollectorManager
                   grpcTermsCollector,
                   context,
                   indexableFieldDef,
-                  (GlobalOrdinalable) indexableFieldDef);
+                  (GlobalOrdinalable) indexableFieldDef,
+                  nestedCollectorSuppliers);
             } else {
               return new StringTermsCollectorManager(
-                  name, grpcTermsCollector, context, indexableFieldDef);
+                  name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
             }
           }
         } else if (field instanceof VirtualFieldDef) {
           return new VirtualTermsCollectorManager(
-              name, grpcTermsCollector, context, (VirtualFieldDef) field);
+              name, grpcTermsCollector, context, (VirtualFieldDef) field, nestedCollectorSuppliers);
         }
         throw new IllegalArgumentException(
             "Terms collection does not support field: "
@@ -121,10 +133,19 @@ public abstract class TermsCollectorManager
    *
    * @param name collection name
    * @param size max number of buckets
+   * @param nestedCollectorSuppliers suppliers to create nested collector managers
    */
-  protected TermsCollectorManager(String name, int size) {
+  protected TermsCollectorManager(
+      String name,
+      int size,
+      Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
+          nestedCollectorSuppliers) {
     this.name = name;
     this.size = size;
+    this.nestedCollectorManagers =
+        nestedCollectorSuppliers.isEmpty()
+            ? null
+            : new NestedCollectorManagers(nestedCollectorSuppliers);
   }
 
   /** Get collection name */
@@ -132,13 +153,56 @@ public abstract class TermsCollectorManager
     return name;
   }
 
+  @Override
+  public void setSearchContext(SearchContext searchContext) {
+    if (nestedCollectorManagers != null) {
+      nestedCollectorManagers.setSearchContext(searchContext);
+    }
+  }
   /** Get max number of buckets to return */
   public int getSize() {
     return size;
   }
 
+  /** Get manager for nested aggregation collection. */
+  public boolean hasNestedCollectors() {
+    return nestedCollectorManagers != null;
+  }
+
   /** Common base class for all {@link TermsCollectorManager} {@link Collector}s. */
-  public abstract static class TermsCollector implements Collector {}
+  public abstract class TermsCollector implements Collector {
+    private final NestedCollectors nestedCollectors;
+
+    protected TermsCollector() {
+      if (nestedCollectorManagers != null) {
+        nestedCollectors = nestedCollectorManagers.newCollectors();
+      } else {
+        nestedCollectors = null;
+      }
+    }
+
+    /**
+     * Get the scoring mode of this collector implementation, will be combined with any nested
+     * aggregation modes.
+     */
+    public abstract ScoreMode implementationScoreMode();
+
+    /** Get the collector wrapping any nested aggregations. */
+    public NestedCollectors getNestedCollectors() {
+      return nestedCollectors;
+    }
+
+    @Override
+    public ScoreMode scoreMode() {
+      ScoreMode scoreMode = implementationScoreMode();
+      if (nestedCollectors != null) {
+        if (nestedCollectorManagers.scoreMode() != scoreMode) {
+          return ScoreMode.COMPLETE;
+        }
+      }
+      return scoreMode;
+    }
+  }
 
   /** Bucket entry for Object -> int. */
   private static class ObjectBucketEntry {
@@ -161,8 +225,13 @@ public abstract class TermsCollectorManager
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
    */
-  void fillBucketResult(BucketResult.Builder bucketBuilder, Object2IntMap<Object> counts) {
+  void fillBucketResult(
+      BucketResult.Builder bucketBuilder,
+      Object2IntMap<Object> counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
       // add all map entries into a priority queue, keeping only the top N
@@ -190,8 +259,13 @@ public abstract class TermsCollectorManager
       LinkedList<Bucket> buckets = new LinkedList<>();
       while (!priorityQueue.isEmpty()) {
         ObjectBucketEntry entry = priorityQueue.poll();
-        buckets.addFirst(
-            Bucket.newBuilder().setKey(entry.key.toString()).setCount(entry.count).build());
+        Bucket.Builder builder =
+            Bucket.newBuilder().setKey(entry.key.toString()).setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
       }
       bucketBuilder
           .addAllBuckets(buckets)
@@ -221,8 +295,13 @@ public abstract class TermsCollectorManager
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
    */
-  void fillBucketResult(BucketResult.Builder bucketBuilder, Int2IntMap counts) {
+  void fillBucketResult(
+      BucketResult.Builder bucketBuilder,
+      Int2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
       // add all map entries into a priority queue, keeping only the top N
@@ -250,8 +329,13 @@ public abstract class TermsCollectorManager
       LinkedList<Bucket> buckets = new LinkedList<>();
       while (!priorityQueue.isEmpty()) {
         IntBucketEntry entry = priorityQueue.poll();
-        buckets.addFirst(
-            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count).build());
+        Bucket.Builder builder =
+            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
       }
       bucketBuilder
           .addAllBuckets(buckets)
@@ -281,8 +365,13 @@ public abstract class TermsCollectorManager
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
    */
-  void fillBucketResult(BucketResult.Builder bucketBuilder, Long2IntMap counts) {
+  void fillBucketResult(
+      BucketResult.Builder bucketBuilder,
+      Long2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
       // add all map entries into a priority queue, keeping only the top N
@@ -310,8 +399,13 @@ public abstract class TermsCollectorManager
       LinkedList<Bucket> buckets = new LinkedList<>();
       while (!priorityQueue.isEmpty()) {
         LongBucketEntry entry = priorityQueue.poll();
-        buckets.addFirst(
-            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count).build());
+        Bucket.Builder builder =
+            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
       }
       bucketBuilder
           .addAllBuckets(buckets)
@@ -341,8 +435,13 @@ public abstract class TermsCollectorManager
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
    */
-  void fillBucketResult(BucketResult.Builder bucketBuilder, Float2IntMap counts) {
+  void fillBucketResult(
+      BucketResult.Builder bucketBuilder,
+      Float2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
       // add all map entries into a priority queue, keeping only the top N
@@ -370,8 +469,13 @@ public abstract class TermsCollectorManager
       LinkedList<Bucket> buckets = new LinkedList<>();
       while (!priorityQueue.isEmpty()) {
         FloatBucketEntry entry = priorityQueue.poll();
-        buckets.addFirst(
-            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count).build());
+        Bucket.Builder builder =
+            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
       }
       bucketBuilder
           .addAllBuckets(buckets)
@@ -401,8 +505,13 @@ public abstract class TermsCollectorManager
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
    */
-  void fillBucketResult(BucketResult.Builder bucketBuilder, Double2IntMap counts) {
+  void fillBucketResult(
+      BucketResult.Builder bucketBuilder,
+      Double2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
       // add all map entries into a priority queue, keeping only the top N
@@ -430,8 +539,13 @@ public abstract class TermsCollectorManager
       LinkedList<Bucket> buckets = new LinkedList<>();
       while (!priorityQueue.isEmpty()) {
         DoubleBucketEntry entry = priorityQueue.poll();
-        buckets.addFirst(
-            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count).build());
+        Bucket.Builder builder =
+            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
       }
       bucketBuilder
           .addAllBuckets(buckets)
@@ -446,9 +560,13 @@ public abstract class TermsCollectorManager
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
    * @param ordinalLookup global ordinal lookup object
+   * @param nestedCollectors collectors for nested aggregations
    */
   void fillBucketResult(
-      BucketResult.Builder bucketBuilder, Long2IntMap counts, GlobalOrdinalLookup ordinalLookup)
+      BucketResult.Builder bucketBuilder,
+      Long2IntMap counts,
+      GlobalOrdinalLookup ordinalLookup,
+      Collection<NestedCollectors> nestedCollectors)
       throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
@@ -477,11 +595,15 @@ public abstract class TermsCollectorManager
       LinkedList<Bucket> buckets = new LinkedList<>();
       while (!priorityQueue.isEmpty()) {
         LongBucketEntry entry = priorityQueue.poll();
-        buckets.addFirst(
+        Bucket.Builder builder =
             Bucket.newBuilder()
                 .setKey(ordinalLookup.lookupGlobalOrdinal(entry.key))
-                .setCount(entry.count)
-                .build());
+                .setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
       }
       bucketBuilder
           .addAllBuckets(buckets)

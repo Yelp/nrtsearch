@@ -442,4 +442,15 @@ public class ScriptTermsCollectorManagerTest extends TermsCollectorManagerTestsB
         new ExpectedValues(new HashSet<>(Collections.singletonList("1")), 66),
         new ExpectedValues(new HashSet<>(Collections.singletonList("2")), 33));
   }
+
+  @Test
+  public void testNestedCollector() {
+    TermsCollector terms =
+        TermsCollector.newBuilder()
+            .setScript(Script.newBuilder().setLang("test_lang").setSource("numeric_set").build())
+            .setSize(10)
+            .build();
+    SearchResponse response = doNestedQuery(terms);
+    assertNestedResult(response);
+  }
 }

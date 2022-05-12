@@ -173,4 +173,11 @@ public class LongTermsCollectorManagerTest extends TermsCollectorManagerTestsBas
     assertResponse(
         response, 5, 2, 6, new ExpectedValues(new HashSet<>(Arrays.asList("0", "1")), 7));
   }
+
+  @Test
+  public void testNestedCollector() {
+    TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(3).build();
+    SearchResponse response = doNestedQuery(terms);
+    assertNestedResult(response);
+  }
 }

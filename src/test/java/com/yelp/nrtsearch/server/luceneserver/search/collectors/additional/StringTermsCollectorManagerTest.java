@@ -107,4 +107,11 @@ public class StringTermsCollectorManagerTest extends TermsCollectorManagerTestsB
     assertResponse(
         response, 3, 1, 6, new ExpectedValues(new HashSet<>(Collections.singletonList("2")), 4));
   }
+
+  @Test
+  public void testNestedCollector() {
+    TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(3).build();
+    SearchResponse response = doNestedQuery(terms);
+    assertNestedResult(response);
+  }
 }

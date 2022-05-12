@@ -1,0 +1,28 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "_ID",
+      "storeDocValues": true,
+      "search": true
+    },
+    {
+      "name": "int_field",
+      "type": "INT",
+      "storeDocValues": true,
+      "search": true
+    },
+    {
+      "name": "int_field_2",
+      "type": "INT",
+      "storeDocValues": true,
+      "search": true
+    },
+    {
+      "name": "value",
+      "type": "LONG",
+      "storeDocValues": true
+    }
+  ]
+}

@@ -30,7 +30,7 @@ import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxon
 import org.apache.lucene.search.Query;
 
 /** Search context class to provide all the information to perform a search. */
-public class SearchContext {
+public class SearchContext implements FieldFetchContext {
   private final IndexState indexState;
   private final ShardState shardState;
   private final SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy;
@@ -79,6 +79,7 @@ public class SearchContext {
   }
 
   /** Get searcher instance for query. */
+  @Override
   public SearcherAndTaxonomy getSearcherAndTaxonomy() {
     return searcherAndTaxonomy;
   }
@@ -112,6 +113,7 @@ public class SearchContext {
   }
 
   /** Get map of all fields that should be filled in the response */
+  @Override
   public Map<String, FieldDef> getRetrieveFields() {
     return retrieveFields;
   }
@@ -127,6 +129,7 @@ public class SearchContext {
   }
 
   /** Get any extra tasks that should be run during fetch */
+  @Override
   public FetchTasks getFetchTasks() {
     return fetchTasks;
   }
@@ -168,6 +171,12 @@ public class SearchContext {
     if (topHits < 0) {
       throw new IllegalStateException("Invalid topHits value: " + topHits);
     }
+  }
+
+  /** Get search context. */
+  @Override
+  public SearchContext getSearchContext() {
+    return this;
   }
 
   /** Builder class for search context. */

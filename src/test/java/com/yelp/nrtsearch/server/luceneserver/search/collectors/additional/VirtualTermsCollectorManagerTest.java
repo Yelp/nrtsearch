@@ -203,4 +203,11 @@ public class VirtualTermsCollectorManagerTest extends TermsCollectorManagerTests
         new ExpectedValues(
             new HashSet<>(Arrays.asList("51.25", "52.5", "53.75", "55.0", "56.25")), 1));
   }
+
+  @Test
+  public void testNestedCollector() {
+    TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(3).build();
+    SearchResponse response = doNestedQuery(terms);
+    assertNestedResult(response);
+  }
 }

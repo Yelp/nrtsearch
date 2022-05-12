@@ -177,4 +177,11 @@ public class DoubleTermsCollectorManagerTest extends TermsCollectorManagerTestsB
     assertResponse(
         response, 5, 2, 6, new ExpectedValues(new HashSet<>(Arrays.asList("0.0", "1.5")), 7));
   }
+
+  @Test
+  public void testNestedCollector() {
+    TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(3).build();
+    SearchResponse response = doNestedQuery(terms);
+    assertNestedResult(response);
+  }
 }

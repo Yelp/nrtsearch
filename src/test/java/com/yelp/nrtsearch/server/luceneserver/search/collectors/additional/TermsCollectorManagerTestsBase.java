@@ -16,15 +16,20 @@
 package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.BucketResult;
+import com.yelp.nrtsearch.server.grpc.BucketResult.Bucket;
 import com.yelp.nrtsearch.server.grpc.Collector;
+import com.yelp.nrtsearch.server.grpc.HitsResult;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
+import com.yelp.nrtsearch.server.grpc.TopHitsCollector;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -137,5 +142,49 @@ public abstract class TermsCollectorManagerTestsBase extends ServerTestCase {
                         .build())
                 .putCollectors("test_collector", Collector.newBuilder().setTerms(terms).build())
                 .build());
+  }
+
+  SearchResponse doNestedQuery(TermsCollector terms) {
+    return getGrpcServer()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName(DEFAULT_TEST_INDEX)
+                .setStartHit(0)
+                .setTopHits(10)
+                .addRetrieveFields("doc_id")
+                .putCollectors(
+                    "test_collector",
+                    Collector.newBuilder()
+                        .setTerms(terms)
+                        .putNestedCollectors(
+                            "nested",
+                            Collector.newBuilder()
+                                .setTopHitsCollector(
+                                    TopHitsCollector.newBuilder()
+                                        .setStartHit(0)
+                                        .setTopHits(5)
+                                        .addRetrieveFields("doc_id")
+                                        .build())
+                                .build())
+                        .build())
+                .build());
+  }
+
+  void assertNestedResult(SearchResponse response) {
+    assertEquals(1, response.getCollectorResultsCount());
+    BucketResult result = response.getCollectorResultsOrThrow("test_collector").getBucketResult();
+    assertEquals(3, result.getTotalBuckets());
+    assertEquals(3, result.getBucketsCount());
+
+    for (Bucket bucket : result.getBucketsList()) {
+      assertEquals(1, bucket.getNestedCollectorResultsCount());
+      HitsResult hitsResult = bucket.getNestedCollectorResultsOrThrow("nested").getHitsResult();
+      assertTrue(hitsResult.getTotalHits().getValue() > 0);
+      assertTrue(hitsResult.getHitsCount() > 0);
+      for (Hit hit : hitsResult.getHitsList()) {
+        assertTrue(hit.containsFields("doc_id"));
+      }
+    }
   }
 }

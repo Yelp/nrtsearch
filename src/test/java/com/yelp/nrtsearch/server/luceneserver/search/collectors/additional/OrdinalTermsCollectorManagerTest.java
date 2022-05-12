@@ -207,4 +207,11 @@ public class OrdinalTermsCollectorManagerTest extends TermsCollectorManagerTests
         new ExpectedValues(new HashSet<>(Collections.singletonList("4")), 4),
         new ExpectedValues(new HashSet<>(Collections.singletonList("5")), 1));
   }
+
+  @Test
+  public void testNestedCollector() {
+    TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(3).build();
+    SearchResponse response = doNestedQuery(terms);
+    assertNestedResult(response);
+  }
 }

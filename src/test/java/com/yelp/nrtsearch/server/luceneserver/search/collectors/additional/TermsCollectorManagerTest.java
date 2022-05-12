@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
+import java.util.Collections;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -49,7 +50,8 @@ public class TermsCollectorManagerTest extends ServerTestCase {
       TermsCollector termsCollector =
           TermsCollector.newBuilder().setField("not_exist").setSize(10).build();
       try {
-        TermsCollectorManager.buildManager("test_collector", termsCollector, context);
+        TermsCollectorManager.buildManager(
+            "test_collector", termsCollector, context, Collections.emptyMap());
         fail();
       } catch (IllegalArgumentException e) {
         assertEquals("Unknown field: not_exist", e.getMessage());
@@ -73,7 +75,8 @@ public class TermsCollectorManagerTest extends ServerTestCase {
       TermsCollector termsCollector =
           TermsCollector.newBuilder().setField("no_doc_values").setSize(10).build();
       try {
-        TermsCollectorManager.buildManager("test_collector", termsCollector, context);
+        TermsCollectorManager.buildManager(
+            "test_collector", termsCollector, context, Collections.emptyMap());
         fail();
       } catch (IllegalArgumentException e) {
         assertEquals(

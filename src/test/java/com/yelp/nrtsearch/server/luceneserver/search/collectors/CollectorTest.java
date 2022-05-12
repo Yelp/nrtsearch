@@ -52,6 +52,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
@@ -160,7 +161,15 @@ public class CollectorTest extends ServerTestCase {
       private SearchContext searchContext;
 
       public TopHitsCollectorManager(
-          String name, CollectorCreatorContext context, Map<String, Object> params) {
+          String name,
+          CollectorCreatorContext context,
+          Map<String, Object> params,
+          Map<
+                  String,
+                  Supplier<
+                      AdditionalCollectorManager<
+                          ? extends org.apache.lucene.search.Collector, CollectorResult>>>
+              nestedCollectorSuppliers) {
         this.name = name;
         this.context = context;
         // The maximum number of top matching reviews to return per business.

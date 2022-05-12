@@ -22,18 +22,26 @@ import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.search.GlobalOrdinalLookup;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.NestedCollectorManagers.NestedCollectors;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.NestedCollectorManagers.NestedCollectors.NestedLeafCollectors;
 import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2IntMaps;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -53,14 +61,17 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
    * @param context context info for collector building
    * @param indexableFieldDef field def
    * @param globalOrdinalable provider of global ordinal lookup
+   * @param nestedCollectorSuppliers suppliers to create nested collector managers
    */
   public OrdinalTermsCollectorManager(
       String name,
       com.yelp.nrtsearch.server.grpc.TermsCollector grpcTermsCollector,
       CollectorCreatorContext context,
       IndexableFieldDef indexableFieldDef,
-      GlobalOrdinalable globalOrdinalable) {
-    super(name, grpcTermsCollector.getSize());
+      GlobalOrdinalable globalOrdinalable,
+      Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
+          nestedCollectorSuppliers) {
+    super(name, grpcTermsCollector.getSize(), nestedCollectorSuppliers);
     fieldDef = indexableFieldDef;
     try {
       globalOrdinalLookup =
@@ -80,7 +91,14 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
   public CollectorResult reduce(Collection<TermsCollector> collectors) throws IOException {
     Long2IntMap combinedCounts = combineCounts(collectors);
     BucketResult.Builder bucketBuilder = BucketResult.newBuilder();
-    fillBucketResult(bucketBuilder, combinedCounts, globalOrdinalLookup);
+    Collection<NestedCollectors> nestedCollectors;
+    if (hasNestedCollectors()) {
+      nestedCollectors =
+          collectors.stream().map(TermsCollector::getNestedCollectors).collect(Collectors.toList());
+    } else {
+      nestedCollectors = Collections.emptyList();
+    }
+    fillBucketResult(bucketBuilder, combinedCounts, globalOrdinalLookup, nestedCollectors);
 
     return CollectorResult.newBuilder().setBucketResult(bucketBuilder.build()).build();
   }
@@ -118,7 +136,7 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
     }
 
     @Override
-    public ScoreMode scoreMode() {
+    public ScoreMode implementationScoreMode() {
       return ScoreMode.COMPLETE_NO_SCORES;
     }
 
@@ -129,20 +147,34 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
     public class SortedLeafCollector implements LeafCollector {
       final SortedDocValues docValues;
       final LongValues segmentOrdsMapping;
+      final NestedLeafCollectors nestedLeafCollectors;
 
       public SortedLeafCollector(LeafReaderContext leafContext) throws IOException {
         docValues = DocValues.getSorted(leafContext.reader(), fieldDef.getName());
         segmentOrdsMapping = globalOrdinalLookup.getSegmentMapping(leafContext.ord);
+        NestedCollectors nestedCollectors = getNestedCollectors();
+        if (nestedCollectors != null) {
+          nestedLeafCollectors = nestedCollectors.getLeafCollector(leafContext);
+        } else {
+          nestedLeafCollectors = null;
+        }
       }
 
       @Override
-      public void setScorer(Scorable scorer) throws IOException {}
+      public void setScorer(Scorable scorer) throws IOException {
+        if (nestedLeafCollectors != null) {
+          nestedLeafCollectors.setScorer(scorer);
+        }
+      }
 
       @Override
       public void collect(int doc) throws IOException {
         if (docValues.advanceExact(doc)) {
           long globalOrd = segmentOrdsMapping.get(docValues.ordValue());
           countsMap.addTo(globalOrd, 1);
+          if (nestedLeafCollectors != null) {
+            nestedLeafCollectors.collect(globalOrd, doc);
+          }
         }
       }
     }
@@ -154,14 +186,25 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
     public class SortedSetLeafCollector implements LeafCollector {
       final SortedSetDocValues docValues;
       final LongValues segmentOrdsMapping;
+      final NestedLeafCollectors nestedLeafCollectors;
 
       public SortedSetLeafCollector(LeafReaderContext leafContext) throws IOException {
         docValues = DocValues.getSortedSet(leafContext.reader(), fieldDef.getName());
         segmentOrdsMapping = globalOrdinalLookup.getSegmentMapping(leafContext.ord);
+        NestedCollectors nestedCollectors = getNestedCollectors();
+        if (nestedCollectors != null) {
+          nestedLeafCollectors = nestedCollectors.getLeafCollector(leafContext);
+        } else {
+          nestedLeafCollectors = null;
+        }
       }
 
       @Override
-      public void setScorer(Scorable scorer) throws IOException {}
+      public void setScorer(Scorable scorer) throws IOException {
+        if (nestedLeafCollectors != null) {
+          nestedLeafCollectors.setScorer(scorer);
+        }
+      }
 
       @Override
       public void collect(int doc) throws IOException {
@@ -170,6 +213,9 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
           while (ord != NO_MORE_ORDS) {
             long globalOrd = segmentOrdsMapping.get(ord);
             countsMap.addTo(globalOrd, 1);
+            if (nestedLeafCollectors != null) {
+              nestedLeafCollectors.collect(globalOrd, doc);
+            }
             ord = docValues.nextOrd();
           }
         }

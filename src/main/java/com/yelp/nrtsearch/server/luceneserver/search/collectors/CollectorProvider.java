@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.PluginCollector;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.lucene.search.Collector;
 
 /**
@@ -37,7 +38,14 @@ public interface CollectorProvider<
    * @param name collection name
    * @param context collector creator context
    * @param params collector parameters decoded from {@link PluginCollector}
+   * @param nestedCollectorSuppliers suppliers to produce instances of nested sub-aggregations
+   *     defined in request
    * @return {@link AdditionalCollectorManager} instance
    */
-  T get(String name, CollectorCreatorContext context, Map<String, Object> params);
+  T get(
+      String name,
+      CollectorCreatorContext context,
+      Map<String, Object> params,
+      Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
+          nestedCollectorSuppliers);
 }

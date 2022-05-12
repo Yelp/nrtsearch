@@ -1533,6 +1533,13 @@
         "count": {
           "type": "integer",
           "format": "int32"
+        },
+        "nestedCollectorResults": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollectorResult"
+          },
+          "description": "Nested collector results for sub-aggregations of this bucket."
         }
       }
     },
@@ -2199,6 +2206,17 @@
         },
         "pluginCollector": {
           "$ref": "#/definitions/luceneserverPluginCollector"
+        },
+        "topHitsCollector": {
+          "$ref": "#/definitions/luceneserverTopHitsCollector",
+          "description": "Collector for getting top hits based on score or sorting."
+        },
+        "nestedCollectors": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollector"
+          },
+          "description": "Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors."
         }
       },
       "description": "Definition of additional document collector."
@@ -2213,6 +2231,10 @@
         "anyResult": {
           "$ref": "#/definitions/protobufAny",
           "title": "Flexible collector result for additional document collectors"
+        },
+        "hitsResult": {
+          "$ref": "#/definitions/luceneserverHitsResult",
+          "description": "Result of collector that returns document hits."
         }
       }
     },
@@ -3106,6 +3128,22 @@
       "properties": {
         "health": {
           "$ref": "#/definitions/luceneserverTransferStatusCode"
+        }
+      }
+    },
+    "luceneserverHitsResult": {
+      "type": "object",
+      "properties": {
+        "totalHits": {
+          "$ref": "#/definitions/luceneserverTotalHits",
+          "description": "Total hit information."
+        },
+        "hits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SearchResponseHit"
+          },
+          "description": "Ordered hits with scoring/sorting info and retrieved fields."
         }
       }
     },
@@ -4557,6 +4595,38 @@
         }
       },
       "description": "Definition of term aggregating collector."
+    },
+    "luceneserverTopHitsCollector": {
+      "type": "object",
+      "properties": {
+        "startHit": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Offset for retrieval of top hits."
+        },
+        "topHits": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total hits to collect, note that the number of hits returned is (topHits - startHit)."
+        },
+        "querySort": {
+          "$ref": "#/definitions/luceneserverQuerySortField",
+          "description": "When specified, collector does sort based collection. Otherwise, relevance score is used."
+        },
+        "totalHitsThreshold": {
+          "type": "integer",
+          "format": "int32",
+          "description": "By default we count hits accurately up to 1000. This makes sure that we don't spend most time on computing hit counts."
+        },
+        "retrieveFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Which fields to retrieve."
+        }
+      },
+      "description": "Definition of top hits based collector."
     },
     "luceneserverTotalHits": {
       "type": "object",
