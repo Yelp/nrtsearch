@@ -1,0 +1,82 @@
+{
+    "field1": [
+        700.0,
+        701.0,
+        702.0
+    ],
+    "field2": [
+        "object7_field2_a",
+        "object7_field2_b",
+        "object7_field2_c",
+        "object7_field2_d"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object7_inner_object1_a_inner_field1_a",
+                "object7_inner_object1_a_inner_field1_b"
+            ],
+            "inner_field2": [
+                "object7_inner_object1_a_inner_field2_a",
+                "object7_inner_object1_a_inner_field2_b",
+                "object7_inner_object1_a_inner_field2_c"
+            ],
+            "inner_object2": [
+                {
+                    "6": 7.0
+                },
+                {
+                    "ab": "cd",
+                    "ef": "gh"
+                }
+            ]
+        },
+        {
+            "inner_field1": [
+                "object7_inner_object1_b_inner_field1_a",
+                "object7_inner_object1_b_inner_field1_b"
+            ],
+            "inner_field2": [
+                "object7_inner_object1_b_inner_field2_a",
+                "object7_inner_object1_b_inner_field2_b",
+                "object7_inner_object1_b_inner_field2_c"
+            ],
+            "inner_object2": [
+                {
+                    "7": 77.0
+                },
+                {
+                    "71": 72.0
+                }
+            ]
+        },
+        {
+            "inner_field1": [
+                "object7_inner_object1_c_inner_field1_a",
+                "object7_inner_object1_c_inner_field1_b",
+                "object7_inner_object1_c_inner_field1_c"
+            ],
+            "inner_field2": [
+                "object7_inner_object1_c_inner_field2_a",
+                "object7_inner_object1_c_inner_field2_b"
+            ],
+            "inner_object2": [
+                {
+                    "70": 707.0,
+                    "7077": 77077.0,
+                    "777": 770.0
+                },
+                {
+                    "71": 7071.0,
+                    "7177": 770771.0,
+                    "7771": 7701.0
+                },
+                {
+                    "701": 70711.0,
+                    "70771": 7707711.0,
+                    "77711": 77011.0
+                }
+            ]
+        }
+    ]
+}

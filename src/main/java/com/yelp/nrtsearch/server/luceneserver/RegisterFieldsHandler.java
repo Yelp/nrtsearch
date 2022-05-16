@@ -153,7 +153,7 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
   private void verifyOnlyOneIdFieldExists(
       IndexState indexState, Map<String, FieldDef> pendingFieldDefs, FieldDef fieldDef)
       throws RegisterFieldsException {
-    IdFieldDef existingIdField = indexState.getIdFieldDef();
+    IdFieldDef existingIdField = indexState.getIdFieldDef().orElse(null);
     if (existingIdField == null) {
       for (Map.Entry<String, FieldDef> f : pendingFieldDefs.entrySet()) {
         if (f.getValue() instanceof IdFieldDef) {
@@ -190,17 +190,17 @@ public class RegisterFieldsHandler implements Handler<FieldDefRequest, FieldDefR
           && facetType != IndexableFieldDef.FacetValueType.NUMERIC_RANGE) {
         // hierarchy, float or sortedSetDocValues
         if (facetType == IndexableFieldDef.FacetValueType.HIERARCHY) {
-          indexState.facetsConfig.setHierarchical(fieldName, true);
+          indexState.getFacetsConfig().setHierarchical(fieldName, true);
         }
         if (indexableFieldDef.isMultiValue()) {
-          indexState.facetsConfig.setMultiValued(fieldName, true);
+          indexState.getFacetsConfig().setMultiValued(fieldName, true);
         }
         // set indexFieldName for HIERARCHY (TAXO), SORTED_SET_DOC_VALUE and FLAT  facet
         String facetFieldName =
             currentField.getFacetIndexFieldName().isEmpty()
                 ? String.format("$_%s", currentField.getName())
                 : currentField.getFacetIndexFieldName();
-        indexState.facetsConfig.setIndexFieldName(fieldName, facetFieldName);
+        indexState.getFacetsConfig().setIndexFieldName(fieldName, facetFieldName);
       }
     }
     // nocommit facetsConfig.setRequireDimCount

@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.yelp.nrtsearch.server.utils.Archiver;
+import com.yelp.nrtsearch.server.backup.Archiver;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -33,22 +33,34 @@ public class RestoreStateHandler {
   private static final Logger logger = LoggerFactory.getLogger(RestoreStateHandler.class);
 
   /**
-   * @param serviceName Name of service that identifies this cluster/deployment
    * @param archiver The singleton Archiver object used for this application
+   * @param incArchiver
    * @param globalState The singleton GlobalState object used for this application
+   * @param serviceName Name of service that identifies this cluster/deployment
+   * @param restoreFromIncArchiver
    * @return List of index names that were previously backed-up or an empty List if none were for
    *     the specified serviceName
    * @throws IOException
    * @see Archiver
    * @see GlobalState
    */
-  public static List<String> restore(Archiver archiver, GlobalState globalState, String serviceName)
+  public static List<String> restore(
+      Archiver archiver,
+      Archiver incArchiver,
+      GlobalState globalState,
+      String serviceName,
+      boolean restoreFromIncArchiver)
       throws IOException {
     List<String> indexNames = new ArrayList<>();
     List<String> resources = archiver.getResources(serviceName);
     for (String resource : resources) {
-      if (resource.contains("_metadata")) {
-        Path path = archiver.download(serviceName, resource);
+      if (IndexBackupUtils.isMetadata(resource)) {
+        Path path;
+        if (restoreFromIncArchiver) {
+          path = incArchiver.download(serviceName, resource);
+        } else {
+          path = archiver.download(serviceName, resource);
+        }
         logger.info(
             String.format(
                 "Downloaded state dir at: %s for service: %s, resource: %s",

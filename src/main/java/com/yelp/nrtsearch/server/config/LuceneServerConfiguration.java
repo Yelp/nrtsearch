@@ -73,6 +73,8 @@ public class LuceneServerConfiguration {
   private final String pluginSearchPath;
   private final String serviceName;
   private final boolean restoreState;
+  private final boolean restoreFromIncArchiver;
+  private final boolean backupWithIncArchiver;
   private final ThreadPoolConfiguration threadPoolConfiguration;
   private final IndexPreloadConfig preloadConfig;
   private final QueryCacheConfig queryCacheConfig;
@@ -83,6 +85,9 @@ public class LuceneServerConfiguration {
   private final boolean syncInitialNrtPoint;
   private final boolean indexVerbose;
   private final FileCopyConfig fileCopyConfig;
+  private final ScriptCacheConfig scriptCacheConfig;
+  private final boolean deadlineCancellation;
+  private final StateConfig stateConfig;
 
   private final YamlConfigReader configReader;
   private final long maxConnectionAgeForReplication;
@@ -122,22 +127,27 @@ public class LuceneServerConfiguration {
       metricsBuckets = DEFAULT_METRICS_BUCKETS;
     }
     this.metricsBuckets = metricsBuckets;
-    publishJvmMetrics = configReader.getBoolean("publishJvmMetrics", false);
+    publishJvmMetrics = configReader.getBoolean("publishJvmMetrics", true);
     plugins = configReader.getStringList("plugins", DEFAULT_PLUGINS).toArray(new String[0]);
     pluginSearchPath =
         configReader.getString("pluginSearchPath", DEFAULT_PLUGIN_SEARCH_PATH.toString());
     serviceName = configReader.getString("serviceName", DEFAULT_SERVICE_NAME);
     restoreState = configReader.getBoolean("restoreState", false);
+    restoreFromIncArchiver = configReader.getBoolean("restoreFromIncArchiver", false);
+    backupWithIncArchiver = configReader.getBoolean("backupWithIncArchiver", false);
     preloadConfig = IndexPreloadConfig.fromConfig(configReader);
     queryCacheConfig = QueryCacheConfig.fromConfig(configReader);
     warmerConfig = WarmerConfig.fromConfig(configReader);
-    downloadAsStream = configReader.getBoolean("downloadAsStream", false);
-    fileSendDelay = configReader.getBoolean("fileSendDelay", true);
+    downloadAsStream = configReader.getBoolean("downloadAsStream", true);
+    fileSendDelay = configReader.getBoolean("fileSendDelay", false);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
-    syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", false);
+    syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", true);
     indexVerbose = configReader.getBoolean("indexVerbose", false);
     fileCopyConfig = FileCopyConfig.fromConfig(configReader);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
+    scriptCacheConfig = ScriptCacheConfig.fromConfig(configReader);
+    deadlineCancellation = configReader.getBoolean("deadlineCancellation", false);
+    stateConfig = StateConfig.fromConfig(configReader);
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
@@ -212,6 +222,14 @@ public class LuceneServerConfiguration {
     return restoreState;
   }
 
+  public boolean getRestoreFromIncArchiver() {
+    return restoreFromIncArchiver;
+  }
+
+  public boolean getBackupWithInArchiver() {
+    return backupWithIncArchiver;
+  }
+
   public IndexPreloadConfig getPreloadConfig() {
     return preloadConfig;
   }
@@ -250,6 +268,18 @@ public class LuceneServerConfiguration {
 
   public YamlConfigReader getConfigReader() {
     return configReader;
+  }
+
+  public ScriptCacheConfig getScriptCacheConfig() {
+    return scriptCacheConfig;
+  }
+
+  public boolean getDeadlineCancellation() {
+    return deadlineCancellation;
+  }
+
+  public StateConfig getStateConfig() {
+    return stateConfig;
   }
 
   /**

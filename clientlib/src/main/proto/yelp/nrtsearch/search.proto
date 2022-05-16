@@ -2,6 +2,7 @@
 syntax = "proto3";
 
 import "google/protobuf/struct.proto";
+import "google/protobuf/any.proto";
 import "google/type/latlng.proto";
 import "yelp/nrtsearch/analysis.proto";
 
@@ -284,6 +285,8 @@ message SearchRequest {
     map<string, Collector> collectors = 21;
     //Stop document collection in search phase after this many documents, 0 for unlimited.
     int32 terminateAfter = 22;
+    //Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to uncompressed. Valid codecs: identity, gzip, lz4
+    string responseCompression = 23;
 }
 
 /* Virtual field used during search */
@@ -407,7 +410,14 @@ message SearchResponse {
                 double doubleValue = 6; // Value for DOUBLE FieldType
                 google.type.LatLng latLngValue = 7; // Value for LAT_LON FieldType
                 google.protobuf.Struct structValue = 8; // Value for structured data
+                // Value for VECTOR FieldType
+                Vector vectorValue = 9;
             }
+
+            message Vector {
+                repeated float value = 1;
+            }
+
         }
 
         message CompositeFieldValue {
@@ -557,7 +567,14 @@ message Collector {
     oneof Collectors {
         //Collector for aggregating based on term values.
         TermsCollector terms = 1;
+        PluginCollector pluginCollector = 2;
     }
+}
+
+// Defines an entry point for using a collector from a plugin
+message PluginCollector {
+    string name = 1;
+    google.protobuf.Struct params = 2; // arguments passed to the plugin
 }
 
 //Definition of term aggregating collector.
@@ -576,6 +593,8 @@ message CollectorResult {
     oneof CollectorResults {
         //Result of collector that produces buckets and counts.
         BucketResult bucketResult = 1;
+        //Flexible collector result for additional document collectors
+        google.protobuf.Any anyResult = 2;
     }
 }
 

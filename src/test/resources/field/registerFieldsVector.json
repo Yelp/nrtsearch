@@ -1,0 +1,12 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "vector_field",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "multiValued": false,
+      "vectorDimensions": 3
+    }
+  ]
+}

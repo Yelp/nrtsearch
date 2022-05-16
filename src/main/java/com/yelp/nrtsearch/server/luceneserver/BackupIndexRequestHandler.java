@@ -16,22 +16,19 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.gson.Gson;
+import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.BackupIndexRequest;
 import com.yelp.nrtsearch.server.grpc.BackupIndexResponse;
 import com.yelp.nrtsearch.server.grpc.CreateSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotResponse;
 import com.yelp.nrtsearch.server.grpc.SnapshotId;
-import com.yelp.nrtsearch.server.utils.Archiver;
 import java.io.IOException;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
@@ -41,18 +38,29 @@ import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/* The functionality of this class will be used only within the scope of Commit. Where commit will take care of uploading
+ * files to remote storage*/
+@Deprecated
 public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, BackupIndexResponse> {
   private static final String BACKUP_INDICATOR_FILE_NAME = "backup.txt";
   private static final ReentrantLock LOCK = new ReentrantLock();
   private static String lastBackedUpIndex = "";
+  private final boolean disableLegacy;
+  private final Archiver incrementalArchiver;
   Logger logger = LoggerFactory.getLogger(BackupIndexRequestHandler.class);
   private final Archiver archiver;
   private final Path archiveDirectory;
   private final Path backupIndicatorFilePath;
 
-  public BackupIndexRequestHandler(Archiver archiver, String archiveDirectory) {
+  public BackupIndexRequestHandler(
+      Archiver archiver,
+      Archiver incrementalArchiver,
+      String archiveDirectory,
+      boolean disableLegacy) {
     this.archiver = archiver;
+    this.incrementalArchiver = incrementalArchiver;
     this.archiveDirectory = Paths.get(archiveDirectory);
+    this.disableLegacy = disableLegacy;
     this.backupIndicatorFilePath = Paths.get(archiveDirectory, BACKUP_INDICATOR_FILE_NAME);
   }
 
@@ -88,7 +96,7 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
             backupIndexResponseBuilder,
             backupIndexRequest.getStream());
       } else {
-        indexState.commit();
+        indexState.commit(false);
 
         CreateSnapshotRequest createSnapshotRequest =
             CreateSnapshotRequest.newBuilder().setIndexName(indexName).build();
@@ -119,7 +127,8 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
             backupIndexResponseBuilder,
             segmentFiles,
             stateDirectory,
-            backupIndexRequest.getStream());
+            backupIndexRequest.getStream(),
+            snapshotId);
       }
 
     } catch (IOException e) {
@@ -142,17 +151,17 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
     return backupIndexResponseBuilder.build();
   }
 
-  private Collection<String> getSegmentFilesInSnapshot(IndexState indexState, SnapshotId snapshotId)
-      throws IOException {
+  public static Collection<String> getSegmentFilesInSnapshot(
+      IndexState indexState, SnapshotId snapshotId) throws IOException {
     String snapshotIdAsString = CreateSnapshotHandler.getSnapshotIdAsString(snapshotId);
     IndexState.Gens snapshot = new IndexState.Gens(snapshotIdAsString);
-    if (indexState.shards.size() != 1) {
+    if (indexState.getShards().size() != 1) {
       throw new IllegalStateException(
           String.format(
               "%s shards found index %s instead of exactly 1",
-              indexState.shards.size(), indexState.name));
+              indexState.getShards().size(), indexState.getName()));
     }
-    ShardState state = indexState.shards.entrySet().iterator().next().getValue();
+    ShardState state = indexState.getShards().entrySet().iterator().next().getValue();
     SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy = null;
     IndexReader indexReader = null;
     try {
@@ -288,21 +297,45 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       BackupIndexResponse.Builder backupIndexResponseBuilder,
       Collection<String> filesToInclude,
       Collection<String> parentDirectoriesToInclude,
-      boolean stream)
+      boolean stream,
+      SnapshotId snapshotId)
       throws IOException {
     String resourceData = IndexBackupUtils.getResourceData(resourceName);
-    String versionHash =
-        archiver.upload(
-            serviceName,
-            resourceData,
-            indexState.rootDir,
-            filesToInclude,
-            parentDirectoriesToInclude,
-            stream);
-    archiver.blessVersion(serviceName, resourceData, versionHash);
+    String versionHash;
+    if (!disableLegacy) {
+      versionHash =
+          archiver.upload(
+              serviceName,
+              resourceData,
+              indexState.getRootDir(),
+              filesToInclude,
+              parentDirectoriesToInclude,
+              stream);
+      archiver.blessVersion(serviceName, resourceData, versionHash);
+    } else {
+      // incremental backup needs to know current files/segments on disk
+      if (filesToInclude.isEmpty()) {
+        filesToInclude = getSegmentFilesInSnapshot(indexState, snapshotId);
+      }
+      versionHash =
+          incrementalArchiver.upload(
+              serviceName,
+              resourceData,
+              indexState.getRootDir(),
+              filesToInclude,
+              parentDirectoriesToInclude,
+              stream);
+      incrementalArchiver.blessVersion(serviceName, resourceData, versionHash);
+    }
     backupIndexResponseBuilder.setDataVersionHash(versionHash);
 
-    uploadMetadata(serviceName, resourceName, indexState, backupIndexResponseBuilder, stream);
+    if (indexState
+        .getGlobalState()
+        .getConfiguration()
+        .getStateConfig()
+        .useLegacyStateManagement()) {
+      uploadMetadata(serviceName, resourceName, indexState, backupIndexResponseBuilder, stream);
+    }
   }
 
   public void uploadMetadata(
@@ -313,19 +346,34 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       boolean stream)
       throws IOException {
     String resourceMetadata = IndexBackupUtils.getResourceMetadata(resourceName);
-    String versionHash =
-        archiver.upload(
-            serviceName,
-            resourceMetadata,
-            indexState.globalState.stateDir,
-            Collections.emptyList(),
-            Collections.emptyList(),
-            stream);
-    archiver.blessVersion(serviceName, resourceMetadata, versionHash);
+    String versionHash;
+    if (!disableLegacy) {
+      versionHash =
+          archiver.upload(
+              serviceName,
+              resourceMetadata,
+              indexState.getGlobalState().getStateDir(),
+              Collections.emptyList(),
+              Collections.emptyList(),
+              stream);
+      archiver.blessVersion(serviceName, resourceMetadata, versionHash);
+
+    } else {
+      versionHash =
+          incrementalArchiver.upload(
+              serviceName,
+              resourceMetadata,
+              indexState.getGlobalState().getStateDir(),
+              Collections.emptyList(),
+              Collections.emptyList(),
+              stream);
+      incrementalArchiver.blessVersion(serviceName, resourceMetadata, versionHash);
+    }
     backupIndexResponseBuilder.setMetadataVersionHash(versionHash);
   }
 
-  private void releaseSnapshot(IndexState indexState, String indexName, SnapshotId snapshotId) {
+  public static void releaseSnapshot(
+      IndexState indexState, String indexName, SnapshotId snapshotId) {
     ReleaseSnapshotRequest releaseSnapshotRequest =
         ReleaseSnapshotRequest.newBuilder()
             .setIndexName(indexName)

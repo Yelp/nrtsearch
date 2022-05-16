@@ -45,22 +45,22 @@ public class StatsRequestHandler implements Handler<StatsRequest, StatsResponse>
     try {
       return process(indexState);
     } catch (IOException e) {
-      logger.warn(" Failed to generate stats for index:  " + indexState.name, e);
+      logger.warn(" Failed to generate stats for index:  " + indexState.getName(), e);
       throw new HandlerException(e);
     }
   }
 
   private StatsResponse process(IndexState indexState) throws IOException {
     StatsResponse.Builder statsResponseBuilder = StatsResponse.newBuilder();
-    if (indexState.shards.size() > 1) {
+    if (indexState.getShards().size() > 1) {
       logger.error(
           "{} shards present for index {}, unable to process more than 1 shard",
-          indexState.shards.size(),
-          indexState.name);
+          indexState.getShards().size(),
+          indexState.getName());
       throw new IllegalStateException(
-          "Unable to get stats as more than 1 shard found for index " + indexState.name);
+          "Unable to get stats as more than 1 shard found for index " + indexState.getName());
     }
-    for (Map.Entry<Integer, ShardState> entry : indexState.shards.entrySet()) {
+    for (Map.Entry<Integer, ShardState> entry : indexState.getShards().entrySet()) {
       ShardState shardState = entry.getValue();
       statsResponseBuilder.setOrd(entry.getKey());
       if (shardState.writer != null) { // primary and standalone mode

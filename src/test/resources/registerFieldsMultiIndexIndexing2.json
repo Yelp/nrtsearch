@@ -1,0 +1,16 @@
+{
+  "indexName": "test_index_2",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "storeDocValues": true
+    },
+    {
+      "name": "license_no",
+      "type": "INT",
+      "multiValued": true,
+      "storeDocValues": true
+    }
+  ]
+}

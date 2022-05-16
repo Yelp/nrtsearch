@@ -22,12 +22,12 @@ import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
+import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.backup.ArchiverImpl;
+import com.yelp.nrtsearch.server.backup.Tar;
+import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import com.yelp.nrtsearch.server.utils.Archiver;
-import com.yelp.nrtsearch.server.utils.ArchiverImpl;
-import com.yelp.nrtsearch.server.utils.Tar;
-import com.yelp.nrtsearch.server.utils.TarImpl;
 import io.findify.s3mock.S3Mock;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -96,7 +96,7 @@ public class AckedCopyTest {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerPrimaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot(), extraConfig);
-    GlobalState globalStatePrimary = new GlobalState(luceneServerPrimaryConfiguration);
+    GlobalState globalStatePrimary = GlobalState.createState(luceneServerPrimaryConfiguration);
     luceneServerPrimary =
         new GrpcServer(
             grpcCleanup,
@@ -122,7 +122,7 @@ public class AckedCopyTest {
     // set up secondary servers
     LuceneServerConfiguration luceneServerSecondaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot(), extraConfig);
-    GlobalState globalStateSecondary = new GlobalState(luceneServerSecondaryConfiguration);
+    GlobalState globalStateSecondary = GlobalState.createState(luceneServerSecondaryConfiguration);
 
     luceneServerSecondary =
         new GrpcServer(

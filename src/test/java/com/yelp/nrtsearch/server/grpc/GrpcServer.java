@@ -17,13 +17,13 @@ package com.yelp.nrtsearch.server.grpc;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.RestoreStateHandler;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.plugins.Plugin;
-import com.yelp.nrtsearch.server.utils.Archiver;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
@@ -223,8 +223,10 @@ public class GrpcServer {
             ServerBuilder.forPort(port)
                 .addService(
                     new LuceneServer.LuceneServerImpl(
-                            globalState, configuration, archiver, collectorRegistry, plugins)
+                            globalState, configuration, archiver, null, collectorRegistry, plugins)
                         .bindService())
+                .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
+                .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
                 .build()
                 .start();
       } else {
@@ -241,8 +243,10 @@ public class GrpcServer {
                 .addService(
                     ServerInterceptors.intercept(
                         new LuceneServer.LuceneServerImpl(
-                            globalState, configuration, archiver, collectorRegistry, plugins),
+                            globalState, configuration, archiver, null, collectorRegistry, plugins),
                         monitoringInterceptor))
+                .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
+                .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
                 .build()
                 .start();
       }
@@ -266,6 +270,8 @@ public class GrpcServer {
       Server server =
           ServerBuilder.forPort(port)
               .addService(new LuceneServer.ReplicationServerImpl(globalState))
+              .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
+              .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
               .build()
               .start();
       grpcCleanup.register(server);
@@ -311,6 +317,7 @@ public class GrpcServer {
     public AddDocumentResponse addDocumentResponse;
     public boolean completed = false;
     public boolean error = false;
+    public Throwable throwable = null;
 
     public TestServer(
         GrpcServer grpcServer, boolean startIndex, Mode mode, int primaryGen, boolean startOldIndex)
@@ -339,7 +346,9 @@ public class GrpcServer {
         throws IOException, InterruptedException {
       Stream<AddDocumentRequest> addDocumentRequestStream = getAddDocumentRequestStream(fileName);
       addDocumentsFromStream(addDocumentRequestStream);
-      refresh();
+      if (!error) {
+        refresh();
+      }
       return addDocumentResponse;
     }
 
@@ -357,6 +366,7 @@ public class GrpcServer {
             @Override
             public void onError(Throwable t) {
               error = true;
+              throwable = t;
               finishLatch.countDown();
             }
 
@@ -456,7 +466,7 @@ public class GrpcServer {
                 .build();
         startIndexBuilder.setRestore(restoreIndex);
         RestoreStateHandler.restore(
-            grpcServer.getArchiver(), grpcServer.getGlobalState(), "testservice");
+            grpcServer.getArchiver(), null, grpcServer.getGlobalState(), "testservice", false);
       }
       blockingStub.startIndex(startIndexBuilder.build());
 

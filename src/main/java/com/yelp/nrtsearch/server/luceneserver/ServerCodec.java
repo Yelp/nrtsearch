@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -28,16 +29,17 @@ public class ServerCodec extends Lucene84Codec {
   public static final String DEFAULT_POSTINGS_FORMAT = "Lucene84";
   public static final String DEFAULT_DOC_VALUES_FORMAT = "Lucene80";
 
-  private final IndexState state;
+  private final IndexStateManager stateManager;
   // nocommit expose compression control
 
   /** Sole constructor. */
-  public ServerCodec(IndexState state) {
-    this.state = state;
+  public ServerCodec(IndexStateManager stateManager) {
+    this.stateManager = stateManager;
   }
 
   @Override
   public PostingsFormat getPostingsFormatForField(String field) {
+    IndexState state = stateManager.getCurrent();
     String pf;
     try {
       FieldDef fd = state.getField(field);
@@ -49,7 +51,7 @@ public class ServerCodec extends Lucene84Codec {
     } catch (IllegalArgumentException iae) {
       // The indexed facets field will have drill-downs,
       // which will pull the postings format:
-      if (state.internalFacetFieldNames.contains(field)) {
+      if (state.getInternalFacetFieldNames().contains(field)) {
         return super.getPostingsFormatForField(field);
       } else {
         throw iae;
@@ -60,6 +62,7 @@ public class ServerCodec extends Lucene84Codec {
 
   @Override
   public DocValuesFormat getDocValuesFormatForField(String field) {
+    IndexState state = stateManager.getCurrent();
     String dvf;
     try {
       FieldDef fd = state.getField(field);
@@ -69,7 +72,7 @@ public class ServerCodec extends Lucene84Codec {
         throw new IllegalArgumentException("Field " + field + " is not indexable");
       }
     } catch (IllegalArgumentException iae) {
-      if (state.internalFacetFieldNames.contains(field)) {
+      if (state.getInternalFacetFieldNames().contains(field)) {
         return super.getDocValuesFormatForField(field);
       } else {
         throw iae;

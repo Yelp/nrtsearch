@@ -50,7 +50,7 @@ public class DeleteByQueryHandler implements Handler<DeleteByQueryRequest, AddDo
     long genId = shardState.writer.getMaxCompletedSequenceNumber();
     return AddDocumentResponse.newBuilder()
         .setGenId(String.valueOf(genId))
-        .setPrimaryId(indexState.globalState.getEphemeralId())
+        .setPrimaryId(indexState.getGlobalState().getEphemeralId())
         .build();
   }
 

@@ -70,6 +70,30 @@ public interface LuceneServerClientBuilder<T> {
     }
   }
 
+  class SettingsV2ClientBuilder implements LuceneServerClientBuilder<SettingsV2Request> {
+    private static final Logger logger =
+        LoggerFactory.getLogger(SettingsClientBuilder.class.getName());
+
+    @Override
+    public SettingsV2Request buildRequest(Path filePath) throws IOException {
+      String jsonStr = Files.readString(filePath);
+      logger.info(String.format("Converting fields %s to proto IndexSettings", jsonStr));
+      IndexSettings.Builder indexSettingsBuilder = IndexSettings.newBuilder();
+      try {
+        JsonFormat.parser().merge(jsonStr, indexSettingsBuilder);
+      } catch (InvalidProtocolBufferException e) {
+        throw new RuntimeException(e);
+      }
+      SettingsV2Request settingsRequest =
+          SettingsV2Request.newBuilder().setSettings(indexSettingsBuilder.build()).build();
+      logger.info(
+          String.format(
+              "jsonStr converted to proto SettingsRequestV2: \n%s",
+              JsonFormat.printer().print(settingsRequest)));
+      return settingsRequest;
+    }
+  }
+
   class StartIndexClientBuilder implements LuceneServerClientBuilder<StartIndexRequest> {
     private static final Logger logger =
         LoggerFactory.getLogger(StartIndexClientBuilder.class.getName());

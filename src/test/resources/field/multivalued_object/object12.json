@@ -1,0 +1,82 @@
+{
+    "field1": [
+        1200.0,
+        1201.0,
+        1202.0
+    ],
+    "field2": [
+        "object12_field2_a",
+        "object12_field2_b",
+        "object12_field2_c",
+        "object12_field2_d"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object12_inner_object1_a_inner_field1_a",
+                "object12_inner_object1_a_inner_field1_b"
+            ],
+            "inner_field2": [
+                "object12_inner_object2_a_inner_field1_a",
+                "object12_inner_object2_a_inner_field1_b",
+                "object12_inner_object2_a_inner_field1_c"
+            ],
+            "inner_object2": [
+                {
+                    "6": 12.0
+                },
+                {
+                    "ab": "cd",
+                    "ef": "gh"
+                }
+            ]
+        },
+        {
+            "inner_field1": [
+                "object12_inner_object1_b_inner_field1_a",
+                "object12_inner_object1_b_inner_field1_b"
+            ],
+            "inner_field2": [
+                "object12_inner_object2_b_inner_field1_a",
+                "object12_inner_object2_b_inner_field1_b",
+                "object12_inner_object2_b_inner_field1_c"
+            ],
+            "inner_object2": [
+                {
+                    "12": 1212.0
+                },
+                {
+                    "121": 122.0
+                }
+            ]
+        },
+        {
+            "inner_field1": [
+                "object12_inner_object1_c_inner_field1_a",
+                "object12_inner_object1_c_inner_field1_b",
+                "object12_inner_object1_c_inner_field1_c"
+            ],
+            "inner_field2": [
+                "object12_inner_object2_c_inner_field1_a",
+                "object12_inner_object2_c_inner_field1_b"
+            ],
+            "inner_object2": [
+                {
+                    "120": 12012.0,
+                    "1201212": 121201212.0,
+                    "121212": 12120.0
+                },
+                {
+                    "121": 120121.0,
+                    "1211212": 1212012121.0,
+                    "1212121": 121201.0
+                },
+                {
+                    "1201": 1201211.0,
+                    "12012121": 12120121211.0,
+                    "12121211": 12011.0
+                }
+            ]
+        }
+    ]
+}

@@ -63,6 +63,7 @@ import org.apache.lucene.search.IndexSearcher;
 public class DrillSidewaysImpl extends DrillSideways {
   private final List<Facet> grpcFacets;
   private final SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomyManager;
+  private final IndexState indexState;
   private final ShardState shardState;
   private final Map<String, FieldDef> dynamicFields;
   private final List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults;
@@ -84,6 +85,7 @@ public class DrillSidewaysImpl extends DrillSideways {
       TaxonomyReader taxoReader,
       List<Facet> grpcFacets,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomyManager,
+      IndexState indexState,
       ShardState shardState,
       Map<String, FieldDef> dynamicFields,
       List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults,
@@ -92,6 +94,7 @@ public class DrillSidewaysImpl extends DrillSideways {
     super(searcher, config, taxoReader, null, executorService);
     this.grpcFacets = grpcFacets;
     this.searcherAndTaxonomyManager = searcherAndTaxonomyManager;
+    this.indexState = indexState;
     this.shardState = shardState;
     this.dynamicFields = dynamicFields;
     this.grpcFacetResults = grpcFacetResults;
@@ -105,6 +108,7 @@ public class DrillSidewaysImpl extends DrillSideways {
         drillDowns,
         drillSideways,
         drillSidewaysDims,
+        indexState,
         shardState,
         grpcFacets,
         dynamicFields,
@@ -118,6 +122,7 @@ public class DrillSidewaysImpl extends DrillSideways {
       FacetsCollector drillDowns,
       FacetsCollector[] drillSideways,
       String[] drillSidewaysDims,
+      IndexState indexState,
       ShardState shardState,
       List<Facet> grpcFacets,
       Map<String, FieldDef> dynamicFields,
@@ -125,8 +130,6 @@ public class DrillSidewaysImpl extends DrillSideways {
       List<com.yelp.nrtsearch.server.grpc.FacetResult> grpcFacetResults,
       Diagnostics.Builder diagnostics)
       throws IOException {
-
-    IndexState indexState = shardState.indexState;
 
     Map<String, FacetsCollector> dsDimMap = new HashMap<String, FacetsCollector>();
     if (drillSidewaysDims != null) {
@@ -160,6 +163,7 @@ public class DrillSidewaysImpl extends DrillSideways {
             getFieldFacetResult(
                 drillDowns,
                 dsDimMap,
+                indexState,
                 shardState,
                 facet,
                 dynamicFields,
@@ -303,13 +307,13 @@ public class DrillSidewaysImpl extends DrillSideways {
   private static com.yelp.nrtsearch.server.grpc.FacetResult getFieldFacetResult(
       FacetsCollector drillDowns,
       Map<String, FacetsCollector> dsDimMap,
+      IndexState indexState,
       ShardState shardState,
       Facet facet,
       Map<String, FieldDef> dynamicFields,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomyManager,
       Map<String, Facets> indexFieldNameToFacets)
       throws IOException {
-    IndexState indexState = shardState.indexState;
 
     String fieldName = facet.getDim();
     FieldDef fieldDef = dynamicFields.get(fieldName);
@@ -416,13 +420,13 @@ public class DrillSidewaysImpl extends DrillSideways {
             new FilteredSSDVFacetCounts(
                 facet.getLabelsList(),
                 fieldDef.getName(),
-                shardState.getSSDVState(searcherAndTaxonomyManager, fieldDef),
+                shardState.getSSDVState(indexState, searcherAndTaxonomyManager, fieldDef),
                 c);
         facetResult = filteredSSDVFacetCounts.getTopChildren(facet.getTopN(), fieldDef.getName());
       } else {
         SortedSetDocValuesFacetCounts sortedSetDocValuesFacetCounts =
             new SortedSetDocValuesFacetCounts(
-                shardState.getSSDVState(searcherAndTaxonomyManager, fieldDef), c);
+                shardState.getSSDVState(indexState, searcherAndTaxonomyManager, fieldDef), c);
         facetResult =
             sortedSetDocValuesFacetCounts.getTopChildren(facet.getTopN(), fieldDef.getName());
       }
@@ -456,20 +460,20 @@ public class DrillSidewaysImpl extends DrillSideways {
         // drill-down; compute its facet counts from the
         // drill-sideways collector:
         String indexFieldName =
-            indexState.facetsConfig.getDimConfig(fieldDef.getName()).indexFieldName;
+            indexState.getFacetsConfig().getDimConfig(fieldDef.getName()).indexFieldName;
         if (useCachedOrds) {
           luceneFacets =
               new TaxonomyFacetCounts(
                   shardState.getOrdsCache(indexFieldName),
                   searcherAndTaxonomyManager.taxonomyReader,
-                  indexState.facetsConfig,
+                  indexState.getFacetsConfig(),
                   c);
         } else {
           luceneFacets =
               new FastTaxonomyFacetCounts(
                   indexFieldName,
                   searcherAndTaxonomyManager.taxonomyReader,
-                  indexState.facetsConfig,
+                  indexState.getFacetsConfig(),
                   c);
         }
       } else {
@@ -479,7 +483,7 @@ public class DrillSidewaysImpl extends DrillSideways {
         // See if we already computed facet
         // counts for this indexFieldName:
         String indexFieldName =
-            indexState.facetsConfig.getDimConfig(fieldDef.getName()).indexFieldName;
+            indexState.getFacetsConfig().getDimConfig(fieldDef.getName()).indexFieldName;
         Map<String, Facets> facetsMap = indexFieldNameToFacets;
         luceneFacets = facetsMap.get(indexFieldName);
         if (luceneFacets == null) {
@@ -488,14 +492,14 @@ public class DrillSidewaysImpl extends DrillSideways {
                 new TaxonomyFacetCounts(
                     shardState.getOrdsCache(indexFieldName),
                     searcherAndTaxonomyManager.taxonomyReader,
-                    indexState.facetsConfig,
+                    indexState.getFacetsConfig(),
                     drillDowns);
           } else {
             luceneFacets =
                 new FastTaxonomyFacetCounts(
                     indexFieldName,
                     searcherAndTaxonomyManager.taxonomyReader,
-                    indexState.facetsConfig,
+                    indexState.getFacetsConfig(),
                     drillDowns);
           }
           facetsMap.put(indexFieldName, luceneFacets);

@@ -23,14 +23,14 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.backup.ArchiverImpl;
+import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
-import com.yelp.nrtsearch.server.utils.Archiver;
-import com.yelp.nrtsearch.server.utils.ArchiverImpl;
-import com.yelp.nrtsearch.server.utils.TarImpl;
 import io.findify.s3mock.S3Mock;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -121,6 +121,35 @@ public class WarmerTest {
 
     for (SearchRequest testRequest : getTestSearchRequests()) {
       verify(mockSearchHandler).handle(mockIndexState, testRequest);
+    }
+    verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  @Test
+  public void testWarmFromS3_multiple()
+      throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
+    Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
+    try (BufferedWriter writer =
+        Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
+      List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
+      for (String line : testSearchRequestsJson) {
+        writer.write(line);
+        writer.newLine();
+      }
+      writer.flush();
+    }
+    String versionHash =
+        archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), false);
+    archiver.blessVersion(service, resource, versionHash);
+
+    IndexState mockIndexState = mock(IndexState.class);
+    SearchHandler mockSearchHandler = mock(SearchHandler.class);
+
+    warmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+    warmer.warmFromS3(mockIndexState, 0, mockSearchHandler);
+
+    for (SearchRequest testRequest : getTestSearchRequests()) {
+      verify(mockSearchHandler, times(2)).handle(mockIndexState, testRequest);
     }
     verifyNoMoreInteractions(mockSearchHandler);
   }

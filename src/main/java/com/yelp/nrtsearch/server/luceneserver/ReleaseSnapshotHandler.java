@@ -45,7 +45,7 @@ public class ReleaseSnapshotHandler
       }
 
       long stateGen = gens.stateGen;
-      if (indexState.genRefCounts.containsKey(stateGen)) {
+      if (indexState.getGenRefCounts().containsKey(stateGen)) {
         indexState.decRef(stateGen);
       } else {
         logger.warn("State gen {} is not held by a snapshot, skipping release", stateGen);

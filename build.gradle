@@ -22,7 +22,7 @@ sourceCompatibility = 1.14
 targetCompatibility = 1.14
 
 allprojects {
-    version = '0.10.2'
+    version = '0.11.0'
     group = 'com.yelp.nrtsearch'
 }
 
@@ -34,8 +34,9 @@ System.setProperty("org.gradle.internal.publish.checksums.insecure", "True")
 def luceneVersion = '8.4.0'
 project.ext.slf4jVersion = '2.0.0-alpha1'
 project.ext.grpcVersion = '1.38.0'
+project.ext.lz4Version = '1.7.0'
 project.ext.mockitoVersion = '2.25.1'
-def log4jVersion = '2.14.1'
+def log4jVersion = '2.17.0'
 def disruptorVersion = '3.2.1'
 def gsonVersion = '2.8.5'
 def snakeYamlVersion = '1.25'
@@ -45,7 +46,6 @@ def s3mockVersion = '0.2.5'
 def commonsCompressVersion = '1.19'
 def awsJavaSdkVersion = '1.11.695'
 def guicedeeVersion = '1.1.1.3-jre14'
-def lz4Version = '1.7.0'
 def prometheusClientVersion = '0.8.0'
 def fastutilVersion = '8.5.6'
 
@@ -72,7 +72,7 @@ dependencies {
     implementation "com.amazonaws:aws-java-sdk-s3:${awsJavaSdkVersion}"
     implementation "javax.xml.bind:jaxb-api:2.3.1"
     implementation "com.guicedee.services:guice:${guicedeeVersion}"
-    implementation "org.lz4:lz4-java:${lz4Version}"
+    implementation "org.lz4:lz4-java:${project.ext.lz4Version}"
     implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonYamlVersion}"
     implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonYamlVersion}"
 
@@ -131,9 +131,17 @@ task luceneServerClient(type: CreateStartScripts) {
     classpath = startScripts.classpath
 }
 
+task backupRestoreTool(type: CreateStartScripts) {
+    mainClassName = 'com.yelp.nrtsearch.server.cli.BackupRestoreCommand'
+    applicationName = 'backup-restore'
+    outputDir = new File(project.buildDir, 'tmp')
+    classpath = startScripts.classpath
+}
+
 applicationDistribution.into('bin') {
     from(luceneServer)
     from(luceneServerClient)
+    from(backupRestoreTool)
     fileMode = 0755
 }
 
@@ -148,7 +156,6 @@ task buildGrpcGateway(dependsOn: installDist, type: Exec) {
 //e.g. default is to exclude perfTests: ./gradlew test
 test {
     finalizedBy 'spotlessJavaCheck'
-    finalizedBy 'jacocoTestReport'
     if (!project.hasProperty('includePerfTests')) {
         exclude '**/YelpReviewsTest.class'
         exclude '**/YelpSuggestTest.class'

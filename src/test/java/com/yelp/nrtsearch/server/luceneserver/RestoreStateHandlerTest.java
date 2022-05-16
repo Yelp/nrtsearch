@@ -21,12 +21,12 @@ import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
+import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.backup.ArchiverImpl;
+import com.yelp.nrtsearch.server.backup.TarEntry;
+import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Mode;
-import com.yelp.nrtsearch.server.utils.Archiver;
-import com.yelp.nrtsearch.server.utils.ArchiverImpl;
-import com.yelp.nrtsearch.server.utils.TarEntry;
-import com.yelp.nrtsearch.server.utils.TarImpl;
 import io.findify.s3mock.S3Mock;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -65,7 +65,7 @@ public class RestoreStateHandlerTest {
             s3, BUCKET_NAME, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4));
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    globalState = new GlobalState(luceneServerConfiguration);
+    globalState = GlobalState.createState(luceneServerConfiguration);
   }
 
   @After
@@ -76,7 +76,8 @@ public class RestoreStateHandlerTest {
 
   @Test
   public void handleBadServiceName() throws IOException {
-    List<String> indexes = RestoreStateHandler.restore(archiver, globalState, "NoSuchService");
+    List<String> indexes =
+        RestoreStateHandler.restore(archiver, null, globalState, "NoSuchService", false);
     Assert.assertEquals(0, indexes.size());
   }
 
@@ -84,7 +85,8 @@ public class RestoreStateHandlerTest {
   public void handleNoResource() throws IOException {
     s3.putObject(BUCKET_NAME, "testservice/_version/testresource/_latest_version", "1");
     s3.putObject(BUCKET_NAME, "testservice/_version/testresource/1", "abcdef");
-    List<String> indexes = RestoreStateHandler.restore(archiver, globalState, "testservice");
+    List<String> indexes =
+        RestoreStateHandler.restore(archiver, null, globalState, "testservice", false);
     Assert.assertEquals(0, indexes.size());
   }
 
@@ -95,7 +97,8 @@ public class RestoreStateHandlerTest {
     final TarEntry tarEntry = new TarEntry("foo", "testcontent");
     TarEntry.uploadToS3(
         s3, BUCKET_NAME, Arrays.asList(tarEntry), "testservice/testresource_metadata/abcdef");
-    List<String> indexes = RestoreStateHandler.restore(archiver, globalState, "testservice");
+    List<String> indexes =
+        RestoreStateHandler.restore(archiver, null, globalState, "testservice", false);
     Assert.assertEquals(1, indexes.size());
     Assert.assertEquals("testresource_metadata", indexes.get(0));
   }

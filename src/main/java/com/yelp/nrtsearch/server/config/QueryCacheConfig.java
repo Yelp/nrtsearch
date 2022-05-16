@@ -29,6 +29,7 @@ public class QueryCacheConfig {
   static final float DEFAULT_MIN_SIZE_RATIO = 0.03f;
   static final float DEFAULT_SKIP_CACHE_FACTOR = 250.0f;
 
+  private final boolean enabled;
   private final int maxQueries;
   private final long maxMemoryBytes;
   private final Predicate<LeafReaderContext> leafPredicate;
@@ -41,6 +42,7 @@ public class QueryCacheConfig {
    * @return class instance
    */
   public static QueryCacheConfig fromConfig(YamlConfigReader configReader) {
+    boolean enabled = configReader.getBoolean(CONFIG_PREFIX + "enabled", true);
     int maxQueries = configReader.getInteger(CONFIG_PREFIX + "maxQueries", DEFAULT_MAX_QUERIES);
     String maxMemory = configReader.getString(CONFIG_PREFIX + "maxMemory", DEFAULT_MAX_MEMORY);
     long maxMemoryBytes = sizeStrToBytes(maxMemory);
@@ -49,7 +51,8 @@ public class QueryCacheConfig {
         configReader.getFloat(CONFIG_PREFIX + "minSizeRatio", DEFAULT_MIN_SIZE_RATIO);
     float skipCacheFactor =
         configReader.getFloat(CONFIG_PREFIX + "skipCacheFactor", DEFAULT_SKIP_CACHE_FACTOR);
-    return new QueryCacheConfig(maxQueries, maxMemoryBytes, minDocs, minSizeRatio, skipCacheFactor);
+    return new QueryCacheConfig(
+        enabled, maxQueries, maxMemoryBytes, minDocs, minSizeRatio, skipCacheFactor);
   }
 
   /**
@@ -91,6 +94,7 @@ public class QueryCacheConfig {
   /**
    * Constructor.
    *
+   * @param enabled toggle for enabling query cache
    * @param maxQueries max queries the cache will hold
    * @param maxMemoryBytes maximum cache memory size
    * @param minDocs min docs needed to consider caching for a segment
@@ -98,11 +102,22 @@ public class QueryCacheConfig {
    * @param skipCacheFactor skip caching clauses this many times as expensive as top-level query
    */
   public QueryCacheConfig(
-      int maxQueries, long maxMemoryBytes, int minDocs, float minSizeRatio, float skipCacheFactor) {
+      boolean enabled,
+      int maxQueries,
+      long maxMemoryBytes,
+      int minDocs,
+      float minSizeRatio,
+      float skipCacheFactor) {
+    this.enabled = enabled;
     this.maxQueries = maxQueries;
     this.maxMemoryBytes = maxMemoryBytes;
     this.leafPredicate = new MinSegmentSizePredicate(minDocs, minSizeRatio);
     this.skipCacheFactor = skipCacheFactor;
+  }
+
+  /** Get if query cache is enabled. */
+  public boolean getEnabled() {
+    return enabled;
   }
 
   /** Get maximum queries to cache. */

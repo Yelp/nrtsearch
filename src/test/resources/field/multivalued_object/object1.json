@@ -1,0 +1,32 @@
+{
+    "field1": [
+        10.0,
+        11.0,
+        1100.0
+    ],
+    "field2": [
+        "object1_field2"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object1_inner_field_1"
+            ],
+            "inner_field2": [
+                "object1_inner_field2_a",
+                "object1_inner_field2_b",
+                "object1_inner_field2_c"
+            ],
+            "inner_object2": [
+                {
+                    "object": "{\"k1\":\"v1\",\"k2\":\"v2\"}",
+                    "4": 5.0
+                },
+                {
+                    "a": "b",
+                    "100": "d"
+                }
+            ]
+        }
+    ]
+}

@@ -107,7 +107,7 @@ public class SearchRequestProcessor {
         .setStartHit(searchRequest.getStartHit())
         .setTopHits(searchRequest.getTopHits());
 
-    Map<String, FieldDef> queryVirtualFields = getVirtualFields(shardState, searchRequest);
+    Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
 
     Map<String, FieldDef> queryFields = new HashMap<>(queryVirtualFields);
     addIndexFields(indexState, queryFields);
@@ -139,13 +139,17 @@ public class SearchRequestProcessor {
 
     CollectorCreatorContext collectorCreatorContext =
         new CollectorCreatorContext(searchRequest, indexState, shardState, queryFields);
-    contextBuilder.setCollector(buildDocCollector(collectorCreatorContext));
+    DocCollector docCollector = buildDocCollector(collectorCreatorContext);
+    contextBuilder.setCollector(docCollector);
 
     contextBuilder.setRescorers(
         getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
     contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
-    return contextBuilder.build(true);
+    SearchContext searchContext = contextBuilder.build(true);
+    // Give underlying collectors access to the search context
+    docCollector.setSearchContext(searchContext);
+    return searchContext;
   }
 
   /**
@@ -154,12 +158,11 @@ public class SearchRequestProcessor {
    * @throws IllegalArgumentException if there are multiple virtual fields with the same name
    */
   private static Map<String, FieldDef> getVirtualFields(
-      ShardState shardState, SearchRequest searchRequest) {
+      IndexState indexState, SearchRequest searchRequest) {
     if (searchRequest.getVirtualFieldsList().isEmpty()) {
       return new HashMap<>();
     }
 
-    IndexState indexState = shardState.indexState;
     Map<String, FieldDef> virtualFields = new HashMap<>();
     for (VirtualField vf : searchRequest.getVirtualFieldsList()) {
       if (virtualFields.containsKey(vf.getName())) {
@@ -289,7 +292,7 @@ public class SearchRequestProcessor {
 
   /** Fold in any drillDowns requests into the query. */
   private static DrillDownQuery addDrillDowns(IndexState state, Query q) {
-    return new DrillDownQuery(state.facetsConfig, q);
+    return new DrillDownQuery(state.getFacetsConfig(), q);
   }
 
   /**
@@ -305,8 +308,9 @@ public class SearchRequestProcessor {
             searchRequest.getCollectorsMap().entrySet().stream()
                 .map(
                     e ->
-                        CollectorCreator.createCollectorManager(
-                            collectorCreatorContext, e.getKey(), e.getValue()))
+                        CollectorCreator.getInstance()
+                            .createCollectorManager(
+                                collectorCreatorContext, e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
     if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
       if (hasLargeNumHits(searchRequest)) {

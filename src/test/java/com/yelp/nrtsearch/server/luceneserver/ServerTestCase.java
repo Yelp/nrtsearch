@@ -204,7 +204,7 @@ public class ServerTestCase {
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), getExtraConfig());
-    globalState = new GlobalState(luceneServerConfiguration);
+    globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         collectorRegistry,
         grpcCleanup,
@@ -219,9 +219,8 @@ public class ServerTestCase {
         getPlugins());
   }
 
-  private void initIndices() throws Exception {
+  protected void initIndices() throws Exception {
     for (String indexName : getIndices()) {
-      String rootDirName = grpcServer.getIndexDir();
       LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
 
       // create the index

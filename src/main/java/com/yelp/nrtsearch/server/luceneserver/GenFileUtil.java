@@ -49,7 +49,7 @@ public abstract class GenFileUtil<T> {
   }
 
   /** Loads the most recent generation file. */
-  protected synchronized T load() throws IOException {
+  public synchronized T load() throws IOException {
     long genLoaded = -1;
     IOException ioe = null;
 

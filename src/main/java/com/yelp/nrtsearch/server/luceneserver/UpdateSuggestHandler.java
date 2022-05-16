@@ -31,13 +31,13 @@ public class UpdateSuggestHandler implements Handler<BuildSuggestRequest, BuildS
   public BuildSuggestResponse handle(IndexState indexState, BuildSuggestRequest buildSuggestRequest)
       throws HandlerException {
     final String suggestName = buildSuggestRequest.getSuggestName();
-    Lookup lookup = indexState.suggesters.get(suggestName);
+    Lookup lookup = indexState.getSuggesters().get(suggestName);
     if (lookup == null) {
       throw new RuntimeException(
           "suggestName: this suggester (\""
               + suggestName
               + "\") was not yet built; valid suggestNames: "
-              + indexState.suggesters.keySet());
+              + indexState.getSuggesters().keySet());
     }
     if ((lookup instanceof AnalyzingInfixSuggester) == false) {
       throw new UnsupportedOperationException(

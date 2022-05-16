@@ -53,10 +53,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
 public class NodeNameResolverAndLoadBalancingTests {
@@ -112,7 +109,7 @@ public class NodeNameResolverAndLoadBalancingTests {
   private GrpcServer createGrpcServer() throws IOException {
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    GlobalState globalState = new GlobalState(luceneServerConfiguration);
+    GlobalState globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         grpcCleanup,
         luceneServerConfiguration,
@@ -174,7 +171,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     server.shutdown();
   }
 
-  @Test(timeout = 1000)
+  @Test(timeout = 10000)
   public void testSimpleLoadBalancing() throws IOException {
     LuceneServerGrpc.LuceneServerBlockingStub stub = luceneServerStubBuilder.createBlockingStub();
 
@@ -225,7 +222,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(requestsToEachServer, resultCounts.get(SERVER_3_ID).intValue());
   }
 
-  @Test(timeout = 1000)
+  @Test(timeout = 10000)
   public void testServerShutDown() throws IOException, InterruptedException {
     LuceneServerGrpc.LuceneServerBlockingStub stub = luceneServerStubBuilder.createBlockingStub();
     warmConnections(stub);
@@ -251,7 +248,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
-  @Test(timeout = 1000)
+  @Test(timeout = 10000)
   public void testNodeRemovedFromAddressFile() throws IOException, InterruptedException {
     // Use a lower update interval for this test
     int updateInterval = 10;
@@ -282,7 +279,7 @@ public class NodeNameResolverAndLoadBalancingTests {
     assertEquals(resultCounts.get(SERVER_3_ID).intValue(), requestsToEachServer);
   }
 
-  @Test(timeout = 1000)
+  @Test(timeout = 10000)
   public void testNodeAddedToAddressFile() throws IOException, InterruptedException {
     // Add only servers 2 and 3 to the file
     writeNodeAddressFile(port2, port3);
@@ -386,7 +383,7 @@ public class NodeNameResolverAndLoadBalancingTests {
   private int performSearch(LuceneServerGrpc.LuceneServerBlockingStub stub) {
     SearchRequest searchRequest = buildSearchRequest();
     SearchResponse searchResponse =
-        stub.withDeadlineAfter(400, TimeUnit.MILLISECONDS).search(searchRequest);
+        stub.withDeadlineAfter(4000, TimeUnit.MILLISECONDS).search(searchRequest);
     return searchResponse.getHits(0).getFieldsOrThrow(FIELD_NAME).getFieldValue(0).getIntValue();
   }
 
@@ -431,6 +428,6 @@ public class NodeNameResolverAndLoadBalancingTests {
             completionCounter.increment();
           }
         };
-    stub.withDeadlineAfter(400, TimeUnit.MILLISECONDS).search(searchRequest, responseObserver);
+    stub.withDeadlineAfter(4000, TimeUnit.MILLISECONDS).search(searchRequest, responseObserver);
   }
 }

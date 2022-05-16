@@ -28,6 +28,9 @@ public interface Restorable {
   Logger logger = LoggerFactory.getLogger(Restorable.class);
 
   default void restoreDir(Path source, Path target) throws IOException {
+    /* Source is path to "current" dir symlink where index was downloaded from s3
+    target is path of index_dir/index_name
+    * */
     Path baseSource = source.getParent();
     Path tempCurrentLink = baseSource.resolve(getTmpName());
     Path downloadedFileName = Files.list(source).findFirst().get().getFileName();

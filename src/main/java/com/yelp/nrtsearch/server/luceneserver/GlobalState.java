@@ -15,30 +15,20 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
+import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
+import com.yelp.nrtsearch.server.luceneserver.state.LegacyGlobalState;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.channels.SeekableByteChannel;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -49,42 +39,54 @@ import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class GlobalState implements Closeable, Restorable {
-  public static final String NULL = "NULL";
+public abstract class GlobalState implements Closeable {
+  private static final Logger logger = LoggerFactory.getLogger(GlobalState.class);
   private final String hostName;
   private final int port;
   private final int replicationPort;
   private final ThreadPoolConfiguration threadPoolConfiguration;
+  private final Archiver incArchiver;
   private int replicaReplicationPortPingInterval;
-
-  Logger logger = LoggerFactory.getLogger(GlobalState.class);
-  private long lastIndicesGen;
-  private final JsonParser jsonParser = new JsonParser();
   private final String ephemeralId = UUID.randomUUID().toString();
 
-  public final String nodeName;
+  private final String nodeName;
 
-  public final List<RemoteNodeConnection> remoteNodes = new CopyOnWriteArrayList<>();
+  private final List<RemoteNodeConnection> remoteNodes = new CopyOnWriteArrayList<>();
 
-  public final LuceneServerConfiguration configuration;
-
-  /** Current indices. */
-  final Map<String, IndexState> indices = new ConcurrentHashMap<String, IndexState>();
+  private final LuceneServerConfiguration configuration;
 
   /** Server shuts down once this latch is decremented. */
-  public final CountDownLatch shutdownNow = new CountDownLatch(1);
+  private final CountDownLatch shutdownNow = new CountDownLatch(1);
 
-  final Path stateDir;
-  final Path indexDirBase;
-
-  /** This is persisted so on restart we know about all previously created indices. */
-  private final JsonObject indexNames = new JsonObject();
+  private final Path stateDir;
+  private final Path indexDirBase;
 
   private final ExecutorService indexService;
   private final ExecutorService fetchService;
   private final ThreadPoolExecutor searchThreadPoolExecutor;
 
-  public GlobalState(LuceneServerConfiguration luceneServerConfiguration) throws IOException {
+  public static GlobalState createState(LuceneServerConfiguration luceneServerConfiguration)
+      throws IOException {
+    return createState(luceneServerConfiguration, null);
+  }
+
+  public static GlobalState createState(
+      LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
+      throws IOException {
+    if (luceneServerConfiguration.getStateConfig().useLegacyStateManagement()) {
+      return new LegacyGlobalState(luceneServerConfiguration, incArchiver);
+    } else {
+      return new BackendGlobalState(luceneServerConfiguration, incArchiver);
+    }
+  }
+
+  public Optional<Archiver> getIncArchiver() {
+    return Optional.ofNullable(incArchiver);
+  }
+
+  protected GlobalState(LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
+      throws IOException {
+    this.incArchiver = incArchiver;
     this.nodeName = luceneServerConfiguration.getNodeName();
     this.stateDir = Paths.get(luceneServerConfiguration.getStateDir());
     this.indexDirBase = Paths.get(luceneServerConfiguration.getIndexDir());
@@ -110,7 +112,14 @@ public class GlobalState implements Closeable, Restorable {
             ThreadPoolExecutorFactory.ExecutorType.FETCH,
             luceneServerConfiguration.getThreadPoolConfiguration());
     this.configuration = luceneServerConfiguration;
-    loadIndexNames();
+  }
+
+  public LuceneServerConfiguration getConfiguration() {
+    return configuration;
+  }
+
+  public String getNodeName() {
+    return nodeName;
   }
 
   public String getHostName() {
@@ -133,76 +142,14 @@ public class GlobalState implements Closeable, Restorable {
     return stateDir;
   }
 
-  public synchronized void setStateDir(Path source) throws IOException {
-    restoreDir(source, stateDir);
-    loadIndexNames();
-  }
-
-  // need to call this first time LuceneServer comes up and upon StartIndex with restore
-  private void loadIndexNames() throws IOException {
-    long gen = IndexState.getLastGen(stateDir, "indices");
-    lastIndicesGen = gen;
-    if (gen != -1) {
-      Path path = stateDir.resolve("indices." + gen);
-      byte[] bytes;
-      try (SeekableByteChannel channel = Files.newByteChannel(path, StandardOpenOption.READ)) {
-        bytes = new byte[(int) channel.size()];
-        ByteBuffer buffer = ByteBuffer.wrap(bytes);
-        int count = channel.read(buffer);
-        if (count != bytes.length) {
-          throw new AssertionError("fix me!");
-        }
-      }
-      JsonObject o;
-      try {
-        o = jsonParser.parse(IndexState.fromUTF8(bytes)).getAsJsonObject();
-      } catch (JsonParseException pe) {
-        // Something corrupted the save state since we last
-        // saved it ...
-        throw new RuntimeException(
-            "index state file \"" + path + "\" cannot be parsed: " + pe.getMessage());
-      }
-      for (Map.Entry<String, JsonElement> ent : o.entrySet()) {
-        indexNames.add(ent.getKey(), ent.getValue());
-      }
-    }
-  }
-
-  private void saveIndexNames() throws IOException {
-    synchronized (indices) {
-      lastIndicesGen++;
-      byte[] bytes = IndexState.toUTF8(indexNames.toString());
-      Path f = stateDir.resolve("indices." + lastIndicesGen);
-      try (FileChannel channel =
-          FileChannel.open(f, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)) {
-        int count = channel.write(ByteBuffer.wrap(bytes));
-        if (count != bytes.length) {
-          throw new AssertionError("fix me");
-        }
-        channel.force(true);
-      }
-
-      // remove old gens
-      try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateDir)) {
-        for (Path sub : stream) {
-          String filename = sub.getFileName().toString();
-          if (filename.startsWith("indices.")) {
-            long gen = Long.parseLong(filename.substring(8));
-            if (gen != lastIndicesGen) {
-              Files.delete(sub);
-            }
-          }
-        }
-      }
-    }
+  public CountDownLatch getShutdownLatch() {
+    return shutdownNow;
   }
 
   @Override
   public void close() throws IOException {
-    logger.info("GlobalState.close: indices=" + indices);
     // searchThread.interrupt();
     IOUtils.close(remoteNodes);
-    IOUtils.close(indices.values());
     indexService.shutdown();
     TimeLimitingCollector.getGlobalTimerThread().stopTimer();
     try {
@@ -212,85 +159,51 @@ public class GlobalState implements Closeable, Restorable {
     }
   }
 
+  /** Get base directory for all index data. */
+  public Path getIndexDirBase() {
+    return indexDirBase;
+  }
+
+  /** Get index data directory for given index name. */
   public Path getIndexDir(String indexName) {
     return Paths.get(indexDirBase.toString(), indexName);
   }
 
-  /** Create a new index. */
-  public IndexState createIndex(String name) throws IllegalArgumentException, IOException {
-    synchronized (indices) {
-      Path rootDir = getIndexDir(name);
-      if (indexNames.get(name) != null) {
-        throw new IllegalArgumentException("index \"" + name + "\" already exists");
-      }
-      if (rootDir == null) {
-        indexNames.addProperty(name, NULL);
-      } else {
-        if (Files.exists(rootDir)) {
-          throw new IllegalArgumentException("rootDir \"" + rootDir + "\" already exists");
-        }
-        indexNames.addProperty(name, name);
-      }
-      saveIndexNames();
-      IndexState state = new IndexState(this, name, rootDir, true, false);
-      indices.put(name, state);
-      return state;
-    }
-  }
+  /** Get the data resource name for a given index. Used with incremental archiver functionality. */
+  public abstract String getDataResourceForIndex(String indexName);
 
-  public IndexState getIndex(String name, boolean hasRestore) throws IOException {
-    synchronized (indices) {
-      IndexState state = indices.get(name);
-      if (state == null) {
-        String rootPath = null;
-        JsonElement indexJsonName = indexNames.get(name);
-        if (indexJsonName == null) {
-          throw new IllegalArgumentException("index " + name + " was not saved or commited");
-        }
-        String indexName = indexJsonName.getAsString();
-        if (indexName != null) {
-          rootPath = getIndexDir(name).toString();
-        }
-        if (rootPath != null) {
-          if (rootPath.equals(NULL)) {
-            state = new IndexState(this, name, null, false, hasRestore);
-          } else {
-            state = new IndexState(this, name, Paths.get(rootPath), false, hasRestore);
-          }
-          // nocommit we need to also persist which shards are here?
-          state.addShard(0, false);
-          indices.put(name, state);
-        } else {
-          throw new IllegalArgumentException("index \"" + name + "\" was not yet created");
-        }
-      }
-      return state;
-    }
-  }
+  public abstract void setStateDir(Path source) throws IOException;
+
+  public abstract Set<String> getIndexNames();
+
+  /** Create a new index. */
+  public abstract IndexState createIndex(String name) throws IOException;
+
+  public abstract IndexState getIndex(String name, boolean hasRestore) throws IOException;
 
   /** Get the {@link IndexState} by index name. */
-  public IndexState getIndex(String name) throws IllegalArgumentException, IOException {
-    return getIndex(name, false);
-  }
+  public abstract IndexState getIndex(String name) throws IOException;
 
-  public Future<Long> submitIndexingTask(Callable job) {
-    return indexService.submit(job);
-  }
+  /**
+   * Get the state manager for a given index.
+   *
+   * @param name index name
+   * @return state manager
+   * @throws IOException on error reading index data
+   */
+  public abstract IndexStateManager getIndexStateManager(String name) throws IOException;
 
   /** Remove the specified index. */
-  public void deleteIndex(String name) throws IOException {
-    synchronized (indices) {
-      indexNames.remove(name);
-      saveIndexNames();
-    }
+  public abstract void deleteIndex(String name) throws IOException;
+
+  public abstract void indexClosed(String name);
+
+  public Future<Long> submitIndexingTask(Callable<Long> job) {
+    return indexService.submit(job);
   }
 
   public int getReplicationPort() {
     return replicationPort;
-  }
-
-  public Set<String> getIndexNames() {
-    return Collections.unmodifiableSet(indexNames.keySet());
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {

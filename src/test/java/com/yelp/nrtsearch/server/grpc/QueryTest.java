@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -77,7 +78,7 @@ public class QueryTest {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    GlobalState globalState = new GlobalState(luceneServerConfiguration);
+    GlobalState globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         grpcCleanup,
         luceneServerConfiguration,
@@ -132,6 +133,61 @@ public class QueryTest {
     String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
     assertEquals("2", docId);
     LuceneServerTest.checkHits(hit);
+  }
+
+  @Test
+  public void testSearchQueryResponseCompression() {
+    List<String> compressionTypes = Arrays.asList("", "identity", "gzip", "lz4", "invalid");
+
+    for (String compressionType : compressionTypes) {
+      SearchResponse searchResponse =
+          grpcServer
+              .getBlockingStub()
+              .search(
+                  SearchRequest.newBuilder()
+                      .setIndexName(grpcServer.getTestIndex())
+                      .setStartHit(0)
+                      .setTopHits(10)
+                      .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                      .setQueryText("SECOND")
+                      .setResponseCompression(compressionType)
+                      .build());
+
+      assertEquals(1, searchResponse.getTotalHits().getValue());
+      assertEquals(1, searchResponse.getHitsList().size());
+      SearchResponse.Hit hit = searchResponse.getHits(0);
+      String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+      assertEquals("2", docId);
+      LuceneServerTest.checkHits(hit);
+    }
+  }
+
+  @Test
+  public void testSearchV2ResponseCompression() throws InvalidProtocolBufferException {
+    List<String> compressionTypes = Arrays.asList("", "identity", "gzip", "lz4", "invalid");
+
+    for (String compressionType : compressionTypes) {
+      Any anyResponse =
+          grpcServer
+              .getBlockingStub()
+              .searchV2(
+                  SearchRequest.newBuilder()
+                      .setIndexName(grpcServer.getTestIndex())
+                      .setStartHit(0)
+                      .setTopHits(10)
+                      .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                      .setQueryText("SECOND")
+                      .setResponseCompression(compressionType)
+                      .build());
+      assertTrue(anyResponse.is(SearchResponse.class));
+      SearchResponse searchResponse = anyResponse.unpack(SearchResponse.class);
+      assertEquals(1, searchResponse.getTotalHits().getValue());
+      assertEquals(1, searchResponse.getHitsList().size());
+      SearchResponse.Hit hit = searchResponse.getHits(0);
+      String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+      assertEquals("2", docId);
+      LuceneServerTest.checkHits(hit);
+    }
   }
 
   @Test
@@ -536,6 +592,32 @@ public class QueryTest {
                     .setField("vendor_name")
                     .setQuery("SECOND again")
                     .setOperator(MatchOperator.MUST))
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(1, searchResponse.getTotalHits().getValue());
+          assertEquals(1, searchResponse.getHitsList().size());
+          SearchResponse.Hit hit = searchResponse.getHits(0);
+          String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("2", docId);
+          LuceneServerTest.checkHits(hit);
+        };
+
+    testQuery(query, responseTester);
+  }
+
+  @Test
+  public void testSearchMatchQueryWithFuzzyParamsAndMinShouldMatch1() {
+    Query query =
+        Query.newBuilder()
+            .setMatchQuery(
+                MatchQuery.newBuilder()
+                    .setField("vendor_name")
+                    .setQuery("SECOND")
+                    .setMinimumNumberShouldMatch(1)
+                    .setFuzzyParams(FuzzyParams.newBuilder().setMaxEdits(2).setMaxExpansions(100))
+                    .setOperator(MatchOperator.SHOULD))
             .build();
 
     Consumer<SearchResponse> responseTester =

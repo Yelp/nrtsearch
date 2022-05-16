@@ -32,13 +32,13 @@ public class SuggestLookupHandler implements Handler<SuggestLookupRequest, Sugge
   public SuggestLookupResponse handle(
       IndexState indexState, SuggestLookupRequest suggestLookupRequest) throws HandlerException {
     String suggestName = suggestLookupRequest.getSuggestName();
-    final Lookup lookup = indexState.suggesters.get(suggestName);
+    final Lookup lookup = indexState.getSuggesters().get(suggestName);
     if (lookup == null) {
       throw new RuntimeException(
           "suggestName: this suggester (\""
               + suggestName
               + "\") was not yet built; valid suggestNames: "
-              + indexState.suggesters.keySet());
+              + indexState.getSuggesters().keySet());
     }
     final String text = suggestLookupRequest.getText();
     final int count = suggestLookupRequest.getCount() == 0 ? 5 : suggestLookupRequest.getCount();

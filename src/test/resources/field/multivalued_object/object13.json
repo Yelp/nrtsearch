@@ -1,0 +1,45 @@
+{
+    "field1": [
+        1313.0
+    ],
+    "field2": [
+        "object13_field2_a",
+        "object13_field2_b",
+        "object13_field2_c",
+        "object13_field2_d"
+    ],
+    "inner_object1": [
+        {
+            "inner_field1": [
+                "object13_inner_object1_a_inner_field1_a",
+                "object13_inner_object1_a_inner_field1_b"
+            ],
+            "inner_field2": [
+                "object13_inner_object1_a_inner_field2"
+            ],
+            "inner_object2": [
+                {
+                    "13": 13131.0
+                },
+                {
+                    "ab": "cd",
+                    "ef": "gh"
+                }
+            ]
+        },
+        {
+            "inner_field1": [
+                "object13_inner_object1_b_inner_field1_a",
+                "object13_inner_object1_b_inner_field1_b"
+            ],
+            "inner_field2": [
+                "object13_inner_object1_b_inner_field2"
+            ],
+            "inner_object2": [
+                {
+                    "131313": 1313131313.0
+                }
+            ]
+        }
+    ]
+}

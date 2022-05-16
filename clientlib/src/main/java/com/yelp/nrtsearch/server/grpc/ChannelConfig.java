@@ -31,6 +31,7 @@ import java.util.Objects;
 public class ChannelConfig {
   private Boolean enableRetry;
   private Integer maxHedgedAttempts;
+  private Integer maxInboundMessageSize;
   private ServiceConfig serviceConfig;
 
   // Deserialization constructor
@@ -41,12 +42,17 @@ public class ChannelConfig {
    *
    * @param enableRetry if the retry system should be enabled
    * @param maxHedgedAttempts channel level max for hedge attempts
+   * @param maxInboundMessageSize maximum size of inbound messages in bytes
    * @param serviceConfig additional service configuration
    */
   public ChannelConfig(
-      Boolean enableRetry, Integer maxHedgedAttempts, ServiceConfig serviceConfig) {
+      Boolean enableRetry,
+      Integer maxHedgedAttempts,
+      Integer maxInboundMessageSize,
+      ServiceConfig serviceConfig) {
     this.enableRetry = enableRetry;
     this.maxHedgedAttempts = maxHedgedAttempts;
+    this.maxInboundMessageSize = maxInboundMessageSize;
     this.serviceConfig = serviceConfig;
   }
 
@@ -56,6 +62,10 @@ public class ChannelConfig {
 
   public Integer getMaxHedgedAttempts() {
     return maxHedgedAttempts;
+  }
+
+  public Integer getMaxInboundMessageSize() {
+    return maxInboundMessageSize;
   }
 
   public ServiceConfig getServiceConfig() {
@@ -80,6 +90,9 @@ public class ChannelConfig {
     }
     if (maxHedgedAttempts != null) {
       builder.maxHedgedAttempts(maxHedgedAttempts);
+    }
+    if (maxInboundMessageSize != null) {
+      builder.maxInboundMessageSize(maxInboundMessageSize);
     }
     if (serviceConfig != null) {
       @SuppressWarnings("unchecked")
