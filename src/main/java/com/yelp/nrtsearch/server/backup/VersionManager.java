@@ -36,6 +36,16 @@ public class VersionManager {
     this.bucketName = bucketName;
   }
 
+  /** Get S3 client. */
+  public AmazonS3 getS3() {
+    return s3;
+  }
+
+  /** Get S3 bucket name. */
+  public String getBucketName() {
+    return bucketName;
+  }
+
   /**
    * @param serviceName
    * @param resourceName
