@@ -77,4 +77,23 @@ public class LegacyGlobalStateTest {
     assertTrue(indexStateManager instanceof LegacyStateManager);
     assertTrue(indexStateManager.getCurrent() instanceof LegacyIndexState);
   }
+
+  @Test
+  public void testGetIndicesToStart() throws IOException {
+    GlobalState globalState = getLegacyGlobalState();
+    globalState.createIndex("test_index");
+    assertEquals(globalState.getIndexNames(), globalState.getIndicesToStart());
+  }
+
+  @Test(expected = UnsupportedOperationException.class)
+  public void testStartIndex() throws IOException {
+    GlobalState globalState = getLegacyGlobalState();
+    globalState.startIndex(null);
+  }
+
+  @Test(expected = UnsupportedOperationException.class)
+  public void testStopIndex() throws IOException {
+    GlobalState globalState = getLegacyGlobalState();
+    globalState.stopIndex(null);
+  }
 }

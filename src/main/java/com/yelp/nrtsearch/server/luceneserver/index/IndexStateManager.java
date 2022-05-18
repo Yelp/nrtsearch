@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import java.io.Closeable;
 import java.io.IOException;
@@ -91,12 +92,10 @@ public interface IndexStateManager extends Closeable {
    * @param serverMode index mode
    * @param dataPath path to any restored index data, or null
    * @param primaryGen primary generation number
-   * @param primaryAddress address of index primary
-   * @param primaryPort port of index primary
+   * @param primaryClient replication client for replicas to talk to primary
    * @throws IOException on error accessing index data
    */
-  void start(
-      Mode serverMode, Path dataPath, long primaryGen, String primaryAddress, int primaryPort)
+  void start(Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
       throws IOException;
 
   /**

@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
@@ -169,7 +170,7 @@ public class BackendStateManager implements IndexStateManager {
 
   @Override
   public synchronized void start(
-      Mode serverMode, Path dataPath, long primaryGen, String primaryAddress, int primaryPort)
+      Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
       throws IOException {
     if (currentState == null) {
       throw new IllegalStateException("No state for index: " + indexName);
@@ -177,7 +178,7 @@ public class BackendStateManager implements IndexStateManager {
     if (currentState.isStarted()) {
       throw new IllegalStateException("Index already started: " + indexName);
     }
-    currentState.start(serverMode, dataPath, primaryGen, primaryAddress, primaryPort);
+    currentState.start(serverMode, dataPath, primaryGen, primaryClient);
     if (serverMode != Mode.REPLICA && !currentState.getCurrentStateInfo().getCommitted()) {
       logger.info("Doing initial commit for index: " + indexName);
       currentState.commit(globalState.getConfiguration().getBackupWithInArchiver());

@@ -1046,7 +1046,7 @@ public class LegacyIndexState extends IndexState implements Restorable {
 
   @Override
   public void start(
-      Mode serverMode, Path dataPath, long primaryGen, String primaryAddress, int primaryPort)
+      Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
       throws IOException {
     if (shards.size() == 0) {
       throw new IllegalStateException("No shards to start for index: " + getName());
@@ -1086,11 +1086,8 @@ public class LegacyIndexState extends IndexState implements Restorable {
         }
         break;
       case REPLICA:
-        // channel for replica to talk to primary on
-        ReplicationServerClient primaryNodeClient =
-            new ReplicationServerClient(primaryAddress, primaryPort);
         for (ShardState shard : shards.values()) {
-          shard.startReplica(primaryNodeClient, primaryGen);
+          shard.startReplica(primaryClient, primaryGen);
         }
         break;
       default:

@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -79,7 +80,7 @@ public class LegacyStateManager implements IndexStateManager {
 
   @Override
   public void start(
-      Mode serverMode, Path dataPath, long primaryGen, String primaryAddress, int primaryPort)
+      Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
       throws IOException {
     throw new UnsupportedOperationException(EXCEPTION_MSG);
   }
