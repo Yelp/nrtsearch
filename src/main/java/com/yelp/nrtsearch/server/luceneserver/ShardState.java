@@ -78,6 +78,7 @@ import org.slf4j.LoggerFactory;
 public class ShardState implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(ShardState.class);
   private static final long INITIAL_SYNC_PRIMARY_WAIT_MS = 30000;
+  private static final long INITIAL_SYNC_MAX_TIME_MS = 600000; // 10m
   public static final int REPLICA_ID = 0;
   public static final String INDEX_DATA_DIR_NAME = "index";
   final ThreadPoolExecutor searchExecutor;
@@ -231,7 +232,10 @@ public class ShardState implements Closeable {
 
   /** True if this index is started. */
   public boolean isStarted() {
-    return started;
+    if (started) {
+      return isReplica() || (writer != null && writer.isOpen());
+    }
+    return false;
   }
 
   public boolean isRestored() {
@@ -303,7 +307,9 @@ public class ShardState implements Closeable {
   public synchronized void close() throws IOException {
     logger.info(String.format("ShardState.close name= %s", name));
 
-    commit();
+    if (writer != null && writer.isOpen()) {
+      commit();
+    }
 
     started = false;
     List<Closeable> closeables = new ArrayList<>();
@@ -930,7 +936,8 @@ public class ShardState implements Closeable {
       }
 
       if (indexState.getGlobalState().getConfiguration().getSyncInitialNrtPoint()) {
-        nrtReplicaNode.syncFromCurrentPrimary(INITIAL_SYNC_PRIMARY_WAIT_MS);
+        nrtReplicaNode.syncFromCurrentPrimary(
+            INITIAL_SYNC_PRIMARY_WAIT_MS, INITIAL_SYNC_MAX_TIME_MS);
       }
 
       startSearcherPruningThread(indexState.getGlobalState().getShutdownLatch());

@@ -262,13 +262,14 @@ public class NRTReplicaNode extends ReplicaNode {
   /**
    * Sync the next nrt point from the current primary. Attempts to get the current index version
    * from the primary, giving up after the specified amount of time. Sync is considered completed
-   * when either the index version has updated to at least the initial primary version, or there is
-   * a failure to start a new copy job.
+   * when either the index version has updated to at least the initial primary version, there is a
+   * failure to start a new copy job, or the specified max time elapses.
    *
    * @param primaryWaitMs how long to wait for primary to be available
+   * @param maxTimeMs max time to attempt initial point sync
    * @throws IOException on issue getting searcher version
    */
-  public void syncFromCurrentPrimary(long primaryWaitMs) throws IOException {
+  public void syncFromCurrentPrimary(long primaryWaitMs, long maxTimeMs) throws IOException {
     logger.info("Starting sync of next nrt point from current primary");
     long startMS = System.currentTimeMillis();
     long primaryIndexVersion = -1;
@@ -296,10 +297,10 @@ public class NRTReplicaNode extends ReplicaNode {
     }
     long curVersion = getCurrentSearchingVersion();
     logger.info("Nrt sync: primary version: {}, my version: {}", primaryIndexVersion, curVersion);
-    // Keep trying to sync a new nrt point until either our searcher version updates, or
-    // we are unable to start a new copy job. This is needed since long running nrt points
-    // may fail if the primary cleans up old commit files.
-    while (curVersion < primaryIndexVersion) {
+    // Keep trying to sync a new nrt point until either we run out of time, our searcher version
+    // updates, or we are unable to start a new copy job. This is needed since long running nrt
+    // points may fail if the primary cleans up old commit files.
+    while (curVersion < primaryIndexVersion && (System.currentTimeMillis() - startMS < maxTimeMs)) {
       CopyJob job = newNRTPoint(lastPrimaryGen, Long.MAX_VALUE);
       if (job == null) {
         logger.info("Nrt sync: failed to start copy job, aborting");

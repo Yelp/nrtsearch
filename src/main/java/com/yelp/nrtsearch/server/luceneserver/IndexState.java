@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
+import com.yelp.nrtsearch.server.luceneserver.field.ContextSuggestFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
@@ -112,8 +113,14 @@ public abstract class IndexState implements Closeable {
         @Override
         public Analyzer getWrappedAnalyzer(String name) {
           FieldDef fd = getField(name);
-          if (fd instanceof TextBaseFieldDef) {
-            Optional<Analyzer> maybeAnalyzer = ((TextBaseFieldDef) fd).getIndexAnalyzer();
+          if (fd instanceof TextBaseFieldDef || fd instanceof ContextSuggestFieldDef) {
+            Optional<Analyzer> maybeAnalyzer = Optional.empty();
+            if (fd instanceof TextBaseFieldDef) {
+              maybeAnalyzer = ((TextBaseFieldDef) fd).getIndexAnalyzer();
+            } else {
+              maybeAnalyzer = ((ContextSuggestFieldDef) fd).getIndexAnalyzer();
+            }
+
             if (maybeAnalyzer.isEmpty()) {
               throw new IllegalArgumentException(
                   "field \"" + name + "\" did not specify analyzer or indexAnalyzer");

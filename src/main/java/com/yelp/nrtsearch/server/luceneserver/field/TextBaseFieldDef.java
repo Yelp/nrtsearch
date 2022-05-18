@@ -285,7 +285,9 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef implements Term
         } else if (docValuesType == DocValuesType.SORTED_SET) {
           document.add(new SortedSetDocValuesField(getName(), stringBytes));
         } else {
-          throw new IllegalArgumentException("unsupported doc value type: " + docValuesType);
+          throw new IllegalArgumentException(
+              String.format(
+                  "Unsupported doc value type %s for field %s", docValuesType, this.getName()));
         }
       }
 

@@ -1193,23 +1193,39 @@ public class LuceneServerTest {
   }
 
   @Test
-  public void testReady() {
+  public void testReady() throws IOException {
     LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
     String index1 = "index1";
     String index2 = "index2";
-    for (String indexName : List.of(index1, index2)) {
+    String index3 = "index3";
+
+    // Create all indices
+    for (String indexName : List.of(index1, index2, index3)) {
       CreateIndexResponse createIndexResponse =
           blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
       String expectedResponse =
           String.format("Created Index name: %s", indexName, grpcServer.getIndexDir());
       assertEquals(expectedResponse, createIndexResponse.getResponse());
     }
-    StartIndexRequest startIndexRequest =
-        StartIndexRequest.newBuilder().setIndexName(index2).setMode(Mode.STANDALONE).build();
-    StartIndexResponse startIndexResponse = blockingStub.startIndex(startIndexRequest);
-    assertEquals(0, startIndexResponse.getNumDocs());
 
-    for (String indexNames : Arrays.asList("", "index1", "index1,index2")) {
+    // Start indices 2 and 3
+    for (String indexName : List.of(index2, index3)) {
+      StartIndexRequest startIndexRequest =
+          StartIndexRequest.newBuilder().setIndexName(indexName).setMode(Mode.STANDALONE).build();
+      StartIndexResponse startIndexResponse = blockingStub.startIndex(startIndexRequest);
+      assertEquals(0, startIndexResponse.getNumDocs());
+    }
+
+    grpcServer.getGlobalState().getIndex(index3).getShard(0).writer.close();
+
+    try {
+      blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames("").build());
+      fail("Expecting exception on the previous line");
+    } catch (StatusRuntimeException e) {
+      assertEquals(e.getMessage(), "UNAVAILABLE: Indices not started: [index1, index3]");
+    }
+
+    for (String indexNames : Arrays.asList("index1", "index1,index2")) {
       try {
         blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames(indexNames).build());
         fail("Expecting exception on the previous line");
@@ -1218,12 +1234,21 @@ public class LuceneServerTest {
       }
     }
 
-    for (String indexNames : Arrays.asList("index3", "index1,index3", "index3,index2,index1")) {
+    for (String indexNames : Arrays.asList("index3", "index2,index3")) {
       try {
         blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames(indexNames).build());
         fail("Expecting exception on the previous line");
       } catch (StatusRuntimeException e) {
-        assertEquals(e.getMessage(), "UNAVAILABLE: Indices do not exist: [index3]");
+        assertEquals(e.getMessage(), "UNAVAILABLE: Indices not started: [index3]");
+      }
+    }
+
+    for (String indexNames : Arrays.asList("index4", "index1,index4", "index4,index2,index1")) {
+      try {
+        blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames(indexNames).build());
+        fail("Expecting exception on the previous line");
+      } catch (StatusRuntimeException e) {
+        assertEquals(e.getMessage(), "UNAVAILABLE: Indices do not exist: [index4]");
       }
     }
 

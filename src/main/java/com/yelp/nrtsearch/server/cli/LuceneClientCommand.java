@@ -40,6 +40,7 @@ import picocli.CommandLine;
       ForceMergeDeletesCommand.class,
       LiveSettingsCommand.class,
       LiveSettingsV2Command.class,
+      ReadyCommand.class,
       RefreshCommand.class,
       RegisterFieldsCommand.class,
       SearchCommand.class,

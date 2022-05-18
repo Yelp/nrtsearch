@@ -608,6 +608,32 @@ public class QueryTest {
   }
 
   @Test
+  public void testSearchMatchQueryWithFuzzyParamsAndMinShouldMatch1() {
+    Query query =
+        Query.newBuilder()
+            .setMatchQuery(
+                MatchQuery.newBuilder()
+                    .setField("vendor_name")
+                    .setQuery("SECOND")
+                    .setMinimumNumberShouldMatch(1)
+                    .setFuzzyParams(FuzzyParams.newBuilder().setMaxEdits(2).setMaxExpansions(100))
+                    .setOperator(MatchOperator.SHOULD))
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(1, searchResponse.getTotalHits().getValue());
+          assertEquals(1, searchResponse.getHitsList().size());
+          SearchResponse.Hit hit = searchResponse.getHits(0);
+          String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("2", docId);
+          LuceneServerTest.checkHits(hit);
+        };
+
+    testQuery(query, responseTester);
+  }
+
+  @Test
   public void testSearchMatchQueryEmptyAfterAnalysis() {
     Query query =
         Query.newBuilder()
