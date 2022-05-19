@@ -96,6 +96,26 @@ public class ReplicationServerClientTest {
   }
 
   @Test
+  public void testConnectWithDiscoveryFileIgnoreUnknown() throws IOException {
+    Server replicationServer = getBasicReplicationServer();
+    try {
+      String filePathStr = Paths.get(folder.getRoot().toString(), TEST_FILE).toString();
+      String fileStr =
+          "[{\"host\":\"localhost\",\"port\":"
+              + replicationServer.getPort()
+              + ",\"other\":\"property\"}]";
+      try (FileOutputStream outputStream = new FileOutputStream(filePathStr)) {
+        outputStream.write(fileStr.getBytes());
+      }
+      ReplicationServerClient client =
+          new ReplicationServerClient(new DiscoveryFileAndPort(testFileURI().getPath(), 0));
+      verifyConnected(client);
+    } finally {
+      replicationServer.shutdown();
+    }
+  }
+
+  @Test
   public void testDiscoveryFilePrimaryChange() throws IOException {
     Server replicationServer = getBasicReplicationServer();
     ReplicationServerClient client;
