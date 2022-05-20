@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
 
 public class Warmer {
   private static final Logger logger = LoggerFactory.getLogger(Warmer.class);
-  private static final String WARMING_QUERIES_RESOURCE = "_warming_queries";
+  public static final String WARMING_QUERIES_RESOURCE = "_warming_queries";
   public static final String WARMING_QUERIES_DIR = "warming_queries";
   private static final String WARMING_QUERIES_FILE = "warming_queries.txt";
 

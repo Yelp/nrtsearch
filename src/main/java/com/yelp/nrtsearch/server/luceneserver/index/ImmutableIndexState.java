@@ -813,6 +813,11 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
+  public void initWarmer(Archiver archiver) {
+    initWarmer(archiver, uniqueName);
+  }
+
+  @Override
   public void close() throws IOException {
     for (Map.Entry<Integer, ShardState> entry : shards.entrySet()) {
       entry.getValue().close();

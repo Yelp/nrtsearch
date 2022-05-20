@@ -22,11 +22,14 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
+import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.backup.ArchiverImpl;
 import com.yelp.nrtsearch.server.backup.BackupDiffManager;
 import com.yelp.nrtsearch.server.backup.ContentDownloader;
 import com.yelp.nrtsearch.server.backup.ContentDownloaderImpl;
 import com.yelp.nrtsearch.server.backup.FileCompressAndUploader;
 import com.yelp.nrtsearch.server.backup.IndexArchiver;
+import com.yelp.nrtsearch.server.backup.Tar;
 import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.backup.VersionManager;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
@@ -64,8 +67,9 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestServer {
   private static final List<TestServer> createdServers = new ArrayList<>();
-  private static final String SERVICE_NAME = "test_server";
-  private static final String TEST_BUCKET = "test-server-data-bucket";
+  public static final String SERVICE_NAME = "test_server";
+  public static final String TEST_BUCKET = "test-server-data-bucket";
+  public static final String S3_ENDPOINT = "http://127.0.0.1:8011";
   private static final List<String> simpleFieldNames = List.of("id", "field1", "field2");
   private static final List<Field> simpleFields =
       List.of(
@@ -94,6 +98,8 @@ public class TestServer {
   private Server replicationServer;
   private LuceneServerClient client;
   private LuceneServerImpl serverImpl;
+  private Archiver legacyArchiver;
+  private Archiver indexArchiver;
 
   private static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
@@ -122,7 +128,7 @@ public class TestServer {
     Files.createDirectories(archiverDir);
 
     AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
+    s3.setEndpoint(S3_ENDPOINT);
     s3.createBucket(TEST_BUCKET);
     TransferManager transferManager =
         TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
@@ -147,17 +153,31 @@ public class TestServer {
         false);
   }
 
+  private Archiver createLegacyArchiver(Path archiverDir) throws IOException {
+    Files.createDirectories(archiverDir);
+
+    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
+    s3.setEndpoint(S3_ENDPOINT);
+    s3.createBucket(TEST_BUCKET);
+    return new ArchiverImpl(
+        s3, TEST_BUCKET, archiverDir, new TarImpl(Tar.CompressionMode.LZ4), true);
+  }
+
   public void restart() throws IOException {
     restart(false);
   }
 
   public void restart(boolean clearData) throws IOException {
     cleanup(clearData);
-    IndexArchiver indexArchiver =
-        createIndexArchiver(Paths.get(configuration.getArchiveDirectory()));
+    legacyArchiver = createLegacyArchiver(Paths.get(configuration.getArchiveDirectory()));
+    indexArchiver = createIndexArchiver(Paths.get(configuration.getArchiveDirectory()));
     serverImpl =
         new LuceneServerImpl(
-            configuration, null, indexArchiver, new CollectorRegistry(), Collections.emptyList());
+            configuration,
+            legacyArchiver,
+            indexArchiver,
+            new CollectorRegistry(),
+            Collections.emptyList());
 
     replicationServer =
         ServerBuilder.forPort(0)
@@ -178,6 +198,22 @@ public class TestServer {
 
   public String getServiceName() {
     return serverImpl.getGlobalState().getConfiguration().getServiceName();
+  }
+
+  public GlobalState getGlobalState() {
+    return serverImpl.getGlobalState();
+  }
+
+  public LuceneServerClient getClient() {
+    return client;
+  }
+
+  public Archiver getLegacyArchiver() {
+    return legacyArchiver;
+  }
+
+  public Archiver getIndexArchiver() {
+    return indexArchiver;
   }
 
   public void cleanup() {
@@ -446,6 +482,10 @@ public class TestServer {
 
     private boolean syncInitialNrtPoint = true;
 
+    private int maxWarmingQueries = 0;
+    private int warmingParallelism = 1;
+    private boolean warmOnStartup = false;
+
     private String additionalConfig = "";
 
     Builder(TemporaryFolder folder) {
@@ -493,6 +533,14 @@ public class TestServer {
       return this;
     }
 
+    public Builder withWarming(
+        int maxWarmingQueries, int warmingParallelism, boolean warmOnStartup) {
+      this.maxWarmingQueries = maxWarmingQueries;
+      this.warmingParallelism = warmingParallelism;
+      this.warmOnStartup = warmOnStartup;
+      return this;
+    }
+
     public TestServer build() throws IOException {
       initS3(folder);
       String configFile =
@@ -502,6 +550,7 @@ public class TestServer {
               backendConfig(),
               autoStartConfig(),
               archiverConfig(),
+              warmingConfig(),
               "syncInitialNrtPoint: " + syncInitialNrtPoint,
               additionalConfig);
       return new TestServer(
@@ -536,6 +585,15 @@ public class TestServer {
           "  primaryDiscovery:",
           "    host: localhost",
           "    port: " + port);
+    }
+
+    private String warmingConfig() {
+      return String.join(
+          "\n",
+          "warmer:",
+          "  maxWarmingQueries: " + maxWarmingQueries,
+          "  warmingParallelism: " + warmingParallelism,
+          "  warmOnStartup: " + warmOnStartup);
     }
 
     private String baseConfig() {

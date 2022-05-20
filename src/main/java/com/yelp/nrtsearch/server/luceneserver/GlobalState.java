@@ -78,10 +78,18 @@ public abstract class GlobalState implements Closeable {
   public static GlobalState createState(
       LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
       throws IOException {
+    return createState(luceneServerConfiguration, incArchiver, null);
+  }
+
+  public static GlobalState createState(
+      LuceneServerConfiguration luceneServerConfiguration,
+      Archiver incArchiver,
+      Archiver legacyArchiver)
+      throws IOException {
     if (luceneServerConfiguration.getStateConfig().useLegacyStateManagement()) {
       return new LegacyGlobalState(luceneServerConfiguration, incArchiver);
     } else {
-      return new BackendGlobalState(luceneServerConfiguration, incArchiver);
+      return new BackendGlobalState(luceneServerConfiguration, incArchiver, legacyArchiver);
     }
   }
 
