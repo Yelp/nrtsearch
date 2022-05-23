@@ -25,6 +25,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -33,6 +34,7 @@ import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.clientlib.Node;
 import com.yelp.nrtsearch.server.backup.BackupDiffManager;
 import com.yelp.nrtsearch.server.backup.ContentDownloader;
 import com.yelp.nrtsearch.server.backup.ContentDownloaderImpl;
@@ -56,6 +58,7 @@ import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -622,6 +625,10 @@ public class StateBackendServerTest {
   }
 
   private StartIndexResponse startIndex(LuceneServerClient client, Mode mode) {
+    return startIndex(client, mode, 0);
+  }
+
+  private StartIndexResponse startIndex(LuceneServerClient client, Mode mode, long primaryGen) {
     if (mode.equals(Mode.REPLICA)) {
       return client
           .getBlockingStub()
@@ -631,6 +638,7 @@ public class StateBackendServerTest {
                   .setMode(Mode.REPLICA)
                   .setPrimaryAddress("localhost")
                   .setPort(primaryReplicationServer.getPort())
+                  .setPrimaryGen(primaryGen)
                   .build());
     } else {
       return client
@@ -1611,6 +1619,158 @@ public class StateBackendServerTest {
       fail();
     } catch (IllegalStateException e) {
       assertEquals("Cannot update remote state when configured as read only", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testAutoPrimaryGeneration() throws Exception {
+    initArchiver();
+    initPrimaryWithArchiver();
+    createIndexWithFields();
+    startIndex(primaryClient, Mode.PRIMARY, -1);
+    addDocs(docs1.stream());
+    commitIndex(primaryClient);
+    refreshIndex(primaryClient);
+    verifyDocs(1, primaryClient);
+    stopIndex(primaryClient);
+    cleanupPrimary();
+
+    restartReplicaWithArchiver();
+    replicaClient
+        .getBlockingStub()
+        .startIndex(
+            StartIndexRequest.newBuilder()
+                .setIndexName("test_index")
+                .setMode(Mode.REPLICA)
+                .setPrimaryAddress("localhost")
+                .setPort(0)
+                .setPrimaryGen(-1)
+                .setRestore(
+                    RestoreIndex.newBuilder()
+                        .setServiceName(TEST_SERVICE_NAME)
+                        .setResourceName("test_index")
+                        .setDeleteExistingData(true)
+                        .build())
+                .build());
+
+    verifyDocs(1, replicaClient);
+
+    restartPrimaryWithArchiver();
+    startIndex(primaryClient, Mode.PRIMARY, -1);
+    addDocs(docs2.stream());
+    commitIndex(primaryClient);
+    refreshIndex(primaryClient);
+    verifyDocs(2, primaryClient);
+    stopIndex(primaryClient);
+    cleanupPrimary();
+    stopIndex(replicaClient);
+
+    restartReplicaWithArchiver();
+    replicaClient
+        .getBlockingStub()
+        .startIndex(
+            StartIndexRequest.newBuilder()
+                .setIndexName("test_index")
+                .setMode(Mode.REPLICA)
+                .setPrimaryAddress("localhost")
+                .setPrimaryGen(-1)
+                .setRestore(
+                    RestoreIndex.newBuilder()
+                        .setServiceName(TEST_SERVICE_NAME)
+                        .setResourceName("test_index")
+                        .setDeleteExistingData(true)
+                        .build())
+                .build());
+    verifyDocs(2, replicaClient);
+    stopIndex(replicaClient);
+
+    restartPrimaryWithArchiver();
+    startIndex(primaryClient, Mode.PRIMARY, -1);
+    addDocs(docs3.stream());
+    commitIndex(primaryClient);
+    refreshIndex(primaryClient);
+    verifyDocs(3, primaryClient);
+
+    restartReplicaWithArchiver();
+    replicaClient
+        .getBlockingStub()
+        .startIndex(
+            StartIndexRequest.newBuilder()
+                .setIndexName("test_index")
+                .setMode(Mode.REPLICA)
+                .setPrimaryAddress("localhost")
+                .setPrimaryGen(-1)
+                .setRestore(
+                    RestoreIndex.newBuilder()
+                        .setServiceName(TEST_SERVICE_NAME)
+                        .setResourceName("test_index")
+                        .setDeleteExistingData(true)
+                        .build())
+                .build());
+    verifyDocs(3, replicaClient);
+  }
+
+  @Test
+  public void testStartIndexFromDiscoveryFile() throws Exception {
+    initPrimary();
+    createIndexWithFields();
+    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    assertEquals(0, response.getNumDocs());
+
+    addDocs(docs1.stream());
+    refreshIndex(primaryClient);
+    verifyDocs(1, primaryClient);
+
+    restartReplica();
+    String discoveryFilePath =
+        Paths.get(folder.getRoot().toString(), "test_discovery_file.json").toString();
+    writeNodeFile(
+        Collections.singletonList(new Node("localhost", primaryReplicationServer.getPort())),
+        discoveryFilePath);
+    response =
+        replicaClient
+            .getBlockingStub()
+            .startIndex(
+                StartIndexRequest.newBuilder()
+                    .setIndexName("test_index")
+                    .setMode(Mode.REPLICA)
+                    .setPrimaryDiscoveryFile(discoveryFilePath)
+                    .setPrimaryGen(0)
+                    .build());
+    assertEquals(1, response.getNumDocs());
+    verifyDocs(1, replicaClient);
+  }
+
+  private void writeNodeFile(List<Node> nodes, String filePath) throws IOException {
+    String filePathStr = filePath;
+    String fileStr = new ObjectMapper().writeValueAsString(nodes);
+    try (FileOutputStream outputStream = new FileOutputStream(filePathStr)) {
+      outputStream.write(fileStr.getBytes());
+    }
+  }
+
+  @Test
+  public void testStartIndexNoDiscovery() throws IOException {
+    initPrimary();
+    createIndexWithFields();
+    StartIndexResponse response = startIndex(primaryClient, Mode.PRIMARY);
+    assertEquals(0, response.getNumDocs());
+
+    restartReplica();
+    try {
+      replicaClient
+          .getBlockingStub()
+          .startIndex(
+              StartIndexRequest.newBuilder()
+                  .setIndexName("test_index")
+                  .setMode(Mode.REPLICA)
+                  .setPrimaryGen(0)
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage()
+              .contains("Unable to initialize primary replication client for start request:"));
     }
   }
 }

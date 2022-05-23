@@ -37,6 +37,7 @@ import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
@@ -1040,13 +1041,14 @@ public class BackendStateManagerTest {
     stateManager.load();
     assertSame(mockState, stateManager.getCurrent());
 
-    stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, "primary_addr", 12345);
+    ReplicationServerClient mockReplicationClient = mock(ReplicationServerClient.class);
+    stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, mockReplicationClient);
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
     verify(mockState, times(1)).getCurrentStateInfo();
     verify(mockState, times(1)).isStarted();
-    verify(mockState, times(1)).start(Mode.PRIMARY, Path.of("/tmp"), 1, "primary_addr", 12345);
+    verify(mockState, times(1)).start(Mode.PRIMARY, Path.of("/tmp"), 1, mockReplicationClient);
 
     verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
   }
@@ -1076,12 +1078,13 @@ public class BackendStateManagerTest {
     stateManager.load();
     assertSame(mockState, stateManager.getCurrent());
 
-    stateManager.start(Mode.REPLICA, Path.of("/tmp"), 1, "primary_addr", 12345);
+    ReplicationServerClient mockReplicationClient = mock(ReplicationServerClient.class);
+    stateManager.start(Mode.REPLICA, Path.of("/tmp"), 1, mockReplicationClient);
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
     verify(mockState, times(1)).isStarted();
-    verify(mockState, times(1)).start(Mode.REPLICA, Path.of("/tmp"), 1, "primary_addr", 12345);
+    verify(mockState, times(1)).start(Mode.REPLICA, Path.of("/tmp"), 1, mockReplicationClient);
 
     verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
   }
@@ -1118,7 +1121,8 @@ public class BackendStateManagerTest {
     MockStateManager.nextState = mockState2;
     MockStateManager.expectedState = updatedState;
 
-    stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, "primary_addr", 12345);
+    ReplicationServerClient mockReplicationClient = mock(ReplicationServerClient.class);
+    stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, mockReplicationClient);
     assertSame(mockState2, stateManager.getCurrent());
 
     verify(mockBackend, times(1))
@@ -1129,7 +1133,7 @@ public class BackendStateManagerTest {
     verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(3)).getCurrentStateInfo();
     verify(mockState, times(1)).isStarted();
-    verify(mockState, times(1)).start(Mode.PRIMARY, Path.of("/tmp"), 1, "primary_addr", 12345);
+    verify(mockState, times(1)).start(Mode.PRIMARY, Path.of("/tmp"), 1, mockReplicationClient);
     verify(mockState, times(1)).commit(true);
     verify(mockState, times(1)).getFieldAndFacetState();
 
@@ -1147,7 +1151,7 @@ public class BackendStateManagerTest {
         .thenReturn(null);
 
     try {
-      stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, "primary_addr", 12345);
+      stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, mock(ReplicationServerClient.class));
       fail();
     } catch (IllegalStateException e) {
       assertEquals("No state for index: test_index", e.getMessage());
@@ -1174,7 +1178,7 @@ public class BackendStateManagerTest {
     stateManager.load();
 
     try {
-      stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, "primary_addr", 12345);
+      stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, mock(ReplicationServerClient.class));
       fail();
     } catch (IllegalStateException e) {
       assertEquals("Index already started: test_index", e.getMessage());

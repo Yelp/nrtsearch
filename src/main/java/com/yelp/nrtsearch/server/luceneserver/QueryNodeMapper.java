@@ -266,8 +266,7 @@ public class QueryNodeMapper {
     QueryBuilder queryBuilder = new MatchQueryBuilder(analyzer, matchQuery.getFuzzyParams());
 
     // This created query will be TermQuery or FuzzyQuery if only one token is found after analysis,
-    // otherwise BooleanQuery. The
-    // BooleanQuery may include clauses with TermQuery or FuzzyQuery.
+    // otherwise BooleanQuery. The BooleanQuery may include clauses with TermQuery or FuzzyQuery.
     Query query =
         queryBuilder.createBooleanQuery(
             matchQuery.getField(),
@@ -280,7 +279,9 @@ public class QueryNodeMapper {
     }
 
     // TODO: investigate using createMinShouldMatchQuery instead
-    if (matchQuery.getMinimumNumberShouldMatch() == 0 || query instanceof TermQuery) {
+    if (matchQuery.getMinimumNumberShouldMatch() == 0
+        || query instanceof TermQuery
+        || query instanceof FuzzyQuery) {
       return query;
     }
 

@@ -653,8 +653,11 @@ public class ShardState implements Closeable {
   }
 
   /**
-   * Start this index as primary, to NRT-replicate to replicas. primaryGen should be incremented
-   * each time a new primary is promoted for a given index.
+   * Start this index as primary, to NRT-replicate to replicas. primaryGen should increase each time
+   * a new primary is promoted for a given index.
+   *
+   * @param primaryGen generation to use for {@link NRTPrimaryNode}, uses value from global state if
+   *     -1
    */
   public synchronized void startPrimary(long primaryGen) throws IOException {
     if (isStarted()) {
@@ -726,6 +729,8 @@ public class ShardState implements Closeable {
         snapshotGenToVersion.put(c.getGeneration(), sis.getVersion());
       }
 
+      long resolvedPrimaryGen =
+          primaryGen == -1 ? indexState.getGlobalState().getGeneration() : primaryGen;
       HostPort hostPort =
           new HostPort(
               indexState.getGlobalState().getHostName(),
@@ -736,7 +741,7 @@ public class ShardState implements Closeable {
               hostPort,
               writer,
               0,
-              primaryGen,
+              resolvedPrimaryGen,
               -1,
               new ShardSearcherFactory(false, true),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()));
@@ -874,7 +879,12 @@ public class ShardState implements Closeable {
     return ssdvState;
   }
 
-  /** Start this index as replica, pulling NRT changes from the specified primary */
+  /**
+   * Start this index as replica, pulling NRT changes from the specified primary.
+   *
+   * @param primaryAddress client to communicate with primary replication server
+   * @param primaryGen last primary generation, or -1 to detect from index
+   */
   public synchronized void startReplica(ReplicationServerClient primaryAddress, long primaryGen)
       throws IOException {
     if (isStarted()) {
@@ -927,8 +937,12 @@ public class ShardState implements Closeable {
               indexDir,
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
-              primaryGen,
               indexState.getGlobalState().getConfiguration().getFileCopyConfig().getAckedCopy());
+      if (primaryGen != -1) {
+        nrtReplicaNode.start(primaryGen);
+      } else {
+        nrtReplicaNode.startWithLastPrimaryGen();
+      }
 
       if (indexState.getGlobalState().getConfiguration().getSyncInitialNrtPoint()) {
         nrtReplicaNode.syncFromCurrentPrimary(
@@ -1059,11 +1073,10 @@ public class ShardState implements Closeable {
         } catch (StatusRuntimeException e) {
           logger.warn(
               String.format(
-                  "Replica host: %s, binary port: %s cannot reach primary host: %s replication port: %s",
+                  "Replica host: %s, binary port: %s cannot reach primary: %s",
                   nrtReplicaNode.getHostPort().getHostName(),
                   nrtReplicaNode.getHostPort().getPort(),
-                  nrtReplicaNode.getPrimaryAddress().getHost(),
-                  nrtReplicaNode.getPrimaryAddress().getPort()));
+                  nrtReplicaNode.getPrimaryAddress()));
         }
       }
     }

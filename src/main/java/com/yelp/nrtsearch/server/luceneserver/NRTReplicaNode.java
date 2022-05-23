@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -62,7 +63,6 @@ public class NRTReplicaNode extends ReplicaNode {
       Directory indexDir,
       SearcherFactory searcherFactory,
       PrintStream printStream,
-      long primaryGen,
       boolean ackedCopy)
       throws IOException {
     super(replicaId, indexDir, searcherFactory, printStream);
@@ -75,7 +75,36 @@ public class NRTReplicaNode extends ReplicaNode {
     jobs.setName("R" + id + ".copyJobs");
     jobs.setDaemon(true);
     jobs.start();
-    start(primaryGen);
+  }
+
+  private long getLastPrimaryGen() throws IOException {
+    // detection logic from ReplicaNode
+    String segmentsFileName = SegmentInfos.getLastCommitSegmentsFileName(dir);
+    if (segmentsFileName == null) {
+      return -1;
+    }
+    SegmentInfos infos = SegmentInfos.readCommit(dir, segmentsFileName);
+    String s = infos.getUserData().get(PRIMARY_GEN_KEY);
+    if (s == null) {
+      return -1;
+    } else {
+      return Long.parseLong(s);
+    }
+  }
+
+  /**
+   * Start this replica node using the last known primary generation, as detected from the last
+   * index commit. Ensures a live primary is not needed to start node.
+   *
+   * @throws IOException on filesystem error
+   */
+  public void startWithLastPrimaryGen() throws IOException {
+    start(getLastPrimaryGen());
+  }
+
+  @Override
+  public void start(long primaryGen) throws IOException {
+    super.start(primaryGen);
   }
 
   @Override
@@ -171,10 +200,7 @@ public class NRTReplicaNode extends ReplicaNode {
   /* called once start(primaryGen) is invoked on this object (see constructor) */
   @Override
   protected void sendNewReplica() throws IOException {
-    logger.info(
-        String.format(
-            "send new_replica to primary host=%s, tcpPort=%s",
-            primaryAddress.getHost(), primaryAddress.getPort()));
+    logger.info(String.format("send new_replica to primary: %s", primaryAddress));
     primaryAddress.addReplicas(indexName, this.id, hostPort.getHostName(), hostPort.getPort());
   }
 

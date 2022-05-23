@@ -18,17 +18,16 @@ package com.yelp.nrtsearch.server.luceneserver.state.backend;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.GLOBAL_STATE_FILE;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.GLOBAL_STATE_FOLDER;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.INDEX_STATE_FILE;
-import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.MAPPER;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.ensureDirectory;
 
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.StateConfig;
+import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
-import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -104,12 +103,12 @@ public class RemoteStateBackend implements StateBackend {
   }
 
   @Override
-  public PersistentGlobalState loadOrCreateGlobalState() throws IOException {
+  public GlobalStateInfo loadOrCreateGlobalState() throws IOException {
     logger.info("Loading remote state");
     Path downloadedPath =
         archiver.download(globalState.getConfiguration().getServiceName(), GLOBAL_STATE_RESOURCE);
     if (downloadedPath == null) {
-      PersistentGlobalState state = new PersistentGlobalState();
+      GlobalStateInfo state = GlobalStateInfo.newBuilder().build();
       logger.info("Remote state not present, initializing default");
       commitGlobalState(state);
       return state;
@@ -125,21 +124,20 @@ public class RemoteStateBackend implements StateBackend {
           downloadedStateFilePath,
           localFilePath.resolve(GLOBAL_STATE_FILE),
           StandardCopyOption.REPLACE_EXISTING);
-      PersistentGlobalState persistentGlobalState =
-          StateUtils.readStateFromFile(downloadedStateFilePath);
-      logger.info("Loaded remote state: " + MAPPER.writeValueAsString(persistentGlobalState));
-      return persistentGlobalState;
+      GlobalStateInfo globalStateInfo = StateUtils.readStateFromFile(downloadedStateFilePath);
+      logger.info("Loaded remote state: " + JsonFormat.printer().print(globalStateInfo));
+      return globalStateInfo;
     }
   }
 
   @Override
-  public void commitGlobalState(PersistentGlobalState persistentGlobalState) throws IOException {
-    Objects.requireNonNull(persistentGlobalState);
+  public void commitGlobalState(GlobalStateInfo globalStateInfo) throws IOException {
+    Objects.requireNonNull(globalStateInfo);
     logger.info("Committing global state");
     if (config.getReadOnly()) {
       throw new IllegalStateException("Cannot update remote state when configured as read only");
     }
-    StateUtils.writeStateToFile(persistentGlobalState, localFilePath, GLOBAL_STATE_FILE);
+    StateUtils.writeStateToFile(globalStateInfo, localFilePath, GLOBAL_STATE_FILE);
     String version =
         archiver.upload(
             globalState.getConfiguration().getServiceName(),
@@ -150,7 +148,7 @@ public class RemoteStateBackend implements StateBackend {
             true);
     archiver.blessVersion(
         globalState.getConfiguration().getServiceName(), GLOBAL_STATE_RESOURCE, version);
-    logger.info("Committed state: " + MAPPER.writeValueAsString(persistentGlobalState));
+    logger.info("Committed state: " + JsonFormat.printer().print(globalStateInfo));
   }
 
   @Override
