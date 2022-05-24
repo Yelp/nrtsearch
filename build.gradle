@@ -164,12 +164,17 @@ task buildGrpcGateway(dependsOn: installDist, type: Exec) {
 //e.g. default is to exclude perfTests: ./gradlew test
 test {
     finalizedBy 'spotlessJavaCheck'
-    if (!project.hasProperty('includePerfTests')) {
-        exclude '**/YelpReviewsTest.class'
-        exclude '**/YelpSuggestTest.class'
-        exclude '**/MergeBehaviorTests.class'
-        filter {
-            excludeTestsMatching '*.NodeNameResolverAndLoadBalancingTests.testSimpleLoadBalancingAsync'
+    if (project.hasProperty('longRunningTestsOnly')) {
+        include '**/IncrementalDataCleanupCommandTest.class'
+    } else {
+        if (!project.hasProperty('includePerfTests')) {
+            exclude '**/YelpReviewsTest.class'
+            exclude '**/YelpSuggestTest.class'
+            exclude '**/MergeBehaviorTests.class'
+            exclude '**/IncrementalDataCleanupCommandTest.class'
+            filter {
+                excludeTestsMatching '*.NodeNameResolverAndLoadBalancingTests.testSimpleLoadBalancingAsync'
+            }
         }
     }
     systemProperties System.properties

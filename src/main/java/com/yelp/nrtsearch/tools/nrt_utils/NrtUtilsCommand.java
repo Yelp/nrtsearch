@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils;
 
+import com.yelp.nrtsearch.tools.nrt_utils.incremental.IncrementalDataCleanupCommand;
 import com.yelp.nrtsearch.tools.nrt_utils.state.GetRemoteStateCommand;
 import com.yelp.nrtsearch.tools.nrt_utils.state.PutRemoteStateCommand;
 import picocli.CommandLine;
@@ -24,6 +25,7 @@ import picocli.CommandLine;
     synopsisSubcommandLabel = "COMMAND",
     subcommands = {
       GetRemoteStateCommand.class,
+      IncrementalDataCleanupCommand.class,
       PutRemoteStateCommand.class,
       CommandLine.HelpCommand.class
     })
