@@ -180,6 +180,10 @@ public class TestServer {
     return serverImpl.getGlobalState().getConfiguration().getServiceName();
   }
 
+  public GlobalState getGlobalState() {
+    return serverImpl.getGlobalState();
+  }
+
   public void cleanup() {
     cleanup(false);
   }
