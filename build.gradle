@@ -33,14 +33,14 @@ System.setProperty("org.gradle.internal.publish.checksums.insecure", "True")
 
 def luceneVersion = '8.4.0'
 project.ext.slf4jVersion = '2.0.0-alpha1'
-project.ext.grpcVersion = '1.38.0'
+project.ext.grpcVersion = '1.46.0'
 project.ext.lz4Version = '1.7.0'
 project.ext.mockitoVersion = '2.25.1'
 def log4jVersion = '2.17.0'
 def disruptorVersion = '3.2.1'
-def gsonVersion = '2.8.5'
+def gsonVersion = '2.9.0'
 def snakeYamlVersion = '1.25'
-def jacksonYamlVersion = '2.12.3'
+def jacksonYamlVersion = '2.13.3'
 def spatial4jVersion = '0.7'
 def s3mockVersion = '0.2.5'
 def commonsCompressVersion = '1.19'
@@ -103,7 +103,7 @@ dependencies {
 
     implementation "it.unimi.dsi:fastutil:${fastutilVersion}"
 
-    testImplementation "junit:junit:4.12"
+    testImplementation "junit:junit:4.13"
     testImplementation "org.mockito:mockito-core:${project.ext.mockitoVersion}"
     testImplementation "org.apache.lucene:lucene-test-framework:${luceneVersion}"
     testImplementation "org.locationtech.spatial4j:spatial4j:${spatial4jVersion}"
