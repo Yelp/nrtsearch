@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.monitoring;
 
 import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.Counter;
 import io.prometheus.client.Gauge;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -78,6 +79,12 @@ public class IndexMetrics {
           .name("nrt_index_slice_docs")
           .help("Quantiles of documents per slice.")
           .labelNames("index", "quantile")
+          .create();
+  public static final Counter flushCount =
+      Counter.build()
+          .name("nrt_index_flush_count")
+          .help("Number times the IndexWriter has flushed.")
+          .labelNames("index")
           .create();
 
   public static void updateReaderStats(String index, IndexReader reader) {
@@ -160,6 +167,7 @@ public class IndexMetrics {
     registry.register(numSlices);
     registry.register(sliceSegments);
     registry.register(sliceDocs);
+    registry.register(flushCount);
   }
 
   private static int getSegmentDocsQuantile(double quantile, List<LeafReaderContext> segments) {
