@@ -75,6 +75,7 @@ public class BackendGlobalState extends GlobalState {
   // volatile for atomic replacement
   private volatile ImmutableState immutableState;
   private final StateBackend stateBackend;
+  private final Archiver legacyArchiver;
 
   /**
    * Build unique index name from index name and instance id (UUID).
@@ -100,7 +101,24 @@ public class BackendGlobalState extends GlobalState {
   public BackendGlobalState(
       LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
       throws IOException {
+    this(luceneServerConfiguration, incArchiver, null);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param luceneServerConfiguration server config
+   * @param incArchiver archiver for remote backends
+   * @param legacyArchiver legacy archiver
+   * @throws IOException on filesystem error
+   */
+  public BackendGlobalState(
+      LuceneServerConfiguration luceneServerConfiguration,
+      Archiver incArchiver,
+      Archiver legacyArchiver)
+      throws IOException {
     super(luceneServerConfiguration, incArchiver);
+    this.legacyArchiver = legacyArchiver;
     stateBackend = createStateBackend();
     GlobalStateInfo globalStateInfo = stateBackend.loadOrCreateGlobalState();
     // init index state managers
@@ -316,7 +334,7 @@ public class BackendGlobalState extends GlobalState {
       IndexStateManager indexStateManager, StartIndexRequest startIndexRequest) throws IOException {
     StartIndexHandler startIndexHandler =
         new StartIndexHandler(
-            null,
+            legacyArchiver,
             getIncArchiver().orElse(null),
             getConfiguration().getArchiveDirectory(),
             getConfiguration().getBackupWithInArchiver(),
