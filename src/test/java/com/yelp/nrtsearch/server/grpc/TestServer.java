@@ -29,6 +29,7 @@ import com.yelp.nrtsearch.server.backup.ContentDownloader;
 import com.yelp.nrtsearch.server.backup.ContentDownloaderImpl;
 import com.yelp.nrtsearch.server.backup.FileCompressAndUploader;
 import com.yelp.nrtsearch.server.backup.IndexArchiver;
+import com.yelp.nrtsearch.server.backup.NoTarImpl;
 import com.yelp.nrtsearch.server.backup.Tar;
 import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.backup.VersionManager;
@@ -70,8 +71,8 @@ public class TestServer {
   public static final String SERVICE_NAME = "test_server";
   public static final String TEST_BUCKET = "test-server-data-bucket";
   public static final String S3_ENDPOINT = "http://127.0.0.1:8011";
-  private static final List<String> simpleFieldNames = List.of("id", "field1", "field2");
-  private static final List<Field> simpleFields =
+  public static final List<String> simpleFieldNames = List.of("id", "field1", "field2");
+  public static final List<Field> simpleFields =
       List.of(
           Field.newBuilder()
               .setName("id")
@@ -101,7 +102,7 @@ public class TestServer {
   private Archiver legacyArchiver;
   private Archiver indexArchiver;
 
-  private static void initS3(TemporaryFolder folder) throws IOException {
+  public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
       Path s3Directory = folder.newFolder("s3").toPath();
       api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
@@ -139,10 +140,14 @@ public class TestServer {
     FileCompressAndUploader fileCompressAndUploader =
         new FileCompressAndUploader(
             new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, TEST_BUCKET);
+    ContentDownloader contentDownloaderNoTar =
+        new ContentDownloaderImpl(new NoTarImpl(), transferManager, TEST_BUCKET, true);
+    FileCompressAndUploader fileCompressAndUploaderNoTar =
+        new FileCompressAndUploader(new NoTarImpl(), transferManager, TEST_BUCKET);
     VersionManager versionManager = new VersionManager(s3, TEST_BUCKET);
     BackupDiffManager backupDiffManagerPrimary =
         new BackupDiffManager(
-            contentDownloader, fileCompressAndUploader, versionManager, archiverDir);
+            contentDownloaderNoTar, fileCompressAndUploaderNoTar, versionManager, archiverDir);
 
     return new IndexArchiver(
         backupDiffManagerPrimary,
@@ -298,10 +303,12 @@ public class TestServer {
     }
   }
 
+  public CreateIndexResponse createIndex(CreateIndexRequest request) {
+    return client.getBlockingStub().createIndex(request);
+  }
+
   public CreateIndexResponse createIndex(String indexName) {
-    return client
-        .getBlockingStub()
-        .createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
+    return createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
   }
 
   public void createSimpleIndex(String indexName) {
@@ -459,6 +466,10 @@ public class TestServer {
 
   public void commit(String indexName) {
     client.commit(indexName);
+  }
+
+  public void deleteIndex(String indexName) {
+    client.deleteIndex(indexName);
   }
 
   public static Builder builder(TemporaryFolder folder) {

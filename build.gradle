@@ -138,10 +138,18 @@ task backupRestoreTool(type: CreateStartScripts) {
     classpath = startScripts.classpath
 }
 
+task nrtUtils(type: CreateStartScripts) {
+    mainClassName = 'com.yelp.nrtsearch.tools.nrt_utils.NrtUtilsCommand'
+    applicationName = 'nrt_utils'
+    outputDir = new File(project.buildDir, 'tmp')
+    classpath = startScripts.classpath
+}
+
 applicationDistribution.into('bin') {
     from(luceneServer)
     from(luceneServerClient)
     from(backupRestoreTool)
+    from(nrtUtils)
     fileMode = 0755
 }
 
@@ -169,6 +177,7 @@ test {
         events "failed"
         exceptionFormat "full"
         showStackTraces true
+        //showStandardStreams = true
     }
 }
 
