@@ -99,6 +99,8 @@ public class TestServer {
   private Server replicationServer;
   private LuceneServerClient client;
   private LuceneServerImpl serverImpl;
+  private Archiver legacyArchiver;
+  private Archiver indexArchiver;
 
   public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
@@ -156,7 +158,7 @@ public class TestServer {
         false);
   }
 
-  private Archiver getLegacyArchiver(Path archiverDir) throws IOException {
+  private Archiver createLegacyArchiver(Path archiverDir) throws IOException {
     Files.createDirectories(archiverDir);
 
     AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
@@ -172,9 +174,8 @@ public class TestServer {
 
   public void restart(boolean clearData) throws IOException {
     cleanup(clearData);
-    IndexArchiver indexArchiver =
-        createIndexArchiver(Paths.get(configuration.getArchiveDirectory()));
-    Archiver legacyArchiver = getLegacyArchiver(Paths.get(configuration.getArchiveDirectory()));
+    legacyArchiver = createLegacyArchiver(Paths.get(configuration.getArchiveDirectory()));
+    indexArchiver = createIndexArchiver(Paths.get(configuration.getArchiveDirectory()));
     serverImpl =
         new LuceneServerImpl(
             configuration,
@@ -210,6 +211,14 @@ public class TestServer {
 
   public LuceneServerClient getClient() {
     return client;
+  }
+
+  public Archiver getLegacyArchiver() {
+    return legacyArchiver;
+  }
+
+  public Archiver getIndexArchiver() {
+    return indexArchiver;
   }
 
   public void cleanup() {
@@ -484,6 +493,10 @@ public class TestServer {
 
     private boolean syncInitialNrtPoint = true;
 
+    private int maxWarmingQueries = 0;
+    private int warmingParallelism = 1;
+    private boolean warmOnStartup = false;
+
     private String additionalConfig = "";
 
     Builder(TemporaryFolder folder) {
@@ -531,6 +544,14 @@ public class TestServer {
       return this;
     }
 
+    public Builder withWarming(
+        int maxWarmingQueries, int warmingParallelism, boolean warmOnStartup) {
+      this.maxWarmingQueries = maxWarmingQueries;
+      this.warmingParallelism = warmingParallelism;
+      this.warmOnStartup = warmOnStartup;
+      return this;
+    }
+
     public TestServer build() throws IOException {
       initS3(folder);
       String configFile =
@@ -540,6 +561,7 @@ public class TestServer {
               backendConfig(),
               autoStartConfig(),
               archiverConfig(),
+              warmingConfig(),
               "syncInitialNrtPoint: " + syncInitialNrtPoint,
               additionalConfig);
       return new TestServer(
@@ -574,6 +596,15 @@ public class TestServer {
           "  primaryDiscovery:",
           "    host: localhost",
           "    port: " + port);
+    }
+
+    private String warmingConfig() {
+      return String.join(
+          "\n",
+          "warmer:",
+          "  maxWarmingQueries: " + maxWarmingQueries,
+          "  warmingParallelism: " + warmingParallelism,
+          "  warmOnStartup: " + warmOnStartup);
     }
 
     private String baseConfig() {

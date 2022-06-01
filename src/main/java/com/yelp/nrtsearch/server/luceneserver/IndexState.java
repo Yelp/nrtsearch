@@ -342,12 +342,19 @@ public abstract class IndexState implements Closeable {
   }
 
   public void initWarmer(Archiver archiver) {
+    initWarmer(archiver, name);
+  }
+
+  public void initWarmer(Archiver archiver, String indexName) {
     LuceneServerConfiguration configuration = globalState.getConfiguration();
     WarmerConfig warmerConfig = configuration.getWarmerConfig();
     if (warmerConfig.isWarmOnStartup() || warmerConfig.getMaxWarmingQueries() > 0) {
       this.warmer =
           new Warmer(
-              archiver, configuration.getServiceName(), name, warmerConfig.getMaxWarmingQueries());
+              archiver,
+              configuration.getServiceName(),
+              indexName,
+              warmerConfig.getMaxWarmingQueries());
     }
   }
 

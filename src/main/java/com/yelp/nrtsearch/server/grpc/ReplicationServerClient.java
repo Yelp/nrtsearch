@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.GeneratedMessageV3;
 import com.yelp.nrtsearch.server.grpc.discovery.PrimaryFileNameResolverProvider;
@@ -35,7 +36,8 @@ public class ReplicationServerClient implements Closeable {
   public static final int BINARY_MAGIC = 0x3414f5c;
   public static final int MAX_MESSAGE_BYTES_SIZE = 1 * 1024 * 1024 * 1024;
 
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+  private static final ObjectMapper OBJECT_MAPPER =
+      new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);;
   private static final int FILE_UPDATE_INTERVAL_MS = 10 * 1000; // 10 seconds
   private static final Logger logger = LoggerFactory.getLogger(ReplicationServerClient.class);
 

@@ -374,7 +374,7 @@ public class LuceneServer {
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
 
-      this.globalState = GlobalState.createState(configuration, incArchiver);
+      this.globalState = GlobalState.createState(configuration, incArchiver, archiver);
       this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
     }
 
@@ -435,6 +435,7 @@ public class LuceneServer {
     @Override
     public void createIndex(
         CreateIndexRequest req, StreamObserver<CreateIndexResponse> responseObserver) {
+      logger.info("Received create index request: {}", req);
       String indexName = req.getIndexName();
       String validIndexNameRegex = "[A-z0-9_-]+";
       if (!indexName.matches(validIndexNameRegex)) {
@@ -484,6 +485,7 @@ public class LuceneServer {
     @Override
     public void liveSettings(
         LiveSettingsRequest req, StreamObserver<LiveSettingsResponse> responseObserver) {
+      logger.info("Received live settings request: {}", req);
       try {
         IndexState indexState = globalState.getIndex(req.getIndexName());
         LiveSettingsResponse reply = new LiveSettingsHandler().handle(indexState, req);
@@ -516,6 +518,7 @@ public class LuceneServer {
     @Override
     public void liveSettingsV2(
         LiveSettingsV2Request req, StreamObserver<LiveSettingsV2Response> responseObserver) {
+      logger.info("Received live settings V2 request: {}", req);
       try {
         IndexStateManager indexStateManager = globalState.getIndexStateManager(req.getIndexName());
         LiveSettingsV2Response reply = LiveSettingsV2Handler.handle(indexStateManager, req);
@@ -547,6 +550,7 @@ public class LuceneServer {
     @Override
     public void registerFields(
         FieldDefRequest fieldDefRequest, StreamObserver<FieldDefResponse> responseObserver) {
+      logger.info("Received register fields request: {}", fieldDefRequest);
       try {
         FieldDefResponse reply;
         if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
@@ -589,6 +593,7 @@ public class LuceneServer {
     @Override
     public void updateFields(
         FieldDefRequest fieldDefRequest, StreamObserver<FieldDefResponse> responseObserver) {
+      logger.info("Received update fields request: {}", fieldDefRequest);
       try {
         FieldDefResponse reply;
         if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
@@ -632,6 +637,7 @@ public class LuceneServer {
     @Override
     public void settings(
         SettingsRequest settingsRequest, StreamObserver<SettingsResponse> responseObserver) {
+      logger.info("Received settings request: {}", settingsRequest);
       try {
         IndexState indexState = globalState.getIndex(settingsRequest.getIndexName());
         SettingsResponse reply = new SettingsHandler().handle(indexState, settingsRequest);
@@ -668,6 +674,7 @@ public class LuceneServer {
     @Override
     public void settingsV2(
         SettingsV2Request settingsRequest, StreamObserver<SettingsV2Response> responseObserver) {
+      logger.info("Received settings V2 request: {}", settingsRequest);
       try {
         IndexStateManager indexStateManager =
             globalState.getIndexStateManager(settingsRequest.getIndexName());
@@ -705,6 +712,7 @@ public class LuceneServer {
     @Override
     public void startIndex(
         StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
+      logger.info("Received start index request: {}", startIndexRequest);
       try {
         StartIndexResponse reply;
         if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
@@ -1229,6 +1237,7 @@ public class LuceneServer {
     public void deleteAll(
         DeleteAllDocumentsRequest deleteAllDocumentsRequest,
         StreamObserver<DeleteAllDocumentsResponse> responseObserver) {
+      logger.info("Received delete all documents request: {}", deleteAllDocumentsRequest);
       try {
         IndexState indexState = globalState.getIndex(deleteAllDocumentsRequest.getIndexName());
         DeleteAllDocumentsResponse reply =
@@ -1254,6 +1263,7 @@ public class LuceneServer {
     public void deleteIndex(
         DeleteIndexRequest deleteIndexRequest,
         StreamObserver<DeleteIndexResponse> responseObserver) {
+      logger.info("Received delete index request: {}", deleteIndexRequest);
       try {
         IndexState indexState = globalState.getIndex(deleteIndexRequest.getIndexName());
         DeleteIndexResponse reply = new DeleteIndexHandler().handle(indexState, deleteIndexRequest);
@@ -1274,6 +1284,7 @@ public class LuceneServer {
     @Override
     public void stopIndex(
         StopIndexRequest stopIndexRequest, StreamObserver<DummyResponse> responseObserver) {
+      logger.info("Received stop index request: {}", stopIndexRequest);
       try {
         DummyResponse reply;
         if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
@@ -1351,7 +1362,8 @@ public class LuceneServer {
       try {
         List<String> indicesNotStarted = new ArrayList<>();
         for (String indexName : indexNames) {
-          IndexState indexState = globalState.getIndex(indexName);
+          // The ready endpoint should skip loading index state
+          IndexState indexState = globalState.getIndex(indexName, true);
           if (!indexState.isStarted()) {
             indicesNotStarted.add(indexName);
           }
@@ -1544,6 +1556,7 @@ public class LuceneServer {
     public void backupIndex(
         BackupIndexRequest backupIndexRequest,
         StreamObserver<BackupIndexResponse> responseObserver) {
+      logger.info("Received backup index request: {}", backupIndexRequest);
       try {
         IndexState indexState = globalState.getIndex(backupIndexRequest.getIndexName());
         BackupIndexRequestHandler backupIndexRequestHandler =
@@ -1614,6 +1627,7 @@ public class LuceneServer {
     public void backupWarmingQueries(
         BackupWarmingQueriesRequest request,
         StreamObserver<BackupWarmingQueriesResponse> responseObserver) {
+      logger.info("Received backup warming queries request: {}", request);
       String index = request.getIndex();
       try {
         IndexState indexState = globalState.getIndex(index);
@@ -1737,6 +1751,7 @@ public class LuceneServer {
     @Override
     public void forceMerge(
         ForceMergeRequest forceMergeRequest, StreamObserver<ForceMergeResponse> responseObserver) {
+      logger.info("Received force merge request: {}", forceMergeRequest);
       if (forceMergeRequest.getIndexName().isEmpty()) {
         responseObserver.onError(new IllegalArgumentException("Index name in request is empty"));
         return;
@@ -1777,6 +1792,7 @@ public class LuceneServer {
     public void forceMergeDeletes(
         ForceMergeDeletesRequest forceMergeRequest,
         StreamObserver<ForceMergeDeletesResponse> responseObserver) {
+      logger.info("Received force merge deletes request: {}", forceMergeRequest);
       if (forceMergeRequest.getIndexName().isEmpty()) {
         responseObserver.onError(new IllegalArgumentException("Index name in request is empty"));
         return;
@@ -1814,11 +1830,13 @@ public class LuceneServer {
 
     @Override
     public void custom(CustomRequest request, StreamObserver<CustomResponse> responseObserver) {
+      logger.info("Received custom request: {}", request);
       try {
         CustomResponse response = CustomRequestProcessor.processCustomRequest(request);
         responseObserver.onNext(response);
         responseObserver.onCompleted();
       } catch (Exception e) {
+        logger.error("Error processing custom request {}", request, e);
         responseObserver.onError(e);
       }
     }
