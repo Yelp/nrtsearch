@@ -114,6 +114,14 @@ service LuceneServer {
     };
 
     }
+    /* Sync an index state */
+    rpc syncIndexState (SyncIndexStateRequest) returns (DummyResponse) {
+        option (google.api.http) = {
+      post: "/v1/sync_index_state"
+      body: "*"
+    };
+
+    }
     /* Adds a stream of Documents */
     rpc addDocuments (stream AddDocumentRequest) returns (AddDocumentResponse) {
         option (google.api.http) = {
@@ -722,6 +730,10 @@ message DummyResponse {
 
 message StopIndexRequest {
     string indexName = 1; //index name to stop
+}
+
+message SyncIndexStateRequest {
+    string indexName = 1; //index name of the state to sync
 }
 
 /*

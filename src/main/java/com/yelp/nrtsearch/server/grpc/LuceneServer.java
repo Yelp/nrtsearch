@@ -1308,6 +1308,31 @@ public class LuceneServer {
     }
 
     @Override
+    public void syncIndexState(
+            SyncIndexStateRequest request, StreamObserver<DummyResponse> responseObserver) {
+      if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
+        responseObserver.onError(
+                Status.UNAVAILABLE
+                  .withDescription("legacy state not supported")
+                  .asRuntimeException());
+        return;
+      }
+      try {
+        if (globalState.getConfiguration().getIndexStartConfig().getMode().equals(Mode.REPLICA)) {
+          globalState.getIndexStateManager(request.getIndexName()).load();
+        }
+      } catch (Exception e) {
+        logger.warn("error while trying to sync the index state for " + request.getIndexName(), e);
+        responseObserver.onError(
+                Status.INVALID_ARGUMENT
+                        .withDescription(
+                                "error while trying to sync the index state for: " + request.getIndexName())
+                        .augmentDescription(e.getMessage())
+                        .asRuntimeException());
+      }
+    }
+
+    @Override
     public void status(
         HealthCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
       try {
