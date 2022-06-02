@@ -71,7 +71,7 @@ public class IncrementalDataCleanupCommandTest {
     server.startPrimaryIndex("test_index", -1, null);
     for (int i = 0; i < 5; ++i) {
       try {
-        Thread.sleep(1000);
+        Thread.sleep(5000);
       } catch (InterruptedException ignore) {
       }
       server.addSimpleDocs("test_index", i * 2, i * 2 + 1);
@@ -184,7 +184,7 @@ public class IncrementalDataCleanupCommandTest {
             "--indexName=test_index",
             "--bucketName=" + TEST_BUCKET,
             "--deleteAfter=0s",
-            "--gracePeriod=0s",
+            "--gracePeriod=2s",
             "--minVersions=3");
     assertEquals(0, exitCode);
 
