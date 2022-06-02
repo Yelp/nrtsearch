@@ -1309,12 +1309,10 @@ public class LuceneServer {
 
     @Override
     public void syncIndexState(
-            SyncIndexStateRequest request, StreamObserver<DummyResponse> responseObserver) {
+        SyncIndexStateRequest request, StreamObserver<DummyResponse> responseObserver) {
       if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
         responseObserver.onError(
-                Status.UNAVAILABLE
-                  .withDescription("legacy state not supported")
-                  .asRuntimeException());
+            Status.UNAVAILABLE.withDescription("legacy state not supported").asRuntimeException());
         return;
       }
       try {
@@ -1324,11 +1322,11 @@ public class LuceneServer {
       } catch (Exception e) {
         logger.warn("error while trying to sync the index state for " + request.getIndexName(), e);
         responseObserver.onError(
-                Status.INVALID_ARGUMENT
-                        .withDescription(
-                                "error while trying to sync the index state for: " + request.getIndexName())
-                        .augmentDescription(e.getMessage())
-                        .asRuntimeException());
+            Status.INTERNAL
+                .withDescription(
+                    "error while trying to sync the index state for: " + request.getIndexName())
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
       }
     }
 
