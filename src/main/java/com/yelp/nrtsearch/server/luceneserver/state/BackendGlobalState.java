@@ -178,6 +178,11 @@ public class BackendGlobalState extends GlobalState {
   }
 
   @Override
+  public void reloadStateFromBackend() throws IOException {
+    getStateBackend().loadOrCreateGlobalState();
+  }
+
+  @Override
   public Path getIndexDir(String indexName) {
     try {
       return getIndex(indexName).getRootDir();

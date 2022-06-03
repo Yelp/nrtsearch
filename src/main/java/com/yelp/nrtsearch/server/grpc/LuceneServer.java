@@ -1308,8 +1308,8 @@ public class LuceneServer {
     }
 
     @Override
-    public void syncIndexState(
-        SyncIndexStateRequest request, StreamObserver<DummyResponse> responseObserver) {
+    public void reloadIndexState(
+        ReloadIndexStateRequest request, StreamObserver<DummyResponse> responseObserver) {
       if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
         responseObserver.onError(
             Status.UNAVAILABLE.withDescription("legacy state not supported").asRuntimeException());
@@ -1317,8 +1317,26 @@ public class LuceneServer {
       }
       try {
         if (globalState.getConfiguration().getIndexStartConfig().getMode().equals(Mode.REPLICA)) {
-          globalState.getIndexStateManager(request.getIndexName()).load();
+          String indexName = request.getIndexName();
+          try {
+            globalState.getIndexStateManager(indexName).load();
+          } catch (IllegalArgumentException e) {
+            globalState.reloadStateFromBackend();
+            globalState.getIndexStateManager(indexName).load();
+            if (globalState.getIndicesToStart().contains(indexName)) {
+              StartIndexRequest startIndexRequest =
+                  StartIndexRequest.newBuilder()
+                      .setIndexName(indexName)
+                      .setMode(Mode.REPLICA)
+                      .setPrimaryGen(-1)
+                      .build();
+              globalState.startIndex(startIndexRequest);
+            }
+          }
         }
+        DummyResponse dummyResponse = DummyResponse.newBuilder().setOk("ok").build();
+        responseObserver.onNext(dummyResponse);
+        responseObserver.onCompleted();
       } catch (Exception e) {
         logger.warn("error while trying to sync the index state for " + request.getIndexName(), e);
         responseObserver.onError(
