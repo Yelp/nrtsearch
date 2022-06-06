@@ -1318,20 +1318,10 @@ public class LuceneServer {
       try {
         if (globalState.getConfiguration().getIndexStartConfig().getMode().equals(Mode.REPLICA)) {
           String indexName = request.getIndexName();
-          try {
+          if (globalState.getIndexNames().contains(indexName)) {
             globalState.getIndexStateManager(indexName).load();
-          } catch (IllegalArgumentException e) {
+          } else {
             globalState.reloadStateFromBackend();
-            globalState.getIndexStateManager(indexName).load();
-            if (globalState.getIndicesToStart().contains(indexName)) {
-              StartIndexRequest startIndexRequest =
-                  StartIndexRequest.newBuilder()
-                      .setIndexName(indexName)
-                      .setMode(Mode.REPLICA)
-                      .setPrimaryGen(-1)
-                      .build();
-              globalState.startIndex(startIndexRequest);
-            }
           }
         }
         DummyResponse dummyResponse = DummyResponse.newBuilder().setOk("ok").build();
