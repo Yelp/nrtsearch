@@ -19,12 +19,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -108,9 +112,8 @@ public class StateUtils {
   public static void writeToFile(String stateStr, Path directory, String fileName)
       throws IOException {
     File tmpStateFile = File.createTempFile(fileName, ".tmp", directory.toFile());
-    FileOutputStream fileOutputStream = new FileOutputStream(tmpStateFile);
-    try (DataOutputStream dataOutputStream = new DataOutputStream(fileOutputStream)) {
-      dataOutputStream.writeUTF(stateStr);
+    try (FileOutputStream fileOutputStream = new FileOutputStream(tmpStateFile)) {
+      fileOutputStream.write(toUTF8(stateStr));
     }
 
     Path tmpStatePath = tmpStateFile.toPath();
@@ -131,11 +134,8 @@ public class StateUtils {
    */
   public static GlobalStateInfo readStateFromFile(Path filePath) throws IOException {
     Objects.requireNonNull(filePath);
-    String stateStr;
-    FileInputStream fileInputStream = new FileInputStream(filePath.toFile());
-    try (DataInputStream dataInputStream = new DataInputStream(fileInputStream)) {
-      stateStr = dataInputStream.readUTF();
-    }
+    byte[] fileData = Files.readAllBytes(filePath);
+    String stateStr = fromUTF8(fileData);
     GlobalStateInfo.Builder stateBuilder = GlobalStateInfo.newBuilder();
     JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
     return stateBuilder.build();
@@ -150,13 +150,50 @@ public class StateUtils {
    */
   public static IndexStateInfo readIndexStateFromFile(Path filePath) throws IOException {
     Objects.requireNonNull(filePath);
-    String stateStr;
-    FileInputStream fileInputStream = new FileInputStream(filePath.toFile());
-    try (DataInputStream dataInputStream = new DataInputStream(fileInputStream)) {
-      stateStr = dataInputStream.readUTF();
-    }
+    byte[] fileData = Files.readAllBytes(filePath);
+    String stateStr = fromUTF8(fileData);
     IndexStateInfo.Builder stateBuilder = IndexStateInfo.newBuilder();
     JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
     return stateBuilder.build();
+  }
+
+  /**
+   * Convert a String to a UTF8 encoded byte array.
+   *
+   * @param s input string
+   * @throws IllegalArgumentException on malformed input string
+   */
+  public static byte[] toUTF8(String s) {
+    CharsetEncoder encoder = StandardCharsets.UTF_8.newEncoder();
+    // Make sure we catch any invalid UTF16:
+    encoder.onMalformedInput(CodingErrorAction.REPORT);
+    encoder.onUnmappableCharacter(CodingErrorAction.REPORT);
+    try {
+      ByteBuffer bb = encoder.encode(CharBuffer.wrap(s));
+      byte[] bytes = new byte[bb.limit()];
+      bb.position(0);
+      bb.get(bytes, 0, bytes.length);
+      return bytes;
+    } catch (CharacterCodingException cce) {
+      throw new IllegalArgumentException(cce);
+    }
+  }
+
+  /**
+   * Convert a UTF8 encoded byte array to a String.
+   *
+   * @param bytes input bytes
+   * @throws IllegalArgumentException on malformed input bytes
+   */
+  public static String fromUTF8(byte[] bytes) {
+    CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
+    // Make sure we catch any invalid UTF8:
+    decoder.onMalformedInput(CodingErrorAction.REPORT);
+    decoder.onUnmappableCharacter(CodingErrorAction.REPORT);
+    try {
+      return decoder.decode(ByteBuffer.wrap(bytes)).toString();
+    } catch (CharacterCodingException cce) {
+      throw new IllegalArgumentException(cce);
+    }
   }
 }

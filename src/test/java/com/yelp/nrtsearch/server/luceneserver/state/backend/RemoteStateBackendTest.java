@@ -57,7 +57,6 @@ import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import io.findify.s3mock.S3Mock;
 import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -196,14 +195,11 @@ public class RemoteStateBackendTest {
         tarArchiveEntry != null;
         tarArchiveEntry = tarArchiveInputStream.getNextTarEntry()) {
       if (tarArchiveEntry.getName().endsWith(StateUtils.GLOBAL_STATE_FILE)) {
-        String stateStr;
-        try (DataInputStream dataInputStream = new DataInputStream(tarArchiveInputStream)) {
-          stateStr = dataInputStream.readUTF();
-        }
+        byte[] fileData = tarArchiveInputStream.readNBytes((int) tarArchiveEntry.getSize());
+        String stateStr = StateUtils.fromUTF8(fileData);
         GlobalStateInfo.Builder stateBuilder = GlobalStateInfo.newBuilder();
         JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
         stateFromTar = stateBuilder.build();
-        break;
       }
     }
     return stateFromTar;
@@ -233,14 +229,11 @@ public class RemoteStateBackendTest {
         tarArchiveEntry != null;
         tarArchiveEntry = tarArchiveInputStream.getNextTarEntry()) {
       if (tarArchiveEntry.getName().endsWith(StateUtils.INDEX_STATE_FILE)) {
-        String stateStr;
-        try (DataInputStream dataInputStream = new DataInputStream(tarArchiveInputStream)) {
-          stateStr = dataInputStream.readUTF();
-        }
+        byte[] fileData = tarArchiveInputStream.readNBytes((int) tarArchiveEntry.getSize());
+        String stateStr = StateUtils.fromUTF8(fileData);
         IndexStateInfo.Builder stateBuilder = IndexStateInfo.newBuilder();
         JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
         stateFromTar = stateBuilder.build();
-        break;
       }
     }
     return stateFromTar;

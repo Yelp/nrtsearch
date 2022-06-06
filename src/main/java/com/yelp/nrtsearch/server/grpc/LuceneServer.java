@@ -374,7 +374,7 @@ public class LuceneServer {
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
 
-      this.globalState = GlobalState.createState(configuration, incArchiver);
+      this.globalState = GlobalState.createState(configuration, incArchiver, archiver);
       this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
     }
 
@@ -1362,7 +1362,8 @@ public class LuceneServer {
       try {
         List<String> indicesNotStarted = new ArrayList<>();
         for (String indexName : indexNames) {
-          IndexState indexState = globalState.getIndex(indexName);
+          // The ready endpoint should skip loading index state
+          IndexState indexState = globalState.getIndex(indexName, true);
           if (!indexState.isStarted()) {
             indicesNotStarted.add(indexName);
           }
