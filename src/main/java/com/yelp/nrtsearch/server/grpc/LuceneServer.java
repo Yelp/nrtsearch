@@ -1326,8 +1326,7 @@ public class LuceneServer {
         logger.warn("error while trying to sync the index state", e);
         responseObserver.onError(
             Status.INTERNAL
-                .withDescription(
-                    "error while trying to sync the index state")
+                .withDescription("error while trying to sync the index state")
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
       }

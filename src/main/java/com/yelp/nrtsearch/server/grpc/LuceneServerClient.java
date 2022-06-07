@@ -180,8 +180,7 @@ public class LuceneServerClient {
   }
 
   public void reloadIndexState() {
-    ReloadIndexStateRequest reloadIndexStateRequest =
-        ReloadIndexStateRequest.newBuilder().build();
+    ReloadIndexStateRequest reloadIndexStateRequest = ReloadIndexStateRequest.newBuilder().build();
     try {
       blockingStub.reloadIndexState(reloadIndexStateRequest);
     } catch (StatusRuntimeException e) {
