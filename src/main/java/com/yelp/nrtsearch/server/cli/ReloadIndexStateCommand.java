@@ -27,21 +27,11 @@ public class ReloadIndexStateCommand implements Callable<Integer> {
 
   @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
 
-  @CommandLine.Option(
-      names = {"-i", "--indexName"},
-      description = "Name of the index to reload from backend",
-      required = true)
-  private String indexName;
-
-  public String getIndexName() {
-    return indexName;
-  }
-
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
     try {
-      client.reloadIndexState(getIndexName());
+      client.reloadIndexState();
     } finally {
       client.shutdown();
     }

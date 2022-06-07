@@ -179,9 +179,9 @@ public class LuceneServerClient {
     logger.info("Server returned : " + response.getResponse());
   }
 
-  public void reloadIndexState(String indexName) {
+  public void reloadIndexState() {
     ReloadIndexStateRequest reloadIndexStateRequest =
-        ReloadIndexStateRequest.newBuilder().setIndexName(indexName).build();
+        ReloadIndexStateRequest.newBuilder().build();
     try {
       blockingStub.reloadIndexState(reloadIndexStateRequest);
     } catch (StatusRuntimeException e) {
