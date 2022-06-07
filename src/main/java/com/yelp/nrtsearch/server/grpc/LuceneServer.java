@@ -1323,11 +1323,11 @@ public class LuceneServer {
         responseObserver.onNext(dummyResponse);
         responseObserver.onCompleted();
       } catch (Exception e) {
-        logger.warn("error while trying to sync the index state for " + request.getIndexName(), e);
+        logger.warn("error while trying to sync the index state", e);
         responseObserver.onError(
             Status.INTERNAL
                 .withDescription(
-                    "error while trying to sync the index state for: " + request.getIndexName())
+                    "error while trying to sync the index state")
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
       }
