@@ -1317,12 +1317,7 @@ public class LuceneServer {
       }
       try {
         if (globalState.getConfiguration().getIndexStartConfig().getMode().equals(Mode.REPLICA)) {
-          String indexName = request.getIndexName();
-          if (globalState.getIndexNames().contains(indexName)) {
-            globalState.getIndexStateManager(indexName).load();
-          } else {
-            globalState.reloadStateFromBackend();
-          }
+          globalState.reloadStateFromBackend();
         }
         DummyResponse dummyResponse = DummyResponse.newBuilder().setOk("ok").build();
         responseObserver.onNext(dummyResponse);

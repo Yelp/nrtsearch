@@ -184,16 +184,20 @@ public class BackendGlobalState extends GlobalState {
     for (Map.Entry<String, IndexGlobalState> entry :
         newGlobalStateInfo.getIndicesMap().entrySet()) {
       String indexName = entry.getKey();
-      IndexStateManager stateManager =
-          createIndexStateManager(indexName, entry.getValue().getId(), stateBackend);
+      IndexStateManager stateManager;
+      if (immutableState.indexStateManagerMap.containsKey(indexName)) {
+        stateManager = immutableState.indexStateManagerMap.get(indexName);
+      } else {
+        stateManager = createIndexStateManager(indexName, entry.getValue().getId(), stateBackend);
+      }
       stateManager.load();
       newManagerMap.put(indexName, stateManager);
     }
     ImmutableState newImmutableState = new ImmutableState(newGlobalStateInfo, newManagerMap);
-    setImmutableState(newImmutableState);
     if (getConfiguration().getIndexStartConfig().getAutoStart()) {
       updateStartedIndices(newImmutableState);
     }
+    setImmutableState(newImmutableState);
   }
 
   @Override

@@ -733,7 +733,6 @@ message StopIndexRequest {
 }
 
 message ReloadIndexStateRequest {
-    string indexName = 1; //index name of the state to sync
 }
 
 /*
