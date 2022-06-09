@@ -185,11 +185,7 @@ public class BackendGlobalState extends GlobalState {
         newGlobalStateInfo.getIndicesMap().entrySet()) {
       String indexName = entry.getKey();
       IndexStateManager stateManager = immutableState.indexStateManagerMap.get(indexName);
-      if (stateManager == null
-          || !entry
-              .getValue()
-              .getId()
-              .equals(stateManager.getIndexId())) {
+      if (stateManager == null || !entry.getValue().getId().equals(stateManager.getIndexId())) {
         stateManager = createIndexStateManager(indexName, entry.getValue().getId(), stateBackend);
       }
       stateManager.load();
