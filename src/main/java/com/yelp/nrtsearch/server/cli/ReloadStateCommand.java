@@ -20,9 +20,9 @@ import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 @CommandLine.Command(
-    name = ReloadIndexStateCommand.RELOAD_INDEX_STATE,
+    name = ReloadStateCommand.RELOAD_INDEX_STATE,
     description = "Reloads the replica's index state from backend")
-public class ReloadIndexStateCommand implements Callable<Integer> {
+public class ReloadStateCommand implements Callable<Integer> {
   public static final String RELOAD_INDEX_STATE = "reloadIndexState";
 
   @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
@@ -31,7 +31,7 @@ public class ReloadIndexStateCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
     try {
-      client.reloadIndexState();
+      client.reloadState();
     } finally {
       client.shutdown();
     }

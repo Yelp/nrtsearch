@@ -184,10 +184,12 @@ public class BackendGlobalState extends GlobalState {
     for (Map.Entry<String, IndexGlobalState> entry :
         newGlobalStateInfo.getIndicesMap().entrySet()) {
       String indexName = entry.getKey();
-      IndexStateManager stateManager;
-      if (immutableState.indexStateManagerMap.containsKey(indexName)) {
-        stateManager = immutableState.indexStateManagerMap.get(indexName);
-      } else {
+      IndexStateManager stateManager = immutableState.indexStateManagerMap.get(indexName);
+      if (stateManager == null
+          || !entry
+              .getValue()
+              .getId()
+              .equals(stateManager.getIndexId())) {
         stateManager = createIndexStateManager(indexName, entry.getValue().getId(), stateBackend);
       }
       stateManager.load();
@@ -197,7 +199,7 @@ public class BackendGlobalState extends GlobalState {
     if (getConfiguration().getIndexStartConfig().getAutoStart()) {
       updateStartedIndices(newImmutableState);
     }
-    setImmutableState(newImmutableState);
+    this.immutableState = newImmutableState;
   }
 
   @Override
@@ -223,10 +225,6 @@ public class BackendGlobalState extends GlobalState {
   public void setStateDir(Path source) throws IOException {
     // only called by legacy restore
     throw new UnsupportedOperationException();
-  }
-
-  private void setImmutableState(ImmutableState immutableState) {
-    this.immutableState = immutableState;
   }
 
   @Override

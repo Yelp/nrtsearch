@@ -92,4 +92,9 @@ public class LegacyStateManager implements IndexStateManager {
 
   @Override
   public void close() throws IOException {}
+
+  @Override
+  public String getIndexId() {
+    throw new UnsupportedOperationException(EXCEPTION_MSG);
+  }
 }

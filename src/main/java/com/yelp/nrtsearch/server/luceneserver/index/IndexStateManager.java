@@ -105,4 +105,11 @@ public interface IndexStateManager extends Closeable {
    * @return current index state
    */
   IndexState getCurrent();
+
+  /**
+   * Get the index id
+   *
+   * @return
+   */
+  String getIndexId();
 }

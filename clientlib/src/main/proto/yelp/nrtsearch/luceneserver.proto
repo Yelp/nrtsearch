@@ -115,9 +115,9 @@ service LuceneServer {
 
     }
     /* Sync an index state */
-    rpc reloadIndexState (ReloadIndexStateRequest) returns (DummyResponse) {
+    rpc reloadState (ReloadStateRequest) returns (ReloadStateResponse) {
         option (google.api.http) = {
-      post: "/v1/reload_index_state"
+      post: "/v1/reload_state"
       body: "*"
     };
 
@@ -732,7 +732,10 @@ message StopIndexRequest {
     string indexName = 1; //index name to stop
 }
 
-message ReloadIndexStateRequest {
+message ReloadStateRequest {
+}
+
+message ReloadStateResponse {
 }
 
 /*
