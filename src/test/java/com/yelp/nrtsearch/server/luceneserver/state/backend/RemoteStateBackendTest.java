@@ -60,6 +60,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -759,5 +760,77 @@ public class RemoteStateBackendTest {
     } catch (IllegalStateException e) {
       assertEquals("Cannot update remote state when configured as read only", e.getMessage());
     }
+  }
+
+  @Test
+  public void testFindIndexStateFile_fileInRootFolder() throws IOException {
+    Path filePath = folder.newFile(StateUtils.INDEX_STATE_FILE).toPath();
+    Path foundPath = RemoteStateBackend.findIndexStateFile(folder.getRoot().toPath());
+    assertEquals(filePath, foundPath);
+  }
+
+  @Test
+  public void testFindIndexStateFile_fileInDirectory() throws IOException {
+    folder.newFolder("folder1");
+    folder.newFolder("folder2");
+    folder.newFolder("folder3");
+    folder.newFile("file1");
+    folder.newFile("file2");
+    Files.createFile(folder.getRoot().toPath().resolve("folder1").resolve("file3"));
+    Files.createFile(folder.getRoot().toPath().resolve("folder2").resolve("file4"));
+    Path filePath =
+        folder.getRoot().toPath().resolve("folder2").resolve(StateUtils.INDEX_STATE_FILE);
+    Files.createFile(filePath);
+    Path foundPath = RemoteStateBackend.findIndexStateFile(folder.getRoot().toPath());
+    assertEquals(filePath, foundPath);
+  }
+
+  @Test
+  public void testFindIndexStateFile_emptyFolder() throws IOException {
+    try {
+      RemoteStateBackend.findIndexStateFile(folder.getRoot().toPath());
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertTrue(e.getMessage().startsWith("No index state file found in downloadPath: "));
+    }
+  }
+
+  @Test
+  public void testFindIndexStateFile_noStateFile() throws IOException {
+    folder.newFolder("folder1");
+    folder.newFolder("folder2");
+    folder.newFolder("folder3");
+    folder.newFile("file1");
+    folder.newFile("file2");
+    Files.createFile(folder.getRoot().toPath().resolve("folder1").resolve("file3"));
+    Files.createFile(folder.getRoot().toPath().resolve("folder2").resolve("file4"));
+    try {
+      RemoteStateBackend.findIndexStateFile(folder.getRoot().toPath());
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertTrue(e.getMessage().startsWith("No index state file found in downloadPath: "));
+    }
+  }
+
+  @Test
+  public void testFindIndexStateFile_multipleStateFile() throws IOException {
+    folder.newFolder("folder1");
+    folder.newFolder("folder2");
+    folder.newFolder("folder3");
+    Files.createFile(
+        folder.getRoot().toPath().resolve("folder1").resolve(StateUtils.INDEX_STATE_FILE));
+    Files.createFile(
+        folder.getRoot().toPath().resolve("folder2").resolve(StateUtils.INDEX_STATE_FILE));
+    try {
+      RemoteStateBackend.findIndexStateFile(folder.getRoot().toPath());
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertTrue(e.getMessage().startsWith("Multiple index state files found in downloadedPath: "));
+    }
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testFindIndexStateFile_nullDownloadPath() throws IOException {
+    RemoteStateBackend.findIndexStateFile(null);
   }
 }

@@ -131,6 +131,33 @@ public class BackendStateManagerTest {
   }
 
   @Test
+  public void testLoadFixesIndexName() throws IOException {
+    StateBackend mockBackend = mock(StateBackend.class);
+    GlobalState mockGlobalState = mock(GlobalState.class);
+    BackendStateManager stateManager =
+        new MockStateManager("test_index", "test_id", mockBackend, mockGlobalState);
+
+    IndexStateInfo initialState =
+        IndexStateInfo.newBuilder().setIndexName("not_test_index").setCommitted(false).build();
+    IndexStateInfo expectedState =
+        IndexStateInfo.newBuilder().setIndexName("test_index").setCommitted(false).build();
+    when(mockBackend.loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id")))
+        .thenReturn(initialState);
+
+    ImmutableIndexState mockState = mock(ImmutableIndexState.class);
+    MockStateManager.nextState = mockState;
+    MockStateManager.expectedState = expectedState;
+
+    stateManager.load();
+    assertSame(mockState, stateManager.getCurrent());
+
+    verify(mockBackend, times(1))
+        .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+
+    verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
+  }
+
+  @Test
   public void testLoadNoExistingState() throws IOException {
     StateBackend mockBackend = mock(StateBackend.class);
     GlobalState mockGlobalState = mock(GlobalState.class);
@@ -1183,5 +1210,33 @@ public class BackendStateManagerTest {
     } catch (IllegalStateException e) {
       assertEquals("Index already started: test_index", e.getMessage());
     }
+  }
+
+  @Test
+  public void testFixIndexName_updatesName() {
+    IndexStateInfo initialInfo =
+        IndexStateInfo.newBuilder().setIndexName("test_index").setCommitted(true).build();
+    IndexStateInfo updatedInfo = BackendStateManager.fixIndexName(initialInfo, "test_index_1");
+    IndexStateInfo expectedInfo =
+        IndexStateInfo.newBuilder().setIndexName("test_index_1").setCommitted(true).build();
+    assertEquals(expectedInfo, updatedInfo);
+  }
+
+  @Test
+  public void testFixIndexName_noop() {
+    IndexStateInfo initialInfo =
+        IndexStateInfo.newBuilder().setIndexName("test_index").setCommitted(true).build();
+    IndexStateInfo updatedInfo = BackendStateManager.fixIndexName(initialInfo, "test_index");
+    assertEquals(initialInfo, updatedInfo);
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testFixIndexName_nullStateInfo() {
+    BackendStateManager.fixIndexName(null, "test_index");
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testFixIndexName_nullIndexName() {
+    BackendStateManager.fixIndexName(IndexStateInfo.newBuilder().build(), null);
   }
 }
