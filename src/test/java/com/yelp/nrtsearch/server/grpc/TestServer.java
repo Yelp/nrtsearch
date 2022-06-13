@@ -16,12 +16,16 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.backup.ArchiverImpl;
 import com.yelp.nrtsearch.server.backup.BackupDiffManager;
@@ -68,6 +72,7 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestServer {
   private static final List<TestServer> createdServers = new ArrayList<>();
+  private final Gson gson = new GsonBuilder().serializeNulls().create();
   public static final String SERVICE_NAME = "test_server";
   public static final String TEST_BUCKET = "test-server-data-bucket";
   public static final String S3_ENDPOINT = "http://127.0.0.1:8011";
@@ -323,6 +328,10 @@ public class TestServer {
             FieldDefRequest.newBuilder().setIndexName(indexName).addAllField(fields).build());
   }
 
+  public ReloadStateResponse reloadState() {
+    return client.getBlockingStub().reloadState(ReloadStateRequest.newBuilder().build());
+  }
+
   public StartIndexResponse startIndex(StartIndexRequest startIndexRequest) {
     return client.getBlockingStub().startIndex(startIndexRequest);
   }
@@ -437,6 +446,15 @@ public class TestServer {
               .build());
     }
     addDocs(requests.stream());
+  }
+
+  public void verifyFieldName(String indexName, String fieldName) {
+    StateResponse rawResponse =
+        client.getBlockingStub().state(StateRequest.newBuilder().setIndexName(indexName).build());
+    JsonObject response = gson.fromJson(rawResponse.getResponse(), JsonObject.class);
+    JsonObject state = response.getAsJsonObject("state");
+    JsonObject fields = state.getAsJsonObject("fields");
+    assertTrue(fields.has(fieldName));
   }
 
   public void verifySimpleDocs(String indexName, int expectedCount) {

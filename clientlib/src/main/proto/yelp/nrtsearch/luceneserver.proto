@@ -114,7 +114,7 @@ service LuceneServer {
     };
 
     }
-    /* Sync an index state */
+    /* Reload state from the backend */
     rpc reloadState (ReloadStateRequest) returns (ReloadStateResponse) {
         option (google.api.http) = {
       post: "/v1/reload_state"

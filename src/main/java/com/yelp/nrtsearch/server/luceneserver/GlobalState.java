@@ -210,7 +210,7 @@ public abstract class GlobalState implements Closeable {
   public abstract IndexStateManager getIndexStateManager(String name) throws IOException;
 
   /**
-   * Get the global state backend
+   * Reload state from backend
    *
    * @return
    * @throws IOException
