@@ -85,12 +85,15 @@ public class ReplicationServerClientTest {
   @Test
   public void testConnectWithDiscoveryFile() throws IOException {
     Server replicationServer = getBasicReplicationServer();
+    ReplicationServerClient client = null;
     try {
       writeNodeFile(Collections.singletonList(new Node("localhost", replicationServer.getPort())));
-      ReplicationServerClient client =
-          new ReplicationServerClient(new DiscoveryFileAndPort(testFileURI().getPath(), 0));
+      client = new ReplicationServerClient(new DiscoveryFileAndPort(testFileURI().getPath(), 0));
       verifyConnected(client);
     } finally {
+      if (client != null) {
+        client.close();
+      }
       replicationServer.shutdown();
     }
   }
@@ -98,6 +101,7 @@ public class ReplicationServerClientTest {
   @Test
   public void testConnectWithDiscoveryFileIgnoreUnknown() throws IOException {
     Server replicationServer = getBasicReplicationServer();
+    ReplicationServerClient client = null;
     try {
       String filePathStr = Paths.get(folder.getRoot().toString(), TEST_FILE).toString();
       String fileStr =
@@ -107,10 +111,12 @@ public class ReplicationServerClientTest {
       try (FileOutputStream outputStream = new FileOutputStream(filePathStr)) {
         outputStream.write(fileStr.getBytes());
       }
-      ReplicationServerClient client =
-          new ReplicationServerClient(new DiscoveryFileAndPort(testFileURI().getPath(), 0));
+      client = new ReplicationServerClient(new DiscoveryFileAndPort(testFileURI().getPath(), 0));
       verifyConnected(client);
     } finally {
+      if (client != null) {
+        client.close();
+      }
       replicationServer.shutdown();
     }
   }
@@ -118,35 +124,43 @@ public class ReplicationServerClientTest {
   @Test
   public void testDiscoveryFilePrimaryChange() throws IOException {
     Server replicationServer = getBasicReplicationServer();
-    ReplicationServerClient client;
+    ReplicationServerClient client = null;
     try {
-      writeNodeFile(Collections.singletonList(new Node("localhost", replicationServer.getPort())));
-      client =
-          new ReplicationServerClient(new DiscoveryFileAndPort(testFileURI().getPath(), 0), 100);
-      verifyConnected(client);
-    } finally {
-      replicationServer.shutdown();
-    }
-    replicationServer = getBasicReplicationServer();
-    try {
-      writeNodeFile(Collections.singletonList(new Node("localhost", replicationServer.getPort())));
-      boolean success = false;
-      // try for 10s
-      for (int i = 0; i < 100; ++i) {
-        try {
-          verifyConnected(client);
-          success = true;
-          break;
-        } catch (Throwable ignore) {
-        }
-        try {
-          Thread.sleep(100);
-        } catch (InterruptedException ignore) {
-        }
+      try {
+        writeNodeFile(
+            Collections.singletonList(new Node("localhost", replicationServer.getPort())));
+        client =
+            new ReplicationServerClient(new DiscoveryFileAndPort(testFileURI().getPath(), 0), 100);
+        verifyConnected(client);
+      } finally {
+        replicationServer.shutdown();
       }
-      assertTrue(success);
+      replicationServer = getBasicReplicationServer();
+      try {
+        writeNodeFile(
+            Collections.singletonList(new Node("localhost", replicationServer.getPort())));
+        boolean success = false;
+        // try for 10s
+        for (int i = 0; i < 100; ++i) {
+          try {
+            verifyConnected(client);
+            success = true;
+            break;
+          } catch (Throwable ignore) {
+          }
+          try {
+            Thread.sleep(100);
+          } catch (InterruptedException ignore) {
+          }
+        }
+        assertTrue(success);
+      } finally {
+        replicationServer.shutdown();
+      }
     } finally {
-      replicationServer.shutdown();
+      if (client != null) {
+        client.close();
+      }
     }
   }
 }
