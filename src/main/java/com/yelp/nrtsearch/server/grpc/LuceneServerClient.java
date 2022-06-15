@@ -179,6 +179,15 @@ public class LuceneServerClient {
     logger.info("Server returned : " + response.getResponse());
   }
 
+  public void reloadState() {
+    ReloadStateRequest reloadStateRequest = ReloadStateRequest.newBuilder().build();
+    try {
+      blockingStub.reloadState(reloadStateRequest);
+    } catch (StatusRuntimeException e) {
+      logger.warn("RPC failed: {}", e.getStatus());
+    }
+  }
+
   public void settings(Path filePath) throws IOException {
     SettingsRequest settingsRequest =
         new LuceneServerClientBuilder.SettingsClientBuilder().buildRequest(filePath);

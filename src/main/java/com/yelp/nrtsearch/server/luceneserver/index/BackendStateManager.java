@@ -45,6 +45,7 @@ public class BackendStateManager implements IndexStateManager {
 
   private final String indexName;
   private final String indexUniqueName;
+  private final String id;
   private final StateBackend stateBackend;
   private final GlobalState globalState;
 
@@ -62,6 +63,7 @@ public class BackendStateManager implements IndexStateManager {
   public BackendStateManager(
       String indexName, String id, StateBackend stateBackend, GlobalState globalState) {
     this.indexName = indexName;
+    this.id = id;
     this.indexUniqueName = BackendGlobalState.getUniqueIndexName(indexName, id);
     this.stateBackend = stateBackend;
     this.globalState = globalState;
@@ -264,5 +266,10 @@ public class BackendStateManager implements IndexStateManager {
     if (currentState != null) {
       currentState.close();
     }
+  }
+
+  @Override
+  public String getIndexId() {
+    return id;
   }
 }

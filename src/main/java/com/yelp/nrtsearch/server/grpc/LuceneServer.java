@@ -1308,6 +1308,33 @@ public class LuceneServer {
     }
 
     @Override
+    public void reloadState(
+        ReloadStateRequest request, StreamObserver<ReloadStateResponse> responseObserver) {
+      if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
+        responseObserver.onError(
+            Status.UNAVAILABLE.withDescription("legacy state not supported").asRuntimeException());
+        return;
+      }
+      try {
+        if (globalState.getConfiguration().getIndexStartConfig().getMode().equals(Mode.REPLICA)) {
+          globalState.reloadStateFromBackend();
+        } else {
+          logger.info("Skip reloading state since it is not replica");
+        }
+        ReloadStateResponse reloadStateResponse = ReloadStateResponse.newBuilder().build();
+        responseObserver.onNext(reloadStateResponse);
+        responseObserver.onCompleted();
+      } catch (Exception e) {
+        logger.warn("error while trying to sync the index state", e);
+        responseObserver.onError(
+            Status.INTERNAL
+                .withDescription("error while trying to sync the index state")
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+
+    @Override
     public void status(
         HealthCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
       try {

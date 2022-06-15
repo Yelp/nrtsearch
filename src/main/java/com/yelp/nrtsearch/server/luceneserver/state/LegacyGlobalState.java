@@ -214,6 +214,11 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
   }
 
   @Override
+  public void reloadStateFromBackend() {
+    throw new UnsupportedOperationException("Not supported by LEGACY global state");
+  }
+
+  @Override
   public void indexClosed(String name) {
     synchronized (indices) {
       indices.remove(name);

@@ -9,11 +9,11 @@
 package nrtsearch
 
 import (
-	any "github.com/golang/protobuf/ptypes/any"
-	_struct "github.com/golang/protobuf/ptypes/struct"
 	latlng "google.golang.org/genproto/googleapis/type/latlng"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	anypb "google.golang.org/protobuf/types/known/anypb"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
 	sync "sync"
 )
@@ -3186,8 +3186,8 @@ type FetchTask struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name   string          `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`     //Name of task, as registered by a FetchTaskPlugin
-	Params *_struct.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"` //Optional task parameters
+	Name   string           `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`     //Name of task, as registered by a FetchTaskPlugin
+	Params *structpb.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"` //Optional task parameters
 }
 
 func (x *FetchTask) Reset() {
@@ -3229,7 +3229,7 @@ func (x *FetchTask) GetName() string {
 	return ""
 }
 
-func (x *FetchTask) GetParams() *_struct.Struct {
+func (x *FetchTask) GetParams() *structpb.Struct {
 	if x != nil {
 		return x.Params
 	}
@@ -3242,8 +3242,8 @@ type PluginRescorer struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name   string          `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Params *_struct.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"` // arguments passed to the plugin
+	Name   string           `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Params *structpb.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"` // arguments passed to the plugin
 }
 
 func (x *PluginRescorer) Reset() {
@@ -3285,7 +3285,7 @@ func (x *PluginRescorer) GetName() string {
 	return ""
 }
 
-func (x *PluginRescorer) GetParams() *_struct.Struct {
+func (x *PluginRescorer) GetParams() *structpb.Struct {
 	if x != nil {
 		return x.Params
 	}
@@ -3614,8 +3614,8 @@ type PluginCollector struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name   string          `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Params *_struct.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"` // arguments passed to the plugin
+	Name   string           `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Params *structpb.Struct `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"` // arguments passed to the plugin
 }
 
 func (x *PluginCollector) Reset() {
@@ -3657,7 +3657,7 @@ func (x *PluginCollector) GetName() string {
 	return ""
 }
 
-func (x *PluginCollector) GetParams() *_struct.Struct {
+func (x *PluginCollector) GetParams() *structpb.Struct {
 	if x != nil {
 		return x.Params
 	}
@@ -3813,7 +3813,7 @@ func (x *CollectorResult) GetBucketResult() *BucketResult {
 	return nil
 }
 
-func (x *CollectorResult) GetAnyResult() *any.Any {
+func (x *CollectorResult) GetAnyResult() *anypb.Any {
 	if x, ok := x.GetCollectorResults().(*CollectorResult_AnyResult); ok {
 		return x.AnyResult
 	}
@@ -3831,7 +3831,7 @@ type CollectorResult_BucketResult struct {
 
 type CollectorResult_AnyResult struct {
 	//Flexible collector result for additional document collectors
-	AnyResult *any.Any `protobuf:"bytes,2,opt,name=anyResult,proto3,oneof"`
+	AnyResult *anypb.Any `protobuf:"bytes,2,opt,name=anyResult,proto3,oneof"`
 }
 
 func (*CollectorResult_BucketResult) isCollectorResult_CollectorResults() {}
@@ -4804,7 +4804,7 @@ func (x *SearchResponse_Hit_FieldValue) GetLatLngValue() *latlng.LatLng {
 	return nil
 }
 
-func (x *SearchResponse_Hit_FieldValue) GetStructValue() *_struct.Struct {
+func (x *SearchResponse_Hit_FieldValue) GetStructValue() *structpb.Struct {
 	if x, ok := x.GetFieldValues().(*SearchResponse_Hit_FieldValue_StructValue); ok {
 		return x.StructValue
 	}
@@ -4851,7 +4851,7 @@ type SearchResponse_Hit_FieldValue_LatLngValue struct {
 }
 
 type SearchResponse_Hit_FieldValue_StructValue struct {
-	StructValue *_struct.Struct `protobuf:"bytes,8,opt,name=structValue,proto3,oneof"` // Value for structured data
+	StructValue *structpb.Struct `protobuf:"bytes,8,opt,name=structValue,proto3,oneof"` // Value for structured data
 }
 
 type SearchResponse_Hit_FieldValue_VectorValue struct {
@@ -6268,8 +6268,8 @@ var file_yelp_nrtsearch_search_proto_goTypes = []interface{}{
 	(*BucketResult_Bucket)(nil),                    // 77: luceneserver.BucketResult.Bucket
 	(*Analyzer)(nil),                               // 78: luceneserver.Analyzer
 	(*latlng.LatLng)(nil),                          // 79: google.type.LatLng
-	(*_struct.Struct)(nil),                         // 80: google.protobuf.Struct
-	(*any.Any)(nil),                                // 81: google.protobuf.Any
+	(*structpb.Struct)(nil),                        // 80: google.protobuf.Struct
+	(*anypb.Any)(nil),                              // 81: google.protobuf.Any
 }
 var file_yelp_nrtsearch_search_proto_depIdxs = []int32{
 	25,  // 0: luceneserver.BooleanClause.query:type_name -> luceneserver.Query

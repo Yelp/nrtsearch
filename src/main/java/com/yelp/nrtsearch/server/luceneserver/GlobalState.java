@@ -209,6 +209,14 @@ public abstract class GlobalState implements Closeable {
    */
   public abstract IndexStateManager getIndexStateManager(String name) throws IOException;
 
+  /**
+   * Reload state from backend
+   *
+   * @return
+   * @throws IOException
+   */
+  public abstract void reloadStateFromBackend() throws IOException;
+
   /** Remove the specified index. */
   public abstract void deleteIndex(String name) throws IOException;
 
