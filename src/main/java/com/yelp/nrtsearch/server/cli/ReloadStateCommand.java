@@ -20,10 +20,10 @@ import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 @CommandLine.Command(
-    name = ReloadStateCommand.RELOAD_INDEX_STATE,
+    name = ReloadStateCommand.RELOAD_STATE,
     description = "Reloads the replica's state from backend")
 public class ReloadStateCommand implements Callable<Integer> {
-  public static final String RELOAD_INDEX_STATE = "reloadState";
+  public static final String RELOAD_STATE = "reloadState";
 
   @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
 
