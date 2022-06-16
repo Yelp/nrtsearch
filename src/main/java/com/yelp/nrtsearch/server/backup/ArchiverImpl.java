@@ -425,6 +425,11 @@ public class ArchiverImpl implements Archiver {
     return versionManger.deleteVersion(serviceName, resource, versionHash);
   }
 
+  @Override
+  public boolean deleteLocalFiles(String resource) {
+    return IndexArchiver.deleteLocalResourceFiles(resource, archiverDirectory);
+  }
+
   private String getTmpName() {
     return UUID.randomUUID().toString() + TMP_SUFFIX;
   }

@@ -21,6 +21,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import org.junit.After;
 import org.junit.Rule;
@@ -295,6 +296,54 @@ public class IndexStartTest {
     assertTrue(replicaServer.isReady());
     assertTrue(replicaServer.isStarted("test_index"));
     replicaServer.verifySimpleDocs("test_index", 3);
+  }
+
+  @Test
+  public void testStartIndexReplicaCleansUpArchiverData() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startPrimaryIndex("test_index", -1, null);
+
+    assertTrue(server.isReady());
+    assertTrue(server.isStarted("test_index"));
+
+    server.addSimpleDocs("test_index", 1, 2, 3);
+    server.refresh("test_index");
+    server.commit("test_index");
+    server.verifySimpleDocs("test_index", 3);
+
+    server.stopIndex("test_index");
+    assertTrue(server.isReady());
+    assertFalse(server.isStarted("test_index"));
+
+    TestServer replicaServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.REMOTE)
+            .withSyncInitialNrtPoint(false)
+            .build();
+    assertTrue(replicaServer.isReady());
+    assertFalse(replicaServer.isStarted("test_index"));
+
+    replicaServer.startReplicaIndex(
+        "test_index",
+        -1,
+        server.getReplicationPort(),
+        RestoreIndex.newBuilder()
+            .setServiceName(replicaServer.getServiceName())
+            .setResourceName("test_index")
+            .setDeleteExistingData(true)
+            .build());
+    assertTrue(replicaServer.isReady());
+    assertTrue(replicaServer.isStarted("test_index"));
+    replicaServer.verifySimpleDocs("test_index", 3);
+
+    Path archiverRoot =
+        Path.of(replicaServer.getGlobalState().getConfiguration().getArchiveDirectory());
+    assertEquals(0, archiverRoot.toFile().list().length);
   }
 
   @Test

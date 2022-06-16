@@ -19,12 +19,16 @@ import static com.yelp.nrtsearch.server.backup.IndexArchiver.getIndexDataDir;
 import static com.yelp.nrtsearch.server.backup.IndexArchiver.getIndexStateDir;
 import static org.junit.Assert.*;
 
+import com.amazonaws.util.IOUtils;
+import java.io.ByteArrayInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -227,5 +231,122 @@ public class IndexArchiverTest {
     Path indexDataDir = shardDir.resolve(IndexArchiver.INDEX);
     Files.createDirectories(indexDataDir);
     Files.createDirectory(indexStateDir);
+  }
+
+  @Test
+  public void testDeleteLocalFiles() throws IOException {
+    IndexArchiver archiver = getArchiverForLocalDelete();
+    Path archiverDirectory = backupTestHelper.getArchiverDirectory();
+    createLocalFiles("resource1", 3, true, archiverDirectory);
+    createLocalFiles("resource2", 1, true, archiverDirectory);
+    createLocalFiles("resource3", 5, true, archiverDirectory);
+
+    assertTrue(archiver.deleteLocalFiles("resource2"));
+    assertTrue(archiverDirectory.resolve("resource1").toFile().exists());
+    assertFalse(archiverDirectory.resolve("resource2").toFile().exists());
+    assertTrue(archiverDirectory.resolve("resource3").toFile().exists());
+
+    assertTrue(archiver.deleteLocalFiles("resource3"));
+    assertTrue(archiverDirectory.resolve("resource1").toFile().exists());
+    assertFalse(archiverDirectory.resolve("resource2").toFile().exists());
+    assertFalse(archiverDirectory.resolve("resource3").toFile().exists());
+
+    assertTrue(archiver.deleteLocalFiles("resource1"));
+    assertFalse(archiverDirectory.resolve("resource1").toFile().exists());
+    assertFalse(archiverDirectory.resolve("resource2").toFile().exists());
+    assertFalse(archiverDirectory.resolve("resource3").toFile().exists());
+  }
+
+  @Test
+  public void testDeleteLocalFiles_noCurrent() throws IOException {
+    IndexArchiver archiver = getArchiverForLocalDelete();
+    Path archiverDirectory = backupTestHelper.getArchiverDirectory();
+    createLocalFiles("resource1", 3, false, archiverDirectory);
+    createLocalFiles("resource2", 1, false, archiverDirectory);
+    createLocalFiles("resource3", 5, false, archiverDirectory);
+
+    assertTrue(archiver.deleteLocalFiles("resource2"));
+    assertTrue(archiverDirectory.resolve("resource1").toFile().exists());
+    assertFalse(archiverDirectory.resolve("resource2").toFile().exists());
+    assertTrue(archiverDirectory.resolve("resource3").toFile().exists());
+
+    assertTrue(archiver.deleteLocalFiles("resource3"));
+    assertTrue(archiverDirectory.resolve("resource1").toFile().exists());
+    assertFalse(archiverDirectory.resolve("resource2").toFile().exists());
+    assertFalse(archiverDirectory.resolve("resource3").toFile().exists());
+
+    assertTrue(archiver.deleteLocalFiles("resource1"));
+    assertFalse(archiverDirectory.resolve("resource1").toFile().exists());
+    assertFalse(archiverDirectory.resolve("resource2").toFile().exists());
+    assertFalse(archiverDirectory.resolve("resource3").toFile().exists());
+  }
+
+  @Test
+  public void testDeleteLocalFiles_notExist() throws IOException {
+    IndexArchiver archiver = getArchiverForLocalDelete();
+    Path archiverDirectory = backupTestHelper.getArchiverDirectory();
+    createLocalFiles("resource1", 3, true, archiverDirectory);
+    assertTrue(archiver.deleteLocalFiles("resource2"));
+    assertTrue(archiverDirectory.resolve("resource1").toFile().exists());
+  }
+
+  @Test
+  public void testDeleteLocalFiles_notDirectory() throws IOException {
+    IndexArchiver archiver = getArchiverForLocalDelete();
+    Path archiverDirectory = backupTestHelper.getArchiverDirectory();
+    try (ByteArrayInputStream test1content = new ByteArrayInputStream("test1content".getBytes());
+        ByteArrayInputStream test2content = new ByteArrayInputStream("test2content".getBytes());
+        FileOutputStream fileOutputStream1 =
+            new FileOutputStream(archiverDirectory.resolve("resource1").toFile());
+        FileOutputStream fileOutputStream2 =
+            new FileOutputStream(archiverDirectory.resolve("resource2").toFile()); ) {
+      IOUtils.copy(test1content, fileOutputStream1);
+      IOUtils.copy(test2content, fileOutputStream2);
+    }
+    assertFalse(archiver.deleteLocalFiles("resource1"));
+    assertTrue(Files.exists(archiverDirectory.resolve("resource1")));
+    assertTrue(Files.exists(archiverDirectory.resolve("resource2")));
+    assertFalse(archiver.deleteLocalFiles("resource2"));
+    assertTrue(Files.exists(archiverDirectory.resolve("resource1")));
+    assertTrue(Files.exists(archiverDirectory.resolve("resource2")));
+  }
+
+  private IndexArchiver getArchiverForLocalDelete() {
+    return new IndexArchiver(
+        new BackupDiffManager(
+            backupTestHelper.getContentDownloaderNoTar(),
+            backupTestHelper.getFileCompressAndUploaderWithNoTar(),
+            backupTestHelper.getVersionManager(),
+            backupTestHelper.getArchiverDirectory()),
+        backupTestHelper.getFileCompressAndUploaderWithTar(),
+        backupTestHelper.getContentDownloaderTar(),
+        backupTestHelper.getVersionManager(),
+        backupTestHelper.getArchiverDirectory());
+  }
+
+  private void createLocalFiles(
+      String resourceName, int numVersions, boolean withCurrent, Path archiverDirectory)
+      throws IOException {
+    assertTrue(numVersions > 0);
+    Path resourceRoot = archiverDirectory.resolve(resourceName);
+    Files.createDirectory(resourceRoot);
+    String hash = null;
+    for (int i = 0; i < numVersions; ++i) {
+      hash = UUID.randomUUID().toString();
+      Path versionRoot = resourceRoot.resolve(hash);
+      Files.createDirectory(versionRoot);
+      try (ByteArrayInputStream test1content = new ByteArrayInputStream("test1content".getBytes());
+          ByteArrayInputStream test2content = new ByteArrayInputStream("test2content".getBytes());
+          FileOutputStream fileOutputStream1 =
+              new FileOutputStream(versionRoot.resolve("test1").toFile());
+          FileOutputStream fileOutputStream2 =
+              new FileOutputStream(versionRoot.resolve("test2").toFile()); ) {
+        IOUtils.copy(test1content, fileOutputStream1);
+        IOUtils.copy(test2content, fileOutputStream2);
+      }
+    }
+    if (withCurrent) {
+      Files.createSymbolicLink(resourceRoot.resolve("current"), resourceRoot.resolve(hash));
+    }
   }
 }
