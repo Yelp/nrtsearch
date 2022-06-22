@@ -78,10 +78,18 @@ public abstract class GlobalState implements Closeable {
   public static GlobalState createState(
       LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
       throws IOException {
+    return createState(luceneServerConfiguration, incArchiver, null);
+  }
+
+  public static GlobalState createState(
+      LuceneServerConfiguration luceneServerConfiguration,
+      Archiver incArchiver,
+      Archiver legacyArchiver)
+      throws IOException {
     if (luceneServerConfiguration.getStateConfig().useLegacyStateManagement()) {
       return new LegacyGlobalState(luceneServerConfiguration, incArchiver);
     } else {
-      return new BackendGlobalState(luceneServerConfiguration, incArchiver);
+      return new BackendGlobalState(luceneServerConfiguration, incArchiver, legacyArchiver);
     }
   }
 
@@ -200,6 +208,14 @@ public abstract class GlobalState implements Closeable {
    * @throws IOException on error reading index data
    */
   public abstract IndexStateManager getIndexStateManager(String name) throws IOException;
+
+  /**
+   * Reload state from backend
+   *
+   * @return
+   * @throws IOException
+   */
+  public abstract void reloadStateFromBackend() throws IOException;
 
   /** Remove the specified index. */
   public abstract void deleteIndex(String name) throws IOException;

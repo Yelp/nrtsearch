@@ -18,9 +18,11 @@ package com.yelp.nrtsearch.server.backup;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.Inject;
 import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -281,6 +283,34 @@ public class IndexArchiver implements Archiver {
           && versionManager.deleteVersion(
               serviceName, getIndexStateResourceName(resource), versionHash);
     }
+  }
+
+  @Override
+  public boolean deleteLocalFiles(String resource) {
+    return deleteLocalResourceFiles(resource, archiverDirectory);
+  }
+
+  public static boolean deleteLocalResourceFiles(String resource, Path archiverDirectory) {
+    final File resourceDestDirectory = archiverDirectory.resolve(resource).toFile();
+    if (!resourceDestDirectory.exists()) {
+      return true;
+    }
+    if (!resourceDestDirectory.isDirectory()) {
+      logger.warn("Local resource destination is not a directory: " + resourceDestDirectory);
+      return false;
+    }
+    try {
+      // clean up the symlink first, since it isn't always handled properly by deleteDirectory
+      Path currentPath = archiverDirectory.resolve(resource).resolve("current");
+      if (Files.exists(currentPath, LinkOption.NOFOLLOW_LINKS)) {
+        Files.delete(currentPath);
+      }
+      FileUtils.deleteDirectory(resourceDestDirectory);
+    } catch (IOException e) {
+      logger.error("Error deleting local files:", e);
+      return false;
+    }
+    return true;
   }
 
   @Override

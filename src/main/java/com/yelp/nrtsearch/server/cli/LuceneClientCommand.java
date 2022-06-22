@@ -43,6 +43,7 @@ import picocli.CommandLine;
       ReadyCommand.class,
       RefreshCommand.class,
       RegisterFieldsCommand.class,
+      ReloadStateCommand.class,
       SearchCommand.class,
       SettingsCommand.class,
       SettingsV2Command.class,

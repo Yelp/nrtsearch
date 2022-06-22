@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValueType;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.index.NrtIndexWriter;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.utils.FileUtil;
@@ -610,8 +611,10 @@ public class ShardState implements Closeable {
           };
 
       writer =
-          new IndexWriter(
-              indexDir, indexState.getIndexWriterConfig(openMode, origIndexDir, shardOrd));
+          new NrtIndexWriter(
+              indexDir,
+              indexState.getIndexWriterConfig(openMode, origIndexDir, shardOrd),
+              indexState.getName());
       snapshots = (PersistentSnapshotDeletionPolicy) writer.getConfig().getIndexDeletionPolicy();
 
       // NOTE: must do this after writer, because SDP only
@@ -710,8 +713,10 @@ public class ShardState implements Closeable {
       boolean verbose = indexState.getGlobalState().getConfiguration().getIndexVerbose();
 
       writer =
-          new IndexWriter(
-              indexDir, indexState.getIndexWriterConfig(openMode, origIndexDir, shardOrd));
+          new NrtIndexWriter(
+              indexDir,
+              indexState.getIndexWriterConfig(openMode, origIndexDir, shardOrd),
+              indexState.getName());
       LiveIndexWriterConfig writerConfig = writer.getConfig();
       MergePolicy mergePolicy = writerConfig.getMergePolicy();
       // Disable merges while NrtPrimaryNode isn't initalized (ISSUE-210)

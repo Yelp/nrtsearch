@@ -78,98 +78,111 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
     final long primaryGen;
     final ReplicationServerClient primaryClient;
     Path dataPath = null;
-    if (startIndexRequest.hasRestore() && !shardState.isStarted()) {
-      synchronized (shardState) {
-        try {
-          if (!shardState.isRestored()) {
-            RestoreIndex restoreIndex = startIndexRequest.getRestore();
-            if (restoreIndex.getDeleteExistingData()) {
-              indexState.deleteIndexRootDir();
-              Files.createDirectories(indexState.getRootDir());
-              deleteDownloadedBackupDirectories(restoreIndex.getResourceName());
-            }
 
-            dataPath =
-                downloadArtifact(
-                    restoreIndex.getServiceName(),
-                    restoreIndex.getResourceName(),
-                    INDEXED_DATA_TYPE.DATA,
-                    restoreFromIncArchiver);
-            shardState.setRestored(true);
-          } else {
-            throw new IllegalStateException("Index " + indexState.getName() + " already restored");
+    try {
+      if (startIndexRequest.hasRestore() && !shardState.isStarted()) {
+        synchronized (shardState) {
+          try {
+            if (!shardState.isRestored()) {
+              RestoreIndex restoreIndex = startIndexRequest.getRestore();
+              if (restoreIndex.getDeleteExistingData()) {
+                indexState.deleteIndexRootDir();
+                Files.createDirectories(indexState.getRootDir());
+                deleteDownloadedBackupDirectories(restoreIndex.getResourceName());
+              }
+
+              dataPath =
+                  downloadArtifact(
+                      restoreIndex.getServiceName(),
+                      restoreIndex.getResourceName(),
+                      INDEXED_DATA_TYPE.DATA,
+                      restoreFromIncArchiver);
+              if (useLegacyStateManagement) {
+                shardState.setRestored(true);
+              }
+            } else {
+              throw new IllegalStateException(
+                  "Index " + indexState.getName() + " already restored");
+            }
+          } catch (IOException e) {
+            logger.info("Unable to delete existing index data", e);
+            throw new StartIndexHandlerException(e);
           }
+        }
+      }
+      if (mode.equals(Mode.PRIMARY)) {
+        primaryGen = startIndexRequest.getPrimaryGen();
+        primaryClient = null;
+      } else if (mode.equals(Mode.REPLICA)) {
+        primaryGen = startIndexRequest.getPrimaryGen();
+        primaryClient = getPrimaryClientForRequest(startIndexRequest);
+      } else {
+        primaryGen = -1;
+        primaryClient = null;
+      }
+
+      long t0 = System.nanoTime();
+      try {
+        if (mode.equals(Mode.REPLICA)) {
+          indexState.initWarmer(archiver);
+        }
+
+        if (useLegacyStateManagement) {
+          indexState.start(mode, dataPath, primaryGen, primaryClient);
+        } else {
+          indexStateManager.start(mode, dataPath, primaryGen, primaryClient);
+        }
+
+        if (mode.equals(Mode.PRIMARY)) {
+          BackupIndexRequestHandler backupIndexRequestHandler =
+              new BackupIndexRequestHandler(
+                  archiver, incArchiver, archiveDirectory, backupFromIncArchiver);
+          if (backupIndexRequestHandler.wasBackupPotentiallyInterrupted()) {
+            if (backupIndexRequestHandler
+                .getIndexNameOfInterruptedBackup()
+                .equals(indexState.getName())) {
+              backupIndexRequestHandler.interruptedBackupCleanup(
+                  indexState, shardState.snapshotGenToVersion.keySet());
+            }
+          }
+        }
+      } catch (Exception e) {
+        logger.error("Cannot start IndexState/ShardState", e);
+        throw new StartIndexHandlerException(e);
+      }
+
+      StartIndexResponse.Builder startIndexResponseBuilder = StartIndexResponse.newBuilder();
+      SearcherTaxonomyManager.SearcherAndTaxonomy s;
+      try {
+        s = shardState.acquire();
+      } catch (IOException e) {
+        logger.error("Acquire shard state failed", e);
+        throw new StartIndexHandlerException(e);
+      }
+      try {
+        IndexReader r = s.searcher.getIndexReader();
+        startIndexResponseBuilder.setMaxDoc(r.maxDoc());
+        startIndexResponseBuilder.setNumDocs(r.numDocs());
+        startIndexResponseBuilder.setSegments(r.toString());
+      } finally {
+        try {
+          shardState.release(s);
         } catch (IOException e) {
-          logger.info("Unable to delete existing index data", e);
+          logger.error("Release shard state failed", e);
           throw new StartIndexHandlerException(e);
         }
       }
-    }
-    if (mode.equals(Mode.PRIMARY)) {
-      primaryGen = startIndexRequest.getPrimaryGen();
-      primaryClient = null;
-    } else if (mode.equals(Mode.REPLICA)) {
-      primaryGen = startIndexRequest.getPrimaryGen();
-      primaryClient = getPrimaryClientForRequest(startIndexRequest);
-    } else {
-      primaryGen = -1;
-      primaryClient = null;
-    }
-
-    long t0 = System.nanoTime();
-    try {
-      if (mode.equals(Mode.REPLICA)) {
-        indexState.initWarmer(archiver);
-      }
-
-      if (useLegacyStateManagement) {
-        indexState.start(mode, dataPath, primaryGen, primaryClient);
-      } else {
-        indexStateManager.start(mode, dataPath, primaryGen, primaryClient);
-      }
-
-      if (mode.equals(Mode.PRIMARY)) {
-        BackupIndexRequestHandler backupIndexRequestHandler =
-            new BackupIndexRequestHandler(
-                archiver, incArchiver, archiveDirectory, backupFromIncArchiver);
-        if (backupIndexRequestHandler.wasBackupPotentiallyInterrupted()) {
-          if (backupIndexRequestHandler
-              .getIndexNameOfInterruptedBackup()
-              .equals(indexState.getName())) {
-            backupIndexRequestHandler.interruptedBackupCleanup(
-                indexState, shardState.snapshotGenToVersion.keySet());
-          }
-        }
-      }
-    } catch (Exception e) {
-      logger.error("Cannot start IndexState/ShardState", e);
-      throw new StartIndexHandlerException(e);
-    }
-
-    StartIndexResponse.Builder startIndexResponseBuilder = StartIndexResponse.newBuilder();
-    SearcherTaxonomyManager.SearcherAndTaxonomy s;
-    try {
-      s = shardState.acquire();
-    } catch (IOException e) {
-      logger.error("Acquire shard state failed", e);
-      throw new StartIndexHandlerException(e);
-    }
-    try {
-      IndexReader r = s.searcher.getIndexReader();
-      startIndexResponseBuilder.setMaxDoc(r.maxDoc());
-      startIndexResponseBuilder.setNumDocs(r.numDocs());
-      startIndexResponseBuilder.setSegments(r.toString());
+      long t1 = System.nanoTime();
+      startIndexResponseBuilder.setStartTimeMS(((t1 - t0) / 1000000.0));
+      return startIndexResponseBuilder.build();
     } finally {
-      try {
-        shardState.release(s);
-      } catch (IOException e) {
-        logger.error("Release shard state failed", e);
-        throw new StartIndexHandlerException(e);
+      if (!useLegacyStateManagement && startIndexRequest.hasRestore()) {
+        cleanupDownloadedArtifacts(
+            startIndexRequest.getRestore().getResourceName(),
+            INDEXED_DATA_TYPE.DATA,
+            restoreFromIncArchiver);
       }
     }
-    long t1 = System.nanoTime();
-    startIndexResponseBuilder.setStartTimeMS(((t1 - t0) / 1000000.0));
-    return startIndexResponseBuilder.build();
   }
 
   private ReplicationServerClient getPrimaryClientForRequest(StartIndexRequest request) {
@@ -214,6 +227,24 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       }
     } catch (IOException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  void cleanupDownloadedArtifacts(
+      String resourceName, INDEXED_DATA_TYPE indexDataType, boolean disableLegacyArchiver) {
+    String resource;
+    if (indexDataType.equals(INDEXED_DATA_TYPE.DATA)) {
+      resource = IndexBackupUtils.getResourceData(resourceName);
+    } else if (indexDataType.equals(INDEXED_DATA_TYPE.STATE)) {
+      resource = IndexBackupUtils.getResourceMetadata(resourceName);
+    } else {
+      throw new RuntimeException("Invalid INDEXED_DATA_TYPE " + indexDataType);
+    }
+    logger.info("Cleaning up local index resource: " + resource);
+    if (!disableLegacyArchiver) {
+      archiver.deleteLocalFiles(resource);
+    } else {
+      incArchiver.deleteLocalFiles(resource);
     }
   }
 

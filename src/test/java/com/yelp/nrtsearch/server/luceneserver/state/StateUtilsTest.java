@@ -32,8 +32,8 @@ import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.junit.Rule;
@@ -187,7 +187,7 @@ public class StateUtilsTest {
     }
   }
 
-  @Test(expected = FileNotFoundException.class)
+  @Test(expected = NoSuchFileException.class)
   public void testReadStateFileNotFound() throws IOException {
     Path expectedStateFilePath =
         Paths.get(folder.getRoot().getAbsolutePath(), StateUtils.GLOBAL_STATE_FILE);
@@ -349,7 +349,7 @@ public class StateUtilsTest {
     }
   }
 
-  @Test(expected = FileNotFoundException.class)
+  @Test(expected = NoSuchFileException.class)
   public void testReadIndexStateFileNotFound() throws IOException {
     Path expectedStateFilePath =
         Paths.get(folder.getRoot().getAbsolutePath(), StateUtils.INDEX_STATE_FILE);

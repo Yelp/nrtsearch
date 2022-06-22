@@ -337,6 +337,11 @@ public class BackupDiffManager implements Archiver {
   }
 
   @Override
+  public boolean deleteLocalFiles(String resource) {
+    return true;
+  }
+
+  @Override
   public List<String> getResources(String serviceName) {
     List<String> resources = new ArrayList<>();
     ListObjectsRequest listObjectsRequest =

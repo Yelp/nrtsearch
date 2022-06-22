@@ -16,17 +16,25 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.backup.ArchiverImpl;
 import com.yelp.nrtsearch.server.backup.BackupDiffManager;
 import com.yelp.nrtsearch.server.backup.ContentDownloader;
 import com.yelp.nrtsearch.server.backup.ContentDownloaderImpl;
 import com.yelp.nrtsearch.server.backup.FileCompressAndUploader;
 import com.yelp.nrtsearch.server.backup.IndexArchiver;
+import com.yelp.nrtsearch.server.backup.NoTarImpl;
+import com.yelp.nrtsearch.server.backup.Tar;
 import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.backup.VersionManager;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
@@ -64,10 +72,12 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestServer {
   private static final List<TestServer> createdServers = new ArrayList<>();
-  private static final String SERVICE_NAME = "test_server";
-  private static final String TEST_BUCKET = "test-server-data-bucket";
-  private static final List<String> simpleFieldNames = List.of("id", "field1", "field2");
-  private static final List<Field> simpleFields =
+  private final Gson gson = new GsonBuilder().serializeNulls().create();
+  public static final String SERVICE_NAME = "test_server";
+  public static final String TEST_BUCKET = "test-server-data-bucket";
+  public static final String S3_ENDPOINT = "http://127.0.0.1:8011";
+  public static final List<String> simpleFieldNames = List.of("id", "field1", "field2");
+  public static final List<Field> simpleFields =
       List.of(
           Field.newBuilder()
               .setName("id")
@@ -94,8 +104,10 @@ public class TestServer {
   private Server replicationServer;
   private LuceneServerClient client;
   private LuceneServerImpl serverImpl;
+  private Archiver legacyArchiver;
+  private Archiver indexArchiver;
 
-  private static void initS3(TemporaryFolder folder) throws IOException {
+  public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
       Path s3Directory = folder.newFolder("s3").toPath();
       api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
@@ -122,7 +134,7 @@ public class TestServer {
     Files.createDirectories(archiverDir);
 
     AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
+    s3.setEndpoint(S3_ENDPOINT);
     s3.createBucket(TEST_BUCKET);
     TransferManager transferManager =
         TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
@@ -133,10 +145,14 @@ public class TestServer {
     FileCompressAndUploader fileCompressAndUploader =
         new FileCompressAndUploader(
             new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, TEST_BUCKET);
+    ContentDownloader contentDownloaderNoTar =
+        new ContentDownloaderImpl(new NoTarImpl(), transferManager, TEST_BUCKET, true);
+    FileCompressAndUploader fileCompressAndUploaderNoTar =
+        new FileCompressAndUploader(new NoTarImpl(), transferManager, TEST_BUCKET);
     VersionManager versionManager = new VersionManager(s3, TEST_BUCKET);
     BackupDiffManager backupDiffManagerPrimary =
         new BackupDiffManager(
-            contentDownloader, fileCompressAndUploader, versionManager, archiverDir);
+            contentDownloaderNoTar, fileCompressAndUploaderNoTar, versionManager, archiverDir);
 
     return new IndexArchiver(
         backupDiffManagerPrimary,
@@ -147,17 +163,31 @@ public class TestServer {
         false);
   }
 
+  private Archiver createLegacyArchiver(Path archiverDir) throws IOException {
+    Files.createDirectories(archiverDir);
+
+    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
+    s3.setEndpoint(S3_ENDPOINT);
+    s3.createBucket(TEST_BUCKET);
+    return new ArchiverImpl(
+        s3, TEST_BUCKET, archiverDir, new TarImpl(Tar.CompressionMode.LZ4), true);
+  }
+
   public void restart() throws IOException {
     restart(false);
   }
 
   public void restart(boolean clearData) throws IOException {
     cleanup(clearData);
-    IndexArchiver indexArchiver =
-        createIndexArchiver(Paths.get(configuration.getArchiveDirectory()));
+    legacyArchiver = createLegacyArchiver(Paths.get(configuration.getArchiveDirectory()));
+    indexArchiver = createIndexArchiver(Paths.get(configuration.getArchiveDirectory()));
     serverImpl =
         new LuceneServerImpl(
-            configuration, null, indexArchiver, new CollectorRegistry(), Collections.emptyList());
+            configuration,
+            legacyArchiver,
+            indexArchiver,
+            new CollectorRegistry(),
+            Collections.emptyList());
 
     replicationServer =
         ServerBuilder.forPort(0)
@@ -178,6 +208,22 @@ public class TestServer {
 
   public String getServiceName() {
     return serverImpl.getGlobalState().getConfiguration().getServiceName();
+  }
+
+  public GlobalState getGlobalState() {
+    return serverImpl.getGlobalState();
+  }
+
+  public LuceneServerClient getClient() {
+    return client;
+  }
+
+  public Archiver getLegacyArchiver() {
+    return legacyArchiver;
+  }
+
+  public Archiver getIndexArchiver() {
+    return indexArchiver;
   }
 
   public void cleanup() {
@@ -262,10 +308,12 @@ public class TestServer {
     }
   }
 
+  public CreateIndexResponse createIndex(CreateIndexRequest request) {
+    return client.getBlockingStub().createIndex(request);
+  }
+
   public CreateIndexResponse createIndex(String indexName) {
-    return client
-        .getBlockingStub()
-        .createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
+    return createIndex(CreateIndexRequest.newBuilder().setIndexName(indexName).build());
   }
 
   public void createSimpleIndex(String indexName) {
@@ -278,6 +326,10 @@ public class TestServer {
         .getBlockingStub()
         .registerFields(
             FieldDefRequest.newBuilder().setIndexName(indexName).addAllField(fields).build());
+  }
+
+  public ReloadStateResponse reloadState() {
+    return client.getBlockingStub().reloadState(ReloadStateRequest.newBuilder().build());
   }
 
   public StartIndexResponse startIndex(StartIndexRequest startIndexRequest) {
@@ -396,6 +448,15 @@ public class TestServer {
     addDocs(requests.stream());
   }
 
+  public void verifyFieldName(String indexName, String fieldName) {
+    StateResponse rawResponse =
+        client.getBlockingStub().state(StateRequest.newBuilder().setIndexName(indexName).build());
+    JsonObject response = gson.fromJson(rawResponse.getResponse(), JsonObject.class);
+    JsonObject state = response.getAsJsonObject("state");
+    JsonObject fields = state.getAsJsonObject("fields");
+    assertTrue(fields.has(fieldName));
+  }
+
   public void verifySimpleDocs(String indexName, int expectedCount) {
     SearchResponse response =
         client
@@ -425,6 +486,10 @@ public class TestServer {
     client.commit(indexName);
   }
 
+  public void deleteIndex(String indexName) {
+    client.deleteIndex(indexName);
+  }
+
   public static Builder builder(TemporaryFolder folder) {
     return new Builder(folder);
   }
@@ -445,6 +510,10 @@ public class TestServer {
     private boolean incArchiver = true;
 
     private boolean syncInitialNrtPoint = true;
+
+    private int maxWarmingQueries = 0;
+    private int warmingParallelism = 1;
+    private boolean warmOnStartup = false;
 
     private String additionalConfig = "";
 
@@ -493,6 +562,14 @@ public class TestServer {
       return this;
     }
 
+    public Builder withWarming(
+        int maxWarmingQueries, int warmingParallelism, boolean warmOnStartup) {
+      this.maxWarmingQueries = maxWarmingQueries;
+      this.warmingParallelism = warmingParallelism;
+      this.warmOnStartup = warmOnStartup;
+      return this;
+    }
+
     public TestServer build() throws IOException {
       initS3(folder);
       String configFile =
@@ -502,6 +579,7 @@ public class TestServer {
               backendConfig(),
               autoStartConfig(),
               archiverConfig(),
+              warmingConfig(),
               "syncInitialNrtPoint: " + syncInitialNrtPoint,
               additionalConfig);
       return new TestServer(
@@ -536,6 +614,15 @@ public class TestServer {
           "  primaryDiscovery:",
           "    host: localhost",
           "    port: " + port);
+    }
+
+    private String warmingConfig() {
+      return String.join(
+          "\n",
+          "warmer:",
+          "  maxWarmingQueries: " + maxWarmingQueries,
+          "  warmingParallelism: " + warmingParallelism,
+          "  warmOnStartup: " + warmOnStartup);
     }
 
     private String baseConfig() {

@@ -75,6 +75,7 @@ public class BackendGlobalState extends GlobalState {
   // volatile for atomic replacement
   private volatile ImmutableState immutableState;
   private final StateBackend stateBackend;
+  private final Archiver legacyArchiver;
 
   /**
    * Build unique index name from index name and instance id (UUID).
@@ -100,7 +101,24 @@ public class BackendGlobalState extends GlobalState {
   public BackendGlobalState(
       LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
       throws IOException {
+    this(luceneServerConfiguration, incArchiver, null);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param luceneServerConfiguration server config
+   * @param incArchiver archiver for remote backends
+   * @param legacyArchiver legacy archiver
+   * @throws IOException on filesystem error
+   */
+  public BackendGlobalState(
+      LuceneServerConfiguration luceneServerConfiguration,
+      Archiver incArchiver,
+      Archiver legacyArchiver)
+      throws IOException {
     super(luceneServerConfiguration, incArchiver);
+    this.legacyArchiver = legacyArchiver;
     stateBackend = createStateBackend();
     GlobalStateInfo globalStateInfo = stateBackend.loadOrCreateGlobalState();
     // init index state managers
@@ -157,6 +175,27 @@ public class BackendGlobalState extends GlobalState {
   @VisibleForTesting
   StateBackend getStateBackend() {
     return stateBackend;
+  }
+
+  @Override
+  public synchronized void reloadStateFromBackend() throws IOException {
+    GlobalStateInfo newGlobalStateInfo = getStateBackend().loadOrCreateGlobalState();
+    Map<String, IndexStateManager> newManagerMap = new HashMap<>();
+    for (Map.Entry<String, IndexGlobalState> entry :
+        newGlobalStateInfo.getIndicesMap().entrySet()) {
+      String indexName = entry.getKey();
+      IndexStateManager stateManager = immutableState.indexStateManagerMap.get(indexName);
+      if (stateManager == null || !entry.getValue().getId().equals(stateManager.getIndexId())) {
+        stateManager = createIndexStateManager(indexName, entry.getValue().getId(), stateBackend);
+      }
+      stateManager.load();
+      newManagerMap.put(indexName, stateManager);
+    }
+    ImmutableState newImmutableState = new ImmutableState(newGlobalStateInfo, newManagerMap);
+    if (getConfiguration().getIndexStartConfig().getAutoStart()) {
+      updateStartedIndices(newImmutableState);
+    }
+    this.immutableState = newImmutableState;
   }
 
   @Override
@@ -316,7 +355,7 @@ public class BackendGlobalState extends GlobalState {
       IndexStateManager indexStateManager, StartIndexRequest startIndexRequest) throws IOException {
     StartIndexHandler startIndexHandler =
         new StartIndexHandler(
-            null,
+            legacyArchiver,
             getIncArchiver().orElse(null),
             getConfiguration().getArchiveDirectory(),
             getConfiguration().getBackupWithInArchiver(),

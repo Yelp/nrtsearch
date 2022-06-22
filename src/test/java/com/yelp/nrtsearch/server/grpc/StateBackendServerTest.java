@@ -1579,6 +1579,33 @@ public class StateBackendServerTest {
   }
 
   @Test
+  public void testReplicaReDownloadsIndexData() throws Exception {
+    initArchiver();
+    initPrimaryWithArchiver();
+    createIndexWithFields();
+    startIndex(primaryClient, Mode.PRIMARY);
+    addDocs(docs1.stream());
+    commitIndex(primaryClient);
+    refreshIndex(primaryClient);
+    verifyDocs(1, primaryClient);
+
+    restartReplicaWithArchiver();
+    startIndexWithRestore(replicaClient, Mode.REPLICA, true);
+    verifyDocs(1, replicaClient);
+    stopIndex(replicaClient);
+
+    // commit more docs on primary
+    addDocs(docs2.stream());
+    commitIndex(primaryClient);
+    refreshIndex(primaryClient);
+    verifyDocs(2, primaryClient);
+
+    // start index and pull latest restore
+    startIndexWithRestore(replicaClient, Mode.REPLICA, true);
+    verifyDocs(2, replicaClient);
+  }
+
+  @Test
   public void testReplicaRestoreSchemaChange() throws Exception {
     initArchiver();
     initPrimaryWithArchiver();

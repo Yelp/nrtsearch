@@ -20,6 +20,7 @@ import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.GLOBAL_STA
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.INDEX_STATE_FILE;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.ensureDirectory;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
@@ -30,11 +31,14 @@ import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import java.io.IOException;
+import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -162,8 +166,7 @@ public class RemoteStateBackend implements StateBackend {
       logger.info("Remote state not present for index: " + indexIdentifier);
       return null;
     } else {
-      Path downloadedStateFilePath =
-          downloadedPath.resolve(indexIdentifier).resolve(INDEX_STATE_FILE);
+      Path downloadedStateFilePath = findIndexStateFile(downloadedPath);
       if (!downloadedStateFilePath.toFile().exists()) {
         throw new IllegalStateException(
             "No index state file present in downloaded directory: " + downloadedStateFilePath);
@@ -182,6 +185,39 @@ public class RemoteStateBackend implements StateBackend {
               + " : "
               + JsonFormat.printer().print(loadedState));
       return loadedState;
+    }
+  }
+
+  /**
+   * Find the index state file in the downloaded path. Searches two levels deep for the file
+   * index_state.json
+   *
+   * @param downloadedPath path to downloaded index state from {@link Archiver}
+   * @return path to index state file
+   * @throws IOException on filesystem error
+   * @throws IllegalArgumentException if more or less than one state file is found
+   */
+  @VisibleForTesting
+  static Path findIndexStateFile(Path downloadedPath) throws IOException {
+    Objects.requireNonNull(downloadedPath);
+    List<Path> stateFiles =
+        Files.find(
+                downloadedPath,
+                2,
+                (path, attrib) -> INDEX_STATE_FILE.equals(path.getFileName().toString()),
+                FileVisitOption.FOLLOW_LINKS)
+            .collect(Collectors.toList());
+    if (stateFiles.isEmpty()) {
+      throw new IllegalArgumentException(
+          "No index state file found in downloadPath: " + downloadedPath);
+    } else if (stateFiles.size() > 1) {
+      throw new IllegalArgumentException(
+          "Multiple index state files found in downloadedPath: "
+              + downloadedPath
+              + ", files: "
+              + stateFiles);
+    } else {
+      return stateFiles.get(0);
     }
   }
 
