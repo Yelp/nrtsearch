@@ -1111,7 +1111,7 @@ public class LuceneServer {
         } catch (InvalidProtocolBufferException ignored) {
           // Ignore as invalid proto would have thrown an exception earlier
         }
-        logger.warn(
+        logger.debug(
             String.format(
                 "error while trying to execute search for index %s: request: %s",
                 searchRequest.getIndexName(), searchRequestJson),
