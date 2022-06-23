@@ -15,8 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
-import static com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor.TOTAL_HITS_THRESHOLD;
-
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.HitsResult;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
@@ -119,10 +117,6 @@ public class TopHitsCollectorManager
     this.grpcTopHitsCollector = grpcTopHitsCollector;
     this.retrievalContext = new RetrievalContext(context);
 
-    int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
-    if (grpcTopHitsCollector.getTotalHitsThreshold() != 0) {
-      totalHitsThreshold = grpcTopHitsCollector.getTotalHitsThreshold();
-    }
     if (grpcTopHitsCollector.hasQuerySort()) {
       sortNames =
           new ArrayList<>(grpcTopHitsCollector.getQuerySort().getFields().getSortedFieldsCount());
@@ -137,11 +131,11 @@ public class TopHitsCollectorManager
       }
       collectorManager =
           TopFieldCollector.createSharedManager(
-              sort, grpcTopHitsCollector.getTopHits(), null, totalHitsThreshold);
+              sort, grpcTopHitsCollector.getTopHits(), null, Integer.MAX_VALUE);
     } else {
       collectorManager =
           TopScoreDocCollector.createSharedManager(
-              grpcTopHitsCollector.getTopHits(), null, totalHitsThreshold);
+              grpcTopHitsCollector.getTopHits(), null, Integer.MAX_VALUE);
       sort = null;
       sortNames = null;
     }

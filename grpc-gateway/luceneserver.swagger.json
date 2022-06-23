@@ -4656,11 +4656,6 @@
           "$ref": "#/definitions/luceneserverQuerySortField",
           "description": "When specified, collector does sort based collection. Otherwise, relevance score is used."
         },
-        "totalHitsThreshold": {
-          "type": "integer",
-          "format": "int32",
-          "description": "By default we count hits accurately up to 1000. This makes sure that we don't spend most time on computing hit counts."
-        },
         "retrieveFields": {
           "type": "array",
           "items": {

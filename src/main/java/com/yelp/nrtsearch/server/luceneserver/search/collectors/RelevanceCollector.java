@@ -26,9 +26,12 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Collector for getting documents ranked by relevance score. */
 public class RelevanceCollector extends DocCollector {
+  private static final Logger logger = LoggerFactory.getLogger(RelevanceCollector.class);
 
   private final CollectorManager<TopScoreDocCollector, TopDocs> manager;
 
@@ -40,7 +43,13 @@ public class RelevanceCollector extends DocCollector {
     FieldDoc searchAfter = null;
     int topHits = getNumHitsToCollect();
     int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
-    if (context.getRequest().getTotalHitsThreshold() != 0) {
+    // if there are additional collectors, we cannot skip any recalled docs
+    if (!additionalCollectors.isEmpty()) {
+      totalHitsThreshold = Integer.MAX_VALUE;
+      if (context.getRequest().getTotalHitsThreshold() != 0) {
+        logger.warn("Query totalHitsThreshold ignored when using additional collectors");
+      }
+    } else if (context.getRequest().getTotalHitsThreshold() != 0) {
       totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
     }
     manager = TopScoreDocCollector.createSharedManager(topHits, searchAfter, totalHitsThreshold);

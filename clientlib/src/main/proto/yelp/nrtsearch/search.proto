@@ -601,10 +601,8 @@ message TopHitsCollector {
     int32 topHits = 2;
     //When specified, collector does sort based collection. Otherwise, relevance score is used.
     QuerySortField querySort = 3;
-    //By default we count hits accurately up to 1000. This makes sure that we don't spend most time on computing hit counts.
-    int32 totalHitsThreshold = 4;
     //Which fields to retrieve.
-    repeated string retrieveFields = 5;
+    repeated string retrieveFields = 4;
 }
 
 message CollectorResult {
