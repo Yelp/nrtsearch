@@ -416,8 +416,8 @@ public class IncrementalDataCleanupCommand implements Callable<Integer> {
     char endChar = trimmed.charAt(trimmed.length() - 1);
     long numberVal = Long.parseLong(trimmed.substring(0, trimmed.length() - 1));
 
-    if (numberVal < 0) {
-      throw new IllegalArgumentException("Time interval must be >= 0");
+    if (numberVal < 1) {
+      throw new IllegalArgumentException("Time interval must be > 0");
     }
 
     switch (endChar) {

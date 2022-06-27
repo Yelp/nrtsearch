@@ -70,13 +70,13 @@ public class IncrementalDataCleanupCommandTest {
     server.createSimpleIndex("test_index");
     server.startPrimaryIndex("test_index", -1, null);
     for (int i = 0; i < 5; ++i) {
+      server.addSimpleDocs("test_index", i * 2, i * 2 + 1);
+      server.refresh("test_index");
+      server.commit("test_index");
       try {
         Thread.sleep(5000);
       } catch (InterruptedException ignore) {
       }
-      server.addSimpleDocs("test_index", i * 2, i * 2 + 1);
-      server.refresh("test_index");
-      server.commit("test_index");
     }
     return server;
   }
@@ -122,7 +122,7 @@ public class IncrementalDataCleanupCommandTest {
             "--indexName=test_index",
             "--bucketName=" + TEST_BUCKET,
             "--deleteAfter=1h",
-            "--gracePeriod=0s",
+            "--gracePeriod=1s",
             "--minVersions=1");
     assertEquals(0, exitCode);
 
@@ -139,8 +139,8 @@ public class IncrementalDataCleanupCommandTest {
             "--serviceName=" + SERVICE_NAME,
             "--indexName=test_index",
             "--bucketName=" + TEST_BUCKET,
-            "--deleteAfter=0s",
-            "--gracePeriod=0s",
+            "--deleteAfter=1s",
+            "--gracePeriod=1s",
             "--minVersions=1");
     assertEquals(0, exitCode);
 
@@ -163,8 +163,8 @@ public class IncrementalDataCleanupCommandTest {
             "--serviceName=" + SERVICE_NAME,
             "--indexName=test_index",
             "--bucketName=" + TEST_BUCKET,
-            "--deleteAfter=0s",
-            "--gracePeriod=0s",
+            "--deleteAfter=1s",
+            "--gracePeriod=1s",
             "--minVersions=1");
     assertEquals(0, exitCode);
 
@@ -183,8 +183,8 @@ public class IncrementalDataCleanupCommandTest {
             "--serviceName=" + SERVICE_NAME,
             "--indexName=test_index",
             "--bucketName=" + TEST_BUCKET,
-            "--deleteAfter=0s",
-            "--gracePeriod=2s",
+            "--deleteAfter=1s",
+            "--gracePeriod=1s",
             "--minVersions=3");
     assertEquals(0, exitCode);
 
@@ -206,7 +206,7 @@ public class IncrementalDataCleanupCommandTest {
             "--serviceName=" + SERVICE_NAME,
             "--indexName=test_index",
             "--bucketName=" + TEST_BUCKET,
-            "--deleteAfter=0s",
+            "--deleteAfter=1s",
             "--gracePeriod=1h",
             "--minVersions=1");
     assertEquals(0, exitCode);
@@ -220,8 +220,8 @@ public class IncrementalDataCleanupCommandTest {
             "--serviceName=" + SERVICE_NAME,
             "--indexName=test_index",
             "--bucketName=" + TEST_BUCKET,
-            "--deleteAfter=0s",
-            "--gracePeriod=0s",
+            "--deleteAfter=1s",
+            "--gracePeriod=1s",
             "--minVersions=1");
     assertEquals(0, exitCode);
     assertVersions(server.getGlobalState().getDataResourceForIndex("test_index"), 5);
