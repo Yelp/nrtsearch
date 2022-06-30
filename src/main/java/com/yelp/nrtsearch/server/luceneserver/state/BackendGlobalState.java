@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.state;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
+import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.DummyResponse;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
@@ -309,6 +310,18 @@ public class BackendGlobalState extends GlobalState {
     IndexStateManager indexStateManager = getIndexStateManager(startIndexRequest.getIndexName());
     IndexGlobalState indexGlobalState =
         immutableState.globalStateInfo.getIndicesMap().get(startIndexRequest.getIndexName());
+
+    // this limitation exists because we do not handle backup/restore of the taxonomy index
+    // properly, which is only used in STANDALONE mode
+    if (startIndexRequest.getMode().equals(Mode.STANDALONE)
+        && getConfiguration().getIndexStartConfig().getAutoStart()
+        && getConfiguration()
+            .getIndexStartConfig()
+            .getDataLocationType()
+            .equals(IndexDataLocationType.REMOTE)) {
+      throw new IllegalArgumentException(
+          "STANDALONE index mode cannot be used with REMOTE data location type");
+    }
 
     // If only the index name is given in the restore, rewrite to include current id
     StartIndexRequest request;
