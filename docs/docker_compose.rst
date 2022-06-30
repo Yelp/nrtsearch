@@ -1,3 +1,4 @@
+.. _docker_composer:
 Docker Compose
 ==========================
 
