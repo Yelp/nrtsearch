@@ -3,7 +3,7 @@ Get Started
 
 Launch you local NRTSearch server
 ---------------------------
-Follow introduction to launch the NRTSearch server: link :ref:`build_server`
+Follow Introduction section of this doc to launch the NRTSearch server
 
 
 Create your NRTSearch index
@@ -101,4 +101,4 @@ Java client Example
 
 Docker Compose Setup
 ---------------------------
-For docker compose setup of this example, please refer to :ref:`docker_compose`
+For docker compose setup of this example, please refer to Docker Compose section of this doc

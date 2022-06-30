@@ -47,7 +47,6 @@ Below is a depiction of how the system works in regards to Near-real-time (NRT) 
 * If a primary crashes, a new one can be brought up with the `restore` option on `startIndex` command to regain previous stored state in the cloud, but since primaries don't serve search requests they can also use network attached storage e.g. Amazon EBS to persist data across restarts. The replicas will then re-sync their indexes with the primary.
 
 
-.. _build_server:
 Build Server and Client
 ---------------------------
 
