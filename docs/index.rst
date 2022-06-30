@@ -12,3 +12,4 @@ A high performance gRPC server, with optional REST APIs on top of `Apache Lucene
    index_settings
    index_live_settings
    docker_compose
+   server_configuration
