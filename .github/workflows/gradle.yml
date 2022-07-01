@@ -31,3 +31,5 @@ jobs:
       run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
     - name: Merge behavior tests
       run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.grpc.MergeBehaviorTests" --info
+    - name: Long running tests
+      run: ./gradlew clean installDist :test -PlongRunningTestsOnly=* --info
