@@ -18,8 +18,10 @@ package com.yelp.nrtsearch.server.grpc;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
+import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -130,6 +132,23 @@ public class IndexStartTest {
     assertTrue(server.isReady());
     assertTrue(server.isStarted("test_index"));
     server.verifySimpleDocs("test_index", 3);
+  }
+
+  @Test
+  public void testIndexAutoStarts_failStandaloneRemote() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .build();
+    server.createSimpleIndex("test_index");
+    try {
+      server.startStandaloneIndex("test_index", null);
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage()
+              .contains("STANDALONE index mode cannot be used with REMOTE data location type"));
+    }
   }
 
   private void indexAutoStarts(IndexDataLocationType locationType) throws IOException {
