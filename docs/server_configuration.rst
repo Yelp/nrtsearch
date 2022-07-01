@@ -48,7 +48,7 @@ Example server configuration
 
    * - hostName
      - str
-     - Hostname of this NrtSearch instance
+     - Hostname of this NrtSearch instance. Replicas use this property when registering with the primary. This property supports `environment variable substitution <https://github.com/Yelp/nrtsearch/blob/2ae8bae079ae8a8a59bb896fee775919235710aa/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java#L298>`_.
      - localhost
 
    * - port
@@ -64,12 +64,12 @@ Example server configuration
    * - stateDir
      - str
      - Path of global state directory
-     - default_state
+     - `<DEFAULT_USER_DIR> <https://github.com/Yelp/nrtsearch/blob/f612f5d3e14e468ab8c9b45dd4be0ab84231b9de/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java#L35>`_/default_state
 
    * - indexDir
      - str
      - Path of directory containing index state and segments
-     - default_index
+     - `<DEFAULT_USER_DIR> <https://github.com/Yelp/nrtsearch/blob/f612f5d3e14e468ab8c9b45dd4be0ab84231b9de/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java#L35>`_/default_index
 
    * - bucketName
      - str
@@ -79,16 +79,16 @@ Example server configuration
    * - botoCfgPath
      - str
      - Path to AWS credentials (if using S3 for remote storage)
-     - boto.cfg
+     - `<DEFAULT_USER_DIR> <https://github.com/Yelp/nrtsearch/blob/f612f5d3e14e468ab8c9b45dd4be0ab84231b9de/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java#L35>`_/boto.cfg
 
    * - archiveDirectory
      - str
-     - Directory for uploading/downloading from external storage
-     - archiver
+     - Directory for uploading/downloading from external storage. 
+     - `<DEFAULT_USER_DIR> <https://github.com/Yelp/nrtsearch/blob/f612f5d3e14e468ab8c9b45dd4be0ab84231b9de/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java#L35>`_/archiver
 
    * - downloadAsStream
      - bool
-     - Whether the downloader should stream instead of writing to a file first
+     - If enabled, the content downloader will perform a streaming extraction of tar archives from remote storage to disk. Otherwise, the downloader will only extract after finishing downloading the archive to disk.
      - true
 
    * - restoreState
@@ -98,7 +98,7 @@ Example server configuration
 
    * - restoreFromIncArchiver
      - bool
-     - If enabled, uses the incremental archiver when restoring state
+     - If enabled, uses the incremental archiver when restoring index data and state
      - false
 
    * - backupWithIncArchiver
@@ -108,7 +108,7 @@ Example server configuration
 
    * - deadlineCancellation
      - bool
-     - Enables gRPC deadline based cancellation of requests
+     - Enables gRPC deadline based cancellation of requests. A request is cancelled early if it exceeds the deadline. Currently only supported by the search endpoint.
      - false
 
    * - plugins
@@ -118,8 +118,13 @@ Example server configuration
 
    * - pluginSearchPath
      - str
-     - Search path for plugins. The server will try to find the first directory in the search path matching a given plugin.
+     - Search paths for plugins. These paths are separated by the system path separator character (; on Windows, : on Mac and Unix). The server will try to find the first directory in the search path matching a given plugin. 
      - plugins
+
+   * - publishJvmMetrics
+     - bool
+     - If enabled, registers JVM metrics with prometheus. 
+     - true
 
 .. list-table:: `Threadpool Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.*``)
    :widths: 25 10 50 25
@@ -166,7 +171,7 @@ Example server configuration
 
    * - maxWarmingQueries
      - int
-     - Maximum number of queries to send during warming
+     - Maximum number of queries to store for warming
      - 0
 
    * - warmingParallelism
@@ -178,3 +183,60 @@ Example server configuration
      - bool
      - Whether the server should warm on startup
      - false
+
+.. list-table:: `State Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/StateConfig.java>`_ (``stateConfig.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - backendType
+     - enum
+     - Chooses which backend to use for storing and loading state. ``LEGACY`` uses a legacy implementation for global and index state. ``LOCAL`` uses the local disk as the source of truth for global and index state. ``REMOTE`` uses external storage as the source of truth for global and index state.
+     - ``LEGACY``
+
+.. list-table:: `Monitoring Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/monitoring/Configuration.java>`_ (``stateConfig.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - backendType
+     - enum
+     - Chooses which backend to use for storing and loading state. `LEGACY` uses a legacy implementation for global and index state. `LOCAL` uses the local disk as the source of truth for global and index state. `REMOTE` uses external storage as the source of truth for global and index state.
+     - `LEGACY`
+
+.. list-table:: `File Copy Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/FileCopyConfig.java>`_ (``FileCopyConfig.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - ackedCopy
+     - bool
+     - If enabled, replicas use acked file copy when copying files from the primary.
+     - false
+
+   * - chunkSize
+     - int
+     - Size of chunks when the primary sends files to replicas.
+     - 64 * 1024
+
+   * - ackEvery
+     - int
+     - Number of chunks sent to a replica between acks.
+     - 1000
+
+   * - maxInFlight
+     - int
+     - Maximum number of in-flight chunks sent by the primary.
+     - 2000
