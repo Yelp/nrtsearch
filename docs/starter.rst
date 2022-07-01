@@ -1,9 +1,13 @@
 Get Started
 ==========================
 
+Docker Compose Setup
+---------------------------
+For docker compose setup of this example, please refer to Docker Compose section of this doc
+
 Launch you local NRTSearch server
 ---------------------------
-Follow Introduction section of this doc to launch the NRTSearch server
+Follow :doc:`introduction` of this doc to launch the NRTSearch server
 
 
 Create your NRTSearch index
@@ -97,8 +101,3 @@ Java client Example
     .setQueryText("vendor_name:first vendor")
     .build());
   blockingStub.search(request);
-
-
-Docker Compose Setup
----------------------------
-For docker compose setup of this example, please refer to Docker Compose section of this doc

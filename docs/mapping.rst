@@ -18,20 +18,20 @@ Basic boolean data types
 Support different number types like INT, LONG, FLOAT, DOUBLE
 
 * ATOM
-ATOM is used for structured content like email addresses, hostnames. It is used for exact match. No analyzers supported
+ATOM is used for structured content like email addresses, hostnames. It is used for exact match. No analyzers supported.
 
 * DATE_TIME
 Field data type to store the datetime.
 
 * _ID
-This field would be used for the primary key of a document like business id or user id.
+This field would be used for the primary key of a document like business id or user id. _ID field type is stored as string.
 
 
 Text search types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * TEXT
-The tradition field for full-text content. Text fields are best suited for unstructured but human-readable content.
+The tradition field for full-text content. Text fields are best suited for unstructured but human-readable content. Content of this field can be tokenized and analyzed.
 
 Object types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -48,11 +48,6 @@ LAT_LON field is used for geo point field like [latitude, longitude].
 * POLYGON
 POLYGON field is used for closed geo polygons with a list of geo points. The first and last geo points must the the same as a closed loop polygon.
 
-Arrays
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-By default, every field is expected to be single valued.
-If you want to use arrays, you can set ``multiValued`` to ``true`` in the mapping.
-
 Mapping Parameters
 ---------------------------
 
@@ -64,3 +59,12 @@ This parameter indicates whether this field is indexed so that certain types of 
 
 * storeDocValues
 This parameter indicates whether this field is stored as doc value so that we can retrieve this field in the NRTSearch response.
+
+* tokenize
+This parameter is only for text. This parameter indicates whether this text field should be tokenized.
+
+* indexAnalyzer
+This parameter is only for text usually together with tokenize. This parameter specifies the analyzer to use for this field during indexing.
+
+* searchAnalyzer
+This parameter is only for text usually together with tokenize. This parameter specifies the analyzer to use for this field during searching.
