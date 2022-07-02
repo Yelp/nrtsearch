@@ -449,7 +449,7 @@ public class LuceneServer {
       }
 
       try {
-        IndexState indexState = globalState.createIndex(indexName);
+        IndexState indexState = globalState.createIndex(req);
         // shards are initialized elsewhere for non-legacy state
         if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
           // Create the first shard

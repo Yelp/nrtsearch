@@ -555,4 +555,51 @@ public class IndexStartTest {
     assertTrue(replicaServer.isStarted("test_index"));
     replicaServer.verifySimpleDocs("test_index", 3);
   }
+
+  @Test
+  public void testRecreateDeletedIndex() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .withRemoteStateBackend(false)
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startPrimaryIndex("test_index", -1, null);
+
+    assertTrue(server.isReady());
+    assertTrue(server.isStarted("test_index"));
+
+    server.addSimpleDocs("test_index", 1, 2, 3);
+    server.refresh("test_index");
+    server.commit("test_index");
+    server.verifySimpleDocs("test_index", 3);
+
+    String indexId =
+        server.getGlobalState().getDataResourceForIndex("test_index").split("test_index-")[1];
+
+    server.deleteIndex("test_index");
+    assertTrue(server.isReady());
+    assertFalse(server.indices().contains("test_index"));
+
+    server.createIndex(
+        CreateIndexRequest.newBuilder()
+            .setIndexName("test_index")
+            .setExistsWithId(indexId)
+            .build());
+    server.startPrimaryIndex(
+        "test_index",
+        -1,
+        RestoreIndex.newBuilder()
+            .setServiceName(TestServer.SERVICE_NAME)
+            .setResourceName("test_index")
+            .build());
+    assertTrue(server.isReady());
+    assertTrue(server.isStarted("test_index"));
+    server.verifySimpleDocs("test_index", 3);
+
+    server.restart();
+    assertTrue(server.isReady());
+    assertTrue(server.isStarted("test_index"));
+    server.verifySimpleDocs("test_index", 3);
+  }
 }

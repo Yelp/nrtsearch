@@ -15,7 +15,11 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils;
 
+import com.yelp.nrtsearch.tools.nrt_utils.incremental.DeleteIncrementalSnapshotsCommand;
 import com.yelp.nrtsearch.tools.nrt_utils.incremental.IncrementalDataCleanupCommand;
+import com.yelp.nrtsearch.tools.nrt_utils.incremental.ListIncrementalSnapshotsCommand;
+import com.yelp.nrtsearch.tools.nrt_utils.incremental.RestoreIncrementalCommand;
+import com.yelp.nrtsearch.tools.nrt_utils.incremental.SnapshotIncrementalCommand;
 import com.yelp.nrtsearch.tools.nrt_utils.state.GetRemoteStateCommand;
 import com.yelp.nrtsearch.tools.nrt_utils.state.PutRemoteStateCommand;
 import picocli.CommandLine;
@@ -24,9 +28,13 @@ import picocli.CommandLine;
     name = "nrt_utils",
     synopsisSubcommandLabel = "COMMAND",
     subcommands = {
+      DeleteIncrementalSnapshotsCommand.class,
       GetRemoteStateCommand.class,
       IncrementalDataCleanupCommand.class,
+      ListIncrementalSnapshotsCommand.class,
       PutRemoteStateCommand.class,
+      RestoreIncrementalCommand.class,
+      SnapshotIncrementalCommand.class,
       CommandLine.HelpCommand.class
     })
 public class NrtUtilsCommand implements Runnable {
