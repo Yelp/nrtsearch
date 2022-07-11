@@ -46,7 +46,7 @@ public class SearchContextTest extends ServerTestCase {
     public DummyCollector() {
       super(
           new CollectorCreatorContext(
-              SearchRequest.newBuilder().build(), null, null, Collections.emptyMap()),
+              SearchRequest.newBuilder().build(), null, null, Collections.emptyMap(), null),
           Collections.emptyList());
     }
 

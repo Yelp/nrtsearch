@@ -39,6 +39,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollec
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreator;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.HitCountCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.LargeNumHitsCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.RelevanceCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.SortFieldCollector;
@@ -138,7 +139,8 @@ public class SearchRequestProcessor {
     contextBuilder.setQuery(query);
 
     CollectorCreatorContext collectorCreatorContext =
-        new CollectorCreatorContext(searchRequest, indexState, shardState, queryFields);
+        new CollectorCreatorContext(
+            searchRequest, indexState, shardState, queryFields, searcherAndTaxonomy);
     DocCollector docCollector = buildDocCollector(collectorCreatorContext);
     contextBuilder.setCollector(docCollector);
 
@@ -312,15 +314,22 @@ public class SearchRequestProcessor {
                             .createCollectorManager(
                                 collectorCreatorContext, e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
+
+    DocCollector docCollector;
     if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
       if (hasLargeNumHits(searchRequest)) {
-        return new LargeNumHitsCollector(collectorCreatorContext, additionalCollectors);
+        docCollector = new LargeNumHitsCollector(collectorCreatorContext, additionalCollectors);
       } else {
-        return new RelevanceCollector(collectorCreatorContext, additionalCollectors);
+        docCollector = new RelevanceCollector(collectorCreatorContext, additionalCollectors);
       }
     } else {
-      return new SortFieldCollector(collectorCreatorContext, additionalCollectors);
+      docCollector = new SortFieldCollector(collectorCreatorContext, additionalCollectors);
     }
+    // If we don't need hits, just count recalled docs
+    if (docCollector.getNumHitsToCollect() == 0) {
+      docCollector = new HitCountCollector(collectorCreatorContext, additionalCollectors);
+    }
+    return docCollector;
   }
 
   /** If this query needs enough hits to use a {@link LargeNumHitsCollector}. */

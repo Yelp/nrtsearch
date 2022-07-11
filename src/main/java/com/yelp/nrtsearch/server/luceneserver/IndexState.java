@@ -28,6 +28,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
@@ -446,6 +447,9 @@ public abstract class IndexState implements Closeable {
   /** Get fields with facets that do eager global ordinal building. */
   public abstract Map<String, FieldDef> getEagerGlobalOrdinalFields();
 
+  /** Get fields with doc values that do eager global ordinal building. */
+  public abstract Map<String, GlobalOrdinalable> getEagerFieldGlobalOrdinalFields();
+
   /** Get field bindings to use for javascript expressions. */
   public abstract Bindings getExpressionBindings();
 
@@ -563,8 +567,6 @@ public abstract class IndexState implements Closeable {
 
   /** Get the default search timeout check every. */
   public abstract int getDefaultSearchTimeoutCheckEvery();
-
-  // Suggest
 
   public abstract void addSuggest(String name, JsonObject o);
 

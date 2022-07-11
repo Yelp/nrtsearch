@@ -1,0 +1,10 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "no_doc_values",
+      "type": "ATOM",
+      "storeDocValues": false
+    }
+  ]
+}

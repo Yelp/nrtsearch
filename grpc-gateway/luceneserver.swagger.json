@@ -1566,6 +1566,13 @@
         "count": {
           "type": "integer",
           "format": "int32"
+        },
+        "nestedCollectorResults": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollectorResult"
+          },
+          "description": "Nested collector results for sub-aggregations of this bucket."
         }
       }
     },
@@ -2232,6 +2239,17 @@
         },
         "pluginCollector": {
           "$ref": "#/definitions/luceneserverPluginCollector"
+        },
+        "topHitsCollector": {
+          "$ref": "#/definitions/luceneserverTopHitsCollector",
+          "description": "Collector for getting top hits based on score or sorting."
+        },
+        "nestedCollectors": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollector"
+          },
+          "description": "Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors."
         }
       },
       "description": "Definition of additional document collector."
@@ -2246,6 +2264,10 @@
         "anyResult": {
           "$ref": "#/definitions/protobufAny",
           "title": "Flexible collector result for additional document collectors"
+        },
+        "hitsResult": {
+          "$ref": "#/definitions/luceneserverHitsResult",
+          "description": "Result of collector that returns document hits."
         }
       }
     },
@@ -2787,6 +2809,10 @@
         "vectorDimensions": {
           "type": "integer",
           "format": "int32"
+        },
+        "eagerFieldGlobalOrdinals": {
+          "type": "boolean",
+          "description": "If field based global ordinals should be built up front, otherwise this is done lazily on first access. Currently only for fields with text doc values (TEXT/ATOM)."
         }
       }
     },
@@ -3135,6 +3161,22 @@
       "properties": {
         "health": {
           "$ref": "#/definitions/luceneserverTransferStatusCode"
+        }
+      }
+    },
+    "luceneserverHitsResult": {
+      "type": "object",
+      "properties": {
+        "totalHits": {
+          "$ref": "#/definitions/luceneserverTotalHits",
+          "description": "Total hit information."
+        },
+        "hits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SearchResponseHit"
+          },
+          "description": "Ordered hits with scoring/sorting info and retrieved fields."
         }
       }
     },
@@ -4583,7 +4625,7 @@
       "properties": {
         "field": {
           "type": "string",
-          "title": "Placeholder: TODO implement"
+          "description": "Use field values for terms."
         },
         "script": {
           "$ref": "#/definitions/luceneserverScript",
@@ -4596,6 +4638,33 @@
         }
       },
       "description": "Definition of term aggregating collector."
+    },
+    "luceneserverTopHitsCollector": {
+      "type": "object",
+      "properties": {
+        "startHit": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Offset for retrieval of top hits."
+        },
+        "topHits": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Total hits to collect, note that the number of hits returned is (topHits - startHit)."
+        },
+        "querySort": {
+          "$ref": "#/definitions/luceneserverQuerySortField",
+          "description": "When specified, collector does sort based collection. Otherwise, relevance score is used."
+        },
+        "retrieveFields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Which fields to retrieve."
+        }
+      },
+      "description": "Definition of top hits based collector."
     },
     "luceneserverTotalHits": {
       "type": "object",

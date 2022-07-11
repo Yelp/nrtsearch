@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
@@ -90,7 +91,15 @@ public class CollectorCreatorTest {
       public final Map<String, Object> params;
 
       public CustomCollectorManager(
-          String name, CollectorCreatorContext context, Map<String, Object> params) {
+          String name,
+          CollectorCreatorContext context,
+          Map<String, Object> params,
+          Map<
+                  String,
+                  Supplier<
+                      AdditionalCollectorManager<
+                          ? extends org.apache.lucene.search.Collector, CollectorResult>>>
+              nestedCollectorSuppliers) {
         this.name = name;
         this.context = context;
         this.params = params;

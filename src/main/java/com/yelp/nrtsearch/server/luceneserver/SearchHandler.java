@@ -39,6 +39,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.PolygonfieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
+import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
@@ -409,7 +410,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
    * @return slice of hits starting at given offset, or empty slice if there are less than startHit
    *     docs
    */
-  private static TopDocs getHitsFromOffset(TopDocs hits, int startHit, int topHits) {
+  public static TopDocs getHitsFromOffset(TopDocs hits, int startHit, int topHits) {
     int retrieveHits = Math.min(topHits, hits.scoreDocs.length);
     if (startHit != 0 || retrieveHits != hits.scoreDocs.length) {
       // Slice:
@@ -811,24 +812,24 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
   /** Task to fetch all the fields for a chunk of hits. Also executes any per hit fetch tasks. */
   public static class FillDocsTask implements Runnable {
-    private final SearchContext searchContext;
+    private final FieldFetchContext fieldFetchContext;
     private final List<Hit.Builder> docChunk;
 
     /**
      * Constructor.
      *
-     * @param searchContext search parameters
+     * @param fieldFetchContext context info needed to retrieve field data
      * @param docChunk list of hit builders for query response, must be in lucene doc id order
      */
-    public FillDocsTask(SearchContext searchContext, List<Hit.Builder> docChunk) {
-      this.searchContext = searchContext;
+    public FillDocsTask(FieldFetchContext fieldFetchContext, List<Hit.Builder> docChunk) {
+      this.fieldFetchContext = fieldFetchContext;
       this.docChunk = docChunk;
     }
 
     @Override
     public void run() {
       List<LeafReaderContext> leaves =
-          searchContext.getSearcherAndTaxonomy().searcher.getIndexReader().leaves();
+          fieldFetchContext.getSearcherAndTaxonomy().searcher.getIndexReader().leaves();
       int hitIndex = 0;
       // process documents, grouped by lucene segment
       while (hitIndex < docChunk.size()) {
@@ -838,7 +839,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         // get all hits in the same segment and process them together for better resource reuse
         List<Hit.Builder> sliceHits = getSliceHits(docChunk, hitIndex, sliceSegment);
         try {
-          fetchSlice(searchContext, sliceHits, sliceSegment);
+          fetchSlice(fieldFetchContext, sliceHits, sliceSegment);
         } catch (IOException e) {
           throw new RuntimeException("Error fetching field data", e);
         }
@@ -867,13 +868,13 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
      * Fetch all the required field data For a slice of hits. All these hit reside in the same
      * lucene segment.
      *
-     * @param context search context
+     * @param context field fetch context
      * @param sliceHits hits in this slice
      * @param sliceSegment lucene segment context for slice
      * @throws IOException on issue reading document data
      */
     private static void fetchSlice(
-        SearchContext context,
+        FieldFetchContext context,
         List<SearchResponse.Hit.Builder> sliceHits,
         LeafReaderContext sliceSegment)
         throws IOException {
@@ -902,7 +903,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       // execute any per hit fetch tasks
       for (Hit.Builder hit : sliceHits) {
-        context.getFetchTasks().processHit(context, sliceSegment, hit);
+        context.getFetchTasks().processHit(context.getSearchContext(), sliceSegment, hit);
       }
     }
 
@@ -954,7 +955,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
     /** Fetch field value stored in the index */
     private static void fetchFromStored(
-        SearchContext context,
+        FieldFetchContext context,
         List<SearchResponse.Hit.Builder> sliceHits,
         String name,
         IndexableFieldDef indexableFieldDef)

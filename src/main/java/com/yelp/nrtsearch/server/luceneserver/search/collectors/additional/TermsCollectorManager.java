@@ -18,134 +18,254 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 import com.yelp.nrtsearch.server.grpc.BucketResult;
 import com.yelp.nrtsearch.server.grpc.BucketResult.Bucket;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
-import com.yelp.nrtsearch.server.luceneserver.script.FacetScript;
-import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.luceneserver.field.DoubleFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.FloatFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.IntFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.LongFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
+import com.yelp.nrtsearch.server.luceneserver.search.GlobalOrdinalLookup;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
-import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.NestedCollectorManagers.NestedCollectors;
+import it.unimi.dsi.fastutil.doubles.Double2IntMap;
+import it.unimi.dsi.fastutil.floats.Float2IntMap;
+import it.unimi.dsi.fastutil.ints.Int2IntMap;
+import it.unimi.dsi.fastutil.longs.Long2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.PriorityQueue;
-import org.apache.lucene.index.LeafReaderContext;
+import java.util.function.Supplier;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 
-/**
- * Collector manager that aggregates terms into buckets. Currently only supports terms generated
- * from a {@link FacetScript}.
- */
-public class TermsCollectorManager
+/** Base class for all collector managers that aggregates terms into buckets. */
+public abstract class TermsCollectorManager
     implements AdditionalCollectorManager<TermsCollectorManager.TermsCollector, CollectorResult> {
+
   private final String name;
   private final int size;
-  private final FacetScript.SegmentFactory scriptFactory;
+  private final NestedCollectorManagers nestedCollectorManagers;
 
   /**
-   * Constructor.
+   * Produce a collector implementation for term aggregation based on the provided {@link
+   * com.yelp.nrtsearch.server.grpc.TermsCollector} definition.
    *
-   * @param name Collection name from request
-   * @param grpcTermsCollector Collector parameters from request
+   * @param name collection name
+   * @param grpcTermsCollector term collection definition from query
    * @param context context info for collector building
+   * @param nestedCollectorSuppliers suppliers to create nested collector managers
    */
-  public TermsCollectorManager(
+  public static TermsCollectorManager buildManager(
       String name,
       com.yelp.nrtsearch.server.grpc.TermsCollector grpcTermsCollector,
-      CollectorCreatorContext context) {
-    this.name = name;
-    this.size = grpcTermsCollector.getSize();
-
+      CollectorCreatorContext context,
+      Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
+          nestedCollectorSuppliers) {
     switch (grpcTermsCollector.getTermsSourceCase()) {
       case SCRIPT:
-        FacetScript.Factory factory =
-            ScriptService.getInstance()
-                .compile(grpcTermsCollector.getScript(), FacetScript.CONTEXT);
-        scriptFactory =
-            factory.newFactory(
-                ScriptParamsUtils.decodeParams(grpcTermsCollector.getScript().getParamsMap()),
-                context.getIndexState().docLookup);
-        break;
+        return new ScriptTermsCollectorManager(
+            name, grpcTermsCollector, context, nestedCollectorSuppliers);
+      case FIELD:
+        FieldDef field = context.getQueryFields().get(grpcTermsCollector.getField());
+        if (field == null) {
+          throw new IllegalArgumentException("Unknown field: " + grpcTermsCollector.getField());
+        }
+        if (field instanceof IndexableFieldDef) {
+          IndexableFieldDef indexableFieldDef = (IndexableFieldDef) field;
+          if (!indexableFieldDef.hasDocValues()) {
+            throw new IllegalArgumentException(
+                "Terms collection requires doc values for field: " + grpcTermsCollector.getField());
+          }
+          // Pick implementation based on field type
+          if (indexableFieldDef instanceof IntFieldDef) {
+            return new IntTermsCollectorManager(
+                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
+          } else if (indexableFieldDef instanceof LongFieldDef) {
+            return new LongTermsCollectorManager(
+                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
+          } else if (indexableFieldDef instanceof FloatFieldDef) {
+            return new FloatTermsCollectorManager(
+                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
+          } else if (indexableFieldDef instanceof DoubleFieldDef) {
+            return new DoubleTermsCollectorManager(
+                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
+          } else if (indexableFieldDef instanceof TextBaseFieldDef) {
+            if (indexableFieldDef instanceof GlobalOrdinalable
+                && ((GlobalOrdinalable) indexableFieldDef).usesOrdinals()) {
+              return new OrdinalTermsCollectorManager(
+                  name,
+                  grpcTermsCollector,
+                  context,
+                  indexableFieldDef,
+                  (GlobalOrdinalable) indexableFieldDef,
+                  nestedCollectorSuppliers);
+            } else {
+              return new StringTermsCollectorManager(
+                  name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
+            }
+          }
+        } else if (field instanceof VirtualFieldDef) {
+          return new VirtualTermsCollectorManager(
+              name, grpcTermsCollector, context, (VirtualFieldDef) field, nestedCollectorSuppliers);
+        }
+        throw new IllegalArgumentException(
+            "Terms collection does not support field: "
+                + grpcTermsCollector.getField()
+                + ", type: "
+                + field.getClass().getName());
       default:
         throw new IllegalArgumentException(
             "Unsupported terms source: " + grpcTermsCollector.getTermsSourceCase());
     }
   }
 
-  @Override
+  /**
+   * Constructor.
+   *
+   * @param name collection name
+   * @param size max number of buckets
+   * @param nestedCollectorSuppliers suppliers to create nested collector managers
+   */
+  protected TermsCollectorManager(
+      String name,
+      int size,
+      Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
+          nestedCollectorSuppliers) {
+    this.name = name;
+    this.size = size;
+    this.nestedCollectorManagers =
+        nestedCollectorSuppliers.isEmpty()
+            ? null
+            : new NestedCollectorManagers(nestedCollectorSuppliers);
+  }
+
+  /** Get collection name */
   public String getName() {
     return name;
   }
 
   @Override
-  public TermsCollector newCollector() throws IOException {
-    return new TermsCollector();
-  }
-
-  @Override
-  public CollectorResult reduce(Collection<TermsCollector> collectors) throws IOException {
-    Map<Object, Integer> combinedCounts = combineCounts(collectors);
-    BucketResult.Builder bucketBuilder = BucketResult.newBuilder();
-    fillBucketResult(bucketBuilder, combinedCounts);
-
-    return CollectorResult.newBuilder().setBucketResult(bucketBuilder.build()).build();
-  }
-
-  /** Combine term counts from each parallel collector into a single map */
-  private Map<Object, Integer> combineCounts(Collection<TermsCollector> collectors) {
-    if (collectors.isEmpty()) {
-      return Collections.emptyMap();
+  public void setSearchContext(SearchContext searchContext) {
+    if (nestedCollectorManagers != null) {
+      nestedCollectorManagers.setSearchContext(searchContext);
     }
-    Iterator<TermsCollector> iterator = collectors.iterator();
-    TermsCollector termsCollector = iterator.next();
-    Map<Object, Integer> totalCountsMap = termsCollector.countsMap;
-    while (iterator.hasNext()) {
-      termsCollector = iterator.next();
-      for (Map.Entry<Object, Integer> entry : termsCollector.countsMap.entrySet()) {
-        totalCountsMap.merge(entry.getKey(), entry.getValue(), Integer::sum);
+  }
+  /** Get max number of buckets to return */
+  public int getSize() {
+    return size;
+  }
+
+  /** Get manager for nested aggregation collection. */
+  public boolean hasNestedCollectors() {
+    return nestedCollectorManagers != null;
+  }
+
+  /** Common base class for all {@link TermsCollectorManager} {@link Collector}s. */
+  public abstract class TermsCollector implements Collector {
+    private final NestedCollectors nestedCollectors;
+
+    protected TermsCollector() {
+      if (nestedCollectorManagers != null) {
+        nestedCollectors = nestedCollectorManagers.newCollectors();
+      } else {
+        nestedCollectors = null;
       }
     }
-    return totalCountsMap;
+
+    /**
+     * Get the scoring mode of this collector implementation, will be combined with any nested
+     * aggregation modes.
+     */
+    public abstract ScoreMode implementationScoreMode();
+
+    /** Get the collector wrapping any nested aggregations. */
+    public NestedCollectors getNestedCollectors() {
+      return nestedCollectors;
+    }
+
+    @Override
+    public ScoreMode scoreMode() {
+      ScoreMode scoreMode = implementationScoreMode();
+      if (nestedCollectors != null) {
+        if (nestedCollectorManagers.scoreMode() != scoreMode) {
+          return ScoreMode.COMPLETE;
+        }
+      }
+      return scoreMode;
+    }
   }
 
-  /** Fill bucket result message based on collected term counts. */
-  private void fillBucketResult(BucketResult.Builder bucketBuilder, Map<Object, Integer> counts) {
+  /** Bucket entry for Object -> int. */
+  private static class ObjectBucketEntry {
+    Object key;
+    int count;
+
+    ObjectBucketEntry(Object key, int count) {
+      this.key = key;
+      this.count = count;
+    }
+
+    public void update(Object key, int count) {
+      this.key = key;
+      this.count = count;
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} based on a count map using an Object key.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResult(
+      BucketResult.Builder bucketBuilder,
+      Object2IntMap<Object> counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
+    int size = getSize();
     if (counts.size() > 0 && size > 0) {
       // add all map entries into a priority queue, keeping only the top N
-      PriorityQueue<Entry<Object, Integer>> priorityQueue =
-          new PriorityQueue<>(
-              Math.min(counts.size(), size), Map.Entry.comparingByValue(Integer::compare));
+      PriorityQueue<ObjectBucketEntry> priorityQueue =
+          new PriorityQueue<>(Math.min(counts.size(), size), Comparator.comparingInt(b -> b.count));
 
       int otherCounts = 0;
       int minimumCount = -1;
-      for (Map.Entry<Object, Integer> entry : counts.entrySet()) {
+      for (Object2IntMap.Entry<Object> entry : counts.object2IntEntrySet()) {
         if (priorityQueue.size() < size) {
-          priorityQueue.offer(entry);
-          minimumCount = priorityQueue.peek().getValue();
-        } else if (entry.getValue() > minimumCount) {
-          otherCounts += priorityQueue.poll().getValue();
-          priorityQueue.offer(entry);
-          minimumCount = priorityQueue.peek().getValue();
+          priorityQueue.offer(new ObjectBucketEntry(entry.getKey(), entry.getIntValue()));
+          minimumCount = priorityQueue.peek().count;
+        } else if (entry.getIntValue() > minimumCount) {
+          ObjectBucketEntry reuse = priorityQueue.poll();
+          otherCounts += reuse.count;
+          reuse.update(entry.getKey(), entry.getIntValue());
+          priorityQueue.offer(reuse);
+          minimumCount = priorityQueue.peek().count;
         } else {
-          otherCounts += entry.getValue();
+          otherCounts += entry.getIntValue();
         }
       }
 
       // the priority queue is a min heap, use a linked list to reverse the order
       LinkedList<Bucket> buckets = new LinkedList<>();
       while (!priorityQueue.isEmpty()) {
-        Map.Entry<Object, Integer> entry = priorityQueue.poll();
-        buckets.addFirst(
-            Bucket.newBuilder()
-                .setKey(entry.getKey().toString())
-                .setCount(entry.getValue())
-                .build());
+        ObjectBucketEntry entry = priorityQueue.poll();
+        Bucket.Builder builder =
+            Bucket.newBuilder().setKey(entry.key.toString()).setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
       }
       bucketBuilder
           .addAllBuckets(buckets)
@@ -154,57 +274,341 @@ public class TermsCollectorManager
     }
   }
 
-  /** Collector implementation to record term counts generated by a {@link FacetScript}. */
-  public class TermsCollector implements Collector {
+  /** Bucket entry for int -> int. */
+  private static class IntBucketEntry {
+    int key;
+    int count;
 
-    Map<Object, Integer> countsMap = new HashMap<>();
-
-    @Override
-    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-      return new TermsLeafCollector(context);
+    IntBucketEntry(int key, int count) {
+      this.key = key;
+      this.count = count;
     }
 
-    @Override
-    public ScoreMode scoreMode() {
-      // Script cannot currently use score
-      return ScoreMode.COMPLETE_NO_SCORES;
+    public void update(int key, int count) {
+      this.key = key;
+      this.count = count;
     }
+  }
 
-    /** Leaf Collector implementation to record term counts generated by a {@link FacetScript}. */
-    public class TermsLeafCollector implements LeafCollector {
-      final FacetScript facetScript;
+  /**
+   * Populate a {@link BucketResult.Builder} based on a count map using an int key.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResult(
+      BucketResult.Builder bucketBuilder,
+      Int2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
+    int size = getSize();
+    if (counts.size() > 0 && size > 0) {
+      // add all map entries into a priority queue, keeping only the top N
+      PriorityQueue<IntBucketEntry> priorityQueue =
+          new PriorityQueue<>(Math.min(counts.size(), size), Comparator.comparingInt(b -> b.count));
 
-      public TermsLeafCollector(LeafReaderContext leafContext) throws IOException {
-        facetScript = scriptFactory.newInstance(leafContext);
-      }
-
-      @Override
-      public void setScorer(Scorable scorer) throws IOException {
-        // TODO make score available to script
-      }
-
-      @Override
-      public void collect(int doc) throws IOException {
-        facetScript.setDocId(doc);
-        Object scriptResult = facetScript.execute();
-        if (scriptResult != null) {
-          processScriptResult(scriptResult, countsMap);
-        }
-      }
-
-      private void processScriptResult(Object scriptResult, Map<Object, Integer> countsMap) {
-        if (scriptResult instanceof Iterable) {
-          ((Iterable<?>) scriptResult)
-              .forEach(
-                  v -> {
-                    if (v != null) {
-                      countsMap.merge(v, 1, Integer::sum);
-                    }
-                  });
+      int otherCounts = 0;
+      int minimumCount = -1;
+      for (Int2IntMap.Entry entry : counts.int2IntEntrySet()) {
+        if (priorityQueue.size() < size) {
+          priorityQueue.offer(new IntBucketEntry(entry.getIntKey(), entry.getIntValue()));
+          minimumCount = priorityQueue.peek().count;
+        } else if (entry.getIntValue() > minimumCount) {
+          IntBucketEntry reuse = priorityQueue.poll();
+          otherCounts += reuse.count;
+          reuse.update(entry.getIntKey(), entry.getIntValue());
+          priorityQueue.offer(reuse);
+          minimumCount = priorityQueue.peek().count;
         } else {
-          countsMap.merge(scriptResult, 1, Integer::sum);
+          otherCounts += entry.getIntValue();
         }
       }
+
+      // the priority queue is a min heap, use a linked list to reverse the order
+      LinkedList<Bucket> buckets = new LinkedList<>();
+      while (!priorityQueue.isEmpty()) {
+        IntBucketEntry entry = priorityQueue.poll();
+        Bucket.Builder builder =
+            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
+      }
+      bucketBuilder
+          .addAllBuckets(buckets)
+          .setTotalBuckets(counts.size())
+          .setTotalOtherCounts(otherCounts);
+    }
+  }
+
+  /** Bucket entry for long -> int. */
+  private static class LongBucketEntry {
+    long key;
+    int count;
+
+    LongBucketEntry(long key, int count) {
+      this.key = key;
+      this.count = count;
+    }
+
+    public void update(long key, int count) {
+      this.key = key;
+      this.count = count;
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} based on a count map using a long key.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResult(
+      BucketResult.Builder bucketBuilder,
+      Long2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
+    int size = getSize();
+    if (counts.size() > 0 && size > 0) {
+      // add all map entries into a priority queue, keeping only the top N
+      PriorityQueue<LongBucketEntry> priorityQueue =
+          new PriorityQueue<>(Math.min(counts.size(), size), Comparator.comparingInt(b -> b.count));
+
+      int otherCounts = 0;
+      int minimumCount = -1;
+      for (Long2IntMap.Entry entry : counts.long2IntEntrySet()) {
+        if (priorityQueue.size() < size) {
+          priorityQueue.offer(new LongBucketEntry(entry.getLongKey(), entry.getIntValue()));
+          minimumCount = priorityQueue.peek().count;
+        } else if (entry.getIntValue() > minimumCount) {
+          LongBucketEntry reuse = priorityQueue.poll();
+          otherCounts += reuse.count;
+          reuse.update(entry.getLongKey(), entry.getIntValue());
+          priorityQueue.offer(reuse);
+          minimumCount = priorityQueue.peek().count;
+        } else {
+          otherCounts += entry.getIntValue();
+        }
+      }
+
+      // the priority queue is a min heap, use a linked list to reverse the order
+      LinkedList<Bucket> buckets = new LinkedList<>();
+      while (!priorityQueue.isEmpty()) {
+        LongBucketEntry entry = priorityQueue.poll();
+        Bucket.Builder builder =
+            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
+      }
+      bucketBuilder
+          .addAllBuckets(buckets)
+          .setTotalBuckets(counts.size())
+          .setTotalOtherCounts(otherCounts);
+    }
+  }
+
+  /** Bucket entry for float -> int. */
+  private static class FloatBucketEntry {
+    float key;
+    int count;
+
+    FloatBucketEntry(float key, int count) {
+      this.key = key;
+      this.count = count;
+    }
+
+    public void update(float key, int count) {
+      this.key = key;
+      this.count = count;
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} based on a count map using a float key.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResult(
+      BucketResult.Builder bucketBuilder,
+      Float2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
+    int size = getSize();
+    if (counts.size() > 0 && size > 0) {
+      // add all map entries into a priority queue, keeping only the top N
+      PriorityQueue<FloatBucketEntry> priorityQueue =
+          new PriorityQueue<>(Math.min(counts.size(), size), Comparator.comparingInt(b -> b.count));
+
+      int otherCounts = 0;
+      int minimumCount = -1;
+      for (Float2IntMap.Entry entry : counts.float2IntEntrySet()) {
+        if (priorityQueue.size() < size) {
+          priorityQueue.offer(new FloatBucketEntry(entry.getFloatKey(), entry.getIntValue()));
+          minimumCount = priorityQueue.peek().count;
+        } else if (entry.getIntValue() > minimumCount) {
+          FloatBucketEntry reuse = priorityQueue.poll();
+          otherCounts += reuse.count;
+          reuse.update(entry.getFloatKey(), entry.getIntValue());
+          priorityQueue.offer(reuse);
+          minimumCount = priorityQueue.peek().count;
+        } else {
+          otherCounts += entry.getIntValue();
+        }
+      }
+
+      // the priority queue is a min heap, use a linked list to reverse the order
+      LinkedList<Bucket> buckets = new LinkedList<>();
+      while (!priorityQueue.isEmpty()) {
+        FloatBucketEntry entry = priorityQueue.poll();
+        Bucket.Builder builder =
+            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
+      }
+      bucketBuilder
+          .addAllBuckets(buckets)
+          .setTotalBuckets(counts.size())
+          .setTotalOtherCounts(otherCounts);
+    }
+  }
+
+  /** Bucket entry for double -> int. */
+  private static class DoubleBucketEntry {
+    double key;
+    int count;
+
+    DoubleBucketEntry(double key, int count) {
+      this.key = key;
+      this.count = count;
+    }
+
+    public void update(double key, int count) {
+      this.key = key;
+      this.count = count;
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} based on a count map using a double key.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResult(
+      BucketResult.Builder bucketBuilder,
+      Double2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
+    int size = getSize();
+    if (counts.size() > 0 && size > 0) {
+      // add all map entries into a priority queue, keeping only the top N
+      PriorityQueue<DoubleBucketEntry> priorityQueue =
+          new PriorityQueue<>(Math.min(counts.size(), size), Comparator.comparingInt(b -> b.count));
+
+      int otherCounts = 0;
+      int minimumCount = -1;
+      for (Double2IntMap.Entry entry : counts.double2IntEntrySet()) {
+        if (priorityQueue.size() < size) {
+          priorityQueue.offer(new DoubleBucketEntry(entry.getDoubleKey(), entry.getIntValue()));
+          minimumCount = priorityQueue.peek().count;
+        } else if (entry.getIntValue() > minimumCount) {
+          DoubleBucketEntry reuse = priorityQueue.poll();
+          otherCounts += reuse.count;
+          reuse.update(entry.getDoubleKey(), entry.getIntValue());
+          priorityQueue.offer(reuse);
+          minimumCount = priorityQueue.peek().count;
+        } else {
+          otherCounts += entry.getIntValue();
+        }
+      }
+
+      // the priority queue is a min heap, use a linked list to reverse the order
+      LinkedList<Bucket> buckets = new LinkedList<>();
+      while (!priorityQueue.isEmpty()) {
+        DoubleBucketEntry entry = priorityQueue.poll();
+        Bucket.Builder builder =
+            Bucket.newBuilder().setKey(String.valueOf(entry.key)).setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
+      }
+      bucketBuilder
+          .addAllBuckets(buckets)
+          .setTotalBuckets(counts.size())
+          .setTotalOtherCounts(otherCounts);
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} based on a counts of global ordinals.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param ordinalLookup global ordinal lookup object
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResult(
+      BucketResult.Builder bucketBuilder,
+      Long2IntMap counts,
+      GlobalOrdinalLookup ordinalLookup,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
+    int size = getSize();
+    if (counts.size() > 0 && size > 0) {
+      // add all map entries into a priority queue, keeping only the top N
+      PriorityQueue<LongBucketEntry> priorityQueue =
+          new PriorityQueue<>(size, Comparator.comparingInt(b -> b.count));
+
+      int otherCounts = 0;
+      int minimumCount = -1;
+      for (Long2IntMap.Entry entry : counts.long2IntEntrySet()) {
+        if (priorityQueue.size() < size) {
+          priorityQueue.offer(new LongBucketEntry(entry.getLongKey(), entry.getIntValue()));
+          minimumCount = priorityQueue.peek().count;
+        } else if (entry.getIntValue() > minimumCount) {
+          LongBucketEntry reuse = priorityQueue.poll();
+          otherCounts += reuse.count;
+          reuse.update(entry.getLongKey(), entry.getIntValue());
+          priorityQueue.offer(reuse);
+          minimumCount = priorityQueue.peek().count;
+        } else {
+          otherCounts += entry.getIntValue();
+        }
+      }
+
+      // the priority queue is a min heap, use a linked list to reverse the order
+      LinkedList<Bucket> buckets = new LinkedList<>();
+      while (!priorityQueue.isEmpty()) {
+        LongBucketEntry entry = priorityQueue.poll();
+        Bucket.Builder builder =
+            Bucket.newBuilder()
+                .setKey(ordinalLookup.lookupGlobalOrdinal(entry.key))
+                .setCount(entry.count);
+        if (nestedCollectorManagers != null) {
+          builder.putAllNestedCollectorResults(
+              nestedCollectorManagers.reduce(entry.key, nestedCollectors));
+        }
+        buckets.addFirst(builder.build());
+      }
+      bucketBuilder
+          .addAllBuckets(buckets)
+          .setTotalBuckets(counts.size())
+          .setTotalOtherCounts(otherCounts);
     }
   }
 }

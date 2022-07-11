@@ -76,7 +76,6 @@ dependencies {
     implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonYamlVersion}"
     implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonYamlVersion}"
 
-
     //lucene deps
     implementation "org.apache.lucene:lucene-core:${luceneVersion}"
     implementation "org.apache.lucene:lucene-codecs:${luceneVersion}"
