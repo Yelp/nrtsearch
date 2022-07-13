@@ -3,6 +3,7 @@ syntax = "proto3";
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/any.proto";
+import "google/protobuf/wrappers.proto";
 import "google/type/latlng.proto";
 import "yelp/nrtsearch/analysis.proto";
 
@@ -646,13 +647,13 @@ message HitsResult {
 // Specify how to highlight matched text in SearchRequest
 message Highlight {
 
-    message Field {
-        string name = 1; // Name of the field in index
-        int32 fragment_size = 2; // Number of characters in highlighted fragment, 100 by default
-        int32 number_of_fragments = 3; // Number of highlight fragments to return, set to 0 (default) to return complete content of the field
+    message Settings {
+        google.protobuf.Int32Value fragment_size = 1; // Number of characters in highlighted fragment, 100 by default
+        int32 max_number_of_fragments = 2; // Maximum number of highlight fragments to return, set to 0 (default) to return complete content of the field
     }
 
     repeated string pre_tags = 1; // Used along with post_tags to specify how to wrap the highlighted text
     repeated string post_tags = 2; // Used along with pre_tags to specify how to wrap the highlighted text
     Query highlight_query = 3; // Specify a query here if highlighting is desired against a different query than the search query
+    map<string, Settings> fields = 4; // Map of field name to highlight settings for the field
 }
