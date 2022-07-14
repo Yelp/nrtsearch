@@ -17,8 +17,8 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
@@ -49,17 +49,17 @@ public class HighlightHandler {
   }
 
   public String[] getHighlights(
-      IndexState indexState,
-      IndexReader reader,
-      Query searchQuery,
-      Highlight highlight,
+      SearchContext searchContext,
       String fieldName,
       int docId)
       throws IOException {
+    IndexReader reader = searchContext.getSearcherAndTaxonomy().searcher.getIndexReader();
+    Highlight highlight = searchContext.getHighlight();
+
     Query query =
         highlight.hasHighlightQuery()
-            ? QUERY_NODE_MAPPER.getQuery(highlight.getHighlightQuery(), indexState)
-            : searchQuery;
+            ? QUERY_NODE_MAPPER.getQuery(highlight.getHighlightQuery(), searchContext.getIndexState())
+            : searchContext.getQuery();
     FieldQuery fieldQuery = FAST_VECTOR_HIGHLIGHTER.getFieldQuery(query, reader);
     String[] preTags =
         highlight.getPreTagsList().isEmpty()

@@ -50,6 +50,12 @@ import org.apache.lucene.util.QueryBuilder;
 /** This class maps our GRPC Query object to a Lucene Query object. */
 public class QueryNodeMapper {
 
+  private static final QueryNodeMapper INSTANCE = new QueryNodeMapper();
+
+  public static QueryNodeMapper getInstance() {
+    return INSTANCE;
+  }
+
   private final Map<com.yelp.nrtsearch.server.grpc.BooleanClause.Occur, BooleanClause.Occur>
       occurMapping = initializeOccurMapping();
   private final Map<MatchOperator, BooleanClause.Occur> matchOperatorOccurMapping =

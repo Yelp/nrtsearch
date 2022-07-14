@@ -7,7 +7,6 @@ import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
 import java.util.Map;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 
 public class HighlightFetchTask implements FetchTask {
@@ -18,10 +17,8 @@ public class HighlightFetchTask implements FetchTask {
   public void processHit(SearchContext searchContext, LeafReaderContext hitLeaf, Builder hit)
       throws IOException {
     Map<String, Settings> fieldsMap = searchContext.getHighlight().getFieldsMap();
-    IndexReader indexReader = searchContext.getSearcherAndTaxonomy().searcher.getIndexReader();
     for (String fieldName : fieldsMap.keySet()) {
-      String[] highlights = highlightHandler.getHighlights(searchContext.getIndexState(), indexReader, searchContext.getQuery(),
-          searchContext.getHighlight(), fieldName, hit.getLuceneDocId());
+      String[] highlights = highlightHandler.getHighlights(searchContext, fieldName, hit.getLuceneDocId());
       Highlights.Builder builder = Highlights.newBuilder();
       for (String fragment : highlights) {
         builder.addFragments(fragment);
