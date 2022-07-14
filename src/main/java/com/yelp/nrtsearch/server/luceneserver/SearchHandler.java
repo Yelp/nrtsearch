@@ -692,7 +692,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     }
 
     private List<Map<String, CompositeFieldValue>> fillFields(
-        IndexState state,
         IndexSearcher s,
         List<Hit.Builder> hitBuilders,
         List<String> fields,
@@ -707,7 +706,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           var hitResponse = hitBuilders.get(hitIndex);
           LeafReaderContext leaf = hitIdToleaves.get(hitIndex);
           CompositeFieldValue v =
-              getFieldForHit(state, s, hitResponse, leaf, field, searchContext.getRetrieveFields());
+              getFieldForHit(s, hitResponse, leaf, field, searchContext.getRetrieveFields());
           values.get(hitIndex).put(field, v);
         }
       }
@@ -720,7 +719,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
      * @return
      */
     private CompositeFieldValue getFieldForHit(
-        IndexState state,
         IndexSearcher s,
         Hit.Builder hit,
         LeafReaderContext leaf,
@@ -730,11 +728,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       assert field != null;
       CompositeFieldValue.Builder compositeFieldValue = CompositeFieldValue.newBuilder();
       FieldDef fd = dynamicFields.get(field);
-
-      // TODO: get highlighted fields as well
-      // Map<String,Object> doc = highlighter.getDocument(state, s, hit.doc);
-      Map<String, Object> doc = new HashMap<>();
-      boolean docIdAdvanced = false;
 
       // We detect invalid field above:
       assert fd != null;
@@ -783,22 +776,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           }
         }
       } else {
-        Object v = doc.get(field); // FIXME: doc is never updated, not sure if this is correct
-        if (v != null) {
-          if (fd instanceof IndexableFieldDef && !((IndexableFieldDef) fd).isMultiValue()) {
-            compositeFieldValue.addFieldValue(convertType(fd, v));
-          } else {
-            if (!(v instanceof List)) {
-              // FIXME: not sure this is serializable to string?
-              compositeFieldValue.addFieldValue(convertType(fd, v));
-            } else {
-              for (Object o : (List<Object>) v) {
-                // FIXME: not sure this is serializable to string?
-                compositeFieldValue.addFieldValue(convertType(fd, o));
-              }
-            }
-          }
-        }
+        // TODO: throw exception here after confirming that legitimate requests do not enter this
+        logger.error("Unable to fill hit for field: {}", field);
       }
 
       return compositeFieldValue.build();
@@ -806,7 +785,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
     @Override
     public List<Map<String, CompositeFieldValue>> call() throws IOException {
-      return fillFields(state, s, hitBuilders, fields, searchContext);
+      return fillFields(s, hitBuilders, fields, searchContext);
     }
   }
 
