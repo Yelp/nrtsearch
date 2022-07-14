@@ -11,6 +11,12 @@ import org.apache.lucene.index.LeafReaderContext;
 
 public class HighlightFetchTask implements FetchTask {
 
+  private static final HighlightFetchTask INSTANCE = new HighlightFetchTask();
+
+  public static HighlightFetchTask getInstance() {
+    return INSTANCE;
+  }
+
   private final HighlightHandler highlightHandler = new HighlightHandler();
 
   @Override

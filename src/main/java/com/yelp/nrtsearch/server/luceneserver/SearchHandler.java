@@ -38,6 +38,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.PolygonfieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
@@ -360,6 +361,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         var hitResponse = hitBuilders.get(hitIndex);
         LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
         searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
+        // TODO: combine with custom fetch tasks
+        HighlightFetchTask.getInstance().processHit(searchContext, leaf, hitResponse);
       }
     } else if (!parallelFetchByField
         && fetch_thread_pool_size > 1
@@ -883,6 +886,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       // execute any per hit fetch tasks
       for (Hit.Builder hit : sliceHits) {
         context.getFetchTasks().processHit(context.getSearchContext(), sliceSegment, hit);
+        // TODO: combine with custom fetch tasks
+        HighlightFetchTask.getInstance().processHit(context.getSearchContext(), sliceSegment, hit);
       }
     }
 
