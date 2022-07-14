@@ -106,7 +106,8 @@ public class SearchRequestProcessor {
         .setResponseBuilder(responseBuilder)
         .setTimestampSec(System.currentTimeMillis() / 1000)
         .setStartHit(searchRequest.getStartHit())
-        .setTopHits(searchRequest.getTopHits());
+        .setTopHits(searchRequest.getTopHits())
+        .setHighlight(searchRequest.getHighlight());
 
     Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
 

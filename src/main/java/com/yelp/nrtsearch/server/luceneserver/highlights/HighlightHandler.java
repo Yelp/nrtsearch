@@ -28,6 +28,9 @@ import org.apache.lucene.search.vectorhighlight.FieldQuery;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
 
+/**
+ * Handle highlights for a search query. Currently only supports fast vector highlighter.
+ */
 public class HighlightHandler {
 
   private static final String[] DEFAULT_PRE_TAGS = new String[] {"<em>"};
@@ -38,7 +41,12 @@ public class HighlightHandler {
   private static final ScoreOrderFragmentsBuilder SCORE_ORDER_FRAGMENTS_BUILDER =
       new ScoreOrderFragmentsBuilder();
   private static final DefaultEncoder DEFAULT_ENCODER = new DefaultEncoder();
-  QueryNodeMapper queryNodeMapper = new QueryNodeMapper();
+  private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
+  private static final HighlightHandler INSTANCE = new HighlightHandler();
+
+  public static HighlightHandler getInstance() {
+    return INSTANCE;
+  }
 
   public String[] getHighlights(
       IndexState indexState,
@@ -50,7 +58,7 @@ public class HighlightHandler {
       throws IOException {
     Query query =
         highlight.hasHighlightQuery()
-            ? queryNodeMapper.getQuery(highlight.getHighlightQuery(), indexState)
+            ? QUERY_NODE_MAPPER.getQuery(highlight.getHighlightQuery(), indexState)
             : searchQuery;
     FieldQuery fieldQuery = FAST_VECTOR_HIGHLIGHTER.getFieldQuery(query, reader);
     String[] preTags =

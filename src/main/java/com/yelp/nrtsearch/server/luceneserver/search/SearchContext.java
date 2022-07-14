@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search;
 
+import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
@@ -46,6 +47,7 @@ public class SearchContext implements FieldFetchContext {
   private final FetchTasks fetchTasks;
   private final List<RescoreTask> rescorers;
   private final SharedDocContext sharedDocContext;
+  private final Highlight highlight;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -62,6 +64,7 @@ public class SearchContext implements FieldFetchContext {
     this.fetchTasks = builder.fetchTasks;
     this.rescorers = builder.rescorers;
     this.sharedDocContext = builder.sharedDocContext;
+    this.highlight = builder.highlight;
 
     if (validate) {
       validate();
@@ -144,6 +147,11 @@ public class SearchContext implements FieldFetchContext {
     return sharedDocContext;
   }
 
+  /** Get highlighting requirements for the request */
+  public Highlight getHighlight() {
+    return highlight;
+  }
+
   /** Get new context builder instance * */
   public static Builder newBuilder() {
     return new Builder();
@@ -161,6 +169,7 @@ public class SearchContext implements FieldFetchContext {
     Objects.requireNonNull(fetchTasks);
     Objects.requireNonNull(rescorers);
     Objects.requireNonNull(sharedDocContext);
+    Objects.requireNonNull(highlight);
 
     if (timestampSec < 0) {
       throw new IllegalStateException("Invalid timestamp value: " + timestampSec);
@@ -197,6 +206,7 @@ public class SearchContext implements FieldFetchContext {
     private FetchTasks fetchTasks;
     private List<RescoreTask> rescorers;
     private SharedDocContext sharedDocContext;
+    private Highlight highlight;
 
     private Builder() {}
 
@@ -284,6 +294,12 @@ public class SearchContext implements FieldFetchContext {
     /** Set shared context accessor for documents */
     public Builder setSharedDocContext(SharedDocContext sharedDocContext) {
       this.sharedDocContext = sharedDocContext;
+      return this;
+    }
+
+    /** Set shared context accessor for documents */
+    public Builder setHighlight(Highlight highlight) {
+      this.highlight = highlight;
       return this;
     }
 
