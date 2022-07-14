@@ -17,7 +17,10 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
+import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
 import org.apache.lucene.index.IndexReader;
@@ -53,12 +56,15 @@ public class HighlightHandler {
       String fieldName,
       int docId)
       throws IOException {
+    IndexState indexState = searchContext.getIndexState();
+    validateField(fieldName, indexState);
+
     IndexReader reader = searchContext.getSearcherAndTaxonomy().searcher.getIndexReader();
     Highlight highlight = searchContext.getHighlight();
 
     Query query =
         highlight.hasHighlightQuery()
-            ? QUERY_NODE_MAPPER.getQuery(highlight.getHighlightQuery(), searchContext.getIndexState())
+            ? QUERY_NODE_MAPPER.getQuery(highlight.getHighlightQuery(), indexState)
             : searchContext.getQuery();
     FieldQuery fieldQuery = FAST_VECTOR_HIGHLIGHTER.getFieldQuery(query, reader);
     String[] preTags =
@@ -102,6 +108,18 @@ public class HighlightHandler {
           preTags,
           postTags,
           DEFAULT_ENCODER);
+    }
+  }
+
+  private void validateField(String fieldName, IndexState indexState) {
+    FieldDef field = indexState.getField(fieldName);
+    if (! (field instanceof TextBaseFieldDef) ) {
+      throw new IllegalArgumentException(String.format("Field %s is not a text field and does not support highlights",
+          fieldName));
+    }
+    TextBaseFieldDef textField = (TextBaseFieldDef) field;
+    if (!textField.isHighlighted()) {
+      throw new IllegalArgumentException(String.format("Field %s does not have highlights enabled", fieldName));
     }
   }
 }

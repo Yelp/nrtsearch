@@ -192,6 +192,10 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
     if (requestField.getSearch()) {
       if (requestField.getHighlight()) {
         fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        // Required by fast vector highlighter
+        fieldType.setStoreTermVectors(true);
+        fieldType.setStoreTermVectorPositions(true);
+        fieldType.setStoreTermVectorOffsets(true);
       } else {
         switch (requestField.getIndexOptions()) {
           case DOCS:
