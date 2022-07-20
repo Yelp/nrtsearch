@@ -191,28 +191,27 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
   protected void setSearchProperties(FieldType fieldType, Field requestField) {
     if (requestField.getSearch()) {
       if (requestField.getHighlight()) {
-        fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
         // Required by fast vector highlighter
         fieldType.setStoreTermVectors(true);
         fieldType.setStoreTermVectorPositions(true);
         fieldType.setStoreTermVectorOffsets(true);
-      } else {
-        switch (requestField.getIndexOptions()) {
-          case DOCS:
-            fieldType.setIndexOptions(IndexOptions.DOCS);
-            break;
-          case DOCS_FREQS:
-            fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
-            break;
-          case DOCS_FREQS_POSITIONS:
-            fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            break;
-          case DOCS_FREQS_POSITIONS_OFFSETS:
-            fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
-            break;
-          default:
-            fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-        }
+      }
+      switch (requestField.getIndexOptions()) {
+        case DOCS:
+          fieldType.setIndexOptions(IndexOptions.DOCS);
+          break;
+        case DOCS_FREQS:
+          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
+          break;
+        case DOCS_FREQS_POSITIONS:
+          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+          break;
+        case DOCS_FREQS_POSITIONS_OFFSETS:
+          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+          break;
+        default:
+          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+          break;
       }
     }
     fieldType.setTokenized(requestField.getTokenize());
