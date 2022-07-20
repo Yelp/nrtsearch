@@ -31,9 +31,7 @@ import org.apache.lucene.search.vectorhighlight.FieldQuery;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
 
-/**
- * Handle highlights for a search query. Currently only supports fast vector highlighter.
- */
+/** Handle highlights for a search query. Currently only supports fast vector highlighter. */
 public class HighlightHandler {
 
   private static final String[] DEFAULT_PRE_TAGS = new String[] {"<em>"};
@@ -51,10 +49,7 @@ public class HighlightHandler {
     return INSTANCE;
   }
 
-  public String[] getHighlights(
-      SearchContext searchContext,
-      String fieldName,
-      int docId)
+  public String[] getHighlights(SearchContext searchContext, String fieldName, int docId)
       throws IOException {
     IndexState indexState = searchContext.getIndexState();
     validateField(fieldName, indexState);
@@ -113,13 +108,14 @@ public class HighlightHandler {
 
   private void validateField(String fieldName, IndexState indexState) {
     FieldDef field = indexState.getField(fieldName);
-    if (! (field instanceof TextBaseFieldDef) ) {
-      throw new IllegalArgumentException(String.format("Field %s is not a text field and does not support highlights",
-          fieldName));
+    if (!(field instanceof TextBaseFieldDef)) {
+      throw new IllegalArgumentException(
+          String.format("Field %s is not a text field and does not support highlights", fieldName));
     }
     TextBaseFieldDef textField = (TextBaseFieldDef) field;
     if (!textField.isHighlighted()) {
-      throw new IllegalArgumentException(String.format("Field %s does not have highlights enabled", fieldName));
+      throw new IllegalArgumentException(
+          String.format("Field %s does not have highlights enabled", fieldName));
     }
   }
 }

@@ -1,3 +1,18 @@
+/*
+ * Copyright 2022 Yelp Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
@@ -24,7 +39,8 @@ public class HighlightFetchTask implements FetchTask {
       throws IOException {
     Map<String, Settings> fieldsMap = searchContext.getHighlight().getFieldsMap();
     for (String fieldName : fieldsMap.keySet()) {
-      String[] highlights = highlightHandler.getHighlights(searchContext, fieldName, hit.getLuceneDocId());
+      String[] highlights =
+          highlightHandler.getHighlights(searchContext, fieldName, hit.getLuceneDocId());
       Highlights.Builder builder = Highlights.newBuilder();
       for (String fragment : highlights) {
         builder.addFragments(fragment);
