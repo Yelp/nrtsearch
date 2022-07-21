@@ -41,11 +41,13 @@ public class HighlightFetchTask implements FetchTask {
     for (String fieldName : fieldsMap.keySet()) {
       String[] highlights =
           highlightHandler.getHighlights(searchContext, fieldName, hit.getLuceneDocId());
-      Highlights.Builder builder = Highlights.newBuilder();
-      for (String fragment : highlights) {
-        builder.addFragments(fragment);
+      if (highlights != null && highlights.length > 0 && highlights[0] != null) {
+        Highlights.Builder builder = Highlights.newBuilder();
+        for (String fragment : highlights) {
+          builder.addFragments(fragment);
+        }
+        hit.putHighlights(fieldName, builder.build());
       }
-      hit.putHighlights(fieldName, builder.build());
     }
   }
 }

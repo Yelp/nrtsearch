@@ -17,14 +17,17 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
+import com.yelp.nrtsearch.server.grpc.PhraseQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -33,7 +36,6 @@ import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -58,7 +60,9 @@ public class HighlightTest extends ServerTestCase {
             .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
             .putFields(
                 "comment",
-                MultiValuedField.newBuilder().addValue("the food here is amazing").build())
+                MultiValuedField.newBuilder()
+                    .addValue("the food here is amazing, service was good")
+                    .build())
             .build();
     docs.add(request);
     request =
@@ -74,22 +78,90 @@ public class HighlightTest extends ServerTestCase {
   }
 
   @Test
-  public void testHighlight() {
+  public void testBasicHighlight() {
     SearchResponse response = doHighlightQuery(Settings.newBuilder().build());
 
-    assertFields(response, "1", "2");
+    assertFields(response);
 
     assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragments(0))
-        .isEqualTo("the <em>food</em> here is amazing");
-    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
         .isEqualTo("the <em>food</em> here is pretty good");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
+        .isEqualTo("the <em>food</em> here is amazing, service was good");
+  }
+
+  @Test
+  public void testHighlightFragmentSize() {
+    Settings settings =
+        Settings.newBuilder()
+            // 18 is minimum fragment size
+            .setFragmentSize(Int32Value.newBuilder().setValue(18).build())
+            .build();
+    SearchResponse response = doHighlightQuery(settings);
+
+    assertFields(response);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragments(0))
+        .isEqualTo("the <em>food</em> here is pretty");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
+        .isEqualTo("the <em>food</em> here is amazing");
+  }
+
+  @Test
+  public void testHighlightMoreOptions() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .addPreTags("<START>")
+            .addPostTags("<END>")
+            .setHighlightQuery(
+                Query.newBuilder()
+                    .setPhraseQuery(
+                        PhraseQuery.newBuilder()
+                            .setField("comment")
+                            .setSlop(20)
+                            .addTerms("food")
+                            .addTerms("is")
+                            .addTerms("good")))
+            .build();
+    SearchResponse response = doHighlightQuery(highlight, Settings.newBuilder().build());
+
+    assertFields(response);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragments(0))
+        .isEqualTo("the <START>food<END> here <START>is<END> pretty <START>good<END>");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
+        .isEqualTo(
+            "the <START>food<END> here <START>is<END> amazing, service was <START>good<END>");
+  }
+
+  @Test
+  public void testHighlightsAbsentForOneHit() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .setHighlightQuery(
+                Query.newBuilder()
+                    .setPhraseQuery(
+                        PhraseQuery.newBuilder()
+                            .setField("comment")
+                            .setSlop(5)
+                            .addTerms("food")
+                            .addTerms("pretty")
+                            .addTerms("good")))
+            .build();
+    SearchResponse response = doHighlightQuery(highlight, Settings.newBuilder().build());
+
+    assertFields(response);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragments(0))
+        .isEqualTo("the <em>food</em> here is <em>pretty good</em>");
+    assertTrue(response.getHits(1).getHighlightsMap().isEmpty());
   }
 
   private String indexName() {
     return getIndices().get(0);
   }
 
-  private SearchResponse doHighlightQuery(Settings settings) {
+  private SearchResponse doHighlightQuery(Highlight highlight, Settings settings) {
+    highlight.toBuilder().putFields("comment", settings);
     return getGrpcServer()
         .getBlockingStub()
         .search(
@@ -102,18 +174,22 @@ public class HighlightTest extends ServerTestCase {
                     Query.newBuilder()
                         .setMatchQuery(
                             MatchQuery.newBuilder().setField("comment").setQuery("food")))
-                .setHighlight(Highlight.newBuilder().putFields("comment", settings))
+                .setHighlight(highlight.toBuilder().putFields("comment", settings))
                 .build());
   }
 
-  private void assertFields(SearchResponse response, String... expectedIds) {
+  private SearchResponse doHighlightQuery(Settings settings) {
+    return doHighlightQuery(Highlight.newBuilder().build(), settings);
+  }
+
+  private void assertFields(SearchResponse response) {
     Set<String> seenSet = new HashSet<>();
     for (Hit hit : response.getHitsList()) {
       String id = hit.getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue();
       seenSet.add(id);
       if (id.equals("1")) {
         assertEquals(
-            "the food here is amazing",
+            "the food here is amazing, service was good",
             hit.getFieldsOrThrow("comment").getFieldValue(0).getTextValue());
       } else if (id.equals("2")) {
         assertEquals(
@@ -123,7 +199,6 @@ public class HighlightTest extends ServerTestCase {
         fail("Unknown id: " + id);
       }
     }
-    Set<String> expectedSet = new HashSet<>(Arrays.asList(expectedIds));
-    assertEquals(expectedSet, seenSet);
+    assertEquals(Set.of("1", "2"), seenSet);
   }
 }
