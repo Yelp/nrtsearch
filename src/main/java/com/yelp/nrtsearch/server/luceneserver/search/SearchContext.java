@@ -15,12 +15,12 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search;
 
-import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightContext;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.List;
@@ -47,7 +47,7 @@ public class SearchContext implements FieldFetchContext {
   private final FetchTasks fetchTasks;
   private final List<RescoreTask> rescorers;
   private final SharedDocContext sharedDocContext;
-  private final Highlight highlight;
+  private final HighlightContext highlightContext;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -64,7 +64,7 @@ public class SearchContext implements FieldFetchContext {
     this.fetchTasks = builder.fetchTasks;
     this.rescorers = builder.rescorers;
     this.sharedDocContext = builder.sharedDocContext;
-    this.highlight = builder.highlight;
+    this.highlightContext = builder.highlightContext;
 
     if (validate) {
       validate();
@@ -148,8 +148,8 @@ public class SearchContext implements FieldFetchContext {
   }
 
   /** Get highlighting requirements for the request */
-  public Highlight getHighlight() {
-    return highlight;
+  public HighlightContext getHighlightContext() {
+    return highlightContext;
   }
 
   /** Get new context builder instance * */
@@ -169,7 +169,6 @@ public class SearchContext implements FieldFetchContext {
     Objects.requireNonNull(fetchTasks);
     Objects.requireNonNull(rescorers);
     Objects.requireNonNull(sharedDocContext);
-    Objects.requireNonNull(highlight);
 
     if (timestampSec < 0) {
       throw new IllegalStateException("Invalid timestamp value: " + timestampSec);
@@ -206,7 +205,7 @@ public class SearchContext implements FieldFetchContext {
     private FetchTasks fetchTasks;
     private List<RescoreTask> rescorers;
     private SharedDocContext sharedDocContext;
-    private Highlight highlight;
+    private HighlightContext highlightContext;
 
     private Builder() {}
 
@@ -298,8 +297,8 @@ public class SearchContext implements FieldFetchContext {
     }
 
     /** Set shared context accessor for documents */
-    public Builder setHighlight(Highlight highlight) {
-      this.highlight = highlight;
+    public Builder setHighlightContext(HighlightContext highlightContext) {
+      this.highlightContext = highlightContext;
       return this;
     }
 

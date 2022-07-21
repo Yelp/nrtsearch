@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.search;
 
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
+import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
@@ -28,7 +29,9 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightContext;
 import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
@@ -106,8 +109,7 @@ public class SearchRequestProcessor {
         .setResponseBuilder(responseBuilder)
         .setTimestampSec(System.currentTimeMillis() / 1000)
         .setStartHit(searchRequest.getStartHit())
-        .setTopHits(searchRequest.getTopHits())
-        .setHighlight(searchRequest.getHighlight());
+        .setTopHits(searchRequest.getTopHits());
 
     Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
 
@@ -148,6 +150,14 @@ public class SearchRequestProcessor {
     contextBuilder.setRescorers(
         getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
     contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
+
+    Highlight highlight = searchRequest.getHighlight();
+    if (!highlight.getFieldsMap().isEmpty()) {
+      verifyHighlights(indexState, highlight);
+      HighlightContext highlightContext =
+          new HighlightContext(indexState, searcherAndTaxonomy, query, highlight);
+      contextBuilder.setHighlightContext(highlightContext);
+    }
 
     SearchContext searchContext = contextBuilder.build(true);
     // Give underlying collectors access to the search context
@@ -382,5 +392,21 @@ public class SearchRequestProcessor {
               .build());
     }
     return rescorers;
+  }
+
+  private static void verifyHighlights(IndexState indexState, Highlight highlight) {
+    for (String fieldName : highlight.getFieldsMap().keySet()) {
+      FieldDef field = indexState.getField(fieldName);
+      if (!(field instanceof TextBaseFieldDef)) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Field %s is not a text field and does not support highlights", fieldName));
+      }
+      TextBaseFieldDef textField = (TextBaseFieldDef) field;
+      if (!textField.isHighlighted()) {
+        throw new IllegalArgumentException(
+            String.format("Field %s does not have highlights enabled", fieldName));
+      }
+    }
   }
 }

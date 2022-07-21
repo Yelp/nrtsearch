@@ -15,9 +15,9 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
-import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Highlights;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightContext.FieldSettings;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
@@ -37,10 +37,15 @@ public class HighlightFetchTask implements FetchTask {
   @Override
   public void processHit(SearchContext searchContext, LeafReaderContext hitLeaf, Builder hit)
       throws IOException {
-    Map<String, Settings> fieldsMap = searchContext.getHighlight().getFieldsMap();
-    for (String fieldName : fieldsMap.keySet()) {
+    if (searchContext.getHighlightContext() == null) {
+      return;
+    }
+    Map<String, FieldSettings> fieldSettings =
+        searchContext.getHighlightContext().getFieldSettings();
+    for (String fieldName : fieldSettings.keySet()) {
       String[] highlights =
-          highlightHandler.getHighlights(searchContext, fieldName, hit.getLuceneDocId());
+          highlightHandler.getHighlights(
+              searchContext.getHighlightContext(), fieldName, hit.getLuceneDocId());
       if (highlights != null && highlights.length > 0 && highlights[0] != null) {
         Highlights.Builder builder = Highlights.newBuilder();
         for (String fragment : highlights) {
