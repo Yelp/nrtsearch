@@ -152,7 +152,7 @@ public class SearchRequestProcessor {
     contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
     Highlight highlight = searchRequest.getHighlight();
-    if (!highlight.getFieldsMap().isEmpty()) {
+    if (!highlight.getFieldsList().isEmpty()) {
       verifyHighlights(indexState, highlight);
       HighlightContext highlightContext =
           new HighlightContext(indexState, searcherAndTaxonomy, query, highlight);
@@ -395,7 +395,7 @@ public class SearchRequestProcessor {
   }
 
   private static void verifyHighlights(IndexState indexState, Highlight highlight) {
-    for (String fieldName : highlight.getFieldsMap().keySet()) {
+    for (String fieldName : highlight.getFieldsList()) {
       FieldDef field = indexState.getField(fieldName);
       if (!(field instanceof TextBaseFieldDef)) {
         throw new IllegalArgumentException(

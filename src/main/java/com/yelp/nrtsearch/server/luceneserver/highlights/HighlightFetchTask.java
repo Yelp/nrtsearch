@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Highlights;
-import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightContext.FieldSettings;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
@@ -40,7 +39,7 @@ public class HighlightFetchTask implements FetchTask {
     if (searchContext.getHighlightContext() == null) {
       return;
     }
-    Map<String, FieldSettings> fieldSettings =
+    Map<String, HighlightSettings> fieldSettings =
         searchContext.getHighlightContext().getFieldSettings();
     for (String fieldName : fieldSettings.keySet()) {
       String[] highlights =

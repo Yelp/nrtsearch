@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
-import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightContext.FieldSettings;
 import java.io.IOException;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
@@ -39,35 +38,19 @@ public class HighlightHandler {
 
   public String[] getHighlights(HighlightContext highlightContext, String fieldName, int docId)
       throws IOException {
-    FieldSettings settings = highlightContext.getFieldSettings().get(fieldName);
+    HighlightSettings settings = highlightContext.getFieldSettings().get(fieldName);
 
-    if (settings.getMaxNumFragments() == 0) {
-      String frag =
-          FAST_VECTOR_HIGHLIGHTER.getBestFragment(
-              highlightContext.getFieldQuery(),
-              highlightContext.getIndexReader(),
-              docId,
-              fieldName,
-              settings.getFragmentSize(),
-              SIMPLE_FRAG_LIST_BUILDER,
-              SCORE_ORDER_FRAGMENTS_BUILDER,
-              highlightContext.getPreTags(),
-              highlightContext.getPostTags(),
-              DEFAULT_ENCODER);
-      return new String[] {frag};
-    } else {
-      return FAST_VECTOR_HIGHLIGHTER.getBestFragments(
-          highlightContext.getFieldQuery(),
-          highlightContext.getIndexReader(),
-          docId,
-          fieldName,
-          settings.getFragmentSize(),
-          settings.getMaxNumFragments(),
-          SIMPLE_FRAG_LIST_BUILDER,
-          SCORE_ORDER_FRAGMENTS_BUILDER,
-          highlightContext.getPreTags(),
-          highlightContext.getPostTags(),
-          DEFAULT_ENCODER);
-    }
+    return FAST_VECTOR_HIGHLIGHTER.getBestFragments(
+        settings.getFieldQuery(),
+        highlightContext.getIndexReader(),
+        docId,
+        fieldName,
+        settings.getFragmentSize(),
+        settings.getMaxNumFragments(),
+        SIMPLE_FRAG_LIST_BUILDER,
+        SCORE_ORDER_FRAGMENTS_BUILDER,
+        settings.getPreTags(),
+        settings.getPostTags(),
+        DEFAULT_ENCODER);
   }
 }

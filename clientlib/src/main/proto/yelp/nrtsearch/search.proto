@@ -648,12 +648,14 @@ message HitsResult {
 message Highlight {
 
     message Settings {
-        google.protobuf.Int32Value fragment_size = 1; // Number of characters in highlighted fragment, 100 by default
-        int32 max_number_of_fragments = 2; // Maximum number of highlight fragments to return, set to 0 (default) to return complete content of the field
+        repeated string pre_tags = 1; // Used along with post_tags to specify how to wrap the highlighted text
+        repeated string post_tags = 2; // Used along with pre_tags to specify how to wrap the highlighted text
+        google.protobuf.UInt32Value fragment_size = 3; // Number of characters in highlighted fragment, 100 by default
+        google.protobuf.UInt32Value max_number_of_fragments = 4; // Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single fragment ignoring fragment_size.
+        Query highlight_query = 5; // Specify a query here if highlighting is desired against a different query than the search query
     }
 
-    repeated string pre_tags = 1; // Used along with post_tags to specify how to wrap the highlighted text
-    repeated string post_tags = 2; // Used along with pre_tags to specify how to wrap the highlighted text
-    Query highlight_query = 3; // Specify a query here if highlighting is desired against a different query than the search query
-    map<string, Settings> fields = 4; // Map of field name to highlight settings for the field
+    Settings settings = 1; // Highlight settings
+    repeated string fields = 2; // Fields to highlight
+    map<string, Settings> field_settings = 3; // Map of field name to highlight settings for field, overrides request level highlight settings
 }
