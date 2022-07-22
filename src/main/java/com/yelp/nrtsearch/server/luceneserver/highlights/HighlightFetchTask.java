@@ -20,7 +20,6 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Highlights;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
-import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 
 public class HighlightFetchTask implements FetchTask {
@@ -39,9 +38,7 @@ public class HighlightFetchTask implements FetchTask {
     if (searchContext.getHighlightContext() == null) {
       return;
     }
-    Map<String, HighlightSettings> fieldSettings =
-        searchContext.getHighlightContext().getFieldSettings();
-    for (String fieldName : fieldSettings.keySet()) {
+    for (String fieldName : searchContext.getHighlightContext().getFieldSettings().keySet()) {
       String[] highlights =
           highlightHandler.getHighlights(
               searchContext.getHighlightContext(), fieldName, hit.getLuceneDocId());
