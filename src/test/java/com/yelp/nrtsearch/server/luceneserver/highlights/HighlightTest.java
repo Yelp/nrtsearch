@@ -25,7 +25,6 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Highlight;
-import com.yelp.nrtsearch.server.grpc.Highlight.Builder;
 import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
 import com.yelp.nrtsearch.server.grpc.PhraseQuery;
@@ -83,7 +82,8 @@ public class HighlightTest extends ServerTestCase {
 
   @Test
   public void testBasicHighlight() {
-    SearchResponse response = doHighlightQuery(Settings.newBuilder().build());
+    Highlight highlight = Highlight.newBuilder().addFields("comment").build();
+    SearchResponse response = doHighlightQuery(highlight);
 
     assertFields(response);
 
@@ -95,48 +95,77 @@ public class HighlightTest extends ServerTestCase {
   }
 
   @Test
-  public void testHighlightFragmentSize() {
+  public void testHighlightGlobalSettings() {
     Settings settings =
-        Settings.newBuilder()
-            // 18 is minimum fragment size
-            .setFragmentSize(UInt32Value.newBuilder().setValue(18).build())
-            .build();
-    SearchResponse response = doHighlightQuery(settings);
-
-    assertFields(response);
-
-    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragments(0))
-        .isEqualTo("the <em>food</em> here is amazing");
-    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
-        .isEqualTo("restaurant. The <em>food</em> here is");
-  }
-
-  @Test
-  public void testHighlightMoreOptions() {
-    Settings build =
         Settings.newBuilder()
             .addPreTags("<START>")
             .addPostTags("<END>")
             .setFragmentSize(UInt32Value.newBuilder().setValue(18))
-            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(5))
+            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(3))
             .setHighlightQuery(
                 Query.newBuilder()
                     .setMatchQuery(
                         MatchQuery.newBuilder().setField("comment").setQuery("food is good")))
             .build();
-    Highlight highlight = Highlight.newBuilder().setSettings(build).build();
-    SearchResponse response = doHighlightQuery(highlight, build);
+    Highlight highlight = Highlight.newBuilder().setSettings(settings).addFields("comment").build();
+    SearchResponse response = doHighlightQuery(highlight);
 
-    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragments(0))
-        .isEqualTo("the <START>food<END> here <START>is<END> amazing");
-    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
-        .isEqualTo("The <START>food<END> here <START>is<END> pretty");
+    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly(
+            "the <START>food<END> here <START>is<END> amazing", "service was <START>good<END>");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly(
+            "The <START>food<END> here <START>is<END> pretty",
+            "This <START>is<END> my first time",
+            "pretty <START>good<END>, the service");
+  }
+
+  @Test
+  public void testHighlightFieldSettings() {
+    Settings globalSettings =
+        Settings.newBuilder()
+            .addPreTags("<s>")
+            .addPostTags("<e>")
+            .setFragmentSize(UInt32Value.newBuilder().setValue(50))
+            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(5))
+            .setHighlightQuery(
+                Query.newBuilder()
+                    .setMatchQuery(MatchQuery.newBuilder().setField("comment").setQuery("pretty")))
+            .build();
+    Settings fieldSettings =
+        Settings.newBuilder()
+            .addPreTags("<START>")
+            .addPostTags("<END>")
+            .setFragmentSize(UInt32Value.newBuilder().setValue(18))
+            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(3))
+            .setHighlightQuery(
+                Query.newBuilder()
+                    .setMatchQuery(
+                        MatchQuery.newBuilder().setField("comment").setQuery("food is good")))
+            .build();
+    Highlight highlight =
+        Highlight.newBuilder()
+            .setSettings(globalSettings)
+            .addFields("comment")
+            .putFieldSettings("comment", fieldSettings)
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly(
+            "the <START>food<END> here <START>is<END> amazing", "service was <START>good<END>");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly(
+            "The <START>food<END> here <START>is<END> pretty",
+            "This <START>is<END> my first time",
+            "pretty <START>good<END>, the service");
   }
 
   @Test
   public void testHighlightsAbsentForOneHit() {
     Highlight highlight =
         Highlight.newBuilder()
+            .addFields("comment")
             .setSettings(
                 Settings.newBuilder()
                     .setHighlightQuery(
@@ -149,23 +178,21 @@ public class HighlightTest extends ServerTestCase {
                                     .addTerms("pretty")
                                     .addTerms("good"))))
             .build();
-    SearchResponse response = doHighlightQuery(highlight, Settings.newBuilder().build());
+    SearchResponse response = doHighlightQuery(highlight);
 
     assertFields(response);
 
-    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
-        .isEqualTo(
-            "first time eating at this restaurant. The <em>food</em> here is <em>pretty good</em>, the service could be better. My favorite");
     assertTrue(response.getHits(0).getHighlightsMap().isEmpty());
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly(
+            "first time eating at this restaurant. The <em>food</em> here is <em>pretty good</em>, the service could be better. My favorite");
   }
 
   private String indexName() {
     return getIndices().get(0);
   }
 
-  private SearchResponse doHighlightQuery(Highlight highlight, Settings settings) {
-    Builder builder =
-        highlight.toBuilder().addFields("comment").putFieldSettings("comment", settings);
+  private SearchResponse doHighlightQuery(Highlight highlight) {
     return getGrpcServer()
         .getBlockingStub()
         .search(
@@ -178,12 +205,8 @@ public class HighlightTest extends ServerTestCase {
                     Query.newBuilder()
                         .setMatchQuery(
                             MatchQuery.newBuilder().setField("comment").setQuery("food")))
-                .setHighlight(builder)
+                .setHighlight(highlight)
                 .build());
-  }
-
-  private SearchResponse doHighlightQuery(Settings settings) {
-    return doHighlightQuery(Highlight.newBuilder().build(), settings);
   }
 
   private void assertFields(SearchResponse response) {
@@ -192,13 +215,12 @@ public class HighlightTest extends ServerTestCase {
       String id = hit.getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue();
       seenSet.add(id);
       if (id.equals("1")) {
-        assertEquals(
-            "the food here is amazing, service was good",
-            hit.getFieldsOrThrow("comment").getFieldValue(0).getTextValue());
+        assertThat(hit.getFieldsOrThrow("comment").getFieldValue(0).getTextValue())
+            .isEqualTo("the food here is amazing, service was good");
       } else if (id.equals("2")) {
-        assertEquals(
-            "This is my first time eating at this restaurant. The food here is pretty good, the service could be better. My favorite food was chilly chicken.",
-            hit.getFieldsOrThrow("comment").getFieldValue(0).getTextValue());
+        assertThat(hit.getFieldsOrThrow("comment").getFieldValue(0).getTextValue())
+            .isEqualTo(
+                "This is my first time eating at this restaurant. The food here is pretty good, the service could be better. My favorite food was chilly chicken.");
       } else {
         fail("Unknown id: " + id);
       }
