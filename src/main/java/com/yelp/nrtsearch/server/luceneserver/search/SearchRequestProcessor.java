@@ -76,7 +76,7 @@ public class SearchRequestProcessor {
    */
   public static final int TOTAL_HITS_THRESHOLD = 1000;
 
-  private static final QueryNodeMapper QUERY_NODE_MAPPER = new QueryNodeMapper();
+  private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
 
   private SearchRequestProcessor() {}
 
