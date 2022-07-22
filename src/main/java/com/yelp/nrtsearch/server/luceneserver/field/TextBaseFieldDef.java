@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.TermVectors;
 import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
@@ -91,12 +92,10 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
       throw new IllegalArgumentException("sort: Cannot sort text fields; use atom instead");
     }
 
-    if (requestField.getHighlight() && !requestField.getSearch()) {
-      throw new IllegalArgumentException("search must be true when highlight is true");
-    }
-
-    if (requestField.getHighlight() && !requestField.getStore()) {
-      throw new IllegalArgumentException("store must be true when highlight is true");
+    if (!requestField.getSearch() && requestField.getTermVectors() != TermVectors.NO_TERMVECTORS) {
+      throw new IllegalArgumentException(
+          "Indexing term vectors requires field to be searchable, invalid field "
+              + requestField.getName());
     }
   }
 
@@ -190,12 +189,6 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
   @Override
   protected void setSearchProperties(FieldType fieldType, Field requestField) {
     if (requestField.getSearch()) {
-      if (requestField.getHighlight()) {
-        // Required by fast vector highlighter
-        fieldType.setStoreTermVectors(true);
-        fieldType.setStoreTermVectorPositions(true);
-        fieldType.setStoreTermVectorOffsets(true);
-      }
       switch (requestField.getIndexOptions()) {
         case DOCS:
           fieldType.setIndexOptions(IndexOptions.DOCS);
@@ -213,32 +206,20 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
           fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
           break;
       }
+
+      switch (requestField.getTermVectors()) {
+        case TERMS_POSITIONS_OFFSETS_PAYLOADS:
+          fieldType.setStoreTermVectorPayloads(true);
+        case TERMS_POSITIONS_OFFSETS:
+          fieldType.setStoreTermVectorOffsets(true);
+        case TERMS_POSITIONS:
+          fieldType.setStoreTermVectorPositions(true);
+        case TERMS:
+          fieldType.setStoreTermVectors(true);
+      }
     }
     fieldType.setTokenized(requestField.getTokenize());
     fieldType.setOmitNorms(requestField.getOmitNorms());
-
-    switch (requestField.getTermVectors()) {
-      case TERMS:
-        fieldType.setStoreTermVectors(true);
-        break;
-      case TERMS_POSITIONS:
-        fieldType.setStoreTermVectors(true);
-        fieldType.setStoreTermVectorPositions(true);
-        break;
-      case TERMS_POSITIONS_OFFSETS:
-        fieldType.setStoreTermVectors(true);
-        fieldType.setStoreTermVectorPositions(true);
-        fieldType.setStoreTermVectorOffsets(true);
-        break;
-      case TERMS_POSITIONS_OFFSETS_PAYLOADS:
-        fieldType.setStoreTermVectors(true);
-        fieldType.setStoreTermVectorPositions(true);
-        fieldType.setStoreTermVectorOffsets(true);
-        fieldType.setStoreTermVectorPayloads(true);
-        break;
-      default:
-        break;
-    }
   }
 
   /**

@@ -13,7 +13,35 @@
       "store": true,
       "tokenize": true,
       "highlight": true,
-      "storeDocValues": true
+      "storeDocValues": true,
+      "termVectors": "TERMS_POSITIONS_OFFSETS",
+      "childFields": [
+        {
+          "name": "no_search",
+          "type": "TEXT",
+          "store": true,
+          "tokenize": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "no_store",
+          "type": "TEXT",
+          "search": true,
+          "store": false,
+          "tokenize": true,
+          "storeDocValues": true,
+          "termVectors": "TERMS_POSITIONS_OFFSETS"
+        },
+        {
+          "name": "no_term_vectors_with_offsets",
+          "type": "TEXT",
+          "search": true,
+          "store": true,
+          "tokenize": true,
+          "storeDocValues": true,
+          "termVectors": "TERMS_POSITIONS"
+        }
+      ]
     }
   ]
 }

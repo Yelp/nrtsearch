@@ -344,4 +344,13 @@ public abstract class IndexableFieldDef extends FieldDef {
   public String getDocValuesFormat() {
     return docValuesFormat;
   }
+
+  /**
+   * Get the Lucene definition for this field.
+   *
+   * @return {link FieldType} for this field
+   */
+  public FieldType getFieldType() {
+    return fieldType;
+  }
 }

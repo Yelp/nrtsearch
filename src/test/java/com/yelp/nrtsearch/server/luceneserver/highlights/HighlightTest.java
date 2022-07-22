@@ -16,9 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.assertj.core.api.Assertions.fail;
 
 import com.google.protobuf.UInt32Value;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
@@ -33,6 +31,7 @@ import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -182,10 +181,41 @@ public class HighlightTest extends ServerTestCase {
 
     assertFields(response);
 
-    assertTrue(response.getHits(0).getHighlightsMap().isEmpty());
+    assertThat(response.getHits(0).getHighlightsMap()).isEmpty();
     assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
         .containsExactly(
             "first time eating at this restaurant. The <em>food</em> here is <em>pretty good</em>, the service could be better. My favorite");
+  }
+
+  @Test
+  public void testHighlightIncompatibleField() {
+    Highlight highlight = Highlight.newBuilder().addFields("comment.no_search").build();
+    try {
+      doHighlightQuery(highlight);
+      fail("No error for invalid field");
+    } catch (StatusRuntimeException e) {
+      assertThat(e.getMessage())
+          .contains("Field comment.no_search is not searchable and cannot support highlights");
+    }
+
+    highlight = Highlight.newBuilder().addFields("comment.no_store").build();
+    try {
+      doHighlightQuery(highlight);
+      fail("No error for invalid field");
+    } catch (StatusRuntimeException e) {
+      assertThat(e.getMessage())
+          .contains("Field comment.no_store is not stored and cannot support highlights");
+    }
+
+    highlight = Highlight.newBuilder().addFields("comment.no_term_vectors_with_offsets").build();
+    try {
+      doHighlightQuery(highlight);
+      fail("No error for invalid field");
+    } catch (StatusRuntimeException e) {
+      assertThat(e.getMessage())
+          .contains(
+              "Field comment.no_term_vectors_with_offsets does not have term vectors with positions and offsets and cannot support highlights");
+    }
   }
 
   private String indexName() {
@@ -225,6 +255,6 @@ public class HighlightTest extends ServerTestCase {
         fail("Unknown id: " + id);
       }
     }
-    assertEquals(Set.of("1", "2"), seenSet);
+    assertThat(seenSet).containsExactly("1", "2");
   }
 }

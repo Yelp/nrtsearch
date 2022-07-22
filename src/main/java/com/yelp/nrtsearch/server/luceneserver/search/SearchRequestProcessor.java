@@ -54,6 +54,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
@@ -402,10 +403,22 @@ public class SearchRequestProcessor {
             String.format(
                 "Field %s is not a text field and does not support highlights", fieldName));
       }
-      TextBaseFieldDef textField = (TextBaseFieldDef) field;
-      if (!textField.isHighlighted()) {
+      if (!((TextBaseFieldDef) field).isSearchable()) {
         throw new IllegalArgumentException(
-            String.format("Field %s does not have highlights enabled", fieldName));
+            String.format("Field %s is not searchable and cannot support highlights", fieldName));
+      }
+      if (!((TextBaseFieldDef) field).isStored()) {
+        throw new IllegalArgumentException(
+            String.format("Field %s is not stored and cannot support highlights", fieldName));
+      }
+      FieldType fieldType = ((TextBaseFieldDef) field).getFieldType();
+      if (!fieldType.storeTermVectors()
+          || !fieldType.storeTermVectorPositions()
+          || !fieldType.storeTermVectorOffsets()) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Field %s does not have term vectors with positions and offsets and cannot support highlights",
+                fieldName));
       }
     }
   }

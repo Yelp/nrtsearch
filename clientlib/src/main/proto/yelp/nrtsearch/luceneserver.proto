@@ -533,7 +533,7 @@ message Field {
     bool tokenize = 7; // True if the value should be tokenized.
     bool group = 8; // True if the value should be indexed into doc values for grouping.
     bool multiValued = 9; // True if this field may sometimes have more than one value.
-    bool highlight = 10; // True if the value should be indexed for highlighting.
+    bool highlight = 10; // Deprecated
     bool omitNorms = 11; // True if norms are omitted.
     string dateTimeFormat = 12; // Format string used to parse datetime fields, supported values are: 1) DateTimeFormatter format 2) "epoch_millis" (datetime value is epoch timestamp)
     string postingsFormat = 13; // Which PostingsFormat should be used to index this field.
