@@ -647,12 +647,18 @@ message HitsResult {
 // Specify how to highlight matched text in SearchRequest
 message Highlight {
 
+    enum Type {
+        DEFAULT = 0;
+        FAST_VECTOR = 1;
+    }
+
     message Settings {
-        repeated string pre_tags = 1; // Used along with post_tags to specify how to wrap the highlighted text
-        repeated string post_tags = 2; // Used along with pre_tags to specify how to wrap the highlighted text
-        google.protobuf.UInt32Value fragment_size = 3; // Number of characters in highlighted fragment, 100 by default
-        google.protobuf.UInt32Value max_number_of_fragments = 4; // Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single fragment ignoring fragment_size.
-        Query highlight_query = 5; // Specify a query here if highlighting is desired against a different query than the search query
+        Type highlighter_type = 1;    // Specify type of highlighter to use. Ignored right now in nrtsearch.
+        repeated string pre_tags = 2; // Used along with post_tags to specify how to wrap the highlighted text
+        repeated string post_tags = 3; // Used along with pre_tags to specify how to wrap the highlighted text
+        google.protobuf.UInt32Value fragment_size = 4; // Number of characters in highlighted fragment, 100 by default
+        google.protobuf.UInt32Value max_number_of_fragments = 5; // Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single fragment ignoring fragment_size.
+        Query highlight_query = 6; // Specify a query here if highlighting is desired against a different query than the search query
     }
 
     Settings settings = 1; // Highlight settings
