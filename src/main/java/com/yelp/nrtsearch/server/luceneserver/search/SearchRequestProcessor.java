@@ -31,7 +31,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightContext;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
@@ -155,9 +155,9 @@ public class SearchRequestProcessor {
     Highlight highlight = searchRequest.getHighlight();
     if (!highlight.getFieldsList().isEmpty()) {
       verifyHighlights(indexState, highlight);
-      HighlightContext highlightContext =
-          new HighlightContext(indexState, searcherAndTaxonomy, query, highlight);
-      contextBuilder.setHighlightContext(highlightContext);
+      HighlightFetchTask highlightFetchTask =
+          new HighlightFetchTask(indexState, searcherAndTaxonomy, query, highlight);
+      contextBuilder.setHighlightFetchTask(highlightFetchTask);
     }
 
     SearchContext searchContext = contextBuilder.build(true);

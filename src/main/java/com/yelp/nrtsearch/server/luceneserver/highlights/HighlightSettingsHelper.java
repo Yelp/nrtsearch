@@ -23,15 +23,15 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightSettings.Builder;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
 
 /** Stores information required to provide highlights. */
-public class HighlightContext {
+public class HighlightSettingsHelper {
 
   private static final String[] DEFAULT_PRE_TAGS = new String[] {"<em>"};
   private static final String[] DEFAULT_POST_TAGS = new String[] {"</em>"};
@@ -39,25 +39,55 @@ public class HighlightContext {
   private static final int DEFAULT_MAX_NUM_FRAGMENTS = 5;
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
 
-  private final IndexReader indexReader;
-
-  private final Map<String, HighlightSettings> fieldSettings;
-
-  public HighlightContext(
-      IndexState indexState,
-      SearcherAndTaxonomy searcherAndTaxonomy,
-      Query searchQuery,
-      Highlight highlight)
+  static Map<String, HighlightSettings> createPerFieldSettings(
+      IndexReader indexReader, Highlight highlight, Query searchQuery, IndexState indexState)
       throws IOException {
-    indexReader = searcherAndTaxonomy.searcher.getIndexReader();
-
     HighlightSettings globalSettings =
-        createGlobalFieldSettings(indexState, searchQuery, highlight);
-    fieldSettings = createPerFieldSettings(highlight, globalSettings, indexState);
+        createGlobalFieldSettings(indexReader, indexState, searchQuery, highlight);
+    Map<String, HighlightSettings> fieldSettings = new HashMap<>();
+    Map<String, Settings> fieldSettingsFromRequest = highlight.getFieldSettingsMap();
+    for (String field : highlight.getFieldsList()) {
+      if (!fieldSettingsFromRequest.containsKey(field)) {
+        fieldSettings.put(field, globalSettings);
+      } else {
+        Settings settings = fieldSettingsFromRequest.get(field);
+        HighlightSettings.Builder builder =
+            new Builder()
+                .withPreTags(
+                    !settings.getPreTagsList().isEmpty()
+                        ? settings.getPreTagsList().toArray(new String[0])
+                        : globalSettings.getPreTags())
+                .withPostTags(
+                    !settings.getPostTagsList().isEmpty()
+                        ? settings.getPostTagsList().toArray(new String[0])
+                        : globalSettings.getPostTags())
+                .withMaxNumFragments(
+                    settings.hasMaxNumberOfFragments()
+                        ? settings.getMaxNumberOfFragments().getValue()
+                        : globalSettings.getMaxNumFragments())
+                .withFieldQuery(
+                    settings.hasHighlightQuery()
+                        ? getFieldQuery(indexReader, indexState, settings)
+                        : globalSettings.getFieldQuery());
+        if (!settings.hasFragmentSize()) {
+          builder.withFragmentSize(globalSettings.getFragmentSize());
+        } else {
+          if (settings.getFragmentSize().getValue() == 0) {
+            builder.withMaxNumFragments(Integer.MAX_VALUE).withFragmentSize(Integer.MAX_VALUE);
+          } else {
+            builder.withFragmentSize(settings.getFragmentSize().getValue());
+          }
+        }
+        HighlightSettings highlightSettings = builder.build();
+        fieldSettings.put(field, highlightSettings);
+      }
+    }
+    return Collections.unmodifiableMap(fieldSettings);
   }
 
-  private HighlightSettings createGlobalFieldSettings(
-      IndexState indexState, Query searchQuery, Highlight highlight) throws IOException {
+  private static HighlightSettings createGlobalFieldSettings(
+      IndexReader indexReader, IndexState indexState, Query searchQuery, Highlight highlight)
+      throws IOException {
     Settings settings = highlight.getSettings();
 
     HighlightSettings.Builder builder = new HighlightSettings.Builder();
@@ -94,60 +124,9 @@ public class HighlightContext {
     return builder.build();
   }
 
-  private Map<String, HighlightSettings> createPerFieldSettings(
-      Highlight highlight, HighlightSettings globalSettings, IndexState indexState)
-      throws IOException {
-    Map<String, HighlightSettings> fieldSettings = new HashMap<>();
-    Map<String, Settings> fieldSettingsFromRequest = highlight.getFieldSettingsMap();
-    for (String field : highlight.getFieldsList()) {
-      if (!fieldSettingsFromRequest.containsKey(field)) {
-        fieldSettings.put(field, globalSettings);
-      } else {
-        Settings settings = fieldSettingsFromRequest.get(field);
-        HighlightSettings.Builder builder =
-            new Builder()
-                .withPreTags(
-                    !settings.getPreTagsList().isEmpty()
-                        ? settings.getPreTagsList().toArray(new String[0])
-                        : globalSettings.getPreTags())
-                .withPostTags(
-                    !settings.getPostTagsList().isEmpty()
-                        ? settings.getPostTagsList().toArray(new String[0])
-                        : globalSettings.getPostTags())
-                .withMaxNumFragments(
-                    settings.hasMaxNumberOfFragments()
-                        ? settings.getMaxNumberOfFragments().getValue()
-                        : globalSettings.getMaxNumFragments())
-                .withFieldQuery(
-                    settings.hasHighlightQuery()
-                        ? getFieldQuery(indexState, settings)
-                        : globalSettings.getFieldQuery());
-        if (!settings.hasFragmentSize()) {
-          builder.withFragmentSize(globalSettings.getFragmentSize());
-        } else {
-          if (settings.getFragmentSize().getValue() == 0) {
-            builder.withMaxNumFragments(Integer.MAX_VALUE).withFragmentSize(Integer.MAX_VALUE);
-          } else {
-            builder.withFragmentSize(settings.getFragmentSize().getValue());
-          }
-        }
-        HighlightSettings highlightSettings = builder.build();
-        fieldSettings.put(field, highlightSettings);
-      }
-    }
-    return fieldSettings;
-  }
-
-  private FieldQuery getFieldQuery(IndexState indexState, Settings settings) throws IOException {
+  private static FieldQuery getFieldQuery(
+      IndexReader indexReader, IndexState indexState, Settings settings) throws IOException {
     Query query = QUERY_NODE_MAPPER.getQuery(settings.getHighlightQuery(), indexState);
     return FAST_VECTOR_HIGHLIGHTER.getFieldQuery(query, indexReader);
-  }
-
-  public IndexReader getIndexReader() {
-    return indexReader;
-  }
-
-  public Map<String, HighlightSettings> getFieldSettings() {
-    return fieldSettings;
   }
 }

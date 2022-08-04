@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import java.io.IOException;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
@@ -36,13 +37,12 @@ public class HighlightHandler {
     return INSTANCE;
   }
 
-  public String[] getHighlights(HighlightContext highlightContext, String fieldName, int docId)
+  public String[] getHighlights(
+      IndexReader indexReader, HighlightSettings settings, String fieldName, int docId)
       throws IOException {
-    HighlightSettings settings = highlightContext.getFieldSettings().get(fieldName);
-
     return FAST_VECTOR_HIGHLIGHTER.getBestFragments(
         settings.getFieldQuery(),
-        highlightContext.getIndexReader(),
+        indexReader,
         docId,
         fieldName,
         settings.getFragmentSize(),

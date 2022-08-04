@@ -15,33 +15,47 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
+import static com.yelp.nrtsearch.server.luceneserver.highlights.HighlightSettingsHelper.createPerFieldSettings;
+
+import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Highlights;
+import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
+import java.util.Map;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 
 public class HighlightFetchTask implements FetchTask {
 
-  private static final HighlightFetchTask INSTANCE = new HighlightFetchTask();
-
-  public static HighlightFetchTask getInstance() {
-    return INSTANCE;
-  }
-
+  private final IndexReader indexReader;
+  private final Map<String, HighlightSettings> fieldSettings;
   private final HighlightHandler highlightHandler = new HighlightHandler();
+
+  public HighlightFetchTask(
+      IndexState indexState,
+      SearcherAndTaxonomy searcherAndTaxonomy,
+      Query searchQuery,
+      Highlight highlight)
+      throws IOException {
+    indexReader = searcherAndTaxonomy.searcher.getIndexReader();
+    fieldSettings = createPerFieldSettings(indexReader, highlight, searchQuery, indexState);
+  }
 
   @Override
   public void processHit(SearchContext searchContext, LeafReaderContext hitLeaf, Builder hit)
       throws IOException {
-    if (searchContext.getHighlightContext() == null) {
+    if (fieldSettings.isEmpty()) {
       return;
     }
-    for (String fieldName : searchContext.getHighlightContext().getFieldSettings().keySet()) {
+    for (String fieldName : fieldSettings.keySet()) {
       String[] highlights =
           highlightHandler.getHighlights(
-              searchContext.getHighlightContext(), fieldName, hit.getLuceneDocId());
+              indexReader, fieldSettings.get(fieldName), fieldName, hit.getLuceneDocId());
       if (highlights != null && highlights.length > 0 && highlights[0] != null) {
         Highlights.Builder builder = Highlights.newBuilder();
         for (String fragment : highlights) {

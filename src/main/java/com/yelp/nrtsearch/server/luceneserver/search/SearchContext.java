@@ -20,7 +20,7 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightContext;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.List;
@@ -47,7 +47,7 @@ public class SearchContext implements FieldFetchContext {
   private final FetchTasks fetchTasks;
   private final List<RescoreTask> rescorers;
   private final SharedDocContext sharedDocContext;
-  private final HighlightContext highlightContext;
+  private final HighlightFetchTask highlightFetchTask;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -64,7 +64,7 @@ public class SearchContext implements FieldFetchContext {
     this.fetchTasks = builder.fetchTasks;
     this.rescorers = builder.rescorers;
     this.sharedDocContext = builder.sharedDocContext;
-    this.highlightContext = builder.highlightContext;
+    this.highlightFetchTask = builder.highlightFetchTask;
 
     if (validate) {
       validate();
@@ -148,8 +148,8 @@ public class SearchContext implements FieldFetchContext {
   }
 
   /** Get highlighting requirements for the request */
-  public HighlightContext getHighlightContext() {
-    return highlightContext;
+  public HighlightFetchTask getHighlightFetchTask() {
+    return highlightFetchTask;
   }
 
   /** Get new context builder instance * */
@@ -205,7 +205,7 @@ public class SearchContext implements FieldFetchContext {
     private FetchTasks fetchTasks;
     private List<RescoreTask> rescorers;
     private SharedDocContext sharedDocContext;
-    private HighlightContext highlightContext;
+    private HighlightFetchTask highlightFetchTask;
 
     private Builder() {}
 
@@ -296,9 +296,9 @@ public class SearchContext implements FieldFetchContext {
       return this;
     }
 
-    /** Set shared context accessor for documents */
-    public Builder setHighlightContext(HighlightContext highlightContext) {
-      this.highlightContext = highlightContext;
+    /** Set fetch task to generate highlights */
+    public Builder setHighlightFetchTask(HighlightFetchTask highlightFetchTask) {
+      this.highlightFetchTask = highlightFetchTask;
       return this;
     }
 
