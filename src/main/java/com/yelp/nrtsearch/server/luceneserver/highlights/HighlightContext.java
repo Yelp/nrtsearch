@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightSettings.Builder;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -103,8 +104,8 @@ public class HighlightContext {
         fieldSettings.put(field, globalSettings);
       } else {
         Settings settings = fieldSettingsFromRequest.get(field);
-        HighlightSettings highlightSettings =
-            new HighlightSettings.Builder()
+        HighlightSettings.Builder builder =
+            new Builder()
                 .withPreTags(
                     !settings.getPreTagsList().isEmpty()
                         ? settings.getPreTagsList().toArray(new String[0])
@@ -113,10 +114,6 @@ public class HighlightContext {
                     !settings.getPostTagsList().isEmpty()
                         ? settings.getPostTagsList().toArray(new String[0])
                         : globalSettings.getPostTags())
-                .withFragmentSize(
-                    settings.hasFragmentSize()
-                        ? settings.getFragmentSize().getValue()
-                        : globalSettings.getFragmentSize())
                 .withMaxNumFragments(
                     settings.hasMaxNumberOfFragments()
                         ? settings.getMaxNumberOfFragments().getValue()
@@ -124,8 +121,17 @@ public class HighlightContext {
                 .withFieldQuery(
                     settings.hasHighlightQuery()
                         ? getFieldQuery(indexState, settings)
-                        : globalSettings.getFieldQuery())
-                .build();
+                        : globalSettings.getFieldQuery());
+        if (!settings.hasFragmentSize()) {
+          builder.withFragmentSize(globalSettings.getFragmentSize());
+        } else {
+          if (settings.getFragmentSize().getValue() == 0) {
+            builder.withMaxNumFragments(Integer.MAX_VALUE).withFragmentSize(Integer.MAX_VALUE);
+          } else {
+            builder.withFragmentSize(settings.getFragmentSize().getValue());
+          }
+        }
+        HighlightSettings highlightSettings = builder.build();
         fieldSettings.put(field, highlightSettings);
       }
     }
