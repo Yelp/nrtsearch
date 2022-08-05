@@ -361,7 +361,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
         searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
         // TODO: combine with custom fetch tasks
-        searchContext.getHighlightFetchTask().processHit(searchContext, leaf, hitResponse);
+        if (searchContext.getHighlightFetchTask() != null) {
+          searchContext.getHighlightFetchTask().processHit(searchContext, leaf, hitResponse);
+        }
       }
     } else if (!parallelFetchByField
         && fetch_thread_pool_size > 1
@@ -886,10 +888,12 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       for (Hit.Builder hit : sliceHits) {
         context.getFetchTasks().processHit(context.getSearchContext(), sliceSegment, hit);
         // TODO: combine with custom fetch tasks
-        context
-            .getSearchContext()
-            .getHighlightFetchTask()
-            .processHit(context.getSearchContext(), sliceSegment, hit);
+        if (context.getSearchContext().getHighlightFetchTask() != null) {
+          context
+              .getSearchContext()
+              .getHighlightFetchTask()
+              .processHit(context.getSearchContext(), sliceSegment, hit);
+        }
       }
     }
 
