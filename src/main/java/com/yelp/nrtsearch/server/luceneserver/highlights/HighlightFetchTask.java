@@ -25,11 +25,16 @@ import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Map.Entry;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 
+/**
+ * Implementation of {@link FetchTask} which holds the required context to and used to provide
+ * highlights for a search request.
+ */
 public class HighlightFetchTask implements FetchTask {
 
   private final IndexReader indexReader;
@@ -46,16 +51,25 @@ public class HighlightFetchTask implements FetchTask {
     fieldSettings = createPerFieldSettings(indexReader, highlight, searchQuery, indexState);
   }
 
+  /**
+   * Add highlighted fragments for a single hit to the response.
+   *
+   * @param searchContext search context
+   * @param hitLeaf lucene segment for hit
+   * @param hit hit builder for query response
+   * @throws IOException if there is a low-level IO error in highlighter
+   */
   @Override
   public void processHit(SearchContext searchContext, LeafReaderContext hitLeaf, Builder hit)
       throws IOException {
     if (fieldSettings.isEmpty()) {
       return;
     }
-    for (String fieldName : fieldSettings.keySet()) {
+    for (Entry<String, HighlightSettings> fieldSetting : fieldSettings.entrySet()) {
+      String fieldName = fieldSetting.getKey();
       String[] highlights =
           highlightHandler.getHighlights(
-              indexReader, fieldSettings.get(fieldName), fieldName, hit.getLuceneDocId());
+              indexReader, fieldSetting.getValue(), fieldName, hit.getLuceneDocId());
       if (highlights != null && highlights.length > 0 && highlights[0] != null) {
         Highlights.Builder builder = Highlights.newBuilder();
         for (String fragment : highlights) {

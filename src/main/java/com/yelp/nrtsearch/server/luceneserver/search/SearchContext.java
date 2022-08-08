@@ -147,7 +147,10 @@ public class SearchContext implements FieldFetchContext {
     return sharedDocContext;
   }
 
-  /** Get highlighting requirements for the request */
+  /**
+   * Get {@link HighlightFetchTask} which can be used to build highlights the request. Null if no
+   * highlights are specified in the request.
+   */
   public HighlightFetchTask getHighlightFetchTask() {
     return highlightFetchTask;
   }

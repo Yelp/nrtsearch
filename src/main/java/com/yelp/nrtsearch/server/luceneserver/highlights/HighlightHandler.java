@@ -37,6 +37,16 @@ public class HighlightHandler {
     return INSTANCE;
   }
 
+  /**
+   * Use {@link FastVectorHighlighter} instance to obtain highlighted fragments for a document.
+   *
+   * @param indexReader {@link IndexReader} for the index
+   * @param settings {@link HighlightSettings} created from the search request
+   * @param fieldName Field in document to highlight
+   * @param docId Lucene document ID of the document to highlight
+   * @return Array of highlight fragments
+   * @throws IOException if there is a low-level IO error
+   */
   public String[] getHighlights(
       IndexReader indexReader, HighlightSettings settings, String fieldName, int docId)
       throws IOException {

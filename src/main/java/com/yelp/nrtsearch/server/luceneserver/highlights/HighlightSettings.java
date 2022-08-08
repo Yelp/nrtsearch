@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
 
-/** */
+/** Holds the context from the search request required to build highlights. */
 public class HighlightSettings {
 
   private final String[] preTags;

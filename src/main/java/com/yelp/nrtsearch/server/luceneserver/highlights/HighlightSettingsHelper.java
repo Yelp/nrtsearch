@@ -30,7 +30,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
 
-/** Stores information required to provide highlights. */
+/** Helper class to create {@link HighlightSettings} from a search request. */
 public class HighlightSettingsHelper {
 
   private static final String[] DEFAULT_PRE_TAGS = new String[] {"<em>"};
@@ -39,6 +39,17 @@ public class HighlightSettingsHelper {
   private static final int DEFAULT_MAX_NUM_FRAGMENTS = 5;
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
 
+  /**
+   * Create the {@link HighlightSettings} for every field that is required to be highlighted.
+   * Converts query-level and field-level settings into a single setting for every field.
+   *
+   * @param indexReader {@link IndexReader} for the index
+   * @param highlight Highlighting-related information in search request
+   * @param searchQuery Compiled Lucene-level query from the search request
+   * @param indexState {@link IndexState} for the index
+   * @return {@link Map} of field name to its {@link HighlightSettings}
+   * @throws IOException if there is a low-level IO exception
+   */
   static Map<String, HighlightSettings> createPerFieldSettings(
       IndexReader indexReader, Highlight highlight, Query searchQuery, IndexState indexState)
       throws IOException {
