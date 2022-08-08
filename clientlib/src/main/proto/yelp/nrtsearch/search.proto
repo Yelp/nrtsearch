@@ -288,7 +288,8 @@ message SearchRequest {
     int32 terminateAfter = 22;
     //Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to uncompressed. Valid codecs: identity, gzip, lz4
     string responseCompression = 23;
-    Highlight highlight = 24; // Specify how to highlight matched text
+    // Specify how to highlight matched text
+    Highlight highlight = 24;
 }
 
 /* Virtual field used during search */
@@ -427,14 +428,16 @@ message SearchResponse {
         }
 
         message Highlights {
-            repeated string fragments = 1; // Highlighted text fragments
+            // Highlighted text fragments
+            repeated string fragments = 1;
         }
 
         int32 luceneDocId = 1;
         double score = 2;
         map<string, CompositeFieldValue> fields = 3; // Field name to value
         map<string, CompositeFieldValue> sortedFields = 4; // Sorted field name to value
-        map<string, Highlights> highlights = 5; // Field name to highlighted text fragments
+        // Field name to highlighted text fragments
+        map<string, Highlights> highlights = 5;
     }
 
     message SearchState {
@@ -667,7 +670,10 @@ message Highlight {
         Query highlight_query = 6;
     }
 
-    Settings settings = 1; // Highlight settings
-    repeated string fields = 2; // Fields to highlight
-    map<string, Settings> field_settings = 3; // Map of field name to highlight settings for field, overrides request level highlight settings
+    // Highlight settings
+    Settings settings = 1;
+    // Fields to highlight
+    repeated string fields = 2;
+    // Map of field name to highlight settings for field, overrides request level highlight settings
+    map<string, Settings> field_settings = 3;
 }
