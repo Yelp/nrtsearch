@@ -1588,6 +1588,43 @@
         }
       }
     },
+    "HighlightSettings": {
+      "type": "object",
+      "properties": {
+        "highlighter_type": {
+          "$ref": "#/definitions/luceneserverHighlightType",
+          "description": "Specify type of highlighter to use. Ignored right now in nrtsearch."
+        },
+        "pre_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Used along with post_tags to specify how to wrap the highlighted text"
+        },
+        "post_tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Used along with pre_tags to specify how to wrap the highlighted text"
+        },
+        "fragment_size": {
+          "type": "integer",
+          "format": "int64",
+          "title": "Number of characters in highlighted fragment, 100 by default"
+        },
+        "max_number_of_fragments": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single fragment ignoring fragment_size."
+        },
+        "highlight_query": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Specify a query here if highlighting is desired against a different query than the search query"
+        }
+      }
+    },
     "HitCompositeFieldValue": {
       "type": "object",
       "properties": {
@@ -1633,6 +1670,18 @@
         "vectorValue": {
           "$ref": "#/definitions/FieldValueVector",
           "title": "Value for VECTOR FieldType"
+        }
+      }
+    },
+    "HitHighlights": {
+      "type": "object",
+      "properties": {
+        "fragments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Highlighted text fragments"
         }
       }
     },
@@ -1884,6 +1933,13 @@
           "additionalProperties": {
             "$ref": "#/definitions/HitCompositeFieldValue"
           }
+        },
+        "highlights": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/HitHighlights"
+          },
+          "title": "Field name to highlighted text fragments"
         }
       }
     },
@@ -3164,6 +3220,38 @@
         }
       }
     },
+    "luceneserverHighlight": {
+      "type": "object",
+      "properties": {
+        "settings": {
+          "$ref": "#/definitions/HighlightSettings",
+          "title": "Highlight settings"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "Fields to highlight"
+        },
+        "field_settings": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/HighlightSettings"
+          },
+          "title": "Map of field name to highlight settings for field, overrides request level highlight settings"
+        }
+      },
+      "title": "Specify how to highlight matched text in SearchRequest"
+    },
+    "luceneserverHighlightType": {
+      "type": "string",
+      "enum": [
+        "DEFAULT",
+        "FAST_VECTOR"
+      ],
+      "default": "DEFAULT"
+    },
     "luceneserverHitsResult": {
       "type": "object",
       "properties": {
@@ -4081,6 +4169,10 @@
         "responseCompression": {
           "type": "string",
           "title": "Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to uncompressed. Valid codecs: identity, gzip, lz4"
+        },
+        "highlight": {
+          "$ref": "#/definitions/luceneserverHighlight",
+          "title": "Specify how to highlight matched text"
         }
       }
     },
