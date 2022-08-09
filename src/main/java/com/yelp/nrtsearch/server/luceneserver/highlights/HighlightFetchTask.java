@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.DoubleAdder;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -37,9 +38,12 @@ import org.apache.lucene.search.Query;
  */
 public class HighlightFetchTask implements FetchTask {
 
+  private static final double TEN_TO_THE_POWER_SIX = Math.pow(10, 6);
   private final IndexReader indexReader;
   private final Map<String, HighlightSettings> fieldSettings;
   private final HighlightHandler highlightHandler = new HighlightHandler();
+
+  private final DoubleAdder timeTakenMs = new DoubleAdder();
 
   public HighlightFetchTask(
       IndexState indexState,
@@ -52,7 +56,8 @@ public class HighlightFetchTask implements FetchTask {
   }
 
   /**
-   * Add highlighted fragments for a single hit to the response.
+   * Add highlighted fragments for a single hit to the response. Also counts the time taken for each
+   * hit which can be retrieved by calling {@link #getTimeTakenMs()}.
    *
    * @param searchContext search context
    * @param hitLeaf lucene segment for hit
@@ -65,6 +70,7 @@ public class HighlightFetchTask implements FetchTask {
     if (fieldSettings.isEmpty()) {
       return;
     }
+    long startTime = System.nanoTime();
     for (Entry<String, HighlightSettings> fieldSetting : fieldSettings.entrySet()) {
       String fieldName = fieldSetting.getKey();
       String[] highlights =
@@ -78,5 +84,15 @@ public class HighlightFetchTask implements FetchTask {
         hit.putHighlights(fieldName, builder.build());
       }
     }
+    timeTakenMs.add(((System.nanoTime() - startTime) / TEN_TO_THE_POWER_SIX));
+  }
+
+  /**
+   * Get the total time taken so far to generate highlights.
+   *
+   * @return Total time taken to generate highlights in ms.
+   */
+  public double getTimeTakenMs() {
+    return timeTakenMs.doubleValue();
   }
 }
