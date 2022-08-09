@@ -38,7 +38,7 @@ dependencies {
     implementation "io.grpc:grpc-okhttp:${rootProject.grpcVersion}"
     implementation "javax.annotation:javax.annotation-api:1.2"
     implementation "org.slf4j:slf4j-api:${rootProject.slf4jVersion}"
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.9.8'
+    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.jacksonYamlVersion}"
 
     // for lz4 message compression
     implementation "org.lz4:lz4-java:${rootProject.lz4Version}"
