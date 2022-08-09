@@ -91,6 +91,7 @@ public class HighlightTest extends ServerTestCase {
     assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
         .isEqualTo(
             "restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite <em>food</em> was chilly chicken");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
   @Test
@@ -117,6 +118,7 @@ public class HighlightTest extends ServerTestCase {
             "The <START>food<END> here <START>is<END> pretty",
             "This <START>is<END> my first time",
             "pretty <START>good<END>, the service");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
   @Test
@@ -158,6 +160,7 @@ public class HighlightTest extends ServerTestCase {
             "The <START>food<END> here <START>is<END> pretty",
             "This <START>is<END> my first time",
             "pretty <START>good<END>, the service");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
   @Test
@@ -185,6 +188,7 @@ public class HighlightTest extends ServerTestCase {
     assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
         .containsExactly(
             "first time eating at this restaurant. The <em>food</em> here is <em>pretty good</em>, the service could be better. My favorite");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
   @Test

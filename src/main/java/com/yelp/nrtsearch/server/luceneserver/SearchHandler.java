@@ -233,6 +233,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
 
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
+      if (searchContext.getHighlightFetchTask() != null) {
+        diagnostics.setHighlightTimeMs(searchContext.getHighlightFetchTask().getTimeTakenMs());
+      }
       searchContext.getResponseBuilder().setDiagnostics(diagnostics);
 
       if (profileResultBuilder != null) {
