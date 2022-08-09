@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.List;
@@ -46,6 +47,7 @@ public class SearchContext implements FieldFetchContext {
   private final FetchTasks fetchTasks;
   private final List<RescoreTask> rescorers;
   private final SharedDocContext sharedDocContext;
+  private final HighlightFetchTask highlightFetchTask;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -62,6 +64,7 @@ public class SearchContext implements FieldFetchContext {
     this.fetchTasks = builder.fetchTasks;
     this.rescorers = builder.rescorers;
     this.sharedDocContext = builder.sharedDocContext;
+    this.highlightFetchTask = builder.highlightFetchTask;
 
     if (validate) {
       validate();
@@ -144,6 +147,14 @@ public class SearchContext implements FieldFetchContext {
     return sharedDocContext;
   }
 
+  /**
+   * Get {@link HighlightFetchTask} which can be used to build highlights the request. Null if no
+   * highlights are specified in the request.
+   */
+  public HighlightFetchTask getHighlightFetchTask() {
+    return highlightFetchTask;
+  }
+
   /** Get new context builder instance * */
   public static Builder newBuilder() {
     return new Builder();
@@ -197,6 +208,7 @@ public class SearchContext implements FieldFetchContext {
     private FetchTasks fetchTasks;
     private List<RescoreTask> rescorers;
     private SharedDocContext sharedDocContext;
+    private HighlightFetchTask highlightFetchTask;
 
     private Builder() {}
 
@@ -284,6 +296,12 @@ public class SearchContext implements FieldFetchContext {
     /** Set shared context accessor for documents */
     public Builder setSharedDocContext(SharedDocContext sharedDocContext) {
       this.sharedDocContext = sharedDocContext;
+      return this;
+    }
+
+    /** Set fetch task to generate highlights */
+    public Builder setHighlightFetchTask(HighlightFetchTask highlightFetchTask) {
+      this.highlightFetchTask = highlightFetchTask;
       return this;
     }
 
