@@ -36,11 +36,11 @@ project.ext.slf4jVersion = '2.0.0-alpha1'
 project.ext.grpcVersion = '1.46.0'
 project.ext.lz4Version = '1.7.0'
 project.ext.mockitoVersion = '2.25.1'
+project.ext.jacksonYamlVersion = '2.13.3'
 def log4jVersion = '2.17.0'
 def disruptorVersion = '3.2.1'
 def gsonVersion = '2.9.0'
 def snakeYamlVersion = '1.25'
-def jacksonYamlVersion = '2.13.3'
 def spatial4jVersion = '0.7'
 def s3mockVersion = '0.2.5'
 def commonsCompressVersion = '1.19'
@@ -73,8 +73,8 @@ dependencies {
     implementation "javax.xml.bind:jaxb-api:2.3.1"
     implementation "com.guicedee.services:guice:${guicedeeVersion}"
     implementation "org.lz4:lz4-java:${project.ext.lz4Version}"
-    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonYamlVersion}"
-    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonYamlVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${project.ext.jacksonYamlVersion}"
+    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${project.ext.jacksonYamlVersion}"
 
     //lucene deps
     implementation "org.apache.lucene:lucene-core:${luceneVersion}"
