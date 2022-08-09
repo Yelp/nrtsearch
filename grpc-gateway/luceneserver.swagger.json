@@ -2422,6 +2422,10 @@
       "properties": {
         "indexName": {
           "type": "string"
+        },
+        "existsWithId": {
+          "type": "string",
+          "description": "Set if state/data already exists in the data backend. Provides the UUID to identify and load the index."
         }
       },
       "title": "Input to createIndex"

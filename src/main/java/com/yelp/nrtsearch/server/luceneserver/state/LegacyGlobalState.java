@@ -21,6 +21,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DummyResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
@@ -169,6 +170,11 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
       indices.put(name, state);
       return state;
     }
+  }
+
+  @Override
+  public IndexState createIndex(CreateIndexRequest createIndexRequest) throws IOException {
+    return createIndex(createIndexRequest.getIndexName());
   }
 
   @Override

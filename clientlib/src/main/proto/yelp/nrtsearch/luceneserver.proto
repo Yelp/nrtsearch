@@ -418,6 +418,8 @@ service ReplicationServer {
 /* Input to createIndex */
 message CreateIndexRequest {
     string indexName = 1; // name of the index to be created. [a-zA-Z0-9]*
+    // Set if state/data already exists in the data backend. Provides the UUID to identify and load the index.
+    string existsWithId = 2;
 }
 
 /* Response from Server to createIndex */
