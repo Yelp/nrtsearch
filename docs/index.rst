@@ -7,6 +7,8 @@ A high performance gRPC server, with optional REST APIs on top of `Apache Lucene
    :maxdepth: 3
 
    introduction
+   starter
+   mapping
    querying_nrtsearch
    analysis
    index_settings

@@ -22,7 +22,7 @@ sourceCompatibility = 1.14
 targetCompatibility = 1.14
 
 allprojects {
-    version = '0.12.0'
+    version = '0.13.0'
     group = 'com.yelp.nrtsearch'
 }
 
@@ -75,7 +75,6 @@ dependencies {
     implementation "org.lz4:lz4-java:${project.ext.lz4Version}"
     implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonYamlVersion}"
     implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonYamlVersion}"
-
 
     //lucene deps
     implementation "org.apache.lucene:lucene-core:${luceneVersion}"

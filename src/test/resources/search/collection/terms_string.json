@@ -1,0 +1,21 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "storeDocValues": true
+    },
+    {
+      "name": "int_field",
+      "type": "INT",
+      "storeDocValues": true,
+      "search": true
+    },
+    {
+      "name": "value",
+      "type": "ATOM",
+      "storeDocValues": true
+    }
+  ]
+}

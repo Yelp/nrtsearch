@@ -49,6 +49,7 @@ import com.yelp.nrtsearch.server.luceneserver.ServerCodec;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import java.io.File;
@@ -523,6 +524,11 @@ public class ImmutableIndexState extends IndexState {
   @Override
   public Map<String, FieldDef> getEagerGlobalOrdinalFields() {
     return fieldAndFacetState.getEagerGlobalOrdinalFields();
+  }
+
+  @Override
+  public Map<String, GlobalOrdinalable> getEagerFieldGlobalOrdinalFields() {
+    return fieldAndFacetState.getFieldEagerGlobalOrdinalFields();
   }
 
   @Override

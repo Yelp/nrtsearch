@@ -93,22 +93,20 @@ public class PrimaryFileNameResolver extends NameResolver {
 
   private void loadNodes() {
     List<Node> nodes = readNodesFromFile();
-    if (nodes == null || nodes.size() == 0) {
-      return;
-    }
     if (portOverride > 0) {
       nodes =
           nodes.stream()
               .map(node -> new Node(node.getHost(), portOverride))
               .collect(Collectors.toList());
     }
-    if (nodes.size() == 1) {
-      logger.info("Discovered new primary: " + nodes.get(0));
+    logger.info("Discovered primaries: " + nodes);
+    if (nodes.size() <= 1) {
       updateNodes(nodes);
-      currentNodes = nodes;
     } else {
-      logger.warn("Discovered multiple primaries: " + nodes);
+      // there can only be one active primary, better to wait until this resolves
+      updateNodes(Collections.emptyList());
     }
+    currentNodes = nodes;
   }
 
   private void updateNodes(List<Node> nodes) {
@@ -123,7 +121,8 @@ public class PrimaryFileNameResolver extends NameResolver {
 
   private List<Node> readNodesFromFile() {
     try {
-      return objectMapper.readValue(nodeAddressesFile, new TypeReference<>() {});
+      List<Node> nodes = objectMapper.readValue(nodeAddressesFile, new TypeReference<>() {});
+      return nodes == null ? Collections.emptyList() : nodes;
     } catch (IOException e) {
       logger.warn("Unable to read file: {}", nodeAddressesFile, e);
       return Collections.emptyList();
@@ -143,13 +142,15 @@ public class PrimaryFileNameResolver extends NameResolver {
                 .map(node -> new Node(node.getHost(), portOverride))
                 .collect(Collectors.toList());
       }
-      // we must never talk to more than one primary
-      if (nodes.size() == 1 && !Objects.equals(nodes, currentNodes)) {
-        logger.info("Discovered new primary: " + nodes.get(0));
-        updateNodes(nodes);
+      if (!Objects.equals(nodes, currentNodes)) {
+        logger.info("Discovered new primaries: " + nodes);
+        if (nodes.size() <= 1) {
+          updateNodes(nodes);
+        } else {
+          // there can only be one active primary, better to wait until this resolves
+          updateNodes(Collections.emptyList());
+        }
         currentNodes = nodes;
-      } else if (nodes.size() > 1) {
-        logger.warn("Discovered multiple primaries: " + nodes);
       }
     }
   }

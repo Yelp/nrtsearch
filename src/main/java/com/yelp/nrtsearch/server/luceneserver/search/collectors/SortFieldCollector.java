@@ -32,9 +32,12 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Collector for getting documents ranked by sorting fields. */
 public class SortFieldCollector extends DocCollector {
+  private static final Logger logger = LoggerFactory.getLogger(SortFieldCollector.class);
 
   private final CollectorManager<TopFieldCollector, TopFieldDocs> manager;
   private final Sort sort;
@@ -48,7 +51,13 @@ public class SortFieldCollector extends DocCollector {
     FieldDoc searchAfter = null;
     int topHits = getNumHitsToCollect();
     int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
-    if (context.getRequest().getTotalHitsThreshold() != 0) {
+    // if there are additional collectors, we cannot skip any recalled docs
+    if (!additionalCollectors.isEmpty()) {
+      totalHitsThreshold = Integer.MAX_VALUE;
+      if (context.getRequest().getTotalHitsThreshold() != 0) {
+        logger.warn("Query totalHitsThreshold ignored when using additional collectors");
+      }
+    } else if (context.getRequest().getTotalHitsThreshold() != 0) {
       totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
     }
 

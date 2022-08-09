@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 
 public class DeleteByQueryHandler implements Handler<DeleteByQueryRequest, AddDocumentResponse> {
   private static final Logger logger = LoggerFactory.getLogger(DeleteByQueryHandler.class);
-  private final QueryNodeMapper queryNodeMapper = new QueryNodeMapper();
+  private final QueryNodeMapper queryNodeMapper = QueryNodeMapper.getInstance();
 
   @Override
   public AddDocumentResponse handle(

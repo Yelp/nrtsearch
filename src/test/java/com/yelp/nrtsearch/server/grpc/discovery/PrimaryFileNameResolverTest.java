@@ -56,10 +56,13 @@ public class PrimaryFileNameResolverTest {
   }
 
   private void writeNodeFile(List<Node> nodes) throws IOException {
+    writeFile(OBJECT_MAPPER.writeValueAsString(nodes));
+  }
+
+  private void writeFile(String contents) throws IOException {
     String filePathStr = Paths.get(folder.getRoot().toString(), TEST_FILE).toString();
-    String fileStr = OBJECT_MAPPER.writeValueAsString(nodes);
     try (FileOutputStream outputStream = new FileOutputStream(filePathStr)) {
-      outputStream.write(fileStr.getBytes());
+      outputStream.write(contents.getBytes());
     }
   }
 
@@ -70,6 +73,10 @@ public class PrimaryFileNameResolverTest {
   private void startWithNodes(List<Node> nodes, Listener listener, int portOverride)
       throws IOException {
     writeNodeFile(nodes);
+    start(listener, portOverride);
+  }
+
+  private void start(Listener listener, int portOverride) {
     PrimaryFileNameResolver resolver = null;
     try {
       resolver = new PrimaryFileNameResolver(testFileURI(), OBJECT_MAPPER, 1000, portOverride);
@@ -104,6 +111,12 @@ public class PrimaryFileNameResolverTest {
   public void testStartNoNodes() throws IOException {
     Listener mockListener = mock(Listener.class);
     startWithNodes(Collections.emptyList(), mockListener);
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<EquivalentAddressGroup>> argumentCaptor =
+        ArgumentCaptor.forClass(List.class);
+    verify(mockListener, times(1)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
+    assertEquals(Collections.emptyList(), argumentCaptor.getValue());
+
     verifyNoMoreInteractions(mockListener);
   }
 
@@ -125,6 +138,12 @@ public class PrimaryFileNameResolverTest {
     Listener mockListener = mock(Listener.class);
     startWithNodes(
         Arrays.asList(new Node("localhost", 1234), new Node("localhost", 2345)), mockListener);
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<EquivalentAddressGroup>> argumentCaptor =
+        ArgumentCaptor.forClass(List.class);
+    verify(mockListener, times(1)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
+    assertEquals(Collections.emptyList(), argumentCaptor.getValue());
+
     verifyNoMoreInteractions(mockListener);
   }
 
@@ -142,6 +161,61 @@ public class PrimaryFileNameResolverTest {
   }
 
   @Test
+  public void testStartNoFile() {
+    Listener mockListener = mock(Listener.class);
+    start(mockListener, 0);
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<EquivalentAddressGroup>> argumentCaptor =
+        ArgumentCaptor.forClass(List.class);
+    verify(mockListener, times(1)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
+    assertEquals(Collections.emptyList(), argumentCaptor.getValue());
+
+    verifyNoMoreInteractions(mockListener);
+  }
+
+  @Test
+  public void testStartEmptyFile() throws IOException {
+    Listener mockListener = mock(Listener.class);
+    writeFile("");
+    start(mockListener, 0);
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<EquivalentAddressGroup>> argumentCaptor =
+        ArgumentCaptor.forClass(List.class);
+    verify(mockListener, times(1)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
+    assertEquals(Collections.emptyList(), argumentCaptor.getValue());
+
+    verifyNoMoreInteractions(mockListener);
+  }
+
+  @Test
+  public void testStartInvalidJson() throws IOException {
+    Listener mockListener = mock(Listener.class);
+    writeFile("{]");
+    start(mockListener, 0);
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<EquivalentAddressGroup>> argumentCaptor =
+        ArgumentCaptor.forClass(List.class);
+    verify(mockListener, times(1)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
+    assertEquals(Collections.emptyList(), argumentCaptor.getValue());
+
+    verifyNoMoreInteractions(mockListener);
+  }
+
+  @Test
+  public void testStartNull() throws IOException {
+    Listener mockListener = mock(Listener.class);
+    writeFile("null");
+    start(mockListener, 0);
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<EquivalentAddressGroup>> argumentCaptor =
+        ArgumentCaptor.forClass(List.class);
+    verify(mockListener, times(1)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
+    assertEquals(Collections.emptyList(), argumentCaptor.getValue());
+
+    verifyNoMoreInteractions(mockListener);
+  }
+
+  @Test
   public void testUpdateEmpty() throws IOException {
     Listener mockListener = mock(Listener.class);
     updateNodes(
@@ -152,8 +226,9 @@ public class PrimaryFileNameResolverTest {
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<EquivalentAddressGroup>> argumentCaptor =
         ArgumentCaptor.forClass(List.class);
-    verify(mockListener, times(1)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
-    assertAddressGroup(argumentCaptor.getValue(), 1234);
+    verify(mockListener, times(2)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
+    assertEquals(Collections.emptyList(), argumentCaptor.getAllValues().get(0));
+    assertAddressGroup(argumentCaptor.getAllValues().get(1), 1234);
 
     verifyNoMoreInteractions(mockListener);
   }
@@ -204,8 +279,9 @@ public class PrimaryFileNameResolverTest {
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<EquivalentAddressGroup>> argumentCaptor =
         ArgumentCaptor.forClass(List.class);
-    verify(mockListener, times(1)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
+    verify(mockListener, times(2)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
     assertAddressGroup(argumentCaptor.getAllValues().get(0), 1234);
+    assertEquals(Collections.emptyList(), argumentCaptor.getAllValues().get(1));
 
     verifyNoMoreInteractions(mockListener);
   }
@@ -221,8 +297,9 @@ public class PrimaryFileNameResolverTest {
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<EquivalentAddressGroup>> argumentCaptor =
         ArgumentCaptor.forClass(List.class);
-    verify(mockListener, times(1)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
-    assertAddressGroup(argumentCaptor.getValue(), 1111);
+    verify(mockListener, times(2)).onAddresses(argumentCaptor.capture(), eq(Attributes.EMPTY));
+    assertEquals(Collections.emptyList(), argumentCaptor.getAllValues().get(0));
+    assertAddressGroup(argumentCaptor.getAllValues().get(1), 1111);
 
     verifyNoMoreInteractions(mockListener);
   }
