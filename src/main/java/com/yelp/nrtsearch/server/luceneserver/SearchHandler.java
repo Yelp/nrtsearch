@@ -232,9 +232,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         searchContext.getCollector().fillLastHit(searchState, lastHit);
       }
 
-      diagnostics
-          .setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0))
-          .setHighlightTimeMs(searchContext.getHighlightFetchTask().getTimeTakenMs());
+      diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
+      if (searchContext.getHighlightFetchTask() != null) {
+        diagnostics.setHighlightTimeMs(searchContext.getHighlightFetchTask().getTimeTakenMs());
+      }
       searchContext.getResponseBuilder().setDiagnostics(diagnostics);
 
       if (profileResultBuilder != null) {
