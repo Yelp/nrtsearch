@@ -110,7 +110,7 @@ public class NestedCollectorManagers {
       Collection<Collector> collectors =
           nestedCollectors.stream()
               .map(m -> m.nestedCollectorsByValue.get(value))
-              .filter(c -> c.containsKey(entry.getKey()))
+              .filter(c -> c != null && c.containsKey(entry.getKey()))
               .map(c -> c.get(entry.getKey()))
               .collect(Collectors.toList());
       @SuppressWarnings("unchecked")

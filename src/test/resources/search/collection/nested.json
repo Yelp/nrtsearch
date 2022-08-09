@@ -18,6 +18,11 @@
       "storeDocValues": true
     },
     {
+      "name": "int_field_3",
+      "type": "INT",
+      "storeDocValues": true
+    },
+    {
       "name": "value",
       "type": "INT",
       "storeDocValues": true
