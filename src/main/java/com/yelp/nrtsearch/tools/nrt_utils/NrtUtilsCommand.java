@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.tools.nrt_utils.incremental.RestoreIncrementalCommand;
 import com.yelp.nrtsearch.tools.nrt_utils.incremental.SnapshotIncrementalCommand;
 import com.yelp.nrtsearch.tools.nrt_utils.state.GetRemoteStateCommand;
 import com.yelp.nrtsearch.tools.nrt_utils.state.PutRemoteStateCommand;
+import com.yelp.nrtsearch.tools.nrt_utils.state.UpdateGlobalIndexStateCommand;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -35,6 +36,7 @@ import picocli.CommandLine;
       PutRemoteStateCommand.class,
       RestoreIncrementalCommand.class,
       SnapshotIncrementalCommand.class,
+      UpdateGlobalIndexStateCommand.class,
       CommandLine.HelpCommand.class
     })
 public class NrtUtilsCommand implements Runnable {
