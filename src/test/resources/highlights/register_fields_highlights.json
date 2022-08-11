@@ -12,7 +12,6 @@
       "search": true,
       "store": true,
       "tokenize": true,
-      "highlight": true,
       "storeDocValues": true,
       "termVectors": "TERMS_POSITIONS_OFFSETS",
       "childFields": [
