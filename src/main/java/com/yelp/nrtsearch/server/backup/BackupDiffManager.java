@@ -228,7 +228,7 @@ public class BackupDiffManager implements Archiver {
 
   private Path getTempDiffFile(Path tmpPath) throws IOException {
     if (!Files.exists(tmpPath)) {
-      Files.createDirectory(tmpPath);
+      Files.createDirectories(tmpPath);
     }
     return Paths.get(tmpPath.toString(), randomUUID().toString());
   }
