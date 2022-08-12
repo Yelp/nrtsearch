@@ -61,9 +61,18 @@ public class BackupTestHelper {
   private final Path s3Directory;
 
   public BackupTestHelper(String bucketName, TemporaryFolder folder) throws IOException {
+    this(bucketName, folder, true);
+  }
+
+  public BackupTestHelper(String bucketName, TemporaryFolder folder, boolean createArchiverDir)
+      throws IOException {
     this.bucketName = bucketName;
     s3Directory = folder.newFolder("s3").toPath();
-    archiverDirectory = folder.newFolder("archiver").toPath();
+    if (createArchiverDir) {
+      archiverDirectory = folder.newFolder("archiver").toPath();
+    } else {
+      archiverDirectory = folder.getRoot().toPath().resolve("archiver");
+    }
 
     api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
     api.start();
