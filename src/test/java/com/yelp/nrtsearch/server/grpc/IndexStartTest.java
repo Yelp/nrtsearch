@@ -20,11 +20,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import com.google.protobuf.BoolValue;
+import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.HashSet;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -601,5 +604,181 @@ public class IndexStartTest {
     assertTrue(server.isReady());
     assertTrue(server.isStarted("test_index"));
     server.verifySimpleDocs("test_index", 3);
+  }
+
+  @Test
+  public void testCreateWithProperties() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .withLocalStateBackend()
+            .build();
+
+    CreateIndexRequest createRequest = getCreateWithPropertiesRequest();
+    server.createIndex(createRequest);
+
+    assertTrue(server.indices().contains("test_index"));
+    assertFalse(server.isStarted("test_index"));
+
+    verifyCreateProperties(server);
+  }
+
+  @Test
+  public void testCreateAndStart() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .withLocalStateBackend()
+            .build();
+
+    CreateIndexRequest createRequest =
+        getCreateWithPropertiesRequest().toBuilder().setStart(true).build();
+    server.createIndex(createRequest);
+
+    assertTrue(server.indices().contains("test_index"));
+    assertTrue(server.isStarted("test_index"));
+
+    verifyCreateProperties(server);
+  }
+
+  @Test
+  public void testCreateAndStartRestart() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .withLocalStateBackend()
+            .build();
+
+    CreateIndexRequest createRequest =
+        getCreateWithPropertiesRequest().toBuilder().setStart(true).build();
+    server.createIndex(createRequest);
+
+    assertTrue(server.indices().contains("test_index"));
+    assertTrue(server.isStarted("test_index"));
+
+    server.restart();
+    assertTrue(server.indices().contains("test_index"));
+    assertTrue(server.isStarted("test_index"));
+
+    verifyCreateProperties(server);
+  }
+
+  @Test
+  public void testCreateAndStartV2() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .withLocalStateBackend()
+            .build();
+
+    CreateIndexRequest createRequest = getCreateWithPropertiesRequest();
+    server.createIndex(createRequest);
+
+    assertTrue(server.indices().contains("test_index"));
+    assertFalse(server.isStarted("test_index"));
+
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+
+    assertTrue(server.indices().contains("test_index"));
+    assertTrue(server.isStarted("test_index"));
+    assertTrue(server.getGlobalState().getIndex("test_index").getShard(0).isPrimary());
+
+    verifyCreateProperties(server);
+  }
+
+  @Test
+  public void testCreateAndStartV2Restart() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .withLocalStateBackend()
+            .build();
+
+    CreateIndexRequest createRequest = getCreateWithPropertiesRequest();
+    server.createIndex(createRequest);
+
+    assertTrue(server.indices().contains("test_index"));
+    assertFalse(server.isStarted("test_index"));
+
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+
+    assertTrue(server.indices().contains("test_index"));
+    assertTrue(server.isStarted("test_index"));
+    assertTrue(server.getGlobalState().getIndex("test_index").getShard(0).isPrimary());
+
+    server.restart();
+    assertTrue(server.indices().contains("test_index"));
+    assertTrue(server.isStarted("test_index"));
+    assertTrue(server.getGlobalState().getIndex("test_index").getShard(0).isPrimary());
+
+    verifyCreateProperties(server);
+  }
+
+  @Test
+  public void testStartV2Replica() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .withLocalStateBackend()
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+
+    assertTrue(server.indices().contains("test_index"));
+    assertTrue(server.isStarted("test_index"));
+    server.stopIndex("test_index");
+
+    TestServer replica =
+        TestServer.builder(folder)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.LOCAL)
+            .withLocalStateBackend()
+            .build();
+
+    assertTrue(replica.indices().contains("test_index"));
+    assertFalse(replica.isStarted("test_index"));
+    replica.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+
+    assertTrue(replica.indices().contains("test_index"));
+    assertTrue(replica.isStarted("test_index"));
+    assertTrue(replica.getGlobalState().getIndex("test_index").getShard(0).isReplica());
+  }
+
+  private CreateIndexRequest getCreateWithPropertiesRequest() {
+    IndexSettings initialSettings =
+        IndexSettings.newBuilder()
+            .setIndexMergeSchedulerAutoThrottle(BoolValue.newBuilder().setValue(true).build())
+            .build();
+    IndexLiveSettings initialLiveSettings =
+        IndexLiveSettings.newBuilder()
+            .setAddDocumentsMaxBufferLen(Int32Value.newBuilder().setValue(1000).build())
+            .build();
+    return CreateIndexRequest.newBuilder()
+        .setIndexName("test_index")
+        .setSettings(initialSettings)
+        .setLiveSettings(initialLiveSettings)
+        .addAllFields(TestServer.simpleFields)
+        .build();
+  }
+
+  private void verifyCreateProperties(TestServer server) throws IOException {
+    assertTrue(
+        server
+            .getGlobalState()
+            .getIndexStateManager("test_index")
+            .getSettings()
+            .getIndexMergeSchedulerAutoThrottle()
+            .getValue());
+    assertEquals(
+        1000,
+        server
+            .getGlobalState()
+            .getIndexStateManager("test_index")
+            .getLiveSettings()
+            .getAddDocumentsMaxBufferLen()
+            .getValue());
+    assertEquals(
+        new HashSet<>(TestServer.simpleFieldNames),
+        server.getGlobalState().getIndex("test_index").getAllFields().keySet());
   }
 }

@@ -1524,6 +1524,39 @@
           "LuceneServer"
         ]
       }
+    },
+    "/v2/start_index": {
+      "post": {
+        "summary": "Starts an index using configuration in IndexStartConfig",
+        "operationId": "LuceneServer_startIndexV2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverStartIndexResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverStartIndexV2Request"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
     }
   },
   "definitions": {
@@ -2426,6 +2459,25 @@
         "existsWithId": {
           "type": "string",
           "description": "Set if state/data already exists in the data backend. Provides the UUID to identify and load the index."
+        },
+        "settings": {
+          "$ref": "#/definitions/luceneserverIndexSettings",
+          "title": "Optional initial index settings"
+        },
+        "liveSettings": {
+          "$ref": "#/definitions/luceneserverIndexLiveSettings",
+          "title": "Optional initial index live settings"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverField"
+          },
+          "title": "Optional initial index fields"
+        },
+        "start": {
+          "type": "boolean",
+          "title": "If this index should also be started, using IndexStartConfig configuration"
         }
       },
       "title": "Input to createIndex"
@@ -4449,6 +4501,16 @@
           "format": "double"
         }
       }
+    },
+    "luceneserverStartIndexV2Request": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string",
+          "title": "index name"
+        }
+      },
+      "title": "Start the index using IndexStartConfig configuration"
     },
     "luceneserverStateRequest": {
       "type": "object",

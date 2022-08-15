@@ -372,6 +372,10 @@ public class TestServer {
     startIndex(builder.build());
   }
 
+  public StartIndexResponse startIndexV2(StartIndexV2Request startIndexRequest) {
+    return client.getBlockingStub().startIndexV2(startIndexRequest);
+  }
+
   public DummyResponse stopIndex(StopIndexRequest stopIndexRequest) {
     return client.getBlockingStub().stopIndex(stopIndexRequest);
   }
