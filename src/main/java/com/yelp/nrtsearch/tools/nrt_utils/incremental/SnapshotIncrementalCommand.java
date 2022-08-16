@@ -111,12 +111,14 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
             + ", snapshotIndexDataRoot: "
             + snapshotIndexDataRoot);
 
-    copyIndexData(versionManager, resolvedIndexResource, snapshotIndexDataRoot);
+    long indexDataSizeBytes =
+        copyIndexData(versionManager, resolvedIndexResource, snapshotIndexDataRoot);
     copyIndexState(versionManager, resolvedIndexResource, snapshotIndexDataRoot);
     copyWarmingQueries(versionManager, resolvedIndexResource, snapshotIndexDataRoot);
 
     SnapshotMetadata metadata =
-        new SnapshotMetadata(serviceName, resolvedIndexResource, currentTimestampMs);
+        new SnapshotMetadata(
+            serviceName, resolvedIndexResource, currentTimestampMs, indexDataSizeBytes);
     writeMetadataFile(
         s3Client,
         bucketName,
@@ -128,7 +130,7 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
     return 0;
   }
 
-  private void copyIndexData(
+  private long copyIndexData(
       VersionManager versionManager, String resolvedIndexResource, String snapshotIndexDataRoot)
       throws IOException {
     String indexDataResource = IncrementalCommandUtils.getIndexDataResource(resolvedIndexResource);
@@ -148,14 +150,14 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
 
     String indexDataKeyPrefix =
         IncrementalCommandUtils.getDataKeyPrefix(serviceName, indexDataResource);
+    long totalDataSizeBytes = 0;
     for (String fileName : indexDataFiles) {
+      String sourceKey = indexDataKeyPrefix + fileName;
+      totalDataSizeBytes +=
+          versionManager.getS3().getObjectMetadata(bucketName, sourceKey).getContentLength();
       versionManager
           .getS3()
-          .copyObject(
-              bucketName,
-              indexDataKeyPrefix + fileName,
-              bucketName,
-              snapshotIndexDataRoot + fileName);
+          .copyObject(bucketName, sourceKey, bucketName, snapshotIndexDataRoot + fileName);
     }
     versionManager
         .getS3()
@@ -165,6 +167,7 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
                 + dataVersionId,
             bucketName,
             snapshotIndexDataRoot + IncrementalCommandUtils.SNAPSHOT_INDEX_FILES);
+    return totalDataSizeBytes;
   }
 
   private void copyIndexState(

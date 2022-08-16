@@ -28,6 +28,7 @@ public class SnapshotMetadata {
   private final String serviceName;
   private final String indexName;
   private final long timestampMs;
+  private final long indexSizeBytes;
 
   /**
    * Constructor.
@@ -35,15 +36,18 @@ public class SnapshotMetadata {
    * @param serviceName nrtsearch cluster service name
    * @param indexName index resource name (index-UUID)
    * @param timestampMs snapshot timestamp
+   * @param indexSizeBytes size of snapshot index data in bytes
    */
   @JsonCreator
   public SnapshotMetadata(
       @JsonProperty("serviceName") String serviceName,
       @JsonProperty("indexName") String indexName,
-      @JsonProperty("timestampMs") long timestampMs) {
+      @JsonProperty("timestampMs") long timestampMs,
+      @JsonProperty("indexSizeBytes") long indexSizeBytes) {
     this.serviceName = serviceName;
     this.indexName = indexName;
     this.timestampMs = timestampMs;
+    this.indexSizeBytes = indexSizeBytes;
   }
 
   /** Get nrtsearch cluster service name. */
@@ -59,5 +63,10 @@ public class SnapshotMetadata {
   /** Get snapshot timestamp. */
   public long getTimestampMs() {
     return timestampMs;
+  }
+
+  /** Get size of snapshot index data in bytes. */
+  public long getIndexSizeBytes() {
+    return indexSizeBytes;
   }
 }
