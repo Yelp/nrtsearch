@@ -26,7 +26,10 @@ import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
+import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.backup.VersionManager;
@@ -40,12 +43,14 @@ import com.yelp.nrtsearch.server.grpc.TestServer;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.apache.commons.io.IOUtils;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -53,6 +58,7 @@ import org.junit.rules.TemporaryFolder;
 import picocli.CommandLine;
 
 public class SnapshotRestoreCommandTest {
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   @After
@@ -377,6 +383,18 @@ public class SnapshotRestoreCommandTest {
           Sets.union(expectedFiles, Set.of(IncrementalCommandUtils.SNAPSHOT_WARMING_QUERIES));
     }
     assertEquals(expectedFiles, snapshotFiles);
+
+    assertSnapshotMetadata(s3Client, indexResource, snapshotRoot, snapshotTimestamp);
+  }
+
+  private void assertSnapshotMetadata(
+      AmazonS3 s3Client, String indexResource, String snapshotRoot, String snapshotTimestamp) {
+    SnapshotMetadata snapshotMetadata =
+        getSnapshotMetadata(s3Client, indexResource, snapshotTimestamp, snapshotRoot);
+    assertEquals(SERVICE_NAME, snapshotMetadata.getServiceName());
+    assertTrue(snapshotMetadata.getIndexName().startsWith("test_index-"));
+    assertEquals(snapshotTimestamp, String.valueOf(snapshotMetadata.getTimestampMs()));
+    assertTrue(snapshotMetadata.getIndexSizeBytes() > 0);
   }
 
   private void assertRestoreFiles(
@@ -439,6 +457,26 @@ public class SnapshotRestoreCommandTest {
       AmazonS3 s3Client, String indexResource, String timestamp, String snapshotRoot) {
     String snapshotKeyPrefix = String.join("/", snapshotRoot, indexResource, timestamp, "");
     return getFiles(s3Client, snapshotKeyPrefix);
+  }
+
+  private SnapshotMetadata getSnapshotMetadata(
+      AmazonS3 s3Client, String indexResource, String timestamp, String snapshotRoot) {
+    String snapshotMetadataKey =
+        String.join(
+            "/", snapshotRoot, IncrementalCommandUtils.METADATA_DIR, indexResource, timestamp);
+    S3Object stateObject = s3Client.getObject(TEST_BUCKET, snapshotMetadataKey);
+    ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+    try {
+      IOUtils.copy(stateObject.getObjectContent(), byteArrayOutputStream);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    String fileContent = StateUtils.fromUTF8(byteArrayOutputStream.toByteArray());
+    try {
+      return OBJECT_MAPPER.readValue(fileContent, SnapshotMetadata.class);
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private List<String> getSnapshotTimestamps(
