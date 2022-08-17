@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler.SearchHandlerException;
@@ -360,6 +361,9 @@ public class ShardState implements Closeable {
 
   /** Commit all state. */
   public synchronized long commit() throws IOException {
+    // This request may already have timed out on the client while waiting for the lock.
+    // If so, there is no reason to continue this heavyweight operation.
+    DeadlineUtils.checkDeadline("ShardState: commit " + this.name, "COMMIT");
 
     long gen;
 
