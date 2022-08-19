@@ -222,6 +222,14 @@ service LuceneServer {
     };
 
     }
+    /* Perform an auto-suggest lookup.*/
+    rpc suggestSearch (SuggestSearchRequest) returns (SuggestSearchResponse) {
+        option (google.api.http) = {
+            post: "/v1/suggest_search"
+            body: "*"
+        };
+
+    }
     /* Updates existing suggestions, if the suggester supports near-real-time changes. */
     rpc updateSuggest (BuildSuggestRequest) returns (BuildSuggestResponse) {
         option (google.api.http) = {

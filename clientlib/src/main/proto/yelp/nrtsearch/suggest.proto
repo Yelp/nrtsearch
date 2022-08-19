@@ -71,6 +71,30 @@ message OneHighlight {
   string text = 2;
 }
 
+enum SuggestSearchSuggestQuery {
+  PREFIX = 0; // PrefixCompletionQuery within ContextCompletionQuery
+  FUZZY = 1; // FuzzyCompletionQuery within ContextCompletionQuery
+}
+
+message SuggestSearchRequest {
+  string indexName = 1; //Index name
+  string suggestField = 2; //Which suggest field to query against
+  SuggestSearchSuggestQuery suggestQuery = 3; //What query should be used for search
+  string text = 4; //Text to suggest from
+  repeated string contexts = 5; //Which contexts to filter by
+  int32 count = 6; //How many suggestions to return, default = 5
+}
+
+message SuggestSearchResponse {
+  repeated OneSuggestSearchResponse results = 1; //SuggestSearch results as an array
+}
+
+message OneSuggestSearchResponse {
+  string key = 1; //matched completion value
+  int64 score = 2; //score of matched doc
+  string payload = 3; //payload for the suggestion - the document matched
+}
+
 message SuggestLocalSource {
   /* Local file (to the server) to read suggestions + weights from; format is weight U+001F suggestion U+001F payload,
   one per line, with suggestion UTF-8 encoded. If this option is used then searcher, suggestField,
