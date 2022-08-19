@@ -151,6 +151,13 @@ public abstract class IndexState implements Closeable {
                   "field \"" + name + "\" did not specify analyzer or searchAnalyzer");
             }
             return maybeAnalyzer.get();
+          } else if (fd instanceof ContextSuggestFieldDef) {
+            Optional<Analyzer> maybeAnalyzer = ((ContextSuggestFieldDef) fd).getSearchAnalyzer();
+            if (maybeAnalyzer.isEmpty()) {
+              throw new IllegalArgumentException(
+                  "field \"" + name + "\" did not specify analyzer or searchAnalyzer");
+            }
+            return maybeAnalyzer.get();
           }
           throw new IllegalArgumentException("field \"" + name + "\" does not support analysis");
         }
