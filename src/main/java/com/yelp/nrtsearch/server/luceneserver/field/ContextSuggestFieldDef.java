@@ -107,4 +107,8 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
   public Optional<Analyzer> getSearchAnalyzer() {
     return Optional.ofNullable(this.searchAnalyzer);
   }
+
+  public String getPostingsFormat() {
+    return "Completion84";
+  }
 }
