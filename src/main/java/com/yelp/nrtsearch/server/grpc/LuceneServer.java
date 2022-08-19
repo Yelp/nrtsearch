@@ -1485,6 +1485,35 @@ public class LuceneServer {
     }
 
     @Override
+    public void suggestSearch(
+        SuggestSearchRequest suggestLookupRequest,
+        StreamObserver<SuggestSearchResponse> responseObserver) {
+      try {
+        IndexState indexState = globalState.getIndex(suggestLookupRequest.getIndexName());
+        SuggestSearchHandler handler = new SuggestSearchHandler();
+        SuggestSearchResponse reply = handler.handle(indexState, suggestLookupRequest);
+        logger.info(String.format("SuggestLookupHandler returned results %s", reply.toString()));
+        responseObserver.onNext(reply);
+        responseObserver.onCompleted();
+      } catch (Exception e) {
+        logger.warn(
+            String.format(
+                "error while trying to lookup suggester %s for index %s",
+                suggestLookupRequest.getSuggestField(), suggestLookupRequest.getIndexName()),
+            e);
+        responseObserver.onError(
+            Status.UNKNOWN
+                .withDescription(
+                    String.format(
+                        "error while trying to lookup suggester %s for index %s",
+                        suggestLookupRequest.getSuggestField(),
+                        suggestLookupRequest.getIndexName()))
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+
+    @Override
     public void updateSuggest(
         BuildSuggestRequest buildSuggestRequest,
         StreamObserver<BuildSuggestResponse> responseObserver) {
