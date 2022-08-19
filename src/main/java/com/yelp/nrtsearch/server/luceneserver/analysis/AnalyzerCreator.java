@@ -31,6 +31,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.standard.ClassicAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.util.Version;
 
 public class AnalyzerCreator {
@@ -38,6 +39,7 @@ public class AnalyzerCreator {
   private static final String LUCENE_ANALYZER_PATH = "org.apache.lucene.analysis.{0}Analyzer";
   private static final String STANDARD = "standard";
   private static final String CLASSIC = "classic";
+  private static final String COMPLETION = "completion";
 
   private static AnalyzerCreator instance;
 
@@ -46,6 +48,7 @@ public class AnalyzerCreator {
   public AnalyzerCreator(LuceneServerConfiguration configuration) {
     register(STANDARD, name -> new StandardAnalyzer());
     register(CLASSIC, name -> new ClassicAnalyzer());
+    register(COMPLETION, name -> new CompletionAnalyzer(new StandardAnalyzer()));
   }
 
   public Analyzer getAnalyzer(com.yelp.nrtsearch.server.grpc.Analyzer analyzer) {

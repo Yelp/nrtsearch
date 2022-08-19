@@ -59,6 +59,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
+import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.junit.Before;
@@ -98,6 +99,14 @@ public class AnalyzerCreatorTest {
     Analyzer analyzer = AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer("classic"));
 
     assertSame(ClassicAnalyzer.class, analyzer.getClass());
+  }
+
+  @Test
+  public void testPredefinedCompletionAnalyzer() {
+    Analyzer analyzer =
+        AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer("completion"));
+
+    assertSame(CompletionAnalyzer.class, analyzer.getClass());
   }
 
   @Test
