@@ -79,10 +79,11 @@ enum SuggestSearchSuggestQuery {
 message SuggestSearchRequest {
   string indexName = 1; //Index name
   string suggestField = 2; //Which suggest field to query against
-  SuggestSearchSuggestQuery suggestQuery = 3; //What query should be used for search
-  string text = 4; //Text to suggest from
-  repeated string contexts = 5; //Which contexts to filter by
-  int32 count = 6; //How many suggestions to return, default = 5
+  string payloadField = 3; //Which field to return as payload
+  SuggestSearchSuggestQuery suggestQuery = 4; //What query should be used for search
+  string text = 5; //Text to suggest from
+  repeated string contexts = 6; //Which contexts to filter by
+  int32 count = 7; //How many suggestions to return, default = 5
 }
 
 message SuggestSearchResponse {

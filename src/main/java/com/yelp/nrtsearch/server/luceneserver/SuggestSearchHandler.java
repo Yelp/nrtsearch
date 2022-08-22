@@ -15,20 +15,20 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.OneSuggestSearchResponse;
 import com.yelp.nrtsearch.server.grpc.SuggestSearchRequest;
 import com.yelp.nrtsearch.server.grpc.SuggestSearchResponse;
+import com.yelp.nrtsearch.server.luceneserver.field.ContextSuggestFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.ContextQuery;
@@ -49,6 +49,15 @@ public class SuggestSearchHandler implements Handler<SuggestSearchRequest, Sugge
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
+
+    FieldDef fieldDef = indexState.getAllFields().get(suggestLookupRequest.getSuggestField());
+    if (!(fieldDef instanceof ContextSuggestFieldDef)) {
+      throw new IllegalArgumentException(
+          String.format(
+              "suggestField %s is not ContextSuggestField",
+              suggestLookupRequest.getSuggestField()));
+    }
+
     SuggestIndexSearcher suggestIndexSearcher = new SuggestIndexSearcher(indexReader);
 
     CompletionQuery query = this.generateQuery(indexState, suggestLookupRequest);
@@ -61,7 +70,7 @@ public class SuggestSearchHandler implements Handler<SuggestSearchRequest, Sugge
 
     Set<OneSuggestSearchResponse> results =
         Arrays.stream(suggest.scoreLookupDocs())
-            .map(mapScoreDocToOneSuggestSearchResponse(indexState, indexReader))
+            .map(mapScoreDocToOneSuggestSearchResponse(suggestLookupRequest, indexReader))
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
 
@@ -77,14 +86,15 @@ public class SuggestSearchHandler implements Handler<SuggestSearchRequest, Sugge
    *     OneSuggestSearchResponse}
    */
   private Function<TopSuggestDocs.SuggestScoreDoc, OneSuggestSearchResponse>
-      mapScoreDocToOneSuggestSearchResponse(IndexState indexState, IndexReader indexReader) {
+      mapScoreDocToOneSuggestSearchResponse(
+          SuggestSearchRequest suggestLookupRequest, IndexReader indexReader) {
     return scoreDoc -> {
       try {
         Document document = indexReader.document(scoreDoc.doc);
         return OneSuggestSearchResponse.newBuilder()
             .setKey(scoreDoc.key.toString())
             .setScore(Math.round(scoreDoc.score))
-            .setPayload(getPayloadFromDocument(indexState, document))
+            .setPayload(getPayloadFromDocument(suggestLookupRequest, document))
             .build();
       } catch (IOException e) {
         return null;
@@ -92,14 +102,16 @@ public class SuggestSearchHandler implements Handler<SuggestSearchRequest, Sugge
     };
   }
 
-  private String getPayloadFromDocument(IndexState indexState, Document doc) {
-    Map<String, String[]> map =
-        doc.getFields().stream()
-            .collect(
-                Collectors.toMap(
-                    field -> field.stringValue(), field -> doc.getValues(field.stringValue())));
-    Gson gson = new GsonBuilder().serializeNulls().create();
-    return gson.toJson(map);
+  private String getPayloadFromDocument(SuggestSearchRequest suggestLookupRequest, Document doc) {
+    IndexableField payload = doc.getField(suggestLookupRequest.getPayloadField());
+    if (payload != null) {
+      if (payload.binaryValue() != null) {
+        return payload.binaryValue().utf8ToString();
+      } else if (payload.stringValue() != null) {
+        return payload.stringValue();
+      }
+    }
+    return "";
   }
 
   private CompletionQuery generateQuery(
