@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -41,40 +42,46 @@ public class SuggestSearchHandler implements Handler<SuggestSearchRequest, Sugge
   @Override
   public SuggestSearchResponse handle(
       IndexState indexState, SuggestSearchRequest suggestLookupRequest) throws HandlerException {
-    ShardState shardState = indexState.getShard(0);
     indexState.verifyStarted();
-    IndexReader indexReader;
+
+    ShardState shardState = indexState.getShard(0);
+    SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy = null;
+
     try {
-      indexReader = shardState.acquire().searcher.getIndexReader();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+      searcherAndTaxonomy = shardState.acquire();
+      IndexReader indexReader = searcherAndTaxonomy.searcher.getIndexReader();
+      FieldDef fieldDef = indexState.getField(suggestLookupRequest.getSuggestField());
+      if (!(fieldDef instanceof ContextSuggestFieldDef)) {
+        throw new IllegalArgumentException(
+            String.format(
+                "suggestField %s is not ContextSuggestField",
+                suggestLookupRequest.getSuggestField()));
+      }
 
-    FieldDef fieldDef = indexState.getAllFields().get(suggestLookupRequest.getSuggestField());
-    if (!(fieldDef instanceof ContextSuggestFieldDef)) {
-      throw new IllegalArgumentException(
-          String.format(
-              "suggestField %s is not ContextSuggestField",
-              suggestLookupRequest.getSuggestField()));
-    }
+      SuggestIndexSearcher suggestIndexSearcher = new SuggestIndexSearcher(indexReader);
 
-    SuggestIndexSearcher suggestIndexSearcher = new SuggestIndexSearcher(indexReader);
-
-    CompletionQuery query = this.generateQuery(indexState, suggestLookupRequest);
-    TopSuggestDocs suggest;
-    try {
+      CompletionQuery query = this.generateQuery(indexState, suggestLookupRequest);
+      TopSuggestDocs suggest;
       suggest = suggestIndexSearcher.suggest(query, suggestLookupRequest.getCount(), true);
+
+      Set<OneSuggestSearchResponse> results =
+          Arrays.stream(suggest.scoreLookupDocs())
+              .map(mapScoreDocToOneSuggestSearchResponse(suggestLookupRequest, indexReader))
+              .filter(Objects::nonNull)
+              .collect(Collectors.toSet());
+
+      return SuggestSearchResponse.newBuilder().addAllResults(results).build();
     } catch (IOException e) {
       throw new RuntimeException(e);
+    } finally {
+      if (searcherAndTaxonomy != null) {
+        try {
+          shardState.release(searcherAndTaxonomy);
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      }
     }
-
-    Set<OneSuggestSearchResponse> results =
-        Arrays.stream(suggest.scoreLookupDocs())
-            .map(mapScoreDocToOneSuggestSearchResponse(suggestLookupRequest, indexReader))
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-
-    return SuggestSearchResponse.newBuilder().addAllResults(results).build();
   }
 
   /**
