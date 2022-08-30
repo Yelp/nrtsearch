@@ -16,10 +16,13 @@
 package com.yelp.nrtsearch.server.luceneserver.field;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 
 import com.google.gson.Gson;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
+import com.yelp.nrtsearch.server.grpc.Analyzer;
+import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
@@ -30,6 +33,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -84,6 +91,46 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
   public void initIndex(String name) throws Exception {
     List<AddDocumentRequest> documents = buildDocuments(name, CONTEXT_SUGGEST_VALUES);
     addDocuments(documents.stream());
+  }
+
+  @Test
+  public void validSearchAndIndexAnalyzerWhenFieldAnalyzerIsProvided() {
+    Analyzer standardAnalyzer = Analyzer.newBuilder().setPredefined("standard").build();
+    Analyzer analyzer = Analyzer.newBuilder().setPredefined("simple").build();
+    Field field =
+        Field.newBuilder()
+            .setSearchAnalyzer(standardAnalyzer) // should be ignored as analyzer takes precedence
+            .setIndexAnalyzer(standardAnalyzer) // should be ignored as analyzer takes precedence
+            .setAnalyzer(analyzer)
+            .build();
+    ContextSuggestFieldDef contextSuggestFieldDef = new ContextSuggestFieldDef("test_field", field);
+    assertEquals(
+        CompletionAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
+    assertEquals(
+        CompletionAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
+  }
+
+  @Test
+  public void validSearchAndIndexAnalyzerWhenSearchAndIndexAnalyzersAreProvided() {
+    Analyzer searchAnalyzer = Analyzer.newBuilder().setPredefined("bg.Bulgarian").build();
+    Analyzer indexAnalyzer = Analyzer.newBuilder().setPredefined("en.English").build();
+    Field field =
+        Field.newBuilder()
+            .setSearchAnalyzer(searchAnalyzer)
+            .setIndexAnalyzer(indexAnalyzer)
+            .build();
+    ContextSuggestFieldDef contextSuggestFieldDef = new ContextSuggestFieldDef("test_field", field);
+    assertSame(
+        BulgarianAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
+    assertSame(EnglishAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
+  }
+
+  @Test
+  public void validDefaultSearchAndIndexAnalyzerNoAnalyzersAreProvided() {
+    Field field = Field.newBuilder().build();
+    ContextSuggestFieldDef contextSuggestFieldDef = new ContextSuggestFieldDef("test_field", field);
+    assertSame(StandardAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
+    assertSame(StandardAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
   }
 
   @Test
