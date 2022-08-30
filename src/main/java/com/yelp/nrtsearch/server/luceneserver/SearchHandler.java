@@ -70,6 +70,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.suggest.document.CompletionQuery;
+import org.apache.lucene.search.suggest.document.SuggestIndexSearcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -125,7 +127,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       long searchStartTime = System.nanoTime();
 
-      SearcherResult searcherResult;
+      SearcherResult searcherResult = null;
       TopDocs hits;
       if (!searchRequest.getFacetsList().isEmpty()) {
         if (!(searchContext.getQuery() instanceof DrillDownQuery)) {
@@ -169,6 +171,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             .addAllFacetResult(
                 FacetTopDocs.facetTopDocsSample(
                     hits, searchRequest.getFacetsList(), indexState, s.searcher, diagnostics));
+      } else if (isSuggestQuery(searchContext)) {
+        SuggestIndexSearcher suggestIndexSearcher =
+            new SuggestIndexSearcher(s.searcher.getIndexReader());
+        CompletionQuery completionQuery = (CompletionQuery) searchContext.getQuery();
+        hits = suggestIndexSearcher.suggest(completionQuery, searchContext.getTopHits(), true);
       } else {
         searcherResult =
             s.searcher.search(
@@ -177,9 +184,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
 
       // add results from any extra collectors
-      searchContext
-          .getResponseBuilder()
-          .putAllCollectorResults(searcherResult.getCollectorResults());
+      if (searcherResult != null) {
+        searchContext
+            .getResponseBuilder()
+            .putAllCollectorResults(searcherResult.getCollectorResults());
+      }
 
       searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
       searchContext
@@ -275,6 +284,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     // if we are out of time, don't bother with serialization
     DeadlineUtils.checkDeadline("SearchHandler: end", "SEARCH");
     return searchContext.getResponseBuilder().build();
+  }
+
+  private boolean isSuggestQuery(SearchContext searchContext) {
+    return searchContext.getQuery() instanceof CompletionQuery;
   }
 
   /**
