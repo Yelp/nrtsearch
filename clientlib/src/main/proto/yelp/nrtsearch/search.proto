@@ -210,6 +210,19 @@ message ExistsQuery {
     string field = 1; // Field in the document to query
 }
 
+enum SuggestQueryType {
+    PREFIX_QUERY = 0; // PrefixCompletionQuery within ContextCompletionQuery
+    FUZZY_QUERY = 1; // FuzzyCompletionQuery within ContextCompletionQuery
+}
+
+// A query used for suggest completion
+message SuggestQuery {
+    string field = 1; // Field in the document to query, must be a SuggestField
+    SuggestQueryType queryType = 2;
+    string text = 3;
+    repeated string contexts = 4;
+}
+
 // Defines different types of QueryNodes.
 enum QueryType {
     NONE = 0;
@@ -228,6 +241,7 @@ enum QueryType {
     NESTED = 13;
     EXISTS = 14;
     GEO_RADIUS = 15;
+    SUGGEST = 16;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -252,6 +266,7 @@ message Query {
         ExistsQuery existsQuery = 16;
         GeoRadiusQuery geoRadiusQuery = 17;
         FunctionFilterQuery functionFilterQuery = 18;
+        SuggestQuery completionQuery = 19;
     }
 }
 
