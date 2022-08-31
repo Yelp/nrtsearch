@@ -241,7 +241,7 @@ enum QueryType {
     NESTED = 13;
     EXISTS = 14;
     GEO_RADIUS = 15;
-    SUGGEST = 16;
+    COMPLETION = 16;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
