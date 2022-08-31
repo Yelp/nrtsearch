@@ -65,6 +65,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
@@ -432,13 +433,17 @@ public class ImmutableIndexState extends IndexState {
       throw new IllegalArgumentException(
           "Index data root path is not a directory: " + indexDataRoot);
     }
-    Path restoredDataRoot =
-        Files.list(restorePath)
-            .findFirst()
-            .orElseThrow(
-                () -> new IllegalArgumentException("No data in restored directory: " + restorePath))
-            .resolve(ShardState.getShardDirectoryName(0))
-            .resolve(ShardState.INDEX_DATA_DIR_NAME);
+    Path restoredDataRoot;
+    try (Stream<Path> restorePathFiles = Files.list(restorePath)) {
+      restoredDataRoot =
+          restorePathFiles
+              .findFirst()
+              .orElseThrow(
+                  () ->
+                      new IllegalArgumentException("No data in restored directory: " + restorePath))
+              .resolve(ShardState.getShardDirectoryName(0))
+              .resolve(ShardState.INDEX_DATA_DIR_NAME);
+    }
     File restoredDataRootFile = restoredDataRoot.toFile();
     if (!restoredDataRootFile.exists()) {
       throw new IllegalArgumentException(
@@ -456,17 +461,21 @@ public class ImmutableIndexState extends IndexState {
             .resolve(ShardState.getShardDirectoryName(0))
             .resolve(ShardState.INDEX_DATA_DIR_NAME);
     StateUtils.ensureDirectory(destDataRoot);
-    for (Path p : (Iterable<Path>) Files.list(destDataRoot)::iterator) {
-      // the lock file will not be part of the restore, so it should be ok to keep it
-      if (IndexWriter.WRITE_LOCK_NAME.equals(p.getFileName().toString())) {
-        continue;
+    try (Stream<Path> destDataFilesStream = Files.list(destDataRoot)) {
+      for (Path p : (Iterable<Path>) destDataFilesStream::iterator) {
+        // the lock file will not be part of the restore, so it should be ok to keep it
+        if (IndexWriter.WRITE_LOCK_NAME.equals(p.getFileName().toString())) {
+          continue;
+        }
+        throw new IllegalArgumentException("Cannot restore, directory has index data file: " + p);
       }
-      throw new IllegalArgumentException("Cannot restore, directory has index data file: " + p);
     }
     // hard link all index files, should this be recursive?
-    for (Path p : (Iterable<Path>) Files.list(restoredDataRoot)::iterator) {
-      Path destFile = destDataRoot.resolve(p.getFileName());
-      Files.createLink(destFile, p);
+    try (Stream<Path> restoredDataFilesStream = Files.list(restoredDataRoot)) {
+      for (Path p : (Iterable<Path>) restoredDataFilesStream::iterator) {
+        Path destFile = destDataRoot.resolve(p.getFileName());
+        Files.createLink(destFile, p);
+      }
     }
   }
 

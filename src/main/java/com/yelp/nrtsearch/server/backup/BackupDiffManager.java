@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -267,7 +268,10 @@ public class BackupDiffManager implements Archiver {
   private Path collectDownloadedFiles(List<Path> downloadDirs) throws IOException {
     Path downloadDir = Files.createDirectory(getTmpDir());
     for (Path source : downloadDirs) {
-      String fileName = Files.list(source).findFirst().get().getFileName().toString();
+      String fileName;
+      try (Stream<Path> dirFiles = Files.list(source)) {
+        fileName = dirFiles.findFirst().get().getFileName().toString();
+      }
       logger.debug(
           String.format("Moving file %s to location: %s", source.resolve(fileName), downloadDir));
       Files.move(source.resolve(fileName), downloadDir.resolve(fileName), REPLACE_EXISTING);
