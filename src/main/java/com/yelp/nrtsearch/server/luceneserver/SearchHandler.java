@@ -171,7 +171,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             .addAllFacetResult(
                 FacetTopDocs.facetTopDocsSample(
                     hits, searchRequest.getFacetsList(), indexState, s.searcher, diagnostics));
-      } else if (isSuggestQuery(searchContext)) {
+      } else if (isCompletionQuery(searchContext)) {
         SuggestIndexSearcher suggestIndexSearcher =
             new SuggestIndexSearcher(s.searcher.getIndexReader());
         CompletionQuery completionQuery = (CompletionQuery) searchContext.getQuery();
@@ -286,7 +286,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     return searchContext.getResponseBuilder().build();
   }
 
-  private boolean isSuggestQuery(SearchContext searchContext) {
+  private boolean isCompletionQuery(SearchContext searchContext) {
     return searchContext.getQuery() instanceof CompletionQuery;
   }
 

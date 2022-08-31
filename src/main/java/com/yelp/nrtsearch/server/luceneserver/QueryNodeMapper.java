@@ -27,7 +27,6 @@ import com.yelp.nrtsearch.server.grpc.MatchPhraseQuery;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
 import com.yelp.nrtsearch.server.grpc.MultiMatchQuery;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
-import com.yelp.nrtsearch.server.grpc.SuggestQuery;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
@@ -153,27 +152,28 @@ public class QueryNodeMapper {
     }
   }
 
-  private Query getCompletionQuery(SuggestQuery suggestQueryDef, IndexState state) {
+  private Query getCompletionQuery(
+      com.yelp.nrtsearch.server.grpc.CompletionQuery completionQueryDef, IndexState state) {
     CompletionQuery completionQuery;
-    switch (suggestQueryDef.getQueryType()) {
+    switch (completionQueryDef.getQueryType()) {
       case PREFIX_QUERY:
         completionQuery =
             new PrefixCompletionQuery(
                 state.searchAnalyzer,
-                new Term(suggestQueryDef.getField(), suggestQueryDef.getText()));
+                new Term(completionQueryDef.getField(), completionQueryDef.getText()));
         break;
       case FUZZY_QUERY:
         completionQuery =
             new FuzzyCompletionQuery(
                 state.searchAnalyzer,
-                new Term(suggestQueryDef.getField(), suggestQueryDef.getText()));
+                new Term(completionQueryDef.getField(), completionQueryDef.getText()));
         break;
       default:
         throw new UnsupportedOperationException(
-            "Unsupported suggest query type received: " + suggestQueryDef.getQueryType());
+            "Unsupported suggest query type received: " + completionQueryDef.getQueryType());
     }
     ContextQuery contextQuery = new ContextQuery(completionQuery);
-    suggestQueryDef.getContextsList().forEach(contextQuery::addContext);
+    completionQueryDef.getContextsList().forEach(contextQuery::addContext);
     return contextQuery;
   }
 

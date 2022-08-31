@@ -21,12 +21,12 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.grpc.Analyzer;
+import com.yelp.nrtsearch.server.grpc.CompletionQuery;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.grpc.SuggestQuery;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -109,7 +109,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
     Query query =
         Query.newBuilder()
             .setCompletionQuery(
-                SuggestQuery.newBuilder().setField(FIELD_NAME).setText("test").build())
+                CompletionQuery.newBuilder().setField(FIELD_NAME).setText("test").build())
             .build();
 
     SearchResponse searchResponse =
@@ -130,7 +130,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
     Query query =
         Query.newBuilder()
             .setCompletionQuery(
-                SuggestQuery.newBuilder()
+                CompletionQuery.newBuilder()
                     .setField(FIELD_NAME)
                     .setText("test")
                     .addContexts("a")

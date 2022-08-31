@@ -210,15 +210,15 @@ message ExistsQuery {
     string field = 1; // Field in the document to query
 }
 
-enum SuggestQueryType {
+enum CompletionQueryType {
     PREFIX_QUERY = 0; // PrefixCompletionQuery within ContextCompletionQuery
     FUZZY_QUERY = 1; // FuzzyCompletionQuery within ContextCompletionQuery
 }
 
 // A query used for suggest completion
-message SuggestQuery {
+message CompletionQuery {
     string field = 1; // Field in the document to query, must be a SuggestField
-    SuggestQueryType queryType = 2;
+    CompletionQueryType queryType = 2;
     string text = 3;
     repeated string contexts = 4;
 }
@@ -266,7 +266,7 @@ message Query {
         ExistsQuery existsQuery = 16;
         GeoRadiusQuery geoRadiusQuery = 17;
         FunctionFilterQuery functionFilterQuery = 18;
-        SuggestQuery completionQuery = 19;
+        CompletionQuery completionQuery = 19;
     }
 }
 
