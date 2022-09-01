@@ -109,7 +109,7 @@ public class LuceneServer {
     this.archiver = archiver;
     this.incArchiver = incArchiver;
     this.collectorRegistry = collectorRegistry;
-    this.pluginsService = new PluginsService(luceneServerConfiguration);
+    this.pluginsService = new PluginsService(luceneServerConfiguration, collectorRegistry);
   }
 
   private void start() throws IOException {
