@@ -179,14 +179,14 @@ public class PluginsService {
   /** Get an instance of the loaded plugin class using reflection. */
   Plugin getPluginInstance(Class<? extends Plugin> pluginClass) {
     try {
-      Plugin pClass =
+      Plugin plugin =
           pluginClass
               .getDeclaredConstructor(new Class[] {LuceneServerConfiguration.class})
               .newInstance(config);
-      if (pClass instanceof MetricsPlugin) {
-        ((MetricsPlugin) pClass).registerMetrics(collectorRegistry);
+      if (plugin instanceof MetricsPlugin) {
+        ((MetricsPlugin) plugin).registerMetrics(collectorRegistry);
       }
-      return pClass;
+      return plugin;
     } catch (Exception e) {
       throw new IllegalArgumentException("Failed to load plugin class instance via reflection", e);
     }

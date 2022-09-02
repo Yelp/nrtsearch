@@ -132,11 +132,29 @@ public class PluginsServiceTest {
         new HashSet<>(jars), new HashSet<>(pluginsService.getPluginJars(folder.getRoot())));
   }
 
-  public static class LoadTestPlugin extends Plugin implements MetricsPlugin {
+  public static class LoadTestPlugin extends Plugin {
     public LuceneServerConfiguration config;
     public CollectorRegistry collectorRegistry;
 
     public LoadTestPlugin(LuceneServerConfiguration config) {
+      this.config = config;
+    }
+
+    /**
+     * This method shouldn't be called as this class doesn't implement MetricsPlugin
+     *
+     * @param collectorRegistry Prometheus collector registry.
+     */
+    public void registerMetrics(CollectorRegistry collectorRegistry) {
+      this.collectorRegistry = collectorRegistry;
+    }
+  }
+
+  public static class LoadTestPluginWithMetrics extends Plugin implements MetricsPlugin {
+    public LuceneServerConfiguration config;
+    public CollectorRegistry collectorRegistry;
+
+    public LoadTestPluginWithMetrics(LuceneServerConfiguration config) {
       this.config = config;
     }
 
@@ -175,7 +193,15 @@ public class PluginsServiceTest {
     CollectorRegistry collectorRegistry = getCollectorRegistry();
     PluginsService pluginsService = new PluginsService(getEmptyConfig(), collectorRegistry);
     Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPlugin.class);
-    assertEquals(collectorRegistry, ((LoadTestPlugin) loadedPlugin).collectorRegistry);
+    assertEquals(null, ((LoadTestPlugin) loadedPlugin).collectorRegistry);
+  }
+
+  @Test
+  public void testGetPluginInstanceWithMetrics() {
+    CollectorRegistry collectorRegistry = getCollectorRegistry();
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), collectorRegistry);
+    Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPluginWithMetrics.class);
+    assertEquals(collectorRegistry, ((LoadTestPluginWithMetrics) loadedPlugin).collectorRegistry);
   }
 
   @Test
