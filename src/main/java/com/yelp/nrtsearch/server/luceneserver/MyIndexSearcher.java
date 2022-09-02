@@ -33,6 +33,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.util.Bits;
 
 /**
@@ -250,7 +251,8 @@ public class MyIndexSearcher extends IndexSearcher {
         // continue with the following leaf
         continue;
       }
-      if (weight.getQuery().toString().contains("DrillSidewaysQuery")) {
+      if (weight.getQuery().toString().contains("DrillSidewaysQuery")
+          || weight.getQuery() instanceof CompletionQuery) {
         BulkScorer scorer = weight.bulkScorer(ctx);
         if (scorer != null) {
           try {
