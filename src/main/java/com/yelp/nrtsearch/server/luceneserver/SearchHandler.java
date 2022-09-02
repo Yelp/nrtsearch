@@ -71,7 +71,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
-import org.apache.lucene.search.suggest.document.SuggestIndexSearcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -171,11 +170,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
             .addAllFacetResult(
                 FacetTopDocs.facetTopDocsSample(
                     hits, searchRequest.getFacetsList(), indexState, s.searcher, diagnostics));
-      } else if (isCompletionQuery(searchContext)) {
-        SuggestIndexSearcher suggestIndexSearcher =
-            new SuggestIndexSearcher(s.searcher.getIndexReader());
-        CompletionQuery completionQuery = (CompletionQuery) searchContext.getQuery();
-        hits = suggestIndexSearcher.suggest(completionQuery, searchContext.getTopHits(), true);
       } else {
         searcherResult =
             s.searcher.search(
