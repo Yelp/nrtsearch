@@ -141,7 +141,7 @@ public class PluginsServiceTest {
     }
 
     @Override
-    public void registerCollectorRegistry(CollectorRegistry collectorRegistry) {
+    public void registerMetrics(CollectorRegistry collectorRegistry) {
       this.collectorRegistry = collectorRegistry;
     }
   }

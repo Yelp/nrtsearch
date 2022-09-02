@@ -184,7 +184,7 @@ public class PluginsService {
               .getDeclaredConstructor(new Class[] {LuceneServerConfiguration.class})
               .newInstance(config);
       if (pClass instanceof MetricsPlugin) {
-        ((MetricsPlugin) pClass).registerCollectorRegistry(collectorRegistry);
+        ((MetricsPlugin) pClass).registerMetrics(collectorRegistry);
       }
       return pClass;
     } catch (Exception e) {
