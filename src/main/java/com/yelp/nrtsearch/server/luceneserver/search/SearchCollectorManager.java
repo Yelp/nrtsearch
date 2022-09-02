@@ -137,9 +137,10 @@ public class SearchCollectorManager
     }
 
     /**
-     * Note on instanceof TopSuggestDocsCollector:
-     * {@link org.apache.lucene.search.suggest.document.CompletionScorer#score(LeafCollector, Bits)}, which is used for {@link org.apache.lucene.search.suggest.document.CompletionQuery}
-     * requires collector to be an instance of TopSuggestDocsCollector
+     * Note on instanceof TopSuggestDocsCollector: {@link
+     * org.apache.lucene.search.suggest.document.CompletionScorer#score(LeafCollector, Bits)}, which
+     * is used for {@link org.apache.lucene.search.suggest.document.CompletionQuery} requires
+     * collector to be an instance of TopSuggestDocsCollector
      */
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
