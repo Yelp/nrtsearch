@@ -280,10 +280,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     return searchContext.getResponseBuilder().build();
   }
 
-  private boolean isCompletionQuery(SearchContext searchContext) {
-    return searchContext.getQuery() instanceof CompletionQuery;
-  }
-
   /**
    * Fetch/compute field values for the top hits. This operation may be done in parallel, based on
    * the setting for the fetch thread pool. In addition to filling hit fields, any query {@link
