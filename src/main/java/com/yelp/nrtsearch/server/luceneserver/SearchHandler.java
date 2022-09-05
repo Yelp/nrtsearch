@@ -70,7 +70,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
