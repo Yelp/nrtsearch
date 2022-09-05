@@ -211,15 +211,21 @@ message ExistsQuery {
 }
 
 enum CompletionQueryType {
-    PREFIX_QUERY = 0; // PrefixCompletionQuery within ContextCompletionQuery
-    FUZZY_QUERY = 1; // FuzzyCompletionQuery within ContextCompletionQuery
+    // PrefixCompletionQuery within ContextCompletionQuery
+    PREFIX_QUERY = 0;
+    // FuzzyCompletionQuery within ContextCompletionQuery
+    FUZZY_QUERY = 1;
 }
 
 // A query used for suggest completion
 message CompletionQuery {
-    string field = 1; // Field in the document to query, must be a SuggestField
+    // Name of the field in the document to query, must be a SuggestField
+    string field = 1;
+    // Completion query type, used when constructing the lucene completion query
     CompletionQueryType queryType = 2;
+    // Completion text to be used in completion query
     string text = 3;
+    // List of contexts to filter by. Each result will have at least one of the contexts specified
     repeated string contexts = 4;
 }
 
