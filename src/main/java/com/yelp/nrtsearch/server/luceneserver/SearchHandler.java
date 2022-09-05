@@ -178,11 +178,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
 
       // add results from any extra collectors
-      if (searcherResult != null) {
-        searchContext
-            .getResponseBuilder()
-            .putAllCollectorResults(searcherResult.getCollectorResults());
-      }
+      searchContext
+          .getResponseBuilder()
+          .putAllCollectorResults(searcherResult.getCollectorResults());
 
       searchContext.getResponseBuilder().setHitTimeout(searchContext.getCollector().hadTimeout());
       searchContext
