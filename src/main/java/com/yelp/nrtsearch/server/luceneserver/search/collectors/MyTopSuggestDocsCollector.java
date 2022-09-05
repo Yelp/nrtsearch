@@ -35,6 +35,9 @@ public class MyTopSuggestDocsCollector extends DocCollector {
       List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
           additionalCollectors) {
     super(context, additionalCollectors);
+    if (!additionalCollectors.isEmpty()) {
+      throw new IllegalArgumentException("additionalCollectors must be empty");
+    }
     manager = new MyTopSuggestDocsCollectorManager(getNumHitsToCollect());
   }
 
