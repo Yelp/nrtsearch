@@ -222,6 +222,53 @@ public class HighlightTest extends ServerTestCase {
     }
   }
 
+  @Test
+  public void testHighlightMaxNumFragmentsZeroGlobal() {
+    Settings globalSettings =
+        Settings.newBuilder()
+            .setFragmentSize(UInt32Value.newBuilder().setValue(10))
+            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(0))
+            .build();
+    Highlight highlight =
+        Highlight.newBuilder().setSettings(globalSettings).addFields("comment").build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly("the <em>food</em> here is amazing, service was good");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly(
+            "This is my first time eating at this restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite food was chilly chicken.");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
+  }
+
+  @Test
+  public void testHighlightMaxNumFragmentsZeroForField() {
+    Settings globalSettings =
+        Settings.newBuilder()
+            .setFragmentSize(UInt32Value.newBuilder().setValue(10))
+            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(1))
+            .build();
+    Settings fieldSettings =
+        Settings.newBuilder()
+            .setFragmentSize(UInt32Value.newBuilder().setValue(10))
+            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(0))
+            .build();
+    Highlight highlight =
+        Highlight.newBuilder()
+            .setSettings(globalSettings)
+            .addFields("comment")
+            .putFieldSettings("comment", fieldSettings)
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly("the <em>food</em> here is amazing, service was good");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly(
+            "This is my first time eating at this restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite food was chilly chicken.");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
+  }
+
   private String indexName() {
     return getIndices().get(0);
   }

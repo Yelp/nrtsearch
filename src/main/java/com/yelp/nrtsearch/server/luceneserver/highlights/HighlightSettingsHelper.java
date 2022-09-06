@@ -72,21 +72,21 @@ public class HighlightSettingsHelper {
                     !settings.getPostTagsList().isEmpty()
                         ? settings.getPostTagsList().toArray(new String[0])
                         : globalSettings.getPostTags())
-                .withMaxNumFragments(
-                    settings.hasMaxNumberOfFragments()
-                        ? settings.getMaxNumberOfFragments().getValue()
-                        : globalSettings.getMaxNumFragments())
+                .withFragmentSize(
+                    settings.hasFragmentSize()
+                        ? settings.getFragmentSize().getValue()
+                        : globalSettings.getFragmentSize())
                 .withFieldQuery(
                     settings.hasHighlightQuery()
                         ? getFieldQuery(indexReader, indexState, settings)
                         : globalSettings.getFieldQuery());
-        if (!settings.hasFragmentSize()) {
-          builder.withFragmentSize(globalSettings.getFragmentSize());
+        if (!settings.hasMaxNumberOfFragments()) {
+          builder.withMaxNumFragments(globalSettings.getMaxNumFragments());
         } else {
-          if (settings.getFragmentSize().getValue() == 0) {
+          if (settings.getMaxNumberOfFragments().getValue() == 0) {
             builder.withMaxNumFragments(Integer.MAX_VALUE).withFragmentSize(Integer.MAX_VALUE);
           } else {
-            builder.withFragmentSize(settings.getFragmentSize().getValue());
+            builder.withMaxNumFragments(settings.getMaxNumberOfFragments().getValue());
           }
         }
         HighlightSettings highlightSettings = builder.build();
@@ -112,7 +112,7 @@ public class HighlightSettingsHelper {
             ? DEFAULT_POST_TAGS
             : settings.getPostTagsList().toArray(new String[0]));
 
-    if (settings.hasFragmentSize() && settings.getFragmentSize().getValue() == 0) {
+    if (settings.hasMaxNumberOfFragments() && settings.getMaxNumberOfFragments().getValue() == 0) {
       builder.withMaxNumFragments(Integer.MAX_VALUE).withFragmentSize(Integer.MAX_VALUE);
     } else {
       builder
