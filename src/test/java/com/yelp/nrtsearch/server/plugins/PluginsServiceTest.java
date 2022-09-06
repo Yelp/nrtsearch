@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import io.prometheus.client.CollectorRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -44,10 +45,14 @@ public class PluginsServiceTest {
     return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
   }
 
+  private CollectorRegistry getCollectorRegistry() {
+    return new CollectorRegistry();
+  }
+
   @Test
   public void testGetSinglePluginSearchPath() {
     LuceneServerConfiguration config = getConfigWithSearchPath("some/plugin/path");
-    PluginsService pluginsService = new PluginsService(config);
+    PluginsService pluginsService = new PluginsService(config, getCollectorRegistry());
     List<File> expectedPaths = new ArrayList<>();
     expectedPaths.add(new File("some/plugin/path"));
     assertEquals(expectedPaths, pluginsService.getPluginSearchPath());
@@ -63,7 +68,7 @@ public class PluginsServiceTest {
             + "some3/plugin3/path3"
             + File.pathSeparator;
     LuceneServerConfiguration config = getConfigWithSearchPath(searchPath);
-    PluginsService pluginsService = new PluginsService(config);
+    PluginsService pluginsService = new PluginsService(config, getCollectorRegistry());
     List<File> expectedPaths = new ArrayList<>();
     expectedPaths.add(new File("some1/plugin1/path1"));
     expectedPaths.add(new File("some2/plugin2/path2"));
@@ -76,7 +81,7 @@ public class PluginsServiceTest {
     File plugin1 = folder.newFolder("plugin1");
     File plugin2 = folder.newFolder("plugin2");
     File plugin3 = folder.newFolder("plugin3");
-    PluginsService pluginsService = new PluginsService(getEmptyConfig());
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
     assertEquals(
         plugin1,
         pluginsService.findPluginInstallDir(
@@ -94,7 +99,7 @@ public class PluginsServiceTest {
   @Test(expected = IllegalArgumentException.class)
   public void testFindPluginInstallDirNotFound() throws IOException {
     folder.newFolder("plugin1");
-    PluginsService pluginsService = new PluginsService(getEmptyConfig());
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
     pluginsService.findPluginInstallDir("invalid", Collections.singletonList(folder.getRoot()));
   }
 
@@ -109,7 +114,7 @@ public class PluginsServiceTest {
     File installDir = folder.newFolder("dir2", "plugin3");
     folder.newFolder("dir3", "plugin3");
     folder.newFolder("dir3", "plugin4");
-    PluginsService pluginsService = new PluginsService(getEmptyConfig());
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
     assertEquals(installDir, pluginsService.findPluginInstallDir("plugin3", searchPath));
   }
 
@@ -122,22 +127,46 @@ public class PluginsServiceTest {
     folder.newFile("not_jar");
     folder.newFile("some_file.txt");
     folder.newFolder("some_folder.jar");
-    PluginsService pluginsService = new PluginsService(getEmptyConfig());
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
     assertEquals(
         new HashSet<>(jars), new HashSet<>(pluginsService.getPluginJars(folder.getRoot())));
   }
 
   public static class LoadTestPlugin extends Plugin {
     public LuceneServerConfiguration config;
+    public CollectorRegistry collectorRegistry;
 
     public LoadTestPlugin(LuceneServerConfiguration config) {
       this.config = config;
+    }
+
+    /**
+     * This method shouldn't be called as this class doesn't implement MetricsPlugin
+     *
+     * @param collectorRegistry Prometheus collector registry.
+     */
+    public void registerMetrics(CollectorRegistry collectorRegistry) {
+      this.collectorRegistry = collectorRegistry;
+    }
+  }
+
+  public static class LoadTestPluginWithMetrics extends Plugin implements MetricsPlugin {
+    public LuceneServerConfiguration config;
+    public CollectorRegistry collectorRegistry;
+
+    public LoadTestPluginWithMetrics(LuceneServerConfiguration config) {
+      this.config = config;
+    }
+
+    @Override
+    public void registerMetrics(CollectorRegistry collectorRegistry) {
+      this.collectorRegistry = collectorRegistry;
     }
   }
 
   @Test
   public void testGetPluginClass() {
-    PluginsService pluginsService = new PluginsService(getEmptyConfig());
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
     Class<? extends Plugin> clazz =
         pluginsService.getPluginClass(
             Collections.emptyList(),
@@ -147,29 +176,38 @@ public class PluginsServiceTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testGetPluginClassNotFound() {
-    PluginsService pluginsService = new PluginsService(getEmptyConfig());
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
     pluginsService.getPluginClass(
         Collections.emptyList(), "com.yelp.nrtsearch.server.plugins.NotClass");
   }
 
   @Test(expected = IllegalArgumentException.class)
   public void testGetPluginClassNotPlugin() {
-    PluginsService pluginsService = new PluginsService(getEmptyConfig());
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
     pluginsService.getPluginClass(
         Collections.emptyList(), "com.yelp.nrtsearch.server.plugins.PluginServiceTest");
   }
 
   @Test
   public void testGetPluginInstance() {
-    PluginsService pluginsService = new PluginsService(getEmptyConfig());
+    CollectorRegistry collectorRegistry = getCollectorRegistry();
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), collectorRegistry);
     Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPlugin.class);
-    assertEquals(LoadTestPlugin.class, loadedPlugin.getClass());
+    assertEquals(null, ((LoadTestPlugin) loadedPlugin).collectorRegistry);
+  }
+
+  @Test
+  public void testGetPluginInstanceWithMetrics() {
+    CollectorRegistry collectorRegistry = getCollectorRegistry();
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), collectorRegistry);
+    Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPluginWithMetrics.class);
+    assertEquals(collectorRegistry, ((LoadTestPluginWithMetrics) loadedPlugin).collectorRegistry);
   }
 
   @Test
   public void testGetPluginInstanceHasConfig() {
     LuceneServerConfiguration config = getEmptyConfig();
-    PluginsService pluginsService = new PluginsService(config);
+    PluginsService pluginsService = new PluginsService(config, getCollectorRegistry());
     Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPlugin.class);
     LoadTestPlugin loadTestPlugin = (LoadTestPlugin) loadedPlugin;
     assertSame(config, loadTestPlugin.config);
