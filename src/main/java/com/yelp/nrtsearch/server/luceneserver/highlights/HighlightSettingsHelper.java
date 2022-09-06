@@ -86,7 +86,7 @@ public class HighlightSettingsHelper {
           if (settings.getMaxNumberOfFragments().getValue() == 0) {
             builder.withMaxNumFragments(Integer.MAX_VALUE).withFragmentSize(Integer.MAX_VALUE);
           } else {
-            builder.withMaxNumFragments(settings.getFragmentSize().getValue());
+            builder.withMaxNumFragments(settings.getMaxNumberOfFragments().getValue());
           }
         }
         HighlightSettings highlightSettings = builder.build();
