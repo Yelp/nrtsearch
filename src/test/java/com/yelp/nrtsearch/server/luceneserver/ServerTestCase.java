@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 
+import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
@@ -169,6 +170,17 @@ public class ServerTestCase {
     Stream<AddDocumentRequest> requestStream =
         new LuceneServerClientBuilder.AddDocumentsClientBuilder(index, csvParser)
             .buildRequest(filePath);
+    addDocuments(requestStream);
+  }
+
+  public static void addDocsFromJsonResourceFile(String index, String resourceFile)
+      throws Exception {
+    Path filePath = Paths.get(ServerTestCase.class.getResource(resourceFile).toURI());
+    int maxBufferLen = 10;
+    Stream<AddDocumentRequest> requestStream =
+        new LuceneServerClientBuilder.AddJsonDocumentsClientBuilder(
+                index, new Gson(), filePath, maxBufferLen)
+            .buildRequest();
     addDocuments(requestStream);
   }
 

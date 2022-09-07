@@ -32,6 +32,8 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
+import org.apache.lucene.util.Bits;
 
 /**
  * Primary {@link CollectorManager} used for search. Wraps collection of top documents and any
@@ -134,8 +136,17 @@ public class SearchCollectorManager
       }
     }
 
+    /**
+     * Note on instanceof TopSuggestDocsCollector: {@link
+     * org.apache.lucene.search.suggest.document.CompletionScorer#score(LeafCollector, Bits)}, which
+     * is used for {@link org.apache.lucene.search.suggest.document.CompletionQuery} requires
+     * collector to be an instance of TopSuggestDocsCollector
+     */
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+      if (this.hitCollector instanceof TopSuggestDocsCollector) {
+        return this.hitCollector.getLeafCollector(context);
+      }
       return new SearchLeafCollector(context);
     }
 

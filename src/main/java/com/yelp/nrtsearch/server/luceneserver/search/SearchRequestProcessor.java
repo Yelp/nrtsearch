@@ -44,6 +44,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreator
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.HitCountCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.LargeNumHitsCollector;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.MyTopSuggestDocsCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.RelevanceCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.SortFieldCollector;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
@@ -328,7 +329,9 @@ public class SearchRequestProcessor {
                 .collect(Collectors.toList());
 
     DocCollector docCollector;
-    if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
+    if (searchRequest.getQuery().hasCompletionQuery()) {
+      docCollector = new MyTopSuggestDocsCollector(collectorCreatorContext, additionalCollectors);
+    } else if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
       if (hasLargeNumHits(searchRequest)) {
         docCollector = new LargeNumHitsCollector(collectorCreatorContext, additionalCollectors);
       } else {
