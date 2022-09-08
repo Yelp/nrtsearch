@@ -19,11 +19,14 @@ import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 
@@ -68,9 +71,18 @@ public class MyTopSuggestDocsCollector extends DocCollector {
 
     @Override
     public TopSuggestDocsCollector newCollector() throws IOException {
-      return new TopSuggestDocsCollector(this.numHitsToCollect, true);
+      return new TopSuggestDocsCollector(this.numHitsToCollect, false);
     }
 
+    /**
+     * Merges results from multiple collectors to a single TopSuggestDocs. Keeps the highest score
+     * SuggestScoreDoc objects, unique per docId and limited to `numHitsToCollect`.
+     *
+     * @param collectors collection of collectors
+     * @return final TopSuggestDocs, containing the top (my score) SuggestScoreDoc results, unique
+     *     by docId
+     * @throws IOException on error collecting results from collector
+     */
     @Override
     public TopSuggestDocs reduce(Collection<TopSuggestDocsCollector> collectors)
         throws IOException {
@@ -79,7 +91,35 @@ public class MyTopSuggestDocsCollector extends DocCollector {
       for (TopSuggestDocsCollector collector : collectors) {
         topDocs[i++] = collector.get();
       }
-      return TopSuggestDocs.merge(numHitsToCollect, topDocs);
+
+      // create a map with docId for key and the best SuggestScoreDoc with the docId
+      // the "best" suggestScoreDoc is the one with the highest score
+      Map<Integer, TopSuggestDocs.SuggestScoreDoc> topSuggestScoreDocsUniqueByDoc = new HashMap<>();
+      for (TopSuggestDocs topSuggestDocs : topDocs) {
+        for (TopSuggestDocs.SuggestScoreDoc currentSearchSuggestDoc :
+            topSuggestDocs.scoreLookupDocs()) {
+          int docId = currentSearchSuggestDoc.doc;
+          if (topSuggestScoreDocsUniqueByDoc.containsKey(docId)) {
+            TopSuggestDocs.SuggestScoreDoc existingSearchSuggestDocForDocId =
+                topSuggestScoreDocsUniqueByDoc.get(docId);
+            if (existingSearchSuggestDocForDocId.score < currentSearchSuggestDoc.score) {
+              topSuggestScoreDocsUniqueByDoc.put(docId, currentSearchSuggestDoc);
+            }
+          } else {
+            topSuggestScoreDocsUniqueByDoc.put(docId, currentSearchSuggestDoc);
+          }
+        }
+      }
+
+      // retrieve the top this.numHitsToCollect suggestScoreDocs, sorting them by score
+      TopSuggestDocs.SuggestScoreDoc[] suggestScoreDocs =
+          topSuggestScoreDocsUniqueByDoc.values().stream()
+              .sorted((o1, o2) -> -1 * Float.compare(o1.score, o2.score)) // highest score first
+              .limit(this.numHitsToCollect)
+              .toArray(TopSuggestDocs.SuggestScoreDoc[]::new);
+
+      return new TopSuggestDocs(
+          new TotalHits(this.numHitsToCollect, TotalHits.Relation.EQUAL_TO), suggestScoreDocs);
     }
   }
 }
