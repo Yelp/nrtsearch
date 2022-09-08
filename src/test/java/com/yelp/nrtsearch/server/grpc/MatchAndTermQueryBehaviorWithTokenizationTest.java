@@ -56,6 +56,21 @@ public class MatchAndTermQueryBehaviorWithTokenizationTest extends ServerTestCas
                         .setType(FieldType.TEXT)
                         .setSearch(true)
                         .setTokenize(true)
+                        .setStoreDocValues(true))
+                .addChildFields(
+                    Field.newBuilder()
+                        .setName("keyword_tokenized")
+                        .setType(FieldType.TEXT)
+                        .setAnalyzer(
+                            Analyzer.newBuilder()
+                                .setCustom(
+                                    CustomAnalyzer.newBuilder()
+                                        .addTokenFilters(
+                                            NameAndParams.newBuilder().setName("lowercase"))
+                                        .setTokenizer(
+                                            NameAndParams.newBuilder().setName("keyword"))))
+                        .setSearch(true)
+                        .setTokenize(true)
                         .setStoreDocValues(true)))
         .build();
   }
@@ -116,6 +131,20 @@ public class MatchAndTermQueryBehaviorWithTokenizationTest extends ServerTestCas
   }
 
   @Test
+  public void testMatchQuery_keyword_tokenized_A() {
+    SearchResponse response = doSearch(createMatchQuery("tag.keyword_tokenized", "A"));
+
+    assertThat(getDocIds(response)).containsExactlyInAnyOrder("1", "2");
+  }
+
+  @Test
+  public void testMatchQuery_keyword_tokenized_a() {
+    SearchResponse response = doSearch(createMatchQuery("tag.keyword_tokenized", "a"));
+
+    assertThat(getDocIds(response)).containsExactlyInAnyOrder("1", "2");
+  }
+
+  @Test
   public void testTermQuery_a() {
     SearchResponse response = doSearch(createTermQuery("tag", "a"));
 
@@ -140,6 +169,22 @@ public class MatchAndTermQueryBehaviorWithTokenizationTest extends ServerTestCas
   @Test
   public void testTermQuery_A_tokenized() {
     SearchResponse response = doSearch(createTermQuery("tag.tokenized", "A"));
+
+    // Term query on tokenized field doesn't return exact match
+    assertThat(getDocIds(response)).isEmpty();
+  }
+
+  @Test
+  public void testTermQuery_a_keyword_tokenized() {
+    SearchResponse response = doSearch(createTermQuery("tag.keyword_tokenized", "a"));
+
+    // Term query on tokenized field doesn't return exact match
+    assertThat(getDocIds(response)).containsExactlyInAnyOrder("1", "2");
+  }
+
+  @Test
+  public void testTermQuery_A_keyword_tokenized() {
+    SearchResponse response = doSearch(createTermQuery("tag.keyword_tokenized", "A"));
 
     // Term query on tokenized field doesn't return exact match
     assertThat(getDocIds(response)).isEmpty();
