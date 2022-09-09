@@ -22,6 +22,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ScoreDoc;
@@ -71,7 +73,7 @@ public class MyTopSuggestDocsCollector extends DocCollector {
 
     @Override
     public TopSuggestDocsCollector newCollector() throws IOException {
-      return new TopSuggestDocsCollector(this.numHitsToCollect, false);
+      return new ExhaustiveTopSuggestDocsCollector(this.numHitsToCollect);
     }
 
     /**
@@ -120,6 +122,90 @@ public class MyTopSuggestDocsCollector extends DocCollector {
 
       return new TopSuggestDocs(
           new TotalHits(this.numHitsToCollect, TotalHits.Relation.EQUAL_TO), suggestScoreDocs);
+    }
+  }
+
+  public static class ExhaustiveTopSuggestDocsCollector extends TopSuggestDocsCollector {
+    private final SuggestScoreDocPriorityQueue priorityQueue;
+
+    public ExhaustiveTopSuggestDocsCollector(int num) {
+      super(num, false);
+      priorityQueue = new SuggestScoreDocPriorityQueue(num);
+    }
+
+    @Override
+    protected void doSetNextReader(LeafReaderContext context) {
+      docBase = context.docBase;
+      // clears priority queue
+      priorityQueue.getResults();
+    }
+
+    @Override
+    public void collect(int docID, CharSequence key, CharSequence context, float score)
+        throws IOException {
+      TopSuggestDocs.SuggestScoreDoc suggestScoreDoc =
+          new TopSuggestDocs.SuggestScoreDoc(docBase + docID, key, context, score);
+      priorityQueue.add(suggestScoreDoc);
+    }
+
+    @Override
+    public TopSuggestDocs get() throws IOException {
+      TopSuggestDocs.SuggestScoreDoc[] results = priorityQueue.getResults();
+      if (results.length > 0) {
+        return new TopSuggestDocs(
+            new TotalHits(results.length, TotalHits.Relation.EQUAL_TO), results);
+      } else {
+        return TopSuggestDocs.EMPTY;
+      }
+    }
+  }
+
+  public static class SuggestScoreDocPriorityQueue {
+    private final Map<Integer, TopSuggestDocs.SuggestScoreDoc> docIdsMap;
+    private final PriorityQueue<TopSuggestDocs.SuggestScoreDoc> priorityQueue;
+
+    public SuggestScoreDocPriorityQueue(int num) {
+      docIdsMap = new HashMap<>(num);
+      priorityQueue = new PriorityQueue<>(num, (o1, o2) -> -1 * Float.compare(o1.score, o2.score));
+    }
+
+    /**
+     * Adds the suggestScoreDoc to the queue on the condition that: 1. SuggestScoreDoc with the same
+     * docId and greater score has not been collected before 2. The suggestScoreDoc's score is
+     * higher than the lowest score previously collected
+     *
+     * @param suggestScoreDoc document to add to the queue
+     * @return `true` if the operation changed the state of the queue, `false` otherwise
+     */
+    public boolean add(TopSuggestDocs.SuggestScoreDoc suggestScoreDoc) {
+      if (!docIdsMap.containsKey(suggestScoreDoc.doc)
+          || docIdsMap.get(suggestScoreDoc.doc).score < suggestScoreDoc.score) {
+        TopSuggestDocs.SuggestScoreDoc previousValue =
+            docIdsMap.put(suggestScoreDoc.doc, suggestScoreDoc);
+        if (previousValue != null) {
+          // remove old value from priority queue
+          priorityQueue.remove(previousValue);
+        }
+        // add new value to priority queue
+        priorityQueue.add(suggestScoreDoc);
+      }
+      return false;
+    }
+
+    /**
+     * Poll all documents from the priority queue sorted by score. This method also clears the
+     * queue.
+     *
+     * @return sorted results by score
+     */
+    public TopSuggestDocs.SuggestScoreDoc[] getResults() {
+      int size = priorityQueue.size();
+      TopSuggestDocs.SuggestScoreDoc[] res = new TopSuggestDocs.SuggestScoreDoc[size];
+      for (int i = size - 1; i >= 0; i--) {
+        res[i] = priorityQueue.poll();
+      }
+      docIdsMap.clear();
+      return res;
     }
   }
 }
