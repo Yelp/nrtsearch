@@ -16,17 +16,42 @@
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
+import org.junit.Before;
 import org.junit.Test;
 
 public class MyTopSuggestDocsCollectorTest {
+  TopSuggestDocs.SuggestScoreDoc[][] suggestScoreDocsByCollector;
+
+  @Before
+  public void setUp() throws IOException {
+    suggestScoreDocsByCollector =
+        new TopSuggestDocs.SuggestScoreDoc[][] {
+          new TopSuggestDocs.SuggestScoreDoc[] {
+            new TopSuggestDocs.SuggestScoreDoc(1, "Pizza", "a", 11),
+            new TopSuggestDocs.SuggestScoreDoc(1, "Pizza", "b", 12),
+            new TopSuggestDocs.SuggestScoreDoc(3, "Pizza", "a", 15),
+            new TopSuggestDocs.SuggestScoreDoc(6, "Pizza", "a", 17),
+          },
+          new TopSuggestDocs.SuggestScoreDoc[] {
+            new TopSuggestDocs.SuggestScoreDoc(1, "Pizza Place", "a", 22),
+            new TopSuggestDocs.SuggestScoreDoc(2, "Pizza", "b", 12),
+            new TopSuggestDocs.SuggestScoreDoc(5, "Pizza", "a", 5),
+            new TopSuggestDocs.SuggestScoreDoc(7, "Pizza", "a", 4),
+            new TopSuggestDocs.SuggestScoreDoc(2, "Pizza Palace", "a", 25),
+            new TopSuggestDocs.SuggestScoreDoc(4, "Pizza", "a", 16),
+          }
+        };
+  }
+
   /**
    * Tests the reduce method. We simulate two collectors, each containing a different array of
    * SuggestScoreDoc. The test is designed to have docs unsorted, with same docId withing a single
@@ -47,40 +72,13 @@ public class MyTopSuggestDocsCollectorTest {
       new TopSuggestDocs.SuggestScoreDoc(3, "Pizza", "a", 15),
     };
 
-    TopSuggestDocs.SuggestScoreDoc[] suggestScoreDocsCollector1 = {
-      new TopSuggestDocs.SuggestScoreDoc(1, "Pizza", "a", 11),
-      new TopSuggestDocs.SuggestScoreDoc(1, "Pizza", "b", 11),
-      new TopSuggestDocs.SuggestScoreDoc(3, "Pizza", "a", 15),
-      new TopSuggestDocs.SuggestScoreDoc(6, "Pizza", "a", 17),
-    };
-
-    TopSuggestDocs.SuggestScoreDoc[] suggestScoreDocsCollector2 = {
-      new TopSuggestDocs.SuggestScoreDoc(1, "Pizza Place", "a", 22),
-      new TopSuggestDocs.SuggestScoreDoc(2, "Pizza", "a", 11),
-      new TopSuggestDocs.SuggestScoreDoc(2, "Pizza Palace", "a", 25),
-      new TopSuggestDocs.SuggestScoreDoc(4, "Pizza", "a", 16),
-      new TopSuggestDocs.SuggestScoreDoc(5, "Pizza", "a", 5),
-    };
-
-    TopSuggestDocs topSuggestDocsCollector1 =
-        new TopSuggestDocs(
-            new TotalHits(suggestScoreDocsCollector1.length, TotalHits.Relation.EQUAL_TO),
-            suggestScoreDocsCollector1);
-    TopSuggestDocs topSuggestDocsCollector2 =
-        new TopSuggestDocs(
-            new TotalHits(suggestScoreDocsCollector2.length, TotalHits.Relation.EQUAL_TO),
-            suggestScoreDocsCollector2);
-
-    TopSuggestDocsCollector collector1 = mock(TopSuggestDocsCollector.class);
-    when(collector1.get()).thenReturn(topSuggestDocsCollector1);
-
-    TopSuggestDocsCollector collector2 = mock(TopSuggestDocsCollector.class);
-    when(collector2.get()).thenReturn(topSuggestDocsCollector2);
-
     MyTopSuggestDocsCollector.MyTopSuggestDocsCollectorManager manager =
         new MyTopSuggestDocsCollector.MyTopSuggestDocsCollectorManager(5);
 
-    TopSuggestDocs reduced = manager.reduce(List.of(collector1, collector2));
+    Collection<TopSuggestDocsCollector> collectors =
+        this.createCollectorsAndCollectDocuments(manager);
+
+    TopSuggestDocs reduced = manager.reduce(collectors);
 
     // check total hits
     assertEquals(5, reduced.totalHits.value);
@@ -95,5 +93,69 @@ public class MyTopSuggestDocsCollectorTest {
       assertEquals(expected.doc, actual.doc);
       assertEquals(expected.context, actual.context);
     }
+  }
+
+  /**
+   * This test asserts the exhaustive behaviour of collectors. We expect collectors to keep
+   * collecting new items, even if they have lower scores than the lowest score in their queue as we
+   * can not guarantee that suggestScoreDocs collected are sorted by highest score.
+   *
+   * <p>The manager created has `numHitsToCollect = 2`, which would fill `collector2`'s queue, then
+   * pass a document with low score and then again some with higher scores.
+   *
+   * @throws IOException on error collecting results from collector
+   */
+  @Test
+  public void
+      shouldGetTopScoringSuggestScoreDocsUniqueByIdWithUnorderedSuggestDocsOverflowingCollectorQueue()
+          throws IOException {
+    TopSuggestDocs.SuggestScoreDoc[] expectedFinalSuggestScoreDocs = {
+      new TopSuggestDocs.SuggestScoreDoc(2, "Pizza Palace", "a", 25),
+      new TopSuggestDocs.SuggestScoreDoc(1, "Pizza Place", "a", 22)
+    };
+
+    MyTopSuggestDocsCollector.MyTopSuggestDocsCollectorManager manager =
+        new MyTopSuggestDocsCollector.MyTopSuggestDocsCollectorManager(2);
+
+    Collection<TopSuggestDocsCollector> collectors =
+        this.createCollectorsAndCollectDocuments(manager);
+    TopSuggestDocs reduced = manager.reduce(collectors);
+
+    // check total hits
+    assertEquals(2, reduced.totalHits.value);
+    assertEquals(TotalHits.Relation.EQUAL_TO, reduced.totalHits.relation);
+
+    // check suggest score docs
+    assertEquals(expectedFinalSuggestScoreDocs.length, reduced.scoreDocs.length);
+    for (int i = 0; i < expectedFinalSuggestScoreDocs.length; i++) {
+      TopSuggestDocs.SuggestScoreDoc expected = expectedFinalSuggestScoreDocs[i];
+      TopSuggestDocs.SuggestScoreDoc actual = reduced.scoreLookupDocs()[i];
+      assertEquals(expected.score, actual.score, 0.001);
+      assertEquals(expected.doc, actual.doc);
+      assertEquals(expected.context, actual.context);
+    }
+  }
+
+  private Collection<TopSuggestDocsCollector> createCollectorsAndCollectDocuments(
+      MyTopSuggestDocsCollector.MyTopSuggestDocsCollectorManager manager) throws IOException {
+    List<TopSuggestDocsCollector> collectors = new LinkedList<>();
+    for (TopSuggestDocs.SuggestScoreDoc[] suggestScoreDocsForCollector :
+        suggestScoreDocsByCollector) {
+      TopSuggestDocsCollector topSuggestDocsCollector = manager.newCollector();
+      for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : suggestScoreDocsForCollector) {
+        try {
+          topSuggestDocsCollector.collect(
+              suggestScoreDoc.doc,
+              suggestScoreDoc.key,
+              suggestScoreDoc.context,
+              suggestScoreDoc.score);
+        } catch (CollectionTerminatedException e) {
+          // simulate break on collection terminated
+          break;
+        }
+      }
+      collectors.add(topSuggestDocsCollector);
+    }
+    return collectors;
   }
 }
