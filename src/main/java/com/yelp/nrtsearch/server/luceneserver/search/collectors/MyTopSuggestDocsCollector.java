@@ -19,7 +19,9 @@ import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -29,10 +31,22 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 
 public class MyTopSuggestDocsCollector extends DocCollector {
+  private static final Comparator<TopSuggestDocs.SuggestScoreDoc> SUGGEST_SCORE_DOC_COMPARATOR =
+      (a, b) -> {
+        // sort by higher score
+        int cmp = Float.compare(b.score, a.score);
+        if (cmp == 0) {
+          // tie-break by completion key
+          return Lookup.CHARSEQUENCE_COMPARATOR.compare(a.key, b.key);
+        }
+        return cmp;
+      };
+
   private final MyTopSuggestDocsCollectorManager manager;
 
   public MyTopSuggestDocsCollector(
@@ -88,35 +102,15 @@ public class MyTopSuggestDocsCollector extends DocCollector {
     @Override
     public TopSuggestDocs reduce(Collection<TopSuggestDocsCollector> collectors)
         throws IOException {
-      final TopSuggestDocs[] topDocs = new TopSuggestDocs[collectors.size()];
-      int i = 0;
+      final List<TopSuggestDocs.SuggestScoreDoc> topDocs = new LinkedList<>();
       for (TopSuggestDocsCollector collector : collectors) {
-        topDocs[i++] = collector.get();
-      }
-
-      // create a map with docId for key and the best SuggestScoreDoc with the docId
-      // the "best" suggestScoreDoc is the one with the highest score
-      Map<Integer, TopSuggestDocs.SuggestScoreDoc> topSuggestScoreDocsUniqueByDoc = new HashMap<>();
-      for (TopSuggestDocs topSuggestDocs : topDocs) {
-        for (TopSuggestDocs.SuggestScoreDoc currentSearchSuggestDoc :
-            topSuggestDocs.scoreLookupDocs()) {
-          int docId = currentSearchSuggestDoc.doc;
-          if (topSuggestScoreDocsUniqueByDoc.containsKey(docId)) {
-            TopSuggestDocs.SuggestScoreDoc existingSearchSuggestDocForDocId =
-                topSuggestScoreDocsUniqueByDoc.get(docId);
-            if (existingSearchSuggestDocForDocId.score < currentSearchSuggestDoc.score) {
-              topSuggestScoreDocsUniqueByDoc.put(docId, currentSearchSuggestDoc);
-            }
-          } else {
-            topSuggestScoreDocsUniqueByDoc.put(docId, currentSearchSuggestDoc);
-          }
-        }
+        topDocs.addAll(List.of(collector.get().scoreLookupDocs()));
       }
 
       // retrieve the top this.numHitsToCollect suggestScoreDocs, sorting them by score
       TopSuggestDocs.SuggestScoreDoc[] suggestScoreDocs =
-          topSuggestScoreDocsUniqueByDoc.values().stream()
-              .sorted((o1, o2) -> -1 * Float.compare(o1.score, o2.score)) // highest score first
+          topDocs.stream()
+              .sorted(SUGGEST_SCORE_DOC_COMPARATOR) // highest score first
               .limit(this.numHitsToCollect)
               .toArray(TopSuggestDocs.SuggestScoreDoc[]::new);
 
@@ -164,7 +158,7 @@ public class MyTopSuggestDocsCollector extends DocCollector {
 
     public SuggestScoreDocPriorityQueue(int num) {
       docIdsMap = new HashMap<>(num);
-      priorityQueue = new PriorityQueue<>(num, (o1, o2) -> -1 * Float.compare(o1.score, o2.score));
+      priorityQueue = new PriorityQueue<>(num, SUGGEST_SCORE_DOC_COMPARATOR);
     }
 
     /**
