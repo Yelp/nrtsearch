@@ -136,8 +136,6 @@ public class MyTopSuggestDocsCollector extends DocCollector {
     @Override
     protected void doSetNextReader(LeafReaderContext context) {
       docBase = context.docBase;
-      // clears priority queue
-      priorityQueue.getResults();
     }
 
     @Override
