@@ -60,6 +60,10 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
   @Override
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
+    if (!isMultiValue() && fieldValues.size() > 1) {
+      throw new IllegalArgumentException(
+          "Cannot index multiple values into single value field: " + getName());
+    }
     for (String fieldValue : fieldValues) {
       parseFieldValueToDocumentField(document, fieldValue);
     }
