@@ -33,15 +33,24 @@ public class CreateIndexCommand implements Callable<Integer> {
       required = true)
   private String indexName;
 
+  @CommandLine.Option(
+      names = {"--existsWithId"},
+      description = "UUID to identify existing state/data to use")
+  private String existsWithId;
+
   public String getIndexName() {
     return indexName;
+  }
+
+  public String getExistsWithId() {
+    return existsWithId;
   }
 
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
     try {
-      client.createIndex(getIndexName());
+      client.createIndex(getIndexName(), getExistsWithId());
     } finally {
       client.shutdown();
     }

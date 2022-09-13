@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.List;
@@ -30,7 +31,7 @@ import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxon
 import org.apache.lucene.search.Query;
 
 /** Search context class to provide all the information to perform a search. */
-public class SearchContext {
+public class SearchContext implements FieldFetchContext {
   private final IndexState indexState;
   private final ShardState shardState;
   private final SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy;
@@ -46,6 +47,7 @@ public class SearchContext {
   private final FetchTasks fetchTasks;
   private final List<RescoreTask> rescorers;
   private final SharedDocContext sharedDocContext;
+  private final HighlightFetchTask highlightFetchTask;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -62,6 +64,7 @@ public class SearchContext {
     this.fetchTasks = builder.fetchTasks;
     this.rescorers = builder.rescorers;
     this.sharedDocContext = builder.sharedDocContext;
+    this.highlightFetchTask = builder.highlightFetchTask;
 
     if (validate) {
       validate();
@@ -79,6 +82,7 @@ public class SearchContext {
   }
 
   /** Get searcher instance for query. */
+  @Override
   public SearcherAndTaxonomy getSearcherAndTaxonomy() {
     return searcherAndTaxonomy;
   }
@@ -112,6 +116,7 @@ public class SearchContext {
   }
 
   /** Get map of all fields that should be filled in the response */
+  @Override
   public Map<String, FieldDef> getRetrieveFields() {
     return retrieveFields;
   }
@@ -127,6 +132,7 @@ public class SearchContext {
   }
 
   /** Get any extra tasks that should be run during fetch */
+  @Override
   public FetchTasks getFetchTasks() {
     return fetchTasks;
   }
@@ -139,6 +145,14 @@ public class SearchContext {
   /** Get shared context accessor for documents */
   public SharedDocContext getSharedDocContext() {
     return sharedDocContext;
+  }
+
+  /**
+   * Get {@link HighlightFetchTask} which can be used to build highlights the request. Null if no
+   * highlights are specified in the request.
+   */
+  public HighlightFetchTask getHighlightFetchTask() {
+    return highlightFetchTask;
   }
 
   /** Get new context builder instance * */
@@ -170,6 +184,12 @@ public class SearchContext {
     }
   }
 
+  /** Get search context. */
+  @Override
+  public SearchContext getSearchContext() {
+    return this;
+  }
+
   /** Builder class for search context. */
   public static class Builder {
 
@@ -188,6 +208,7 @@ public class SearchContext {
     private FetchTasks fetchTasks;
     private List<RescoreTask> rescorers;
     private SharedDocContext sharedDocContext;
+    private HighlightFetchTask highlightFetchTask;
 
     private Builder() {}
 
@@ -275,6 +296,12 @@ public class SearchContext {
     /** Set shared context accessor for documents */
     public Builder setSharedDocContext(SharedDocContext sharedDocContext) {
       this.sharedDocContext = sharedDocContext;
+      return this;
+    }
+
+    /** Set fetch task to generate highlights */
+    public Builder setHighlightFetchTask(HighlightFetchTask highlightFetchTask) {
+      this.highlightFetchTask = highlightFetchTask;
       return this;
     }
 

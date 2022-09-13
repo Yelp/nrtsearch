@@ -18,24 +18,27 @@ package com.yelp.nrtsearch.server.luceneserver.state.backend;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.GLOBAL_STATE_FILE;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.GLOBAL_STATE_FOLDER;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.INDEX_STATE_FILE;
-import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.MAPPER;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.ensureDirectory;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.StateConfig;
+import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
-import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import java.io.IOException;
+import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,12 +107,12 @@ public class RemoteStateBackend implements StateBackend {
   }
 
   @Override
-  public PersistentGlobalState loadOrCreateGlobalState() throws IOException {
+  public GlobalStateInfo loadOrCreateGlobalState() throws IOException {
     logger.info("Loading remote state");
     Path downloadedPath =
         archiver.download(globalState.getConfiguration().getServiceName(), GLOBAL_STATE_RESOURCE);
     if (downloadedPath == null) {
-      PersistentGlobalState state = new PersistentGlobalState();
+      GlobalStateInfo state = GlobalStateInfo.newBuilder().build();
       logger.info("Remote state not present, initializing default");
       commitGlobalState(state);
       return state;
@@ -125,21 +128,20 @@ public class RemoteStateBackend implements StateBackend {
           downloadedStateFilePath,
           localFilePath.resolve(GLOBAL_STATE_FILE),
           StandardCopyOption.REPLACE_EXISTING);
-      PersistentGlobalState persistentGlobalState =
-          StateUtils.readStateFromFile(downloadedStateFilePath);
-      logger.info("Loaded remote state: " + MAPPER.writeValueAsString(persistentGlobalState));
-      return persistentGlobalState;
+      GlobalStateInfo globalStateInfo = StateUtils.readStateFromFile(downloadedStateFilePath);
+      logger.info("Loaded remote state: " + JsonFormat.printer().print(globalStateInfo));
+      return globalStateInfo;
     }
   }
 
   @Override
-  public void commitGlobalState(PersistentGlobalState persistentGlobalState) throws IOException {
-    Objects.requireNonNull(persistentGlobalState);
+  public void commitGlobalState(GlobalStateInfo globalStateInfo) throws IOException {
+    Objects.requireNonNull(globalStateInfo);
     logger.info("Committing global state");
     if (config.getReadOnly()) {
       throw new IllegalStateException("Cannot update remote state when configured as read only");
     }
-    StateUtils.writeStateToFile(persistentGlobalState, localFilePath, GLOBAL_STATE_FILE);
+    StateUtils.writeStateToFile(globalStateInfo, localFilePath, GLOBAL_STATE_FILE);
     String version =
         archiver.upload(
             globalState.getConfiguration().getServiceName(),
@@ -150,7 +152,7 @@ public class RemoteStateBackend implements StateBackend {
             true);
     archiver.blessVersion(
         globalState.getConfiguration().getServiceName(), GLOBAL_STATE_RESOURCE, version);
-    logger.info("Committed state: " + MAPPER.writeValueAsString(persistentGlobalState));
+    logger.info("Committed state: " + JsonFormat.printer().print(globalStateInfo));
   }
 
   @Override
@@ -164,8 +166,7 @@ public class RemoteStateBackend implements StateBackend {
       logger.info("Remote state not present for index: " + indexIdentifier);
       return null;
     } else {
-      Path downloadedStateFilePath =
-          downloadedPath.resolve(indexIdentifier).resolve(INDEX_STATE_FILE);
+      Path downloadedStateFilePath = findIndexStateFile(downloadedPath);
       if (!downloadedStateFilePath.toFile().exists()) {
         throw new IllegalStateException(
             "No index state file present in downloaded directory: " + downloadedStateFilePath);
@@ -184,6 +185,39 @@ public class RemoteStateBackend implements StateBackend {
               + " : "
               + JsonFormat.printer().print(loadedState));
       return loadedState;
+    }
+  }
+
+  /**
+   * Find the index state file in the downloaded path. Searches two levels deep for the file
+   * index_state.json
+   *
+   * @param downloadedPath path to downloaded index state from {@link Archiver}
+   * @return path to index state file
+   * @throws IOException on filesystem error
+   * @throws IllegalArgumentException if more or less than one state file is found
+   */
+  @VisibleForTesting
+  static Path findIndexStateFile(Path downloadedPath) throws IOException {
+    Objects.requireNonNull(downloadedPath);
+    List<Path> stateFiles =
+        Files.find(
+                downloadedPath,
+                2,
+                (path, attrib) -> INDEX_STATE_FILE.equals(path.getFileName().toString()),
+                FileVisitOption.FOLLOW_LINKS)
+            .collect(Collectors.toList());
+    if (stateFiles.isEmpty()) {
+      throw new IllegalArgumentException(
+          "No index state file found in downloadPath: " + downloadedPath);
+    } else if (stateFiles.size() > 1) {
+      throw new IllegalArgumentException(
+          "Multiple index state files found in downloadedPath: "
+              + downloadedPath
+              + ", files: "
+              + stateFiles);
+    } else {
+      return stateFiles.get(0);
     }
   }
 

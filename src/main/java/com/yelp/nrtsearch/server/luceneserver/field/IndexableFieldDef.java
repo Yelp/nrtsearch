@@ -194,6 +194,11 @@ public abstract class IndexableFieldDef extends FieldDef {
     return docValuesType != DocValuesType.NONE;
   }
 
+  /** Get the type of doc value used for this field. */
+  public DocValuesType getDocValuesType() {
+    return docValuesType;
+  }
+
   /**
    * Get if this field data is stored in the index. This data must be accessible via {@link
    * #getStored(Document)}.
@@ -338,5 +343,14 @@ public abstract class IndexableFieldDef extends FieldDef {
    */
   public String getDocValuesFormat() {
     return docValuesFormat;
+  }
+
+  /**
+   * Get the Lucene definition for this field.
+   *
+   * @return {link FieldType} for this field
+   */
+  public FieldType getFieldType() {
+    return fieldType;
   }
 }

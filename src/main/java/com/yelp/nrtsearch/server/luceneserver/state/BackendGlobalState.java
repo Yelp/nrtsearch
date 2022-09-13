@@ -17,12 +17,24 @@ package com.yelp.nrtsearch.server.luceneserver.state;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.config.IndexStartConfig;
+import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
+import com.yelp.nrtsearch.server.grpc.DummyResponse;
+import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
+import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
+import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.RestoreIndex;
+import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
+import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.StartIndexHandler;
+import com.yelp.nrtsearch.server.luceneserver.StartIndexHandler.StartIndexHandlerException;
 import com.yelp.nrtsearch.server.luceneserver.index.BackendStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
-import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState.IndexInfo;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.LocalStateBackend;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.StateBackend;
@@ -31,9 +43,11 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,13 +64,12 @@ public class BackendGlobalState extends GlobalState {
    * they can be updated atomically.
    */
   private static class ImmutableState {
-    public final PersistentGlobalState persistentGlobalState;
+    public final GlobalStateInfo globalStateInfo;
     public final Map<String, IndexStateManager> indexStateManagerMap;
 
     ImmutableState(
-        PersistentGlobalState persistentGlobalState,
-        Map<String, IndexStateManager> indexStateManagerMap) {
-      this.persistentGlobalState = persistentGlobalState;
+        GlobalStateInfo globalStateInfo, Map<String, IndexStateManager> indexStateManagerMap) {
+      this.globalStateInfo = globalStateInfo;
       this.indexStateManagerMap = Collections.unmodifiableMap(indexStateManagerMap);
     }
   }
@@ -64,6 +77,7 @@ public class BackendGlobalState extends GlobalState {
   // volatile for atomic replacement
   private volatile ImmutableState immutableState;
   private final StateBackend stateBackend;
+  private final Archiver legacyArchiver;
 
   /**
    * Build unique index name from index name and instance id (UUID).
@@ -89,18 +103,38 @@ public class BackendGlobalState extends GlobalState {
   public BackendGlobalState(
       LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
       throws IOException {
+    this(luceneServerConfiguration, incArchiver, null);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param luceneServerConfiguration server config
+   * @param incArchiver archiver for remote backends
+   * @param legacyArchiver legacy archiver
+   * @throws IOException on filesystem error
+   */
+  public BackendGlobalState(
+      LuceneServerConfiguration luceneServerConfiguration,
+      Archiver incArchiver,
+      Archiver legacyArchiver)
+      throws IOException {
     super(luceneServerConfiguration, incArchiver);
+    this.legacyArchiver = legacyArchiver;
     stateBackend = createStateBackend();
-    PersistentGlobalState persistentGlobalState = stateBackend.loadOrCreateGlobalState();
+    GlobalStateInfo globalStateInfo = stateBackend.loadOrCreateGlobalState();
     // init index state managers
     Map<String, IndexStateManager> managerMap = new HashMap<>();
-    for (Map.Entry<String, IndexInfo> entry : persistentGlobalState.getIndices().entrySet()) {
+    for (Map.Entry<String, IndexGlobalState> entry : globalStateInfo.getIndicesMap().entrySet()) {
       IndexStateManager stateManager =
           createIndexStateManager(entry.getKey(), entry.getValue().getId(), stateBackend);
       stateManager.load();
       managerMap.put(entry.getKey(), stateManager);
     }
-    immutableState = new ImmutableState(persistentGlobalState, managerMap);
+    immutableState = new ImmutableState(globalStateInfo, managerMap);
+    if (luceneServerConfiguration.getIndexStartConfig().getAutoStart()) {
+      updateStartedIndices(immutableState);
+    }
   }
 
   /**
@@ -146,6 +180,27 @@ public class BackendGlobalState extends GlobalState {
   }
 
   @Override
+  public synchronized void reloadStateFromBackend() throws IOException {
+    GlobalStateInfo newGlobalStateInfo = getStateBackend().loadOrCreateGlobalState();
+    Map<String, IndexStateManager> newManagerMap = new HashMap<>();
+    for (Map.Entry<String, IndexGlobalState> entry :
+        newGlobalStateInfo.getIndicesMap().entrySet()) {
+      String indexName = entry.getKey();
+      IndexStateManager stateManager = immutableState.indexStateManagerMap.get(indexName);
+      if (stateManager == null || !entry.getValue().getId().equals(stateManager.getIndexId())) {
+        stateManager = createIndexStateManager(indexName, entry.getValue().getId(), stateBackend);
+      }
+      stateManager.load();
+      newManagerMap.put(indexName, stateManager);
+    }
+    ImmutableState newImmutableState = new ImmutableState(newGlobalStateInfo, newManagerMap);
+    if (getConfiguration().getIndexStartConfig().getAutoStart()) {
+      updateStartedIndices(newImmutableState);
+    }
+    this.immutableState = newImmutableState;
+  }
+
+  @Override
   public Path getIndexDir(String indexName) {
     try {
       return getIndex(indexName).getRootDir();
@@ -156,11 +211,12 @@ public class BackendGlobalState extends GlobalState {
 
   @Override
   public String getDataResourceForIndex(String indexName) {
-    IndexInfo info = immutableState.persistentGlobalState.getIndices().get(indexName);
-    if (info == null) {
+    IndexGlobalState indexGlobalState =
+        immutableState.globalStateInfo.getIndicesMap().get(indexName);
+    if (indexGlobalState == null) {
       throw new IllegalArgumentException("index \"" + indexName + "\" was not saved or committed");
     }
-    return getUniqueIndexName(indexName, info.getId());
+    return getUniqueIndexName(indexName, indexGlobalState.getId());
   }
 
   @Override
@@ -171,28 +227,56 @@ public class BackendGlobalState extends GlobalState {
 
   @Override
   public Set<String> getIndexNames() {
-    return immutableState.persistentGlobalState.getIndices().keySet();
+    return immutableState.globalStateInfo.getIndicesMap().keySet();
+  }
+
+  @Override
+  public Set<String> getIndicesToStart() {
+    return immutableState.globalStateInfo.getIndicesMap().entrySet().stream()
+        .filter(e -> e.getValue().getStarted())
+        .map(Entry::getKey)
+        .collect(Collectors.toSet());
   }
 
   @Override
   public synchronized IndexState createIndex(String name) throws IOException {
-    if (immutableState.persistentGlobalState.getIndices().containsKey(name)) {
-      throw new IllegalArgumentException("index \"" + name + "\" already exists");
-    }
-    String indexId = getIndexId();
-    IndexStateManager stateManager = createIndexStateManager(name, indexId, stateBackend);
-    stateManager.create();
+    return createIndex(CreateIndexRequest.newBuilder().setIndexName(name).build());
+  }
 
-    Map<String, IndexInfo> updatedIndexInfoMap =
-        new HashMap<>(immutableState.persistentGlobalState.getIndices());
-    updatedIndexInfoMap.put(name, new IndexInfo(indexId));
-    PersistentGlobalState updatedState =
-        immutableState.persistentGlobalState.asBuilder().withIndices(updatedIndexInfoMap).build();
+  @Override
+  public synchronized IndexState createIndex(CreateIndexRequest createIndexRequest)
+      throws IOException {
+    String indexName = createIndexRequest.getIndexName();
+    if (immutableState.globalStateInfo.getIndicesMap().containsKey(indexName)) {
+      throw new IllegalArgumentException("index \"" + indexName + "\" already exists");
+    }
+
+    String indexId;
+    IndexStateManager stateManager;
+    if (createIndexRequest.getExistsWithId().isEmpty()) {
+      indexId = getIndexId();
+      stateManager = createIndexStateManager(indexName, indexId, stateBackend);
+      stateManager.create();
+    } else {
+      indexId = createIndexRequest.getExistsWithId();
+      stateManager = createIndexStateManager(indexName, indexId, stateBackend);
+      stateManager.load();
+    }
+
+    IndexGlobalState newIndexState =
+        IndexGlobalState.newBuilder().setId(indexId).setStarted(false).build();
+    GlobalStateInfo updatedState =
+        immutableState
+            .globalStateInfo
+            .toBuilder()
+            .putIndices(indexName, newIndexState)
+            .setGen(immutableState.globalStateInfo.getGen() + 1)
+            .build();
     stateBackend.commitGlobalState(updatedState);
 
     Map<String, IndexStateManager> updatedIndexStateManagerMap =
         new HashMap<>(immutableState.indexStateManagerMap);
-    updatedIndexStateManagerMap.put(name, stateManager);
+    updatedIndexStateManagerMap.put(indexName, stateManager);
     immutableState = new ImmutableState(updatedState, updatedIndexStateManagerMap);
 
     return stateManager.getCurrent();
@@ -219,11 +303,13 @@ public class BackendGlobalState extends GlobalState {
 
   @Override
   public synchronized void deleteIndex(String name) throws IOException {
-    Map<String, IndexInfo> updatedIndexInfoMap =
-        new HashMap<>(immutableState.persistentGlobalState.getIndices());
-    updatedIndexInfoMap.remove(name);
-    PersistentGlobalState updatedState =
-        immutableState.persistentGlobalState.asBuilder().withIndices(updatedIndexInfoMap).build();
+    GlobalStateInfo updatedState =
+        immutableState
+            .globalStateInfo
+            .toBuilder()
+            .removeIndices(name)
+            .setGen(immutableState.globalStateInfo.getGen() + 1)
+            .build();
     stateBackend.commitGlobalState(updatedState);
 
     IndexStateManager stateManager = immutableState.indexStateManagerMap.get(name);
@@ -233,6 +319,118 @@ public class BackendGlobalState extends GlobalState {
 
     immutableState = new ImmutableState(updatedState, updatedIndexStateManagerMap);
     stateManager.close();
+  }
+
+  @Override
+  public synchronized StartIndexResponse startIndex(StartIndexRequest startIndexRequest)
+      throws IOException {
+    IndexStateManager indexStateManager = getIndexStateManager(startIndexRequest.getIndexName());
+    IndexGlobalState indexGlobalState =
+        immutableState.globalStateInfo.getIndicesMap().get(startIndexRequest.getIndexName());
+
+    // this limitation exists because we do not handle backup/restore of the taxonomy index
+    // properly, which is only used in STANDALONE mode
+    if (startIndexRequest.getMode().equals(Mode.STANDALONE)
+        && getConfiguration().getIndexStartConfig().getAutoStart()
+        && getConfiguration()
+            .getIndexStartConfig()
+            .getDataLocationType()
+            .equals(IndexDataLocationType.REMOTE)) {
+      throw new IllegalArgumentException(
+          "STANDALONE index mode cannot be used with REMOTE data location type");
+    }
+
+    // If only the index name is given in the restore, rewrite to include current id
+    StartIndexRequest request;
+    if (startIndexRequest.hasRestore()
+        && startIndexRequest
+            .getRestore()
+            .getResourceName()
+            .equals(startIndexRequest.getIndexName())) {
+      request =
+          startIndexRequest
+              .toBuilder()
+              .setRestore(
+                  startIndexRequest
+                      .getRestore()
+                      .toBuilder()
+                      .setResourceName(
+                          getUniqueIndexName(
+                              startIndexRequest.getIndexName(), indexGlobalState.getId()))
+                      .build())
+              .build();
+    } else {
+      request = startIndexRequest;
+    }
+    StartIndexResponse response = startIndex(indexStateManager, request);
+
+    // update started state of index
+    if (startIndexRequest.getMode() != Mode.REPLICA && !indexGlobalState.getStarted()) {
+      IndexGlobalState updatedIndexState = indexGlobalState.toBuilder().setStarted(true).build();
+      GlobalStateInfo updatedGlobalState =
+          immutableState
+              .globalStateInfo
+              .toBuilder()
+              .putIndices(startIndexRequest.getIndexName(), updatedIndexState)
+              .setGen(immutableState.globalStateInfo.getGen() + 1)
+              .build();
+
+      stateBackend.commitGlobalState(updatedGlobalState);
+      immutableState = new ImmutableState(updatedGlobalState, immutableState.indexStateManagerMap);
+    }
+    return response;
+  }
+
+  private StartIndexResponse startIndex(
+      IndexStateManager indexStateManager, StartIndexRequest startIndexRequest) throws IOException {
+    StartIndexHandler startIndexHandler =
+        new StartIndexHandler(
+            legacyArchiver,
+            getIncArchiver().orElse(null),
+            getConfiguration().getArchiveDirectory(),
+            getConfiguration().getBackupWithInArchiver(),
+            getConfiguration().getRestoreFromIncArchiver(),
+            getConfiguration().getStateConfig().useLegacyStateManagement(),
+            indexStateManager);
+    try {
+      return startIndexHandler.handle(indexStateManager.getCurrent(), startIndexRequest);
+    } catch (StartIndexHandlerException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public synchronized DummyResponse stopIndex(StopIndexRequest stopIndexRequest)
+      throws IOException {
+    IndexStateManager indexStateManager = getIndexStateManager(stopIndexRequest.getIndexName());
+    if (!indexStateManager.getCurrent().isStarted()) {
+      throw new IllegalArgumentException(
+          "Index \"" + stopIndexRequest.getIndexName() + "\" is not started");
+    }
+    // update started state of index
+    if (!indexStateManager.getCurrent().getShard(0).isReplica()) {
+      IndexGlobalState updatedIndexState =
+          immutableState
+              .globalStateInfo
+              .getIndicesMap()
+              .get(stopIndexRequest.getIndexName())
+              .toBuilder()
+              .setStarted(false)
+              .build();
+
+      GlobalStateInfo updatedState =
+          immutableState
+              .globalStateInfo
+              .toBuilder()
+              .putIndices(stopIndexRequest.getIndexName(), updatedIndexState)
+              .setGen(immutableState.globalStateInfo.getGen() + 1)
+              .build();
+      stateBackend.commitGlobalState(updatedState);
+      immutableState = new ImmutableState(updatedState, immutableState.indexStateManagerMap);
+    }
+    indexStateManager.close();
+
+    return DummyResponse.newBuilder().setOk("ok").build();
   }
 
   @Override
@@ -247,5 +445,58 @@ public class BackendGlobalState extends GlobalState {
       IOUtils.close(immutableState.indexStateManagerMap.values());
     }
     super.close();
+  }
+
+  /**
+   * Sync started indices to that of the given global state. If the state notes an index should be
+   * started, ensure that it is, or start it using the {@link IndexStartConfig}.
+   *
+   * @param newState state to sync to
+   * @throws IOException
+   */
+  private void updateStartedIndices(ImmutableState newState) throws IOException {
+    for (Map.Entry<String, IndexGlobalState> entry :
+        newState.globalStateInfo.getIndicesMap().entrySet()) {
+      IndexStateManager indexStateManager = newState.indexStateManagerMap.get(entry.getKey());
+      if (entry.getValue().getStarted() && !indexStateManager.getCurrent().isStarted()) {
+        IndexStartConfig indexStartConfig = getConfiguration().getIndexStartConfig();
+        StartIndexRequest.Builder requestBuilder =
+            StartIndexRequest.newBuilder()
+                .setIndexName(entry.getKey())
+                .setPrimaryGen(-1)
+                .setMode(indexStartConfig.getMode());
+
+        // set primary discovery config
+        if (indexStartConfig.getMode().equals(Mode.REPLICA)) {
+          requestBuilder
+              .setPrimaryAddress(indexStartConfig.getDiscoveryHost())
+              .setPort(indexStartConfig.getDiscoveryPort())
+              .setPrimaryDiscoveryFile(indexStartConfig.getDiscoveryFile());
+        }
+
+        switch (indexStartConfig.getDataLocationType()) {
+          case LOCAL:
+            // data is present on local disk, no restore required
+            break;
+          case REMOTE:
+            // restore previous remote backup
+            requestBuilder.setRestore(
+                RestoreIndex.newBuilder()
+                    .setServiceName(getConfiguration().getServiceName())
+                    .setResourceName(getUniqueIndexName(entry.getKey(), entry.getValue().getId()))
+                    .setDeleteExistingData(true)
+                    .build());
+            break;
+          default:
+            throw new IllegalArgumentException(
+                "Unknown index data location type: " + indexStartConfig.getDataLocationType());
+        }
+
+        StartIndexRequest startIndexRequest = requestBuilder.build();
+        logger.info("Starting index: " + startIndexRequest);
+        StartIndexResponse response = startIndex(indexStateManager, requestBuilder.build());
+        logger.info("Index started: " + response);
+      }
+    }
   }
 }

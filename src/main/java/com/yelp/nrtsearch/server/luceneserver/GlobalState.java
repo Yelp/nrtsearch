@@ -18,6 +18,11 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
+import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
+import com.yelp.nrtsearch.server.grpc.DummyResponse;
+import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
+import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.LegacyGlobalState;
@@ -48,6 +53,7 @@ public abstract class GlobalState implements Closeable {
   private final Archiver incArchiver;
   private int replicaReplicationPortPingInterval;
   private final String ephemeralId = UUID.randomUUID().toString();
+  private final long generation = System.currentTimeMillis();
 
   private final String nodeName;
 
@@ -73,10 +79,18 @@ public abstract class GlobalState implements Closeable {
   public static GlobalState createState(
       LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
       throws IOException {
+    return createState(luceneServerConfiguration, incArchiver, null);
+  }
+
+  public static GlobalState createState(
+      LuceneServerConfiguration luceneServerConfiguration,
+      Archiver incArchiver,
+      Archiver legacyArchiver)
+      throws IOException {
     if (luceneServerConfiguration.getStateConfig().useLegacyStateManagement()) {
       return new LegacyGlobalState(luceneServerConfiguration, incArchiver);
     } else {
-      return new BackendGlobalState(luceneServerConfiguration, incArchiver);
+      return new BackendGlobalState(luceneServerConfiguration, incArchiver, legacyArchiver);
     }
   }
 
@@ -176,8 +190,14 @@ public abstract class GlobalState implements Closeable {
 
   public abstract Set<String> getIndexNames();
 
+  /** Get names of all indices that should be in the started state. */
+  public abstract Set<String> getIndicesToStart();
+
   /** Create a new index. */
   public abstract IndexState createIndex(String name) throws IOException;
+
+  /** Create a new index based on the given create request. */
+  public abstract IndexState createIndex(CreateIndexRequest createIndexRequest) throws IOException;
 
   public abstract IndexState getIndex(String name, boolean hasRestore) throws IOException;
 
@@ -193,8 +213,35 @@ public abstract class GlobalState implements Closeable {
    */
   public abstract IndexStateManager getIndexStateManager(String name) throws IOException;
 
+  /**
+   * Reload state from backend
+   *
+   * @return
+   * @throws IOException
+   */
+  public abstract void reloadStateFromBackend() throws IOException;
+
   /** Remove the specified index. */
   public abstract void deleteIndex(String name) throws IOException;
+
+  /**
+   * Start a created index using the given {@link StartIndexRequest}.
+   *
+   * @param startIndexRequest start request
+   * @return start response
+   * @throws IOException
+   */
+  public abstract StartIndexResponse startIndex(StartIndexRequest startIndexRequest)
+      throws IOException;
+
+  /**
+   * Stop a created index using the given {@link StopIndexRequest}.
+   *
+   * @param stopIndexRequest stop request
+   * @return stop response
+   * @throws IOException
+   */
+  public abstract DummyResponse stopIndex(StopIndexRequest stopIndexRequest) throws IOException;
 
   public abstract void indexClosed(String name);
 
@@ -220,5 +267,14 @@ public abstract class GlobalState implements Closeable {
 
   public String getEphemeralId() {
     return ephemeralId;
+  }
+
+  /**
+   * Get ephemeral, monotonically increasing value to use to start a primary index.
+   *
+   * @return generation
+   */
+  public long getGeneration() {
+    return generation;
   }
 }

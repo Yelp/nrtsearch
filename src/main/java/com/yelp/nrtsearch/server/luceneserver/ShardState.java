@@ -15,12 +15,15 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler.SearchHandlerException;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValueType;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.index.NrtIndexWriter;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.utils.FileUtil;
@@ -358,6 +361,9 @@ public class ShardState implements Closeable {
 
   /** Commit all state. */
   public synchronized long commit() throws IOException {
+    // This request may already have timed out on the client while waiting for the lock.
+    // If so, there is no reason to continue this heavyweight operation.
+    DeadlineUtils.checkDeadline("ShardState: commit " + this.name, "COMMIT");
 
     long gen;
 
@@ -512,6 +518,14 @@ public class ShardState implements Closeable {
                   entry.getKey(), entry.getValue().getFacetValueType().toString()));
         }
       }
+
+      for (Map.Entry<String, GlobalOrdinalable> entry :
+          indexState.getEagerFieldGlobalOrdinalFields().entrySet()) {
+        if (entry.getValue().usesOrdinals()) {
+          // get lookup to populate cache
+          entry.getValue().getOrdinalLookup(reader);
+        }
+      }
     }
   }
 
@@ -601,8 +615,10 @@ public class ShardState implements Closeable {
           };
 
       writer =
-          new IndexWriter(
-              indexDir, indexState.getIndexWriterConfig(openMode, origIndexDir, shardOrd));
+          new NrtIndexWriter(
+              indexDir,
+              indexState.getIndexWriterConfig(openMode, origIndexDir, shardOrd),
+              indexState.getName());
       snapshots = (PersistentSnapshotDeletionPolicy) writer.getConfig().getIndexDeletionPolicy();
 
       // NOTE: must do this after writer, because SDP only
@@ -644,8 +660,11 @@ public class ShardState implements Closeable {
   }
 
   /**
-   * Start this index as primary, to NRT-replicate to replicas. primaryGen should be incremented
-   * each time a new primary is promoted for a given index.
+   * Start this index as primary, to NRT-replicate to replicas. primaryGen should increase each time
+   * a new primary is promoted for a given index.
+   *
+   * @param primaryGen generation to use for {@link NRTPrimaryNode}, uses value from global state if
+   *     -1
    */
   public synchronized void startPrimary(long primaryGen) throws IOException {
     if (isStarted()) {
@@ -698,8 +717,10 @@ public class ShardState implements Closeable {
       boolean verbose = indexState.getGlobalState().getConfiguration().getIndexVerbose();
 
       writer =
-          new IndexWriter(
-              indexDir, indexState.getIndexWriterConfig(openMode, origIndexDir, shardOrd));
+          new NrtIndexWriter(
+              indexDir,
+              indexState.getIndexWriterConfig(openMode, origIndexDir, shardOrd),
+              indexState.getName());
       LiveIndexWriterConfig writerConfig = writer.getConfig();
       MergePolicy mergePolicy = writerConfig.getMergePolicy();
       // Disable merges while NrtPrimaryNode isn't initalized (ISSUE-210)
@@ -717,6 +738,8 @@ public class ShardState implements Closeable {
         snapshotGenToVersion.put(c.getGeneration(), sis.getVersion());
       }
 
+      long resolvedPrimaryGen =
+          primaryGen == -1 ? indexState.getGlobalState().getGeneration() : primaryGen;
       HostPort hostPort =
           new HostPort(
               indexState.getGlobalState().getHostName(),
@@ -727,7 +750,7 @@ public class ShardState implements Closeable {
               hostPort,
               writer,
               0,
-              primaryGen,
+              resolvedPrimaryGen,
               -1,
               new ShardSearcherFactory(false, true),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()));
@@ -865,7 +888,12 @@ public class ShardState implements Closeable {
     return ssdvState;
   }
 
-  /** Start this index as replica, pulling NRT changes from the specified primary */
+  /**
+   * Start this index as replica, pulling NRT changes from the specified primary.
+   *
+   * @param primaryAddress client to communicate with primary replication server
+   * @param primaryGen last primary generation, or -1 to detect from index
+   */
   public synchronized void startReplica(ReplicationServerClient primaryAddress, long primaryGen)
       throws IOException {
     if (isStarted()) {
@@ -918,8 +946,12 @@ public class ShardState implements Closeable {
               indexDir,
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
-              primaryGen,
               indexState.getGlobalState().getConfiguration().getFileCopyConfig().getAckedCopy());
+      if (primaryGen != -1) {
+        nrtReplicaNode.start(primaryGen);
+      } else {
+        nrtReplicaNode.startWithLastPrimaryGen();
+      }
 
       if (indexState.getGlobalState().getConfiguration().getSyncInitialNrtPoint()) {
         nrtReplicaNode.syncFromCurrentPrimary(
@@ -1050,11 +1082,10 @@ public class ShardState implements Closeable {
         } catch (StatusRuntimeException e) {
           logger.warn(
               String.format(
-                  "Replica host: %s, binary port: %s cannot reach primary host: %s replication port: %s",
+                  "Replica host: %s, binary port: %s cannot reach primary: %s",
                   nrtReplicaNode.getHostPort().getHostName(),
                   nrtReplicaNode.getHostPort().getPort(),
-                  nrtReplicaNode.getPrimaryAddress().getHost(),
-                  nrtReplicaNode.getPrimaryAddress().getPort()));
+                  nrtReplicaNode.getPrimaryAddress()));
         }
       }
     }

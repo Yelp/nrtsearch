@@ -15,11 +15,13 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.index;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
@@ -32,6 +34,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +47,7 @@ public class BackendStateManager implements IndexStateManager {
 
   private final String indexName;
   private final String indexUniqueName;
+  private final String id;
   private final StateBackend stateBackend;
   private final GlobalState globalState;
 
@@ -61,6 +65,7 @@ public class BackendStateManager implements IndexStateManager {
   public BackendStateManager(
       String indexName, String id, StateBackend stateBackend, GlobalState globalState) {
     this.indexName = indexName;
+    this.id = id;
     this.indexUniqueName = BackendGlobalState.getUniqueIndexName(indexName, id);
     this.stateBackend = stateBackend;
     this.globalState = globalState;
@@ -73,10 +78,31 @@ public class BackendStateManager implements IndexStateManager {
     if (stateInfo == null) {
       throw new IllegalStateException("No committed state for index: " + indexName);
     }
+    // If this state was restored from an index snapshot, it may have the previous index
+    // name. Let's fix it here so that it updates on the next commit.
+    stateInfo = fixIndexName(stateInfo, indexName);
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateHandler.updateFields(
             new FieldAndFacetState(), Collections.emptyMap(), stateInfo.getFieldsMap().values());
     currentState = createIndexState(stateInfo, updatedFieldInfo.fieldAndFacetState);
+  }
+
+  /**
+   * Update index name in {@link IndexStateInfo} to the given value, if it is different.
+   *
+   * @param indexStateInfo index state info
+   * @param indexName index name
+   * @return index state info with given index name set
+   */
+  @VisibleForTesting
+  static IndexStateInfo fixIndexName(IndexStateInfo indexStateInfo, String indexName) {
+    Objects.requireNonNull(indexStateInfo);
+    Objects.requireNonNull(indexName);
+    if (!indexName.equals(indexStateInfo.getIndexName())) {
+      return indexStateInfo.toBuilder().setIndexName(indexName).build();
+    } else {
+      return indexStateInfo;
+    }
   }
 
   @Override
@@ -169,7 +195,7 @@ public class BackendStateManager implements IndexStateManager {
 
   @Override
   public synchronized void start(
-      Mode serverMode, Path dataPath, long primaryGen, String primaryAddress, int primaryPort)
+      Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
       throws IOException {
     if (currentState == null) {
       throw new IllegalStateException("No state for index: " + indexName);
@@ -177,7 +203,7 @@ public class BackendStateManager implements IndexStateManager {
     if (currentState.isStarted()) {
       throw new IllegalStateException("Index already started: " + indexName);
     }
-    currentState.start(serverMode, dataPath, primaryGen, primaryAddress, primaryPort);
+    currentState.start(serverMode, dataPath, primaryGen, primaryClient);
     if (serverMode != Mode.REPLICA && !currentState.getCurrentStateInfo().getCommitted()) {
       logger.info("Doing initial commit for index: " + indexName);
       currentState.commit(globalState.getConfiguration().getBackupWithInArchiver());
@@ -263,5 +289,10 @@ public class BackendStateManager implements IndexStateManager {
     if (currentState != null) {
       currentState.close();
     }
+  }
+
+  @Override
+  public String getIndexId() {
+    return id;
   }
 }

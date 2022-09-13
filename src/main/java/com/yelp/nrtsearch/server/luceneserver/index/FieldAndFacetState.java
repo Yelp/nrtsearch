@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,6 +47,7 @@ public class FieldAndFacetState {
   private final IdFieldDef idFieldDef;
   private final List<String> indexedAnalyzedFields;
   private final Map<String, FieldDef> eagerGlobalOrdinalFields;
+  private final Map<String, GlobalOrdinalable> eagerFieldGlobalOrdinalFields;
   private final Bindings exprBindings;
 
   // facet
@@ -59,6 +61,7 @@ public class FieldAndFacetState {
     idFieldDef = null;
     indexedAnalyzedFields = Collections.emptyList();
     eagerGlobalOrdinalFields = Collections.emptyMap();
+    eagerFieldGlobalOrdinalFields = Collections.emptyMap();
     exprBindings = new FieldDefBindings(fields);
 
     facetsConfig = new FacetsConfig();
@@ -76,6 +79,8 @@ public class FieldAndFacetState {
     idFieldDef = builder.idFieldDef;
     indexedAnalyzedFields = Collections.unmodifiableList(builder.indexedAnalyzedFields);
     eagerGlobalOrdinalFields = Collections.unmodifiableMap(builder.eagerGlobalOrdinalFields);
+    eagerFieldGlobalOrdinalFields =
+        Collections.unmodifiableMap(builder.eagerFieldGlobalOrdinalFields);
     exprBindings = builder.exprBindings;
 
     facetsConfig = builder.facetsConfig;
@@ -107,6 +112,11 @@ public class FieldAndFacetState {
     return eagerGlobalOrdinalFields;
   }
 
+  /** Get all fields with eager global ordinals enabled for doc values. */
+  public Map<String, GlobalOrdinalable> getFieldEagerGlobalOrdinalFields() {
+    return eagerFieldGlobalOrdinalFields;
+  }
+
   /** Get field expression {@link Bindings} used for js scripting language. */
   public Bindings getExprBindings() {
     return exprBindings;
@@ -134,6 +144,7 @@ public class FieldAndFacetState {
     private IdFieldDef idFieldDef;
     private final List<String> indexedAnalyzedFields;
     private final Map<String, FieldDef> eagerGlobalOrdinalFields;
+    private final Map<String, GlobalOrdinalable> eagerFieldGlobalOrdinalFields;
     private final Bindings exprBindings;
 
     // facet
@@ -146,6 +157,7 @@ public class FieldAndFacetState {
       this.idFieldDef = initial.idFieldDef;
       this.indexedAnalyzedFields = new ArrayList<>(initial.indexedAnalyzedFields);
       this.eagerGlobalOrdinalFields = new HashMap<>(initial.eagerGlobalOrdinalFields);
+      this.eagerFieldGlobalOrdinalFields = new HashMap<>(initial.eagerFieldGlobalOrdinalFields);
       this.exprBindings = new FieldDefBindings(this.fields);
 
       this.facetsConfig = new FacetsConfig();
@@ -194,6 +206,10 @@ public class FieldAndFacetState {
       }
       if (fieldDef.getEagerGlobalOrdinals()) {
         eagerGlobalOrdinalFields.put(fieldDef.getName(), fieldDef);
+      }
+      if (fieldDef instanceof GlobalOrdinalable
+          && ((GlobalOrdinalable) fieldDef).getEagerFieldGlobalOrdinals()) {
+        eagerFieldGlobalOrdinalFields.put(fieldDef.getName(), (GlobalOrdinalable) fieldDef);
       }
       if (!hasNestedChildFields
           && fieldDef instanceof ObjectFieldDef

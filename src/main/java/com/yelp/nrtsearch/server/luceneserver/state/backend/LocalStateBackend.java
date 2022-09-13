@@ -18,12 +18,11 @@ package com.yelp.nrtsearch.server.luceneserver.state.backend;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.GLOBAL_STATE_FILE;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.GLOBAL_STATE_FOLDER;
 import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.INDEX_STATE_FILE;
-import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.MAPPER;
 
 import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import com.yelp.nrtsearch.server.luceneserver.state.PersistentGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import java.io.File;
 import java.io.IOException;
@@ -52,7 +51,7 @@ public class LocalStateBackend implements StateBackend {
   }
 
   @Override
-  public PersistentGlobalState loadOrCreateGlobalState() throws IOException {
+  public GlobalStateInfo loadOrCreateGlobalState() throws IOException {
     logger.info("Loading local state");
     Path statePath = globalStatePath.resolve(GLOBAL_STATE_FILE);
     File stateFile = statePath.toFile();
@@ -61,22 +60,22 @@ public class LocalStateBackend implements StateBackend {
     }
     if (!stateFile.exists()) {
       logger.info("Local state not present, initializing default");
-      PersistentGlobalState state = new PersistentGlobalState();
+      GlobalStateInfo state = GlobalStateInfo.newBuilder().build();
       commitGlobalState(state);
       return state;
     } else {
-      PersistentGlobalState persistentGlobalState = StateUtils.readStateFromFile(statePath);
-      logger.info("Loaded local state: " + MAPPER.writeValueAsString(persistentGlobalState));
-      return persistentGlobalState;
+      GlobalStateInfo globalStateInfo = StateUtils.readStateFromFile(statePath);
+      logger.info("Loaded local state: " + JsonFormat.printer().print(globalStateInfo));
+      return globalStateInfo;
     }
   }
 
   @Override
-  public void commitGlobalState(PersistentGlobalState persistentGlobalState) throws IOException {
-    Objects.requireNonNull(persistentGlobalState);
+  public void commitGlobalState(GlobalStateInfo globalStateInfo) throws IOException {
+    Objects.requireNonNull(globalStateInfo);
     logger.info("Committing global state");
-    StateUtils.writeStateToFile(persistentGlobalState, globalStatePath, GLOBAL_STATE_FILE);
-    logger.info("Committed state: " + MAPPER.writeValueAsString(persistentGlobalState));
+    StateUtils.writeStateToFile(globalStateInfo, globalStatePath, GLOBAL_STATE_FILE);
+    logger.info("Committed state: " + JsonFormat.printer().print(globalStateInfo));
   }
 
   @Override

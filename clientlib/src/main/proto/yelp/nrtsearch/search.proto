@@ -3,6 +3,7 @@ syntax = "proto3";
 
 import "google/protobuf/struct.proto";
 import "google/protobuf/any.proto";
+import "google/protobuf/wrappers.proto";
 import "google/type/latlng.proto";
 import "yelp/nrtsearch/analysis.proto";
 
@@ -209,6 +210,25 @@ message ExistsQuery {
     string field = 1; // Field in the document to query
 }
 
+enum CompletionQueryType {
+    // PrefixCompletionQuery within ContextCompletionQuery
+    PREFIX_QUERY = 0;
+    // FuzzyCompletionQuery within ContextCompletionQuery
+    FUZZY_QUERY = 1;
+}
+
+// A query used for suggest completion
+message CompletionQuery {
+    // Name of the field in the document to query, must be a SuggestField
+    string field = 1;
+    // Completion query type, used when constructing the lucene completion query
+    CompletionQueryType queryType = 2;
+    // Completion text to be used in completion query
+    string text = 3;
+    // List of contexts to filter by. Each result will have at least one of the contexts specified
+    repeated string contexts = 4;
+}
+
 // Defines different types of QueryNodes.
 enum QueryType {
     NONE = 0;
@@ -227,6 +247,7 @@ enum QueryType {
     NESTED = 13;
     EXISTS = 14;
     GEO_RADIUS = 15;
+    COMPLETION = 16;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -251,6 +272,7 @@ message Query {
         ExistsQuery existsQuery = 16;
         GeoRadiusQuery geoRadiusQuery = 17;
         FunctionFilterQuery functionFilterQuery = 18;
+        CompletionQuery completionQuery = 19;
     }
 }
 
@@ -287,6 +309,8 @@ message SearchRequest {
     int32 terminateAfter = 22;
     //Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to uncompressed. Valid codecs: identity, gzip, lz4
     string responseCompression = 23;
+    // Specify how to highlight matched text
+    Highlight highlight = 24;
 }
 
 /* Virtual field used during search */
@@ -424,10 +448,17 @@ message SearchResponse {
             repeated FieldValue fieldValue = 3;
         }
 
+        message Highlights {
+            // Highlighted text fragments
+            repeated string fragments = 1;
+        }
+
         int32 luceneDocId = 1;
         double score = 2;
         map<string, CompositeFieldValue> fields = 3; // Field name to value
         map<string, CompositeFieldValue> sortedFields = 4; // Sorted field name to value
+        // Field name to highlighted text fragments
+        map<string, Highlights> highlights = 5;
     }
 
     message SearchState {
@@ -568,7 +599,11 @@ message Collector {
         //Collector for aggregating based on term values.
         TermsCollector terms = 1;
         PluginCollector pluginCollector = 2;
+        //Collector for getting top hits based on score or sorting.
+        TopHitsCollector topHitsCollector = 4;
     }
+    //Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors.
+    map<string, Collector> nestedCollectors = 3;
 }
 
 // Defines an entry point for using a collector from a plugin
@@ -580,7 +615,7 @@ message PluginCollector {
 //Definition of term aggregating collector.
 message TermsCollector {
     oneof TermsSource {
-        // Placeholder: TODO implement
+        //Use field values for terms.
         string field = 1;
         //Use FacetScript definition to produce terms.
         Script script = 2;
@@ -589,12 +624,26 @@ message TermsCollector {
     int32 size = 3;
 }
 
+//Definition of top hits based collector.
+message TopHitsCollector {
+    //Offset for retrieval of top hits.
+    int32 startHit = 1;
+    //Total hits to collect, note that the number of hits returned is (topHits - startHit).
+    int32 topHits = 2;
+    //When specified, collector does sort based collection. Otherwise, relevance score is used.
+    QuerySortField querySort = 3;
+    //Which fields to retrieve.
+    repeated string retrieveFields = 4;
+}
+
 message CollectorResult {
     oneof CollectorResults {
         //Result of collector that produces buckets and counts.
         BucketResult bucketResult = 1;
         //Flexible collector result for additional document collectors
         google.protobuf.Any anyResult = 2;
+        //Result of collector that returns document hits.
+        HitsResult hitsResult = 4;
     }
 }
 
@@ -602,10 +651,50 @@ message BucketResult {
     message Bucket {
         string key = 1;
         int32 count = 2;
+        //Nested collector results for sub-aggregations of this bucket.
+        map<string, CollectorResult> nestedCollectorResults = 8;
     }
     repeated Bucket buckets = 1;
     //Number of unique buckets, including those not in the buckets list.
     int32 totalBuckets = 2;
     //Number of other collected counts not represented in the buckets' counts.
     int32 totalOtherCounts = 3;
+}
+
+message HitsResult {
+    //Total hit information.
+    TotalHits totalHits = 3;
+    //Ordered hits with scoring/sorting info and retrieved fields.
+    repeated SearchResponse.Hit hits = 4;
+}
+
+// Specify how to highlight matched text in SearchRequest
+message Highlight {
+
+    enum Type {
+        DEFAULT = 0;
+        FAST_VECTOR = 1;
+    }
+
+    message Settings {
+        // Specify type of highlighter to use. Ignored right now in nrtsearch.
+        Type highlighter_type = 1;
+        // Used along with post_tags to specify how to wrap the highlighted text
+        repeated string pre_tags = 2;
+        // Used along with pre_tags to specify how to wrap the highlighted text
+        repeated string post_tags = 3;
+        // Number of characters in highlighted fragment, 100 by default
+        google.protobuf.UInt32Value fragment_size = 4;
+        // Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single fragment ignoring fragment_size.
+        google.protobuf.UInt32Value max_number_of_fragments = 5;
+        // Specify a query here if highlighting is desired against a different query than the search query
+        Query highlight_query = 6;
+    }
+
+    // Highlight settings
+    Settings settings = 1;
+    // Fields to highlight
+    repeated string fields = 2;
+    // Map of field name to highlight settings for field, overrides request level highlight settings
+    map<string, Settings> field_settings = 3;
 }

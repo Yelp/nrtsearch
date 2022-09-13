@@ -56,6 +56,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
@@ -456,6 +457,13 @@ public class LegacyIndexState extends IndexState implements Restorable {
 
   /** Holds suggest settings loaded but not yet started */
   private JsonObject suggesterSettings;
+
+  /**
+   * Fields using doc values with global ordinals that should be loaded up front with each new
+   * reader
+   */
+  public final Map<String, GlobalOrdinalable> eagerFieldGlobalOrdinalFields =
+      new ConcurrentHashMap<>();
 
   @Override
   public void close() throws IOException {
@@ -965,6 +973,10 @@ public class LegacyIndexState extends IndexState implements Restorable {
     if (fd.getEagerGlobalOrdinals()) {
       eagerGlobalOrdinalFields.put(fd.getName(), fd);
     }
+    // register fields that need doc value global ordinals created up front
+    if (fd instanceof GlobalOrdinalable && ((GlobalOrdinalable) fd).getEagerFieldGlobalOrdinals()) {
+      eagerFieldGlobalOrdinalFields.put(fd.getName(), (GlobalOrdinalable) fd);
+    }
     if (fd instanceof IdFieldDef) {
       idFieldDef = (IdFieldDef) fd;
     }
@@ -1046,7 +1058,7 @@ public class LegacyIndexState extends IndexState implements Restorable {
 
   @Override
   public void start(
-      Mode serverMode, Path dataPath, long primaryGen, String primaryAddress, int primaryPort)
+      Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
       throws IOException {
     if (shards.size() == 0) {
       throw new IllegalStateException("No shards to start for index: " + getName());
@@ -1086,11 +1098,8 @@ public class LegacyIndexState extends IndexState implements Restorable {
         }
         break;
       case REPLICA:
-        // channel for replica to talk to primary on
-        ReplicationServerClient primaryNodeClient =
-            new ReplicationServerClient(primaryAddress, primaryPort);
         for (ShardState shard : shards.values()) {
-          shard.startReplica(primaryNodeClient, primaryGen);
+          shard.startReplica(primaryClient, primaryGen);
         }
         break;
       default:
@@ -1317,6 +1326,11 @@ public class LegacyIndexState extends IndexState implements Restorable {
   @Override
   public Map<String, FieldDef> getEagerGlobalOrdinalFields() {
     return eagerGlobalOrdinalFields;
+  }
+
+  @Override
+  public Map<String, GlobalOrdinalable> getEagerFieldGlobalOrdinalFields() {
+    return eagerFieldGlobalOrdinalFields;
   }
 
   @Override

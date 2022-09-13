@@ -43,6 +43,14 @@ public interface Archiver {
   boolean deleteVersion(final String serviceName, final String resource, String versionHash)
       throws IOException;
 
+  /**
+   * Delete all locally cached file associated with the given resource.
+   *
+   * @param resource resource name
+   * @return if files were successfully deleted
+   */
+  boolean deleteLocalFiles(final String resource);
+
   List<String> getResources(final String serviceName);
 
   List<VersionedResource> getVersionedResource(final String serviceName, final String resource);

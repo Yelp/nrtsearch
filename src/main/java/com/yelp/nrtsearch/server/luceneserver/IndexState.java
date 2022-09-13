@@ -28,6 +28,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
@@ -145,6 +146,13 @@ public abstract class IndexState implements Closeable {
           FieldDef fd = getField(name);
           if (fd instanceof TextBaseFieldDef) {
             Optional<Analyzer> maybeAnalyzer = ((TextBaseFieldDef) fd).getSearchAnalyzer();
+            if (maybeAnalyzer.isEmpty()) {
+              throw new IllegalArgumentException(
+                  "field \"" + name + "\" did not specify analyzer or searchAnalyzer");
+            }
+            return maybeAnalyzer.get();
+          } else if (fd instanceof ContextSuggestFieldDef) {
+            Optional<Analyzer> maybeAnalyzer = ((ContextSuggestFieldDef) fd).getSearchAnalyzer();
             if (maybeAnalyzer.isEmpty()) {
               throw new IllegalArgumentException(
                   "field \"" + name + "\" did not specify analyzer or searchAnalyzer");
@@ -342,12 +350,19 @@ public abstract class IndexState implements Closeable {
   }
 
   public void initWarmer(Archiver archiver) {
+    initWarmer(archiver, name);
+  }
+
+  public void initWarmer(Archiver archiver, String indexName) {
     LuceneServerConfiguration configuration = globalState.getConfiguration();
     WarmerConfig warmerConfig = configuration.getWarmerConfig();
     if (warmerConfig.isWarmOnStartup() || warmerConfig.getMaxWarmingQueries() > 0) {
       this.warmer =
           new Warmer(
-              archiver, configuration.getServiceName(), name, warmerConfig.getMaxWarmingQueries());
+              archiver,
+              configuration.getServiceName(),
+              indexName,
+              warmerConfig.getMaxWarmingQueries());
     }
   }
 
@@ -407,12 +422,11 @@ public abstract class IndexState implements Closeable {
    * @param serverMode server mode
    * @param dataPath path to restored data, or null
    * @param primaryGen primary generation, only valid for PRIMARY or REPLICA modes
-   * @param primaryAddress primary address, only valid for REPLICA mode
-   * @param primaryPort primary port, only valid for REPLICA mode
+   * @param primaryClient replication client for talking with primary, only valid for REPLICA mode
    * @throws IOException on filesystem error
    */
   public abstract void start(
-      Mode serverMode, Path dataPath, long primaryGen, String primaryAddress, int primaryPort)
+      Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
       throws IOException;
 
   /** Records a new field in the internal {@code fields} state. */
@@ -439,6 +453,9 @@ public abstract class IndexState implements Closeable {
 
   /** Get fields with facets that do eager global ordinal building. */
   public abstract Map<String, FieldDef> getEagerGlobalOrdinalFields();
+
+  /** Get fields with doc values that do eager global ordinal building. */
+  public abstract Map<String, GlobalOrdinalable> getEagerFieldGlobalOrdinalFields();
 
   /** Get field bindings to use for javascript expressions. */
   public abstract Bindings getExpressionBindings();
@@ -557,8 +574,6 @@ public abstract class IndexState implements Closeable {
 
   /** Get the default search timeout check every. */
   public abstract int getDefaultSearchTimeoutCheckEvery();
-
-  // Suggest
 
   public abstract void addSuggest(String name, JsonObject o);
 

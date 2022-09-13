@@ -150,7 +150,7 @@ public abstract class DocCollector {
    *
    * @return total top docs needed for query response and sample facets
    */
-  int getNumHitsToCollect() {
+  public int getNumHitsToCollect() {
     return numHitsToCollect;
   }
 

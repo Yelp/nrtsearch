@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -228,7 +229,7 @@ public class BackupDiffManager implements Archiver {
 
   private Path getTempDiffFile(Path tmpPath) throws IOException {
     if (!Files.exists(tmpPath)) {
-      Files.createDirectory(tmpPath);
+      Files.createDirectories(tmpPath);
     }
     return Paths.get(tmpPath.toString(), randomUUID().toString());
   }
@@ -267,7 +268,10 @@ public class BackupDiffManager implements Archiver {
   private Path collectDownloadedFiles(List<Path> downloadDirs) throws IOException {
     Path downloadDir = Files.createDirectory(getTmpDir());
     for (Path source : downloadDirs) {
-      String fileName = Files.list(source).findFirst().get().getFileName().toString();
+      String fileName;
+      try (Stream<Path> dirFiles = Files.list(source)) {
+        fileName = dirFiles.findFirst().get().getFileName().toString();
+      }
       logger.debug(
           String.format("Moving file %s to location: %s", source.resolve(fileName), downloadDir));
       Files.move(source.resolve(fileName), downloadDir.resolve(fileName), REPLACE_EXISTING);
@@ -334,6 +338,11 @@ public class BackupDiffManager implements Archiver {
     // Note: only deletes the diffFile, we choose to leave all index files on s3 for now. They
     // can be garbage collected by an offline tool as needed.
     return versionManager.deleteVersion(serviceName, resource, versionHash);
+  }
+
+  @Override
+  public boolean deleteLocalFiles(String resource) {
+    return true;
   }
 
   @Override

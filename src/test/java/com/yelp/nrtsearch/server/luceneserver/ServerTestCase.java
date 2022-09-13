@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 
+import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
@@ -31,6 +32,7 @@ import com.yelp.nrtsearch.server.grpc.LuceneServerClientBuilder;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.RefreshRequest;
+import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import io.grpc.stub.StreamObserver;
@@ -171,6 +173,17 @@ public class ServerTestCase {
     addDocuments(requestStream);
   }
 
+  public static void addDocsFromJsonResourceFile(String index, String resourceFile)
+      throws Exception {
+    Path filePath = Paths.get(ServerTestCase.class.getResource(resourceFile).toURI());
+    int maxBufferLen = 10;
+    Stream<AddDocumentRequest> requestStream =
+        new LuceneServerClientBuilder.AddJsonDocumentsClientBuilder(
+                index, new Gson(), filePath, maxBufferLen)
+            .buildRequest();
+    addDocuments(requestStream);
+  }
+
   @AfterClass
   public static void tearDownClass() throws IOException {
     tearDownGrpcServer();
@@ -229,6 +242,12 @@ public class ServerTestCase {
       // register fields
       blockingStub.registerFields(getIndexDef(indexName));
 
+      // apply settings
+      SettingsRequest settingsRequest = getSettings(indexName);
+      if (settingsRequest != null) {
+        blockingStub.settings(settingsRequest);
+      }
+
       // apply live settings
       blockingStub.liveSettings(getLiveSettings(indexName));
 
@@ -255,6 +274,10 @@ public class ServerTestCase {
 
   protected LiveSettingsRequest getLiveSettings(String name) {
     return LiveSettingsRequest.newBuilder().setIndexName(name).build();
+  }
+
+  protected SettingsRequest getSettings(String name) {
+    return null;
   }
 
   protected void initIndex(String name) throws Exception {}

@@ -213,6 +213,26 @@ public class BackupDiffManagerTest {
   }
 
   @Test
+  public void uploadDiffArchiveDirNotExist() throws IOException {
+    backupTestHelper.shutdown();
+    folder.delete();
+    backupTestHelper = new BackupTestHelper(BUCKET_NAME, folder, false);
+
+    ImmutableSet<String> toBeAdded = ImmutableSet.of("1", "2");
+    BackupDiffManager.BackupDiffInfo backupDiffInfo =
+        new BackupDiffManager.BackupDiffInfo(ImmutableSet.of(), toBeAdded, ImmutableSet.of());
+    BackupDiffManager backupDiffManager =
+        new BackupDiffManager(
+            backupTestHelper.getContentDownloaderTar(),
+            backupTestHelper.getFileCompressAndUploaderWithTar(),
+            backupTestHelper.getVersionManager(),
+            backupTestHelper.getArchiverDirectory());
+    String diffName = backupDiffManager.uploadDiff("testservice", "testresource", backupDiffInfo);
+    backupTestHelper.testUpload(
+        "testservice", "testresource", diffName, Map.of(diffName, "1\n2\n"), backupDiffManager);
+  }
+
+  @Test
   public void uploadDiffNoTar() throws IOException {
     ImmutableSet<String> toBeAdded = ImmutableSet.of("1", "2");
     BackupDiffManager.BackupDiffInfo backupDiffInfo =

@@ -21,6 +21,11 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
+import com.yelp.nrtsearch.server.grpc.DummyResponse;
+import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
+import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.Restorable;
@@ -168,6 +173,11 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
   }
 
   @Override
+  public IndexState createIndex(CreateIndexRequest createIndexRequest) throws IOException {
+    return createIndex(createIndexRequest.getIndexName());
+  }
+
+  @Override
   public IndexState getIndex(String name, boolean hasRestore) throws IOException {
     synchronized (indices) {
       IndexState state = indices.get(name);
@@ -210,6 +220,11 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
   }
 
   @Override
+  public void reloadStateFromBackend() {
+    throw new UnsupportedOperationException("Not supported by LEGACY global state");
+  }
+
+  @Override
   public void indexClosed(String name) {
     synchronized (indices) {
       indices.remove(name);
@@ -226,7 +241,22 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
   }
 
   @Override
+  public StartIndexResponse startIndex(StartIndexRequest startIndexRequest) throws IOException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public DummyResponse stopIndex(StopIndexRequest stopIndexRequest) throws IOException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public Set<String> getIndexNames() {
     return Collections.unmodifiableSet(indexNames.keySet());
+  }
+
+  @Override
+  public Set<String> getIndicesToStart() {
+    return getIndexNames();
   }
 }

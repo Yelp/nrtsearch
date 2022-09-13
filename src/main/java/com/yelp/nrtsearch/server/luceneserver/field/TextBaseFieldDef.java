@@ -17,14 +17,21 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.TermVectors;
 import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
+import com.yelp.nrtsearch.server.luceneserver.search.GlobalOrdinalLookup;
+import com.yelp.nrtsearch.server.luceneserver.search.GlobalOrdinalLookup.SortedLookup;
+import com.yelp.nrtsearch.server.luceneserver.search.GlobalOrdinalLookup.SortedSetLookup;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
@@ -39,6 +46,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -48,11 +56,16 @@ import org.apache.lucene.util.BytesRef;
  * Base class for all text base field definitions. In addition to the properties from {@link
  * IndexableFieldDef}, text fields have the option for {@link Analyzer}s and highlighting.
  */
-public abstract class TextBaseFieldDef extends IndexableFieldDef implements TermQueryable {
+public abstract class TextBaseFieldDef extends IndexableFieldDef
+    implements TermQueryable, GlobalOrdinalable {
 
   private final boolean isHighlighted;
   private final Analyzer indexAnalyzer;
   private final Analyzer searchAnalyzer;
+  private final boolean eagerFieldGlobalOrdinals;
+
+  public final Map<IndexReader.CacheKey, GlobalOrdinalLookup> ordinalLookupCache = new HashMap<>();
+  private final Object ordinalBuilderLock = new Object();
 
   /**
    * Field constructor. Uses {@link IndexableFieldDef#IndexableFieldDef(String, Field)} to do common
@@ -68,6 +81,7 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef implements Term
     isHighlighted = requestField.getHighlight();
     indexAnalyzer = parseIndexAnalyzer(requestField);
     searchAnalyzer = parseSearchAnalyzer(requestField);
+    eagerFieldGlobalOrdinals = requestField.getEagerFieldGlobalOrdinals();
   }
 
   @Override
@@ -78,12 +92,10 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef implements Term
       throw new IllegalArgumentException("sort: Cannot sort text fields; use atom instead");
     }
 
-    if (requestField.getHighlight() && !requestField.getSearch()) {
-      throw new IllegalArgumentException("search must be true when highlight is true");
-    }
-
-    if (requestField.getHighlight() && !requestField.getStore()) {
-      throw new IllegalArgumentException("store must be true when highlight is true");
+    if (!requestField.getSearch() && requestField.getTermVectors() != TermVectors.NO_TERMVECTORS) {
+      throw new IllegalArgumentException(
+          "Indexing term vectors requires field to be searchable, invalid field "
+              + requestField.getName());
     }
   }
 
@@ -177,52 +189,37 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef implements Term
   @Override
   protected void setSearchProperties(FieldType fieldType, Field requestField) {
     if (requestField.getSearch()) {
-      if (requestField.getHighlight()) {
-        fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
-      } else {
-        switch (requestField.getIndexOptions()) {
-          case DOCS:
-            fieldType.setIndexOptions(IndexOptions.DOCS);
-            break;
-          case DOCS_FREQS:
-            fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
-            break;
-          case DOCS_FREQS_POSITIONS:
-            fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            break;
-          case DOCS_FREQS_POSITIONS_OFFSETS:
-            fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
-            break;
-          default:
-            fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-        }
+      switch (requestField.getIndexOptions()) {
+        case DOCS:
+          fieldType.setIndexOptions(IndexOptions.DOCS);
+          break;
+        case DOCS_FREQS:
+          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
+          break;
+        case DOCS_FREQS_POSITIONS:
+          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+          break;
+        case DOCS_FREQS_POSITIONS_OFFSETS:
+          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+          break;
+        default:
+          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+          break;
+      }
+
+      switch (requestField.getTermVectors()) {
+        case TERMS_POSITIONS_OFFSETS_PAYLOADS:
+          fieldType.setStoreTermVectorPayloads(true);
+        case TERMS_POSITIONS_OFFSETS:
+          fieldType.setStoreTermVectorOffsets(true);
+        case TERMS_POSITIONS:
+          fieldType.setStoreTermVectorPositions(true);
+        case TERMS:
+          fieldType.setStoreTermVectors(true);
       }
     }
     fieldType.setTokenized(requestField.getTokenize());
     fieldType.setOmitNorms(requestField.getOmitNorms());
-
-    switch (requestField.getTermVectors()) {
-      case TERMS:
-        fieldType.setStoreTermVectors(true);
-        break;
-      case TERMS_POSITIONS:
-        fieldType.setStoreTermVectors(true);
-        fieldType.setStoreTermVectorPositions(true);
-        break;
-      case TERMS_POSITIONS_OFFSETS:
-        fieldType.setStoreTermVectors(true);
-        fieldType.setStoreTermVectorPositions(true);
-        fieldType.setStoreTermVectorOffsets(true);
-        break;
-      case TERMS_POSITIONS_OFFSETS_PAYLOADS:
-        fieldType.setStoreTermVectors(true);
-        fieldType.setStoreTermVectorPositions(true);
-        fieldType.setStoreTermVectorOffsets(true);
-        fieldType.setStoreTermVectorPayloads(true);
-        break;
-      default:
-        break;
-    }
   }
 
   /**
@@ -335,5 +332,64 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef implements Term
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
     List<BytesRef> textTerms = textValues.stream().map(BytesRef::new).collect(Collectors.toList());
     return new org.apache.lucene.search.TermInSetQuery(getName(), textTerms);
+  }
+
+  @Override
+  public boolean usesOrdinals() {
+    return docValuesType == DocValuesType.SORTED || docValuesType == DocValuesType.SORTED_SET;
+  }
+
+  @Override
+  public boolean getEagerFieldGlobalOrdinals() {
+    return eagerFieldGlobalOrdinals;
+  }
+
+  @Override
+  public GlobalOrdinalLookup getOrdinalLookup(IndexReader reader) throws IOException {
+    if (!usesOrdinals()) {
+      throw new IllegalStateException("Field: " + getName() + " does not use ordinals");
+    }
+
+    IndexReader.CacheKey cacheKey = reader.getReaderCacheHelper().getKey();
+    GlobalOrdinalLookup ordinalLookup;
+    synchronized (ordinalLookupCache) {
+      ordinalLookup = ordinalLookupCache.get(cacheKey);
+    }
+
+    if (ordinalLookup == null) {
+      // use separate lock to build lookup, to not block cache reads
+      synchronized (ordinalBuilderLock) {
+        // make sure this wasn't built while we waited for the lock
+        synchronized (ordinalLookupCache) {
+          ordinalLookup = ordinalLookupCache.get(cacheKey);
+        }
+        if (ordinalLookup == null) {
+          // build lookup based on doc value type
+          if (docValuesType == DocValuesType.SORTED) {
+            ordinalLookup = new SortedLookup(reader, getName());
+          } else if (docValuesType == DocValuesType.SORTED_SET) {
+            ordinalLookup = new SortedSetLookup(reader, getName());
+          } else {
+            throw new IllegalStateException(
+                "Doc value type not usable for ordinals: " + docValuesType);
+          }
+
+          // add lookup to the cache
+          synchronized (ordinalLookupCache) {
+            ordinalLookupCache.put(cacheKey, ordinalLookup);
+            reader
+                .getReaderCacheHelper()
+                .addClosedListener(
+                    key -> {
+                      synchronized (ordinalLookupCache) {
+                        ordinalLookupCache.remove(key);
+                      }
+                    });
+          }
+        }
+      }
+    }
+
+    return ordinalLookup;
   }
 }
