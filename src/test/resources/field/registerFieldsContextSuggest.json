@@ -13,6 +13,14 @@
         "multiValued": false,
         "store": true,
         "search": false
+      },
+      {
+        "name": "context_suggest_name_multi_valued",
+        "type": "CONTEXT_SUGGEST",
+        "storeDocValues": false,
+        "multiValued": true,
+        "store": true,
+        "search": false
       }
     ]
   }
