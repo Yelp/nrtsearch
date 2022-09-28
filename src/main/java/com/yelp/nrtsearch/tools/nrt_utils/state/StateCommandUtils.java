@@ -95,7 +95,7 @@ public class StateCommandUtils {
         new RetryPolicy(
             PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION,
             PredefinedRetryPolicies.DEFAULT_BACKOFF_STRATEGY,
-            5,
+            20,
             true);
     ClientConfiguration clientConfiguration =
         new ClientConfiguration().withRetryPolicy(retryPolicy);
