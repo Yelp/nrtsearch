@@ -69,10 +69,17 @@ public class ListIncrementalSnapshotsCommand implements Callable<Integer> {
           "Root s3 snapshot path, defaults to <serviceName>/snapshots/ either this or serviceName must be specified")
   private String snapshotRoot;
 
+  @CommandLine.Option(
+      names = {"--maxErrorRetry"},
+      description = "Maximum number of retry attempts for S3 failed requests",
+      defaultValue = "20")
+  private int maxErrorRetry;
+
   @Override
   public Integer call() throws Exception {
     AmazonS3 s3Client =
-        StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile);
+        StateCommandUtils.createS3Client(
+            bucketName, region, credsFile, credsProfile, maxErrorRetry);
 
     String resolvedSnapshotRoot =
         IncrementalCommandUtils.getSnapshotRoot(snapshotRoot, serviceName);

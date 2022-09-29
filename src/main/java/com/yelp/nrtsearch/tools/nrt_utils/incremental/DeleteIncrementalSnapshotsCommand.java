@@ -103,6 +103,12 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
       description = "Print file deletions, instead of applying to S3")
   private boolean dryRun;
 
+  @CommandLine.Option(
+      names = {"--maxErrorRetry"},
+      description = "Maximum number of retry attempts for S3 failed requests",
+      defaultValue = "20")
+  private int maxErrorRetry;
+
   private AmazonS3 s3Client;
 
   @VisibleForTesting
@@ -113,7 +119,9 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
   @Override
   public Integer call() throws Exception {
     if (s3Client == null) {
-      s3Client = StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile);
+      s3Client =
+          StateCommandUtils.createS3Client(
+              bucketName, region, credsFile, credsProfile, maxErrorRetry);
     }
     VersionManager versionManager = new VersionManager(s3Client, bucketName);
 
