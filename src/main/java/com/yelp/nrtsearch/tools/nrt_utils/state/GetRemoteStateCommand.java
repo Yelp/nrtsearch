@@ -80,10 +80,10 @@ public class GetRemoteStateCommand implements Callable<Integer> {
   private boolean exactResourceName;
 
   @CommandLine.Option(
-      names = {"--maxErrorRetry"},
+      names = {"--maxRetry"},
       description = "Maximum number of retry attempts for S3 failed requests",
       defaultValue = "20")
-  private int maxErrorRetry;
+  private int maxRetry;
 
   private AmazonS3 s3Client;
 
@@ -97,7 +97,7 @@ public class GetRemoteStateCommand implements Callable<Integer> {
     if (s3Client == null) {
       s3Client =
           StateCommandUtils.createS3Client(
-              bucketName, region, credsFile, credsProfile, maxErrorRetry);
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
     VersionManager versionManager = new VersionManager(s3Client, bucketName);
 
