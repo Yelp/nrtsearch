@@ -78,8 +78,7 @@ public class ListIncrementalSnapshotsCommand implements Callable<Integer> {
   @Override
   public Integer call() throws Exception {
     AmazonS3 s3Client =
-        StateCommandUtils.createS3Client(
-            bucketName, region, credsFile, credsProfile, maxRetry);
+        StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
 
     String resolvedSnapshotRoot =
         IncrementalCommandUtils.getSnapshotRoot(snapshotRoot, serviceName);

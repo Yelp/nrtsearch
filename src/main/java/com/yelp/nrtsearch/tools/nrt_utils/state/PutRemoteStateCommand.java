@@ -107,8 +107,7 @@ public class PutRemoteStateCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     if (s3Client == null) {
       s3Client =
-          StateCommandUtils.createS3Client(
-              bucketName, region, credsFile, credsProfile, maxRetry);
+          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
     VersionManager versionManager = new VersionManager(s3Client, bucketName);
 
