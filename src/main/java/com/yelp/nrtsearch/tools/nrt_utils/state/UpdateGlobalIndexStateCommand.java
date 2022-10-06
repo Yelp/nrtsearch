@@ -79,6 +79,12 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
           "Optionally update index started flag for index, valid values: 'true' or 'false'")
   private String started;
 
+  @CommandLine.Option(
+      names = {"--maxRetry"},
+      description = "Maximum number of retry attempts for S3 failed requests",
+      defaultValue = "20")
+  private int maxRetry;
+
   private AmazonS3 s3Client;
 
   @VisibleForTesting
@@ -109,7 +115,8 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
       return 1;
     }
     if (s3Client == null) {
-      s3Client = StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile);
+      s3Client =
+          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
     VersionManager versionManager = new VersionManager(s3Client, bucketName);
 
