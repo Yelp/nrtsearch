@@ -19,14 +19,17 @@ import java.io.IOException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
+import org.apache.lucene.search.vectorhighlight.FragListBuilder;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
+import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
 
 /** Handle highlights for a search query. Currently only supports fast vector highlighter. */
 public class HighlightHandler {
 
-  static final FastVectorHighlighter FAST_VECTOR_HIGHLIGHTER = new FastVectorHighlighter();
+  private static final FastVectorHighlighter FAST_VECTOR_HIGHLIGHTER = new FastVectorHighlighter();
   private static final SimpleFragListBuilder SIMPLE_FRAG_LIST_BUILDER = new SimpleFragListBuilder();
+  private static final FragListBuilder SINGLE_FRAG_LIST_BUILDER = new SingleFragListBuilder();
   private static final ScoreOrderFragmentsBuilder SCORE_ORDER_FRAGMENTS_BUILDER =
       new ScoreOrderFragmentsBuilder();
   private static final DefaultEncoder DEFAULT_ENCODER = new DefaultEncoder();
@@ -50,6 +53,12 @@ public class HighlightHandler {
   public String[] getHighlights(
       IndexReader indexReader, HighlightSettings settings, String fieldName, int docId)
       throws IOException {
+    FragListBuilder fragListBuilder;
+    if (settings.getMaxNumFragments() == 0) {
+      fragListBuilder = SINGLE_FRAG_LIST_BUILDER;
+    } else {
+      fragListBuilder = SIMPLE_FRAG_LIST_BUILDER;
+    }
     return FAST_VECTOR_HIGHLIGHTER.getBestFragments(
         settings.getFieldQuery(),
         indexReader,
@@ -57,7 +66,7 @@ public class HighlightHandler {
         fieldName,
         settings.getFragmentSize(),
         settings.getMaxNumFragments(),
-        SIMPLE_FRAG_LIST_BUILDER,
+        fragListBuilder,
         SCORE_ORDER_FRAGMENTS_BUILDER,
         settings.getPreTags(),
         settings.getPostTags(),

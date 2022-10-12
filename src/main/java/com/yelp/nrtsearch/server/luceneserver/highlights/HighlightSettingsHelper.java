@@ -15,8 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
-import static com.yelp.nrtsearch.server.luceneserver.highlights.HighlightHandler.FAST_VECTOR_HIGHLIGHTER;
-
 import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
@@ -130,7 +128,7 @@ public class HighlightSettingsHelper {
         settings.hasHighlightQuery()
             ? QUERY_NODE_MAPPER.getQuery(settings.getHighlightQuery(), indexState)
             : searchQuery;
-    builder.withFieldQuery(FAST_VECTOR_HIGHLIGHTER.getFieldQuery(query, indexReader));
+    builder.withFieldQuery(getFieldQuery(indexReader, query, settings.getFieldMatch()));
 
     return builder.build();
   }
@@ -138,6 +136,11 @@ public class HighlightSettingsHelper {
   private static FieldQuery getFieldQuery(
       IndexReader indexReader, IndexState indexState, Settings settings) throws IOException {
     Query query = QUERY_NODE_MAPPER.getQuery(settings.getHighlightQuery(), indexState);
-    return FAST_VECTOR_HIGHLIGHTER.getFieldQuery(query, indexReader);
+    return getFieldQuery(indexReader, query, settings.getFieldMatch());
+  }
+
+  private static FieldQuery getFieldQuery(IndexReader indexReader, Query query, boolean fieldMatch)
+      throws IOException {
+    return new FieldQuery(query, indexReader, true, fieldMatch);
   }
 }

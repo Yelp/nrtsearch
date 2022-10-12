@@ -62,6 +62,11 @@ public class HighlightTest extends ServerTestCase {
                 MultiValuedField.newBuilder()
                     .addValue("the food here is amazing, service was good")
                     .build())
+            .putFields(
+                "comment2",
+                MultiValuedField.newBuilder()
+                    .addValue("This is my regular place, the food is good")
+                    .build())
             .build();
     docs.add(request);
     request =
@@ -73,6 +78,11 @@ public class HighlightTest extends ServerTestCase {
                 MultiValuedField.newBuilder()
                     .addValue(
                         "This is my first time eating at this restaurant. The food here is pretty good, the service could be better. My favorite food was chilly chicken.")
+                    .build())
+            .putFields(
+                "comment2",
+                MultiValuedField.newBuilder()
+                    .addValue("There is some amazing food and also drinks here. Must visit!")
                     .build())
             .build();
     docs.add(request);
@@ -267,6 +277,37 @@ public class HighlightTest extends ServerTestCase {
         .containsExactly(
             "This is my first time eating at this restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite food was chilly chicken.");
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
+  }
+
+  @Test
+  public void testHighlightFieldMatchFalse() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .setSettings(Settings.newBuilder().setFieldMatch(false))
+            .addFields("comment2")
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertThat(response.getHitsCount()).isEqualTo(2);
+    assertThat(response.getHits(0).getHighlightsMap().get("comment2").getFragmentsList())
+        .containsExactly("This is my regular place, the <em>food</em> is good");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment2").getFragmentsList())
+        .containsExactly("There is some amazing <em>food</em> and also drinks here. Must visit!");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
+  }
+
+  @Test
+  public void testHighlightFieldMatchTrue() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .setSettings(Settings.newBuilder().setFieldMatch(true))
+            .addFields("comment2")
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertThat(response.getHitsCount()).isEqualTo(2);
+    assertThat(response.getHits(0).getHighlightsMap()).isEmpty();
+    assertThat(response.getHits(1).getHighlightsMap()).isEmpty();
   }
 
   private String indexName() {

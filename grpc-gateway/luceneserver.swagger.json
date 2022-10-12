@@ -1622,6 +1622,10 @@
         "highlight_query": {
           "$ref": "#/definitions/luceneserverQuery",
           "title": "Specify a query here if highlighting is desired against a different query than the search query"
+        },
+        "field_match": {
+          "type": "boolean",
+          "title": "Set to true to highlight fields only if specified in the search query"
         }
       }
     },

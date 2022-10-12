@@ -41,6 +41,15 @@
           "termVectors": "TERMS_POSITIONS"
         }
       ]
+    },
+    {
+      "name": "comment2",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "storeDocValues": true,
+      "termVectors": "TERMS_POSITIONS_OFFSETS"
     }
   ]
 }
