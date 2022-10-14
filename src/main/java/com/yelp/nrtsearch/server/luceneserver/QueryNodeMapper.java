@@ -17,7 +17,16 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
 
-import com.yelp.nrtsearch.server.grpc.*;
+import com.yelp.nrtsearch.server.grpc.ExistsQuery;
+import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
+import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
+import com.yelp.nrtsearch.server.grpc.GeoPointQuery;
+import com.yelp.nrtsearch.server.grpc.GeoRadiusQuery;
+import com.yelp.nrtsearch.server.grpc.MatchOperator;
+import com.yelp.nrtsearch.server.grpc.MatchPhraseQuery;
+import com.yelp.nrtsearch.server.grpc.MatchQuery;
+import com.yelp.nrtsearch.server.grpc.MultiMatchQuery;
+import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
@@ -28,23 +37,35 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.function.FunctionMatchQuery;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
-import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
+import org.apache.lucene.search.suggest.document.CompletionQuery;
+import org.apache.lucene.search.suggest.document.ContextQuery;
+import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
+import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.util.QueryBuilder;
 
 /** This class maps our GRPC Query object to a Lucene Query object. */
@@ -121,12 +142,39 @@ public class QueryNodeMapper {
         return getGeoRadiusQuery(query.getGeoRadiusQuery(), state);
       case FUNCTIONFILTERQUERY:
         return getFunctionFilterQuery(query.getFunctionFilterQuery(), state);
+      case COMPLETIONQUERY:
+        return getCompletionQuery(query.getCompletionQuery(), state);
       case QUERYNODE_NOT_SET:
         return new MatchAllDocsQuery();
       default:
         throw new UnsupportedOperationException(
             "Unsupported query type received: " + query.getQueryNodeCase());
     }
+  }
+
+  private Query getCompletionQuery(
+      com.yelp.nrtsearch.server.grpc.CompletionQuery completionQueryDef, IndexState state) {
+    CompletionQuery completionQuery;
+    switch (completionQueryDef.getQueryType()) {
+      case PREFIX_QUERY:
+        completionQuery =
+            new PrefixCompletionQuery(
+                state.searchAnalyzer,
+                new Term(completionQueryDef.getField(), completionQueryDef.getText()));
+        break;
+      case FUZZY_QUERY:
+        completionQuery =
+            new FuzzyCompletionQuery(
+                state.searchAnalyzer,
+                new Term(completionQueryDef.getField(), completionQueryDef.getText()));
+        break;
+      default:
+        throw new UnsupportedOperationException(
+            "Unsupported suggest query type received: " + completionQueryDef.getQueryType());
+    }
+    ContextQuery contextQuery = new ContextQuery(completionQuery);
+    completionQueryDef.getContextsList().forEach(contextQuery::addContext);
+    return contextQuery;
   }
 
   private Query getNestedQuery(

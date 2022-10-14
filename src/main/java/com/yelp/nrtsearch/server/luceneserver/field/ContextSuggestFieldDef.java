@@ -29,6 +29,7 @@ import org.apache.lucene.search.suggest.document.ContextSuggestField;
 public class ContextSuggestFieldDef extends IndexableFieldDef {
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
   private final Analyzer indexAnalyzer;
+  private final Analyzer searchAnalyzer;
 
   /**
    * @param name name of field
@@ -37,6 +38,7 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
   protected ContextSuggestFieldDef(String name, Field requestField) {
     super(name, requestField);
     this.indexAnalyzer = this.parseIndexAnalyzer(requestField);
+    this.searchAnalyzer = this.parseSearchAnalyzer(requestField);
   }
 
   @Override
@@ -48,10 +50,6 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
     if (requestField.getSearch()) {
       throw new IllegalArgumentException("Context Suggest fields cannot be searched");
     }
-
-    if (requestField.getMultiValued()) {
-      throw new IllegalArgumentException("Cannot index multiple values into context suggest field");
-    }
   }
 
   @Override
@@ -62,25 +60,45 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
   @Override
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
-    if (fieldValues.size() == 1) {
-      ContextSuggestFieldData csfData =
-          GSON.fromJson(fieldValues.get(0), ContextSuggestFieldData.class);
-      CharSequence[] contexts =
-          csfData.getContexts().toArray(new CharSequence[csfData.getContexts().size()]);
-      ContextSuggestField csf =
-          new ContextSuggestField(getName(), csfData.getValue(), csfData.getWeight(), contexts);
-      document.add(csf);
-      if (isStored()) {
-        document.add(new FieldWithData(getName(), fieldType, fieldValues.get(0)));
-      }
-    } else {
-      throw new IllegalArgumentException("Context Suggest Field can only index exactly one value");
+    if (!isMultiValue() && fieldValues.size() > 1) {
+      throw new IllegalArgumentException(
+          "Cannot index multiple values into single value field: " + getName());
+    }
+    for (String fieldValue : fieldValues) {
+      parseFieldValueToDocumentField(document, fieldValue);
     }
   }
 
+  /**
+   * Processes a single fieldValue and adds appropriate fields to the document.
+   *
+   * @param document document to add parsed values to
+   * @param fieldValue string representation of the field value
+   */
+  private void parseFieldValueToDocumentField(Document document, String fieldValue) {
+    ContextSuggestFieldData csfData = GSON.fromJson(fieldValue, ContextSuggestFieldData.class);
+    CharSequence[] contexts =
+        csfData.getContexts().toArray(new CharSequence[csfData.getContexts().size()]);
+    ContextSuggestField csf =
+        new ContextSuggestField(getName(), csfData.getValue(), csfData.getWeight(), contexts);
+    document.add(csf);
+  }
+
   protected Analyzer parseIndexAnalyzer(Field requestField) {
-    if (AnalyzerCreator.isAnalyzerDefined(requestField.getIndexAnalyzer())) {
+    if (AnalyzerCreator.isAnalyzerDefined(requestField.getAnalyzer())) {
+      return AnalyzerCreator.getInstance().getAnalyzer(requestField.getAnalyzer());
+    } else if (AnalyzerCreator.isAnalyzerDefined(requestField.getIndexAnalyzer())) {
       return AnalyzerCreator.getInstance().getAnalyzer(requestField.getIndexAnalyzer());
+    } else {
+      return AnalyzerCreator.getStandardAnalyzer();
+    }
+  }
+
+  protected Analyzer parseSearchAnalyzer(Field requestField) {
+    if (AnalyzerCreator.isAnalyzerDefined(requestField.getAnalyzer())) {
+      return AnalyzerCreator.getInstance().getAnalyzer(requestField.getAnalyzer());
+    } else if (AnalyzerCreator.isAnalyzerDefined(requestField.getSearchAnalyzer())) {
+      return AnalyzerCreator.getInstance().getAnalyzer(requestField.getSearchAnalyzer());
     } else {
       return AnalyzerCreator.getStandardAnalyzer();
     }
@@ -88,5 +106,13 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
 
   public Optional<Analyzer> getIndexAnalyzer() {
     return Optional.ofNullable(this.indexAnalyzer);
+  }
+
+  public Optional<Analyzer> getSearchAnalyzer() {
+    return Optional.ofNullable(this.searchAnalyzer);
+  }
+
+  public String getPostingsFormat() {
+    return "Completion84";
   }
 }

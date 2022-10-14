@@ -58,6 +58,7 @@ import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounter
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
+import io.grpc.Context;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
@@ -108,7 +109,7 @@ public class LuceneServer {
     this.archiver = archiver;
     this.incArchiver = incArchiver;
     this.collectorRegistry = collectorRegistry;
-    this.pluginsService = new PluginsService(luceneServerConfiguration);
+    this.pluginsService = new PluginsService(luceneServerConfiguration, collectorRegistry);
   }
 
   private void start() throws IOException {
@@ -1029,47 +1030,55 @@ public class LuceneServer {
         CommitRequest commitRequest, StreamObserver<CommitResponse> commitResponseStreamObserver) {
       try {
         globalState.submitIndexingTask(
-            () -> {
-              try {
-                IndexState indexState = globalState.getIndex(commitRequest.getIndexName());
-                long gen = indexState.commit(backupFromIncArchiver);
-                CommitResponse reply =
-                    CommitResponse.newBuilder()
-                        .setGen(gen)
-                        .setPrimaryId(globalState.getEphemeralId())
-                        .build();
-                logger.debug(
-                    String.format(
-                        "CommitHandler committed to index: %s for sequenceId: %s",
-                        commitRequest.getIndexName(), gen));
-                commitResponseStreamObserver.onNext(reply);
-                commitResponseStreamObserver.onCompleted();
-              } catch (IOException e) {
-                logger.warn(
-                    "error while trying to read index state dir for indexName: "
-                        + commitRequest.getIndexName(),
-                    e);
-                commitResponseStreamObserver.onError(
-                    Status.INTERNAL
-                        .withDescription(
+            Context.current()
+                .wrap(
+                    () -> {
+                      try {
+                        IndexState indexState = globalState.getIndex(commitRequest.getIndexName());
+                        long gen = indexState.commit(backupFromIncArchiver);
+                        CommitResponse reply =
+                            CommitResponse.newBuilder()
+                                .setGen(gen)
+                                .setPrimaryId(globalState.getEphemeralId())
+                                .build();
+                        logger.debug(
+                            String.format(
+                                "CommitHandler committed to index: %s for sequenceId: %s",
+                                commitRequest.getIndexName(), gen));
+                        commitResponseStreamObserver.onNext(reply);
+                        commitResponseStreamObserver.onCompleted();
+                      } catch (IOException e) {
+                        logger.warn(
                             "error while trying to read index state dir for indexName: "
-                                + commitRequest.getIndexName())
-                        .augmentDescription(e.getMessage())
-                        .withCause(e)
-                        .asRuntimeException());
-              } catch (Exception e) {
-                logger.warn(
-                    "error while trying to commit to  index " + commitRequest.getIndexName(), e);
-                commitResponseStreamObserver.onError(
-                    Status.UNKNOWN
-                        .withDescription(
-                            "error while trying to commit to index: "
-                                + commitRequest.getIndexName())
-                        .augmentDescription(e.getMessage())
-                        .asRuntimeException());
-              }
-              return null;
-            });
+                                + commitRequest.getIndexName(),
+                            e);
+                        commitResponseStreamObserver.onError(
+                            Status.INTERNAL
+                                .withDescription(
+                                    "error while trying to read index state dir for indexName: "
+                                        + commitRequest.getIndexName())
+                                .augmentDescription(e.getMessage())
+                                .withCause(e)
+                                .asRuntimeException());
+                      } catch (Exception e) {
+                        logger.warn(
+                            "error while trying to commit to  index "
+                                + commitRequest.getIndexName(),
+                            e);
+                        if (e instanceof StatusRuntimeException) {
+                          commitResponseStreamObserver.onError(e);
+                        } else {
+                          commitResponseStreamObserver.onError(
+                              Status.UNKNOWN
+                                  .withDescription(
+                                      "error while trying to commit to index: "
+                                          + commitRequest.getIndexName())
+                                  .augmentDescription(e.getMessage())
+                                  .asRuntimeException());
+                        }
+                      }
+                      return null;
+                    }));
       } catch (RejectedExecutionException e) {
         logger.error(
             "Threadpool is full, unable to submit commit to index {}",

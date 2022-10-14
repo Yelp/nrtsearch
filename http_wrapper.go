@@ -32,7 +32,7 @@ func run() error {
   mux := runtime.NewServeMux()
   runtime.SetHTTPBodyMarshaler(mux)
 
-  opts := []grpc.DialOption{grpc.WithInsecure()}
+  opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(104_857_600))}
   err := gw.RegisterLuceneServerHandlerFromEndpoint(ctx, mux,  *grpcServerEndpoint, opts)
   if err != nil {
     return err

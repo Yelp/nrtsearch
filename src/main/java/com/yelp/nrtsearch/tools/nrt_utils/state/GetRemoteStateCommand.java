@@ -79,6 +79,12 @@ public class GetRemoteStateCommand implements Callable<Integer> {
       description = "If index resource name already has unique identifier")
   private boolean exactResourceName;
 
+  @CommandLine.Option(
+      names = {"--maxRetry"},
+      description = "Maximum number of retry attempts for S3 failed requests",
+      defaultValue = "20")
+  private int maxRetry;
+
   private AmazonS3 s3Client;
 
   @VisibleForTesting
@@ -89,7 +95,8 @@ public class GetRemoteStateCommand implements Callable<Integer> {
   @Override
   public Integer call() throws Exception {
     if (s3Client == null) {
-      s3Client = StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile);
+      s3Client =
+          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
     VersionManager versionManager = new VersionManager(s3Client, bucketName);
 

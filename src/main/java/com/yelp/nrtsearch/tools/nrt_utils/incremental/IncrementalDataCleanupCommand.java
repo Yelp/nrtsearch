@@ -107,6 +107,12 @@ public class IncrementalDataCleanupCommand implements Callable<Integer> {
       description = "Print file deletions, instead of applying to S3")
   private boolean dryRun;
 
+  @CommandLine.Option(
+      names = {"--maxRetry"},
+      description = "Maximum number of retry attempts for S3 failed requests",
+      defaultValue = "20")
+  private int maxRetry;
+
   private AmazonS3 s3Client;
 
   @VisibleForTesting
@@ -124,7 +130,8 @@ public class IncrementalDataCleanupCommand implements Callable<Integer> {
     long gracePeriodMs = getTimeIntervalMs(gracePeriod);
 
     if (s3Client == null) {
-      s3Client = StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile);
+      s3Client =
+          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
     VersionManager versionManager = new VersionManager(s3Client, bucketName);
 

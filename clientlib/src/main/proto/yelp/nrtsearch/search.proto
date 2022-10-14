@@ -210,6 +210,25 @@ message ExistsQuery {
     string field = 1; // Field in the document to query
 }
 
+enum CompletionQueryType {
+    // PrefixCompletionQuery within ContextCompletionQuery
+    PREFIX_QUERY = 0;
+    // FuzzyCompletionQuery within ContextCompletionQuery
+    FUZZY_QUERY = 1;
+}
+
+// A query used for suggest completion
+message CompletionQuery {
+    // Name of the field in the document to query, must be a SuggestField
+    string field = 1;
+    // Completion query type, used when constructing the lucene completion query
+    CompletionQueryType queryType = 2;
+    // Completion text to be used in completion query
+    string text = 3;
+    // List of contexts to filter by. Each result will have at least one of the contexts specified
+    repeated string contexts = 4;
+}
+
 // Defines different types of QueryNodes.
 enum QueryType {
     NONE = 0;
@@ -228,6 +247,7 @@ enum QueryType {
     NESTED = 13;
     EXISTS = 14;
     GEO_RADIUS = 15;
+    COMPLETION = 16;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -252,6 +272,7 @@ message Query {
         ExistsQuery existsQuery = 16;
         GeoRadiusQuery geoRadiusQuery = 17;
         FunctionFilterQuery functionFilterQuery = 18;
+        CompletionQuery completionQuery = 19;
     }
 }
 
@@ -668,6 +689,8 @@ message Highlight {
         google.protobuf.UInt32Value max_number_of_fragments = 5;
         // Specify a query here if highlighting is desired against a different query than the search query
         Query highlight_query = 6;
+        // Set to true to highlight fields only if specified in the search query
+        bool field_match = 7;
     }
 
     // Highlight settings

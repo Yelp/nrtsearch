@@ -16,8 +16,12 @@
 package com.yelp.nrtsearch.tools.nrt_utils.incremental;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.CopyObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.transfer.Copy;
+import com.amazonaws.services.s3.transfer.TransferManager;
+import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.backup.VersionManager;
@@ -25,8 +29,12 @@ import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -80,6 +88,19 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
       description = "Root s3 snapshot path, defaults to <serviceName>/snapshots/")
   private String snapshotRoot;
 
+  @CommandLine.Option(
+      names = {"--copyThreads"},
+      description =
+          "Number of threads to use when copying index files, (default: ${DEFAULT-VALUE})",
+      defaultValue = "10")
+  int copyThreads;
+
+  @CommandLine.Option(
+      names = {"--maxRetry"},
+      description = "Maximum number of retry attempts for S3 failed requests",
+      defaultValue = "20")
+  private int maxRetry;
+
   private AmazonS3 s3Client;
 
   @VisibleForTesting
@@ -90,7 +111,8 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
   @Override
   public Integer call() throws Exception {
     if (s3Client == null) {
-      s3Client = StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile);
+      s3Client =
+          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
     VersionManager versionManager = new VersionManager(s3Client, bucketName);
 
@@ -132,7 +154,7 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
 
   private long copyIndexData(
       VersionManager versionManager, String resolvedIndexResource, String snapshotIndexDataRoot)
-      throws IOException {
+      throws IOException, InterruptedException {
     String indexDataResource = IncrementalCommandUtils.getIndexDataResource(resolvedIndexResource);
     long currentDataVersion = versionManager.getLatestVersionNumber(serviceName, indexDataResource);
     System.out.println("Current index data version: " + currentDataVersion);
@@ -151,13 +173,36 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
     String indexDataKeyPrefix =
         IncrementalCommandUtils.getDataKeyPrefix(serviceName, indexDataResource);
     long totalDataSizeBytes = 0;
-    for (String fileName : indexDataFiles) {
-      String sourceKey = indexDataKeyPrefix + fileName;
-      totalDataSizeBytes +=
-          versionManager.getS3().getObjectMetadata(bucketName, sourceKey).getContentLength();
-      versionManager
-          .getS3()
-          .copyObject(bucketName, sourceKey, bucketName, snapshotIndexDataRoot + fileName);
+
+    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(copyThreads);
+    TransferManager transferManager =
+        TransferManagerBuilder.standard()
+            .withS3Client(s3Client)
+            .withExecutorFactory(() -> executor)
+            .withShutDownThreadPools(true)
+            .build();
+    try {
+      List<Copy> copyJobs = new ArrayList<>();
+      for (String fileName : indexDataFiles) {
+        String sourceKey = indexDataKeyPrefix + fileName;
+        totalDataSizeBytes +=
+            versionManager.getS3().getObjectMetadata(bucketName, sourceKey).getContentLength();
+        CopyObjectRequest copyObjectRequest =
+            new CopyObjectRequest(
+                bucketName, sourceKey, bucketName, snapshotIndexDataRoot + fileName);
+        final String finalFileName = fileName;
+        Copy copy =
+            transferManager.copy(
+                copyObjectRequest,
+                (transfer, state) ->
+                    System.out.println("Transfer: " + finalFileName + ", state: " + state));
+        copyJobs.add(copy);
+      }
+      for (Copy copyJob : copyJobs) {
+        copyJob.waitForCopyResult();
+      }
+    } finally {
+      transferManager.shutdownNow(false);
     }
     versionManager
         .getS3()
@@ -233,8 +278,10 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
     System.out.println(
         "Writing metadata file key: " + metadataFileKey + ", content: " + metadataFileStr);
     byte[] fileData = StateUtils.toUTF8(metadataFileStr);
+    ObjectMetadata objectMetadata = new ObjectMetadata();
+    objectMetadata.setContentLength(fileData.length);
     s3Client.putObject(
         new PutObjectRequest(
-            bucketName, metadataFileKey, new ByteArrayInputStream(fileData), new ObjectMetadata()));
+            bucketName, metadataFileKey, new ByteArrayInputStream(fileData), objectMetadata));
   }
 }

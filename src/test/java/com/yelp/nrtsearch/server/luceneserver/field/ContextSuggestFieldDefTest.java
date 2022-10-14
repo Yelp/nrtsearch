@@ -16,10 +16,12 @@
 package com.yelp.nrtsearch.server.luceneserver.field;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
-import com.google.gson.Gson;
-import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
-import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
+import com.yelp.nrtsearch.server.grpc.Analyzer;
+import com.yelp.nrtsearch.server.grpc.CompletionQuery;
+import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
@@ -27,49 +29,20 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
+import org.apache.lucene.analysis.standard.ClassicAnalyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.junit.ClassRule;
 import org.junit.Test;
 
 public class ContextSuggestFieldDefTest extends ServerTestCase {
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
-  private static Gson gson = new Gson();
-  private static final String FIELD_NAME = "context_suggest_name";
+  private static final String SINGLE_VALUED_FIELD_NAME = "context_suggest_name";
+  private static final String MULTI_VALUED_FIELD_NAME = "context_suggest_name_multi_valued";
   private static final String FIELD_TYPE = "CONTEXT_SUGGEST";
-  private static final List<String> CONTEXT_SUGGEST_VALUES =
-      List.of(
-          gson.toJson(
-              Map.of(
-                  "value", "test one", "contexts", List.of("context1", "context2"), "weight", 123)),
-          gson.toJson(
-              Map.of(
-                  "value",
-                  "test two",
-                  "contexts",
-                  List.of("context1", "context2"),
-                  "weight",
-                  123)));
-
-  private Map<String, MultiValuedField> getFieldsMapForOneDocument(String value) {
-    Map<String, AddDocumentRequest.MultiValuedField> fieldsMap =
-        Map.of(
-            FIELD_NAME, AddDocumentRequest.MultiValuedField.newBuilder().addValue(value).build());
-    return fieldsMap;
-  }
-
-  private List<AddDocumentRequest> buildDocuments(String indexName, List<String> csfValues) {
-    List<AddDocumentRequest> documentRequests = new ArrayList<>();
-    for (String value : csfValues) {
-      documentRequests.add(
-          AddDocumentRequest.newBuilder()
-              .setIndexName(indexName)
-              .putAllFields(getFieldsMapForOneDocument(value))
-              .build());
-    }
-    return documentRequests;
-  }
 
   public FieldDef getFieldDef(String testIndex, String fieldName) throws IOException {
     return getGrpcServer().getGlobalState().getIndex(testIndex).getField(fieldName);
@@ -82,34 +55,151 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
 
   @Override
   public void initIndex(String name) throws Exception {
-    List<AddDocumentRequest> documents = buildDocuments(name, CONTEXT_SUGGEST_VALUES);
-    addDocuments(documents.stream());
+    this.addDocsFromJsonResourceFile(name, "/addContextSuggestDocs.jsonl");
+  }
+
+  @Test
+  public void validSearchAndIndexAnalyzerWhenFieldAnalyzerIsProvided() {
+    Analyzer standardAnalyzer = Analyzer.newBuilder().setPredefined("standard").build();
+    Analyzer analyzer = Analyzer.newBuilder().setPredefined("classic").build();
+    Field field =
+        Field.newBuilder()
+            .setSearchAnalyzer(standardAnalyzer) // should be ignored as analyzer takes precedence
+            .setIndexAnalyzer(standardAnalyzer) // should be ignored as analyzer takes precedence
+            .setAnalyzer(analyzer)
+            .build();
+    ContextSuggestFieldDef contextSuggestFieldDef = new ContextSuggestFieldDef("test_field", field);
+    assertEquals(
+        ClassicAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
+    assertEquals(ClassicAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
+  }
+
+  @Test
+  public void validSearchAndIndexAnalyzerWhenSearchAndIndexAnalyzersAreProvided() {
+    Analyzer searchAnalyzer = Analyzer.newBuilder().setPredefined("bg.Bulgarian").build();
+    Analyzer indexAnalyzer = Analyzer.newBuilder().setPredefined("en.English").build();
+    Field field =
+        Field.newBuilder()
+            .setSearchAnalyzer(searchAnalyzer)
+            .setIndexAnalyzer(indexAnalyzer)
+            .build();
+    ContextSuggestFieldDef contextSuggestFieldDef = new ContextSuggestFieldDef("test_field", field);
+    assertSame(
+        BulgarianAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
+    assertSame(EnglishAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
+  }
+
+  @Test
+  public void validDefaultSearchAndIndexAnalyzerNoAnalyzersAreProvided() {
+    Field field = Field.newBuilder().build();
+    ContextSuggestFieldDef contextSuggestFieldDef = new ContextSuggestFieldDef("test_field", field);
+    assertSame(StandardAnalyzer.class, contextSuggestFieldDef.getSearchAnalyzer().get().getClass());
+    assertSame(StandardAnalyzer.class, contextSuggestFieldDef.getIndexAnalyzer().get().getClass());
   }
 
   @Test
   public void validContextSuggestFieldDefTest() throws IOException {
-    FieldDef contextSuggestFieldDef = getFieldDef(DEFAULT_TEST_INDEX, FIELD_NAME);
+    FieldDef contextSuggestFieldDef = getFieldDef(DEFAULT_TEST_INDEX, SINGLE_VALUED_FIELD_NAME);
     assertEquals(FIELD_TYPE, contextSuggestFieldDef.getType());
-    assertEquals(FIELD_NAME, contextSuggestFieldDef.getName());
+    assertEquals(SINGLE_VALUED_FIELD_NAME, contextSuggestFieldDef.getName());
+  }
 
-    String expectedCSF1 = CONTEXT_SUGGEST_VALUES.get(0);
+  @Test
+  public void validCompletionQuerySuggestionsSingleValued_FilterByText() {
+    Query query =
+        Query.newBuilder()
+            .setCompletionQuery(
+                CompletionQuery.newBuilder()
+                    .setField(SINGLE_VALUED_FIELD_NAME)
+                    .setText("Tasty")
+                    .build())
+            .build();
 
-    // TODO: Test this suggest field using the suggest api instead of the search api
     SearchResponse searchResponse =
-        getGrpcServer()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName(DEFAULT_TEST_INDEX)
-                    .addRetrieveFields(FIELD_NAME)
-                    .setStartHit(0)
-                    .setTopHits(10)
-                    .setQuery(Query.newBuilder().build())
-                    .build());
+        getGrpcServer().getBlockingStub().search(getRequestWithQuery(query));
 
-    String fieldValue1 =
-        searchResponse.getHits(0).getFieldsOrThrow(FIELD_NAME).getFieldValue(0).getTextValue();
+    assertEquals(1, searchResponse.getHitsCount());
 
-    assertEquals(expectedCSF1, fieldValue1);
+    Set<String> hitsIds = getHitsIds(searchResponse);
+    assertTrue(hitsIds.contains("3"));
+  }
+
+  @Test
+  public void validCompletionQuerySuggestionsSingleValued_FilterByTextAndContext() {
+    Query query =
+        Query.newBuilder()
+            .setCompletionQuery(
+                CompletionQuery.newBuilder()
+                    .setField(SINGLE_VALUED_FIELD_NAME)
+                    .setText("Fantastic")
+                    .addContexts("a")
+                    .build())
+            .build();
+
+    SearchResponse searchResponse =
+        getGrpcServer().getBlockingStub().search(getRequestWithQuery(query));
+
+    assertEquals(1, searchResponse.getHitsCount());
+
+    Set<String> hitsIds = getHitsIds(searchResponse);
+    assertTrue(hitsIds.contains("5"));
+  }
+
+  @Test
+  public void validCompletionQuerySuggestionsMultiValued_FilterByText() {
+    Query query =
+        Query.newBuilder()
+            .setCompletionQuery(
+                CompletionQuery.newBuilder()
+                    .setField(MULTI_VALUED_FIELD_NAME)
+                    .setText("Fries")
+                    .build())
+            .build();
+
+    SearchResponse searchResponse =
+        getGrpcServer().getBlockingStub().search(getRequestWithQuery(query));
+
+    assertEquals(2, searchResponse.getHitsCount());
+
+    Set<String> hitsIds = getHitsIds(searchResponse);
+    assertTrue(hitsIds.contains("4"));
+    assertTrue(hitsIds.contains("5"));
+  }
+
+  @Test
+  public void validCompletionQuerySuggestionsMultiValued_FilterByTextAndContext() {
+    Query query =
+        Query.newBuilder()
+            .setCompletionQuery(
+                CompletionQuery.newBuilder()
+                    .setField(MULTI_VALUED_FIELD_NAME)
+                    .setText("Burger")
+                    .addContexts("b")
+                    .build())
+            .build();
+
+    SearchResponse searchResponse =
+        getGrpcServer().getBlockingStub().search(getRequestWithQuery(query));
+
+    assertEquals(1, searchResponse.getHitsCount());
+
+    Set<String> hitsIds = getHitsIds(searchResponse);
+    assertTrue(hitsIds.contains("4"));
+  }
+
+  private Set<String> getHitsIds(SearchResponse searchResponse) {
+    return searchResponse.getHitsList().stream()
+        .map(hit -> hit.getFieldsMap().get("id").getFieldValue(0).getTextValue())
+        .collect(Collectors.toSet());
+  }
+
+  private SearchRequest getRequestWithQuery(Query query) {
+    return SearchRequest.newBuilder()
+        .setIndexName(DEFAULT_TEST_INDEX)
+        .addAllRetrieveFields(Set.of("id", SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME))
+        .setStartHit(0)
+        .setTopHits(5)
+        .setQuery(query)
+        .build();
   }
 }

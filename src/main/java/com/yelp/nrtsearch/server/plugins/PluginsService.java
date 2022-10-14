@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.plugins;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import io.prometheus.client.CollectorRegistry;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -41,10 +42,12 @@ public class PluginsService {
   private static final Logger logger = LoggerFactory.getLogger(Plugin.class.getName());
 
   private final LuceneServerConfiguration config;
+  private final CollectorRegistry collectorRegistry;
   private final List<PluginDescriptor> loadedPluginDescriptors = new ArrayList<>();
 
-  public PluginsService(LuceneServerConfiguration config) {
+  public PluginsService(LuceneServerConfiguration config, CollectorRegistry collectorRegistry) {
     this.config = config;
+    this.collectorRegistry = collectorRegistry;
   }
 
   /**
@@ -176,9 +179,14 @@ public class PluginsService {
   /** Get an instance of the loaded plugin class using reflection. */
   Plugin getPluginInstance(Class<? extends Plugin> pluginClass) {
     try {
-      return pluginClass
-          .getDeclaredConstructor(new Class[] {LuceneServerConfiguration.class})
-          .newInstance(config);
+      Plugin plugin =
+          pluginClass
+              .getDeclaredConstructor(new Class[] {LuceneServerConfiguration.class})
+              .newInstance(config);
+      if (plugin instanceof MetricsPlugin) {
+        ((MetricsPlugin) plugin).registerMetrics(collectorRegistry);
+      }
+      return plugin;
     } catch (Exception e) {
       throw new IllegalArgumentException("Failed to load plugin class instance via reflection", e);
     }

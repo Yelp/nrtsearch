@@ -41,7 +41,7 @@ public class HighlightFetchTask implements FetchTask {
   private static final double TEN_TO_THE_POWER_SIX = Math.pow(10, 6);
   private final IndexReader indexReader;
   private final Map<String, HighlightSettings> fieldSettings;
-  private final HighlightHandler highlightHandler = new HighlightHandler();
+  private final HighlightHandler highlightHandler = HighlightHandler.getInstance();
 
   private final DoubleAdder timeTakenMs = new DoubleAdder();
 

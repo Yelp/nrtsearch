@@ -2,10 +2,23 @@
     "indexName": "test_index",
     "field": [
       {
+        "name": "id",
+        "type": "_ID",
+        "store": true
+      },
+      {
         "name": "context_suggest_name",
         "type": "CONTEXT_SUGGEST",
         "storeDocValues": false,
         "multiValued": false,
+        "store": true,
+        "search": false
+      },
+      {
+        "name": "context_suggest_name_multi_valued",
+        "type": "CONTEXT_SUGGEST",
+        "storeDocValues": false,
+        "multiValued": true,
         "store": true,
         "search": false
       }

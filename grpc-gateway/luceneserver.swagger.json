@@ -1655,6 +1655,10 @@
         "highlight_query": {
           "$ref": "#/definitions/luceneserverQuery",
           "title": "Specify a query here if highlighting is desired against a different query than the search query"
+        },
+        "field_match": {
+          "type": "boolean",
+          "title": "Set to true to highlight fields only if specified in the search query"
         }
       }
     },
@@ -2396,6 +2400,40 @@
         }
       },
       "title": "A suggester that matches terms anywhere in the input text. The implementation is different from InfixSuggester"
+    },
+    "luceneserverCompletionQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "title": "Name of the field in the document to query, must be a SuggestField"
+        },
+        "queryType": {
+          "$ref": "#/definitions/luceneserverCompletionQueryType",
+          "title": "Completion query type, used when constructing the lucene completion query"
+        },
+        "text": {
+          "type": "string",
+          "title": "Completion text to be used in completion query"
+        },
+        "contexts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "title": "List of contexts to filter by. Each result will have at least one of the contexts specified"
+        }
+      },
+      "title": "A query used for suggest completion"
+    },
+    "luceneserverCompletionQueryType": {
+      "type": "string",
+      "enum": [
+        "PREFIX_QUERY",
+        "FUZZY_QUERY"
+      ],
+      "default": "PREFIX_QUERY",
+      "title": "- PREFIX_QUERY: PrefixCompletionQuery within ContextCompletionQuery\n - FUZZY_QUERY: FuzzyCompletionQuery within ContextCompletionQuery"
     },
     "luceneserverConditionalTokenFilter": {
       "type": "object",
@@ -3932,6 +3970,9 @@
         },
         "functionFilterQuery": {
           "$ref": "#/definitions/luceneserverFunctionFilterQuery"
+        },
+        "completionQuery": {
+          "$ref": "#/definitions/luceneserverCompletionQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -3985,7 +4026,8 @@
         "GEO_POINT",
         "NESTED",
         "EXISTS",
-        "GEO_RADIUS"
+        "GEO_RADIUS",
+        "COMPLETION"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."

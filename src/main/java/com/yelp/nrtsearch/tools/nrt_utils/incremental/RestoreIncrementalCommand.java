@@ -16,9 +16,13 @@
 package com.yelp.nrtsearch.tools.nrt_utils.incremental;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.CopyObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.transfer.Copy;
+import com.amazonaws.services.s3.transfer.TransferManager;
+import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.backup.VersionManager;
@@ -27,10 +31,13 @@ import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.commons.io.IOUtils;
 import picocli.CommandLine;
 
@@ -104,6 +111,19 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
           "Name of nrtsearch cluster for snapshot, either this or snapshotRoot must be specified")
   private String snapshotServiceName;
 
+  @CommandLine.Option(
+      names = {"--copyThreads"},
+      description =
+          "Number of threads to use when copying index files, (default: ${DEFAULT-VALUE})",
+      defaultValue = "10")
+  int copyThreads;
+
+  @CommandLine.Option(
+      names = {"--maxRetry"},
+      description = "Maximum number of retry attempts for S3 failed requests",
+      defaultValue = "20")
+  private int maxRetry;
+
   private AmazonS3 s3Client;
 
   @VisibleForTesting
@@ -114,7 +134,8 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
   @Override
   public Integer call() throws Exception {
     if (s3Client == null) {
-      s3Client = StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile);
+      s3Client =
+          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
     VersionManager versionManager = new VersionManager(s3Client, bucketName);
 
@@ -153,7 +174,7 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
       String restoreIndexResource,
       String restoreRoot,
       String snapshotDataRoot)
-      throws IOException {
+      throws IOException, InterruptedException {
     String restoreIndexDataResource =
         IncrementalCommandUtils.getIndexDataResource(restoreIndexResource);
     String fileListId = UUID.randomUUID().toString();
@@ -171,9 +192,35 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
             s3Client, bucketName, restoreServiceName, restoreIndexDataResource, fileListId);
     System.out.println("Restoring index data: " + indexFiles);
 
-    for (String fileName : indexFiles) {
-      s3Client.copyObject(
-          bucketName, snapshotDataRoot + fileName, bucketName, restoreDataKeyPrefix + fileName);
+    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(copyThreads);
+    TransferManager transferManager =
+        TransferManagerBuilder.standard()
+            .withS3Client(s3Client)
+            .withExecutorFactory(() -> executor)
+            .withShutDownThreadPools(true)
+            .build();
+    try {
+      List<Copy> copyJobs = new ArrayList<>();
+      for (String fileName : indexFiles) {
+        CopyObjectRequest copyObjectRequest =
+            new CopyObjectRequest(
+                bucketName,
+                snapshotDataRoot + fileName,
+                bucketName,
+                restoreDataKeyPrefix + fileName);
+        final String finalFileName = fileName;
+        Copy copy =
+            transferManager.copy(
+                copyObjectRequest,
+                (transfer, state) ->
+                    System.out.println("Transfer: " + finalFileName + ", state: " + state));
+        copyJobs.add(copy);
+      }
+      for (Copy copyJob : copyJobs) {
+        copyJob.waitForCopyResult();
+      }
+    } finally {
+      transferManager.shutdownNow(false);
     }
     versionManager.blessVersion(restoreServiceName, restoreIndexDataResource, fileListId);
   }
