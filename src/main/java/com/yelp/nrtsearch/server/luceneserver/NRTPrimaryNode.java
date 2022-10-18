@@ -154,7 +154,7 @@ public class NRTPrimaryNode extends PrimaryNode {
     // before notifying all replicas, at which point we have a newer version index than client knew
     // about?
     long version = getCopyStateVersion();
-    message("send flushed version=" + version + " replica count " + replicasInfos.size());
+    logMessage("send flushed version=" + version + " replica count " + replicasInfos.size());
     NrtMetrics.searcherVersion.labels(indexName).set(version);
     NrtMetrics.nrtPrimaryPointCount.labels(indexName).inc();
 
@@ -182,7 +182,7 @@ public class NRTPrimaryNode extends PrimaryNode {
             String.format(
                 "top: failed to connect R%d for newNRTPoint; skipping: %s",
                 replicaID, e.getMessage());
-        super.message(msg);
+        message(msg);
         logger.warn(msg);
       }
     }
@@ -234,16 +234,16 @@ public class NRTPrimaryNode extends PrimaryNode {
   }
 
   @Override
-  protected void preCopyMergedSegmentFiles(SegmentCommitInfo info, Map<String, FileMetaData> files)
-      throws IOException {
+  protected void preCopyMergedSegmentFiles(
+      SegmentCommitInfo info, Map<String, FileMetaData> files) {
     long mergeStartNS = System.nanoTime();
     String msg;
     if (replicasInfos.isEmpty()) {
-      message("no replicas, skip warming " + info);
+      logMessage("no replicas, skip warming " + info);
       return;
     }
 
-    message(
+    logMessage(
         String.format(
             "top: warm merge %s to %d replicas; localAddress=%s: files=%s",
             info, replicasInfos.size(), hostPort, files.keySet()));
@@ -265,14 +265,14 @@ public class NRTPrimaryNode extends PrimaryNode {
               replicaDetails.replicationServerClient.copyFiles(
                   indexName, primaryGen, filesMetadata);
           allCopyStatus.put(replicaDetails.replicationServerClient, copyStatus);
-          message(
+          logMessage(
               String.format(
                   "warm connection %s:%d",
                   replicaDetails.replicationServerClient.getHost(),
                   replicaDetails.replicationServerClient.getPort()));
           preCopy.connections.add(replicaDetails.replicationServerClient);
         } catch (Throwable t) {
-          message(
+          logMessage(
               String.format(
                   "top: ignore exception trying to warm to replica for host:%s port: %d: %s",
                   replicaDetails.replicationServerClient.getHost(),
@@ -294,7 +294,7 @@ public class NRTPrimaryNode extends PrimaryNode {
         }
 
         if (isClosed()) {
-          message("top: primary is closing: now cancel segment warming");
+          logMessage("top: primary is closing: now cancel segment warming");
           // TODO: should we close these here?
           //                    synchronized (preCopy.connections) {
           //                        IOUtils.closeWhileHandlingException(preCopy.connections);
@@ -304,7 +304,7 @@ public class NRTPrimaryNode extends PrimaryNode {
 
         long ns = System.nanoTime();
         if (ns - lastWarnNS > 1000000000L) {
-          message(
+          logMessage(
               String.format(
                   Locale.ROOT,
                   "top: warning: still warming merge %s to %d replicas for %.1f sec...",
@@ -340,7 +340,7 @@ public class NRTPrimaryNode extends PrimaryNode {
         }
         preCopy.connections.removeAll(currentConnections);
       }
-      message("top: done warming merge " + info);
+      logMessage("top: done warming merge " + info);
     } finally {
       warmingSegments.remove(preCopy);
 
@@ -351,9 +351,8 @@ public class NRTPrimaryNode extends PrimaryNode {
     }
   }
 
-  @Override
-  public void message(String msg) {
-    super.message(msg);
+  public void logMessage(String msg) {
+    message(msg);
     logger.info(msg);
   }
 
@@ -363,7 +362,7 @@ public class NRTPrimaryNode extends PrimaryNode {
 
   public void addReplica(int replicaID, ReplicationServerClient replicationServerClient)
       throws IOException {
-    message("add replica: " + warmingSegments.size() + " current warming merges ");
+    logMessage("add replica: " + warmingSegments.size() + " current warming merges ");
     ReplicaDetails replicaDetails = new ReplicaDetails(replicaID, replicationServerClient);
     if (!replicasInfos.contains(replicaDetails)) {
       replicasInfos.add(replicaDetails);
@@ -373,7 +372,7 @@ public class NRTPrimaryNode extends PrimaryNode {
     synchronized (warmingSegments) {
       for (MergePreCopy preCopy : warmingSegments) {
         logger.debug("warming segment {}", preCopy.files.keySet());
-        super.message("warming segment " + preCopy.files.keySet());
+        message("warming segment " + preCopy.files.keySet());
         boolean found = false;
         synchronized (preCopy.connections) {
           for (ReplicationServerClient each : preCopy.connections) {
@@ -385,7 +384,7 @@ public class NRTPrimaryNode extends PrimaryNode {
         }
 
         if (found) {
-          message("this replica is already warming this segment; skipping");
+          logMessage("this replica is already warming this segment; skipping");
           // It's possible (maybe) that the replica started up, then a merge kicked off, and it
           // warmed to this new replica, all before the
           // replica sent us this command:
@@ -398,13 +397,13 @@ public class NRTPrimaryNode extends PrimaryNode {
           // This can happen, if all other replicas just now finished warming this segment, and so
           // we were just a bit too late.  In this
           // case the segment must be copied over in the next nrt point sent to this replica
-          message("failed to add connection to segment warmer (too late); closing");
+          logMessage("failed to add connection to segment warmer (too late); closing");
           // TODO: Close this and other replicationServerClient in close of this class? c.close();
         }
 
         FilesMetadata filesMetadata = RecvCopyStateHandler.writeFilesMetaData(preCopy.files);
         replicationServerClient.copyFiles(indexName, primaryGen, filesMetadata);
-        message("successfully started warming");
+        logMessage("successfully started warming");
       }
     }
   }
