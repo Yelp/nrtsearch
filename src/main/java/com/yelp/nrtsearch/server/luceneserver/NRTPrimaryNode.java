@@ -237,7 +237,6 @@ public class NRTPrimaryNode extends PrimaryNode {
   protected void preCopyMergedSegmentFiles(
       SegmentCommitInfo info, Map<String, FileMetaData> files) {
     long mergeStartNS = System.nanoTime();
-    String msg;
     if (replicasInfos.isEmpty()) {
       logMessage("no replicas, skip warming " + info);
       return;
@@ -330,7 +329,7 @@ public class NRTPrimaryNode extends PrimaryNode {
                   transferStatus.getMessage());
             }
           } catch (Throwable t) {
-            msg =
+            String msg =
                 String.format(
                     "top: ignore exception trying to read byte during warm for segment=%s to replica=%s: %s files=%s",
                     info, currentReplicationServerClient, t, files.keySet());
