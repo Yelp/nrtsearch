@@ -242,13 +242,15 @@ public class NRTPrimaryNode extends PrimaryNode {
       return;
     }
 
-    logMessage(
-        String.format(
-            "top: warm merge %s to %d replicas; localAddress=%s: files=%s",
-            info, replicasInfos.size(), hostPort, files.keySet()));
-
     MergePreCopy preCopy = new MergePreCopy(files);
-    warmingSegments.add(preCopy);
+    synchronized (warmingSegments) {
+      logMessage(
+          String.format(
+              "top: warm merge %s to %d replicas; localAddress=%s: files=%s",
+              info, replicasInfos.size(), hostPort, files.keySet()));
+
+      warmingSegments.add(preCopy);
+    }
 
     try {
       // Ask all currently known replicas to pre-copy this newly merged segment's files:
