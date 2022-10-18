@@ -375,14 +375,12 @@ public class NRTPrimaryNode extends PrimaryNode {
       for (MergePreCopy preCopy : warmingSegments) {
         logger.debug("warming segment {}", preCopy.files.keySet());
         message("warming segment " + preCopy.files.keySet());
-        synchronized (preCopy.connections) {
-          if (preCopy.connections.contains(replicationServerClient)) {
-            logMessage("this replica is already warming this segment; skipping");
-            // It's possible (maybe) that the replica started up, then a merge kicked off, and it
-            // warmed to this new replica, all before the
-            // replica sent us this command:
-            continue;
-          }
+        if (preCopy.connections.contains(replicationServerClient)) {
+          logMessage("this replica is already warming this segment; skipping");
+          // It's possible (maybe) that the replica started up, then a merge kicked off, and it
+          // warmed to this new replica, all before the
+          // replica sent us this command:
+          continue;
         }
 
         // OK, this new replica is not already warming this segment, so attempt (could fail) to
