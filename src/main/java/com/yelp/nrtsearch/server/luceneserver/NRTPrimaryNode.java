@@ -171,15 +171,17 @@ public class NRTPrimaryNode extends PrimaryNode {
         if (status.getCode().equals(Status.UNAVAILABLE.getCode())) {
           logger.warn(
               "NRTPRimaryNode: sendNRTPoint, lost connection to replicaId: {} host: {} port: {}",
-              replicaDetails.replicaId, replicaDetails.replicationServerClient.getHost(),
+              replicaDetails.replicaId,
+              replicaDetails.replicationServerClient.getHost(),
               replicaDetails.replicationServerClient.getPort());
           currentReplicaServerClient.close();
           it.remove();
         }
       } catch (Exception e) {
-        String msg = String.format("top: failed to connect R%d for newNRTPoint; skipping: %s",
-            replicaID,
-            e.getMessage());
+        String msg =
+            String.format(
+                "top: failed to connect R%d for newNRTPoint; skipping: %s",
+                replicaID, e.getMessage());
         super.message(msg);
         logger.warn(msg);
       }
@@ -241,8 +243,10 @@ public class NRTPrimaryNode extends PrimaryNode {
       return;
     }
 
-    message(String.format("top: warm merge %s to %d replicas; localAddress=%s: files=%s", info,
-        replicasInfos.size(), hostPort, files.keySet()));
+    message(
+        String.format(
+            "top: warm merge %s to %d replicas; localAddress=%s: files=%s",
+            info, replicasInfos.size(), hostPort, files.keySet()));
 
     MergePreCopy preCopy = new MergePreCopy(files);
     warmingSegments.add(preCopy);
@@ -261,15 +265,19 @@ public class NRTPrimaryNode extends PrimaryNode {
               replicaDetails.replicationServerClient.copyFiles(
                   indexName, primaryGen, filesMetadata);
           allCopyStatus.put(replicaDetails.replicationServerClient, copyStatus);
-          message(String.format("warm connection %s:%d",
-              replicaDetails.replicationServerClient.getHost(),
-              replicaDetails.replicationServerClient.getPort()));
+          message(
+              String.format(
+                  "warm connection %s:%d",
+                  replicaDetails.replicationServerClient.getHost(),
+                  replicaDetails.replicationServerClient.getPort()));
           preCopy.connections.add(replicaDetails.replicationServerClient);
         } catch (Throwable t) {
-          message(String.format(
-              "top: ignore exception trying to warm to replica for host:%s port: %d: %s",
-              replicaDetails.replicationServerClient.getHost(),
-              replicaDetails.replicationServerClient.getPort(), t));
+          message(
+              String.format(
+                  "top: ignore exception trying to warm to replica for host:%s port: %d: %s",
+                  replicaDetails.replicationServerClient.getHost(),
+                  replicaDetails.replicationServerClient.getPort(),
+                  t));
         }
       }
 
@@ -296,9 +304,13 @@ public class NRTPrimaryNode extends PrimaryNode {
 
         long ns = System.nanoTime();
         if (ns - lastWarnNS > 1000000000L) {
-          message(String.format(Locale.ROOT,
-              "top: warning: still warming merge %s to %d replicas for %.1f sec...", info,
-              preCopy.connections.size(), (ns - startNS) / 1000000000.0));
+          message(
+              String.format(
+                  Locale.ROOT,
+                  "top: warning: still warming merge %s to %d replicas for %.1f sec...",
+                  info,
+                  preCopy.connections.size(),
+                  (ns - startNS) / 1000000000.0));
           lastWarnNS = ns;
         }
 
@@ -312,7 +324,9 @@ public class NRTPrimaryNode extends PrimaryNode {
               TransferStatus transferStatus = transferStatusIterator.next();
               logger.debug(
                   "transferStatus for replicationServerClient={},  merge files={}, code={}, message={}",
-                  currentReplicationServerClient, files.keySet(), transferStatus.getCode(),
+                  currentReplicationServerClient,
+                  files.keySet(),
+                  transferStatus.getCode(),
                   transferStatus.getMessage());
             }
           } catch (Throwable t) {
@@ -407,8 +421,10 @@ public class NRTPrimaryNode extends PrimaryNode {
       ReplicaDetails replicaDetails = it.next();
       ReplicationServerClient replicationServerClient = replicaDetails.getReplicationServerClient();
       HostPort replicaHostPort = replicaDetails.getHostPort();
-      logger.info("CLOSE NRT PRIMARY, closing replica channel host:{}, port:{}",
-          replicaHostPort.getHostName(), replicaHostPort.getPort());
+      logger.info(
+          "CLOSE NRT PRIMARY, closing replica channel host:{}, port:{}",
+          replicaHostPort.getHostName(),
+          replicaHostPort.getPort());
       replicationServerClient.close();
       it.remove();
     }
