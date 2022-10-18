@@ -48,9 +48,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class NRTPrimaryNode extends PrimaryNode {
+  private static final Logger logger = LoggerFactory.getLogger(NRTPrimaryNode.class);
   private final HostPort hostPort;
   private final String indexName;
-  Logger logger = LoggerFactory.getLogger(NRTPrimaryNode.class);
   final List<MergePreCopy> warmingSegments = Collections.synchronizedList(new ArrayList<>());
   final Queue<ReplicaDetails> replicasInfos = new ConcurrentLinkedQueue<>();
 
