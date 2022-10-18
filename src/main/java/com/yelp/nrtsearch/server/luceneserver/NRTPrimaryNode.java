@@ -27,12 +27,14 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import org.apache.lucene.index.IndexWriter;
@@ -117,8 +119,7 @@ public class NRTPrimaryNode extends PrimaryNode {
 
   /** Holds all replicas currently warming (pre-copying the new files) a single merged segment */
   static class MergePreCopy {
-    final List<ReplicationServerClient> connections =
-        Collections.synchronizedList(new ArrayList<>());
+    final Set<ReplicationServerClient> connections = Collections.synchronizedSet(new HashSet<>());
     final Map<String, FileMetaData> files;
     private boolean finished;
 
@@ -339,7 +340,7 @@ public class NRTPrimaryNode extends PrimaryNode {
             super.message(msg);
           }
         }
-        preCopy.connections.removeAll(currentConnections);
+        currentConnections.forEach(preCopy.connections::remove);
       }
       logMessage("top: done warming merge " + info);
     } finally {
@@ -374,22 +375,14 @@ public class NRTPrimaryNode extends PrimaryNode {
       for (MergePreCopy preCopy : warmingSegments) {
         logger.debug("warming segment {}", preCopy.files.keySet());
         message("warming segment " + preCopy.files.keySet());
-        boolean found = false;
         synchronized (preCopy.connections) {
-          for (ReplicationServerClient each : preCopy.connections) {
-            if (each.equals(replicationServerClient)) {
-              found = true;
-              break;
-            }
+          if (preCopy.connections.contains(replicationServerClient)) {
+            logMessage("this replica is already warming this segment; skipping");
+            // It's possible (maybe) that the replica started up, then a merge kicked off, and it
+            // warmed to this new replica, all before the
+            // replica sent us this command:
+            continue;
           }
-        }
-
-        if (found) {
-          logMessage("this replica is already warming this segment; skipping");
-          // It's possible (maybe) that the replica started up, then a merge kicked off, and it
-          // warmed to this new replica, all before the
-          // replica sent us this command:
-          continue;
         }
 
         // OK, this new replica is not already warming this segment, so attempt (could fail) to
