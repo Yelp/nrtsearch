@@ -70,6 +70,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -450,6 +451,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       var hitResponse = context.getResponseBuilder().addHitsBuilder();
       ScoreDoc hit = hits.scoreDocs[hitIndex];
       hitResponse.setLuceneDocId(hit.doc);
+      if (hit instanceof TopSuggestDocs.SuggestScoreDoc) {
+        hitResponse.setCompletionQueryMetadata(Hit.CompletionQueryMetadata.newBuilder()
+            .setKey(((TopSuggestDocs.SuggestScoreDoc) hit).key.toString())
+            .build());
+      }
       context.getCollector().fillHitRanking(hitResponse, hit);
     }
   }
