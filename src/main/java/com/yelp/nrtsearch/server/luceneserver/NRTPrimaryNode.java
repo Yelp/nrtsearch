@@ -279,10 +279,7 @@ public class NRTPrimaryNode extends PrimaryNode {
 
         if (isClosed()) {
           logMessage("top: primary is closing: now cancel segment warming");
-          // TODO: should we close these here?
-          //                    synchronized (preCopy.connections) {
-          //                        IOUtils.closeWhileHandlingException(preCopy.connections);
-          //                    }
+          // Connections are closed in close() method
           return;
         }
 
@@ -349,7 +346,7 @@ public class NRTPrimaryNode extends PrimaryNode {
         allCopyStatus.put(replicaDetails.replicationServerClient, copyStatus);
         logMessage(
             String.format(
-                "warm connection %s:%d",
+                "Start warming merged segments for replica %s:%d",
                 replicaDetails.replicationServerClient.getHost(),
                 replicaDetails.replicationServerClient.getPort()));
       } catch (Throwable t) {
@@ -387,7 +384,9 @@ public class NRTPrimaryNode extends PrimaryNode {
         logger.debug("warming segment {}", preCopy.files.keySet());
         message("warming segment " + preCopy.files.keySet());
         if (preCopy.connections.contains(replicationServerClient)) {
-          logMessage("this replica is already warming this segment; skipping");
+          logMessage(String.format("Replica %s:%d is already warming this segment",
+              replicaDetails.replicationServerClient.getHost(),
+              replicaDetails.replicationServerClient.getPort()));
           // It's possible (maybe) that the replica started up, then a merge kicked off, and it
           // warmed to this new replica, all before the
           // replica sent us this command:
@@ -399,7 +398,7 @@ public class NRTPrimaryNode extends PrimaryNode {
         Iterator<TransferStatus> transferStatusIterator = replicationServerClient.copyFiles(
             indexName, primaryGen, filesMetadata);
         logMessage(
-            String.format("warm connection %s:%d",
+            String.format("Start copying merged segments for new replica %s:%d",
                 replicaDetails.replicationServerClient.getHost(),
                 replicaDetails.replicationServerClient.getPort()));
 
@@ -408,7 +407,9 @@ public class NRTPrimaryNode extends PrimaryNode {
           // This can happen, if all other replicas just now finished warming this segment, and so
           // we were just a bit too late.  In this case the segment must be copied over in the next
           // nrt point sent to this replica
-          logMessage("failed to add connection to segment warmer (too late); closing");
+          logMessage(String.format("Warming already completed, unable to add new replica %s:%d",
+              replicaDetails.replicationServerClient.getHost(),
+              replicaDetails.replicationServerClient.getPort()));
         }
 
       }
