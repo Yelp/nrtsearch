@@ -453,12 +453,18 @@ message SearchResponse {
             repeated string fragments = 1;
         }
 
+        message CompletionQueryMetadata {
+            string key = 1;
+        }
+
         int32 luceneDocId = 1;
         double score = 2;
         map<string, CompositeFieldValue> fields = 3; // Field name to value
         map<string, CompositeFieldValue> sortedFields = 4; // Sorted field name to value
         // Field name to highlighted text fragments
         map<string, Highlights> highlights = 5;
+        // metadata from completion query
+        CompletionQueryMetadata completionQueryMetadata = 6;
     }
 
     message SearchState {
