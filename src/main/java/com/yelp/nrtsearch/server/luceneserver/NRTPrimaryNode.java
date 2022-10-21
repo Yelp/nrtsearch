@@ -258,7 +258,7 @@ public class NRTPrimaryNode extends PrimaryNode {
     synchronized (warmingSegments) {
       logMessage(
           String.format(
-              "top: warm merge %s to %d replicas; localAddress=%s: files=%s",
+              "Start merge precopy %s to %d replicas; localAddress=%s: files=%s",
               info, replicasInfos.size(), hostPort, files.keySet()));
 
       Map<ReplicationServerClient, Iterator<TransferStatus>> allCopyStatus =
@@ -282,7 +282,7 @@ public class NRTPrimaryNode extends PrimaryNode {
         }
 
         if (isClosed()) {
-          logMessage("top: primary is closing: now cancel segment warming");
+          logMessage("Primary is closing: cancel merge precopy");
           // Connections are closed in close() method
           return;
         }
@@ -292,7 +292,7 @@ public class NRTPrimaryNode extends PrimaryNode {
           logMessage(
               String.format(
                   Locale.ROOT,
-                  "top: warning: still warming merge %s to %d replicas for %.1f sec...",
+                  "Warning: still warming merge %s to %d replicas for %.1f sec...",
                   info,
                   preCopy.connections.size(),
                   (ns - startNS) / 1000000000.0));
@@ -317,7 +317,7 @@ public class NRTPrimaryNode extends PrimaryNode {
           } catch (Throwable t) {
             String msg =
                 String.format(
-                    "top: ignore exception trying to read byte during warm for segment=%s to replica=%s: %s files=%s",
+                    "Ignore exception trying to read byte during merge precopy for segment=%s to replica=%s: %s files=%s",
                     info, currentReplicationServerClient, t, files.keySet());
             logger.warn(msg, t);
             super.message(msg);
@@ -325,7 +325,7 @@ public class NRTPrimaryNode extends PrimaryNode {
         }
         currentConnections.forEach(preCopy.connections::remove);
       }
-      logMessage("top: done warming merge " + info);
+      logMessage("Done merge precopy " + info);
     } finally {
       warmingSegments.remove(preCopy);
 
@@ -352,13 +352,13 @@ public class NRTPrimaryNode extends PrimaryNode {
         allCopyStatus.put(replicaDetails.replicationServerClient, copyStatus);
         logMessage(
             String.format(
-                "Start warming merged segments for replica %s:%d",
+                "Start precopying merged segments for replica %s:%d",
                 replicaDetails.replicationServerClient.getHost(),
                 replicaDetails.replicationServerClient.getPort()));
       } catch (Throwable t) {
         logMessage(
             String.format(
-                "top: ignore exception trying to warm to replica for host:%s port: %d: %s",
+                "Ignore merge precopy exception for replica host:%s port: %d: %s",
                 replicaDetails.replicationServerClient.getHost(),
                 replicaDetails.replicationServerClient.getPort(),
                 t));
@@ -407,7 +407,7 @@ public class NRTPrimaryNode extends PrimaryNode {
             replicationServerClient.copyFiles(indexName, primaryGen, filesMetadata);
         logMessage(
             String.format(
-                "Start copying merged segments for new replica %s:%d",
+                "Start precopying merged segments for new replica %s:%d",
                 replicaDetails.replicationServerClient.getHost(),
                 replicaDetails.replicationServerClient.getPort()));
 
@@ -418,7 +418,7 @@ public class NRTPrimaryNode extends PrimaryNode {
           // nrt point sent to this replica
           logMessage(
               String.format(
-                  "Warming already completed, unable to add new replica %s:%d",
+                  "Merge precopy already completed, unable to add new replica %s:%d",
                   replicaDetails.replicationServerClient.getHost(),
                   replicaDetails.replicationServerClient.getPort()));
         }
