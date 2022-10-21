@@ -124,13 +124,16 @@ public class NRTPrimaryNode extends PrimaryNode {
     final Map<String, FileMetaData> files;
     private boolean finished;
 
-    public MergePreCopy(Map<String, FileMetaData> files, Map<ReplicationServerClient, Iterator<TransferStatus>> clientToTransferStatusIterator) {
+    public MergePreCopy(
+        Map<String, FileMetaData> files,
+        Map<ReplicationServerClient, Iterator<TransferStatus>> clientToTransferStatusIterator) {
       this.files = files;
       this.clientToTransferStatusIterator = new ConcurrentHashMap<>(clientToTransferStatusIterator);
       this.connections.addAll(clientToTransferStatusIterator.keySet());
     }
 
-    public synchronized boolean tryAddConnection(ReplicationServerClient c, Iterator<TransferStatus> transferStatusIterator) {
+    public synchronized boolean tryAddConnection(
+        ReplicationServerClient c, Iterator<TransferStatus> transferStatusIterator) {
       if (finished == false) {
         clientToTransferStatusIterator.put(c, transferStatusIterator);
         connections.add(c);
@@ -258,7 +261,8 @@ public class NRTPrimaryNode extends PrimaryNode {
               "top: warm merge %s to %d replicas; localAddress=%s: files=%s",
               info, replicasInfos.size(), hostPort, files.keySet()));
 
-      Map<ReplicationServerClient, Iterator<TransferStatus>> allCopyStatus = callCopyFilesForPreCopy(files);
+      Map<ReplicationServerClient, Iterator<TransferStatus>> allCopyStatus =
+          callCopyFilesForPreCopy(files);
       preCopy = new MergePreCopy(files, allCopyStatus);
       warmingSegments.add(preCopy);
     }
@@ -332,12 +336,14 @@ public class NRTPrimaryNode extends PrimaryNode {
     }
   }
 
-  private Map<ReplicationServerClient, Iterator<TransferStatus>> callCopyFilesForPreCopy(Map<String, FileMetaData> files) {
+  private Map<ReplicationServerClient, Iterator<TransferStatus>> callCopyFilesForPreCopy(
+      Map<String, FileMetaData> files) {
     // Ask all currently known replicas to pre-copy this newly merged segment's files:
     Iterator<ReplicaDetails> replicaInfos = replicasInfos.iterator();
     ReplicaDetails replicaDetails = null;
     FilesMetadata filesMetadata = RecvCopyStateHandler.writeFilesMetaData(files);
-    Map<ReplicationServerClient, Iterator<TransferStatus>> allCopyStatus = new ConcurrentHashMap<>();
+    Map<ReplicationServerClient, Iterator<TransferStatus>> allCopyStatus =
+        new ConcurrentHashMap<>();
     while (replicaInfos.hasNext()) {
       try {
         replicaDetails = replicaInfos.next();
@@ -384,9 +390,11 @@ public class NRTPrimaryNode extends PrimaryNode {
         logger.debug("warming segment {}", preCopy.files.keySet());
         message("warming segment " + preCopy.files.keySet());
         if (preCopy.connections.contains(replicationServerClient)) {
-          logMessage(String.format("Replica %s:%d is already warming this segment",
-              replicaDetails.replicationServerClient.getHost(),
-              replicaDetails.replicationServerClient.getPort()));
+          logMessage(
+              String.format(
+                  "Replica %s:%d is already warming this segment",
+                  replicaDetails.replicationServerClient.getHost(),
+                  replicaDetails.replicationServerClient.getPort()));
           // It's possible (maybe) that the replica started up, then a merge kicked off, and it
           // warmed to this new replica, all before the
           // replica sent us this command:
@@ -395,10 +403,11 @@ public class NRTPrimaryNode extends PrimaryNode {
 
         // Start copying the segments to the replica
         FilesMetadata filesMetadata = RecvCopyStateHandler.writeFilesMetaData(preCopy.files);
-        Iterator<TransferStatus> transferStatusIterator = replicationServerClient.copyFiles(
-            indexName, primaryGen, filesMetadata);
+        Iterator<TransferStatus> transferStatusIterator =
+            replicationServerClient.copyFiles(indexName, primaryGen, filesMetadata);
         logMessage(
-            String.format("Start copying merged segments for new replica %s:%d",
+            String.format(
+                "Start copying merged segments for new replica %s:%d",
                 replicaDetails.replicationServerClient.getHost(),
                 replicaDetails.replicationServerClient.getPort()));
 
@@ -407,11 +416,12 @@ public class NRTPrimaryNode extends PrimaryNode {
           // This can happen, if all other replicas just now finished warming this segment, and so
           // we were just a bit too late.  In this case the segment must be copied over in the next
           // nrt point sent to this replica
-          logMessage(String.format("Warming already completed, unable to add new replica %s:%d",
-              replicaDetails.replicationServerClient.getHost(),
-              replicaDetails.replicationServerClient.getPort()));
+          logMessage(
+              String.format(
+                  "Warming already completed, unable to add new replica %s:%d",
+                  replicaDetails.replicationServerClient.getHost(),
+                  replicaDetails.replicationServerClient.getPort()));
         }
-
       }
     }
   }
