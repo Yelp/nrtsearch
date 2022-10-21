@@ -660,7 +660,7 @@ public class ImmutableIndexState extends IndexState {
       iwc.setIndexSort(indexSort);
     }
 
-    iwc.setSimilarity(sim);
+    iwc.setSimilarity(new IndexSimilarity(indexStateManager));
     iwc.setRAMBufferSizeMB(indexRamBufferSizeMB);
 
     iwc.setMergedSegmentWarmer(new SimpleMergedSegmentWarmer(iwc.getInfoStream()));
