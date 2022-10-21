@@ -244,8 +244,7 @@ public class ArchiverModule extends AbstractModule {
           fileCompressAndUploader,
           contentDownloader,
           new VersionManager(s3, luceneServerConfiguration.getBucketName()),
-          Paths.get(luceneServerConfiguration.getArchiveDirectory()),
-          luceneServerConfiguration.getStateConfig().useLegacyStateManagement());
+          Paths.get(luceneServerConfiguration.getArchiveDirectory()));
     }
   }
 }

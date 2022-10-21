@@ -393,7 +393,7 @@ public class ImmutableIndexState extends IndexState {
 
     // only create if the index has not been committed
     for (ShardState shard : shards.values()) {
-      shard.setDoCreate(!currentStateInfo.getCommitted());
+      shard.setDoCreate(!currentStateInfo.getCommitted() && dataPath == null);
     }
 
     // start all local shards
@@ -484,11 +484,6 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
-  public void addField(FieldDef fd, JsonObject jsonObject) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public FieldDef getField(String fieldName) {
     FieldDef fd = getMetaFields().get(fieldName);
     if (fd != null) {
@@ -567,11 +562,6 @@ public class ImmutableIndexState extends IndexState {
   @Override
   public FacetsConfig getFacetsConfig() {
     return fieldAndFacetState.getFacetsConfig();
-  }
-
-  @Override
-  public ShardState addShard(int shardOrd, boolean doCreate) {
-    throw new UnsupportedOperationException();
   }
 
   @Override

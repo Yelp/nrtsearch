@@ -22,7 +22,6 @@ import static org.junit.Assert.assertNotNull;
 import com.google.protobuf.ByteString;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.BufferedWriter;
@@ -39,6 +38,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -47,6 +47,7 @@ import org.junit.runners.JUnit4;
 import org.locationtech.spatial4j.io.GeohashUtils;
 
 @RunWith(JUnit4.class)
+@Ignore("Do we still want to support this?")
 public class SuggestTest {
 
   enum Suggester {
@@ -81,17 +82,15 @@ public class SuggestTest {
   public void setUp() throws IOException {
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    GlobalState globalState = GlobalState.createState(luceneServerConfiguration);
     grpcServer =
         new GrpcServer(
             grpcCleanup,
             luceneServerConfiguration,
             folder,
-            false,
-            globalState,
+            null,
             luceneServerConfiguration.getIndexDir(),
             "test_index",
-            globalState.getPort());
+            luceneServerConfiguration.getPort());
     Path tempDir = folder.newFolder("TestSuggest").toPath();
     tempFile = tempDir.resolve("suggest.in");
   }

@@ -190,8 +190,7 @@ public class StateBackendServerTest {
             fileCompressAndUploader,
             contentDownloader,
             versionManager,
-            getPrimaryArchiveDir(),
-            false);
+            getPrimaryArchiveDir());
 
     BackupDiffManager backupDiffManagerReplica =
         new BackupDiffManager(
@@ -202,8 +201,7 @@ public class StateBackendServerTest {
             fileCompressAndUploader,
             contentDownloader,
             versionManager,
-            getReplicaArchiveDir(),
-            false);
+            getReplicaArchiveDir());
   }
 
   private LuceneServerConfiguration getPrimaryConfig() {

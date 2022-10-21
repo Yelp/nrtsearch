@@ -18,9 +18,10 @@ package com.yelp.nrtsearch.server.luceneserver;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -126,13 +127,14 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
   }
 
   private void setLiveSettings(int virtualShards, int maxDocs, int maxSegments) throws IOException {
-    ;
-    IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
-    assertTrue(indexState instanceof LegacyIndexState);
-    LegacyIndexState legacyIndexState = (LegacyIndexState) indexState;
-    legacyIndexState.setVirtualShards(virtualShards);
-    legacyIndexState.setSliceMaxDocs(maxDocs);
-    legacyIndexState.setSliceMaxSegments(maxSegments);
+    getGlobalState()
+        .getIndexStateManager(DEFAULT_TEST_INDEX)
+        .updateLiveSettings(
+            IndexLiveSettings.newBuilder()
+                .setVirtualShards(Int32Value.newBuilder().setValue(virtualShards).build())
+                .setSliceMaxDocs(Int32Value.newBuilder().setValue(maxDocs).build())
+                .setSliceMaxSegments(Int32Value.newBuilder().setValue(maxSegments).build())
+                .build());
   }
 
   private void addSegments(Iterable<Integer> sizes) throws Exception {

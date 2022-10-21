@@ -59,6 +59,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -84,6 +85,7 @@ public class ShardState implements Closeable {
   private static final long INITIAL_SYNC_MAX_TIME_MS = 600000; // 10m
   public static final int REPLICA_ID = 0;
   public static final String INDEX_DATA_DIR_NAME = "index";
+  public static final String TAXONOMY_DATA_DIR_NAME = "taxonomy";
   final ThreadPoolExecutor searchExecutor;
 
   /** {@link IndexStateManager} for the index this shard belongs to */
@@ -582,7 +584,7 @@ public class ShardState implements Closeable {
       if (rootDir == null) {
         taxoDirFile = null;
       } else {
-        taxoDirFile = rootDir.resolve("taxonomy");
+        taxoDirFile = rootDir.resolve(TAXONOMY_DATA_DIR_NAME);
       }
       taxoDir =
           indexState
@@ -596,7 +598,7 @@ public class ShardState implements Closeable {
               IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
 
       taxoWriter =
-          new DirectoryTaxonomyWriter(taxoDir, openMode) {
+          new DirectoryTaxonomyWriter(taxoDir, OpenMode.CREATE_OR_APPEND) {
             @Override
             protected IndexWriterConfig createIndexWriterConfig(
                 IndexWriterConfig.OpenMode openMode) {

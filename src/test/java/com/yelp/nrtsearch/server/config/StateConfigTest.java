@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.config;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -34,8 +33,7 @@ public class StateConfigTest {
   public void testDefaultConfig() {
     String configFile = "nodeName: \"lucene_server_foo\"";
     StateConfig stateConfig = getConfig(configFile);
-    assertEquals(StateBackendType.LEGACY, stateConfig.getBackendType());
-    assertTrue(stateConfig.useLegacyStateManagement());
+    assertEquals(StateBackendType.LOCAL, stateConfig.getBackendType());
   }
 
   @Test
@@ -43,7 +41,6 @@ public class StateConfigTest {
     String configFile = String.join("\n", "stateConfig:", "  backendType: LOCAL");
     StateConfig stateConfig = getConfig(configFile);
     assertEquals(StateBackendType.LOCAL, stateConfig.getBackendType());
-    assertFalse(stateConfig.useLegacyStateManagement());
   }
 
   @Test

@@ -23,7 +23,6 @@ import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.GrpcServer;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import org.junit.After;
@@ -51,17 +50,15 @@ public class ReadyCommandTest {
   private void startServer() throws IOException {
     LuceneServerConfiguration luceneServerPrimaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
-    GlobalState globalStatePrimary = GlobalState.createState(luceneServerPrimaryConfiguration);
     server =
         new GrpcServer(
             grpcCleanup,
             luceneServerPrimaryConfiguration,
             folder,
-            false,
-            globalStatePrimary,
+            null,
             luceneServerPrimaryConfiguration.getIndexDir(),
             "test_index",
-            globalStatePrimary.getPort(),
+            luceneServerPrimaryConfiguration.getPort(),
             null);
   }
 
@@ -150,7 +147,7 @@ public class ReadyCommandTest {
     CommandLine cmd = new CommandLine(new LuceneClientCommand());
     int exitCode =
         cmd.execute("--hostname=localhost", "--port=" + server.getGlobalState().getPort(), "ready");
-    assertEquals(1, exitCode);
+    assertEquals(0, exitCode);
   }
 
   private void verifyIndicesReady(String indices, int expectedExitCode) {

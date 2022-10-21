@@ -31,17 +31,16 @@ import com.yelp.nrtsearch.server.backup.ArchiverImpl;
 import com.yelp.nrtsearch.server.backup.Tar;
 import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.findify.s3mock.S3Mock;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.iq80.leveldb.util.FileUtils;
@@ -86,16 +85,14 @@ public class BackupRestoreIndexRequestHandlerTest {
   private GrpcServer setUpGrpcServer() throws IOException {
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    GlobalState globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         grpcCleanup,
         luceneServerConfiguration,
         folder,
-        false,
-        globalState,
+        null,
         luceneServerConfiguration.getIndexDir(),
         "test_index",
-        globalState.getPort(),
+        luceneServerConfiguration.getPort(),
         archiver);
   }
 
@@ -139,6 +136,10 @@ public class BackupRestoreIndexRequestHandlerTest {
     // ../test_index/shard0/index
     expected.remove("write.lock");
     expected.remove("write.lock");
+    // The empty index is committed on first start, resulting in segments file that is not in the
+    // latest index version
+    expected.remove("segments_1");
+
     assertEquals(expected, actual);
   }
 
@@ -181,7 +182,7 @@ public class BackupRestoreIndexRequestHandlerTest {
     try {
       restartIndexWithRestoreAndVerify(false, false);
     } catch (StatusRuntimeException e) {
-      assertTrue(e.getMessage().contains("java.nio.file.DirectoryNotEmptyException"));
+      assertTrue(e.getMessage().contains("Cannot restore, directory has index data file:"));
       throw e;
     }
   }
@@ -350,10 +351,19 @@ public class BackupRestoreIndexRequestHandlerTest {
   }
 
   private void deleteIndexAndMetadata() throws IOException {
-    for (Path path :
-        Arrays.asList(
-            grpcServer.getGlobalState().getStateDir(), Paths.get(grpcServer.getIndexDir()))) {
-      rmDir(path);
+    try (DirectoryStream<Path> stream =
+        Files.newDirectoryStream(Path.of(grpcServer.getIndexDir()))) {
+      for (Path path : stream) {
+        try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(path)) {
+          for (Path indexPath : indexStream) {
+            if (Files.isDirectory(indexPath)) {
+              rmDir(indexPath);
+            } else {
+              Files.delete(indexPath);
+            }
+          }
+        }
+      }
     }
   }
 

@@ -44,7 +44,6 @@ public class IndexArchiver implements Archiver {
   private final ContentDownloader contentDownloader;
   private final VersionManager versionManager;
   private final Path archiverDirectory;
-  private final boolean useLegacyIndexState;
 
   @Inject
   public IndexArchiver(
@@ -53,29 +52,11 @@ public class IndexArchiver implements Archiver {
       ContentDownloader contentDownloader,
       VersionManager versionManager,
       Path archiverDirectory) {
-    this(
-        backupDiffManager,
-        fileCompressAndUploader,
-        contentDownloader,
-        versionManager,
-        archiverDirectory,
-        true);
-  }
-
-  @Inject
-  public IndexArchiver(
-      BackupDiffManager backupDiffManager,
-      FileCompressAndUploader fileCompressAndUploader,
-      ContentDownloader contentDownloader,
-      VersionManager versionManager,
-      Path archiverDirectory,
-      boolean useLegacyIndexState) {
     this.backupDiffManager = backupDiffManager;
     this.fileCompressAndUploader = fileCompressAndUploader;
     this.contentDownloader = contentDownloader;
     this.versionManager = versionManager;
     this.archiverDirectory = archiverDirectory;
-    this.useLegacyIndexState = useLegacyIndexState;
   }
 
   @VisibleForTesting
@@ -137,25 +118,6 @@ public class IndexArchiver implements Archiver {
         }
         Files.delete(tmpIndexDir);
       }
-
-      if (useLegacyIndexState) {
-        // get index_state
-        final Path indexStateDir = getIndexStateDir(versionDirectory.resolve(resource));
-        Files.createDirectories(indexStateDir);
-        final Path tempStateDir = resourceDestDirectory.resolve(getTmpName());
-        contentDownloader.getVersionContent(
-            serviceName, getIndexStateResourceName(resource), versionHash, tempStateDir);
-        try (DirectoryStream<Path> ds = Files.newDirectoryStream(getIndexStateDir(tempStateDir))) {
-          for (Path file : ds) {
-            Files.move(
-                file, indexStateDir.resolve(file.getFileName()), StandardCopyOption.ATOMIC_MOVE);
-          }
-          if (Files.exists(getIndexStateDir(tempStateDir))) {
-            Files.delete(getIndexStateDir(tempStateDir));
-          }
-          Files.delete(tempStateDir);
-        }
-      }
     }
 
     try {
@@ -184,23 +146,13 @@ public class IndexArchiver implements Archiver {
       boolean stream)
       throws IOException {
     if ((validIndexDir(path))) {
-      String diffVersionHash =
-          backupDiffManager.upload(
-              serviceName,
-              getIndexDataResourceName(resource),
-              getIndexDataDir(path),
-              filesToInclude,
-              parentDirectoriesToInclude,
-              true);
-      if (useLegacyIndexState) {
-        fileCompressAndUploader.upload(
-            serviceName,
-            getIndexStateResourceName(resource),
-            diffVersionHash,
-            getIndexStateDir(path),
-            true);
-      }
-      return diffVersionHash;
+      return backupDiffManager.upload(
+          serviceName,
+          getIndexDataResourceName(resource),
+          getIndexDataDir(path),
+          filesToInclude,
+          parentDirectoriesToInclude,
+          true);
     } else if (validGlobalStateDir(path)
         || IndexBackupUtils.isBackendGlobalState(resource)
         || IndexBackupUtils.isIndexState(resource)) {
@@ -235,20 +187,11 @@ public class IndexArchiver implements Archiver {
 
   @VisibleForTesting
   boolean validIndexDir(Path indexRootDir) {
-    if (useLegacyIndexState) {
-      return Files.exists(getIndexDataDir(indexRootDir))
-          && Files.exists(getIndexStateDir(indexRootDir));
-    } else {
-      return Files.exists(getIndexDataDir(indexRootDir));
-    }
+    return Files.exists(getIndexDataDir(indexRootDir));
   }
 
   public static Path getIndexDataDir(Path indexRootDir) {
     return indexRootDir.resolve(SHARD_0).resolve(INDEX);
-  }
-
-  public static Path getIndexStateDir(Path indexRootDir) {
-    return indexRootDir.resolve(STATE);
   }
 
   @Override
