@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.GeneratedMessageV3;
 import com.yelp.nrtsearch.server.grpc.discovery.PrimaryFileNameResolverProvider;
 import com.yelp.nrtsearch.server.luceneserver.SimpleCopyJob.FileChunkStreamingIterator;
+import io.grpc.Deadline;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
@@ -39,6 +40,7 @@ public class ReplicationServerClient implements Closeable {
   private static final ObjectMapper OBJECT_MAPPER =
       new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);;
   private static final int FILE_UPDATE_INTERVAL_MS = 10 * 1000; // 10 seconds
+  private static final int COPY_FILES_DEADLINE_SEC = 10 * 60; // 10 minutes
   private static final Logger logger = LoggerFactory.getLogger(ReplicationServerClient.class);
 
   private final String host;
@@ -169,7 +171,7 @@ public class ReplicationServerClient implements Closeable {
   }
 
   public void addReplicas(String indexName, int replicaId, String hostName, int port) {
-    AddReplicaRequest addDocumentRequest =
+    AddReplicaRequest addReplicaRequest =
         AddReplicaRequest.newBuilder()
             .setMagicNumber(BINARY_MAGIC)
             .setIndexName(indexName)
@@ -178,7 +180,7 @@ public class ReplicationServerClient implements Closeable {
             .setPort(port)
             .build();
     try {
-      this.blockingStub.addReplicas(addDocumentRequest);
+      this.blockingStub.addReplicas(addReplicaRequest);
     } catch (Exception e) {
       /* Note this should allow the replica to start, but it means it will not be able to get new index updates
        * from Primary: https://github.com/Yelp/nrtsearch/issues/86 */
@@ -230,7 +232,9 @@ public class ReplicationServerClient implements Closeable {
             .setPrimaryGen(primaryGen)
             .setFilesMetadata(filesMetadata)
             .build();
-    return this.blockingStub.copyFiles(copyFiles);
+    return this.blockingStub
+        .withDeadline(Deadline.after(COPY_FILES_DEADLINE_SEC, TimeUnit.SECONDS))
+        .copyFiles(copyFiles);
   }
 
   public TransferStatus newNRTPoint(String indexName, long primaryGen, long version) {
