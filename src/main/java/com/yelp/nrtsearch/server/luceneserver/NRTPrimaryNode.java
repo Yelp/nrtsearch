@@ -133,8 +133,10 @@ public class NRTPrimaryNode extends PrimaryNode {
     }
 
     public synchronized boolean tryAddConnection(
-        ReplicationServerClient c, Iterator<TransferStatus> transferStatusIterator) {
-      if (finished == false) {
+        ReplicationServerClient c, String indexName, long primaryGen, FilesMetadata filesMetadata) {
+      if (!finished) {
+        Iterator<TransferStatus> transferStatusIterator =
+            c.copyFiles(indexName, primaryGen, filesMetadata);
         clientToTransferStatusIterator.put(c, transferStatusIterator);
         connections.add(c);
         return true;
@@ -403,16 +405,16 @@ public class NRTPrimaryNode extends PrimaryNode {
 
         // Start copying the segments to the replica
         FilesMetadata filesMetadata = RecvCopyStateHandler.writeFilesMetaData(preCopy.files);
-        Iterator<TransferStatus> transferStatusIterator =
-            replicationServerClient.copyFiles(indexName, primaryGen, filesMetadata);
-        logMessage(
-            String.format(
-                "Start precopying merged segments for new replica %s:%d",
-                replicaDetails.replicationServerClient.getHost(),
-                replicaDetails.replicationServerClient.getPort()));
 
         // If the preCopy is still in progress add this transfer to it as well
-        if (!preCopy.tryAddConnection(replicationServerClient, transferStatusIterator)) {
+        if (preCopy.tryAddConnection(
+            replicationServerClient, indexName, primaryGen, filesMetadata)) {
+          logMessage(
+              String.format(
+                  "Start precopying merged segments for new replica %s:%d",
+                  replicaDetails.replicationServerClient.getHost(),
+                  replicaDetails.replicationServerClient.getPort()));
+        } else {
           // This can happen, if all other replicas just now finished warming this segment, and so
           // we were just a bit too late.  In this case the segment must be copied over in the next
           // nrt point sent to this replica
