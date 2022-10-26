@@ -122,6 +122,15 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
 
     Set<String> hitsIds = getHitsIds(searchResponse);
     assertTrue(hitsIds.contains("3"));
+    String suggestKeyValueFromHit =
+        searchResponse
+            .getHitsList()
+            .get(0)
+            .getFieldsMap()
+            .get("__suggest_key")
+            .getFieldValue(0)
+            .getTextValue();
+    assertEquals("Tasty Burger", suggestKeyValueFromHit);
   }
 
   @Test
@@ -143,6 +152,15 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
 
     Set<String> hitsIds = getHitsIds(searchResponse);
     assertTrue(hitsIds.contains("5"));
+    String suggestKeyValueFromHit =
+        searchResponse
+            .getHitsList()
+            .get(0)
+            .getFieldsMap()
+            .get("__suggest_key")
+            .getFieldValue(0)
+            .getTextValue();
+    assertEquals("Fantastic Fries", suggestKeyValueFromHit);
   }
 
   @Test
@@ -182,6 +200,15 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
         getGrpcServer().getBlockingStub().search(getRequestWithQuery(query));
 
     assertEquals(1, searchResponse.getHitsCount());
+    String suggestKeyValueFromHit =
+        searchResponse
+            .getHitsList()
+            .get(0)
+            .getFieldsMap()
+            .get("__suggest_key")
+            .getFieldValue(0)
+            .getTextValue();
+    assertEquals("Burger Fries", suggestKeyValueFromHit);
 
     Set<String> hitsIds = getHitsIds(searchResponse);
     assertTrue(hitsIds.contains("4"));
