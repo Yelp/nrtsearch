@@ -33,6 +33,7 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
+import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.clientlib.Node;
 import com.yelp.nrtsearch.server.backup.BackupDiffManager;
@@ -1474,7 +1475,7 @@ public class StateBackendServerTest {
             .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(13.0).build())
             .setDefaultSearchTimeoutCheckEvery(Int32Value.newBuilder().setValue(500).build())
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(5000).build())
-            .setMaxMergePreCopyDurationSec(DoubleValue.newBuilder().setValue(0))
+            .setMaxMergePreCopyDurationSec(UInt64Value.newBuilder().setValue(0))
             .build();
 
     IndexLiveSettings.Builder builder = IndexLiveSettings.newBuilder();

@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.TransferStatus;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.utils.HostPort;
+import io.grpc.Deadline;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
@@ -38,6 +39,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -125,21 +127,24 @@ public class NRTPrimaryNode extends PrimaryNode {
     final Set<ReplicationServerClient> connections = Collections.synchronizedSet(new HashSet<>());
     final Map<ReplicationServerClient, Iterator<TransferStatus>> clientToTransferStatusIterator;
     final Map<String, FileMetaData> files;
+    private final Deadline deadline;
     private boolean finished;
 
     public MergePreCopy(
         Map<String, FileMetaData> files,
-        Map<ReplicationServerClient, Iterator<TransferStatus>> clientToTransferStatusIterator) {
+        Map<ReplicationServerClient, Iterator<TransferStatus>> clientToTransferStatusIterator,
+        Deadline deadline) {
       this.files = files;
       this.clientToTransferStatusIterator = new ConcurrentHashMap<>(clientToTransferStatusIterator);
       this.connections.addAll(clientToTransferStatusIterator.keySet());
+      this.deadline = deadline;
     }
 
     public synchronized boolean tryAddConnection(
         ReplicationServerClient c, String indexName, long primaryGen, FilesMetadata filesMetadata) {
-      if (!finished) {
+      if (!finished && (deadline == null || !deadline.isExpired())) {
         Iterator<TransferStatus> transferStatusIterator =
-            c.copyFiles(indexName, primaryGen, filesMetadata);
+            c.copyFiles(indexName, primaryGen, filesMetadata, deadline);
         clientToTransferStatusIterator.put(c, transferStatusIterator);
         connections.add(c);
         return true;
@@ -162,7 +167,7 @@ public class NRTPrimaryNode extends PrimaryNode {
     }
   }
 
-  private double getCurrentMaxMergePreCopyDurationSec() {
+  private long getCurrentMaxMergePreCopyDurationSec() {
     return indexStateManager.getLiveSettings().getMaxMergePreCopyDurationSec().getValue();
   }
 
@@ -263,6 +268,13 @@ public class NRTPrimaryNode extends PrimaryNode {
       return;
     }
 
+    long maxMergePreCopyDurationSec = getCurrentMaxMergePreCopyDurationSec();
+    Deadline deadline;
+    if (maxMergePreCopyDurationSec > 0) {
+      deadline = Deadline.after(maxMergePreCopyDurationSec, TimeUnit.SECONDS);
+    } else {
+      deadline = null;
+    }
     MergePreCopy preCopy;
     synchronized (warmingSegments) {
       logMessage(
@@ -271,8 +283,8 @@ public class NRTPrimaryNode extends PrimaryNode {
               info, replicasInfos.size(), hostPort, files.keySet()));
 
       Map<ReplicationServerClient, Iterator<TransferStatus>> allCopyStatus =
-          callCopyFilesForPreCopy(files);
-      preCopy = new MergePreCopy(files, allCopyStatus);
+          callCopyFilesForPreCopy(files, deadline);
+      preCopy = new MergePreCopy(files, allCopyStatus, deadline);
       warmingSegments.add(preCopy);
     }
 
@@ -346,7 +358,7 @@ public class NRTPrimaryNode extends PrimaryNode {
   }
 
   private Map<ReplicationServerClient, Iterator<TransferStatus>> callCopyFilesForPreCopy(
-      Map<String, FileMetaData> files) {
+      Map<String, FileMetaData> files, Deadline deadline) {
     // Ask all currently known replicas to pre-copy this newly merged segment's files:
     Iterator<ReplicaDetails> replicaInfos = replicasInfos.iterator();
     ReplicaDetails replicaDetails = null;
@@ -357,7 +369,8 @@ public class NRTPrimaryNode extends PrimaryNode {
       try {
         replicaDetails = replicaInfos.next();
         Iterator<TransferStatus> copyStatus =
-            replicaDetails.replicationServerClient.copyFiles(indexName, primaryGen, filesMetadata);
+            replicaDetails.replicationServerClient.copyFiles(
+                indexName, primaryGen, filesMetadata, deadline);
         allCopyStatus.put(replicaDetails.replicationServerClient, copyStatus);
         logMessage(
             String.format(
