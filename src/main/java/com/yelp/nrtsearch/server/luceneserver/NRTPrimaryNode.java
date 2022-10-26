@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.Status;
@@ -53,11 +54,12 @@ public class NRTPrimaryNode extends PrimaryNode {
   private static final Logger logger = LoggerFactory.getLogger(NRTPrimaryNode.class);
   private final HostPort hostPort;
   private final String indexName;
+  private final IndexStateManager indexStateManager;
   final List<MergePreCopy> warmingSegments = Collections.synchronizedList(new ArrayList<>());
   final Queue<ReplicaDetails> replicasInfos = new ConcurrentLinkedQueue<>();
 
   public NRTPrimaryNode(
-      String indexName,
+      IndexStateManager indexStateManager,
       HostPort hostPort,
       IndexWriter writer,
       int id,
@@ -68,7 +70,8 @@ public class NRTPrimaryNode extends PrimaryNode {
       throws IOException {
     super(writer, id, primaryGen, forcePrimaryVersion, searcherFactory, printStream);
     this.hostPort = hostPort;
-    this.indexName = indexName;
+    this.indexName = indexStateManager.getCurrent().getName();
+    this.indexStateManager = indexStateManager;
   }
 
   public static class ReplicaDetails {
@@ -157,6 +160,10 @@ public class NRTPrimaryNode extends PrimaryNode {
     Iterator<TransferStatus> getTransferStatusIteratorForClient(ReplicationServerClient client) {
       return clientToTransferStatusIterator.get(client);
     }
+  }
+
+  private double getCurrentMaxMergePreCopyDurationSec() {
+    return indexStateManager.getLiveSettings().getMaxMergePreCopyDurationSec().getValue();
   }
 
   void sendNewNRTPointToReplicas() {

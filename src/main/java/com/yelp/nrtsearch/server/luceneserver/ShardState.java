@@ -746,7 +746,7 @@ public class ShardState implements Closeable {
               indexState.getGlobalState().getReplicationPort());
       nrtPrimaryNode =
           new NRTPrimaryNode(
-              indexState.getName(),
+              indexStateManager,
               hostPort,
               writer,
               0,

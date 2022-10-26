@@ -1064,6 +1064,8 @@ message IndexLiveSettings {
     google.protobuf.Int32Value defaultSearchTimeoutCheckEvery = 12;
     // Terminate after value to use when not specified in the search request, or 0 for none, default: 0
     google.protobuf.Int32Value defaultTerminateAfter = 13;
+    // Merge precopy would be stopped after this time, or 0 for no checks, default: 0
+    google.protobuf.DoubleValue maxMergePreCopyDurationSec = 14;
 }
 
 message IndexStateInfo {

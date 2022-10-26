@@ -162,6 +162,7 @@ public class ImmutableIndexState extends IndexState {
           .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(0).build())
           .setDefaultSearchTimeoutCheckEvery(Int32Value.newBuilder().setValue(0).build())
           .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(0).build())
+          .setMaxMergePreCopyDurationSec(DoubleValue.newBuilder().setValue(0))
           .build();
 
   // Live Settings
