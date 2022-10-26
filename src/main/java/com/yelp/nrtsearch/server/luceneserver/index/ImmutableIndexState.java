@@ -180,6 +180,7 @@ public class ImmutableIndexState extends IndexState {
   private final double defaultSearchTimeoutSec;
   private final int defaultSearchTimeoutCheckEvery;
   private final int defaultTerminateAfter;
+  private final long maxMergePreCopyDurationSec;
 
   private final IndexStateManager indexStateManager;
   private final String uniqueName;
@@ -266,6 +267,7 @@ public class ImmutableIndexState extends IndexState {
     defaultSearchTimeoutCheckEvery =
         mergedLiveSettings.getDefaultSearchTimeoutCheckEvery().getValue();
     defaultTerminateAfter = mergedLiveSettings.getDefaultTerminateAfter().getValue();
+    maxMergePreCopyDurationSec = mergedLiveSettings.getMaxMergePreCopyDurationSec().getValue();
 
     // If there is previous shard state, use it. Otherwise, initialize the shard.
     if (previousShardState != null) {
@@ -820,6 +822,11 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
+  public long getMaxMergePreCopyDurationSec() {
+    return maxMergePreCopyDurationSec;
+  }
+
+  @Override
   public void addSuggest(String name, JsonObject o) {
     throw new UnsupportedOperationException("Suggesters only supported by LEGACY state backend");
   }
@@ -904,6 +911,9 @@ public class ImmutableIndexState extends IndexState {
     }
     if (liveSettings.getDefaultTerminateAfter().getValue() < 0) {
       throw new IllegalArgumentException("defaultTerminateAfter must be >= 0");
+    }
+    if (liveSettings.getMaxMergePreCopyDurationSec().getValue() < 0) {
+      throw new IllegalArgumentException("maxMergePreCopyDurationSec must be >= 0");
     }
   }
 

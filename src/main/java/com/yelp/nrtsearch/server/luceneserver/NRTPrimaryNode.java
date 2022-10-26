@@ -168,7 +168,7 @@ public class NRTPrimaryNode extends PrimaryNode {
   }
 
   private long getCurrentMaxMergePreCopyDurationSec() {
-    return indexStateManager.getLiveSettings().getMaxMergePreCopyDurationSec().getValue();
+    return indexStateManager.getCurrent().getMaxMergePreCopyDurationSec();
   }
 
   void sendNewNRTPointToReplicas() {

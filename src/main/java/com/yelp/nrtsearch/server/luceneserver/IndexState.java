@@ -575,6 +575,9 @@ public abstract class IndexState implements Closeable {
   /** Get the default search timeout check every. */
   public abstract int getDefaultSearchTimeoutCheckEvery();
 
+  /** Get the max merge precopy duration (in seconds). */
+  public abstract long getMaxMergePreCopyDurationSec();
+
   public abstract void addSuggest(String name, JsonObject o);
 
   public abstract Map<String, Lookup> getSuggesters();

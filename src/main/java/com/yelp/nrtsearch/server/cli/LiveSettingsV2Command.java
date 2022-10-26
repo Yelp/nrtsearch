@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.cli;
 
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
+import com.google.protobuf.UInt64Value;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsV2Request;
 import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
@@ -104,6 +105,11 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       description = "Terminate after to use when not provided by the request")
   private Integer defaultTerminateAfter;
 
+  @CommandLine.Option(
+      names = {"--maxMergePreCopyDurationSec"},
+      description = "Maximum time allowed for merge precopy in seconds")
+  private Long maxMergePreCopyDurationSec;
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -161,6 +167,10 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       if (defaultTerminateAfter != null) {
         liveSettingsBuilder.setDefaultTerminateAfter(
             Int32Value.newBuilder().setValue(defaultTerminateAfter).build());
+      }
+      if (maxMergePreCopyDurationSec != null) {
+        liveSettingsBuilder.setMaxMergePreCopyDurationSec(
+            UInt64Value.newBuilder().setValue(maxMergePreCopyDurationSec));
       }
 
       IndexLiveSettings indexLiveSettings = liveSettingsBuilder.build();
