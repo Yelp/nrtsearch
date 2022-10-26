@@ -70,6 +70,17 @@ public class MyTopSuggestDocsCollector extends DocCollector {
     if (!Float.isNaN(scoreDoc.score)) {
       hitResponse.setScore(scoreDoc.score);
     }
+    if (scoreDoc instanceof TopSuggestDocs.SuggestScoreDoc) {
+      // set the retrieval key from the SuggestScoreDoc to the hit response as "__suggest_key" field
+      hitResponse.putFields(
+          "__suggest_key",
+          SearchResponse.Hit.CompositeFieldValue.newBuilder()
+              .addFieldValue(
+                  SearchResponse.Hit.FieldValue.newBuilder()
+                      .setTextValue(((TopSuggestDocs.SuggestScoreDoc) scoreDoc).key.toString())
+                      .build())
+              .build());
+    }
   }
 
   @Override
