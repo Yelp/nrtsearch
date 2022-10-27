@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.field;
 
+import static com.yelp.nrtsearch.server.luceneserver.search.collectors.MyTopSuggestDocsCollector.SUGGEST_KEY_FIELD_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -122,6 +123,15 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
 
     Set<String> hitsIds = getHitsIds(searchResponse);
     assertTrue(hitsIds.contains("3"));
+    String suggestKeyValueFromHit =
+        searchResponse
+            .getHitsList()
+            .get(0)
+            .getFieldsMap()
+            .get(SUGGEST_KEY_FIELD_NAME)
+            .getFieldValue(0)
+            .getTextValue();
+    assertEquals("Tasty Burger", suggestKeyValueFromHit);
   }
 
   @Test
@@ -143,6 +153,15 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
 
     Set<String> hitsIds = getHitsIds(searchResponse);
     assertTrue(hitsIds.contains("5"));
+    String suggestKeyValueFromHit =
+        searchResponse
+            .getHitsList()
+            .get(0)
+            .getFieldsMap()
+            .get(SUGGEST_KEY_FIELD_NAME)
+            .getFieldValue(0)
+            .getTextValue();
+    assertEquals("Fantastic Fries", suggestKeyValueFromHit);
   }
 
   @Test
@@ -182,6 +201,15 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
         getGrpcServer().getBlockingStub().search(getRequestWithQuery(query));
 
     assertEquals(1, searchResponse.getHitsCount());
+    String suggestKeyValueFromHit =
+        searchResponse
+            .getHitsList()
+            .get(0)
+            .getFieldsMap()
+            .get(SUGGEST_KEY_FIELD_NAME)
+            .getFieldValue(0)
+            .getTextValue();
+    assertEquals("Burger Fries", suggestKeyValueFromHit);
 
     Set<String> hitsIds = getHitsIds(searchResponse);
     assertTrue(hitsIds.contains("4"));
