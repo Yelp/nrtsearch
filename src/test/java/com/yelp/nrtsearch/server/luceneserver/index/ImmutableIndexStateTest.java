@@ -33,6 +33,7 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
+import com.google.protobuf.UInt64Value;
 import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Field;
@@ -194,6 +195,18 @@ public class ImmutableIndexStateTest {
         getFunc.apply(getIndexState(getStateWithLiveSettings(builder.build()))));
   }
 
+  private void verifyLongLiveSetting(
+      long expected,
+      Function<ImmutableIndexState, Long> getFunc,
+      Consumer<IndexLiveSettings.Builder> setMessage)
+      throws IOException {
+    IndexLiveSettings.Builder builder = IndexLiveSettings.newBuilder();
+    setMessage.accept(builder);
+    assertEquals(
+        Long.valueOf(expected),
+        getFunc.apply(getIndexState(getStateWithLiveSettings(builder.build()))));
+  }
+
   private void assertSettingException(
       String expectedMsg, Consumer<IndexSettings.Builder> setMessage) throws IOException {
     IndexSettings.Builder builder = IndexSettings.newBuilder();
@@ -224,6 +237,10 @@ public class ImmutableIndexStateTest {
 
   private Int32Value wrap(int value) {
     return Int32Value.newBuilder().setValue(value).build();
+  }
+
+  private UInt64Value wrap(long value) {
+    return UInt64Value.newBuilder().setValue(value).build();
   }
 
   private StringValue wrap(String value) {
@@ -740,6 +757,29 @@ public class ImmutableIndexStateTest {
   public void testDefaultTerminateAfter_invalid() throws IOException {
     String expectedMsg = "defaultTerminateAfter must be >= 0";
     assertLiveSettingException(expectedMsg, b -> b.setDefaultTerminateAfter(wrap(-1)));
+  }
+
+  @Test
+  public void testMaxMergePreCopyDurationSec_default() throws IOException {
+    assertEquals(0, getIndexState(getEmptyState()).getMaxMergePreCopyDurationSec());
+  }
+
+  @Test
+  public void testMaxMergePreCopyDurationSec_set() throws IOException {
+    verifyLongLiveSetting(
+        0,
+        ImmutableIndexState::getMaxMergePreCopyDurationSec,
+        b -> b.setMaxMergePreCopyDurationSec(wrap(0L)));
+    verifyLongLiveSetting(
+        100,
+        ImmutableIndexState::getMaxMergePreCopyDurationSec,
+        b -> b.setMaxMergePreCopyDurationSec(wrap(100L)));
+  }
+
+  @Test
+  public void testMaxMergePreCopyDurationSec_invalid() throws IOException {
+    String expectedMsg = "maxMergePreCopyDurationSec must be >= 0";
+    assertLiveSettingException(expectedMsg, b -> b.setMaxMergePreCopyDurationSec(wrap(-1L)));
   }
 
   @Test
