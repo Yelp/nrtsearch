@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.grpc;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.GeneratedMessageV3;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerGrpc.ReplicationServerBlockingStub;
 import com.yelp.nrtsearch.server.grpc.discovery.PrimaryFileNameResolverProvider;
 import com.yelp.nrtsearch.server.luceneserver.SimpleCopyJob.FileChunkStreamingIterator;
 import io.grpc.Deadline;
@@ -40,7 +41,6 @@ public class ReplicationServerClient implements Closeable {
   private static final ObjectMapper OBJECT_MAPPER =
       new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);;
   private static final int FILE_UPDATE_INTERVAL_MS = 10 * 1000; // 10 seconds
-  private static final int COPY_FILES_DEADLINE_SEC = 10 * 60; // 10 minutes
   private static final Logger logger = LoggerFactory.getLogger(ReplicationServerClient.class);
 
   private final String host;
@@ -223,7 +223,7 @@ public class ReplicationServerClient implements Closeable {
   }
 
   public Iterator<TransferStatus> copyFiles(
-      String indexName, long primaryGen, FilesMetadata filesMetadata) {
+      String indexName, long primaryGen, FilesMetadata filesMetadata, Deadline deadline) {
     CopyFiles.Builder copyFilesBuilder = CopyFiles.newBuilder();
     CopyFiles copyFiles =
         copyFilesBuilder
@@ -232,9 +232,11 @@ public class ReplicationServerClient implements Closeable {
             .setPrimaryGen(primaryGen)
             .setFilesMetadata(filesMetadata)
             .build();
-    return this.blockingStub
-        .withDeadline(Deadline.after(COPY_FILES_DEADLINE_SEC, TimeUnit.SECONDS))
-        .copyFiles(copyFiles);
+    ReplicationServerBlockingStub blockingStub = this.blockingStub;
+    if (deadline != null) {
+      blockingStub = blockingStub.withDeadline(deadline);
+    }
+    return blockingStub.copyFiles(copyFiles);
   }
 
   public TransferStatus newNRTPoint(String indexName, long primaryGen, long version) {

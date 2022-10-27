@@ -897,6 +897,15 @@ public class LegacyIndexState extends IndexState implements Restorable {
     return defaultSearchTimeoutCheckEvery;
   }
 
+  /**
+   * Get the max merge pre copy duration. Please use ImmutableIndexState if you need to use this
+   * value.
+   */
+  @Override
+  public long getMaxMergePreCopyDurationSec() {
+    return 0;
+  }
+
   /** Returns JSON representation of all live settings. */
   public String getLiveSettingsJSON() {
     return saveState.getLiveSettings().toString();
