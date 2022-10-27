@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.field;
 
+import static com.yelp.nrtsearch.server.luceneserver.search.collectors.MyTopSuggestDocsCollector.SUGGEST_KEY_FIELD_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -127,7 +128,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
             .getHitsList()
             .get(0)
             .getFieldsMap()
-            .get("__suggest_key")
+            .get(SUGGEST_KEY_FIELD_NAME)
             .getFieldValue(0)
             .getTextValue();
     assertEquals("Tasty Burger", suggestKeyValueFromHit);
@@ -157,7 +158,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
             .getHitsList()
             .get(0)
             .getFieldsMap()
-            .get("__suggest_key")
+            .get(SUGGEST_KEY_FIELD_NAME)
             .getFieldValue(0)
             .getTextValue();
     assertEquals("Fantastic Fries", suggestKeyValueFromHit);
@@ -205,7 +206,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
             .getHitsList()
             .get(0)
             .getFieldsMap()
-            .get("__suggest_key")
+            .get(SUGGEST_KEY_FIELD_NAME)
             .getFieldValue(0)
             .getTextValue();
     assertEquals("Burger Fries", suggestKeyValueFromHit);
