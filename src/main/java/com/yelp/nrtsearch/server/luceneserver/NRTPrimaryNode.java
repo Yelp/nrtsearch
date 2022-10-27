@@ -18,8 +18,10 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.utils.HostPort;
+import io.grpc.Deadline;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
@@ -27,14 +29,17 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.replicator.nrt.FileMetaData;
@@ -48,14 +53,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class NRTPrimaryNode extends PrimaryNode {
+  private static final Logger logger = LoggerFactory.getLogger(NRTPrimaryNode.class);
   private final HostPort hostPort;
   private final String indexName;
-  Logger logger = LoggerFactory.getLogger(NRTPrimaryNode.class);
+  private final IndexStateManager indexStateManager;
   final List<MergePreCopy> warmingSegments = Collections.synchronizedList(new ArrayList<>());
-  final Queue<ReplicaDetails> replicasInfos = new ConcurrentLinkedQueue();
+  final Queue<ReplicaDetails> replicasInfos = new ConcurrentLinkedQueue<>();
 
   public NRTPrimaryNode(
-      String indexName,
+      IndexStateManager indexStateManager,
       HostPort hostPort,
       IndexWriter writer,
       int id,
@@ -66,7 +72,8 @@ public class NRTPrimaryNode extends PrimaryNode {
       throws IOException {
     super(writer, id, primaryGen, forcePrimaryVersion, searcherFactory, printStream);
     this.hostPort = hostPort;
-    this.indexName = indexName;
+    this.indexName = indexStateManager.getCurrent().getName();
+    this.indexStateManager = indexStateManager;
   }
 
   public static class ReplicaDetails {
@@ -117,17 +124,28 @@ public class NRTPrimaryNode extends PrimaryNode {
 
   /** Holds all replicas currently warming (pre-copying the new files) a single merged segment */
   static class MergePreCopy {
-    final List<ReplicationServerClient> connections =
-        Collections.synchronizedList(new ArrayList<>());
+    final Set<ReplicationServerClient> connections = Collections.synchronizedSet(new HashSet<>());
+    final Map<ReplicationServerClient, Iterator<TransferStatus>> clientToTransferStatusIterator;
     final Map<String, FileMetaData> files;
+    private final Deadline deadline;
     private boolean finished;
 
-    public MergePreCopy(Map<String, FileMetaData> files) {
+    public MergePreCopy(
+        Map<String, FileMetaData> files,
+        Map<ReplicationServerClient, Iterator<TransferStatus>> clientToTransferStatusIterator,
+        Deadline deadline) {
       this.files = files;
+      this.clientToTransferStatusIterator = new ConcurrentHashMap<>(clientToTransferStatusIterator);
+      this.connections.addAll(clientToTransferStatusIterator.keySet());
+      this.deadline = deadline;
     }
 
-    public synchronized boolean tryAddConnection(ReplicationServerClient c) {
-      if (finished == false) {
+    public synchronized boolean tryAddConnection(
+        ReplicationServerClient c, String indexName, long primaryGen, FilesMetadata filesMetadata) {
+      if (!finished && (deadline == null || !deadline.isExpired())) {
+        Iterator<TransferStatus> transferStatusIterator =
+            c.copyFiles(indexName, primaryGen, filesMetadata, deadline);
+        clientToTransferStatusIterator.put(c, transferStatusIterator);
         connections.add(c);
         return true;
       } else {
@@ -143,6 +161,14 @@ public class NRTPrimaryNode extends PrimaryNode {
         return false;
       }
     }
+
+    Iterator<TransferStatus> getTransferStatusIteratorForClient(ReplicationServerClient client) {
+      return clientToTransferStatusIterator.get(client);
+    }
+  }
+
+  private long getCurrentMaxMergePreCopyDurationSec() {
+    return indexStateManager.getCurrent().getMaxMergePreCopyDurationSec();
   }
 
   void sendNewNRTPointToReplicas() {
@@ -154,9 +180,7 @@ public class NRTPrimaryNode extends PrimaryNode {
     // before notifying all replicas, at which point we have a newer version index than client knew
     // about?
     long version = getCopyStateVersion();
-    String msg = "send flushed version=" + version + " replica count " + replicasInfos.size();
-    message(msg);
-    logger.info(msg);
+    logMessage("send flushed version=" + version + " replica count " + replicasInfos.size());
     NrtMetrics.searcherVersion.labels(indexName).set(version);
     NrtMetrics.nrtPrimaryPointCount.labels(indexName).inc();
 
@@ -172,26 +196,20 @@ public class NRTPrimaryNode extends PrimaryNode {
         Status status = e.getStatus();
         if (status.getCode().equals(Status.UNAVAILABLE.getCode())) {
           logger.warn(
-              "NRTPRimaryNode: sendNRTPoint, lost connection to replicaId: "
-                  + replicaDetails.replicaId
-                  + " host: "
-                  + replicaDetails.replicationServerClient.getHost()
-                  + " port: "
-                  + replicaDetails.replicationServerClient.getPort());
+              "NRTPRimaryNode: sendNRTPoint, lost connection to replicaId: {} host: {} port: {}",
+              replicaDetails.replicaId,
+              replicaDetails.replicationServerClient.getHost(),
+              replicaDetails.replicationServerClient.getPort());
           currentReplicaServerClient.close();
           it.remove();
         }
       } catch (Exception e) {
-        message(
-            "top: failed to connect R"
-                + replicaID
-                + " for newNRTPoint; skipping: "
-                + e.getMessage());
-        logger.warn(
-            "top: failed to connect R"
-                + replicaID
-                + " for newNRTPoint; skipping: "
-                + e.getMessage());
+        String msg =
+            String.format(
+                "top: failed to connect R%d for newNRTPoint; skipping: %s",
+                replicaID, e.getMessage());
+        message(msg);
+        logger.warn(msg);
       }
     }
   }
@@ -242,77 +260,35 @@ public class NRTPrimaryNode extends PrimaryNode {
   }
 
   @Override
-  protected void preCopyMergedSegmentFiles(SegmentCommitInfo info, Map<String, FileMetaData> files)
-      throws IOException {
+  protected void preCopyMergedSegmentFiles(
+      SegmentCommitInfo info, Map<String, FileMetaData> files) {
     long mergeStartNS = System.nanoTime();
     if (replicasInfos.isEmpty()) {
-      logger.info("no replicas, skip warming " + info);
-      message("no replicas; skip warming " + info);
+      logMessage("no replicas, skip warming " + info);
       return;
     }
 
-    logger.info(
-        "top: warm merge "
-            + info
-            + " to "
-            + replicasInfos.size()
-            + " replicas; localAddress="
-            + hostPort
-            + ": files="
-            + files.keySet());
-    message(
-        "top: warm merge "
-            + info
-            + " to "
-            + replicasInfos.size()
-            + " replicas; localAddress="
-            + hostPort
-            + ": files="
-            + files.keySet());
+    long maxMergePreCopyDurationSec = getCurrentMaxMergePreCopyDurationSec();
+    Deadline deadline;
+    if (maxMergePreCopyDurationSec > 0) {
+      deadline = Deadline.after(maxMergePreCopyDurationSec, TimeUnit.SECONDS);
+    } else {
+      deadline = null;
+    }
+    MergePreCopy preCopy;
+    synchronized (warmingSegments) {
+      logMessage(
+          String.format(
+              "Start merge precopy %s to %d replicas; localAddress=%s: files=%s",
+              info, replicasInfos.size(), hostPort, files.keySet()));
 
-    MergePreCopy preCopy = new MergePreCopy(files);
-    warmingSegments.add(preCopy);
+      Map<ReplicationServerClient, Iterator<TransferStatus>> allCopyStatus =
+          callCopyFilesForPreCopy(files, deadline);
+      preCopy = new MergePreCopy(files, allCopyStatus, deadline);
+      warmingSegments.add(preCopy);
+    }
 
     try {
-      // Ask all currently known replicas to pre-copy this newly merged segment's files:
-      Iterator<ReplicaDetails> replicaInfos = replicasInfos.iterator();
-      ReplicaDetails replicaDetails = null;
-      FilesMetadata filesMetadata = RecvCopyStateHandler.writeFilesMetaData(files);
-      Map<ReplicationServerClient, Iterator<TransferStatus>> allCopyStatus =
-          new ConcurrentHashMap<>();
-      while (replicaInfos.hasNext()) {
-        try {
-          replicaDetails = replicaInfos.next();
-          Iterator<TransferStatus> copyStatus =
-              replicaDetails.replicationServerClient.copyFiles(
-                  indexName, primaryGen, filesMetadata);
-          allCopyStatus.put(replicaDetails.replicationServerClient, copyStatus);
-          String msg =
-              "warm connection "
-                  + replicaDetails.replicationServerClient.getHost()
-                  + ":"
-                  + replicaDetails.replicationServerClient.getPort();
-          message(msg);
-          logger.info(msg);
-          preCopy.connections.add(replicaDetails.replicationServerClient);
-        } catch (Throwable t) {
-          message(
-              "top: ignore exception trying to warm to replica for host:"
-                  + replicaDetails.replicationServerClient.getHost()
-                  + " port: "
-                  + replicaDetails.replicationServerClient.getPort()
-                  + ": "
-                  + t);
-          logger.info(
-              "top: ignore exception trying to warm to replica for host:"
-                  + replicaDetails.replicationServerClient.getHost()
-                  + " port: "
-                  + replicaDetails.replicationServerClient.getPort()
-                  + ": "
-                  + t);
-          // t.printStackTrace(System.out);
-        }
-      }
 
       long startNS = System.nanoTime();
       long lastWarnNS = startNS;
@@ -327,34 +303,19 @@ public class NRTPrimaryNode extends PrimaryNode {
         }
 
         if (isClosed()) {
-          message("top: primary is closing: now cancel segment warming");
-          logger.info("top: primary is closing: now cancel segment warming");
-          // TODO: should we close these here?
-          //                    synchronized (preCopy.connections) {
-          //                        IOUtils.closeWhileHandlingException(preCopy.connections);
-          //                    }
+          logMessage("Primary is closing: cancel merge precopy");
+          // Connections are closed in close() method
           return;
         }
 
         long ns = System.nanoTime();
         if (ns - lastWarnNS > 1000000000L) {
-          message(
+          logMessage(
               String.format(
                   Locale.ROOT,
-                  "top: warning: still warming merge "
-                      + info
-                      + " to "
-                      + preCopy.connections.size()
-                      + " replicas for %.1f sec...",
-                  (ns - startNS) / 1000000000.0));
-          logger.info(
-              String.format(
-                  Locale.ROOT,
-                  "top: warning: still warming merge "
-                      + info
-                      + " to "
-                      + preCopy.connections.size()
-                      + " replicas for %.1f sec...",
+                  "Warning: still warming merge %s to %d replicas for %.1f sec...",
+                  info,
+                  preCopy.connections.size(),
                   (ns - startNS) / 1000000000.0));
           lastWarnNS = ns;
         }
@@ -364,38 +325,28 @@ public class NRTPrimaryNode extends PrimaryNode {
         for (ReplicationServerClient currentReplicationServerClient : currentConnections) {
           try {
             Iterator<TransferStatus> transferStatusIterator =
-                allCopyStatus.get(currentReplicationServerClient);
+                preCopy.getTransferStatusIteratorForClient(currentReplicationServerClient);
             while (transferStatusIterator.hasNext()) {
               TransferStatus transferStatus = transferStatusIterator.next();
               logger.debug(
-                  "transferStatus for replicationServerClient="
-                      + currentReplicationServerClient
-                      + " merge files="
-                      + files.keySet()
-                      + " code: "
-                      + transferStatus.getCode()
-                      + " message: "
-                      + transferStatus.getMessage());
+                  "transferStatus for replicationServerClient={},  merge files={}, code={}, message={}",
+                  currentReplicationServerClient,
+                  files.keySet(),
+                  transferStatus.getCode(),
+                  transferStatus.getMessage());
             }
           } catch (Throwable t) {
             String msg =
-                "top: ignore exception trying to read byte during warm for segment="
-                    + info
-                    + " to replica="
-                    + currentReplicationServerClient
-                    + ": "
-                    + t
-                    + " files="
-                    + files.keySet();
+                String.format(
+                    "Ignore exception trying to read byte during merge precopy for segment=%s to replica=%s: %s files=%s",
+                    info, currentReplicationServerClient, t, files.keySet());
             logger.warn(msg, t);
-            message(msg);
+            super.message(msg);
           }
         }
-        preCopy.connections.removeAll(currentConnections);
+        currentConnections.forEach(preCopy.connections::remove);
       }
-      String msg = "top: done warming merge " + info;
-      logger.info(msg);
-      message(msg);
+      logMessage("Done merge precopy " + info);
     } finally {
       warmingSegments.remove(preCopy);
 
@@ -406,14 +357,50 @@ public class NRTPrimaryNode extends PrimaryNode {
     }
   }
 
+  private Map<ReplicationServerClient, Iterator<TransferStatus>> callCopyFilesForPreCopy(
+      Map<String, FileMetaData> files, Deadline deadline) {
+    // Ask all currently known replicas to pre-copy this newly merged segment's files:
+    Iterator<ReplicaDetails> replicaInfos = replicasInfos.iterator();
+    ReplicaDetails replicaDetails = null;
+    FilesMetadata filesMetadata = RecvCopyStateHandler.writeFilesMetaData(files);
+    Map<ReplicationServerClient, Iterator<TransferStatus>> allCopyStatus =
+        new ConcurrentHashMap<>();
+    while (replicaInfos.hasNext()) {
+      try {
+        replicaDetails = replicaInfos.next();
+        Iterator<TransferStatus> copyStatus =
+            replicaDetails.replicationServerClient.copyFiles(
+                indexName, primaryGen, filesMetadata, deadline);
+        allCopyStatus.put(replicaDetails.replicationServerClient, copyStatus);
+        logMessage(
+            String.format(
+                "Start precopying merged segments for replica %s:%d",
+                replicaDetails.replicationServerClient.getHost(),
+                replicaDetails.replicationServerClient.getPort()));
+      } catch (Throwable t) {
+        logMessage(
+            String.format(
+                "Ignore merge precopy exception for replica host:%s port: %d: %s",
+                replicaDetails.replicationServerClient.getHost(),
+                replicaDetails.replicationServerClient.getPort(),
+                t));
+      }
+    }
+    return allCopyStatus;
+  }
+
+  public void logMessage(String msg) {
+    message(msg);
+    logger.info(msg);
+  }
+
   public void setRAMBufferSizeMB(double mb) {
     writer.getConfig().setRAMBufferSizeMB(mb);
   }
 
   public void addReplica(int replicaID, ReplicationServerClient replicationServerClient)
       throws IOException {
-    logger.info("add replica: " + warmingSegments.size() + " current warming merges ");
-    message("add replica: " + warmingSegments.size() + " current warming merges ");
+    logMessage("add replica: " + warmingSegments.size() + " current warming merges ");
     ReplicaDetails replicaDetails = new ReplicaDetails(replicaID, replicationServerClient);
     if (!replicasInfos.contains(replicaDetails)) {
       replicasInfos.add(replicaDetails);
@@ -422,42 +409,41 @@ public class NRTPrimaryNode extends PrimaryNode {
     // already:
     synchronized (warmingSegments) {
       for (MergePreCopy preCopy : warmingSegments) {
-        logger.debug(String.format("warming segment %s", preCopy.files.keySet()));
+        logger.debug("warming segment {}", preCopy.files.keySet());
         message("warming segment " + preCopy.files.keySet());
-        boolean found = false;
-        synchronized (preCopy.connections) {
-          for (ReplicationServerClient each : preCopy.connections) {
-            if (each.equals(replicationServerClient)) {
-              found = true;
-              break;
-            }
-          }
-        }
-
-        if (found) {
-          logger.info(String.format("this replica is already warming this segment; skipping"));
-          message("this replica is already warming this segment; skipping");
+        if (preCopy.connections.contains(replicationServerClient)) {
+          logMessage(
+              String.format(
+                  "Replica %s:%d is already warming this segment",
+                  replicaDetails.replicationServerClient.getHost(),
+                  replicaDetails.replicationServerClient.getPort()));
           // It's possible (maybe) that the replica started up, then a merge kicked off, and it
           // warmed to this new replica, all before the
           // replica sent us this command:
           continue;
         }
 
-        // OK, this new replica is not already warming this segment, so attempt (could fail) to
-        // start warming now:
-        if (preCopy.tryAddConnection(replicationServerClient) == false) {
-          // This can happen, if all other replicas just now finished warming this segment, and so
-          // we were just a bit too late.  In this
-          // case the segment must be copied over in the next nrt point sent to this replica
-          logger.info("failed to add connection to segment warmer (too late); closing");
-          message("failed to add connection to segment warmer (too late); closing");
-          // TODO: Close this and other replicationServerClient in close of this class? c.close();
-        }
-
+        // Start copying the segments to the replica
         FilesMetadata filesMetadata = RecvCopyStateHandler.writeFilesMetaData(preCopy.files);
-        replicationServerClient.copyFiles(indexName, primaryGen, filesMetadata);
-        logger.info("successfully started warming");
-        message("successfully started warming");
+
+        // If the preCopy is still in progress add this transfer to it as well
+        if (preCopy.tryAddConnection(
+            replicationServerClient, indexName, primaryGen, filesMetadata)) {
+          logMessage(
+              String.format(
+                  "Start precopying merged segments for new replica %s:%d",
+                  replicaDetails.replicationServerClient.getHost(),
+                  replicaDetails.replicationServerClient.getPort()));
+        } else {
+          // This can happen, if all other replicas just now finished warming this segment, and so
+          // we were just a bit too late.  In this case the segment must be copied over in the next
+          // nrt point sent to this replica
+          logMessage(
+              String.format(
+                  "Merge precopy already completed, unable to add new replica %s:%d",
+                  replicaDetails.replicationServerClient.getHost(),
+                  replicaDetails.replicationServerClient.getPort()));
+        }
       }
     }
   }
@@ -475,9 +461,9 @@ public class NRTPrimaryNode extends PrimaryNode {
       ReplicationServerClient replicationServerClient = replicaDetails.getReplicationServerClient();
       HostPort replicaHostPort = replicaDetails.getHostPort();
       logger.info(
-          String.format(
-              "CLOSE NRT PRIMARY, closing replica channel host:%s, port:%s",
-              replicaHostPort.getHostName(), replicaHostPort.getPort()));
+          "CLOSE NRT PRIMARY, closing replica channel host:{}, port:{}",
+          replicaHostPort.getHostName(),
+          replicaHostPort.getPort());
       replicationServerClient.close();
       it.remove();
     }

@@ -22,12 +22,15 @@ import java.util.PriorityQueue;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.Node;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Runs CopyJob(s) in background thread; each ReplicaNode has an instance of this running. At a
  * given there could be one NRT copy job running, and multiple pre-warm merged segments jobs.
  */
 class Jobs extends Thread implements Closeable {
+  private static final Logger logger = LoggerFactory.getLogger(Jobs.class);
 
   private final PriorityQueue<CopyJob> queue = new PriorityQueue<>();
 
@@ -80,22 +83,20 @@ class Jobs extends Thread implements Closeable {
         result = topJob.visit();
       } catch (Throwable t) {
         if ((t instanceof AlreadyClosedException) == false) {
-          node.message("exception during job.visit job=" + topJob + "; now cancel");
-          t.printStackTrace(System.out);
+          logWarning("exception during job.visit job=" + topJob + "; now cancel", t);
+
         } else {
-          node.message("AlreadyClosedException during job.visit job=" + topJob + "; now cancel");
+          logWarning("AlreadyClosedException during job.visit job=" + topJob + "; now cancel");
         }
         try {
           topJob.cancel("unexpected exception in visit", t);
         } catch (Throwable t2) {
-          node.message("ignore exception calling cancel: " + t2);
-          t2.printStackTrace(System.out);
+          logWarning("ignore exception calling cancel: " + t2, t2);
         }
         try {
           topJob.onceDone.run(topJob);
         } catch (Throwable t2) {
-          node.message("ignore exception calling OnceDone: " + t2);
-          t2.printStackTrace(System.out);
+          logWarning("ignore exception calling OnceDone: " + t2, t2);
         }
         continue;
       }
@@ -118,8 +119,7 @@ class Jobs extends Thread implements Closeable {
                   (endNS - startNS) / 1000000.,
                   topJob));
         } catch (Throwable t) {
-          node.message("ignore exception calling OnceDone: " + t);
-          t.printStackTrace(System.out);
+          logWarning("ignore exception calling OnceDone: " + t, t);
         }
       }
     }
@@ -134,14 +134,12 @@ class Jobs extends Thread implements Closeable {
         try {
           job.cancel("jobs closing", null);
         } catch (Throwable t) {
-          node.message("ignore exception calling cancel");
-          t.printStackTrace(System.out);
+          logWarning("ignore exception calling cancel", t);
         }
         try {
           job.onceDone.run(job);
         } catch (Throwable t) {
-          node.message("ignore exception calling OnceDone");
-          t.printStackTrace(System.out);
+          logWarning("ignore exception calling OnceDone", t);
         }
       }
     }
@@ -176,5 +174,15 @@ class Jobs extends Thread implements Closeable {
     } catch (InterruptedException ie) {
       throw new RuntimeException(ie);
     }
+  }
+
+  private void logWarning(String msg) {
+    node.message(msg);
+    logger.warn(msg);
+  }
+
+  private void logWarning(String msg, Throwable t) {
+    node.message(msg);
+    logger.warn(msg, t);
   }
 }

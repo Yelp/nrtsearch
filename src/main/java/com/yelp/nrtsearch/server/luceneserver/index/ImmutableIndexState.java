@@ -28,6 +28,7 @@ import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.StringValue;
+import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.FieldMaskUtil;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.backup.Archiver;
@@ -162,6 +163,7 @@ public class ImmutableIndexState extends IndexState {
           .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(0).build())
           .setDefaultSearchTimeoutCheckEvery(Int32Value.newBuilder().setValue(0).build())
           .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(0).build())
+          .setMaxMergePreCopyDurationSec(UInt64Value.newBuilder().setValue(0))
           .build();
 
   // Live Settings
@@ -178,6 +180,7 @@ public class ImmutableIndexState extends IndexState {
   private final double defaultSearchTimeoutSec;
   private final int defaultSearchTimeoutCheckEvery;
   private final int defaultTerminateAfter;
+  private final long maxMergePreCopyDurationSec;
 
   private final IndexStateManager indexStateManager;
   private final String uniqueName;
@@ -264,6 +267,7 @@ public class ImmutableIndexState extends IndexState {
     defaultSearchTimeoutCheckEvery =
         mergedLiveSettings.getDefaultSearchTimeoutCheckEvery().getValue();
     defaultTerminateAfter = mergedLiveSettings.getDefaultTerminateAfter().getValue();
+    maxMergePreCopyDurationSec = mergedLiveSettings.getMaxMergePreCopyDurationSec().getValue();
 
     // If there is previous shard state, use it. Otherwise, initialize the shard.
     if (previousShardState != null) {
@@ -818,6 +822,11 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
+  public long getMaxMergePreCopyDurationSec() {
+    return maxMergePreCopyDurationSec;
+  }
+
+  @Override
   public void addSuggest(String name, JsonObject o) {
     throw new UnsupportedOperationException("Suggesters only supported by LEGACY state backend");
   }
@@ -902,6 +911,9 @@ public class ImmutableIndexState extends IndexState {
     }
     if (liveSettings.getDefaultTerminateAfter().getValue() < 0) {
       throw new IllegalArgumentException("defaultTerminateAfter must be >= 0");
+    }
+    if (liveSettings.getMaxMergePreCopyDurationSec().getValue() < 0) {
+      throw new IllegalArgumentException("maxMergePreCopyDurationSec must be >= 0");
     }
   }
 

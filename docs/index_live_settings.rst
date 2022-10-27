@@ -133,3 +133,12 @@ Specifies the default number of documents to collect before terminating the sear
 Must be >= 0
 
 Default: 0
+
+maxMergePreCopyDurationSec
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Specifies the maximum time to wait for replicas to precopy merged segment files. If this time is exceeded the merge will continue without finishing the precopy. If set to 0 there would not be any time limit for precopy.
+
+Must be >= 0
+
+Default: 0

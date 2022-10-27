@@ -1374,6 +1374,14 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "liveSettings.maxMergePreCopyDurationSec",
+            "description": "Merge precopy would be stopped after this time, or 0 for no checks, default: 0.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "uint64"
           }
         ],
         "tags": [
@@ -3429,6 +3437,11 @@
           "type": "integer",
           "format": "int32",
           "title": "Terminate after value to use when not specified in the search request, or 0 for none, default: 0"
+        },
+        "maxMergePreCopyDurationSec": {
+          "type": "string",
+          "format": "uint64",
+          "title": "Merge precopy would be stopped after this time, or 0 for no checks, default: 0"
         }
       }
     },

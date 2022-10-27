@@ -36,6 +36,7 @@ import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 
 public class MyTopSuggestDocsCollector extends DocCollector {
+  public static final String SUGGEST_KEY_FIELD_NAME = "__suggest_key";
   private static final Comparator<TopSuggestDocs.SuggestScoreDoc> SUGGEST_SCORE_DOC_COMPARATOR =
       (a, b) -> {
         // sort by higher score
@@ -69,6 +70,17 @@ public class MyTopSuggestDocsCollector extends DocCollector {
   public void fillHitRanking(SearchResponse.Hit.Builder hitResponse, ScoreDoc scoreDoc) {
     if (!Float.isNaN(scoreDoc.score)) {
       hitResponse.setScore(scoreDoc.score);
+    }
+    if (scoreDoc instanceof TopSuggestDocs.SuggestScoreDoc) {
+      // set the retrieval key from the SuggestScoreDoc to the hit response as "__suggest_key" field
+      hitResponse.putFields(
+          SUGGEST_KEY_FIELD_NAME,
+          SearchResponse.Hit.CompositeFieldValue.newBuilder()
+              .addFieldValue(
+                  SearchResponse.Hit.FieldValue.newBuilder()
+                      .setTextValue(((TopSuggestDocs.SuggestScoreDoc) scoreDoc).key.toString())
+                      .build())
+              .build());
     }
   }
 
