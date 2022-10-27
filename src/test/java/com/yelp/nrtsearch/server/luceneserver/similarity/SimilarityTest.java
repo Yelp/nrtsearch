@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.similarity;
 
 import static org.junit.Assert.assertEquals;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
@@ -105,7 +106,8 @@ public class SimilarityTest extends ServerTestCase {
     addDocuments(docs.stream());
   }
 
-  protected List<Plugin> getPlugins() {
+  @Override
+  protected List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
     return Collections.singletonList(new TestSimilarityPlugin());
   }
 

@@ -23,6 +23,7 @@ import com.google.protobuf.Any;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
@@ -311,7 +312,8 @@ public class CollectorTest extends ServerTestCase {
     }
   }
 
-  protected List<Plugin> getPlugins() {
+  @Override
+  protected List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
     return Collections.singletonList(new TestCollectorPlugin());
   }
 

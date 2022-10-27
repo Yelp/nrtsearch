@@ -19,11 +19,16 @@ import com.yelp.nrtsearch.server.luceneserver.analysis.AnalysisProvider;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.util.TokenFilterFactory;
 
 /**
- * Plugin interface for providing custom analysis implementations. Currently allows for the
- * registration of named {@link Analyzer} providers. These analyzers will be used when the name is
- * provides as the predefined AnalyzerType for queries and field registration.
+ * Plugin interface for providing custom analysis implementations.
+ *
+ * <p>Allows for the registration of named {@link Analyzer} providers. These analyzers will be used
+ * when the name is provided as the predefined AnalyzerType for queries and field registration.
+ *
+ * <p>Allows for the registration of additional {@link TokenFilterFactory} classes for use with
+ * {@link com.yelp.nrtsearch.server.grpc.CustomAnalyzer} building.
  */
 public interface AnalysisPlugin {
 
@@ -35,6 +40,22 @@ public interface AnalysisPlugin {
    * @return registration Map for analyzer name to {@link AnalysisProvider}
    */
   default Map<String, AnalysisProvider<? extends Analyzer>> getAnalyzers() {
+    return Collections.emptyMap();
+  }
+
+  /**
+   * Provides a set of custom {@link TokenFilterFactory} classes to register with the {@link
+   * com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator} for use with {@link
+   * com.yelp.nrtsearch.server.grpc.CustomAnalyzer} building.
+   *
+   * <p>The class must have a constructor that takes only a param Map[String,String]. If nrtsearch
+   * specific context is required, implement the {@link
+   * com.yelp.nrtsearch.server.luceneserver.analysis.AnalysisComponent} interface to receive
+   * additional initialization during building.
+   *
+   * @return registration Map for token filter name to {@link TokenFilterFactory} class
+   */
+  default Map<String, Class<? extends TokenFilterFactory>> getTokenFilters() {
     return Collections.emptyMap();
   }
 }

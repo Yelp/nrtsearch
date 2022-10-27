@@ -27,10 +27,13 @@ import java.text.MessageFormat;
 import java.text.ParseException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.standard.ClassicAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.util.Version;
 
 public class AnalyzerCreator {
@@ -41,11 +44,14 @@ public class AnalyzerCreator {
 
   private static AnalyzerCreator instance;
 
+  private final LuceneServerConfiguration configuration;
   private final Map<String, AnalysisProvider<? extends Analyzer>> analyzerMap = new HashMap<>();
+  private final Map<String, Class<? extends TokenFilterFactory>> tokenFilterMap = new HashMap<>();
 
   public AnalyzerCreator(LuceneServerConfiguration configuration) {
-    register(STANDARD, name -> new StandardAnalyzer());
-    register(CLASSIC, name -> new ClassicAnalyzer());
+    this.configuration = configuration;
+    registerAnalyzer(STANDARD, name -> new StandardAnalyzer());
+    registerAnalyzer(CLASSIC, name -> new ClassicAnalyzer());
   }
 
   public Analyzer getAnalyzer(com.yelp.nrtsearch.server.grpc.Analyzer analyzer) {
@@ -80,23 +86,44 @@ public class AnalyzerCreator {
     }
   }
 
-  private void register(Map<String, AnalysisProvider<? extends Analyzer>> analyzers) {
-    analyzers.forEach(this::register);
+  private void registerAnalyzers(Map<String, AnalysisProvider<? extends Analyzer>> analyzers) {
+    analyzers.forEach(this::registerAnalyzer);
   }
 
-  private void register(String name, AnalysisProvider<? extends Analyzer> provider) {
+  private void registerAnalyzer(String name, AnalysisProvider<? extends Analyzer> provider) {
     if (analyzerMap.containsKey(name)) {
       throw new IllegalArgumentException("Analyzer " + name + " already exists");
     }
     analyzerMap.put(name, provider);
   }
 
+  private void registerTokenFilters(
+      Map<String, Class<? extends TokenFilterFactory>> tokenFilters, Set<String> builtIn) {
+    tokenFilters.forEach((k, v) -> registerTokenFilter(k, v, builtIn));
+  }
+
+  private void registerTokenFilter(
+      String name, Class<? extends TokenFilterFactory> filterClass, Set<String> builtIn) {
+    if (builtIn.contains(name.toLowerCase())) {
+      throw new IllegalArgumentException("Token filter " + name + " already provided by lucene");
+    }
+    if (tokenFilterMap.containsKey(name)) {
+      throw new IllegalArgumentException("Token filter " + name + " already exists");
+    }
+    tokenFilterMap.put(name, filterClass);
+  }
+
   public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
     instance = new AnalyzerCreator(configuration);
+    Set<String> builtInTokenFilters =
+        TokenFilterFactory.availableTokenFilters().stream()
+            .map(String::toLowerCase)
+            .collect(Collectors.toSet());
     for (Plugin plugin : plugins) {
       if (plugin instanceof AnalysisPlugin) {
         AnalysisPlugin analysisPlugin = (AnalysisPlugin) plugin;
-        instance.register(analysisPlugin.getAnalyzers());
+        instance.registerAnalyzers(analysisPlugin.getAnalyzers());
+        instance.registerTokenFilters(analysisPlugin.getTokenFilters(), builtInTokenFilters);
       }
     }
   }
@@ -109,8 +136,7 @@ public class AnalyzerCreator {
    * Create an {@link Analyzer} from user parameters. Note that we create new maps with the param
    * maps because the Protobuf one may be unmodifiable and Lucene may modify the maps.
    */
-  private static Analyzer getCustomAnalyzer(
-      com.yelp.nrtsearch.server.grpc.CustomAnalyzer analyzer) {
+  private Analyzer getCustomAnalyzer(com.yelp.nrtsearch.server.grpc.CustomAnalyzer analyzer) {
     CustomAnalyzer.Builder builder = CustomAnalyzer.builder();
 
     if (analyzer.hasPositionIncrementGap()) {
@@ -133,7 +159,13 @@ public class AnalyzerCreator {
           analyzer.getTokenizer().getName(), new HashMap<>(analyzer.getTokenizer().getParamsMap()));
 
       for (NameAndParams tokenFilter : analyzer.getTokenFiltersList()) {
-        builder.addTokenFilter(tokenFilter.getName(), new HashMap<>(tokenFilter.getParamsMap()));
+        // check first to see if this filter was registered by a plugin
+        Class<? extends TokenFilterFactory> filterClass = tokenFilterMap.get(tokenFilter.getName());
+        if (filterClass != null) {
+          builder.addTokenFilter(filterClass, new HashMap<>(tokenFilter.getParamsMap()));
+        } else {
+          builder.addTokenFilter(tokenFilter.getName(), new HashMap<>(tokenFilter.getParamsMap()));
+        }
       }
 
       // TODO: The only impl of ConditionalTokenFilter is ProtectedTermFilter
@@ -152,10 +184,24 @@ public class AnalyzerCreator {
         when.endwhen();
       }
 
-      return builder.build();
+      return initializeComponents(builder.build());
     } catch (ParseException | IOException e) {
       throw new AnalyzerCreationException("Unable to create custom analyzer: " + analyzer, e);
     }
+  }
+
+  /**
+   * Components registered by plugins may depend on information from nrtsearch, like config file
+   * parameters. Components that implement the {@link AnalysisComponent} interface have this
+   * information injected here, after the {@link CustomAnalyzer} is built.
+   */
+  private CustomAnalyzer initializeComponents(CustomAnalyzer customAnalyzer) {
+    for (TokenFilterFactory filterFactory : customAnalyzer.getTokenFilterFactories()) {
+      if (filterFactory instanceof AnalysisComponent) {
+        ((AnalysisComponent) filterFactory).initializeComponent(configuration);
+      }
+    }
+    return customAnalyzer;
   }
 
   // TODO: replace usages of this method in suggest with getAnalyzer

@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
@@ -111,7 +112,7 @@ public class CollectorStatsWrapperTest extends ServerTestCase {
   }
 
   @Override
-  public List<Plugin> getPlugins() {
+  public List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
     return Collections.singletonList(new TestScriptPlugin());
   }
 
