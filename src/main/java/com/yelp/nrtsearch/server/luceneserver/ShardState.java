@@ -492,7 +492,7 @@ public class ShardState implements Closeable {
                   indexState.getSliceMaxDocs(),
                   indexState.getSliceMaxSegments(),
                   indexState.getVirtualShards()));
-      searcher.setSimilarity(indexState.sim);
+      searcher.setSimilarity(indexState.searchSimilarity);
       if (loadEagerOrdinals) {
         loadEagerGlobalOrdinals(reader, indexState);
       }
@@ -772,7 +772,7 @@ public class ShardState implements Closeable {
                               indexState.getSliceMaxDocs(),
                               indexState.getSliceMaxSegments(),
                               indexState.getVirtualShards()));
-                  searcher.setSimilarity(indexState.sim);
+                  searcher.setSimilarity(indexState.searchSimilarity);
                   return searcher;
                 }
               });

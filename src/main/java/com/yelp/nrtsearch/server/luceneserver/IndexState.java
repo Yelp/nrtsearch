@@ -26,9 +26,9 @@ import com.yelp.nrtsearch.server.luceneserver.field.ContextSuggestFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexSimilarity;
 import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
@@ -53,7 +53,6 @@ import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.suggest.Lookup;
@@ -139,24 +138,12 @@ public abstract class IndexState implements Closeable {
         }
       };
 
-  /** Per-field wrapper that provides the similarity configured in the FieldDef */
-  public final Similarity sim =
+  /** Per-field wrapper that provides the similarity for searcher */
+  public final Similarity searchSimilarity =
       new PerFieldSimilarityWrapper() {
-        final Similarity defaultSim = new BM25Similarity();
-
         @Override
         public Similarity get(String name) {
-          try {
-            FieldDef fd = getField(name);
-            if (fd instanceof IndexableFieldDef) {
-              return ((IndexableFieldDef) fd).getSimilarity();
-            }
-          } catch (IllegalArgumentException ignored) {
-            // ReplicaNode tries to do a Term query for a field called 'marker'
-            // in finishNRTCopy. Since the field is not in the index, we want
-            // to ignore the exception.
-          }
-          return defaultSim;
+          return IndexSimilarity.getFromState(name, IndexState.this);
         }
       };
 

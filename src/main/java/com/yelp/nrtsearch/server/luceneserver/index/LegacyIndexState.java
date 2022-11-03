@@ -1165,7 +1165,7 @@ public class LegacyIndexState extends IndexState implements Restorable {
       iwc.setIndexSort(indexSort);
     }
 
-    iwc.setSimilarity(sim);
+    iwc.setSimilarity(searchSimilarity);
     iwc.setRAMBufferSizeMB(indexRamBufferSizeMB);
 
     // nocommit in primary case we can't do this?
