@@ -653,7 +653,7 @@ public class ImmutableIndexState extends IndexState {
   @Override
   public IndexWriterConfig getIndexWriterConfig(
       OpenMode openMode, Directory origIndexDir, int shardOrd) throws IOException {
-    IndexWriterConfig iwc = new IndexWriterConfig(indexAnalyzer);
+    IndexWriterConfig iwc = new IndexWriterConfig(new IndexAnalyzer(indexStateManager));
     iwc.setOpenMode(openMode);
     if (getGlobalState().getConfiguration().getIndexVerbose()) {
       logger.info("Enabling verbose logging for Lucene NRT");

@@ -108,36 +108,6 @@ public abstract class IndexState implements Closeable {
    */
   public final DocLookup docLookup = new DocLookup(this);
 
-  /** Index-time analyzer. */
-  public final Analyzer indexAnalyzer =
-      new AnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
-        @Override
-        public Analyzer getWrappedAnalyzer(String name) {
-          FieldDef fd = getField(name);
-          if (fd instanceof TextBaseFieldDef || fd instanceof ContextSuggestFieldDef) {
-            Optional<Analyzer> maybeAnalyzer = Optional.empty();
-            if (fd instanceof TextBaseFieldDef) {
-              maybeAnalyzer = ((TextBaseFieldDef) fd).getIndexAnalyzer();
-            } else {
-              maybeAnalyzer = ((ContextSuggestFieldDef) fd).getIndexAnalyzer();
-            }
-
-            if (maybeAnalyzer.isEmpty()) {
-              throw new IllegalArgumentException(
-                  "field \"" + name + "\" did not specify analyzer or indexAnalyzer");
-            }
-            return maybeAnalyzer.get();
-          }
-          throw new IllegalArgumentException("field \"" + name + "\" does not support analysis");
-        }
-
-        @Override
-        protected TokenStreamComponents wrapComponents(
-            String fieldName, TokenStreamComponents components) {
-          return components;
-        }
-      };
-
   /** Search-time analyzer. */
   public final Analyzer searchAnalyzer =
       new AnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
