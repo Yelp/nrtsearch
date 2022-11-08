@@ -1,7 +1,7 @@
 {
   "indexName": "yelp_reviews_test_0",
   "directory": "MMapDirectory",
-  "nrtCachingDirectoryMaxSizeMB": -1.0,
+  "nrtCachingDirectoryMaxSizeMB": 0,
   "indexMergeSchedulerAutoThrottle": false,
   "concurrentMergeSchedulerMaxMergeCount": 16,
   "concurrentMergeSchedulerMaxThreadCount": 8
