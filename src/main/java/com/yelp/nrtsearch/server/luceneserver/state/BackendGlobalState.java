@@ -132,9 +132,7 @@ public class BackendGlobalState extends GlobalState {
       managerMap.put(entry.getKey(), stateManager);
     }
     immutableState = new ImmutableState(globalStateInfo, managerMap);
-    if (luceneServerConfiguration.getIndexStartConfig().getAutoStart()) {
-      updateStartedIndices(immutableState);
-    }
+    // If any indices should be started, it will be done in the replicationStarted hook
   }
 
   /**
@@ -206,6 +204,13 @@ public class BackendGlobalState extends GlobalState {
       return getIndex(indexName).getRootDir();
     } catch (IOException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public void replicationStarted() throws IOException {
+    if (getConfiguration().getIndexStartConfig().getAutoStart()) {
+      updateStartedIndices(immutableState);
     }
   }
 
