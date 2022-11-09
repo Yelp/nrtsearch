@@ -332,7 +332,7 @@ public class SearchRequestProcessor {
     if (searchRequest.getQuery().hasCompletionQuery()) {
       docCollector = new MyTopSuggestDocsCollector(collectorCreatorContext, additionalCollectors);
     } else if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
-      if (hasLargeNumHits(searchRequest)) {
+      if (isMatchAllDocsQuery(searchRequest)) {
         docCollector = new LargeNumHitsCollector(collectorCreatorContext, additionalCollectors);
       } else {
         docCollector = new RelevanceCollector(collectorCreatorContext, additionalCollectors);
@@ -347,9 +347,13 @@ public class SearchRequestProcessor {
     return docCollector;
   }
 
-  /** If this query needs enough hits to use a {@link LargeNumHitsCollector}. */
-  private static boolean hasLargeNumHits(SearchRequest searchRequest) {
-    return searchRequest.hasQuery()
+  /**
+   * This would return true only for requests containing an empty Query object and query text which
+   * would then map to {@link org.apache.lucene.search.MatchAllDocsQuery} in {@link
+   * QueryNodeMapper}.
+   */
+  private static boolean isMatchAllDocsQuery(SearchRequest searchRequest) {
+    return searchRequest.getQueryText().isEmpty()
         && searchRequest.getQuery().getQueryNodeCase()
             == com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET;
   }

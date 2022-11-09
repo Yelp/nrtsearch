@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -30,6 +31,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -110,6 +112,29 @@ public class QueryTest {
     String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
     assertEquals("2", docId);
     LuceneServerTest.checkHits(hit);
+  }
+
+  @Test
+  public void testEmptySearchQuery() {
+    SearchResponse searchResponse =
+        grpcServer
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(grpcServer.getTestIndex())
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .build());
+
+    assertEquals(2, searchResponse.getTotalHits().getValue());
+    assertEquals(2, searchResponse.getHitsList().size());
+    List<String> actualDocIds =
+        searchResponse.getHitsList().stream()
+            .map(hit -> hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue())
+            .collect(Collectors.toList());
+    assertThat(actualDocIds).containsExactlyInAnyOrder("1", "2");
+    searchResponse.getHitsList().forEach(LuceneServerTest::checkHits);
   }
 
   @Test
