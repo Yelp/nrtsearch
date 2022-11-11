@@ -124,30 +124,6 @@ public class LuceneServer {
 
     registerMetrics(globalState);
 
-    LuceneServerMonitoringServerInterceptor monitoringInterceptor =
-        LuceneServerMonitoringServerInterceptor.create(
-            Configuration.allMetrics()
-                .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
-                .withCollectorRegistry(collectorRegistry),
-            serviceName,
-            nodeName);
-    /* The port on which the server should run */
-    server =
-        ServerBuilder.forPort(luceneServerConfiguration.getPort())
-            .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
-            .addService(ProtoReflectionService.newInstance())
-            .executor(
-                ThreadPoolExecutorFactory.getThreadPoolExecutor(
-                    ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
-                    luceneServerConfiguration.getThreadPoolConfiguration()))
-            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
-            .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
-            .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
-            .build()
-            .start();
-    logger.info(
-        "Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
-
     if (luceneServerConfiguration.getMaxConcurrentCallsPerConnectionForReplication() != -1) {
       replicationServer =
           NettyServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
@@ -178,11 +154,37 @@ public class LuceneServer {
               .build()
               .start();
     }
-
     logger.info(
         "Server started, listening on "
             + luceneServerConfiguration.getReplicationPort()
             + " for replication messages");
+
+    // Inform global state that the replication server is started, and it is safe to start indices
+    globalState.replicationStarted();
+
+    LuceneServerMonitoringServerInterceptor monitoringInterceptor =
+        LuceneServerMonitoringServerInterceptor.create(
+            Configuration.allMetrics()
+                .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
+                .withCollectorRegistry(collectorRegistry),
+            serviceName,
+            nodeName);
+    /* The port on which the server should run */
+    server =
+        ServerBuilder.forPort(luceneServerConfiguration.getPort())
+            .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
+            .addService(ProtoReflectionService.newInstance())
+            .executor(
+                ThreadPoolExecutorFactory.getThreadPoolExecutor(
+                    ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
+                    luceneServerConfiguration.getThreadPoolConfiguration()))
+            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+            .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
+            .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
+            .build()
+            .start();
+    logger.info(
+        "Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
 
     Runtime.getRuntime()
         .addShutdownHook(

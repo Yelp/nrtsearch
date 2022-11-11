@@ -172,6 +172,14 @@ public abstract class GlobalState implements Closeable {
     return Paths.get(indexDirBase.toString(), indexName);
   }
 
+  /**
+   * Hook that is invoked during startup after the replication grpc server starts, but before the
+   * client grpc server. Operations such as starting indices can be done here.
+   *
+   * @throws IOException
+   */
+  public abstract void replicationStarted() throws IOException;
+
   /** Get the data resource name for a given index. Used with incremental archiver functionality. */
   public abstract String getDataResourceForIndex(String indexName);
 

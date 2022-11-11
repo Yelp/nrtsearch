@@ -193,6 +193,8 @@ public class TestServer {
             .addService(new ReplicationServerImpl(serverImpl.getGlobalState()))
             .build()
             .start();
+    serverImpl.getGlobalState().replicationStarted();
+
     server = ServerBuilder.forPort(0).addService(serverImpl).build().start();
     client = new LuceneServerClient("localhost", server.getPort());
   }
