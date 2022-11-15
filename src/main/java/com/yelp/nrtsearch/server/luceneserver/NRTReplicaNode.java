@@ -35,6 +35,7 @@ import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
 import org.apache.lucene.replicator.nrt.NodeCommunicationException;
+import org.apache.lucene.replicator.nrt.ReplicaDeleterManager;
 import org.apache.lucene.replicator.nrt.ReplicaNode;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.store.Directory;
@@ -46,6 +47,7 @@ public class NRTReplicaNode extends ReplicaNode {
   private static final long NRT_CONNECT_WAIT_MS = 500;
 
   private final ReplicationServerClient primaryAddress;
+  private final ReplicaDeleterManager replicaDeleterManager;
   private final String indexName;
   private final boolean ackedCopy;
   final Jobs jobs;
@@ -63,13 +65,15 @@ public class NRTReplicaNode extends ReplicaNode {
       Directory indexDir,
       SearcherFactory searcherFactory,
       PrintStream printStream,
-      boolean ackedCopy)
+      boolean ackedCopy,
+      boolean replicaCleanUpEnabled)
       throws IOException {
     super(replicaId, indexDir, searcherFactory, printStream);
     this.primaryAddress = primaryAddress;
     this.indexName = indexName;
     this.ackedCopy = ackedCopy;
     this.hostPort = hostPort;
+    replicaDeleterManager = replicaCleanUpEnabled ? new ReplicaDeleterManager(this) : null;
     // Handles fetching files from primary, on a new thread which receives files from primary
     jobs = new Jobs(this);
     jobs.setName("R" + id + ".copyJobs");
@@ -213,6 +217,9 @@ public class NRTReplicaNode extends ReplicaNode {
   @Override
   protected void finishNRTCopy(CopyJob job, long startNS) throws IOException {
     super.finishNRTCopy(job, startNS);
+    if (replicaDeleterManager != null) {
+      replicaDeleterManager.cleanUpReplicaFiles();
+    }
 
     // record metrics for this nrt point
     if (job.getFailed()) {
