@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.config;
 
 import static org.junit.Assert.assertEquals;
 
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Field;
 import java.util.Map;
@@ -77,5 +78,22 @@ public class LuceneServerConfigurationTest {
             "\n", "nodeName: \"lucene_server_foo\"", "hostName: my_${VAR4}_${VAR3}_${VAR4}_host");
     LuceneServerConfiguration luceneConfig = getForConfig(config);
     assertEquals("my__v3__host", luceneConfig.getHostName());
+  }
+
+  @Test
+  public void testDefaultDiscoveryFileUpdateInterval() {
+    String config = "nodeName: \"lucene_server_foo\"";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(
+        ReplicationServerClient.FILE_UPDATE_INTERVAL_MS,
+        luceneConfig.getDiscoveryFileUpdateIntervalMs());
+  }
+
+  @Test
+  public void testSetDiscoveryFileUpdateInterval() {
+    String config =
+        String.join("\n", "nodeName: \"lucene_server_foo\"", "discoveryFileUpdateIntervalMs: 100");
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(100, luceneConfig.getDiscoveryFileUpdateIntervalMs());
   }
 }

@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.config;
 
 import com.google.inject.Inject;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -89,6 +90,7 @@ public class LuceneServerConfiguration {
   private final boolean deadlineCancellation;
   private final StateConfig stateConfig;
   private final IndexStartConfig indexStartConfig;
+  private final int discoveryFileUpdateIntervalMs;
 
   private final YamlConfigReader configReader;
   private final long maxConnectionAgeForReplication;
@@ -150,6 +152,9 @@ public class LuceneServerConfiguration {
     deadlineCancellation = configReader.getBoolean("deadlineCancellation", false);
     stateConfig = StateConfig.fromConfig(configReader);
     indexStartConfig = IndexStartConfig.fromConfig(configReader);
+    discoveryFileUpdateIntervalMs =
+        configReader.getInteger(
+            "discoveryFileUpdateIntervalMs", ReplicationServerClient.FILE_UPDATE_INTERVAL_MS);
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
@@ -286,6 +291,10 @@ public class LuceneServerConfiguration {
 
   public IndexStartConfig getIndexStartConfig() {
     return indexStartConfig;
+  }
+
+  public int getDiscoveryFileUpdateIntervalMs() {
+    return discoveryFileUpdateIntervalMs;
   }
 
   /**

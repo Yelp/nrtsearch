@@ -465,7 +465,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       SearchResponse.Diagnostics.Builder diagnostics,
       ThreadPoolExecutor threadPoolExecutor)
       throws InterruptedException, IOException {
-    Logger logger = LoggerFactory.getLogger(SearcherTaxonomyManager.SearcherAndTaxonomy.class);
     // TODO: Figure out which searcher to use:
     // final long searcherVersion; e.g. searcher.getLong("version")
     // final IndexState.Gens searcherSnapshot; e.g. searcher.getLong("indexGen")

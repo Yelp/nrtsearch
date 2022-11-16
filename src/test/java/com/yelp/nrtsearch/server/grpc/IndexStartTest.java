@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -601,5 +602,49 @@ public class IndexStartTest {
     assertTrue(server.isReady());
     assertTrue(server.isStarted("test_index"));
     server.verifySimpleDocs("test_index", 3);
+  }
+
+  @Test
+  public void testDiscoveryFileUpdateInterval() throws IOException {
+    TestServer primary =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .withRemoteStateBackend(false)
+            .withWriteDiscoveryFile(true)
+            .build();
+    primary.createSimpleIndex("test_index");
+    primary.startPrimaryIndex("test_index", -1, null);
+
+    TestServer replicaServer =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.REPLICA, -1, IndexDataLocationType.REMOTE)
+            .withSyncInitialNrtPoint(false)
+            .build();
+    ReplicationServerClient replicationClient =
+        replicaServer
+            .getGlobalState()
+            .getIndex("test_index")
+            .getShard(0)
+            .nrtReplicaNode
+            .getPrimaryAddress();
+    assertEquals(
+        ReplicationServerClient.FILE_UPDATE_INTERVAL_MS,
+        replicationClient.getDiscoveryFileUpdateIntervalMs());
+
+    assertNotEquals(100, ReplicationServerClient.FILE_UPDATE_INTERVAL_MS);
+    TestServer replicaServer2 =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.REPLICA, -1, IndexDataLocationType.REMOTE)
+            .withSyncInitialNrtPoint(false)
+            .withAdditionalConfig("discoveryFileUpdateIntervalMs: 100")
+            .build();
+    replicationClient =
+        replicaServer2
+            .getGlobalState()
+            .getIndex("test_index")
+            .getShard(0)
+            .nrtReplicaNode
+            .getPrimaryAddress();
+    assertEquals(100, replicationClient.getDiscoveryFileUpdateIntervalMs());
   }
 }

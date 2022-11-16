@@ -48,7 +48,6 @@ public abstract class GlobalState implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(GlobalState.class);
   private final String hostName;
   private final int port;
-  private final int replicationPort;
   private final ThreadPoolConfiguration threadPoolConfiguration;
   private final Archiver incArchiver;
   private int replicaReplicationPortPingInterval;
@@ -106,7 +105,6 @@ public abstract class GlobalState implements Closeable {
     this.indexDirBase = Paths.get(luceneServerConfiguration.getIndexDir());
     this.hostName = luceneServerConfiguration.getHostName();
     this.port = luceneServerConfiguration.getPort();
-    this.replicationPort = luceneServerConfiguration.getReplicationPort();
     this.replicaReplicationPortPingInterval =
         luceneServerConfiguration.getReplicaReplicationPortPingInterval();
     this.threadPoolConfiguration = luceneServerConfiguration.getThreadPoolConfiguration();
@@ -184,12 +182,21 @@ public abstract class GlobalState implements Closeable {
   }
 
   /**
+   * Get port the replication grpc server is listening on. This may be different from the value
+   * specified in the config file when using port 0 (auto select). In this case, the true port will
+   * be passed to the {@link #replicationStarted(int)} hook.
+   */
+  public abstract int getReplicationPort();
+
+  /**
    * Hook that is invoked during startup after the replication grpc server starts, but before the
    * client grpc server. Operations such as starting indices can be done here.
    *
+   * @param replicationPort resolved port replication grpc server is listening on, may be different
+   *     from config port if using 0 (auto select).
    * @throws IOException
    */
-  public abstract void replicationStarted() throws IOException;
+  public abstract void replicationStarted(int replicationPort) throws IOException;
 
   /** Get the data resource name for a given index. Used with incremental archiver functionality. */
   public abstract String getDataResourceForIndex(String indexName);
@@ -255,10 +262,6 @@ public abstract class GlobalState implements Closeable {
 
   public Future<Long> submitIndexingTask(Callable<Long> job) {
     return indexService.submit(job);
-  }
-
-  public int getReplicationPort() {
-    return replicationPort;
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
