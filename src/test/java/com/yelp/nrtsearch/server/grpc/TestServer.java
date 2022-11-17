@@ -470,6 +470,7 @@ public class TestServer {
                     .setTopHits(expectedCount + 1)
                     .setStartHit(0)
                     .build());
+
     assertEquals(expectedCount, response.getHitsCount());
     for (Hit hit : response.getHitsList()) {
       int id = Integer.parseInt(hit.getFieldsOrThrow("id").getFieldValue(0).getTextValue());
@@ -488,6 +489,10 @@ public class TestServer {
     client.commit(indexName);
   }
 
+  public void deleteAllDocuments(String indexName) {
+    client.deleteAllDocuments(indexName);
+  }
+
   public void deleteIndex(String indexName) {
     client.deleteIndex(indexName);
   }
@@ -502,6 +507,7 @@ public class TestServer {
     private String serviceName = SERVICE_NAME;
 
     private boolean autoStart = false;
+    private boolean decInitialCommit = false;
     private Mode mode = Mode.STANDALONE;
     private int port = 0;
     private IndexDataLocationType locationType = IndexDataLocationType.LOCAL;
@@ -556,6 +562,11 @@ public class TestServer {
 
     public Builder withIncArchiver(boolean enabled) {
       this.incArchiver = enabled;
+      return this;
+    }
+
+    public Builder withDecInitialCommit(boolean enabled) {
+      this.decInitialCommit = enabled;
       return this;
     }
 
@@ -635,6 +646,7 @@ public class TestServer {
           "stateDir: " + Paths.get(folder.getRoot().toString(), "state_dir"),
           "indexDir: " + Paths.get(folder.getRoot().toString(), "index_dir-" + uuid),
           "archiveDirectory: " + Paths.get(folder.getRoot().toString(), "archive_dir-" + uuid),
+          "decInitialCommit: " + decInitialCommit,
           "syncInitialNrtPoint: true");
     }
   }

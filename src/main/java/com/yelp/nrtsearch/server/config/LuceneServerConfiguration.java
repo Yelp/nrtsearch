@@ -82,7 +82,7 @@ public class LuceneServerConfiguration {
   private final boolean downloadAsStream;
   private final boolean fileSendDelay;
   private final boolean virtualSharding;
-  private final boolean replicaCleanUpEnabled;
+  private final boolean decInitialCommit;
   private final boolean syncInitialNrtPoint;
   private final boolean indexVerbose;
   private final FileCopyConfig fileCopyConfig;
@@ -143,7 +143,7 @@ public class LuceneServerConfiguration {
     downloadAsStream = configReader.getBoolean("downloadAsStream", true);
     fileSendDelay = configReader.getBoolean("fileSendDelay", false);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
-    replicaCleanUpEnabled = configReader.getBoolean("replicaCleanUpEnabled", false);
+    decInitialCommit = configReader.getBoolean("decInitialCommit", false);
     syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", true);
     indexVerbose = configReader.getBoolean("indexVerbose", false);
     fileCopyConfig = FileCopyConfig.fromConfig(configReader);
@@ -258,8 +258,8 @@ public class LuceneServerConfiguration {
     return virtualSharding;
   }
 
-  public boolean getReplicaCleanUpEnabled() {
-    return replicaCleanUpEnabled;
+  public boolean getDecInitialCommit() {
+    return decInitialCommit;
   }
 
   public boolean getSyncInitialNrtPoint() {

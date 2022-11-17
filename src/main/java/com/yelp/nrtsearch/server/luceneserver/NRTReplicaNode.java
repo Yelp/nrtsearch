@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.FileMetadata;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
@@ -66,14 +67,14 @@ public class NRTReplicaNode extends ReplicaNode {
       SearcherFactory searcherFactory,
       PrintStream printStream,
       boolean ackedCopy,
-      boolean replicaCleanUpEnabled)
+      boolean decInitialCommit)
       throws IOException {
     super(replicaId, indexDir, searcherFactory, printStream);
     this.primaryAddress = primaryAddress;
     this.indexName = indexName;
     this.ackedCopy = ackedCopy;
     this.hostPort = hostPort;
-    replicaDeleterManager = replicaCleanUpEnabled ? new ReplicaDeleterManager(this) : null;
+    replicaDeleterManager = decInitialCommit ? new ReplicaDeleterManager(this) : null;
     // Handles fetching files from primary, on a new thread which receives files from primary
     jobs = new Jobs(this);
     jobs.setName("R" + id + ".copyJobs");
@@ -107,8 +108,11 @@ public class NRTReplicaNode extends ReplicaNode {
   }
 
   @Override
-  public void start(long primaryGen) throws IOException {
+  public synchronized void start(long primaryGen) throws IOException {
     super.start(primaryGen);
+    if (replicaDeleterManager != null) {
+      replicaDeleterManager.decReplicaInitialCommitFiles();
+    }
   }
 
   @Override
@@ -217,9 +221,6 @@ public class NRTReplicaNode extends ReplicaNode {
   @Override
   protected void finishNRTCopy(CopyJob job, long startNS) throws IOException {
     super.finishNRTCopy(job, startNS);
-    if (replicaDeleterManager != null) {
-      replicaDeleterManager.cleanUpReplicaFiles();
-    }
 
     // record metrics for this nrt point
     if (job.getFailed()) {
@@ -244,6 +245,11 @@ public class NRTReplicaNode extends ReplicaNode {
     }
     primaryAddress.close();
     super.close();
+  }
+
+  @VisibleForTesting
+  public ReplicaDeleterManager getReplicaDeleterManager() {
+    return replicaDeleterManager;
   }
 
   public ReplicationServerClient getPrimaryAddress() {
