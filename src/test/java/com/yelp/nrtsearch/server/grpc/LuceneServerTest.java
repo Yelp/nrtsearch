@@ -278,7 +278,7 @@ public class LuceneServerTest {
   }
 
   @Test
-  public void testStartIndex() throws IOException {
+  public void testStartIndex() {
     String testIndex = grpcServer.getTestIndex();
     LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
     // create the index
@@ -286,9 +286,7 @@ public class LuceneServerTest {
     try {
       // start the index
       String emptyTestIndex = "";
-      StartIndexResponse reply =
-          blockingStub.startIndex(
-              StartIndexRequest.newBuilder().setIndexName(emptyTestIndex).build());
+      blockingStub.startIndex(StartIndexRequest.newBuilder().setIndexName(emptyTestIndex).build());
       fail("The above line must throw an exception");
     } catch (StatusRuntimeException e) {
       assertEquals(
