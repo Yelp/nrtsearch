@@ -278,6 +278,26 @@ public class LuceneServerTest {
   }
 
   @Test
+  public void testStartIndex() throws IOException {
+    String testIndex = grpcServer.getTestIndex();
+    LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
+    // create the index
+    blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(testIndex).build());
+    try {
+      // start the index
+      String emptyTestIndex = "";
+      StartIndexResponse reply =
+          blockingStub.startIndex(
+              StartIndexRequest.newBuilder().setIndexName(emptyTestIndex).build());
+      fail("The above line must throw an exception");
+    } catch (StatusRuntimeException e) {
+      assertEquals(
+          String.format("INVALID_ARGUMENT: Index name is empty - must not be empty"),
+          e.getMessage());
+    }
+  }
+
+  @Test
   public void testRegisterFieldsBasic() throws Exception {
     FieldDefResponse reply =
         new GrpcServer.IndexAndRoleManager(grpcServer)
