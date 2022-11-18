@@ -717,9 +717,13 @@ public class LuceneServer {
         StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
       logger.info("Received start index request: {}", startIndexRequest);
       if (startIndexRequest.getIndexName().isEmpty()) {
+        logger.warn("error while trying to start index " + startIndexRequest.getIndexName());
         responseObserver.onError(
             Status.INVALID_ARGUMENT
-                .withDescription(String.format("Index name is empty - must not be empty"))
+                .withDescription(
+                    String.format(
+                        "error while trying to start index since indexName was empty: "
+                            + startIndexRequest.getIndexName()))
                 .asRuntimeException());
         return;
       }
