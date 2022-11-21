@@ -291,6 +291,11 @@ public class LuceneServerTest {
               "INVALID_ARGUMENT: error while trying to start index since indexName was empty: "),
           e.getMessage());
     }
+  }
+
+  @Test
+  public void testCreateAndStartIndexWithEmptyString() {
+    LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
     String testIndex = grpcServer.getTestIndex();
     // create the index
     blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(testIndex).build());
