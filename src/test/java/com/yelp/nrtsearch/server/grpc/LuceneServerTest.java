@@ -281,33 +281,24 @@ public class LuceneServerTest {
   public void testStartIndexWithEmptyString() {
     LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
     try {
-      // start the index without creating any index
+      // start the index
       String emptyTestIndex = "";
       blockingStub.startIndex(StartIndexRequest.newBuilder().setIndexName(emptyTestIndex).build());
       fail("The above line must throw an exception");
     } catch (StatusRuntimeException e) {
       assertEquals(
           String.format(
-              "INVALID_ARGUMENT: error while trying to start index since indexName was empty: "),
+              "INVALID_ARGUMENT: error while trying to start index since indexName was empty."),
           e.getMessage());
     }
-  }
-
-  @Test
-  public void testCreateAndStartIndexWithEmptyString() {
-    LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
-    String testIndex = grpcServer.getTestIndex();
-    // create the index
-    blockingStub.createIndex(CreateIndexRequest.newBuilder().setIndexName(testIndex).build());
     try {
-      // start the index after creating an index
-      String emptyTestIndex = "";
-      blockingStub.startIndex(StartIndexRequest.newBuilder().setIndexName(emptyTestIndex).build());
+      // start the index
+      blockingStub.startIndex(StartIndexRequest.newBuilder().build());
       fail("The above line must throw an exception");
     } catch (StatusRuntimeException e) {
       assertEquals(
           String.format(
-              "INVALID_ARGUMENT: error while trying to start index since indexName was empty: "),
+              "INVALID_ARGUMENT: error while trying to start index since indexName was empty."),
           e.getMessage());
     }
   }

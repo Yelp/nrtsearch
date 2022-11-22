@@ -721,9 +721,7 @@ public class LuceneServer {
         responseObserver.onError(
             Status.INVALID_ARGUMENT
                 .withDescription(
-                    String.format(
-                        "error while trying to start index since indexName was empty: "
-                            + startIndexRequest.getIndexName()))
+                    String.format("error while trying to start index since indexName was empty."))
                 .asRuntimeException());
         return;
       }
