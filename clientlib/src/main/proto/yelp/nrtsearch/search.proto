@@ -229,6 +229,47 @@ message CompletionQuery {
     repeated string contexts = 4;
 }
 
+// A query to modify the score of documents with a given set of functions
+message MultiFunctionScoreQuery {
+    // Function to produce a weighted value
+    message FilterFunction {
+        // Apply function only to docs that pass this filter, match all if not specified
+        Query filter = 1;
+        // Weight to multiply with function score, 1.0 if not specified
+        float weight = 2;
+        // Function to produce score, will be 1.0 if none are set
+        oneof Function {
+            // Produce score with score script definition
+            Script script = 3;
+        }
+    }
+
+    // How to combine multiple function scores to produce a final function score
+    enum FunctionScoreMode {
+        // Multiply weighted function scores together
+        SCORE_MODE_MULTIPLY = 0;
+        // Add weighted function scores together
+        SCORE_MODE_SUM = 1;
+    }
+
+    // How to combine final function score with query score
+    enum BoostMode {
+        // Multiply scores together
+        BOOST_MODE_MULTIPLY = 0;
+        // Add scores together
+        BOOST_MODE_SUM = 1;
+    }
+
+    // Main query to produce recalled docs and scores, which will be modified by the final function score
+    Query query = 1;
+    // Functions to produce final function score
+    repeated FilterFunction functions = 2;
+    // Method to combine functions scores
+    FunctionScoreMode score_mode = 3;
+    // Method to modify query document scores with final function score
+    BoostMode boost_mode = 4;
+}
+
 // Defines different types of QueryNodes.
 enum QueryType {
     NONE = 0;
@@ -248,6 +289,7 @@ enum QueryType {
     EXISTS = 14;
     GEO_RADIUS = 15;
     COMPLETION = 16;
+    MULTI_FUNCTION_SCORE_QUERY = 17;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -273,6 +315,7 @@ message Query {
         GeoRadiusQuery geoRadiusQuery = 17;
         FunctionFilterQuery functionFilterQuery = 18;
         CompletionQuery completionQuery = 19;
+        MultiFunctionScoreQuery multiFunctionScoreQuery = 20;
     }
 }
 
