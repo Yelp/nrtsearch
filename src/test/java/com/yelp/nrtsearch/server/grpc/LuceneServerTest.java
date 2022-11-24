@@ -884,6 +884,24 @@ public class LuceneServerTest {
     checkHits(firstHit);
     SearchResponse.Hit secondHit = searchResponse.getHits(1);
     checkHits(secondHit);
+
+    SearchResponse searchResponsePlainStar =
+        grpcServer
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(grpcServer.getTestIndex())
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("*")
+                    .build());
+
+    assertEquals(2, searchResponsePlainStar.getTotalHits().getValue());
+    assertEquals(2, searchResponsePlainStar.getHitsList().size());
+    SearchResponse.Hit firstHitPlainStar = searchResponsePlainStar.getHits(0);
+    checkHits(firstHitPlainStar);
+    SearchResponse.Hit secondHitPlainStar = searchResponsePlainStar.getHits(1);
+    checkHits(secondHitPlainStar);
   }
 
   @Test
