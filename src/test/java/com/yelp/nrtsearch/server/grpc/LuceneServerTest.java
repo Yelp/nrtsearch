@@ -867,6 +867,7 @@ public class LuceneServerTest {
         .getBlockingStub()
         .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
 
+    // support format of ["*"]
     SearchResponse searchResponse =
         grpcServer
             .getBlockingStub()
@@ -885,6 +886,7 @@ public class LuceneServerTest {
     SearchResponse.Hit secondHit = searchResponse.getHits(1);
     checkHits(secondHit);
 
+    // support format of "*"
     SearchResponse searchResponsePlainStar =
         grpcServer
             .getBlockingStub()
