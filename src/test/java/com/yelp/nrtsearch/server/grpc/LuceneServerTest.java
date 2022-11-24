@@ -79,6 +79,7 @@ public class LuceneServerTest {
           "vendor_name_atom",
           "count",
           "long_field",
+          "long_field_multi",
           "double_field_multi",
           "double_field",
           "float_field_multi",
@@ -86,7 +87,8 @@ public class LuceneServerTest {
           "boolean_field_multi",
           "boolean_field",
           "description",
-          "date");
+          "date",
+          "date_multi");
   public static final List<String> INDEX_VIRTUAL_FIELDS =
       Arrays.asList("virtual_field", "virtual_field_w_score");
   public static final List<String> QUERY_VIRTUAL_FIELDS =
@@ -844,6 +846,36 @@ public class LuceneServerTest {
                     .setStartHit(0)
                     .setTopHits(10)
                     .addAllRetrieveFields(RETRIEVED_VALUES)
+                    .build());
+
+    assertEquals(2, searchResponse.getTotalHits().getValue());
+    assertEquals(2, searchResponse.getHitsList().size());
+    SearchResponse.Hit firstHit = searchResponse.getHits(0);
+    checkHits(firstHit);
+    SearchResponse.Hit secondHit = searchResponse.getHits(1);
+    checkHits(secondHit);
+  }
+
+  @Test
+  public void testSearchFetchingAllFieldsWithWildcard() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    // 2 docs addDocuments
+    testAddDocs.addDocuments();
+    // manual refresh
+    grpcServer
+        .getBlockingStub()
+        .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+
+    SearchResponse searchResponse =
+        grpcServer
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(grpcServer.getTestIndex())
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addAllRetrieveFields(Arrays.asList("*"))
                     .build());
 
     assertEquals(2, searchResponse.getTotalHits().getValue());
