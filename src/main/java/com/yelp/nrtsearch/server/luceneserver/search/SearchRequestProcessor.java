@@ -206,7 +206,7 @@ public class SearchRequestProcessor {
   private static Map<String, FieldDef> getRetrieveFields(
       SearchRequest request, Map<String, FieldDef> queryFields) {
     Map<String, FieldDef> retrieveFields = new HashMap<>();
-    if (request.getRetrieveFieldsList().equals(Arrays.asList("*")) || request.getRetrieveF) {
+    if (request.getRetrieveFieldsList().equals(Arrays.asList("*"))) {
       return queryFields;
     }
     for (String field : request.getRetrieveFieldsList()) {
