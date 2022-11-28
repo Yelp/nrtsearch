@@ -80,6 +80,7 @@ import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.suggest.document.CompletionPostingsFormatUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -373,6 +374,8 @@ public class LuceneServer {
       this.restoreFromIncArchiver = configuration.getRestoreFromIncArchiver();
 
       DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
+      CompletionPostingsFormatUtil.setCompletionCodecLoadMode(
+          configuration.getCompletionCodecLoadMode());
 
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
