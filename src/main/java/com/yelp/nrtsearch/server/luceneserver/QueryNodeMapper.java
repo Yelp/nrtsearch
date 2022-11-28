@@ -63,8 +63,8 @@ import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
-import org.apache.lucene.search.suggest.document.ContextQuery;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
+import org.apache.lucene.search.suggest.document.MyContextQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.util.QueryBuilder;
 
@@ -172,7 +172,7 @@ public class QueryNodeMapper {
         throw new UnsupportedOperationException(
             "Unsupported suggest query type received: " + completionQueryDef.getQueryType());
     }
-    ContextQuery contextQuery = new ContextQuery(completionQuery);
+    MyContextQuery contextQuery = new MyContextQuery(completionQuery);
     completionQueryDef.getContextsList().forEach(contextQuery::addContext);
     return contextQuery;
   }
