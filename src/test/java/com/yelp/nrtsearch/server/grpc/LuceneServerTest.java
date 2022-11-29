@@ -887,7 +887,7 @@ public class LuceneServerTest {
     checkHits(secondHit);
 
     // support format of "*"
-    SearchResponse searchResponsePlainStar =
+    SearchResponse searchResponseWithWildcard =
         grpcServer
             .getBlockingStub()
             .search(
@@ -898,11 +898,11 @@ public class LuceneServerTest {
                     .addRetrieveFields("*")
                     .build());
 
-    assertEquals(2, searchResponsePlainStar.getTotalHits().getValue());
-    assertEquals(2, searchResponsePlainStar.getHitsList().size());
-    SearchResponse.Hit firstHitPlainStar = searchResponsePlainStar.getHits(0);
+    assertEquals(2, searchResponseWithWildcard.getTotalHits().getValue());
+    assertEquals(2, searchResponseWithWildcard.getHitsList().size());
+    SearchResponse.Hit firstHitPlainStar = searchResponseWithWildcard.getHits(0);
     checkHits(firstHitPlainStar);
-    SearchResponse.Hit secondHitPlainStar = searchResponsePlainStar.getHits(1);
+    SearchResponse.Hit secondHitPlainStar = searchResponseWithWildcard.getHits(1);
     checkHits(secondHitPlainStar);
   }
 

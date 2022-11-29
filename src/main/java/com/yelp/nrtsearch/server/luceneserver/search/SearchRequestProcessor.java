@@ -50,7 +50,6 @@ import com.yelp.nrtsearch.server.luceneserver.search.collectors.SortFieldCollect
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -206,7 +205,8 @@ public class SearchRequestProcessor {
   private static Map<String, FieldDef> getRetrieveFields(
       SearchRequest request, Map<String, FieldDef> queryFields) {
     Map<String, FieldDef> retrieveFields = new HashMap<>();
-    if (request.getRetrieveFieldsList().equals(Arrays.asList("*"))) {
+    final String WILDCARD = "*";
+    if (request.getRetrieveFieldsCount() == 1 && request.getRetrieveFields(0).equals(WILDCARD)) {
       return queryFields;
     }
     for (String field : request.getRetrieveFieldsList()) {
