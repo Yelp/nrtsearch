@@ -881,10 +881,10 @@ public class LuceneServerTest {
 
     assertEquals(2, searchResponse.getTotalHits().getValue());
     assertEquals(2, searchResponse.getHitsList().size());
-    SearchResponse.Hit firstHit = searchResponse.getHits(0);
-    checkHits(firstHit);
-    SearchResponse.Hit secondHit = searchResponse.getHits(1);
-    checkHits(secondHit);
+    SearchResponse.Hit firstHitWithArrOfWildcard = searchResponse.getHits(0);
+    checkHits(firstHitWithArrOfWildcard);
+    SearchResponse.Hit secondHitWithArrOfWildcard = searchResponse.getHits(1);
+    checkHits(secondHitWithArrOfWildcard);
 
     // support format of "*"
     SearchResponse searchResponseWithWildcard =
@@ -900,10 +900,10 @@ public class LuceneServerTest {
 
     assertEquals(2, searchResponseWithWildcard.getTotalHits().getValue());
     assertEquals(2, searchResponseWithWildcard.getHitsList().size());
-    SearchResponse.Hit firstHitPlainStar = searchResponseWithWildcard.getHits(0);
-    checkHits(firstHitPlainStar);
-    SearchResponse.Hit secondHitPlainStar = searchResponseWithWildcard.getHits(1);
-    checkHits(secondHitPlainStar);
+    SearchResponse.Hit firstHitWithStrOfWildcard = searchResponseWithWildcard.getHits(0);
+    checkHits(firstHitWithStrOfWildcard);
+    SearchResponse.Hit secondHitWithStrOfWildcard = searchResponseWithWildcard.getHits(1);
+    checkHits(secondHitWithStrOfWildcard);
   }
 
   @Test
