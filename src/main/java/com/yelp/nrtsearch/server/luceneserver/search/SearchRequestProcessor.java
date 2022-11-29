@@ -77,6 +77,8 @@ public class SearchRequestProcessor {
    */
   public static final int TOTAL_HITS_THRESHOLD = 1000;
 
+  public static final String WILDCARD = "*";
+
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
 
   private SearchRequestProcessor() {}
@@ -205,7 +207,6 @@ public class SearchRequestProcessor {
   private static Map<String, FieldDef> getRetrieveFields(
       SearchRequest request, Map<String, FieldDef> queryFields) {
     Map<String, FieldDef> retrieveFields = new HashMap<>();
-    final String WILDCARD = "*";
     if (request.getRetrieveFieldsCount() == 1 && request.getRetrieveFields(0).equals(WILDCARD)) {
       return queryFields;
     }
