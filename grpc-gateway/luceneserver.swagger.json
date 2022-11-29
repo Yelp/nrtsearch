@@ -1697,6 +1697,45 @@
         }
       }
     },
+    "MultiFunctionScoreQueryBoostMode": {
+      "type": "string",
+      "enum": [
+        "BOOST_MODE_MULTIPLY",
+        "BOOST_MODE_SUM"
+      ],
+      "default": "BOOST_MODE_MULTIPLY",
+      "description": "- BOOST_MODE_MULTIPLY: Multiply scores together\n - BOOST_MODE_SUM: Add scores together",
+      "title": "How to combine final function score with query score"
+    },
+    "MultiFunctionScoreQueryFilterFunction": {
+      "type": "object",
+      "properties": {
+        "filter": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Apply function only to docs that pass this filter, match all if not specified"
+        },
+        "weight": {
+          "type": "number",
+          "format": "float",
+          "title": "Weight to multiply with function score, 1.0 if not specified"
+        },
+        "script": {
+          "$ref": "#/definitions/luceneserverScript",
+          "title": "Produce score with score script definition"
+        }
+      },
+      "title": "Function to produce a weighted value"
+    },
+    "MultiFunctionScoreQueryFunctionScoreMode": {
+      "type": "string",
+      "enum": [
+        "SCORE_MODE_MULTIPLY",
+        "SCORE_MODE_SUM"
+      ],
+      "default": "SCORE_MODE_MULTIPLY",
+      "description": "- SCORE_MODE_MULTIPLY: Multiply weighted function scores together\n - SCORE_MODE_SUM: Add weighted function scores together",
+      "title": "How to combine multiple function scores to produce a final function score"
+    },
     "NestedQueryScoreMode": {
       "type": "string",
       "enum": [
@@ -3666,6 +3705,31 @@
       ],
       "default": "STANDALONE"
     },
+    "luceneserverMultiFunctionScoreQuery": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Main query to produce recalled docs and scores, which will be modified by the final function score"
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MultiFunctionScoreQueryFilterFunction"
+          },
+          "title": "Functions to produce final function score"
+        },
+        "score_mode": {
+          "$ref": "#/definitions/MultiFunctionScoreQueryFunctionScoreMode",
+          "title": "Method to combine functions scores"
+        },
+        "boost_mode": {
+          "$ref": "#/definitions/MultiFunctionScoreQueryBoostMode",
+          "title": "Method to modify query document scores with final function score"
+        }
+      },
+      "title": "A query to modify the score of documents with a given set of functions"
+    },
     "luceneserverMultiMatchQuery": {
       "type": "object",
       "properties": {
@@ -3934,6 +3998,9 @@
         },
         "completionQuery": {
           "$ref": "#/definitions/luceneserverCompletionQuery"
+        },
+        "multiFunctionScoreQuery": {
+          "$ref": "#/definitions/luceneserverMultiFunctionScoreQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -3988,7 +4055,8 @@
         "NESTED",
         "EXISTS",
         "GEO_RADIUS",
-        "COMPLETION"
+        "COMPLETION",
+        "MULTI_FUNCTION_SCORE_QUERY"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."

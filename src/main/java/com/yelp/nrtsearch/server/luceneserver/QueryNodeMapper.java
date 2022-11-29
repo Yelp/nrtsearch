@@ -36,6 +36,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.luceneserver.search.query.multifunction.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.util.Arrays;
 import java.util.Collection;
@@ -144,6 +145,8 @@ public class QueryNodeMapper {
         return getFunctionFilterQuery(query.getFunctionFilterQuery(), state);
       case COMPLETIONQUERY:
         return getCompletionQuery(query.getCompletionQuery(), state);
+      case MULTIFUNCTIONSCOREQUERY:
+        return MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), state);
       case QUERYNODE_NOT_SET:
         return new MatchAllDocsQuery();
       default:
