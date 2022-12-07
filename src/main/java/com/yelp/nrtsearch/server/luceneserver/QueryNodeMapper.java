@@ -36,6 +36,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.luceneserver.search.query.MatchPhrasePrefixQuery;
 import com.yelp.nrtsearch.server.luceneserver.search.query.multifunction.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.util.Arrays;
@@ -147,6 +148,8 @@ public class QueryNodeMapper {
         return getCompletionQuery(query.getCompletionQuery(), state);
       case MULTIFUNCTIONSCOREQUERY:
         return MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), state);
+      case MATCHPHRASEPREFIXQUERY:
+        return MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), state);
       case QUERYNODE_NOT_SET:
         return new MatchAllDocsQuery();
       default:
@@ -386,20 +389,41 @@ public class QueryNodeMapper {
         fields.stream()
             .map(
                 field -> {
-                  MatchQuery matchQuery =
-                      MatchQuery.newBuilder()
-                          .setField(field)
-                          .setQuery(multiMatchQuery.getQuery())
-                          .setOperator(multiMatchQuery.getOperator())
-                          .setMinimumNumberShouldMatch(
-                              multiMatchQuery.getMinimumNumberShouldMatch())
-                          .setAnalyzer(
-                              multiMatchQuery
-                                  .getAnalyzer()) // TODO: making the analyzer once and using it for
-                          // all match queries would be more efficient
-                          .setFuzzyParams(multiMatchQuery.getFuzzyParams())
-                          .build();
-                  Query query = getMatchQuery(matchQuery, state);
+                  Query query;
+                  switch (multiMatchQuery.getType()) {
+                    case BEST_FIELDS:
+                      MatchQuery matchQuery =
+                          MatchQuery.newBuilder()
+                              .setField(field)
+                              .setQuery(multiMatchQuery.getQuery())
+                              .setOperator(multiMatchQuery.getOperator())
+                              .setMinimumNumberShouldMatch(
+                                  multiMatchQuery.getMinimumNumberShouldMatch())
+                              .setAnalyzer(
+                                  multiMatchQuery
+                                      .getAnalyzer()) // TODO: making the analyzer once and using it
+                              // for
+                              // all match queries would be more efficient
+                              .setFuzzyParams(multiMatchQuery.getFuzzyParams())
+                              .build();
+                      query = getMatchQuery(matchQuery, state);
+                      break;
+                    case PHRASE_PREFIX:
+                      query =
+                          MatchPhrasePrefixQuery.build(
+                              com.yelp.nrtsearch.server.grpc.MatchPhrasePrefixQuery.newBuilder()
+                                  .setField(field)
+                                  .setQuery(multiMatchQuery.getQuery())
+                                  .setAnalyzer(multiMatchQuery.getAnalyzer())
+                                  .setSlop(multiMatchQuery.getSlop())
+                                  .setMaxExpansions(multiMatchQuery.getMaxExpansions())
+                                  .build(),
+                              state);
+                      break;
+                    default:
+                      throw new IllegalArgumentException(
+                          "Unknown multi match type: " + multiMatchQuery.getType());
+                  }
                   Float boost = fieldBoosts.get(field);
                   if (boost != null) {
                     if (boost < 0) {
