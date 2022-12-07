@@ -1,0 +1,42 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "_ID",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "text_field",
+      "type": "TEXT",
+      "search": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "childFields": [
+        {
+          "name": "not_searchable",
+          "type": "TEXT",
+          "tokenize": true,
+          "multiValued": true
+        },
+        {
+          "name": "atom",
+          "type": "ATOM",
+          "search": true,
+          "tokenize": true,
+          "multiValued": true
+        }
+      ]
+    },
+    {
+      "name": "virtual",
+      "type": "VIRTUAL",
+      "script": {
+        "lang": "js",
+        "source": "_score*3.0"
+      }
+    }
+  ]
+}

@@ -26,7 +26,9 @@ import com.yelp.nrtsearch.server.grpc.MatchOperator;
 import com.yelp.nrtsearch.server.grpc.MatchPhraseQuery;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
 import com.yelp.nrtsearch.server.grpc.MultiMatchQuery;
+import com.yelp.nrtsearch.server.grpc.PrefixQuery;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
+import com.yelp.nrtsearch.server.grpc.RewriteMethod;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
@@ -47,6 +49,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.function.FunctionMatchQuery;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
@@ -58,6 +61,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -150,6 +154,8 @@ public class QueryNodeMapper {
         return MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), state);
       case MATCHPHRASEPREFIXQUERY:
         return MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), state);
+      case PREFIXQUERY:
+        return getPrefixQuery(query.getPrefixQuery(), state);
       case QUERYNODE_NOT_SET:
         return new MatchAllDocsQuery();
       default:
@@ -497,5 +503,45 @@ public class QueryNodeMapper {
   private Query getExistsQuery(ExistsQuery existsQuery, IndexState state) {
     String fieldName = existsQuery.getField();
     return new ConstantScoreQuery(new TermQuery(new Term(IndexState.FIELD_NAMES, fieldName)));
+  }
+
+  private static Query getPrefixQuery(PrefixQuery prefixQuery, IndexState state) {
+    FieldDef fieldDef = state.getField(prefixQuery.getField());
+    if (!(fieldDef instanceof IndexableFieldDef)) {
+      throw new IllegalArgumentException(
+          "Field \"" + prefixQuery.getPrefix() + "\" is not indexable");
+    }
+    IndexOptions indexOptions = ((IndexableFieldDef) fieldDef).getFieldType().indexOptions();
+    if (indexOptions == IndexOptions.NONE) {
+      throw new IllegalArgumentException(
+          "Field \"" + prefixQuery.getField() + "\" is not indexed with terms");
+    }
+
+    org.apache.lucene.search.PrefixQuery query =
+        new org.apache.lucene.search.PrefixQuery(
+            new Term(prefixQuery.getField(), prefixQuery.getPrefix()));
+    query.setRewriteMethod(
+        getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize()));
+    return query;
+  }
+
+  private static MultiTermQuery.RewriteMethod getRewriteMethod(
+      RewriteMethod rewriteMethodGrpc, int topTermsSize) {
+    switch (rewriteMethodGrpc) {
+      case CONSTANT_SCORE:
+        return MultiTermQuery.CONSTANT_SCORE_REWRITE;
+      case CONSTANT_SCORE_BOOLEAN:
+        return MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE;
+      case SCORING_BOOLEAN:
+        return MultiTermQuery.SCORING_BOOLEAN_REWRITE;
+      case TOP_TERMS_BLENDED_FREQS:
+        return new MultiTermQuery.TopTermsBlendedFreqScoringRewrite(topTermsSize);
+      case TOP_TERMS_BOOST:
+        return new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(topTermsSize);
+      case TOP_TERMS:
+        return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(topTermsSize);
+      default:
+        throw new IllegalArgumentException("Unknown rewrite method: " + rewriteMethodGrpc);
+    }
   }
 }

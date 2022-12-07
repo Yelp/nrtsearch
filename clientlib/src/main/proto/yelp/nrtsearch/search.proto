@@ -35,6 +35,22 @@ enum MatchOperator {
     MUST = 1;
 }
 
+// Method used to rewrite a MultiTermQuery
+enum RewriteMethod {
+    // Uses the CONSTANT_SCORE_BOOLEAN method for fewer matching terms. Otherwise, this method finds all matching terms in sequence and returns matching documents using a bit set.
+    CONSTANT_SCORE = 0;
+    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term.
+    CONSTANT_SCORE_BOOLEAN = 1;
+    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates the relevance score for each matching document.
+    SCORING_BOOLEAN = 2;
+    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates a relevance score for each matching document as if all terms had the same frequency, the maximum frequency of all matching terms. The final BooleanQuery query only includes Term queries for the top N (specified separately) scoring terms.
+    TOP_TERMS_BLENDED_FREQS = 3;
+    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Assigns each matching document a relevance score equal to the boost parameter. The final BooleanQuery query only includes Term queries for the top N (specified separately) terms.
+    TOP_TERMS_BOOST = 4;
+    // This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates a relevance score for each matching document. The final BooleanQuery query only includes Term queries for the top N (specified separately) scoring terms.
+    TOP_TERMS = 5;
+}
+
 message FuzzyParams {
     int32 maxEdits = 1; // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2.
     int32 prefixLength = 2; // Length of common (non-fuzzy) prefix
@@ -56,6 +72,18 @@ message PhraseQuery {
     int32 slop = 1;
     string field = 2; // The field in the index that this query applies to.
     repeated string terms = 3; // Terms to match.
+}
+
+// A query that matches documents that contain a specific prefix in a provided field.
+message PrefixQuery {
+    // Document field name.
+    string field = 1;
+    // Prefix to search for.
+    string prefix = 2;
+    // Method used to rewrite the query.
+    RewriteMethod rewrite = 3;
+    // Specifies the size to use for the TOP_TERMS* rewrite methods.
+    int32 rewriteTopTermsSize = 4;
 }
 
 // A query that wraps another query and uses custom scoring logic to compute the wrapped query's score.
@@ -319,6 +347,7 @@ enum QueryType {
     COMPLETION = 16;
     MULTI_FUNCTION_SCORE_QUERY = 17;
     MATCH_PHRASE_PREFIX = 18;
+    PREFIX = 19;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -346,6 +375,7 @@ message Query {
         CompletionQuery completionQuery = 19;
         MultiFunctionScoreQuery multiFunctionScoreQuery = 20;
         MatchPhrasePrefixQuery matchPhrasePrefixQuery = 21;
+        PrefixQuery prefixQuery = 22;
     }
 }
 
