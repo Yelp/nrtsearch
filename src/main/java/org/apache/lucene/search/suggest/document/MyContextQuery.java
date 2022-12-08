@@ -94,6 +94,25 @@ public class MyContextQuery extends ContextQuery {
    * indexed contexts
    */
   public void addContext(CharSequence context, float boost, boolean exact) {
+    addContextInternal(context, boost, exact);
+    updateRamBytesUsed();
+  }
+
+  /**
+   * Add a List of exact contexts with default boost of 1.
+   *
+   * @param contextsList contexts
+   * @param <T> context type
+   */
+  public <T extends CharSequence> void addContexts(List<T> contextsList) {
+    for (CharSequence context : contextsList) {
+      addContextInternal(context, 1.0f, true);
+    }
+    // updating memory usage scales with number of contexts, so only do it once
+    updateRamBytesUsed();
+  }
+
+  private void addContextInternal(CharSequence context, float boost, boolean exact) {
     if (boost < 0f) {
       throw new IllegalArgumentException("'boost' must be >= 0");
     }
@@ -112,7 +131,6 @@ public class MyContextQuery extends ContextQuery {
     contexts.put(
         IntsRef.deepCopyOf(Util.toIntsRef(new BytesRef(context), scratch)),
         new ContextMetaData(boost, exact));
-    updateRamBytesUsed();
   }
 
   /** Add all contexts with a boost of 1f */
