@@ -179,7 +179,7 @@ public class QueryNodeMapper {
             "Unsupported suggest query type received: " + completionQueryDef.getQueryType());
     }
     MyContextQuery contextQuery = new MyContextQuery(completionQuery);
-    completionQueryDef.getContextsList().forEach(contextQuery::addContext);
+    contextQuery.addContexts(completionQueryDef.getContextsList());
     return contextQuery;
   }
 
