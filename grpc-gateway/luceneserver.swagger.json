@@ -3971,6 +3971,29 @@
       },
       "title": "Point representation"
     },
+    "luceneserverPrefixQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "Document field name."
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix to search for."
+        },
+        "rewrite": {
+          "$ref": "#/definitions/luceneserverRewriteMethod",
+          "description": "Method used to rewrite the query."
+        },
+        "rewriteTopTermsSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Specifies the size to use for the TOP_TERMS* rewrite methods."
+        }
+      },
+      "description": "A query that matches documents that contain a specific prefix in a provided field."
+    },
     "luceneserverProfileResult": {
       "type": "object",
       "properties": {
@@ -4055,6 +4078,9 @@
         },
         "matchPhrasePrefixQuery": {
           "$ref": "#/definitions/luceneserverMatchPhrasePrefixQuery"
+        },
+        "prefixQuery": {
+          "$ref": "#/definitions/luceneserverPrefixQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -4111,7 +4137,8 @@
         "GEO_RADIUS",
         "COMPLETION",
         "MULTI_FUNCTION_SCORE_QUERY",
-        "MATCH_PHRASE_PREFIX"
+        "MATCH_PHRASE_PREFIX",
+        "PREFIX"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."
@@ -4230,6 +4257,20 @@
           "type": "boolean"
         }
       }
+    },
+    "luceneserverRewriteMethod": {
+      "type": "string",
+      "enum": [
+        "CONSTANT_SCORE",
+        "CONSTANT_SCORE_BOOLEAN",
+        "SCORING_BOOLEAN",
+        "TOP_TERMS_BLENDED_FREQS",
+        "TOP_TERMS_BOOST",
+        "TOP_TERMS"
+      ],
+      "default": "CONSTANT_SCORE",
+      "description": "- CONSTANT_SCORE: Uses the CONSTANT_SCORE_BOOLEAN method for fewer matching terms. Otherwise, this method finds all matching terms in sequence and returns matching documents using a bit set.\n - CONSTANT_SCORE_BOOLEAN: This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term.\n - SCORING_BOOLEAN: This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates the relevance score for each matching document.\n - TOP_TERMS_BLENDED_FREQS: This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates a relevance score for each matching document as if all terms had the same frequency, the maximum frequency of all matching terms. The final BooleanQuery query only includes Term queries for the top N (specified separately) scoring terms.\n - TOP_TERMS_BOOST: This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Assigns each matching document a relevance score equal to the boost parameter. The final BooleanQuery query only includes Term queries for the top N (specified separately) terms.\n - TOP_TERMS: This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates a relevance score for each matching document. The final BooleanQuery query only includes Term queries for the top N (specified separately) scoring terms.",
+      "title": "Method used to rewrite a MultiTermQuery"
     },
     "luceneserverScript": {
       "type": "object",
