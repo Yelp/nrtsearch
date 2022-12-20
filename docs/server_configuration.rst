@@ -198,20 +198,6 @@ Example server configuration
      - Chooses which backend to use for storing and loading state. ``LEGACY`` uses a legacy implementation for global and index state. ``LOCAL`` uses the local disk as the source of truth for global and index state. ``REMOTE`` uses external storage as the source of truth for global and index state.
      - ``LEGACY``
 
-.. list-table:: `Monitoring Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/monitoring/Configuration.java>`_ (``stateConfig.*``)
-   :widths: 25 10 50 25
-   :header-rows: 1
-
-   * - Property
-     - Type
-     - Description
-     - Default
-
-   * - backendType
-     - enum
-     - Chooses which backend to use for storing and loading state. `LEGACY` uses a legacy implementation for global and index state. `LOCAL` uses the local disk as the source of truth for global and index state. `REMOTE` uses external storage as the source of truth for global and index state.
-     - `LEGACY`
-
 .. list-table:: `File Copy Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/FileCopyConfig.java>`_ (``FileCopyConfig.*``)
    :widths: 25 10 50 25
    :header-rows: 1
