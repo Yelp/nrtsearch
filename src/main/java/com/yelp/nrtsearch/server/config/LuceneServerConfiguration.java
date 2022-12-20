@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.lucene.search.suggest.document.CompletionPostingsFormat.FSTLoadMode;
 
 public class LuceneServerConfiguration {
   private static final Pattern ENV_VAR_PATTERN = Pattern.compile("\\$\\{([A-Za-z0-9_]+)}");
@@ -82,6 +83,7 @@ public class LuceneServerConfiguration {
   private final boolean downloadAsStream;
   private final boolean fileSendDelay;
   private final boolean virtualSharding;
+  private final boolean decInitialCommit;
   private final boolean syncInitialNrtPoint;
   private final boolean indexVerbose;
   private final FileCopyConfig fileCopyConfig;
@@ -89,6 +91,7 @@ public class LuceneServerConfiguration {
   private final boolean deadlineCancellation;
   private final StateConfig stateConfig;
   private final IndexStartConfig indexStartConfig;
+  private final FSTLoadMode completionCodecLoadMode;
 
   private final YamlConfigReader configReader;
   private final long maxConnectionAgeForReplication;
@@ -142,6 +145,7 @@ public class LuceneServerConfiguration {
     downloadAsStream = configReader.getBoolean("downloadAsStream", true);
     fileSendDelay = configReader.getBoolean("fileSendDelay", false);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
+    decInitialCommit = configReader.getBoolean("decInitialCommit", false);
     syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", true);
     indexVerbose = configReader.getBoolean("indexVerbose", false);
     fileCopyConfig = FileCopyConfig.fromConfig(configReader);
@@ -150,6 +154,8 @@ public class LuceneServerConfiguration {
     deadlineCancellation = configReader.getBoolean("deadlineCancellation", false);
     stateConfig = StateConfig.fromConfig(configReader);
     indexStartConfig = IndexStartConfig.fromConfig(configReader);
+    completionCodecLoadMode =
+        FSTLoadMode.valueOf(configReader.getString("completionCodecLoadMode", "ON_HEAP"));
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
@@ -256,6 +262,10 @@ public class LuceneServerConfiguration {
     return virtualSharding;
   }
 
+  public boolean getDecInitialCommit() {
+    return decInitialCommit;
+  }
+
   public boolean getSyncInitialNrtPoint() {
     return syncInitialNrtPoint;
   }
@@ -286,6 +296,10 @@ public class LuceneServerConfiguration {
 
   public IndexStartConfig getIndexStartConfig() {
     return indexStartConfig;
+  }
+
+  public FSTLoadMode getCompletionCodecLoadMode() {
+    return completionCodecLoadMode;
   }
 
   /**

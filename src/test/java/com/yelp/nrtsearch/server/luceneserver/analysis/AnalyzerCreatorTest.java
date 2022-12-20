@@ -22,6 +22,7 @@ import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStre
 import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -409,5 +410,210 @@ public class AnalyzerCreatorTest {
         (CustomAnalyzer)
             AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer("plugin_analyzer"));
     assertHtmlStripClassicFolding(analyzer);
+  }
+
+  public static class MyTokenFilter extends LowerCaseFilterFactory {
+
+    final Map<String, String> params;
+
+    public MyTokenFilter(Map<String, String> params) {
+      super(Collections.emptyMap());
+      this.params = params;
+    }
+  }
+
+  public static class TestTokenFilterPlugin extends Plugin implements AnalysisPlugin {
+    @Override
+    public Map<String, Class<? extends TokenFilterFactory>> getTokenFilters() {
+      return Collections.singletonMap("test_token_filter", MyTokenFilter.class);
+    }
+  }
+
+  @Test
+  public void testPluginTokenFilterNotDefined() {
+    try {
+      AnalyzerCreator.getInstance()
+          .getAnalyzer(
+              com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
+                  .setCustom(
+                      com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder()
+                          .setTokenizer(NameAndParams.newBuilder().setName("keyword").build())
+                          .addTokenFilters(
+                              NameAndParams.newBuilder().setName("test_token_filter").build())
+                          .build())
+                  .build());
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertTrue(
+          e.getMessage()
+              .contains("TokenFilterFactory with name 'test_token_filter' does not exist."));
+    }
+  }
+
+  @Test
+  public void testPluginProvidesTokenFilter() {
+    init(Collections.singletonList(new TestTokenFilterPlugin()));
+
+    CustomAnalyzer analyzer =
+        (CustomAnalyzer)
+            AnalyzerCreator.getInstance()
+                .getAnalyzer(
+                    com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
+                        .setCustom(
+                            com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder()
+                                .setTokenizer(NameAndParams.newBuilder().setName("keyword").build())
+                                .addTokenFilters(
+                                    NameAndParams.newBuilder().setName("test_token_filter").build())
+                                .build())
+                        .build());
+    List<TokenFilterFactory> tokenFilters = analyzer.getTokenFilterFactories();
+    assertEquals(1, tokenFilters.size());
+    assertTrue(tokenFilters.get(0) instanceof MyTokenFilter);
+    assertTrue(((MyTokenFilter) tokenFilters.get(0)).params.isEmpty());
+  }
+
+  @Test
+  public void testTokenFilterParams() {
+    init(Collections.singletonList(new TestTokenFilterPlugin()));
+
+    Map<String, String> params = new HashMap<>();
+    params.put("p1", "v1");
+    params.put("p2", "v2");
+
+    CustomAnalyzer analyzer =
+        (CustomAnalyzer)
+            AnalyzerCreator.getInstance()
+                .getAnalyzer(
+                    com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
+                        .setCustom(
+                            com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder()
+                                .setTokenizer(NameAndParams.newBuilder().setName("keyword").build())
+                                .addTokenFilters(
+                                    NameAndParams.newBuilder()
+                                        .setName("test_token_filter")
+                                        .putAllParams(params)
+                                        .build())
+                                .build())
+                        .build());
+    List<TokenFilterFactory> tokenFilters = analyzer.getTokenFilterFactories();
+    assertEquals(1, tokenFilters.size());
+    assertTrue(tokenFilters.get(0) instanceof MyTokenFilter);
+    assertEquals(params, ((MyTokenFilter) tokenFilters.get(0)).params);
+  }
+
+  public static class TestTokenFilterDuplicatePlugin extends Plugin implements AnalysisPlugin {
+    @Override
+    public Map<String, Class<? extends TokenFilterFactory>> getTokenFilters() {
+      return Collections.singletonMap("test_token_filter", ASCIIFoldingFilterFactory.class);
+    }
+  }
+
+  @Test
+  public void testTokenFilterDuplicatePluginRegistration() {
+    try {
+      init(List.of(new TestTokenFilterPlugin(), new TestTokenFilterDuplicatePlugin()));
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("Token filter test_token_filter already exists", e.getMessage());
+    }
+  }
+
+  public static class TestTokenFilterDuplicateLucenePlugin extends Plugin
+      implements AnalysisPlugin {
+    @Override
+    public Map<String, Class<? extends TokenFilterFactory>> getTokenFilters() {
+      return Collections.singletonMap("asciifolding", MyTokenFilter.class);
+    }
+  }
+
+  @Test
+  public void testTokenFilterDuplicateLuceneRegistration() {
+    try {
+      init(Collections.singletonList(new TestTokenFilterDuplicateLucenePlugin()));
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("Token filter asciifolding already provided by lucene", e.getMessage());
+    }
+  }
+
+  public static class MyBadTokenFilter extends LowerCaseFilterFactory {
+
+    public MyBadTokenFilter(Map<String, String> args, int something) {
+      super(args);
+    }
+  }
+
+  public static class BadTokenFilterPlugin extends Plugin implements AnalysisPlugin {
+    @Override
+    public Map<String, Class<? extends TokenFilterFactory>> getTokenFilters() {
+      return Collections.singletonMap("test_token_filter", MyBadTokenFilter.class);
+    }
+  }
+
+  @Test
+  public void testInvalidTokenFilterConstructor() {
+    init(Collections.singletonList(new BadTokenFilterPlugin()));
+
+    try {
+      AnalyzerCreator.getInstance()
+          .getAnalyzer(
+              com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
+                  .setCustom(
+                      com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder()
+                          .setTokenizer(NameAndParams.newBuilder().setName("keyword").build())
+                          .addTokenFilters(
+                              NameAndParams.newBuilder().setName("test_token_filter").build())
+                          .build())
+                  .build());
+      fail();
+    } catch (UnsupportedOperationException e) {
+      assertEquals(
+          "Factory com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreatorTest$MyBadTokenFilter "
+              + "cannot be instantiated. This is likely due to missing Map<String,String> constructor.",
+          e.getMessage());
+    }
+  }
+
+  public static class TokenFilterAnalysisComponent extends LowerCaseFilterFactory
+      implements AnalysisComponent {
+    LuceneServerConfiguration configuration;
+
+    public TokenFilterAnalysisComponent(Map<String, String> args) {
+      super(args);
+    }
+
+    @Override
+    public void initializeComponent(LuceneServerConfiguration configuration) {
+      this.configuration = configuration;
+    }
+  }
+
+  public static class TokenFilterAnalysisComponentPlugin extends Plugin implements AnalysisPlugin {
+    @Override
+    public Map<String, Class<? extends TokenFilterFactory>> getTokenFilters() {
+      return Collections.singletonMap("test_token_filter", TokenFilterAnalysisComponent.class);
+    }
+  }
+
+  @Test
+  public void testTokenFilterAnalysisComponent() {
+    init(Collections.singletonList(new TokenFilterAnalysisComponentPlugin()));
+
+    CustomAnalyzer analyzer =
+        (CustomAnalyzer)
+            AnalyzerCreator.getInstance()
+                .getAnalyzer(
+                    com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder()
+                        .setCustom(
+                            com.yelp.nrtsearch.server.grpc.CustomAnalyzer.newBuilder()
+                                .setTokenizer(NameAndParams.newBuilder().setName("keyword").build())
+                                .addTokenFilters(
+                                    NameAndParams.newBuilder().setName("test_token_filter").build())
+                                .build())
+                        .build());
+    List<TokenFilterFactory> tokenFilters = analyzer.getTokenFilterFactories();
+    assertEquals(1, tokenFilters.size());
+    assertTrue(tokenFilters.get(0) instanceof TokenFilterAnalysisComponent);
+    assertNotNull(((TokenFilterAnalysisComponent) tokenFilters.get(0)).configuration);
   }
 }

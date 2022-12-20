@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.search;
 
 import static org.junit.Assert.assertEquals;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FetchTask;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
@@ -82,7 +83,7 @@ public class FetchTasksTest extends ServerTestCase {
   }
 
   @Override
-  public List<Plugin> getPlugins() {
+  public List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
     return Collections.singletonList(new TestFetchTaskPlugin());
   }
 

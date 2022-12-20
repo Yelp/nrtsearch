@@ -23,11 +23,13 @@ import static org.junit.Assert.fail;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
+import com.yelp.nrtsearch.server.luceneserver.NRTReplicaNode;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
+import org.apache.lucene.replicator.nrt.ReplicaDeleterManager;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -201,10 +203,19 @@ public class IndexStartTest {
     TestServer replicaServer =
         TestServer.builder(folder)
             .withAutoStartConfig(true, Mode.REPLICA, server.getReplicationPort(), locationType)
+            .withDecInitialCommit(true)
             .build();
     assertTrue(replicaServer.isReady());
     assertTrue(replicaServer.isStarted("test_index"));
     replicaServer.verifySimpleDocs("test_index", 3);
+    ReplicaDeleterManager rdm =
+        replicaServer
+            .getGlobalState()
+            .getIndex("test_index")
+            .getShard(0)
+            .nrtReplicaNode
+            .getReplicaDeleterManager();
+    assertFalse(rdm == null);
   }
 
   @Test
@@ -780,5 +791,50 @@ public class IndexStartTest {
     assertEquals(
         new HashSet<>(TestServer.simpleFieldNames),
         server.getGlobalState().getIndex("test_index").getAllFields().keySet());
+  }
+
+  @Test
+  public void testReplicaDecInitialCommit() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startPrimaryIndex("test_index", -1, null);
+
+    assertTrue(server.isReady());
+    assertTrue(server.isStarted("test_index"));
+
+    server.addSimpleDocs("test_index", 1, 2, 3);
+    server.commit("test_index");
+    server.refresh("test_index");
+    server.verifySimpleDocs("test_index", 3);
+
+    TestServer replicaServer =
+        TestServer.builder(folder)
+            .withDecInitialCommit(true)
+            .withAutoStartConfig(
+                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.REMOTE)
+            .build();
+    assertTrue(replicaServer.isReady());
+    assertTrue(replicaServer.isStarted("test_index"));
+    replicaServer.verifySimpleDocs("test_index", 3);
+    NRTReplicaNode nrtReplicaNode =
+        replicaServer.getGlobalState().getIndex("test_index").getShard(0).nrtReplicaNode;
+    ReplicaDeleterManager rdm = nrtReplicaNode.getReplicaDeleterManager();
+
+    assertFalse(rdm == null);
+
+    server.deleteAllDocuments("test_index");
+    server.refresh("test_index");
+    server.commit("test_index");
+    server.verifySimpleDocs("test_index", 0);
+
+    nrtReplicaNode.syncFromCurrentPrimary(120000, 300000);
+
+    replicaServer.verifySimpleDocs("test_index", 0);
+    String[] replicaFiles = nrtReplicaNode.getDirectory().listAll();
+    assertEquals(1, replicaFiles.length);
+    assertEquals("write.lock", replicaFiles[0]);
   }
 }

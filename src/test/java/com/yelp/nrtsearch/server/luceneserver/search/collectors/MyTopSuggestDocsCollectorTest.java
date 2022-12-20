@@ -36,18 +36,18 @@ public class MyTopSuggestDocsCollectorTest {
     suggestScoreDocsByCollector =
         new TopSuggestDocs.SuggestScoreDoc[][] {
           new TopSuggestDocs.SuggestScoreDoc[] {
-            new TopSuggestDocs.SuggestScoreDoc(1, "Pizza", "a", 11),
             new TopSuggestDocs.SuggestScoreDoc(1, "Pizza Place", "a", 22),
-            new TopSuggestDocs.SuggestScoreDoc(3, "Pizza", "a", 15),
             new TopSuggestDocs.SuggestScoreDoc(6, "Pizza", "a", 17),
+            new TopSuggestDocs.SuggestScoreDoc(3, "Pizza", "a", 15),
             new TopSuggestDocs.SuggestScoreDoc(1, "Pizza", "b", 12),
+            new TopSuggestDocs.SuggestScoreDoc(1, "Pizza", "a", 11),
           },
           new TopSuggestDocs.SuggestScoreDoc[] {
+            new TopSuggestDocs.SuggestScoreDoc(2, "Pizza Palace", "a", 25),
+            new TopSuggestDocs.SuggestScoreDoc(4, "Pizza", "a", 16),
             new TopSuggestDocs.SuggestScoreDoc(2, "Pizza", "b", 12),
             new TopSuggestDocs.SuggestScoreDoc(5, "Pizza", "a", 5),
             new TopSuggestDocs.SuggestScoreDoc(7, "Pizza", "a", 4),
-            new TopSuggestDocs.SuggestScoreDoc(2, "Pizza Palace", "a", 25),
-            new TopSuggestDocs.SuggestScoreDoc(4, "Pizza", "a", 16),
           }
         };
   }

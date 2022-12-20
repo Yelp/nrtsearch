@@ -50,6 +50,7 @@ import com.yelp.nrtsearch.server.luceneserver.SaveState;
 import com.yelp.nrtsearch.server.luceneserver.ServerCodec;
 import com.yelp.nrtsearch.server.luceneserver.SettingsHandler;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.field.ContextSuggestFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
@@ -71,6 +72,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
@@ -112,6 +115,37 @@ import org.slf4j.LoggerFactory;
  */
 public class LegacyIndexState extends IndexState implements Restorable {
   private static final Logger logger = LoggerFactory.getLogger(LegacyIndexState.class);
+
+  /** Index-time analyzer. */
+  public final Analyzer indexAnalyzer =
+      new AnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+        @Override
+        public Analyzer getWrappedAnalyzer(String name) {
+          FieldDef fd = getField(name);
+          if (fd instanceof TextBaseFieldDef || fd instanceof ContextSuggestFieldDef) {
+            Optional<Analyzer> maybeAnalyzer = Optional.empty();
+            if (fd instanceof TextBaseFieldDef) {
+              maybeAnalyzer = ((TextBaseFieldDef) fd).getIndexAnalyzer();
+            } else {
+              maybeAnalyzer = ((ContextSuggestFieldDef) fd).getIndexAnalyzer();
+            }
+
+            if (maybeAnalyzer.isEmpty()) {
+              throw new IllegalArgumentException(
+                  "field \"" + name + "\" did not specify analyzer or indexAnalyzer");
+            }
+            return maybeAnalyzer.get();
+          }
+          throw new IllegalArgumentException("field \"" + name + "\" does not support analysis");
+        }
+
+        @Override
+        protected TokenStreamComponents wrapComponents(
+            String fieldName, TokenStreamComponents components) {
+          return components;
+        }
+      };
+
   /** Which norms format to use for all indexed fields. */
   private String normsFormat = "Lucene80";
 
@@ -1131,7 +1165,7 @@ public class LegacyIndexState extends IndexState implements Restorable {
       iwc.setIndexSort(indexSort);
     }
 
-    iwc.setSimilarity(sim);
+    iwc.setSimilarity(searchSimilarity);
     iwc.setRAMBufferSizeMB(indexRamBufferSizeMB);
 
     // nocommit in primary case we can't do this?

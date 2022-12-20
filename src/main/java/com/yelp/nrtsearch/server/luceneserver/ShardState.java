@@ -492,7 +492,7 @@ public class ShardState implements Closeable {
                   indexState.getSliceMaxDocs(),
                   indexState.getSliceMaxSegments(),
                   indexState.getVirtualShards()));
-      searcher.setSimilarity(indexState.sim);
+      searcher.setSimilarity(indexState.searchSimilarity);
       if (loadEagerOrdinals) {
         loadEagerGlobalOrdinals(reader, indexState);
       }
@@ -772,7 +772,7 @@ public class ShardState implements Closeable {
                               indexState.getSliceMaxDocs(),
                               indexState.getSliceMaxSegments(),
                               indexState.getVirtualShards()));
-                  searcher.setSimilarity(indexState.sim);
+                  searcher.setSimilarity(indexState.searchSimilarity);
                   return searcher;
                 }
               });
@@ -946,7 +946,8 @@ public class ShardState implements Closeable {
               indexDir,
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
-              indexState.getGlobalState().getConfiguration().getFileCopyConfig().getAckedCopy());
+              indexState.getGlobalState().getConfiguration().getFileCopyConfig().getAckedCopy(),
+              indexState.getGlobalState().getConfiguration().getDecInitialCommit());
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {

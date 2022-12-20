@@ -80,6 +80,7 @@ import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.suggest.document.CompletionPostingsFormatUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -159,30 +160,6 @@ public class LuceneServer {
 
     registerMetrics(globalState);
 
-    LuceneServerMonitoringServerInterceptor monitoringInterceptor =
-        LuceneServerMonitoringServerInterceptor.create(
-            Configuration.allMetrics()
-                .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
-                .withCollectorRegistry(collectorRegistry),
-            serviceName,
-            nodeName);
-    /* The port on which the server should run */
-    server =
-        ServerBuilder.forPort(luceneServerConfiguration.getPort())
-            .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
-            .addService(ProtoReflectionService.newInstance())
-            .executor(
-                ThreadPoolExecutorFactory.getThreadPoolExecutor(
-                    ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
-                    luceneServerConfiguration.getThreadPoolConfiguration()))
-            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
-            .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
-            .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
-            .build()
-            .start();
-    logger.info(
-        "Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
-
     if (luceneServerConfiguration.getMaxConcurrentCallsPerConnectionForReplication() != -1) {
       replicationServer =
           NettyServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
@@ -213,11 +190,37 @@ public class LuceneServer {
               .build()
               .start();
     }
-
     logger.info(
         "Server started, listening on "
             + luceneServerConfiguration.getReplicationPort()
             + " for replication messages");
+
+    // Inform global state that the replication server is started, and it is safe to start indices
+    globalState.replicationStarted();
+
+    LuceneServerMonitoringServerInterceptor monitoringInterceptor =
+        LuceneServerMonitoringServerInterceptor.create(
+            Configuration.allMetrics()
+                .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
+                .withCollectorRegistry(collectorRegistry),
+            serviceName,
+            nodeName);
+    /* The port on which the server should run */
+    server =
+        ServerBuilder.forPort(luceneServerConfiguration.getPort())
+            .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
+            .addService(ProtoReflectionService.newInstance())
+            .executor(
+                ThreadPoolExecutorFactory.getThreadPoolExecutor(
+                    ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
+                    luceneServerConfiguration.getThreadPoolConfiguration()))
+            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
+            .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
+            .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
+            .build()
+            .start();
+    logger.info(
+        "Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
 
     Runtime.getRuntime()
         .addShutdownHook(
@@ -371,6 +374,8 @@ public class LuceneServer {
       this.restoreFromIncArchiver = configuration.getRestoreFromIncArchiver();
 
       DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
+      CompletionPostingsFormatUtil.setCompletionCodecLoadMode(
+          configuration.getCompletionCodecLoadMode());
 
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
@@ -714,6 +719,15 @@ public class LuceneServer {
     public void startIndex(
         StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
       logger.info("Received start index request: {}", startIndexRequest);
+      if (startIndexRequest.getIndexName().isEmpty()) {
+        logger.warn("error while trying to start index with empty index name.");
+        responseObserver.onError(
+            Status.INVALID_ARGUMENT
+                .withDescription(
+                    String.format("error while trying to start index since indexName was empty."))
+                .asRuntimeException());
+        return;
+      }
       try {
         StartIndexResponse reply;
         if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {

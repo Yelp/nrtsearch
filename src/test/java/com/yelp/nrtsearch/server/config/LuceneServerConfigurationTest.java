@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Field;
 import java.util.Map;
+import org.apache.lucene.search.suggest.document.CompletionPostingsFormat.FSTLoadMode;
 import org.junit.Test;
 
 public class LuceneServerConfigurationTest {
@@ -77,5 +78,19 @@ public class LuceneServerConfigurationTest {
             "\n", "nodeName: \"lucene_server_foo\"", "hostName: my_${VAR4}_${VAR3}_${VAR4}_host");
     LuceneServerConfiguration luceneConfig = getForConfig(config);
     assertEquals("my__v3__host", luceneConfig.getHostName());
+  }
+
+  @Test
+  public void testDefaultCompletionCodecLoadMode() {
+    String config = "nodeName: \"lucene_server_foo\"";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(FSTLoadMode.ON_HEAP, luceneConfig.getCompletionCodecLoadMode());
+  }
+
+  @Test
+  public void testSetCompletionCodecLoadMode() {
+    String config = "completionCodecLoadMode: OFF_HEAP";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(FSTLoadMode.OFF_HEAP, luceneConfig.getCompletionCodecLoadMode());
   }
 }

@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
@@ -170,7 +171,8 @@ public class RescorerTest extends ServerTestCase {
     }
   }
 
-  protected List<Plugin> getPlugins() {
+  @Override
+  protected List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
     return Collections.singletonList(new TestRescorerPlugin());
   }
 

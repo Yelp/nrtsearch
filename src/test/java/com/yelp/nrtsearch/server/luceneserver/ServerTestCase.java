@@ -229,7 +229,7 @@ public class ServerTestCase {
         testIndex,
         globalState.getPort(),
         null,
-        getPlugins());
+        getPlugins(luceneServerConfiguration));
   }
 
   protected void initIndices() throws Exception {
@@ -282,7 +282,7 @@ public class ServerTestCase {
 
   protected void initIndex(String name) throws Exception {}
 
-  protected List<Plugin> getPlugins() {
+  protected List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
     return Collections.emptyList();
   }
 

@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
 import static org.junit.Assert.assertEquals;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.BucketResult;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
@@ -225,7 +226,8 @@ public class ScriptTermsCollectorManagerTest extends TermsCollectorManagerTestsB
         .build();
   }
 
-  protected List<Plugin> getPlugins() {
+  @Override
+  protected List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
     return Collections.singletonList(new TestTermsScriptPlugin());
   }
 

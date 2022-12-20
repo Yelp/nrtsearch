@@ -140,6 +140,9 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
   }
 
   @Override
+  public void replicationStarted() throws IOException {}
+
+  @Override
   public String getDataResourceForIndex(String indexName) {
     return indexName;
   }
