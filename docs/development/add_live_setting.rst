@@ -1,7 +1,7 @@
 Adding A New Live Setting
 ==========================
 
-* Add new live setting to ``IndexSettings`` in ``luceneserver.proto`` and regenerate the protobuf files
+* Add new live setting to ``IndexLiveSettings`` in ``luceneserver.proto`` using the appropriate `wrapped primitive <https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/wrappers.proto>`_ and regenerate the protobuf files
 * Add abstract getter method to ``IndexState.java``
 * Implement the getter method in ``LegacyIndexState.java`` and return a sane default
 * In ``ImmutableIndexState.java``:
