@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DummyResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
@@ -245,6 +246,11 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
 
   @Override
   public StartIndexResponse startIndex(StartIndexRequest startIndexRequest) throws IOException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public StartIndexResponse startIndexV2(StartIndexV2Request startIndexRequest) throws IOException {
     throw new UnsupportedOperationException();
   }
 
