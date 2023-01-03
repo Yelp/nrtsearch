@@ -56,7 +56,7 @@ public class NRTReplicaNode extends ReplicaNode {
   /* Just a wrapper class to hold our <hostName, port> pair so that we can send them to the Primary
    * on sendReplicas and it can build its channel over this pair */
   private final HostPort hostPort;
-  Logger logger = LoggerFactory.getLogger(NRTPrimaryNode.class);
+  private static final Logger logger = LoggerFactory.getLogger(NRTReplicaNode.class);
 
   public NRTReplicaNode(
       String indexName,

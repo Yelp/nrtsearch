@@ -140,7 +140,12 @@ public class LegacyGlobalState extends GlobalState implements Restorable {
   }
 
   @Override
-  public void replicationStarted() throws IOException {}
+  public int getReplicationPort() {
+    return getConfiguration().getReplicationPort();
+  }
+
+  @Override
+  public void replicationStarted(int replicationPort) throws IOException {}
 
   @Override
   public String getDataResourceForIndex(String indexName) {

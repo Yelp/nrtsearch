@@ -60,6 +60,7 @@ import org.slf4j.LoggerFactory;
 public class BackendGlobalState extends GlobalState {
   private static final Logger logger = LoggerFactory.getLogger(BackendGlobalState.class);
 
+  private int resolvedReplicationPort;
   /**
    * State class containing immutable persistent and ephemeral global state, stored together so that
    * they can be updated atomically.
@@ -200,6 +201,11 @@ public class BackendGlobalState extends GlobalState {
   }
 
   @Override
+  public int getReplicationPort() {
+    return resolvedReplicationPort;
+  }
+
+  @Override
   public Path getIndexDir(String indexName) {
     try {
       return getIndex(indexName).getRootDir();
@@ -209,7 +215,8 @@ public class BackendGlobalState extends GlobalState {
   }
 
   @Override
-  public void replicationStarted() throws IOException {
+  public void replicationStarted(int replicationPort) throws IOException {
+    this.resolvedReplicationPort = replicationPort;
     if (getConfiguration().getIndexStartConfig().getAutoStart()) {
       updateStartedIndices(immutableState);
     }
@@ -442,7 +449,8 @@ public class BackendGlobalState extends GlobalState {
             getConfiguration().getBackupWithInArchiver(),
             getConfiguration().getRestoreFromIncArchiver(),
             getConfiguration().getStateConfig().useLegacyStateManagement(),
-            indexStateManager);
+            indexStateManager,
+            getConfiguration().getDiscoveryFileUpdateIntervalMs());
     try {
       return startIndexHandler.handle(indexStateManager.getCurrent(), startIndexRequest);
     } catch (StartIndexHandlerException e) {

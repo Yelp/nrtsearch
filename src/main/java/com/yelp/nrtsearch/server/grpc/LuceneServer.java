@@ -196,7 +196,7 @@ public class LuceneServer {
             + " for replication messages");
 
     // Inform global state that the replication server is started, and it is safe to start indices
-    globalState.replicationStarted();
+    globalState.replicationStarted(replicationServer.getPort());
 
     LuceneServerMonitoringServerInterceptor monitoringInterceptor =
         LuceneServerMonitoringServerInterceptor.create(
@@ -740,7 +740,8 @@ public class LuceneServer {
                   backupFromIncArchiver,
                   restoreFromIncArchiver,
                   true,
-                  null);
+                  null,
+                  globalState.getConfiguration().getDiscoveryFileUpdateIntervalMs());
 
           indexState =
               globalState.getIndex(
