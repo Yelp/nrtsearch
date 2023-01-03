@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Field;
 import java.util.Map;
+import org.apache.lucene.search.suggest.document.CompletionPostingsFormat.FSTLoadMode;
 import org.junit.Test;
 
 public class LuceneServerConfigurationTest {
@@ -95,5 +96,18 @@ public class LuceneServerConfigurationTest {
         String.join("\n", "nodeName: \"lucene_server_foo\"", "discoveryFileUpdateIntervalMs: 100");
     LuceneServerConfiguration luceneConfig = getForConfig(config);
     assertEquals(100, luceneConfig.getDiscoveryFileUpdateIntervalMs());
+  }
+
+  public void testDefaultCompletionCodecLoadMode() {
+    String config = "nodeName: \"lucene_server_foo\"";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(FSTLoadMode.ON_HEAP, luceneConfig.getCompletionCodecLoadMode());
+  }
+
+  @Test
+  public void testSetCompletionCodecLoadMode() {
+    String config = "completionCodecLoadMode: OFF_HEAP";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(FSTLoadMode.OFF_HEAP, luceneConfig.getCompletionCodecLoadMode());
   }
 }

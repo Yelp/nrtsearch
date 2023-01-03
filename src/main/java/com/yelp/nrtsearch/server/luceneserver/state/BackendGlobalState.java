@@ -28,6 +28,7 @@ import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
@@ -275,8 +276,25 @@ public class BackendGlobalState extends GlobalState {
       stateManager.load();
     }
 
+    if (createIndexRequest.hasSettings()) {
+      stateManager.updateSettings(createIndexRequest.getSettings());
+    }
+    if (createIndexRequest.hasLiveSettings()) {
+      stateManager.updateLiveSettings(createIndexRequest.getLiveSettings());
+    }
+    if (!createIndexRequest.getFieldsList().isEmpty()) {
+      stateManager.updateFields(createIndexRequest.getFieldsList());
+    }
+
     IndexGlobalState newIndexState =
-        IndexGlobalState.newBuilder().setId(indexId).setStarted(false).build();
+        IndexGlobalState.newBuilder()
+            .setId(indexId)
+            .setStarted(createIndexRequest.getStart())
+            .build();
+    if (createIndexRequest.getStart()) {
+      startIndexFromConfig(indexName, stateManager, newIndexState);
+    }
+
     GlobalStateInfo updatedState =
         immutableState
             .globalStateInfo
@@ -393,6 +411,34 @@ public class BackendGlobalState extends GlobalState {
     return response;
   }
 
+  @Override
+  public synchronized StartIndexResponse startIndexV2(StartIndexV2Request startIndexRequest)
+      throws IOException {
+    IndexStateManager stateManager = getIndexStateManager(startIndexRequest.getIndexName());
+    IndexGlobalState indexGlobalState =
+        immutableState.globalStateInfo.getIndicesOrThrow(startIndexRequest.getIndexName());
+    IndexGlobalState updatedIndexGlobalState =
+        indexGlobalState.toBuilder().setStarted(true).build();
+    StartIndexResponse response =
+        startIndexFromConfig(
+            startIndexRequest.getIndexName(), stateManager, updatedIndexGlobalState);
+
+    if (getConfiguration().getIndexStartConfig().getMode() != Mode.REPLICA) {
+      GlobalStateInfo updatedGlobalState =
+          immutableState
+              .globalStateInfo
+              .toBuilder()
+              .putIndices(startIndexRequest.getIndexName(), updatedIndexGlobalState)
+              .setGen(immutableState.globalStateInfo.getGen() + 1)
+              .build();
+
+      stateBackend.commitGlobalState(updatedGlobalState);
+      immutableState = new ImmutableState(updatedGlobalState, immutableState.indexStateManagerMap);
+    }
+
+    return response;
+  }
+
   private StartIndexResponse startIndex(
       IndexStateManager indexStateManager, StartIndexRequest startIndexRequest) throws IOException {
     StartIndexHandler startIndexHandler =
@@ -472,44 +518,60 @@ public class BackendGlobalState extends GlobalState {
         newState.globalStateInfo.getIndicesMap().entrySet()) {
       IndexStateManager indexStateManager = newState.indexStateManagerMap.get(entry.getKey());
       if (entry.getValue().getStarted() && !indexStateManager.getCurrent().isStarted()) {
-        IndexStartConfig indexStartConfig = getConfiguration().getIndexStartConfig();
-        StartIndexRequest.Builder requestBuilder =
-            StartIndexRequest.newBuilder()
-                .setIndexName(entry.getKey())
-                .setPrimaryGen(-1)
-                .setMode(indexStartConfig.getMode());
-
-        // set primary discovery config
-        if (indexStartConfig.getMode().equals(Mode.REPLICA)) {
-          requestBuilder
-              .setPrimaryAddress(indexStartConfig.getDiscoveryHost())
-              .setPort(indexStartConfig.getDiscoveryPort())
-              .setPrimaryDiscoveryFile(indexStartConfig.getDiscoveryFile());
-        }
-
-        switch (indexStartConfig.getDataLocationType()) {
-          case LOCAL:
-            // data is present on local disk, no restore required
-            break;
-          case REMOTE:
-            // restore previous remote backup
-            requestBuilder.setRestore(
-                RestoreIndex.newBuilder()
-                    .setServiceName(getConfiguration().getServiceName())
-                    .setResourceName(getUniqueIndexName(entry.getKey(), entry.getValue().getId()))
-                    .setDeleteExistingData(true)
-                    .build());
-            break;
-          default:
-            throw new IllegalArgumentException(
-                "Unknown index data location type: " + indexStartConfig.getDataLocationType());
-        }
-
-        StartIndexRequest startIndexRequest = requestBuilder.build();
-        logger.info("Starting index: " + startIndexRequest);
-        StartIndexResponse response = startIndex(indexStateManager, requestBuilder.build());
-        logger.info("Index started: " + response);
+        startIndexFromConfig(entry.getKey(), indexStateManager, entry.getValue());
       }
     }
+  }
+
+  /**
+   * Start an index based on the {@link IndexStartConfig}.
+   *
+   * @param indexName index name
+   * @param indexStateManager index state manager
+   * @param indexGlobalState index global state
+   * @return start response
+   * @throws IOException
+   */
+  private StartIndexResponse startIndexFromConfig(
+      String indexName, IndexStateManager indexStateManager, IndexGlobalState indexGlobalState)
+      throws IOException {
+    IndexStartConfig indexStartConfig = getConfiguration().getIndexStartConfig();
+    StartIndexRequest.Builder requestBuilder =
+        StartIndexRequest.newBuilder()
+            .setIndexName(indexName)
+            .setPrimaryGen(-1)
+            .setMode(indexStartConfig.getMode());
+
+    // set primary discovery config
+    if (indexStartConfig.getMode().equals(Mode.REPLICA)) {
+      requestBuilder
+          .setPrimaryAddress(indexStartConfig.getDiscoveryHost())
+          .setPort(indexStartConfig.getDiscoveryPort())
+          .setPrimaryDiscoveryFile(indexStartConfig.getDiscoveryFile());
+    }
+
+    switch (indexStartConfig.getDataLocationType()) {
+      case LOCAL:
+        // data is present on local disk, no restore required
+        break;
+      case REMOTE:
+        // restore previous remote backup
+        requestBuilder.setRestore(
+            RestoreIndex.newBuilder()
+                .setServiceName(getConfiguration().getServiceName())
+                .setResourceName(getUniqueIndexName(indexName, indexGlobalState.getId()))
+                .setDeleteExistingData(true)
+                .build());
+        break;
+      default:
+        throw new IllegalArgumentException(
+            "Unknown index data location type: " + indexStartConfig.getDataLocationType());
+    }
+
+    StartIndexRequest startIndexRequest = requestBuilder.build();
+    logger.info("Starting index: " + startIndexRequest);
+    StartIndexResponse response = startIndex(indexStateManager, requestBuilder.build());
+    logger.info("Index started: " + response);
+    return response;
   }
 }

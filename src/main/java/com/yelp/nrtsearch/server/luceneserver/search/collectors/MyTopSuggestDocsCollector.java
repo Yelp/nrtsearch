@@ -21,11 +21,11 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ScoreDoc;
@@ -33,6 +33,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
+import org.apache.lucene.search.suggest.document.TopSuggestDocs.SuggestScoreDoc;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 
 public class MyTopSuggestDocsCollector extends DocCollector {
@@ -99,7 +100,7 @@ public class MyTopSuggestDocsCollector extends DocCollector {
 
     @Override
     public TopSuggestDocsCollector newCollector() throws IOException {
-      return new ExhaustiveTopSuggestDocsCollector(this.numHitsToCollect);
+      return new TerminatingTopSuggestDocsCollector(this.numHitsToCollect);
     }
 
     /**
@@ -114,27 +115,20 @@ public class MyTopSuggestDocsCollector extends DocCollector {
     @Override
     public TopSuggestDocs reduce(Collection<TopSuggestDocsCollector> collectors)
         throws IOException {
-      final List<TopSuggestDocs.SuggestScoreDoc> topDocs = new LinkedList<>();
+      TopSuggestDocs[] collectorTopDocs = new TopSuggestDocs[collectors.size()];
+      int index = 0;
       for (TopSuggestDocsCollector collector : collectors) {
-        topDocs.addAll(List.of(collector.get().scoreLookupDocs()));
+        collectorTopDocs[index] = collector.get();
+        index++;
       }
-
-      // retrieve the top this.numHitsToCollect suggestScoreDocs, sorting them by score
-      TopSuggestDocs.SuggestScoreDoc[] suggestScoreDocs =
-          topDocs.stream()
-              .sorted(SUGGEST_SCORE_DOC_COMPARATOR) // highest score first
-              .limit(this.numHitsToCollect)
-              .toArray(TopSuggestDocs.SuggestScoreDoc[]::new);
-
-      return new TopSuggestDocs(
-          new TotalHits(this.numHitsToCollect, TotalHits.Relation.EQUAL_TO), suggestScoreDocs);
+      return TopSuggestDocs.merge(this.numHitsToCollect, collectorTopDocs);
     }
   }
 
-  public static class ExhaustiveTopSuggestDocsCollector extends TopSuggestDocsCollector {
+  public static class TerminatingTopSuggestDocsCollector extends TopSuggestDocsCollector {
     private final SuggestScoreDocPriorityQueue priorityQueue;
 
-    public ExhaustiveTopSuggestDocsCollector(int num) {
+    public TerminatingTopSuggestDocsCollector(int num) {
       super(num, false);
       priorityQueue = new SuggestScoreDocPriorityQueue(num);
     }
@@ -149,7 +143,12 @@ public class MyTopSuggestDocsCollector extends DocCollector {
         throws IOException {
       TopSuggestDocs.SuggestScoreDoc suggestScoreDoc =
           new TopSuggestDocs.SuggestScoreDoc(docBase + docID, key, context, score);
-      priorityQueue.add(suggestScoreDoc);
+      if (priorityQueue.insertWithOverflow(suggestScoreDoc) == suggestScoreDoc) {
+        // This score doc is less than the lowest scoring doc in the priority queue.
+        // As collection is done in score order, we don't need to consider any more
+        // documents in this segment.
+        throw new CollectionTerminatedException();
+      }
     }
 
     @Override
@@ -167,33 +166,61 @@ public class MyTopSuggestDocsCollector extends DocCollector {
   public static class SuggestScoreDocPriorityQueue {
     private final Map<Integer, TopSuggestDocs.SuggestScoreDoc> docIdsMap;
     private final PriorityQueue<TopSuggestDocs.SuggestScoreDoc> priorityQueue;
+    private final int maxSize;
 
-    public SuggestScoreDocPriorityQueue(int num) {
-      docIdsMap = new HashMap<>(num);
-      priorityQueue = new PriorityQueue<>(num, SUGGEST_SCORE_DOC_COMPARATOR);
+    public SuggestScoreDocPriorityQueue(int maxSize) {
+      this.maxSize = maxSize;
+      docIdsMap = new HashMap<>();
+      // min heap
+      priorityQueue = new PriorityQueue<>(maxSize, SUGGEST_SCORE_DOC_COMPARATOR.reversed());
     }
 
     /**
-     * Adds the suggestScoreDoc to the queue on the condition that: 1. SuggestScoreDoc with the same
-     * docId and greater score has not been collected before 2. The suggestScoreDoc's score is
-     * higher than the lowest score previously collected
+     * Insert a {@link SuggestScoreDoc} into the priority queue and return the displaced doc, if
+     * any. If there is already an entry in the queue for this doc id, the new doc will replace the
+     * old if its sort order is higher.
      *
-     * @param suggestScoreDoc document to add to the queue
-     * @return `true` if the operation changed the state of the queue, `false` otherwise
+     * @param suggestScoreDoc doc to insert into queue.
+     * @return doc in the queue the new entry displaced (could be provided doc if lowest scoring),
+     *     or null
      */
-    public boolean add(TopSuggestDocs.SuggestScoreDoc suggestScoreDoc) {
-      if (!docIdsMap.containsKey(suggestScoreDoc.doc)
-          || docIdsMap.get(suggestScoreDoc.doc).score < suggestScoreDoc.score) {
-        TopSuggestDocs.SuggestScoreDoc previousValue =
-            docIdsMap.put(suggestScoreDoc.doc, suggestScoreDoc);
-        if (previousValue != null) {
-          // remove old value from priority queue
-          priorityQueue.remove(previousValue);
+    public TopSuggestDocs.SuggestScoreDoc insertWithOverflow(
+        TopSuggestDocs.SuggestScoreDoc suggestScoreDoc) {
+      TopSuggestDocs.SuggestScoreDoc previousForId =
+          docIdsMap.put(suggestScoreDoc.doc, suggestScoreDoc);
+      // if there is a previous entry for this id, remove if it sorts lower
+      if (previousForId != null) {
+        if (isLessThan(suggestScoreDoc, previousForId)) {
+          // no need to insert this doc, but return null because collection may not be finished
+          return null;
+        } else {
+          priorityQueue.remove(previousForId);
         }
-        // add new value to priority queue
-        priorityQueue.add(suggestScoreDoc);
       }
-      return false;
+
+      if (priorityQueue.size() < maxSize) {
+        priorityQueue.add(suggestScoreDoc);
+        // this doc may have displaced a previous one for this id
+        return previousForId;
+      } else if (priorityQueue.size() > 0 && isLessThan(priorityQueue.peek(), suggestScoreDoc)) {
+        // remove the current lowest doc and replace with higher scoring new doc
+        SuggestScoreDoc previous = priorityQueue.poll();
+        priorityQueue.add(suggestScoreDoc);
+        return previous;
+      } else {
+        return suggestScoreDoc;
+      }
+    }
+
+    /**
+     * Get if the first suggest doc should be sorted after the second
+     *
+     * @param s1 first doc
+     * @param s2 second doc
+     * @return if first < second
+     */
+    private boolean isLessThan(SuggestScoreDoc s1, SuggestScoreDoc s2) {
+      return SUGGEST_SCORE_DOC_COMPARATOR.compare(s1, s2) > 0;
     }
 
     /**

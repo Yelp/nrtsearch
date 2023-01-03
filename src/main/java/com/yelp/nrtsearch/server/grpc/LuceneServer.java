@@ -80,6 +80,7 @@ import java.util.concurrent.*;
 import java.util.stream.Collectors;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
+import org.apache.lucene.search.suggest.document.CompletionPostingsFormatUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
@@ -373,6 +374,8 @@ public class LuceneServer {
       this.restoreFromIncArchiver = configuration.getRestoreFromIncArchiver();
 
       DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
+      CompletionPostingsFormatUtil.setCompletionCodecLoadMode(
+          configuration.getCompletionCodecLoadMode());
 
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
@@ -716,6 +719,15 @@ public class LuceneServer {
     public void startIndex(
         StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
       logger.info("Received start index request: {}", startIndexRequest);
+      if (startIndexRequest.getIndexName().isEmpty()) {
+        logger.warn("error while trying to start index with empty index name.");
+        responseObserver.onError(
+            Status.INVALID_ARGUMENT
+                .withDescription(
+                    String.format("error while trying to start index since indexName was empty."))
+                .asRuntimeException());
+        return;
+      }
       try {
         StartIndexResponse reply;
         if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
@@ -742,6 +754,46 @@ public class LuceneServer {
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
 
+      } catch (IOException e) {
+        logger.warn(
+            "error while trying to read index state dir for indexName: "
+                + startIndexRequest.getIndexName(),
+            e);
+        responseObserver.onError(
+            Status.INTERNAL
+                .withDescription(
+                    "error while trying to read index state dir for indexName: "
+                        + startIndexRequest.getIndexName())
+                .augmentDescription(e.getMessage())
+                .withCause(e)
+                .asRuntimeException());
+      } catch (Exception e) {
+        logger.warn("error while trying to start index " + startIndexRequest.getIndexName(), e);
+        responseObserver.onError(
+            Status.INVALID_ARGUMENT
+                .withDescription(
+                    "error while trying to start index: " + startIndexRequest.getIndexName())
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+
+    @Override
+    public void startIndexV2(
+        StartIndexV2Request startIndexRequest,
+        StreamObserver<StartIndexResponse> responseObserver) {
+      logger.info("Received start index v2 request: {}", startIndexRequest);
+      try {
+        if (globalState.getConfiguration().getStateConfig().useLegacyStateManagement()) {
+          responseObserver.onError(
+              new IllegalStateException("statIndexV2 not usable with legacy state management"));
+          return;
+        }
+
+        StartIndexResponse reply = globalState.startIndexV2(startIndexRequest);
+        logger.info("StartIndexV2Handler returned " + reply.toString());
+        responseObserver.onNext(reply);
+        responseObserver.onCompleted();
       } catch (IOException e) {
         logger.warn(
             "error while trying to read index state dir for indexName: "

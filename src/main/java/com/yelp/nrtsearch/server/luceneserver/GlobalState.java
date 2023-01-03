@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DummyResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
@@ -247,6 +248,16 @@ public abstract class GlobalState implements Closeable {
    * @throws IOException
    */
   public abstract StartIndexResponse startIndex(StartIndexRequest startIndexRequest)
+      throws IOException;
+
+  /**
+   * Start a created index using the given {@link StartIndexV2Request}.
+   *
+   * @param startIndexRequest start request
+   * @return start response
+   * @throws IOException
+   */
+  public abstract StartIndexResponse startIndexV2(StartIndexV2Request startIndexRequest)
       throws IOException;
 
   /**

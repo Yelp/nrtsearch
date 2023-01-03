@@ -76,7 +76,13 @@ public class LuceneServerClient {
     channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
   }
 
-  public void createIndex(String indexName, String existsWithId) {
+  public void createIndex(
+      String indexName,
+      String existsWithId,
+      IndexSettings settings,
+      IndexLiveSettings liveSettings,
+      FieldDefRequest fields,
+      boolean start) {
     logger.info("Will try to create index: " + indexName);
     CreateIndexRequest.Builder requestBuilder =
         CreateIndexRequest.newBuilder().setIndexName(indexName);
@@ -84,6 +90,16 @@ public class LuceneServerClient {
       logger.info("Using existing id: " + existsWithId);
       requestBuilder.setExistsWithId(existsWithId);
     }
+    if (settings != null) {
+      requestBuilder.setSettings(settings);
+    }
+    if (liveSettings != null) {
+      requestBuilder.setLiveSettings(liveSettings);
+    }
+    if (fields != null) {
+      requestBuilder.addAllFields(fields.getFieldList());
+    }
+    requestBuilder.setStart(start);
     CreateIndexResponse response;
     try {
       response = blockingStub.createIndex(requestBuilder.build());
@@ -235,6 +251,19 @@ public class LuceneServerClient {
     StartIndexResponse response;
     try {
       response = blockingStub.startIndex(startIndexRequest);
+    } catch (StatusRuntimeException e) {
+      logger.warn("RPC failed: {}", e.getStatus());
+      return;
+    }
+    logger.info("Server returned : " + response.toString());
+  }
+
+  public void startIndexV2(String indexName) {
+    StartIndexV2Request startIndexRequest =
+        StartIndexV2Request.newBuilder().setIndexName(indexName).build();
+    StartIndexResponse response;
+    try {
+      response = blockingStub.startIndexV2(startIndexRequest);
     } catch (StatusRuntimeException e) {
       logger.warn("RPC failed: {}", e.getStatus());
       return;

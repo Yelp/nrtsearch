@@ -239,6 +239,9 @@ public class MyIndexSearcher extends IndexSearcher {
   @Override
   protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector)
       throws IOException {
+    boolean isDrillSidewaysQueryOrCompletionQuery =
+        weight.getQuery() instanceof CompletionQuery
+            || weight.getQuery().toString().contains("DrillSidewaysQuery");
     for (LeafReaderContext ctx : leaves) { // search each subreader
       // we force the use of Scorer (not BulkScorer) to make sure
       // that the scorer passed to LeafCollector.setScorer supports
@@ -251,8 +254,7 @@ public class MyIndexSearcher extends IndexSearcher {
         // continue with the following leaf
         continue;
       }
-      if (weight.getQuery().toString().contains("DrillSidewaysQuery")
-          || weight.getQuery() instanceof CompletionQuery) {
+      if (isDrillSidewaysQueryOrCompletionQuery) {
         BulkScorer scorer = weight.bulkScorer(ctx);
         if (scorer != null) {
           try {

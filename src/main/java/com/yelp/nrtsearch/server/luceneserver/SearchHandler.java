@@ -231,6 +231,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         searchState.setLastDocId(lastHit.doc);
         searchContext.getCollector().fillLastHit(searchState, lastHit);
       }
+      searchContext.getResponseBuilder().setSearchState(searchState);
 
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
       if (searchContext.getHighlightFetchTask() != null) {

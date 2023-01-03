@@ -106,6 +106,15 @@ service LuceneServer {
     };
 
     }
+
+    /* Starts an index using configuration in IndexStartConfig */
+    rpc startIndexV2 (StartIndexV2Request) returns (StartIndexResponse) {
+        option (google.api.http) = {
+            post: "/v2/start_index"
+            body: "*"
+        };
+    }
+
     /* Stops an index */
     rpc stopIndex (StopIndexRequest) returns (DummyResponse) {
         option (google.api.http) = {
@@ -420,6 +429,14 @@ message CreateIndexRequest {
     string indexName = 1; // name of the index to be created. [a-zA-Z0-9]*
     // Set if state/data already exists in the data backend. Provides the UUID to identify and load the index.
     string existsWithId = 2;
+    // Optional initial index settings
+    IndexSettings settings = 3;
+    // Optional initial index live settings
+    IndexLiveSettings liveSettings = 4;
+    // Optional initial index fields
+    repeated Field fields = 5;
+    // If this index should also be started, using IndexStartConfig configuration
+    bool start = 6;
 }
 
 /* Response from Server to createIndex */
@@ -617,6 +634,12 @@ message StartIndexRequest {
     RestoreIndex restore = 6; // restore index from backup
     // replica, location of discovery file containing primary host/port. Used if primaryAddress is empty. If port is specified in this request, it overrides the value in the file
     string primaryDiscoveryFile = 7;
+}
+
+/* Start the index using IndexStartConfig configuration */
+message StartIndexV2Request {
+    // index name
+    string indexName = 1;
 }
 
 enum Mode {
