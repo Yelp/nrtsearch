@@ -8,6 +8,8 @@ plugins {
     id "com.diffplug.gradle.spotless" version "4.3.0"
     id 'java-library'
     id 'jacoco'
+    // Build docs locally by running "site" command
+    id 'kr.motd.sphinx' version '2.10.0'
 }
 
 repositories {
@@ -22,7 +24,7 @@ sourceCompatibility = 1.14
 targetCompatibility = 1.14
 
 allprojects {
-    version = '0.17.0'
+    version = '0.18.0'
     group = 'com.yelp.nrtsearch'
 }
 
@@ -308,6 +310,13 @@ spotless {
         trimTrailingWhitespace()
         googleJavaFormat()
     }
+}
+
+sphinx {
+    sourceDirectory = "${projectDir}/docs"
+    outputDirectory = "${project.buildDir}/docs"
+    // Remove if not using OS X. This is required on non-Intel macs since aarch-64 build is not available.
+    binaryUrl       = 'https://github.com/trustin/sphinx-binary/releases/download/v0.8.2/sphinx.osx-x86_64'
 }
 
 // Inject properties file containing the project version into resources.

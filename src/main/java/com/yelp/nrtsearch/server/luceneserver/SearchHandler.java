@@ -231,6 +231,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         searchState.setLastDocId(lastHit.doc);
         searchContext.getCollector().fillLastHit(searchState, lastHit);
       }
+      searchContext.getResponseBuilder().setSearchState(searchState);
 
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
       if (searchContext.getHighlightFetchTask() != null) {
@@ -465,7 +466,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       SearchResponse.Diagnostics.Builder diagnostics,
       ThreadPoolExecutor threadPoolExecutor)
       throws InterruptedException, IOException {
-    Logger logger = LoggerFactory.getLogger(SearcherTaxonomyManager.SearcherAndTaxonomy.class);
     // TODO: Figure out which searcher to use:
     // final long searcherVersion; e.g. searcher.getLong("version")
     // final IndexState.Gens searcherSnapshot; e.g. searcher.getLong("indexGen")

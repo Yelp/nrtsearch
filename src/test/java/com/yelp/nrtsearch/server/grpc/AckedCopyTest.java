@@ -115,6 +115,9 @@ public class AckedCopyTest {
             testIndex,
             luceneServerPrimaryConfiguration.getReplicationPort(),
             archiver);
+    luceneServerPrimary
+        .getGlobalState()
+        .replicationStarted(luceneServerPrimaryConfiguration.getReplicationPort());
     // set up secondary servers
     LuceneServerConfiguration luceneServerSecondaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot(), extraConfig);
@@ -139,6 +142,9 @@ public class AckedCopyTest {
             testIndex,
             luceneServerSecondaryConfiguration.getReplicationPort(),
             archiver);
+    luceneServerSecondary
+        .getGlobalState()
+        .replicationStarted(luceneServerSecondaryConfiguration.getReplicationPort());
   }
 
   @Test

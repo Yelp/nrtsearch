@@ -818,12 +818,12 @@ public class ImmutableIndexState extends IndexState {
 
   @Override
   public void addSuggest(String name, JsonObject o) {
-    throw new UnsupportedOperationException("Suggesters only supported by LEGACY state backend");
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public Map<String, Lookup> getSuggesters() {
-    throw new UnsupportedOperationException("Suggesters only supported by LEGACY state backend");
+    throw new UnsupportedOperationException();
   }
 
   @Override

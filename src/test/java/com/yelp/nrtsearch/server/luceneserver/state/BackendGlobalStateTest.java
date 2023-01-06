@@ -1205,4 +1205,24 @@ public class BackendGlobalStateTest {
     assertEquals(Set.of("test_index", "test_index_2"), backendGlobalState.getIndexNames());
     assertEquals(Collections.singleton("test_index_2"), backendGlobalState.getIndicesToStart());
   }
+
+  @Test
+  public void testGetResolvedReplicationPort() throws IOException {
+    StateBackend mockBackend = mock(StateBackend.class);
+    GlobalStateInfo initialState = GlobalStateInfo.newBuilder().build();
+    when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
+
+    Map<String, IndexStateManager> mockManagers = new HashMap<>();
+    IndexStateManager mockManager = mock(IndexStateManager.class);
+    IndexState mockState = mock(IndexState.class);
+    when(mockManager.getCurrent()).thenReturn(mockState);
+    mockManagers.put(BackendGlobalState.getUniqueIndexName("test_index", "0"), mockManager);
+
+    MockBackendGlobalState.stateBackend = mockBackend;
+    MockBackendGlobalState.stateManagers = mockManagers;
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    assertEquals(0, backendGlobalState.getReplicationPort());
+    backendGlobalState.replicationStarted(100);
+    assertEquals(100, backendGlobalState.getReplicationPort());
+  }
 }

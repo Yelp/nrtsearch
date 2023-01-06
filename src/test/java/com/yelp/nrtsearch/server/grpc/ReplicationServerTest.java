@@ -551,6 +551,9 @@ public class ReplicationServerTest {
             testIndex,
             luceneServerPrimaryConfiguration.getReplicationPort(),
             archiver);
+    luceneServerPrimary
+        .getGlobalState()
+        .replicationStarted(luceneServerPrimaryConfiguration.getReplicationPort());
     // set up secondary servers
     LuceneServerConfiguration luceneServerSecondaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot(), extraConfig);
@@ -575,5 +578,8 @@ public class ReplicationServerTest {
             testIndex,
             luceneServerSecondaryConfiguration.getReplicationPort(),
             archiver);
+    luceneServerSecondary
+        .getGlobalState()
+        .replicationStarted(luceneServerSecondaryConfiguration.getReplicationPort());
   }
 }

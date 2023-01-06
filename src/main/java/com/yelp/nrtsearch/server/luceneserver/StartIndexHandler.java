@@ -45,6 +45,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
   private final IndexStateManager indexStateManager;
   private final boolean backupFromIncArchiver;
   private final boolean restoreFromIncArchiver;
+  private final int discoveryFileUpdateIntervalMs;
   private static final Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
 
   public StartIndexHandler(
@@ -53,13 +54,15 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       String archiveDirectory,
       boolean backupFromIncArchiver,
       boolean restoreFromIncArchiver,
-      IndexStateManager indexStateManager) {
+      IndexStateManager indexStateManager,
+      int discoveryFileUpdateIntervalMs) {
     this.archiver = archiver;
     this.incArchiver = incArchiver;
     this.archiveDirectory = archiveDirectory;
     this.backupFromIncArchiver = backupFromIncArchiver;
     this.restoreFromIncArchiver = restoreFromIncArchiver;
     this.indexStateManager = indexStateManager;
+    this.discoveryFileUpdateIntervalMs = discoveryFileUpdateIntervalMs;
   }
 
   @Override
@@ -180,7 +183,8 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       return new ReplicationServerClient(request.getPrimaryAddress(), request.getPort());
     } else if (!request.getPrimaryDiscoveryFile().isEmpty()) {
       return new ReplicationServerClient(
-          new DiscoveryFileAndPort(request.getPrimaryDiscoveryFile(), request.getPort()));
+          new DiscoveryFileAndPort(request.getPrimaryDiscoveryFile(), request.getPort()),
+          discoveryFileUpdateIntervalMs);
     } else {
       throw new IllegalArgumentException(
           "Unable to initialize primary replication client for start request: " + request);

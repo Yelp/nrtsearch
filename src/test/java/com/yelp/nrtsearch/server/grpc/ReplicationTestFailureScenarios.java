@@ -118,6 +118,7 @@ public class ReplicationTestFailureScenarios {
             TEST_INDEX,
             9001,
             archiver);
+    luceneServerPrimary.getGlobalState().replicationStarted(9001);
   }
 
   public void startSecondaryServer() throws IOException {
@@ -144,6 +145,9 @@ public class ReplicationTestFailureScenarios {
             TEST_INDEX,
             luceneSecondaryConfiguration.getReplicationPort(),
             archiver);
+    luceneServerSecondary
+        .getGlobalState()
+        .replicationStarted(luceneSecondaryConfiguration.getReplicationPort());
   }
 
   public void shutdownPrimaryServer() throws IOException {
