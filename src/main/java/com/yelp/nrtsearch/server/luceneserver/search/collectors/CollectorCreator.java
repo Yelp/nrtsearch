@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.PluginCollector;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.FilterCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.TermsCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.TopHitsCollectorManager;
 import com.yelp.nrtsearch.server.plugins.CollectorPlugin;
@@ -94,6 +95,10 @@ public class CollectorCreator {
                 nestedCollectorSuppliers);
       case TOPHITSCOLLECTOR:
         return () -> new TopHitsCollectorManager(name, collector.getTopHitsCollector(), context);
+      case FILTER:
+        return () ->
+            new FilterCollectorManager(
+                name, collector.getFilter(), context, nestedCollectorSuppliers);
       default:
         throw new IllegalArgumentException(
             "Unknown Collector type: " + collector.getCollectorsCase());
