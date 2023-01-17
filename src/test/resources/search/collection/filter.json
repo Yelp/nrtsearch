@@ -1,0 +1,65 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "storeDocValues": true
+    },
+    {
+      "name": "query_field",
+      "type": "INT",
+      "storeDocValues": true,
+      "search": true
+    },
+    {
+      "name": "int_value",
+      "type": "INT",
+      "storeDocValues": true,
+      "search": true,
+      "multiValued": true
+    },
+    {
+      "name": "long_value",
+      "type": "LONG",
+      "storeDocValues": true,
+      "search": true,
+      "multiValued": true
+    },
+    {
+      "name": "float_value",
+      "type": "FLOAT",
+      "storeDocValues": true,
+      "search": true,
+      "multiValued": true
+    },
+    {
+      "name": "double_value",
+      "type": "DOUBLE",
+      "storeDocValues": true,
+      "search": true,
+      "multiValued": true
+    },
+    {
+      "name": "text_value",
+      "type": "ATOM",
+      "storeDocValues": true,
+      "search": true,
+      "multiValued": true
+    },
+    {
+      "name": "virtual_field",
+      "type": "VIRTUAL",
+      "script": {
+        "lang": "js",
+        "source": "int_value*2.0"
+      }
+    },
+    {
+      "name": "no_doc_values",
+      "type": "LONG",
+      "search": true,
+      "multiValued": true
+    }
+  ]
+}

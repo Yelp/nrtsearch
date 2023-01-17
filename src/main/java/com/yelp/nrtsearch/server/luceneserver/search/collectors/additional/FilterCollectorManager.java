@@ -46,6 +46,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 
+/** Collector manager that filters documents for a set of nested collectors. */
 public class FilterCollectorManager
     implements AdditionalCollectorManager<FilterCollectorManager.FilterCollector, CollectorResult> {
   private final String name;
@@ -53,17 +54,42 @@ public class FilterCollectorManager
       nestedCollectorManagers;
   final Filter filter;
 
+  /** Interface for filter implementation used by collector. */
   interface Filter {
+
+    /**
+     * Get a leaf filter used to filter documents for a given segment.
+     *
+     * @param context segment context
+     * @return leaf filter
+     * @throws IOException
+     */
     LeafFilter getLeafFilter(LeafReaderContext context) throws IOException;
   }
 
+  /** Interface for leaf filter implementation used by leaf collector. */
   interface LeafFilter {
+
+    /**
+     * Get if the given document passes the filter conditions.
+     *
+     * @param docId segment doc id
+     * @return if doc passes filter
+     * @throws IOException
+     */
     boolean accepts(int docId) throws IOException;
   }
 
+  /** Filter implementation that accepts documents that are recalled by a given {@link Query}. */
   private static class QueryFilter implements Filter {
     final Weight filterWeight;
 
+    /**
+     * Constructor.
+     *
+     * @param grpcQuery gRPC query message
+     * @param context collector creation context
+     */
     QueryFilter(Query grpcQuery, CollectorCreatorContext context) {
       org.apache.lucene.search.Query query =
           QueryNodeMapper.getInstance().getQuery(grpcQuery, context.getIndexState());
@@ -85,9 +111,16 @@ public class FilterCollectorManager
       return new QueryLeafFilter(context);
     }
 
+    /** Leaf filter that accepts documents based on a query {@link Weight}. */
     private class QueryLeafFilter implements LeafFilter {
       final Bits filterDocSet;
 
+      /**
+       * Constructor.
+       *
+       * @param context segment context
+       * @throws IOException
+       */
       QueryLeafFilter(LeafReaderContext context) throws IOException {
         filterDocSet =
             QueryUtils.asSequentialAccessBits(
@@ -101,10 +134,21 @@ public class FilterCollectorManager
     }
   }
 
+  /**
+   * Filter implementation that does special handling of a {@link TermInSetQuery}, by using field
+   * doc values to determine inclusion. This can be useful for large sets of values, where the costs
+   * of building a scorer is high.
+   */
   private static class SetQueryFilter implements Filter {
     final IndexableFieldDef filterField;
     final Set<Object> filterSet = new HashSet<>();
 
+    /**
+     * Constructor.
+     *
+     * @param grpcTermInSetQuery gRPC set query message
+     * @param context collector creation context
+     */
     SetQueryFilter(TermInSetQuery grpcTermInSetQuery, CollectorCreatorContext context) {
       FieldDef fieldDef = context.getQueryFields().get(grpcTermInSetQuery.getField());
       if (fieldDef == null) {
@@ -121,6 +165,9 @@ public class FilterCollectorManager
             "Filter field must have doc values enabled: " + grpcTermInSetQuery.getField());
       }
 
+      // This could be improved. Maybe the fieldDef could provide the doc value type,
+      // so we could ensure compatability and better parsing. We could also use the
+      // appropriate primitive collection.
       switch (grpcTermInSetQuery.getTermTypesCase()) {
         case INTTERMS:
           filterSet.addAll(grpcTermInSetQuery.getIntTerms().getTermsList());
@@ -148,6 +195,7 @@ public class FilterCollectorManager
       return new SetQueryLeafFilter(context);
     }
 
+    /** Leaf filter implementation that checks if any field doc values are in the filter set. */
     private class SetQueryLeafFilter implements LeafFilter {
       final LoadedDocValues<?> filterDocValues;
 
@@ -168,6 +216,14 @@ public class FilterCollectorManager
     }
   }
 
+  /**
+   * Constructor.
+   *
+   * @param name collector name
+   * @param grpcFilterCollector gRPC filter definition message
+   * @param context collector creation context
+   * @param nestedCollectorSuppliers collectors to filter to
+   */
   public FilterCollectorManager(
       String name,
       com.yelp.nrtsearch.server.grpc.FilterCollector grpcFilterCollector,
@@ -221,11 +277,13 @@ public class FilterCollectorManager
     CollectorResult.Builder resultBuilder = CollectorResult.newBuilder();
     FilterResult.Builder filterResultBuilder = FilterResult.newBuilder();
 
+    // collect filter doc count
     int totalDocCount = 0;
     for (FilterCollector filterCollector : collectors) {
       totalDocCount += filterCollector.docCount;
     }
 
+    // reduce each nested collector
     List<Collector> nestedCollectors = new ArrayList<>(collectors.size());
     for (Map.Entry<String, AdditionalCollectorManager<Collector, CollectorResult>> entry :
         nestedCollectorManagers.entrySet()) {
@@ -242,6 +300,7 @@ public class FilterCollectorManager
     return resultBuilder.build();
   }
 
+  /** Collector for filtering based on a {@link Filter} implementation. */
   public class FilterCollector implements Collector {
     final Map<String, Collector> nestedCollectors;
     int docCount;
@@ -270,6 +329,7 @@ public class FilterCollectorManager
       return ScoreMode.COMPLETE_NO_SCORES;
     }
 
+    /** Leaf collector for filtering based on a {@link LeafFilter} implementation. */
     public class FilterLeafCollector implements LeafCollector {
       final List<LeafCollector> nestedLeafCollectors;
       final LeafFilter leafFilter;
