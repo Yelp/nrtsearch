@@ -147,7 +147,7 @@ public class LuceneServerConfiguration {
     downloadAsStream = configReader.getBoolean("downloadAsStream", true);
     fileSendDelay = configReader.getBoolean("fileSendDelay", false);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
-    decInitialCommit = configReader.getBoolean("decInitialCommit", false);
+    decInitialCommit = configReader.getBoolean("decInitialCommit", true);
     syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", true);
     indexVerbose = configReader.getBoolean("indexVerbose", false);
     fileCopyConfig = FileCopyConfig.fromConfig(configReader);
