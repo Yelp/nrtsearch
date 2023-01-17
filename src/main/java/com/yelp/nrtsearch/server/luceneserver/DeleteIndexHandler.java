@@ -28,15 +28,7 @@ public class DeleteIndexHandler implements Handler<DeleteIndexRequest, DeleteInd
   public DeleteIndexResponse handle(IndexState indexState, DeleteIndexRequest protoRequest)
       throws DeleteIndexHandlerException {
     try {
-      if (indexState
-          .getGlobalState()
-          .getConfiguration()
-          .getStateConfig()
-          .useLegacyStateManagement()) {
-        indexState.close();
-      } else {
-        indexState.getGlobalState().deleteIndex(indexState.getName());
-      }
+      indexState.getGlobalState().deleteIndex(indexState.getName());
       indexState.deleteIndex();
     } catch (IOException e) {
       logger.warn(

@@ -22,7 +22,6 @@ public class StateConfig {
   public static final String CONFIG_PREFIX = "stateConfig.";
 
   public enum StateBackendType {
-    LEGACY,
     LOCAL,
     REMOTE
   }
@@ -38,7 +37,7 @@ public class StateConfig {
   public static StateConfig fromConfig(YamlConfigReader configReader) {
     Objects.requireNonNull(configReader);
     StateBackendType backendType =
-        StateBackendType.valueOf(configReader.getString(CONFIG_PREFIX + "backendType", "LEGACY"));
+        StateBackendType.valueOf(configReader.getString(CONFIG_PREFIX + "backendType", "LOCAL"));
     return new StateConfig(backendType);
   }
 
@@ -50,11 +49,6 @@ public class StateConfig {
   public StateConfig(StateBackendType backendType) {
     Objects.requireNonNull(backendType);
     this.backendType = backendType;
-  }
-
-  /** Get if state management should be consistent with the legacy state system. */
-  public boolean useLegacyStateManagement() {
-    return StateBackendType.LEGACY.equals(backendType);
   }
 
   /** Get the type of backend that should be used for storing/loading server state. */

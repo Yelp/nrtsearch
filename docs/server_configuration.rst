@@ -195,8 +195,8 @@ Example server configuration
 
    * - backendType
      - enum
-     - Chooses which backend to use for storing and loading state. ``LEGACY`` uses a legacy implementation for global and index state. ``LOCAL`` uses the local disk as the source of truth for global and index state. ``REMOTE`` uses external storage as the source of truth for global and index state.
-     - ``LEGACY``
+     - Chooses which backend to use for storing and loading state. ``LOCAL`` uses the local disk as the source of truth for global and index state. ``REMOTE`` uses external storage as the source of truth for global and index state.
+     - ``LOCAL``
 
 .. list-table:: `File Copy Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/FileCopyConfig.java>`_ (``FileCopyConfig.*``)
    :widths: 25 10 50 25

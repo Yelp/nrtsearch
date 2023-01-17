@@ -233,12 +233,6 @@ public class BackendGlobalState extends GlobalState {
   }
 
   @Override
-  public void setStateDir(Path source) throws IOException {
-    // only called by legacy restore
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public Set<String> getIndexNames() {
     return immutableState.globalStateInfo.getIndicesMap().keySet();
   }
@@ -448,7 +442,6 @@ public class BackendGlobalState extends GlobalState {
             getConfiguration().getArchiveDirectory(),
             getConfiguration().getBackupWithInArchiver(),
             getConfiguration().getRestoreFromIncArchiver(),
-            getConfiguration().getStateConfig().useLegacyStateManagement(),
             indexStateManager,
             getConfiguration().getDiscoveryFileUpdateIntervalMs());
     try {
@@ -490,11 +483,6 @@ public class BackendGlobalState extends GlobalState {
     indexStateManager.close();
 
     return DummyResponse.newBuilder().setOk("ok").build();
-  }
-
-  @Override
-  public synchronized void indexClosed(String name) {
-    throw new UnsupportedOperationException();
   }
 
   @Override

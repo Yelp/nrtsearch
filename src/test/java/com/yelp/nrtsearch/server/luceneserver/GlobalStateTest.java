@@ -20,7 +20,6 @@ import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
-import com.yelp.nrtsearch.server.luceneserver.state.LegacyGlobalState;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import org.junit.Rule;
@@ -33,14 +32,6 @@ public class GlobalStateTest {
 
   private LuceneServerConfiguration getConfig(String config) {
     return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
-  }
-
-  @Test
-  public void testCreateLegacyGlobalState() throws IOException {
-    String configFile = String.join("\n", "stateConfig:", "  backendType: LEGACY");
-    LuceneServerConfiguration configuration = getConfig(configFile);
-    GlobalState globalState = GlobalState.createState(configuration);
-    assertTrue(globalState instanceof LegacyGlobalState);
   }
 
   @Test
@@ -58,7 +49,7 @@ public class GlobalStateTest {
 
   @Test
   public void testGetGeneration() throws IOException {
-    String configFile = String.join("\n", "stateConfig:", "  backendType: LEGACY");
+    String configFile = String.join("\n", "stateConfig:", "  backendType: LOCAL");
     LuceneServerConfiguration configuration = getConfig(configFile);
     GlobalState globalState = GlobalState.createState(configuration);
     long gen = globalState.getGeneration();

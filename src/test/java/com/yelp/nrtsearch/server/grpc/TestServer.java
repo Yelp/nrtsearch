@@ -175,8 +175,7 @@ public class TestServer {
         fileCompressAndUploader,
         contentDownloader,
         versionManager,
-        archiverDir,
-        false);
+        archiverDir);
   }
 
   private Archiver createLegacyArchiver(Path archiverDir) throws IOException {

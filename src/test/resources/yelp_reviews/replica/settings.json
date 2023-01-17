@@ -1,5 +1,5 @@
 {
   "indexName": "yelp_reviews_test_0",
   "directory": "MMapDirectory",
-  "nrtCachingDirectoryMaxSizeMB": -1.0
+  "nrtCachingDirectoryMaxSizeMB": 0
 }

@@ -30,7 +30,6 @@ import com.yelp.nrtsearch.server.backup.ArchiverImpl;
 import com.yelp.nrtsearch.server.backup.Tar;
 import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.findify.s3mock.S3Mock;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -99,58 +98,56 @@ public class ReplicationTestFailureScenarios {
   public void startPrimaryServer() throws IOException {
     LuceneServerConfiguration luceneServerPrimaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
-    GlobalState globalStatePrimary = GlobalState.createState(luceneServerPrimaryConfiguration);
     luceneServerPrimary =
         new GrpcServer(
             grpcCleanup,
             luceneServerPrimaryConfiguration,
             folder,
-            false,
-            globalStatePrimary,
+            null,
             luceneServerPrimaryConfiguration.getIndexDir(),
             TEST_INDEX,
-            globalStatePrimary.getPort(),
+            luceneServerPrimaryConfiguration.getPort(),
             archiver);
     replicationServerPrimary =
         new GrpcServer(
             grpcCleanup,
             luceneServerPrimaryConfiguration,
             folder,
-            true,
-            globalStatePrimary,
+            luceneServerPrimary.getGlobalState(),
             luceneServerPrimaryConfiguration.getIndexDir(),
             TEST_INDEX,
             9001,
             archiver);
+    luceneServerPrimary.getGlobalState().replicationStarted(9001);
   }
 
   public void startSecondaryServer() throws IOException {
     LuceneServerConfiguration luceneSecondaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot());
-    GlobalState globalStateSecondary = GlobalState.createState(luceneSecondaryConfiguration);
 
     luceneServerSecondary =
         new GrpcServer(
             grpcCleanup,
             luceneSecondaryConfiguration,
             folder,
-            false,
-            globalStateSecondary,
+            null,
             luceneSecondaryConfiguration.getIndexDir(),
             TEST_INDEX,
-            globalStateSecondary.getPort(),
+            luceneSecondaryConfiguration.getPort(),
             archiver);
     replicationServerSecondary =
         new GrpcServer(
             grpcCleanup,
             luceneSecondaryConfiguration,
             folder,
-            true,
-            globalStateSecondary,
+            luceneServerSecondary.getGlobalState(),
             luceneSecondaryConfiguration.getIndexDir(),
             TEST_INDEX,
-            globalStateSecondary.getReplicationPort(),
+            luceneSecondaryConfiguration.getReplicationPort(),
             archiver);
+    luceneServerSecondary
+        .getGlobalState()
+        .replicationStarted(luceneSecondaryConfiguration.getReplicationPort());
   }
 
   public void shutdownPrimaryServer() throws IOException {

@@ -613,28 +613,6 @@ public class BackendGlobalStateTest {
     verifyNoMoreInteractions(mockBackend, mockManager, mockManager2, mockState, mockState2);
   }
 
-  @Test(expected = UnsupportedOperationException.class)
-  public void testIndexClosed() throws IOException {
-    StateBackend mockBackend = mock(StateBackend.class);
-    GlobalStateInfo initialState = GlobalStateInfo.newBuilder().build();
-    when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
-
-    MockBackendGlobalState.stateBackend = mockBackend;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
-    backendGlobalState.indexClosed("test_index");
-  }
-
-  @Test(expected = UnsupportedOperationException.class)
-  public void testSetStateDir() throws IOException {
-    StateBackend mockBackend = mock(StateBackend.class);
-    GlobalStateInfo initialState = GlobalStateInfo.newBuilder().build();
-    when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
-
-    MockBackendGlobalState.stateBackend = mockBackend;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
-    backendGlobalState.setStateDir(folder.getRoot().toPath());
-  }
-
   @Test
   public void testUseLocalBackend() throws IOException {
     String configFile =
@@ -672,25 +650,6 @@ public class BackendGlobalStateTest {
 
     BackendGlobalState backendGlobalState = new BackendGlobalState(config, archiver);
     assertTrue(backendGlobalState.getStateBackend() instanceof RemoteStateBackend);
-  }
-
-  @Test
-  public void testInvalidBackend() throws IOException {
-    String configFile =
-        String.join(
-            "\n",
-            "stateConfig:",
-            "  backendType: LEGACY",
-            "stateDir: " + folder.newFolder("state").getAbsolutePath(),
-            "indexDir: " + folder.newFolder("index").getAbsolutePath());
-    LuceneServerConfiguration config =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
-    try {
-      new BackendGlobalState(config, null);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals("Unsupported state backend type: LEGACY", e.getMessage());
-    }
   }
 
   @Test

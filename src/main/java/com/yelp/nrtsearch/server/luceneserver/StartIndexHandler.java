@@ -45,7 +45,6 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
   private final IndexStateManager indexStateManager;
   private final boolean backupFromIncArchiver;
   private final boolean restoreFromIncArchiver;
-  private final boolean useLegacyStateManagement;
   private final int discoveryFileUpdateIntervalMs;
   private static final Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
 
@@ -55,7 +54,6 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       String archiveDirectory,
       boolean backupFromIncArchiver,
       boolean restoreFromIncArchiver,
-      boolean useLegacyStateManagement,
       IndexStateManager indexStateManager,
       int discoveryFileUpdateIntervalMs) {
     this.archiver = archiver;
@@ -63,7 +61,6 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
     this.archiveDirectory = archiveDirectory;
     this.backupFromIncArchiver = backupFromIncArchiver;
     this.restoreFromIncArchiver = restoreFromIncArchiver;
-    this.useLegacyStateManagement = useLegacyStateManagement;
     this.indexStateManager = indexStateManager;
     this.discoveryFileUpdateIntervalMs = discoveryFileUpdateIntervalMs;
   }
@@ -100,9 +97,6 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
                       restoreIndex.getResourceName(),
                       INDEXED_DATA_TYPE.DATA,
                       restoreFromIncArchiver);
-              if (useLegacyStateManagement) {
-                shardState.setRestored(true);
-              }
             } else {
               throw new IllegalStateException(
                   "Index " + indexState.getName() + " already restored");
@@ -130,11 +124,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
           indexState.initWarmer(archiver);
         }
 
-        if (useLegacyStateManagement) {
-          indexState.start(mode, dataPath, primaryGen, primaryClient);
-        } else {
-          indexStateManager.start(mode, dataPath, primaryGen, primaryClient);
-        }
+        indexStateManager.start(mode, dataPath, primaryGen, primaryClient);
 
         if (mode.equals(Mode.PRIMARY)) {
           BackupIndexRequestHandler backupIndexRequestHandler =
@@ -179,7 +169,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       startIndexResponseBuilder.setStartTimeMS(((t1 - t0) / 1000000.0));
       return startIndexResponseBuilder.build();
     } finally {
-      if (!useLegacyStateManagement && startIndexRequest.hasRestore()) {
+      if (startIndexRequest.hasRestore()) {
         cleanupDownloadedArtifacts(
             startIndexRequest.getRestore().getResourceName(),
             INDEXED_DATA_TYPE.DATA,

@@ -22,8 +22,6 @@ import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.google.api.HttpBody;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.backup.Archiver;
@@ -32,7 +30,6 @@ import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.search.cache.NrtQueryCache;
 import io.findify.s3mock.S3Mock;
 import io.grpc.StatusRuntimeException;
@@ -190,18 +187,16 @@ public class LuceneServerTest {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    GlobalState globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         collectorRegistry,
         grpcCleanup,
         luceneServerConfiguration,
         folder,
-        false,
-        globalState,
+        null,
         luceneServerConfiguration.getIndexDir(),
         testIndex,
-        globalState.getPort(),
-        null,
+        luceneServerConfiguration.getPort(),
+        archiver,
         Collections.emptyList());
   }
 
@@ -211,17 +206,15 @@ public class LuceneServerTest {
     LuceneServerConfiguration luceneServerReplicaConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.REPLICA, folder.getRoot(), getExtraConfig());
-    GlobalState globalStateSecondary = GlobalState.createState(luceneServerReplicaConfiguration);
 
     return new GrpcServer(
         grpcCleanup,
         luceneServerReplicaConfiguration,
         folder,
-        false,
-        globalStateSecondary,
+        null,
         luceneServerReplicaConfiguration.getIndexDir(),
         testIndex,
-        globalStateSecondary.getPort(),
+        luceneServerReplicaConfiguration.getPort(),
         archiver);
   }
 
@@ -567,7 +560,7 @@ public class LuceneServerTest {
     assertEquals(0, statsResponse.getMaxDoc());
     assertEquals(0, statsResponse.getOrd());
     assertEquals(0, statsResponse.getCurrentSearcher().getNumDocs());
-    assertEquals(0, statsResponse.getDirSize());
+    assertTrue(statsResponse.getDirSize() > 0);
     assertEquals("started", statsResponse.getState());
     GrpcServer.TestServer testAddDocs =
         new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE);
@@ -753,77 +746,6 @@ public class LuceneServerTest {
     assertEquals(false, Files.exists(indexRootDir));
 
     assertEquals("ok", deleteIndexResponse.getOk());
-  }
-
-  /**
-   * This test creates the index, deletes the same index and then creates the same index again. This
-   * verifies whether the global state is correctly updated, flushed to disk and the previous global
-   * states are deleted.
-   */
-  @Test
-  public void testReCreateDeletedIndex() throws IOException {
-    String indexName = "test_idx_1";
-    LuceneServerGrpc.LuceneServerBlockingStub blockingStub = grpcServer.getBlockingStub();
-
-    GlobalState globalState = grpcServer.getGlobalState();
-    // verify that globalState has no content
-    assertEquals(0, Files.list(globalState.getStateDir()).count());
-
-    CreateIndexRequest createIndexRequest =
-        CreateIndexRequest.newBuilder().setIndexName(indexName).build();
-    CreateIndexResponse createIndexResponse = blockingStub.createIndex(createIndexRequest);
-    assertEquals(
-        String.format("Created Index name: %s", indexName, grpcServer.getIndexDir()),
-        createIndexResponse.getResponse());
-
-    // verify that only indices.0 exists and has the same content on disk as in-memory
-    assertEquals(1, Files.list(globalState.getStateDir()).count());
-    assertEquals(
-        "indices.0",
-        Files.list(globalState.getStateDir()).findAny().get().getFileName().toString());
-
-    Path primaryStateIndexPath = globalState.getStateDir().resolve("indices.0");
-    JsonObject persistedIndexNames =
-        JsonParser.parseString(Files.readString(primaryStateIndexPath)).getAsJsonObject();
-
-    assertEquals(globalState.getIndexNames(), persistedIndexNames.keySet());
-
-    // delete the index
-    DeleteIndexRequest deleteIndexRequest =
-        DeleteIndexRequest.newBuilder().setIndexName(indexName).build();
-    DeleteIndexResponse deleteIndexResponse =
-        grpcServer.getBlockingStub().deleteIndex(deleteIndexRequest);
-
-    // verify that globalState indices.1 exists only and has the required empty content
-    assertEquals(1, Files.list(globalState.getStateDir()).count());
-    assertEquals(
-        "indices.1",
-        Files.list(globalState.getStateDir()).findAny().get().getFileName().toString());
-
-    primaryStateIndexPath = globalState.getStateDir().resolve("indices.1");
-    persistedIndexNames =
-        JsonParser.parseString(Files.readString(primaryStateIndexPath)).getAsJsonObject();
-
-    assertEquals(globalState.getIndexNames(), persistedIndexNames.keySet());
-
-    // create the index
-    createIndexRequest = CreateIndexRequest.newBuilder().setIndexName(indexName).build();
-    createIndexResponse = blockingStub.createIndex(createIndexRequest);
-    assertEquals(
-        String.format("Created Index name: %s", indexName, grpcServer.getIndexDir()),
-        createIndexResponse.getResponse());
-
-    // verify that globalState indices.2 exists only and has the required content
-    assertEquals(1, Files.list(globalState.getStateDir()).count());
-    assertEquals(
-        "indices.2",
-        Files.list(globalState.getStateDir()).findAny().get().getFileName().toString());
-
-    primaryStateIndexPath = globalState.getStateDir().resolve("indices.2");
-    persistedIndexNames =
-        JsonParser.parseString(Files.readString(primaryStateIndexPath)).getAsJsonObject();
-
-    assertEquals(globalState.getIndexNames(), persistedIndexNames.keySet());
   }
 
   @Test
@@ -1178,8 +1100,8 @@ public class LuceneServerTest {
         CreateSnapshotRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
     CreateSnapshotResponse createSnapshotResponse =
         grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
-    assertEquals(1, createSnapshotResponse.getSnapshotId().getIndexGen());
-    assertEquals(0, createSnapshotResponse.getSnapshotId().getStateGen());
+    assertEquals(2, createSnapshotResponse.getSnapshotId().getIndexGen());
+    assertEquals(-1, createSnapshotResponse.getSnapshotId().getStateGen());
 
     // add more documents and another commit to create another index gen
     testAddDocs.addDocuments();
@@ -1187,14 +1109,14 @@ public class LuceneServerTest {
 
     // create another snapshot
     createSnapshotResponse = grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
-    assertEquals(2, createSnapshotResponse.getSnapshotId().getIndexGen());
-    assertEquals(1, createSnapshotResponse.getSnapshotId().getStateGen());
+    assertEquals(3, createSnapshotResponse.getSnapshotId().getIndexGen());
+    assertEquals(-1, createSnapshotResponse.getSnapshotId().getStateGen());
 
     // Release the first snapshot with index and state gen
     ReleaseSnapshotRequest releaseSnapshotRequest =
         ReleaseSnapshotRequest.newBuilder()
             .setIndexName(grpcServer.getTestIndex())
-            .setSnapshotId(SnapshotId.newBuilder().setIndexGen(1).setStateGen(0))
+            .setSnapshotId(SnapshotId.newBuilder().setIndexGen(2).setStateGen(-1))
             .build();
     ReleaseSnapshotResponse releaseSnapshotResponse =
         grpcServer.getBlockingStub().releaseSnapshot(releaseSnapshotRequest);
@@ -1204,7 +1126,7 @@ public class LuceneServerTest {
     releaseSnapshotRequest =
         ReleaseSnapshotRequest.newBuilder()
             .setIndexName(grpcServer.getTestIndex())
-            .setSnapshotId(SnapshotId.newBuilder().setIndexGen(2).setStateGen(0))
+            .setSnapshotId(SnapshotId.newBuilder().setIndexGen(3).setStateGen(-1))
             .build();
     releaseSnapshotResponse = grpcServer.getBlockingStub().releaseSnapshot(releaseSnapshotRequest);
     assertTrue(releaseSnapshotResponse.getSuccess());
@@ -1232,7 +1154,7 @@ public class LuceneServerTest {
         CreateSnapshotRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
     CreateSnapshotResponse createSnapshotResponse =
         grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
-    assertEquals(1, createSnapshotResponse.getSnapshotId().getIndexGen());
+    assertEquals(2, createSnapshotResponse.getSnapshotId().getIndexGen());
 
     // add more documents and another commit to create another index gen
     testAddDocs.addDocuments();
@@ -1240,7 +1162,7 @@ public class LuceneServerTest {
 
     // create another snapshot
     createSnapshotResponse = grpcServer.getBlockingStub().createSnapshot(createSnapshotRequest);
-    assertEquals(2, createSnapshotResponse.getSnapshotId().getIndexGen());
+    assertEquals(3, createSnapshotResponse.getSnapshotId().getIndexGen());
 
     GetAllSnapshotGenRequest getAllSnapshotGenRequest =
         GetAllSnapshotGenRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build();
@@ -1248,7 +1170,7 @@ public class LuceneServerTest {
         grpcServer.getBlockingStub().getAllSnapshotIndexGen(getAllSnapshotGenRequest);
 
     assertThat(
-        getAllSnapshotGenResponse.getIndexGensList(), IsCollectionContaining.hasItems(1L, 2L));
+        getAllSnapshotGenResponse.getIndexGensList(), IsCollectionContaining.hasItems(2L, 3L));
   }
 
   @Test
@@ -1300,7 +1222,7 @@ public class LuceneServerTest {
       blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames("").build());
       fail("Expecting exception on the previous line");
     } catch (StatusRuntimeException e) {
-      assertEquals(e.getMessage(), "UNAVAILABLE: Indices not started: [index1, index3]");
+      assertEquals(e.getMessage(), "UNAVAILABLE: Indices not started: [index3]");
     }
 
     for (String indexNames : Arrays.asList("index1", "index1,index2")) {

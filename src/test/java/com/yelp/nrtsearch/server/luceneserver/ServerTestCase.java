@@ -217,19 +217,20 @@ public class ServerTestCase {
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), getExtraConfig());
-    globalState = GlobalState.createState(luceneServerConfiguration);
-    return new GrpcServer(
-        collectorRegistry,
-        grpcCleanup,
-        luceneServerConfiguration,
-        folder,
-        false,
-        globalState,
-        luceneServerConfiguration.getIndexDir(),
-        testIndex,
-        globalState.getPort(),
-        null,
-        getPlugins(luceneServerConfiguration));
+    GrpcServer server =
+        new GrpcServer(
+            collectorRegistry,
+            grpcCleanup,
+            luceneServerConfiguration,
+            folder,
+            null,
+            luceneServerConfiguration.getIndexDir(),
+            testIndex,
+            luceneServerConfiguration.getPort(),
+            null,
+            getPlugins(luceneServerConfiguration));
+    globalState = server.getGlobalState();
+    return server;
   }
 
   protected void initIndices() throws Exception {

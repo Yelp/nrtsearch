@@ -29,19 +29,11 @@ import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexSimilarity;
-import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CharsetEncoder;
-import java.nio.charset.CodingErrorAction;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -83,9 +75,6 @@ public abstract class IndexState implements Closeable {
   public static final String NESTED_PATH = "_nested_path";
   public static final String ROOT = "_root";
   public static final String FIELD_NAMES = "_field_names";
-
-  public static final int DEFAULT_SLICE_MAX_DOCS = 250_000;
-  public static final int DEFAULT_SLICE_MAX_SEGMENTS = 5;
 
   private static final Logger logger = LoggerFactory.getLogger(IndexState.class);
   private final GlobalState globalState;
@@ -216,58 +205,6 @@ public abstract class IndexState implements Closeable {
     return reSimpleName.matcher(name).matches();
   }
 
-  /** Checks if this name is consistent with a child field (contains a dot) */
-  public static boolean isChildName(String name) {
-    return name.contains(CHILD_FIELD_SEPARATOR);
-  }
-
-  /** String -&gt; UTF8 byte[]. */
-  public static byte[] toUTF8(String s) {
-    CharsetEncoder encoder = Charset.forName("UTF-8").newEncoder();
-    // Make sure we catch any invalid UTF16:
-    encoder.onMalformedInput(CodingErrorAction.REPORT);
-    encoder.onUnmappableCharacter(CodingErrorAction.REPORT);
-    try {
-      ByteBuffer bb = encoder.encode(CharBuffer.wrap(s));
-      byte[] bytes = new byte[bb.limit()];
-      bb.position(0);
-      bb.get(bytes, 0, bytes.length);
-      return bytes;
-    } catch (CharacterCodingException cce) {
-      throw new IllegalArgumentException(cce);
-    }
-  }
-
-  /** UTF8 byte[] -&gt; String. */
-  public static String fromUTF8(byte[] bytes) {
-    CharsetDecoder decoder = Charset.forName("UTF-8").newDecoder();
-    // Make sure we catch any invalid UTF8:
-    decoder.onMalformedInput(CodingErrorAction.REPORT);
-    decoder.onUnmappableCharacter(CodingErrorAction.REPORT);
-    try {
-      return decoder.decode(ByteBuffer.wrap(bytes)).toString();
-    } catch (CharacterCodingException cce) {
-      throw new IllegalArgumentException(cce);
-    }
-  }
-
-  /**
-   * Create an {@link IndexState} instance.
-   *
-   * @param globalState global state
-   * @param name index name
-   * @param rootDir index data root directory
-   * @param doCreate if this is a create operation
-   * @param hasRestore if data is being restored from remote source
-   * @return index state
-   * @throws IOException on filesystem error
-   */
-  public static IndexState createState(
-      GlobalState globalState, String name, Path rootDir, boolean doCreate, boolean hasRestore)
-      throws IOException {
-    return new LegacyIndexState(globalState, name, rootDir, doCreate, hasRestore);
-  }
-
   /**
    * Sole constructor; creates a new index or loads an existing one if it exists, but does not start
    * the index.
@@ -386,9 +323,6 @@ public abstract class IndexState implements Closeable {
       Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
       throws IOException;
 
-  /** Records a new field in the internal {@code fields} state. */
-  public abstract void addField(FieldDef fd, JsonObject jsonObject);
-
   /**
    * Retrieve the field's type.
    *
@@ -425,15 +359,6 @@ public abstract class IndexState implements Closeable {
   public abstract Set<String> getInternalFacetFieldNames();
 
   public abstract FacetsConfig getFacetsConfig();
-
-  /**
-   * Add new shard with the given ordinal.
-   *
-   * @param shardOrd shard ordinal
-   * @param doCreate is this index being created
-   * @return shard state
-   */
-  public abstract ShardState addShard(int shardOrd, boolean doCreate);
 
   /**
    * Get shard state.
@@ -540,9 +465,7 @@ public abstract class IndexState implements Closeable {
   public abstract Map<String, Lookup> getSuggesters();
 
   @Override
-  public void close() throws IOException {
-    globalState.indexClosed(name);
-  }
+  public void close() throws IOException {}
 
   // Get all predifined meta fields
   private static Map<String, FieldDef> getPredefinedMetaFields() {

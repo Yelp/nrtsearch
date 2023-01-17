@@ -834,11 +834,6 @@ public class ImmutableIndexStateTest {
     assertSame(fieldAndFacetState, indexState.getFieldAndFacetState());
   }
 
-  @Test(expected = UnsupportedOperationException.class)
-  public void testAddField() throws IOException {
-    getIndexState(getEmptyState()).addField(null, null);
-  }
-
   @Test
   public void testGetField() throws IOException {
     Field field =
@@ -1002,11 +997,6 @@ public class ImmutableIndexStateTest {
     assertSame(mockConfig, indexState.getFacetsConfig());
     verify(mockFieldState, times(1)).getFacetsConfig();
     verifyNoMoreInteractions(mockFieldState);
-  }
-
-  @Test(expected = UnsupportedOperationException.class)
-  public void testAddShard() throws IOException {
-    getIndexState(getEmptyState()).addShard(0, true);
   }
 
   @Test

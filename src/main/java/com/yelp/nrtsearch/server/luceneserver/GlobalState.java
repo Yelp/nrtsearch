@@ -26,7 +26,6 @@ import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
-import com.yelp.nrtsearch.server.luceneserver.state.LegacyGlobalState;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.io.Closeable;
 import java.io.IOException;
@@ -35,13 +34,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.lucene.search.TimeLimitingCollector;
-import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,8 +53,6 @@ public abstract class GlobalState implements Closeable {
   private final long generation = System.currentTimeMillis();
 
   private final String nodeName;
-
-  private final List<RemoteNodeConnection> remoteNodes = new CopyOnWriteArrayList<>();
 
   private final LuceneServerConfiguration configuration;
 
@@ -87,11 +82,7 @@ public abstract class GlobalState implements Closeable {
       Archiver incArchiver,
       Archiver legacyArchiver)
       throws IOException {
-    if (luceneServerConfiguration.getStateConfig().useLegacyStateManagement()) {
-      return new LegacyGlobalState(luceneServerConfiguration, incArchiver);
-    } else {
-      return new BackendGlobalState(luceneServerConfiguration, incArchiver, legacyArchiver);
-    }
+    return new BackendGlobalState(luceneServerConfiguration, incArchiver, legacyArchiver);
   }
 
   public Optional<Archiver> getIncArchiver() {
@@ -161,8 +152,6 @@ public abstract class GlobalState implements Closeable {
 
   @Override
   public void close() throws IOException {
-    // searchThread.interrupt();
-    IOUtils.close(remoteNodes);
     indexService.shutdown();
     TimeLimitingCollector.getGlobalTimerThread().stopTimer();
     try {
@@ -201,8 +190,6 @@ public abstract class GlobalState implements Closeable {
 
   /** Get the data resource name for a given index. Used with incremental archiver functionality. */
   public abstract String getDataResourceForIndex(String indexName);
-
-  public abstract void setStateDir(Path source) throws IOException;
 
   public abstract Set<String> getIndexNames();
 
@@ -268,8 +255,6 @@ public abstract class GlobalState implements Closeable {
    * @throws IOException
    */
   public abstract DummyResponse stopIndex(StopIndexRequest stopIndexRequest) throws IOException;
-
-  public abstract void indexClosed(String name);
 
   public Future<Long> submitIndexingTask(Callable<Long> job) {
     return indexService.submit(job);

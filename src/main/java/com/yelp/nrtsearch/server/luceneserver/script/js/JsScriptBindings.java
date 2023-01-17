@@ -45,7 +45,7 @@ public final class JsScriptBindings extends Bindings {
    * Sole constructor.
    *
    * @param fieldDefBindings bindings for index fields, may contain fields still being registers in
-   *     a {@link com.yelp.nrtsearch.server.luceneserver.RegisterFieldsHandler} request
+   *     a {@link com.yelp.nrtsearch.server.grpc.FieldDefRequest}
    * @param scriptParams params from a {@link com.yelp.nrtsearch.server.grpc.Script} definition,
    *     converted to java types
    * @throws NullPointerException if fieldDefBindings or scriptParams is null
