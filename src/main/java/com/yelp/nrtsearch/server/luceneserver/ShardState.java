@@ -949,7 +949,8 @@ public class ShardState implements Closeable {
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               indexState.getGlobalState().getConfiguration().getFileCopyConfig().getAckedCopy(),
-              indexState.getGlobalState().getConfiguration().getDecInitialCommit());
+              indexState.getGlobalState().getConfiguration().getDecInitialCommit(),
+              indexState.getGlobalState().getConfiguration().getFilterIncompatibleSegmentReaders());
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {

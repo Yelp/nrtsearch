@@ -35,6 +35,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
+import org.apache.lucene.replicator.nrt.FilteringSegmentInfosSearcherManager;
 import org.apache.lucene.replicator.nrt.NodeCommunicationException;
 import org.apache.lucene.replicator.nrt.ReplicaDeleterManager;
 import org.apache.lucene.replicator.nrt.ReplicaNode;
@@ -51,6 +52,7 @@ public class NRTReplicaNode extends ReplicaNode {
   private final ReplicaDeleterManager replicaDeleterManager;
   private final String indexName;
   private final boolean ackedCopy;
+  private final boolean filterIncompatibleSegmentReaders;
   final Jobs jobs;
 
   /* Just a wrapper class to hold our <hostName, port> pair so that we can send them to the Primary
@@ -67,7 +69,8 @@ public class NRTReplicaNode extends ReplicaNode {
       SearcherFactory searcherFactory,
       PrintStream printStream,
       boolean ackedCopy,
-      boolean decInitialCommit)
+      boolean decInitialCommit,
+      boolean filterIncompatibleSegmentReaders)
       throws IOException {
     super(replicaId, indexDir, searcherFactory, printStream);
     this.primaryAddress = primaryAddress;
@@ -75,6 +78,7 @@ public class NRTReplicaNode extends ReplicaNode {
     this.ackedCopy = ackedCopy;
     this.hostPort = hostPort;
     replicaDeleterManager = decInitialCommit ? new ReplicaDeleterManager(this) : null;
+    this.filterIncompatibleSegmentReaders = filterIncompatibleSegmentReaders;
     // Handles fetching files from primary, on a new thread which receives files from primary
     jobs = new Jobs(this);
     jobs.setName("R" + id + ".copyJobs");
@@ -112,6 +116,12 @@ public class NRTReplicaNode extends ReplicaNode {
     super.start(primaryGen);
     if (replicaDeleterManager != null) {
       replicaDeleterManager.decReplicaInitialCommitFiles();
+    }
+    if (filterIncompatibleSegmentReaders) {
+      // Swap in a SearcherManager that filters incompatible segment readers during refresh.
+      // Updating the reference is not thread safe, but since this happens under the object lock
+      // and before the shard has stared, nothing should access the manager before the swap.
+      mgr = new FilteringSegmentInfosSearcherManager(getDirectory(), this, mgr, searcherFactory);
     }
   }
 

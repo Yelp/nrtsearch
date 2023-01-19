@@ -25,7 +25,7 @@ public class ReplicaCurrentSearchingVersionHandler implements Handler<IndexName,
   public SearcherVersion handle(IndexState indexState, IndexName indexNameRequest)
       throws HandlerException {
     ShardState shardState = indexState.getShard(0);
-    if (shardState.isReplica() == false) {
+    if (!shardState.isReplica() || !shardState.isStarted()) {
       throw new IllegalArgumentException(
           "index \""
               + indexNameRequest.getIndexName()
