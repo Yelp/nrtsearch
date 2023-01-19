@@ -168,11 +168,15 @@ Available tokenizers:
 
   * edgengram
 
+  * ngram
+
   * pathhierarchy
 
   * pattern
 
   * simplepatternsplit
+
+  * simplepattern
 
   * classic
 
