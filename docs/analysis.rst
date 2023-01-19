@@ -176,6 +176,8 @@ Available tokenizers:
 
   * simplepatternsplit
 
+  * simplepattern
+
   * classic
 
   * standard
