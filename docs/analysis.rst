@@ -168,6 +168,8 @@ Available tokenizers:
 
   * edgengram
 
+  * ngram
+
   * pathhierarchy
 
   * pattern
