@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -208,34 +208,14 @@ public class PrimaryRestartTests {
 
     replicaServer.waitForReplication("test_index");
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5);
-    long previousSearcherVersion1 =
-        replicaServer
-            .getClient()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName("test_index")
-                    .setQuery(Query.newBuilder().build())
-                    .build())
-            .getSearchState()
-            .getSearcherVersion();
+    long previousSearcherVersion1 = getCurrentSearcherVersion(replicaServer);
 
     primaryServer.addSimpleDocs("test_index", 6, 7, 8);
     primaryServer.refresh("test_index");
 
     replicaServer.waitForReplication("test_index");
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5, 6, 7, 8);
-    long previousSearcherVersion2 =
-        replicaServer
-            .getClient()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName("test_index")
-                    .setQuery(Query.newBuilder().build())
-                    .build())
-            .getSearchState()
-            .getSearcherVersion();
+    long previousSearcherVersion2 = getCurrentSearcherVersion(replicaServer);
 
     primaryServer.restart();
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3);
@@ -304,62 +284,18 @@ public class PrimaryRestartTests {
 
     replicaServer.waitForReplication("test_index");
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5);
-    long previousSearcherVersion1 =
-        replicaServer
-            .getClient()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName("test_index")
-                    .setQuery(Query.newBuilder().build())
-                    .build())
-            .getSearchState()
-            .getSearcherVersion();
-    IndexSearcher previousSearcher1 =
-        replicaServer
-            .getGlobalState()
-            .getIndex("test_index")
-            .getShard(0)
-            .slm
-            .acquire(previousSearcherVersion1);
-    List<LeafReaderContext> previousLeaves1 = previousSearcher1.getIndexReader().leaves();
-    replicaServer
-        .getGlobalState()
-        .getIndex("test_index")
-        .getShard(0)
-        .slm
-        .release(previousSearcher1);
+    long previousSearcherVersion1 = getCurrentSearcherVersion(replicaServer);
+    List<LeafReaderContext> previousLeaves1 =
+        getVersionLeaves(replicaServer, previousSearcherVersion1);
 
     primaryServer.addSimpleDocs("test_index", 6, 7, 8);
     primaryServer.refresh("test_index");
 
     replicaServer.waitForReplication("test_index");
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 4, 5, 6, 7, 8);
-    long previousSearcherVersion2 =
-        replicaServer
-            .getClient()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName("test_index")
-                    .setQuery(Query.newBuilder().build())
-                    .build())
-            .getSearchState()
-            .getSearcherVersion();
-    IndexSearcher previousSearcher2 =
-        replicaServer
-            .getGlobalState()
-            .getIndex("test_index")
-            .getShard(0)
-            .slm
-            .acquire(previousSearcherVersion2);
-    List<LeafReaderContext> previousLeaves2 = previousSearcher2.getIndexReader().leaves();
-    replicaServer
-        .getGlobalState()
-        .getIndex("test_index")
-        .getShard(0)
-        .slm
-        .release(previousSearcher2);
+    long previousSearcherVersion2 = getCurrentSearcherVersion(replicaServer);
+    List<LeafReaderContext> previousLeaves2 =
+        getVersionLeaves(replicaServer, previousSearcherVersion2);
 
     primaryServer.restart();
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3);
@@ -376,26 +312,9 @@ public class PrimaryRestartTests {
     primaryServer.refresh("test_index");
 
     replicaServer.waitForReplication("test_index");
-    long currentSearcherVersion1 =
-        replicaServer
-            .getClient()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName("test_index")
-                    .setQuery(Query.newBuilder().build())
-                    .build())
-            .getSearchState()
-            .getSearcherVersion();
-    IndexSearcher currentSearcher1 =
-        replicaServer
-            .getGlobalState()
-            .getIndex("test_index")
-            .getShard(0)
-            .slm
-            .acquire(currentSearcherVersion1);
-    List<LeafReaderContext> currentLeaves1 = currentSearcher1.getIndexReader().leaves();
-    replicaServer.getGlobalState().getIndex("test_index").getShard(0).slm.release(currentSearcher1);
+    long currentSearcherVersion1 = getCurrentSearcherVersion(replicaServer);
+    List<LeafReaderContext> currentLeaves1 =
+        getVersionLeaves(replicaServer, currentSearcherVersion1);
 
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 9, 10, 11);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 9, 10, 11);
@@ -409,26 +328,9 @@ public class PrimaryRestartTests {
     primaryServer.refresh("test_index");
 
     replicaServer.waitForReplication("test_index");
-    long currentSearcherVersion2 =
-        replicaServer
-            .getClient()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName("test_index")
-                    .setQuery(Query.newBuilder().build())
-                    .build())
-            .getSearchState()
-            .getSearcherVersion();
-    IndexSearcher currentSearcher2 =
-        replicaServer
-            .getGlobalState()
-            .getIndex("test_index")
-            .getShard(0)
-            .slm
-            .acquire(currentSearcherVersion2);
-    List<LeafReaderContext> currentLeaves2 = currentSearcher2.getIndexReader().leaves();
-    replicaServer.getGlobalState().getIndex("test_index").getShard(0).slm.release(currentSearcher2);
+    long currentSearcherVersion2 = getCurrentSearcherVersion(replicaServer);
+    List<LeafReaderContext> currentLeaves2 =
+        getVersionLeaves(replicaServer, currentSearcherVersion2);
 
     primaryServer.verifySimpleDocIds("test_index", 1, 2, 3, 9, 10, 11, 12);
     replicaServer.verifySimpleDocIds("test_index", 1, 2, 3, 9, 10, 11, 12);
@@ -438,18 +340,44 @@ public class PrimaryRestartTests {
     verifySimpleDocIdsForVersion(
         replicaServer, previousSearcherVersion2, "test_index", 1, 2, 3, 4, 5, 6, 7, 8);
 
-    verifySegmentsClosed(previousLeaves1);
-    verifySegmentsClosed(previousLeaves2);
-    verifySegmentsClosed(currentLeaves1);
-    verifySegmentsClosed(currentLeaves2);
+    verifySegmentReaderStatus(previousLeaves1, Set.of("_0", "_1"), Collections.emptySet());
+    verifySegmentReaderStatus(previousLeaves2, Set.of("_0", "_1", "_2"), Collections.emptySet());
+    verifySegmentReaderStatus(
+        currentLeaves1, Set.of("_0", "_1", "_2", "_3"), Collections.emptySet());
+    verifySegmentReaderStatus(
+        currentLeaves2, Set.of("_0", "_1", "_2", "_3", "_4"), Collections.emptySet());
 
     Thread.sleep(3000);
     replicaServer.getGlobalState().getIndex("test_index").getShard(0).slm.prune(new PruneByAge(1));
 
-    verifySegmentsClosed(previousLeaves1, "_1");
-    verifySegmentsClosed(previousLeaves2, "_1", "_2");
-    verifySegmentsClosed(currentLeaves1);
-    verifySegmentsClosed(currentLeaves2);
+    verifySegmentReaderStatus(previousLeaves1, Set.of("_0"), Set.of("_1"));
+    verifySegmentReaderStatus(previousLeaves2, Set.of("_0"), Set.of("_1", "_2"));
+    verifySegmentReaderStatus(
+        currentLeaves1, Set.of("_0", "_1", "_2", "_3"), Collections.emptySet());
+    verifySegmentReaderStatus(
+        currentLeaves2, Set.of("_0", "_1", "_2", "_3", "_4"), Collections.emptySet());
+  }
+
+  private List<LeafReaderContext> getVersionLeaves(TestServer server, long version)
+      throws IOException {
+    IndexSearcher searcher =
+        server.getGlobalState().getIndex("test_index").getShard(0).slm.acquire(version);
+    List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
+    server.getGlobalState().getIndex("test_index").getShard(0).slm.release(searcher);
+    return leaves;
+  }
+
+  private long getCurrentSearcherVersion(TestServer server) {
+    return server
+        .getClient()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName("test_index")
+                .setQuery(Query.newBuilder().build())
+                .build())
+        .getSearchState()
+        .getSearcherVersion();
   }
 
   private void verifySimpleDocIdsForVersion(
@@ -483,14 +411,21 @@ public class PrimaryRestartTests {
     assertEquals(uniqueIds, uniqueHitIds);
   }
 
-  private void verifySegmentsClosed(List<LeafReaderContext> leaves, String... segmentNames) {
-    Set<String> expectedSegments = new HashSet<>(Arrays.asList(segmentNames));
+  private void verifySegmentReaderStatus(
+      List<LeafReaderContext> leaves,
+      Set<String> expectedOpenSegments,
+      Set<String> expectedClosedSegments) {
     Set<String> closedSegments = new HashSet<>();
+    Set<String> openSegments = new HashSet<>();
     for (LeafReaderContext context : leaves) {
+      String name = ((SegmentReader) context.reader()).getSegmentName();
       if (context.reader().getRefCount() == 0) {
-        closedSegments.add(((SegmentReader) context.reader()).getSegmentName());
+        closedSegments.add(name);
+      } else {
+        openSegments.add(name);
       }
     }
-    assertEquals(expectedSegments, closedSegments);
+    assertEquals(expectedClosedSegments, closedSegments);
+    assertEquals(expectedOpenSegments, openSegments);
   }
 }

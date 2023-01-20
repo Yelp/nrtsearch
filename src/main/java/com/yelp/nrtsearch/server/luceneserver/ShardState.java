@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
@@ -939,6 +940,7 @@ public class ShardState implements Closeable {
           new HostPort(
               indexState.getGlobalState().getHostName(),
               indexState.getGlobalState().getReplicationPort());
+      LuceneServerConfiguration configuration = indexState.getGlobalState().getConfiguration();
       nrtReplicaNode =
           new NRTReplicaNode(
               indexState.getName(),
@@ -948,9 +950,9 @@ public class ShardState implements Closeable {
               indexDir,
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
-              indexState.getGlobalState().getConfiguration().getFileCopyConfig().getAckedCopy(),
-              indexState.getGlobalState().getConfiguration().getDecInitialCommit(),
-              indexState.getGlobalState().getConfiguration().getFilterIncompatibleSegmentReaders());
+              configuration.getFileCopyConfig().getAckedCopy(),
+              configuration.getDecInitialCommit(),
+              configuration.getFilterIncompatibleSegmentReaders());
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {

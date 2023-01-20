@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
@@ -80,12 +81,12 @@ public class FilteringSegmentInfosSearcherManager extends SegmentInfosSearcherMa
         final SegmentReader sr = (SegmentReader) old.getIndexReader().leaves().get(i).reader();
         oldReadersMap.put(sr.getSegmentName(), i);
       }
+      List<LeafReaderContext> leaves = old.getIndexReader().leaves();
       subs = new ArrayList<>();
       for (SegmentCommitInfo commitInfo : newInfos) {
         Integer oldReaderIndex = oldReadersMap.get(commitInfo.info.name);
         if (oldReaderIndex != null) {
-          SegmentReader oldReader =
-              (SegmentReader) old.getIndexReader().leaves().get(oldReaderIndex).reader();
+          SegmentReader oldReader = (SegmentReader) leaves.get(oldReaderIndex).reader();
           // check if old reader is compatible with new segment data
           if (Arrays.equals(commitInfo.info.getId(), oldReader.getSegmentInfo().info.getId())) {
             subs.add(oldReader);
