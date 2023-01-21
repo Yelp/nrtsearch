@@ -54,6 +54,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.facet.DrillDownQuery;
@@ -208,7 +209,12 @@ public class SearchRequestProcessor {
       SearchRequest request, Map<String, FieldDef> queryFields) {
     Map<String, FieldDef> retrieveFields = new HashMap<>();
     if (request.getRetrieveFieldsCount() == 1 && request.getRetrieveFields(0).equals(WILDCARD)) {
-      return queryFields;
+      for (Entry<String, FieldDef> entry : queryFields.entrySet()) {
+        if (isRetrievable(entry.getValue())) {
+          retrieveFields.put(entry.getKey(), entry.getValue());
+        }
+      }
+      return retrieveFields;
     }
     for (String field : request.getRetrieveFieldsList()) {
       FieldDef fieldDef = queryFields.get(field);
