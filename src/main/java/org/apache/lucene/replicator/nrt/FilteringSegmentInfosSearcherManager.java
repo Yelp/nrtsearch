@@ -75,13 +75,13 @@ public class FilteringSegmentInfosSearcherManager extends SegmentInfosSearcherMa
     if (old == null) {
       subs = null;
     } else {
+      List<LeafReaderContext> leaves = old.getIndexReader().leaves();
       // create map of segment name to reader ordinal
       final Map<String, Integer> oldReadersMap = new HashMap<>();
-      for (int i = 0; i < old.getIndexReader().leaves().size(); ++i) {
-        final SegmentReader sr = (SegmentReader) old.getIndexReader().leaves().get(i).reader();
+      for (int i = 0; i < leaves.size(); ++i) {
+        final SegmentReader sr = (SegmentReader) leaves.get(i).reader();
         oldReadersMap.put(sr.getSegmentName(), i);
       }
-      List<LeafReaderContext> leaves = old.getIndexReader().leaves();
       subs = new ArrayList<>();
       for (SegmentCommitInfo commitInfo : newInfos) {
         Integer oldReaderIndex = oldReadersMap.get(commitInfo.info.name);

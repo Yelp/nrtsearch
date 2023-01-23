@@ -903,6 +903,7 @@ public class ShardState implements Closeable {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
     IndexState indexState = indexStateManager.getCurrent();
+    LuceneServerConfiguration configuration = indexState.getGlobalState().getConfiguration();
 
     // nocommit share code better w/ start and startPrimary!
     try {
@@ -913,10 +914,7 @@ public class ShardState implements Closeable {
         indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
       }
       origIndexDir =
-          indexState
-              .getDirectoryFactory()
-              .open(
-                  indexDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
+          indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
       if ((origIndexDir instanceof MMapDirectory) == false) {
@@ -934,13 +932,12 @@ public class ShardState implements Closeable {
       manager = null;
       nrtPrimaryNode = null;
 
-      boolean verbose = indexState.getGlobalState().getConfiguration().getIndexVerbose();
+      boolean verbose = configuration.getIndexVerbose();
 
       HostPort hostPort =
           new HostPort(
               indexState.getGlobalState().getHostName(),
               indexState.getGlobalState().getReplicationPort());
-      LuceneServerConfiguration configuration = indexState.getGlobalState().getConfiguration();
       nrtReplicaNode =
           new NRTReplicaNode(
               indexState.getName(),
@@ -959,7 +956,7 @@ public class ShardState implements Closeable {
         nrtReplicaNode.startWithLastPrimaryGen();
       }
 
-      if (indexState.getGlobalState().getConfiguration().getSyncInitialNrtPoint()) {
+      if (configuration.getSyncInitialNrtPoint()) {
         nrtReplicaNode.syncFromCurrentPrimary(
             INITIAL_SYNC_PRIMARY_WAIT_MS, INITIAL_SYNC_MAX_TIME_MS);
       }
@@ -986,7 +983,7 @@ public class ShardState implements Closeable {
       keepAlive = new KeepAlive(this);
       new Thread(keepAlive, "KeepAlive").start();
 
-      WarmerConfig warmerConfig = indexState.getGlobalState().getConfiguration().getWarmerConfig();
+      WarmerConfig warmerConfig = configuration.getWarmerConfig();
       if (warmerConfig.isWarmOnStartup() && indexState.getWarmer() != null) {
         try {
           indexState.getWarmer().warmFromS3(indexState, warmerConfig.getWarmingParallelism());
