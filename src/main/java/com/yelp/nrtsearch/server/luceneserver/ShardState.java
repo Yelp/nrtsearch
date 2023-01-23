@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
@@ -902,6 +903,7 @@ public class ShardState implements Closeable {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
     IndexState indexState = indexStateManager.getCurrent();
+    LuceneServerConfiguration configuration = indexState.getGlobalState().getConfiguration();
 
     // nocommit share code better w/ start and startPrimary!
     try {
@@ -912,10 +914,7 @@ public class ShardState implements Closeable {
         indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
       }
       origIndexDir =
-          indexState
-              .getDirectoryFactory()
-              .open(
-                  indexDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
+          indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
       if ((origIndexDir instanceof MMapDirectory) == false) {
@@ -933,7 +932,7 @@ public class ShardState implements Closeable {
       manager = null;
       nrtPrimaryNode = null;
 
-      boolean verbose = indexState.getGlobalState().getConfiguration().getIndexVerbose();
+      boolean verbose = configuration.getIndexVerbose();
 
       HostPort hostPort =
           new HostPort(
@@ -948,15 +947,16 @@ public class ShardState implements Closeable {
               indexDir,
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
-              indexState.getGlobalState().getConfiguration().getFileCopyConfig().getAckedCopy(),
-              indexState.getGlobalState().getConfiguration().getDecInitialCommit());
+              configuration.getFileCopyConfig().getAckedCopy(),
+              configuration.getDecInitialCommit(),
+              configuration.getFilterIncompatibleSegmentReaders());
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {
         nrtReplicaNode.startWithLastPrimaryGen();
       }
 
-      if (indexState.getGlobalState().getConfiguration().getSyncInitialNrtPoint()) {
+      if (configuration.getSyncInitialNrtPoint()) {
         nrtReplicaNode.syncFromCurrentPrimary(
             INITIAL_SYNC_PRIMARY_WAIT_MS, INITIAL_SYNC_MAX_TIME_MS);
       }
@@ -983,7 +983,7 @@ public class ShardState implements Closeable {
       keepAlive = new KeepAlive(this);
       new Thread(keepAlive, "KeepAlive").start();
 
-      WarmerConfig warmerConfig = indexState.getGlobalState().getConfiguration().getWarmerConfig();
+      WarmerConfig warmerConfig = configuration.getWarmerConfig();
       if (warmerConfig.isWarmOnStartup() && indexState.getWarmer() != null) {
         try {
           indexState.getWarmer().warmFromS3(indexState, warmerConfig.getWarmingParallelism());

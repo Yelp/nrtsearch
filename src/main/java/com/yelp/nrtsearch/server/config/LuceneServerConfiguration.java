@@ -94,6 +94,7 @@ public class LuceneServerConfiguration {
   private final IndexStartConfig indexStartConfig;
   private final int discoveryFileUpdateIntervalMs;
   private final FSTLoadMode completionCodecLoadMode;
+  private final boolean filterIncompatibleSegmentReaders;
 
   private final YamlConfigReader configReader;
   private final long maxConnectionAgeForReplication;
@@ -161,6 +162,8 @@ public class LuceneServerConfiguration {
             "discoveryFileUpdateIntervalMs", ReplicationServerClient.FILE_UPDATE_INTERVAL_MS);
     completionCodecLoadMode =
         FSTLoadMode.valueOf(configReader.getString("completionCodecLoadMode", "ON_HEAP"));
+    filterIncompatibleSegmentReaders =
+        configReader.getBoolean("filterIncompatibleSegmentReaders", false);
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
@@ -309,6 +312,10 @@ public class LuceneServerConfiguration {
 
   public FSTLoadMode getCompletionCodecLoadMode() {
     return completionCodecLoadMode;
+  }
+
+  public boolean getFilterIncompatibleSegmentReaders() {
+    return filterIncompatibleSegmentReaders;
   }
 
   /**
