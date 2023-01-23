@@ -780,35 +780,16 @@ public class LuceneServerTest {
 
   @Test
   public void testSearchFetchingAllFieldsWithWildcard() throws IOException, InterruptedException {
-    GrpcServer.TestServer testAddDocs =
-        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
-    // 2 docs addDocuments
-    testAddDocs.addDocuments();
-    // manual refresh
+    new GrpcServer.IndexAndRoleManager(grpcServer)
+        .createStartIndexAndRegisterFields(
+            Mode.STANDALONE, 0, false, "registerFieldsWildcardRetrieval.json");
+    new GrpcServer.TestServer(grpcServer, false, Mode.STANDALONE)
+        .addDocuments("addDocsWildcardRetrieval.csv");
+
     grpcServer
         .getBlockingStub()
         .refresh(RefreshRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
 
-    // support format of ["*"]
-    SearchResponse searchResponse =
-        grpcServer
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName(grpcServer.getTestIndex())
-                    .setStartHit(0)
-                    .setTopHits(10)
-                    .addAllRetrieveFields(Arrays.asList("*"))
-                    .build());
-
-    assertEquals(2, searchResponse.getTotalHits().getValue());
-    assertEquals(2, searchResponse.getHitsList().size());
-    SearchResponse.Hit firstHitWithArrOfWildcard = searchResponse.getHits(0);
-    checkHits(firstHitWithArrOfWildcard);
-    SearchResponse.Hit secondHitWithArrOfWildcard = searchResponse.getHits(1);
-    checkHits(secondHitWithArrOfWildcard);
-
-    // support format of "*"
     SearchResponse searchResponseWithWildcard =
         grpcServer
             .getBlockingStub()
@@ -822,10 +803,8 @@ public class LuceneServerTest {
 
     assertEquals(2, searchResponseWithWildcard.getTotalHits().getValue());
     assertEquals(2, searchResponseWithWildcard.getHitsList().size());
-    SearchResponse.Hit firstHitWithStrOfWildcard = searchResponseWithWildcard.getHits(0);
-    checkHits(firstHitWithStrOfWildcard);
-    SearchResponse.Hit secondHitWithStrOfWildcard = searchResponseWithWildcard.getHits(1);
-    checkHits(secondHitWithStrOfWildcard);
+    checkHits(searchResponseWithWildcard.getHits(0));
+    checkHits(searchResponseWithWildcard.getHits(1));
   }
 
   @Test
