@@ -27,7 +27,7 @@ message IntObject {
 
 message CustomAnalyzer {
     repeated NameAndParams charFilters = 1; // Available char filters as of Lucene 8.2.0: htmlstrip, mapping, persian, patternreplace
-    NameAndParams tokenizer = 2; // Specify a Lucene tokenizer (https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/Tokenizer.html). Possible options as of Lucene 8.2.0: keyword, letter, whitespace, edgengram, pathhierarchy, pattern, simplepatternsplit, classic, standard, uax29urlemail, thai, wikipedia.
+    NameAndParams tokenizer = 2; // Specify a Lucene tokenizer (https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/Tokenizer.html). Possible options as of Lucene 8.2.0: keyword, letter, whitespace, edgeNGram, nGram, pathHierarchy, pattern, simplePatternSplit, simplePattern, classic, standard, uax29UrlEmail, thai, wikipedia.
     repeated NameAndParams tokenFilters = 3; // Specify a Lucene token filter (https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/TokenFilter.html). The possible options can be seen at https://lucene.apache.org/core/8_2_0/analyzers-common/org/apache/lucene/analysis/util/TokenFilterFactory.html and subclasses of TokenFilter at https://lucene.apache.org/core/8_2_0/core/org/apache/lucene/analysis/package-tree.html or by calling TokenFilterFactory.availableTokenFilters().
     repeated ConditionalTokenFilter conditionalTokenFilters = 4; // TODO: this is not properly supported yet, the only impl requires a protected terms file. Can support this properly later if needed
     string defaultMatchVersion = 5; // Lucene version as LUCENE_X_Y_Z or X.Y.Z, LATEST by default
