@@ -704,6 +704,8 @@ message Collector {
         PluginCollector pluginCollector = 2;
         //Collector for getting top hits based on score or sorting.
         TopHitsCollector topHitsCollector = 4;
+        //Collector that filters documents to nested collectors
+        FilterCollector filter = 5;
     }
     //Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors.
     map<string, Collector> nestedCollectors = 3;
@@ -739,6 +741,16 @@ message TopHitsCollector {
     repeated string retrieveFields = 4;
 }
 
+//Definition of filtering collector, there must be at least one nested collector specified in the Collector message.
+message FilterCollector {
+    oneof Filter {
+        // Only propagate documents that match the given query.
+        Query query = 1;
+        // Specialized implementation for set queries, checks if field doc values are in the provided set. This can be useful for large set sizes with lower recall, where building the scorer would be expensive.
+        TermInSetQuery setQuery = 2;
+    }
+}
+
 message CollectorResult {
     oneof CollectorResults {
         //Result of collector that produces buckets and counts.
@@ -747,6 +759,8 @@ message CollectorResult {
         google.protobuf.Any anyResult = 2;
         //Result of collector that returns document hits.
         HitsResult hitsResult = 4;
+        //Result of collector that filters documents.
+        FilterResult filterResult = 5;
     }
 }
 
@@ -769,6 +783,13 @@ message HitsResult {
     TotalHits totalHits = 3;
     //Ordered hits with scoring/sorting info and retrieved fields.
     repeated SearchResponse.Hit hits = 4;
+}
+
+message FilterResult {
+    //Number of documents that passed the filter.
+    int32 docCount = 1;
+    //Results from nested collectors.
+    map<string, CollectorResult> nestedCollectorResults = 2;
 }
 
 // Specify how to highlight matched text in SearchRequest

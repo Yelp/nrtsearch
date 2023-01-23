@@ -2393,6 +2393,10 @@
           "$ref": "#/definitions/luceneserverTopHitsCollector",
           "description": "Collector for getting top hits based on score or sorting."
         },
+        "filter": {
+          "$ref": "#/definitions/luceneserverFilterCollector",
+          "title": "Collector that filters documents to nested collectors"
+        },
         "nestedCollectors": {
           "type": "object",
           "additionalProperties": {
@@ -2417,6 +2421,10 @@
         "hitsResult": {
           "$ref": "#/definitions/luceneserverHitsResult",
           "description": "Result of collector that returns document hits."
+        },
+        "filterResult": {
+          "$ref": "#/definitions/luceneserverFilterResult",
+          "description": "Result of collector that filters documents."
         }
       }
     },
@@ -3115,6 +3123,37 @@
           "items": {
             "$ref": "#/definitions/luceneserverFileMetadata"
           }
+        }
+      }
+    },
+    "luceneserverFilterCollector": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "description": "Only propagate documents that match the given query."
+        },
+        "setQuery": {
+          "$ref": "#/definitions/luceneserverTermInSetQuery",
+          "description": "Specialized implementation for set queries, checks if field doc values are in the provided set. This can be useful for large set sizes with lower recall, where building the scorer would be expensive."
+        }
+      },
+      "description": "Definition of filtering collector, there must be at least one nested collector specified in the Collector message."
+    },
+    "luceneserverFilterResult": {
+      "type": "object",
+      "properties": {
+        "docCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of documents that passed the filter."
+        },
+        "nestedCollectorResults": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollectorResult"
+          },
+          "description": "Results from nested collectors."
         }
       }
     },
