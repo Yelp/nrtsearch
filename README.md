@@ -1,7 +1,9 @@
-[![Coverage](.github/badges/jacoco.svg)](jacoco.svg)
+[![Coverage](.github/badges/jacoco.svg)](jacoco.svg) [![Docs](https://readthedocs.org/projects/nrtsearch/badge/?version=latest)](https://nrtsearch.readthedocs.io/en/latest/)
 # nrtSearch
 A high performance gRPC server, with optional REST APIs on top of [Apache Lucene](http://lucene.apache.org/) version 8.x source, exposing Lucene's
 core functionality over a simple gRPC based API.
+
+Documentation is available at [readthedocs](https://nrtsearch.readthedocs.io/en/latest/).
 
 # Features
 * Relies on Lucene's [near-real-time segment replication](http://blog.mikemccandless.com/2017/09/lucenes-near-real-time-segment-index.html) for data replication. This means, a dedicated primary/writer node takes care of indexing operations and expensive operations like [segment merges](http://blog.mikemccandless.com/2011/02/visualizing-lucenes-segment-merges.html). This allows the replicas' system resources to be dedicated entirely for search queries. This behavior is in contrast to the document replication approach taken by some other popular search engines based on lucene like elasticsearch where every node is a writer and a reader.
