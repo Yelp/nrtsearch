@@ -719,26 +719,22 @@ public class LuceneServer {
     public StreamObserver<AddDocumentRequest> addDocuments(
         StreamObserver<AddDocumentResponse> responseObserver) {
 
-      return new StreamObserver<AddDocumentRequest>() {
+      return new StreamObserver<>() {
         Multimap<String, Future<Long>> futures = HashMultimap.create();
         // Map of {indexName: addDocumentRequestQueue}
         Map<String, ArrayBlockingQueue<AddDocumentRequest>> addDocumentRequestQueueMap =
             new ConcurrentHashMap<>();
         // Map of {indexName: count}
         Map<String, Long> countMap = new ConcurrentHashMap<>();
-        private static final int DEFAULT_MAX_BUFFER_LEN = 100;
 
         private int getAddDocumentsMaxBufferLen(String indexName) {
           try {
             return globalState.getIndex(indexName).getAddDocumentsMaxBufferLen();
           } catch (Exception e) {
-            logger.warn(
-                String.format(
-                    "error while trying to get addDocumentsMaxBufferLen from"
-                        + "liveSettings of index %s. Using DEFAULT_MAX_BUFFER_LEN %d.",
-                    indexName, DEFAULT_MAX_BUFFER_LEN),
-                e);
-            return DEFAULT_MAX_BUFFER_LEN;
+            String error =
+                String.format("Index %s does not exist, unable to add documents", indexName);
+            logger.error(error, e);
+            throw Status.INVALID_ARGUMENT.withDescription(error).withCause(e).asRuntimeException();
           }
         }
 
@@ -770,8 +766,13 @@ public class LuceneServer {
         @Override
         public void onNext(AddDocumentRequest addDocumentRequest) {
           String indexName = addDocumentRequest.getIndexName();
-          ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue =
-              getAddDocumentRequestQueue(indexName);
+          ArrayBlockingQueue<AddDocumentRequest> addDocumentRequestQueue;
+          try {
+            addDocumentRequestQueue = getAddDocumentRequestQueue(indexName);
+          } catch (Exception e) {
+            onError(e);
+            return;
+          }
           logger.debug(
               String.format(
                   "onNext, index: %s, addDocumentRequestQueue size: %s",
@@ -1087,6 +1088,7 @@ public class LuceneServer {
                           "error while trying to execute search for index %s. check logs for full searchRequest.",
                           searchRequest.getIndexName()))
                   .augmentDescription(e.getMessage())
+                  .withCause(e)
                   .asRuntimeException());
         }
       }
@@ -1138,6 +1140,7 @@ public class LuceneServer {
                           "error while trying to execute search for index %s. check logs for full searchRequest.",
                           searchRequest.getIndexName()))
                   .augmentDescription(e.getMessage())
+                  .withCause(e)
                   .asRuntimeException());
         }
       }
@@ -1815,7 +1818,12 @@ public class LuceneServer {
         responseObserver.onCompleted();
       } catch (Exception e) {
         logger.error("Error processing custom request {}", request, e);
-        responseObserver.onError(e);
+        responseObserver.onError(
+            Status.INTERNAL
+                .withDescription("Unable to process custom request: " + request)
+                .augmentDescription(e.getMessage())
+                .withCause(e)
+                .asException());
       }
     }
   }
