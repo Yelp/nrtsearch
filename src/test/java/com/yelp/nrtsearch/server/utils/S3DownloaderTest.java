@@ -29,6 +29,7 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.nio.file.Path;
 import org.apache.commons.io.IOUtils;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -40,12 +41,14 @@ public class S3DownloaderTest {
   private static final String CONTENT = "test_content";
 
   @ClassRule public static final TemporaryFolder FOLDER = new TemporaryFolder();
+
+  private static S3Mock api;
   private static S3Downloader s3Downloader;
 
   @BeforeClass
   public static void setup() throws IOException {
     Path s3Directory = FOLDER.newFolder("s3").toPath();
-    S3Mock api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
+    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
     api.start();
     AmazonS3 s3 =
         AmazonS3ClientBuilder.standard()
@@ -55,6 +58,11 @@ public class S3DownloaderTest {
     s3.createBucket(BUCKET_NAME);
     s3Downloader = new S3Downloader(s3);
     s3.putObject(BUCKET_NAME, KEY, CONTENT);
+  }
+
+  @AfterClass
+  public static void shutdown() {
+    api.shutdown();
   }
 
   @Test
