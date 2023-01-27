@@ -18,6 +18,8 @@ package com.yelp.nrtsearch.server.utils;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -47,7 +49,7 @@ public class S3DownloaderTest {
     api.start();
     AmazonS3 s3 =
         AmazonS3ClientBuilder.standard()
-            .withCredentials(new AnonymousAWSCredentialsProvider())
+            .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
             .withEndpointConfiguration(new EndpointConfiguration("http://127.0.0.1:8011", ""))
             .build();
     s3.createBucket(BUCKET_NAME);
