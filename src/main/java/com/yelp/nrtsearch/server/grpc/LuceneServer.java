@@ -1088,7 +1088,6 @@ public class LuceneServer {
                           "error while trying to execute search for index %s. check logs for full searchRequest.",
                           searchRequest.getIndexName()))
                   .augmentDescription(e.getMessage())
-                  .withCause(e)
                   .asRuntimeException());
         }
       }
@@ -1140,7 +1139,6 @@ public class LuceneServer {
                           "error while trying to execute search for index %s. check logs for full searchRequest.",
                           searchRequest.getIndexName()))
                   .augmentDescription(e.getMessage())
-                  .withCause(e)
                   .asRuntimeException());
         }
       }
