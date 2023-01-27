@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.utils;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3URI;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -45,14 +47,43 @@ public class S3Downloader {
     this.s3 = s3;
   }
 
+  /**
+   * Download a file from the specified bucket and key.
+   *
+   * @param s3Path Complete S3 path of the file
+   * @return {@link InputStream} of the file being streamed
+   * @throws IllegalArgumentException if bucket or path not found
+   */
+  public InputStream downloadFromS3Path(String s3Path) {
+    AmazonS3URI s3URI = new AmazonS3URI(s3Path);
+    return downloadFromS3Path(s3URI.getBucket(), s3URI.getKey());
+  }
+
+  /**
+   * Download a file from the specified bucket and key.
+   *
+   * @param bucketName Bucket name in S3
+   * @param absoluteResourcePath Key for the file in the bucket
+   * @return {@link InputStream} of the file being streamed
+   * @throws IllegalArgumentException if bucket or path not found
+   */
   public InputStream downloadFromS3Path(String bucketName, String absoluteResourcePath) {
     logger.info("Downloading {} from bucket {}", absoluteResourcePath, bucketName);
     final InputStream s3InputStream;
     // Stream the file download from s3 instead of writing to a file first
     GetObjectMetadataRequest metadataRequest =
         new GetObjectMetadataRequest(bucketName, absoluteResourcePath);
-    ObjectMetadata fullMetadata = s3.getObjectMetadata(metadataRequest);
-    logger.info("Full object size: " + fullMetadata.getContentLength());
+    try {
+      ObjectMetadata fullMetadata = s3.getObjectMetadata(metadataRequest);
+      logger.info("Full object size: " + fullMetadata.getContentLength());
+    } catch (AmazonS3Exception e) {
+      if (e.getStatusCode() == 404) {
+        String error =
+            String.format("Object s3://%s/%s not found", bucketName, absoluteResourcePath);
+        throw new IllegalArgumentException(error, e);
+      }
+      throw e;
+    }
 
     // get metadata for the 1st file part, needed to find the total number of parts
     ObjectMetadata partMetadata = s3.getObjectMetadata(metadataRequest.withPartNumber(1));
