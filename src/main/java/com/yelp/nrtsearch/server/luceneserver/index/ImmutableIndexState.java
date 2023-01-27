@@ -721,7 +721,12 @@ public class ImmutableIndexState extends IndexState {
   public JsonObject getSaveState() {
     String stateString;
     try {
-      stateString = JsonFormat.printer().print(currentStateInfo);
+      // Ensure the 'fields' map is always present in the output, even when empty
+      stateString =
+          JsonFormat.printer()
+              .includingDefaultValueFields(
+                  Set.of(IndexStateInfo.getDescriptor().findFieldByName("fields")))
+              .print(currentStateInfo);
     } catch (InvalidProtocolBufferException e) {
       throw new RuntimeException(e);
     }
