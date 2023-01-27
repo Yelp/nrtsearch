@@ -21,6 +21,7 @@ import com.google.inject.Provides;
 import com.google.inject.Singleton;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LuceneServer;
+import com.yelp.nrtsearch.server.module.S3Module;
 import io.prometheus.client.CollectorRegistry;
 import java.io.File;
 import java.io.FileInputStream;
@@ -38,6 +39,7 @@ public class LuceneServerModule extends AbstractModule {
 
   @Override
   protected void configure() {
+    install(new S3Module());
     install(new ArchiverModule());
   }
 
