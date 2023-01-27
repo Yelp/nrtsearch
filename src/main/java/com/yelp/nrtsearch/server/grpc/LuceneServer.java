@@ -1815,13 +1815,10 @@ public class LuceneServer {
         responseObserver.onNext(response);
         responseObserver.onCompleted();
       } catch (Exception e) {
-        logger.error("Error processing custom request {}", request, e);
-        responseObserver.onError(
-            Status.INTERNAL
-                .withDescription("Unable to process custom request: " + request)
-                .augmentDescription(e.getMessage())
-                .withCause(e)
-                .asException());
+        String error =
+            String.format("Error processing custom request %s, error: %s", request, e.getMessage());
+        logger.error(error);
+        responseObserver.onError(Status.INTERNAL.withDescription(error).withCause(e).asException());
       }
     }
   }
