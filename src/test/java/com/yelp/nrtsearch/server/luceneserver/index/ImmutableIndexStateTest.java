@@ -29,6 +29,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
@@ -1341,5 +1343,165 @@ public class ImmutableIndexStateTest {
     Set<String> expectedFiles = new HashSet<>(restoreFiles);
     expectedFiles.add(IndexWriter.WRITE_LOCK_NAME);
     assertEquals(expectedFiles, indexFiles);
+  }
+
+  @Test
+  public void testGetSaveState_empty() throws IOException {
+    ImmutableIndexState indexState = getIndexState(getEmptyState());
+    JsonObject saveStateJson = indexState.getSaveState();
+    assertEquals(6, saveStateJson.size());
+    JsonElement element = saveStateJson.get("indexName");
+    assertNotNull(element);
+    assertEquals("test_index", element.getAsString());
+
+    element = saveStateJson.get("gen");
+    assertNotNull(element);
+    assertEquals(1L, element.getAsLong());
+
+    element = saveStateJson.get("committed");
+    assertNotNull(element);
+    assertTrue(element.getAsBoolean());
+
+    element = saveStateJson.get("settings");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+    assertEquals(0, element.getAsJsonObject().size());
+
+    element = saveStateJson.get("liveSettings");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+    assertEquals(0, element.getAsJsonObject().size());
+
+    element = saveStateJson.get("fields");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+    assertEquals(0, element.getAsJsonObject().size());
+  }
+
+  @Test
+  public void testGetSaveState_settings() throws IOException {
+    IndexSettings settings =
+        IndexSettings.newBuilder()
+            .setConcurrentMergeSchedulerMaxMergeCount(wrap(5))
+            .setConcurrentMergeSchedulerMaxThreadCount(wrap(2))
+            .setNrtCachingDirectoryMaxSizeMB(wrap(100.0))
+            .build();
+    ImmutableIndexState indexState = getIndexState(getStateWithSettings(settings));
+    JsonObject saveStateJson = indexState.getSaveState();
+    assertEquals(6, saveStateJson.size());
+    JsonElement element = saveStateJson.get("settings");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+
+    JsonObject jsonObject = element.getAsJsonObject();
+    assertEquals(3, jsonObject.size());
+
+    element = jsonObject.get("nrtCachingDirectoryMaxSizeMB");
+    assertNotNull(element);
+    assertEquals(100.0, element.getAsDouble(), 0.0);
+
+    element = jsonObject.get("concurrentMergeSchedulerMaxThreadCount");
+    assertNotNull(element);
+    assertEquals(2, element.getAsInt());
+
+    element = jsonObject.get("concurrentMergeSchedulerMaxMergeCount");
+    assertNotNull(element);
+    assertEquals(5, element.getAsInt());
+  }
+
+  @Test
+  public void testGetSaveState_liveSettings() throws IOException {
+    IndexLiveSettings liveSettings =
+        IndexLiveSettings.newBuilder()
+            .setDefaultTerminateAfter(wrap(100))
+            .setMaxRefreshSec(wrap(10.0))
+            .setSegmentsPerTier(wrap(5))
+            .build();
+    ImmutableIndexState indexState = getIndexState(getStateWithLiveSettings(liveSettings));
+    JsonObject saveStateJson = indexState.getSaveState();
+    assertEquals(6, saveStateJson.size());
+    JsonElement element = saveStateJson.get("liveSettings");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+
+    JsonObject jsonObject = element.getAsJsonObject();
+    assertEquals(3, jsonObject.size());
+
+    element = jsonObject.get("maxRefreshSec");
+    assertNotNull(element);
+    assertEquals(10.0, element.getAsDouble(), 0.0);
+
+    element = jsonObject.get("segmentsPerTier");
+    assertNotNull(element);
+    assertEquals(5, element.getAsInt());
+
+    element = jsonObject.get("defaultTerminateAfter");
+    assertNotNull(element);
+    assertEquals(100, element.getAsInt());
+  }
+
+  @Test
+  public void testGetSaveState_fields() throws IOException {
+    IndexStateInfo stateInfo =
+        getEmptyState()
+            .toBuilder()
+            .putFields(
+                "field1",
+                Field.newBuilder()
+                    .setName("field1")
+                    .setType(FieldType.ATOM)
+                    .setSearch(true)
+                    .setStore(false)
+                    .setStoreDocValues(false)
+                    .build())
+            .putFields(
+                "field2",
+                Field.newBuilder()
+                    .setName("field2")
+                    .setType(FieldType.INT)
+                    .setStoreDocValues(true)
+                    .build())
+            .build();
+    ImmutableIndexState indexState = getIndexState(stateInfo);
+    JsonObject saveStateJson = indexState.getSaveState();
+    assertEquals(6, saveStateJson.size());
+    JsonElement element = saveStateJson.get("fields");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+
+    JsonObject jsonObject = element.getAsJsonObject();
+    assertEquals(2, jsonObject.size());
+
+    element = jsonObject.get("field1");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+    JsonObject fieldObject = element.getAsJsonObject();
+    assertEquals(2, fieldObject.size());
+
+    element = fieldObject.get("name");
+    assertNotNull(element);
+    assertEquals("field1", element.getAsString());
+
+    element = fieldObject.get("search");
+    assertNotNull(element);
+    assertTrue(element.getAsBoolean());
+
+    element = jsonObject.get("field2");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+    fieldObject = element.getAsJsonObject();
+    assertEquals(3, fieldObject.size());
+
+    element = fieldObject.get("name");
+    assertNotNull(element);
+    assertEquals("field2", element.getAsString());
+
+    element = fieldObject.get("type");
+    assertNotNull(element);
+    assertEquals("INT", element.getAsString());
+
+    element = fieldObject.get("storeDocValues");
+    assertNotNull(element);
+    assertTrue(element.getAsBoolean());
   }
 }
