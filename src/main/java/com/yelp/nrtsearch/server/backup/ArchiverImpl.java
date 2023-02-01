@@ -77,7 +77,7 @@ public class ArchiverImpl implements Archiver {
     this.archiverDirectory = archiverDirectory;
     this.tar = tar;
     this.versionManger = new VersionManager(s3, bucketName);
-    this.s3Downloader = new S3Downloader(s3);
+    this.s3Downloader = new S3Downloader(s3, executor);
     this.downloadAsStream = downloadAsStream;
   }
 

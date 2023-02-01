@@ -22,7 +22,7 @@ import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
-import com.google.inject.Inject;
+import java.io.Closeable;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.util.Enumeration;
@@ -30,21 +30,31 @@ import java.util.LinkedList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class S3Downloader {
+public class S3Downloader implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(S3Downloader.class);
 
   public static final int NUM_S3_THREADS = 20;
 
-  private final ThreadPoolExecutor executor =
-      (ThreadPoolExecutor) Executors.newFixedThreadPool(NUM_S3_THREADS);
+  private final ThreadPoolExecutor executor;
   private final AmazonS3 s3;
 
-  @Inject
   public S3Downloader(AmazonS3 s3) {
     this.s3 = s3;
+    this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(NUM_S3_THREADS);
+  }
+
+  public S3Downloader(AmazonS3 s3, int numS3Threads) {
+    this.s3 = s3;
+    this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(numS3Threads);
+  }
+
+  public S3Downloader(AmazonS3 s3, ThreadPoolExecutor executor) {
+    this.s3 = s3;
+    this.executor = executor;
   }
 
   /**
@@ -148,5 +158,15 @@ public class S3Downloader {
         }
       }
     };
+  }
+
+  @Override
+  public void close() {
+    try {
+      executor.shutdown();
+      executor.awaitTermination(1, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
   }
 }

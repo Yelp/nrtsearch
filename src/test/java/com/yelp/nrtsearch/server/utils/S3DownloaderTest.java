@@ -63,6 +63,7 @@ public class S3DownloaderTest {
   @AfterClass
   public static void shutdown() {
     api.shutdown();
+    s3Downloader.close();
   }
 
   @Test
