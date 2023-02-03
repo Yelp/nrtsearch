@@ -16,8 +16,10 @@
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
+import com.google.protobuf.BoolValue;
 import com.google.protobuf.UInt32Value;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
@@ -41,7 +43,7 @@ import java.util.Set;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-public class HighlightTest extends ServerTestCase {
+public class FastVectorHighlighterTest extends ServerTestCase {
 
   private static final List<String> ALL_FIELDS = List.of("doc_id", "comment");
 
@@ -67,6 +69,15 @@ public class HighlightTest extends ServerTestCase {
                 MultiValuedField.newBuilder()
                     .addValue("This is my regular place, the food is good")
                     .build())
+            .putFields(
+                "comment_multivalue",
+                MultiValuedField.newBuilder()
+                    .addAllValue(
+                        List.of(
+                            "The food is good there, but the service is terrible.",
+                            "I personally don't like the staff at this place",
+                            "Not all food are good."))
+                    .build())
             .build();
     docs.add(request);
     request =
@@ -84,6 +95,11 @@ public class HighlightTest extends ServerTestCase {
                 MultiValuedField.newBuilder()
                     .addValue("There is some amazing food and also drinks here. Must visit!")
                     .build())
+            .putFields(
+                "comment_multivalue",
+                MultiValuedField.newBuilder()
+                    .addValue("High quality food. Fresh and delicious!")
+                    .build())
             .build();
     docs.add(request);
     addDocuments(docs.stream());
@@ -91,7 +107,11 @@ public class HighlightTest extends ServerTestCase {
 
   @Test
   public void testBasicHighlight() {
-    Highlight highlight = Highlight.newBuilder().addFields("comment").build();
+    Highlight highlight =
+        Highlight.newBuilder()
+            .addFields("comment")
+            .setSettings(Settings.newBuilder().setScoreOrdered(BoolValue.of(true)))
+            .build();
     SearchResponse response = doHighlightQuery(highlight);
 
     assertFields(response);
@@ -101,6 +121,59 @@ public class HighlightTest extends ServerTestCase {
     assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
         .isEqualTo(
             "restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite <em>food</em> was chilly chicken");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
+  }
+
+  @Test
+  public void testBasicHighlightWithName() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .setName("fast-vector-highlighter")
+            .addFields("comment")
+            .setSettings(Settings.newBuilder().setScoreOrdered(BoolValue.of(true)))
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertFields(response);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragments(0))
+        .isEqualTo("the <em>food</em> here is amazing, service was good");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
+        .isEqualTo(
+            "restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite <em>food</em> was chilly chicken");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
+  }
+
+  @Test
+  public void testBasicHighlightWithUnknownName() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .setName("mysterious-highlighter")
+            .addFields("comment")
+            .setSettings(Settings.newBuilder().setScoreOrdered(BoolValue.of(true)))
+            .build();
+    assertThatThrownBy(() -> doHighlightQuery(highlight))
+        .isInstanceOf(StatusRuntimeException.class)
+        .hasMessageContaining("Unknown highlighter name");
+  }
+
+  @Test
+  public void testHighlightMultivalueField() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .addFields("comment_multivalue")
+            .setSettings(Settings.newBuilder().setScoreOrdered(BoolValue.of(true)))
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertFields(response);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment_multivalue").getFragmentsList())
+        .containsExactly(
+            "The <em>food</em> is good there, but the service is terrible.",
+            "Not all <em>food</em> are good.");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment_multivalue").getFragmentsList())
+        .containsExactly("High quality <em>food</em>. Fresh and delicious!");
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
@@ -116,6 +189,7 @@ public class HighlightTest extends ServerTestCase {
                 Query.newBuilder()
                     .setMatchQuery(
                         MatchQuery.newBuilder().setField("comment").setQuery("food is good")))
+            .setScoreOrdered(BoolValue.of(true))
             .build();
     Highlight highlight = Highlight.newBuilder().setSettings(settings).addFields("comment").build();
     SearchResponse response = doHighlightQuery(highlight);
@@ -142,6 +216,7 @@ public class HighlightTest extends ServerTestCase {
             .setHighlightQuery(
                 Query.newBuilder()
                     .setMatchQuery(MatchQuery.newBuilder().setField("comment").setQuery("pretty")))
+            .setScoreOrdered(BoolValue.of(true))
             .build();
     Settings fieldSettings =
         Settings.newBuilder()
@@ -170,6 +245,32 @@ public class HighlightTest extends ServerTestCase {
             "The <START>food<END> here <START>is<END> pretty",
             "This <START>is<END> my first time",
             "pretty <START>good<END>, the service");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
+  }
+
+  @Test
+  public void testNotScoreOrdered() {
+    Settings globalSettings =
+        Settings.newBuilder()
+            .setHighlightQuery(
+                Query.newBuilder()
+                    .setMatchQuery(
+                        MatchQuery.newBuilder().setField("comment").setQuery("food is good")))
+            .setFragmentSize(UInt32Value.newBuilder().setValue(18))
+            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(3))
+            .setScoreOrdered(BoolValue.of(false))
+            .build();
+    Highlight highlight =
+        Highlight.newBuilder().setSettings(globalSettings).addFields("comment").build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly("the <em>food</em> here <em>is</em> amazing", "service was <em>good</em>");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly(
+            "This <em>is</em> my first time",
+            "The <em>food</em> here <em>is</em> pretty",
+            "pretty <em>good</em>, the service");
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
@@ -283,7 +384,7 @@ public class HighlightTest extends ServerTestCase {
   public void testHighlightFieldMatchFalse() {
     Highlight highlight =
         Highlight.newBuilder()
-            .setSettings(Settings.newBuilder().setFieldMatch(false))
+            .setSettings(Settings.newBuilder().setFieldMatch(BoolValue.of(false)))
             .addFields("comment2")
             .build();
     SearchResponse response = doHighlightQuery(highlight);
@@ -300,7 +401,10 @@ public class HighlightTest extends ServerTestCase {
   public void testHighlightFieldMatchTrue() {
     Highlight highlight =
         Highlight.newBuilder()
-            .setSettings(Settings.newBuilder().setFieldMatch(true))
+            .setSettings(
+                Settings.newBuilder()
+                    .setFieldMatch(BoolValue.of(true))
+                    .setScoreOrdered(BoolValue.of(true)))
             .addFields("comment2")
             .build();
     SearchResponse response = doHighlightQuery(highlight);

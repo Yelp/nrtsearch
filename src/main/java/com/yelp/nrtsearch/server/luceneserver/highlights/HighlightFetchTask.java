@@ -15,15 +15,18 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
-import static com.yelp.nrtsearch.server.luceneserver.highlights.HighlightSettingsHelper.createPerFieldSettings;
+import static com.yelp.nrtsearch.server.luceneserver.highlights.HighlightUtils.createPerFieldSettings;
 
 import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Highlights;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.DoubleAdder;
@@ -39,20 +42,27 @@ import org.apache.lucene.search.Query;
 public class HighlightFetchTask implements FetchTask {
 
   private static final double TEN_TO_THE_POWER_SIX = Math.pow(10, 6);
+  private final IndexState indexState;
   private final IndexReader indexReader;
   private final Map<String, HighlightSettings> fieldSettings;
-  private final HighlightHandler highlightHandler = HighlightHandler.getInstance();
+  private final Highlighter highlighter;
 
   private final DoubleAdder timeTakenMs = new DoubleAdder();
+
+  private Map<String, Object> fieldToHighlighterCache;
 
   public HighlightFetchTask(
       IndexState indexState,
       SearcherAndTaxonomy searcherAndTaxonomy,
       Query searchQuery,
-      Highlight highlight)
-      throws IOException {
+      Highlighter highlighter,
+      Highlight highlight) {
+    this.indexState = indexState;
+    this.highlighter = highlighter;
+    verifyHighlights(highlight);
     indexReader = searcherAndTaxonomy.searcher.getIndexReader();
-    fieldSettings = createPerFieldSettings(indexReader, highlight, searchQuery, indexState);
+    fieldSettings = createPerFieldSettings(highlight, searchQuery, indexState);
+    fieldToHighlighterCache = highlighter.needCache() ? new HashMap<>() : null;
   }
 
   /**
@@ -73,9 +83,16 @@ public class HighlightFetchTask implements FetchTask {
     long startTime = System.nanoTime();
     for (Entry<String, HighlightSettings> fieldSetting : fieldSettings.entrySet()) {
       String fieldName = fieldSetting.getKey();
+      FieldDef fieldDef = indexState.getField(fieldName);
+      TextBaseFieldDef textBaseFieldDef =
+          (TextBaseFieldDef) fieldDef; // This is safe as we verified earlier
       String[] highlights =
-          highlightHandler.getHighlights(
-              indexReader, fieldSetting.getValue(), fieldName, hit.getLuceneDocId());
+          highlighter.getHighlights(
+              indexReader,
+              fieldSetting.getValue(),
+              textBaseFieldDef,
+              hit.getLuceneDocId(),
+              fieldToHighlighterCache);
       if (highlights != null && highlights.length > 0 && highlights[0] != null) {
         Highlights.Builder builder = Highlights.newBuilder();
         for (String fragment : highlights) {
@@ -94,5 +111,31 @@ public class HighlightFetchTask implements FetchTask {
    */
   public double getTimeTakenMs() {
     return timeTakenMs.doubleValue();
+  }
+
+  /**
+   * Verify each highlighted field is highlight-able.
+   *
+   * @param highlight
+   * @throws IllegalArgumentException if any field failed pass the verification.
+   */
+  private void verifyHighlights(Highlight highlight) {
+    for (String fieldName : highlight.getFieldsList()) {
+      FieldDef field = indexState.getField(fieldName);
+      if (!(field instanceof TextBaseFieldDef)) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Field %s is not a text field and does not support highlights", fieldName));
+      }
+      if (!((TextBaseFieldDef) field).isSearchable()) {
+        throw new IllegalArgumentException(
+            String.format("Field %s is not searchable and cannot support highlights", fieldName));
+      }
+      if (!((TextBaseFieldDef) field).isStored()) {
+        throw new IllegalArgumentException(
+            String.format("Field %s is not stored and cannot support highlights", fieldName));
+      }
+      highlighter.verifyTheSpecificHighlighter(indexReader, ((TextBaseFieldDef) field));
+    }
   }
 }
