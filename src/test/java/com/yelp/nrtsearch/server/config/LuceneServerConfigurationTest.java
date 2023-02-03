@@ -98,6 +98,7 @@ public class LuceneServerConfigurationTest {
     assertEquals(100, luceneConfig.getDiscoveryFileUpdateIntervalMs());
   }
 
+  @Test
   public void testDefaultCompletionCodecLoadMode() {
     String config = "nodeName: \"lucene_server_foo\"";
     LuceneServerConfiguration luceneConfig = getForConfig(config);
@@ -109,5 +110,37 @@ public class LuceneServerConfigurationTest {
     String config = "completionCodecLoadMode: OFF_HEAP";
     LuceneServerConfiguration luceneConfig = getForConfig(config);
     assertEquals(FSTLoadMode.OFF_HEAP, luceneConfig.getCompletionCodecLoadMode());
+  }
+
+  @Test
+  public void testInitialSyncPrimaryWaitMs_default() {
+    String config = "nodeName: \"lucene_server_foo\"";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(
+        LuceneServerConfiguration.DEFAULT_INITIAL_SYNC_PRIMARY_WAIT_MS,
+        luceneConfig.getInitialSyncPrimaryWaitMs());
+  }
+
+  @Test
+  public void testInitialSyncPrimaryWaitMs_set() {
+    String config = "initialSyncPrimaryWaitMs: 100";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(100L, luceneConfig.getInitialSyncPrimaryWaitMs());
+  }
+
+  @Test
+  public void testInitialSyncMaxTimeMs_default() {
+    String config = "nodeName: \"lucene_server_foo\"";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(
+        LuceneServerConfiguration.DEFAULT_INITIAL_SYNC_MAX_TIME_MS,
+        luceneConfig.getInitialSyncMaxTimeMs());
+  }
+
+  @Test
+  public void testInitialSyncMaxTimeMs_set() {
+    String config = "initialSyncMaxTimeMs: 100";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(100L, luceneConfig.getInitialSyncMaxTimeMs());
   }
 }

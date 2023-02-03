@@ -788,6 +788,7 @@ public class IndexStartTest {
             .withAutoStartConfig(
                 true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.LOCAL)
             .withLocalStateBackend()
+            .withSyncInitialNrtPoint(false)
             .build();
 
     assertTrue(replica.indices().contains("test_index"));

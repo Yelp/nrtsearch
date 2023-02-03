@@ -233,7 +233,7 @@ public class ReplicationServerTest {
 
   @Test
   public void replicaConnectivity() throws IOException, InterruptedException {
-    initDefaultLuceneServer();
+    initServerSyncInitialNrtPointFalse();
 
     // set ping interval to 10 ms
     luceneServerSecondary.getGlobalState().setReplicaReplicationPortPingInterval(10);
@@ -386,7 +386,7 @@ public class ReplicationServerTest {
 
   @Test
   public void testInitialSyncTimeout() throws IOException {
-    initDefaultLuceneServer();
+    initLuceneServers("initialSyncPrimaryWaitMs: 1000");
 
     // startIndex replica
     GrpcServer.TestServer testServerReplica =
