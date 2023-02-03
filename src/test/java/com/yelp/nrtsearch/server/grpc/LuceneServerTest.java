@@ -224,7 +224,8 @@ public class LuceneServerTest {
         "warmer:",
         "  maxWarmingQueries: 10",
         "  warmOnStartup: true",
-        "  warmingParallelism: 1");
+        "  warmingParallelism: 1",
+        "syncInitialNrtPoint: false");
   }
 
   @Test

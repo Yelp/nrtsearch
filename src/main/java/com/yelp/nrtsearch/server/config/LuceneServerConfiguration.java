@@ -58,6 +58,8 @@ public class LuceneServerConfiguration {
   private static final Path DEFAULT_PLUGIN_SEARCH_PATH =
       Paths.get(DEFAULT_USER_DIR.toString(), "plugins");
   private static final String DEFAULT_SERVICE_NAME = "nrtsearch-generic";
+  static final long DEFAULT_INITIAL_SYNC_PRIMARY_WAIT_MS = 30000;
+  static final long DEFAULT_INITIAL_SYNC_MAX_TIME_MS = 600000; // 10m
   private final int port;
   private final int replicationPort;
   private final int replicaReplicationPortPingInterval;
@@ -86,6 +88,8 @@ public class LuceneServerConfiguration {
   private final boolean virtualSharding;
   private final boolean decInitialCommit;
   private final boolean syncInitialNrtPoint;
+  private final long initialSyncPrimaryWaitMs;
+  private final long initialSyncMaxTimeMs;
   private final boolean indexVerbose;
   private final FileCopyConfig fileCopyConfig;
   private final ScriptCacheConfig scriptCacheConfig;
@@ -150,6 +154,10 @@ public class LuceneServerConfiguration {
     virtualSharding = configReader.getBoolean("virtualSharding", false);
     decInitialCommit = configReader.getBoolean("decInitialCommit", true);
     syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", true);
+    initialSyncPrimaryWaitMs =
+        configReader.getLong("initialSyncPrimaryWaitMs", DEFAULT_INITIAL_SYNC_PRIMARY_WAIT_MS);
+    initialSyncMaxTimeMs =
+        configReader.getLong("initialSyncMaxTimeMs", DEFAULT_INITIAL_SYNC_MAX_TIME_MS);
     indexVerbose = configReader.getBoolean("indexVerbose", false);
     fileCopyConfig = FileCopyConfig.fromConfig(configReader);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
@@ -276,6 +284,14 @@ public class LuceneServerConfiguration {
 
   public boolean getSyncInitialNrtPoint() {
     return syncInitialNrtPoint;
+  }
+
+  public long getInitialSyncPrimaryWaitMs() {
+    return initialSyncPrimaryWaitMs;
+  }
+
+  public long getInitialSyncMaxTimeMs() {
+    return initialSyncMaxTimeMs;
   }
 
   public boolean getIndexVerbose() {
