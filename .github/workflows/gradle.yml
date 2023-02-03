@@ -35,8 +35,6 @@ jobs:
       run: ./gradlew clean installDist :test -PlongRunningTestsOnly=* --info
     - name: Run Test Coverage
       run: ./gradlew jacocoTestReport
-    - name: Run Tests For Example Plugin
-      run: example-plugin/gradlew clean test
     - name: Generate JaCoCo Badge
       id: jacoco
       uses: cicirello/jacoco-badge-generator@v2.1.0
@@ -62,3 +60,5 @@ jobs:
       with:
         name: jacoco-report
         path: build/reports/jacoco/
+    - name: Run Tests For Example Plugin
+      run: example-plugin/gradlew clean test
