@@ -50,7 +50,6 @@ distributions {
                         server_version: "${nrtsearchVersion}"
                 )
             }
-            from('src/main/plugin-metadata/plugin-security.policy')
         }
     }
 }
