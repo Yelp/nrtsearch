@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        java: ['14', '17']
+        java: ['17']
     name: Java ${{ matrix.Java }} build
     steps:
     - uses: actions/checkout@v2
@@ -60,3 +60,5 @@ jobs:
       with:
         name: jacoco-report
         path: build/reports/jacoco/
+    - name: Run Tests For Example Plugin
+      run: example-plugin/gradlew -p example-plugin clean test

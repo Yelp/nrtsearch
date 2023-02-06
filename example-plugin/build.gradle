@@ -1,0 +1,69 @@
+plugins {
+    id 'com.diffplug.gradle.spotless' version '4.3.0'
+    id 'distribution'
+    // Generate IntelliJ IDEA's .idea & .iml project files
+    id 'idea'
+    id 'java'
+}
+
+repositories {
+    maven { // The google mirror is less flaky than mavenCentral()
+        url 'https://maven-central.storage-download.googleapis.com/repos/central/data/'
+    }
+    mavenLocal()
+    mavenCentral()
+}
+
+sourceCompatibility = 1.17
+targetCompatibility = 1.17
+
+group 'com.yelp.nrtsearch.plugins'
+version '0.0.1'
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    nrtsearchVersion = "0.+"
+}
+
+dependencies {
+    compileOnly "com.yelp.nrtsearch:server:${nrtsearchVersion}"
+    testImplementation "com.yelp.nrtsearch:server:${nrtsearchVersion}"
+    testImplementation("com.yelp.nrtsearch:server:${nrtsearchVersion}:tests")
+    testImplementation "junit:junit:4.13"
+    testImplementation "org.assertj:assertj-core:3.19.0"
+}
+
+distributions {
+    main {
+        contents {
+            from(jar)
+            from(this.project.configurations.runtimeClasspath)
+            from('src/main/plugin-metadata/plugin-metadata.yaml') {
+                expand(
+                        classname: 'com.yelp.nrtsearch.plugins.example.ExamplePlugin',
+                        name: "nrtsearch-plugin-example",
+                        version: project.version,
+                        description: 'Example plugin for nrtsearch',
+                        server_version: "${nrtsearchVersion}"
+                )
+            }
+        }
+    }
+}
+
+test {
+    finalizedBy 'spotlessJavaCheck'
+}
+
+spotless {
+    java {
+        licenseHeaderFile '../license_header'
+        removeUnusedImports()
+        endWithNewline()
+        trimTrailingWhitespace()
+        googleJavaFormat()
+    }
+}
