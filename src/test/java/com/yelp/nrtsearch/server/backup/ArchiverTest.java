@@ -20,13 +20,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.util.IOUtils;
-import io.findify.s3mock.S3Mock;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -38,40 +36,32 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import net.jpountz.lz4.LZ4FrameInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class ArchiverTest {
   private final String BUCKET_NAME = "archiver-unittest";
   private Archiver archiver;
-  private S3Mock api;
   private AmazonS3 s3;
-  private Path s3Directory;
   private Path archiverDirectory;
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(BUCKET_NAME);
 
   @Before
   public void setup() throws IOException {
-    s3Directory = folder.newFolder("s3").toPath();
     archiverDirectory = folder.newFolder("archiver").toPath();
 
-    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-    api.start();
-    s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
-    s3.createBucket(BUCKET_NAME);
+    s3 = s3Provider.getAmazonS3();
     s3.putObject(BUCKET_NAME, "testservice/_version/testresource/_latest_version", "1");
     s3.putObject(BUCKET_NAME, "testservice/_version/testresource/1", "abcdef");
 
     archiver =
         new ArchiverImpl(
             s3, BUCKET_NAME, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4));
-  }
-
-  @After
-  public void teardown() {
-    api.shutdown();
   }
 
   @Test

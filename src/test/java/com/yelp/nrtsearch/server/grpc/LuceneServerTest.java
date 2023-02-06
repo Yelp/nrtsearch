@@ -16,11 +16,15 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.google.api.HttpBody;
 import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
@@ -31,7 +35,7 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.luceneserver.search.cache.NrtQueryCache;
-import io.findify.s3mock.S3Mock;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
@@ -93,6 +97,9 @@ public class LuceneServerTest {
   static final List<String> LAT_LON_VALUES =
       Arrays.asList(
           "doc_id", "vendor_name", "vendor_name_atom", "license_no", "lat_lon", "lat_lon_multi");
+
+  private final String bucketName = "lucene-server-unittest";
+
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
    * end of test.
@@ -103,19 +110,19 @@ public class LuceneServerTest {
    */
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(bucketName);
+
   private GrpcServer grpcServer;
   private GrpcServer replicaGrpcServer;
   private CollectorRegistry collectorRegistry;
   private Archiver archiver;
   private AmazonS3 s3;
-  private S3Mock api;
   private final String TEST_SERVICE_NAME = "TEST_SERVICE_NAME";
 
   @After
   public void tearDown() throws IOException {
     tearDownGrpcServer();
     tearDownReplicaGrpcServer();
-    teardownArchiver();
   }
 
   private void tearDownGrpcServer() throws IOException {
@@ -130,11 +137,6 @@ public class LuceneServerTest {
     rmDir(Paths.get(replicaGrpcServer.getIndexDir()).getParent());
   }
 
-  public void teardownArchiver() {
-    s3.shutdown();
-    api.shutdown();
-  }
-
   @Before
   public void setUp() throws IOException {
     collectorRegistry = new CollectorRegistry();
@@ -145,15 +147,9 @@ public class LuceneServerTest {
   }
 
   private Archiver setUpArchiver() throws IOException {
-    Path s3Directory = folder.newFolder("s3").toPath();
     Path archiverDirectory = folder.newFolder("archiver").toPath();
 
-    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-    api.start();
-    s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
-    String bucketName = "warmer-unittest";
-    s3.createBucket(bucketName);
+    s3 = s3Provider.getAmazonS3();
 
     return new ArchiverImpl(
         s3, bucketName, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4));

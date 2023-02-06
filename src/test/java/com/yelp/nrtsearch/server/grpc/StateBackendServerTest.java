@@ -20,9 +20,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,7 +48,7 @@ import com.yelp.nrtsearch.server.grpc.LuceneServer.ReplicationServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.luceneserver.index.ImmutableIndexState;
 import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
-import io.findify.s3mock.S3Mock;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
@@ -82,6 +80,7 @@ import org.junit.rules.TemporaryFolder;
 public class StateBackendServerTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
   private Server primaryServer;
   private Server primaryReplicationServer;
@@ -93,7 +92,6 @@ public class StateBackendServerTest {
 
   private static final String TEST_BUCKET = "state-backend-server-test";
   private static final String TEST_SERVICE_NAME = "state-backend-test-service";
-  private S3Mock api;
   private IndexArchiver archiverPrimary;
   private IndexArchiver archiverReplica;
 
@@ -101,12 +99,8 @@ public class StateBackendServerTest {
   public void cleanup() throws InterruptedException {
     cleanupPrimary();
     cleanupReplica();
-    if (api != null) {
-      api.shutdown();
-      api = null;
-      archiverPrimary = null;
-      archiverReplica = null;
-    }
+    archiverPrimary = null;
+    archiverReplica = null;
   }
 
   private void cleanupPrimary() {
@@ -162,15 +156,10 @@ public class StateBackendServerTest {
   }
 
   private void initArchiver() throws IOException {
-    Path s3Directory = folder.newFolder("s3").toPath();
     Files.createDirectories(getPrimaryArchiveDir());
     Files.createDirectories(getReplicaIndexDir());
 
-    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-    api.start();
-    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
-    s3.createBucket(TEST_BUCKET);
+    AmazonS3 s3 = s3Provider.getAmazonS3();
     TransferManager transferManager =
         TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
 

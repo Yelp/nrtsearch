@@ -20,16 +20,14 @@ import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.BINARY_MAGI
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.backup.ArchiverImpl;
 import com.yelp.nrtsearch.server.backup.Tar;
 import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import io.findify.s3mock.S3Mock;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -44,6 +42,7 @@ import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
 public class ReplicationServerTest {
+  private static final String BUCKET_NAME = "archiver-unittest";
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
    * end of test.
@@ -54,17 +53,16 @@ public class ReplicationServerTest {
    */
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(BUCKET_NAME);
+
   private GrpcServer luceneServerPrimary;
   private GrpcServer replicationServerPrimary;
 
   private GrpcServer luceneServerSecondary;
   private GrpcServer replicationServerSecondary;
 
-  private S3Mock api;
-
   @After
   public void tearDown() throws IOException {
-    api.shutdown();
     luceneServerPrimary.getGlobalState().close();
     luceneServerSecondary.getGlobalState().close();
     rmDir(Paths.get(luceneServerPrimary.getIndexDir()).getParent());
@@ -518,12 +516,7 @@ public class ReplicationServerTest {
     // setup S3 for backup/restore
     Path s3Directory = folder.newFolder("s3").toPath();
     Path archiverDirectory = folder.newFolder("archiver").toPath();
-    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-    api.start();
-    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
-    String BUCKET_NAME = "archiver-unittest";
-    s3.createBucket(BUCKET_NAME);
+    AmazonS3 s3 = s3Provider.getAmazonS3();
     Archiver archiver =
         new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl(Tar.CompressionMode.LZ4));
 

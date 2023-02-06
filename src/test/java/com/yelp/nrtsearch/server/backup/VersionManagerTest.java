@@ -17,18 +17,15 @@ package com.yelp.nrtsearch.server.backup;
 
 import static org.junit.Assert.*;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.util.IOUtils;
-import io.findify.s3mock.S3Mock;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -37,29 +34,18 @@ import org.junit.rules.TemporaryFolder;
 public class VersionManagerTest {
   private final String BUCKET_NAME = "version-manager-unittest";
   private VersionManager versionManager;
-  private S3Mock api;
   private AmazonS3 s3;
-  private Path s3Directory;
   private Path archiverDirectory;
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(BUCKET_NAME);
 
   @Before
   public void setup() throws IOException {
-    s3Directory = folder.newFolder("s3").toPath();
     archiverDirectory = folder.newFolder("version-manager").toPath();
 
-    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-    api.start();
-    s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
-    s3.createBucket(BUCKET_NAME);
+    s3 = s3Provider.getAmazonS3();
     versionManager = new VersionManager(s3, BUCKET_NAME);
-  }
-
-  @After
-  public void teardown() {
-    api.shutdown();
   }
 
   @Test
