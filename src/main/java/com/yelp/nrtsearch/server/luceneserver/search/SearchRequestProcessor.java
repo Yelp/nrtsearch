@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.search;
 
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
-import com.yelp.nrtsearch.server.grpc.Highlight;
+import com.yelp.nrtsearch.server.grpc.HighlightV2;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightUtils;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
@@ -155,15 +156,17 @@ public class SearchRequestProcessor {
         getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
     contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
-    Highlight highlight = searchRequest.getHighlight();
-    if (!highlight.getFieldsList().isEmpty()) {
+    HighlightV2 highlightV2 =
+        HighlightUtils.getFinalizedHighlightV2(
+            searchRequest.getHighlight(), searchRequest.getHighlightV2());
+    if (!highlightV2.getFieldsList().isEmpty()) {
       HighlightFetchTask highlightFetchTask =
           new HighlightFetchTask(
               indexState,
               searcherAndTaxonomy,
               query,
-              HighlighterService.getInstance().getHighlighter(highlight),
-              highlight);
+              HighlighterService.getInstance().getHighlighter(highlightV2),
+              highlightV2);
       contextBuilder.setHighlightFetchTask(highlightFetchTask);
     }
 

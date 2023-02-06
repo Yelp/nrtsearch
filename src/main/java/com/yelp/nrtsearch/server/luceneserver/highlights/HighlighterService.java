@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.Highlight;
+import com.yelp.nrtsearch.server.grpc.HighlightV2;
 import com.yelp.nrtsearch.server.plugins.HighlighterPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.util.HashMap;
@@ -86,9 +86,11 @@ public class HighlighterService {
    * @param highlight the grpc highlight setting
    * @return the highlighter specified by the name in the highlight setting
    */
-  public Highlighter getHighlighter(Highlight highlight) {
+  public Highlighter getHighlighter(HighlightV2 highlight) {
     String highlighterName =
-        highlight.getName().isEmpty() ? DEFAULT_HIGHLIGHTER_NAME : highlight.getName();
+        highlight.getHighlighterType().isEmpty()
+            ? DEFAULT_HIGHLIGHTER_NAME
+            : highlight.getHighlighterType();
     Highlighter highlighter = highlighterInstanceMap.get(highlighterName);
     if (highlighter == null) {
       throw new IllegalArgumentException(

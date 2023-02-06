@@ -15,8 +15,10 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
+import com.google.protobuf.BoolValue;
 import com.yelp.nrtsearch.server.grpc.Highlight;
-import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
+import com.yelp.nrtsearch.server.grpc.HighlightV2;
+import com.yelp.nrtsearch.server.grpc.HighlightV2.Settings;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightSettings.Builder;
@@ -33,24 +35,25 @@ public class HighlightUtils {
   private static final int DEFAULT_FRAGMENT_SIZE = 100; // In number of characters
   private static final int DEFAULT_MAX_NUM_FRAGMENTS = 5;
   private static final String DEFAULT_FRAGMENTER = "span";
+  private static final boolean DEFAULT_FIELD_MATCH = false;
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
 
   /**
    * Create the {@link HighlightSettings} for every field that is required to be highlighted.
    * Converts query-level and field-level settings into a single setting for every field.
    *
-   * @param highlight Highlighting-related information in search request
+   * @param highlightV2 Highlighting-related information in search request
    * @param searchQuery Compiled Lucene-level query from the search request
    * @param indexState {@link IndexState} for the index
    * @return {@link Map} of field name to its {@link HighlightSettings}
    */
   static Map<String, HighlightSettings> createPerFieldSettings(
-      Highlight highlight, Query searchQuery, IndexState indexState) {
+      HighlightV2 highlightV2, Query searchQuery, IndexState indexState) {
     HighlightSettings globalSettings =
-        createGlobalFieldSettings(indexState, searchQuery, highlight);
+        createGlobalFieldSettings(indexState, searchQuery, highlightV2);
     Map<String, HighlightSettings> fieldSettings = new HashMap<>();
-    Map<String, Settings> fieldSettingsFromRequest = highlight.getFieldSettingsMap();
-    for (String field : highlight.getFieldsList()) {
+    Map<String, Settings> fieldSettingsFromRequest = highlightV2.getFieldSettingsMap();
+    for (String field : highlightV2.getFieldsList()) {
       if (!fieldSettingsFromRequest.containsKey(field)) {
         fieldSettings.put(field, globalSettings);
       } else {
@@ -103,12 +106,12 @@ public class HighlightUtils {
   }
 
   private static HighlightSettings createGlobalFieldSettings(
-      IndexState indexState, Query searchQuery, Highlight highlight) {
-    Settings settings = highlight.getSettings();
+      IndexState indexState, Query searchQuery, HighlightV2 highlightV2) {
+    Settings settings = highlightV2.getSettings();
 
     HighlightSettings.Builder builder = new HighlightSettings.Builder();
 
-    builder.withHighlighterType(highlight.getName());
+    builder.withHighlighterType(highlightV2.getHighlighterType());
 
     builder.withPreTags(
         settings.getPreTagsList().isEmpty()
@@ -142,8 +145,66 @@ public class HighlightUtils {
     builder.withScoreOrdered(settings.getScoreOrdered().getValue());
     builder.withFragmenter(
         settings.hasFragmenter() ? settings.getFragmenter().getValue() : DEFAULT_FRAGMENTER);
-    builder.withFieldMatch(settings.getFieldMatch().getValue());
+    builder.withFieldMatch(
+        settings.hasFieldMatch() ? settings.getFieldMatch().getValue() : DEFAULT_FIELD_MATCH);
 
     return builder.build();
+  }
+
+  private static HighlightV2.Settings adaptSettingsToV2(Highlight.Settings settings) {
+    HighlightV2.Settings.Builder v2SettingsBuilder = HighlightV2.Settings.newBuilder();
+    v2SettingsBuilder
+        .addAllPreTags(settings.getPreTagsList())
+        .addAllPostTags(settings.getPostTagsList());
+    if (settings.hasHighlightQuery()) {
+      v2SettingsBuilder.setHighlightQuery(settings.getHighlightQuery());
+    }
+    if (settings.hasFragmentSize()) {
+      v2SettingsBuilder.setFragmentSize(settings.getFragmentSize());
+    }
+    if (settings.hasMaxNumberOfFragments()) {
+      v2SettingsBuilder.setMaxNumberOfFragments(settings.getMaxNumberOfFragments());
+    }
+    // v1 has field_match typed plain-boolean, so it's always set false if omitted
+    v2SettingsBuilder.setFieldMatch(BoolValue.of(settings.getFieldMatch()));
+    v2SettingsBuilder.setScoreOrdered(BoolValue.of(true)); // Always true in V1
+    return v2SettingsBuilder.build();
+  }
+
+  /**
+   * convert the deprecated highlight V1 to V2 protobuf settings.
+   *
+   * @param highlight
+   * @return highlightV2 representative of highlight(V1)
+   */
+  public static HighlightV2 adaptHighlightToV2(Highlight highlight) {
+    HighlightV2.Builder v2Builder = HighlightV2.newBuilder();
+    v2Builder.setHighlighterType("fast-vector-highlighter"); // This field is ignored in v1
+    v2Builder.addAllFields(highlight.getFieldsList());
+    v2Builder.setSettings(adaptSettingsToV2(highlight.getSettings()));
+    if (!highlight.getFieldSettingsMap().isEmpty()) {
+      for (Map.Entry<String, Highlight.Settings> entry :
+          highlight.getFieldSettingsMap().entrySet()) {
+        v2Builder.putFieldSettings(entry.getKey(), adaptSettingsToV2(entry.getValue()));
+      }
+    }
+    return v2Builder.build();
+  }
+
+  /**
+   * This is an adapter method for compatibility between v1 and v2 highlight settings. Currently, if
+   * v1 exists, we will convert it into v2 form and continue. Otherwise, return the v2 settings to
+   * continue, no matter if v2 settings are empty or not. We do not expect the case v1 settings and
+   * v2 settings co-exist in the same search request.
+   *
+   * @param highlight v1 highlight setting
+   * @param highlightV2 v2 highlight settings
+   * @return finalized the v2 version of highlight settings
+   */
+  public static HighlightV2 getFinalizedHighlightV2(Highlight highlight, HighlightV2 highlightV2) {
+    if (!highlight.getFieldsList().isEmpty()) {
+      return adaptHighlightToV2(highlight); // v1 takes precedence
+    }
+    return highlightV2;
   }
 }

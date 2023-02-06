@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import static com.yelp.nrtsearch.server.luceneserver.highlights.HighlightUtils.createPerFieldSettings;
 
-import com.yelp.nrtsearch.server.grpc.Highlight;
+import com.yelp.nrtsearch.server.grpc.HighlightV2;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Highlights;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
@@ -56,12 +56,12 @@ public class HighlightFetchTask implements FetchTask {
       SearcherAndTaxonomy searcherAndTaxonomy,
       Query searchQuery,
       Highlighter highlighter,
-      Highlight highlight) {
+      HighlightV2 highlightV2) {
     this.indexState = indexState;
     this.highlighter = highlighter;
-    verifyHighlights(highlight);
+    verifyHighlights(highlightV2);
     indexReader = searcherAndTaxonomy.searcher.getIndexReader();
-    fieldSettings = createPerFieldSettings(highlight, searchQuery, indexState);
+    fieldSettings = createPerFieldSettings(highlightV2, searchQuery, indexState);
     fieldToHighlighterCache = highlighter.needCache() ? new HashMap<>() : null;
   }
 
@@ -116,11 +116,11 @@ public class HighlightFetchTask implements FetchTask {
   /**
    * Verify each highlighted field is highlight-able.
    *
-   * @param highlight
+   * @param highlightV2 the v2 version of highlight settings
    * @throws IllegalArgumentException if any field failed pass the verification.
    */
-  private void verifyHighlights(Highlight highlight) {
-    for (String fieldName : highlight.getFieldsList()) {
+  private void verifyHighlights(HighlightV2 highlightV2) {
+    for (String fieldName : highlightV2.getFieldsList()) {
       FieldDef field = indexState.getField(fieldName);
       if (!(field instanceof TextBaseFieldDef)) {
         throw new IllegalArgumentException(
