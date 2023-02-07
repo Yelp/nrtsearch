@@ -846,7 +846,8 @@ message HighlightV2 {
         google.protobuf.BoolValue score_ordered = 8;
         // Select Fragmenter between span (DEFAULT) and simple. This is only applicable for plain highlighters.
         google.protobuf.StringValue fragmenter = 9;
-
+        // Let the fragment builder respect the multivalue fields. Each fragment won't cross multiple value fields if set true. (Default is false)
+        google.protobuf.BoolValue discrete_multivalue = 10;
     }
     // Specify the highlighter name to use. Each highlighter name must be unique. The default is "fast-vector-highlighter"
     string highlighter_type = 1;

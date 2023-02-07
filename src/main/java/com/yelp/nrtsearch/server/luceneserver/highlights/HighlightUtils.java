@@ -35,7 +35,9 @@ public class HighlightUtils {
   private static final int DEFAULT_FRAGMENT_SIZE = 100; // In number of characters
   private static final int DEFAULT_MAX_NUM_FRAGMENTS = 5;
   private static final String DEFAULT_FRAGMENTER = "span";
+  private static final boolean DEFAULT_SCORE_ORDERED = true;
   private static final boolean DEFAULT_FIELD_MATCH = false;
+  private static final boolean DEFAULT_DISCRETE_MULTIVALUE = false;
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
 
   /**
@@ -87,7 +89,11 @@ public class HighlightUtils {
                 .withFieldMatch(
                     settings.hasFieldMatch()
                         ? settings.getFieldMatch().getValue()
-                        : globalSettings.getFieldMatch());
+                        : globalSettings.getFieldMatch())
+                .withDiscreteMultivalue(
+                    settings.hasDiscreteMultivalue()
+                        ? settings.getDiscreteMultivalue().getValue()
+                        : globalSettings.getDiscreteMultivalue());
 
         if (!settings.hasMaxNumberOfFragments()) {
           builder.withMaxNumFragments(globalSettings.getMaxNumFragments());
@@ -111,16 +117,28 @@ public class HighlightUtils {
 
     HighlightSettings.Builder builder = new HighlightSettings.Builder();
 
-    builder.withHighlighterType(highlightV2.getHighlighterType());
-
-    builder.withPreTags(
-        settings.getPreTagsList().isEmpty()
-            ? DEFAULT_PRE_TAGS
-            : settings.getPreTagsList().toArray(new String[0]));
-    builder.withPostTags(
-        settings.getPostTagsList().isEmpty()
-            ? DEFAULT_POST_TAGS
-            : settings.getPostTagsList().toArray(new String[0]));
+    builder
+        .withHighlighterType(highlightV2.getHighlighterType())
+        .withPreTags(
+            settings.getPreTagsList().isEmpty()
+                ? DEFAULT_PRE_TAGS
+                : settings.getPreTagsList().toArray(new String[0]))
+        .withPostTags(
+            settings.getPostTagsList().isEmpty()
+                ? DEFAULT_POST_TAGS
+                : settings.getPostTagsList().toArray(new String[0]))
+        .withScoreOrdered(
+            settings.hasScoreOrdered()
+                ? settings.getScoreOrdered().getValue()
+                : DEFAULT_SCORE_ORDERED)
+        .withFragmenter(
+            settings.hasFragmenter() ? settings.getFragmenter().getValue() : DEFAULT_FRAGMENTER)
+        .withFieldMatch(
+            settings.hasFieldMatch() ? settings.getFieldMatch().getValue() : DEFAULT_FIELD_MATCH)
+        .withDiscreteMultivalue(
+            settings.hasDiscreteMultivalue()
+                ? settings.getDiscreteMultivalue().getValue()
+                : DEFAULT_DISCRETE_MULTIVALUE);
 
     if (settings.hasMaxNumberOfFragments() && settings.getMaxNumberOfFragments().getValue() == 0) {
       builder.withMaxNumFragments(Integer.MAX_VALUE).withFragmentSize(Integer.MAX_VALUE);
@@ -142,12 +160,6 @@ public class HighlightUtils {
             : searchQuery;
     builder.withHighlightQuery(query);
 
-    builder.withScoreOrdered(settings.getScoreOrdered().getValue());
-    builder.withFragmenter(
-        settings.hasFragmenter() ? settings.getFragmenter().getValue() : DEFAULT_FRAGMENTER);
-    builder.withFieldMatch(
-        settings.hasFieldMatch() ? settings.getFieldMatch().getValue() : DEFAULT_FIELD_MATCH);
-
     return builder.build();
   }
 
@@ -165,9 +177,13 @@ public class HighlightUtils {
     if (settings.hasMaxNumberOfFragments()) {
       v2SettingsBuilder.setMaxNumberOfFragments(settings.getMaxNumberOfFragments());
     }
-    // v1 has field_match typed plain-boolean, so it's always set false if omitted
-    v2SettingsBuilder.setFieldMatch(BoolValue.of(settings.getFieldMatch()));
+    v2SettingsBuilder.setFieldMatch(
+        BoolValue.of(
+            settings
+                .getFieldMatch())); // v1 has field_match typed plain-boolean, so it's always set
+    // false if omitted
     v2SettingsBuilder.setScoreOrdered(BoolValue.of(true)); // Always true in V1
+    v2SettingsBuilder.setDiscreteMultivalue(BoolValue.of(false)); // Always false in V1
     return v2SettingsBuilder.build();
   }
 
@@ -179,9 +195,10 @@ public class HighlightUtils {
    */
   public static HighlightV2 adaptHighlightToV2(Highlight highlight) {
     HighlightV2.Builder v2Builder = HighlightV2.newBuilder();
-    v2Builder.setHighlighterType("fast-vector-highlighter"); // This field is ignored in v1
-    v2Builder.addAllFields(highlight.getFieldsList());
-    v2Builder.setSettings(adaptSettingsToV2(highlight.getSettings()));
+    v2Builder
+        .setHighlighterType("fast-vector-highlighter") // This field is ignored in v1
+        .addAllFields(highlight.getFieldsList())
+        .setSettings(adaptSettingsToV2(highlight.getSettings()));
     if (!highlight.getFieldSettingsMap().isEmpty()) {
       for (Map.Entry<String, Highlight.Settings> entry :
           highlight.getFieldSettingsMap().entrySet()) {

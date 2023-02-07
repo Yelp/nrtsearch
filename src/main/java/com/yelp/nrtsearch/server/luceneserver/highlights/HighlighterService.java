@@ -20,7 +20,6 @@ import com.yelp.nrtsearch.server.grpc.HighlightV2;
 import com.yelp.nrtsearch.server.plugins.HighlighterPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /** Factory class that handles registration and creation of {@link Highlighter}s. */
@@ -28,14 +27,6 @@ public class HighlighterService {
 
   private static String DEFAULT_HIGHLIGHTER_NAME = FastVectorHighlighter.HIGHLIGHTER_NAME;
   private static HighlighterService instance;
-
-  private static HighlighterPlugin BUILTIN_HIGHLIGHTERS =
-      new HighlighterPlugin() {
-        @Override
-        public Iterable<Highlighter> getHighlighters() {
-          return List.of(FastVectorHighlighter.getInstance());
-        }
-      };
   private final Map<String, Highlighter> highlighterInstanceMap = new HashMap<>();
 
   /**
@@ -56,6 +47,11 @@ public class HighlighterService {
     highlighterInstanceMap.put(name, highlighter);
   }
 
+  /** builtin highlighters are not shipped as plugins. They will be initialized here. */
+  private static void initializeBuiltinHighlighters() {
+    FastVectorHighlighter fastVectorHighlighter = FastVectorHighlighter.getInstance();
+    instance.register(fastVectorHighlighter.getName(), fastVectorHighlighter);
+  }
   /**
    * Initialize singleton instance of {@link HighlighterService}. Registers all builtin highlighter
    * and any additional highlighter provided by {@link HighlighterPlugin}s.
@@ -65,7 +61,7 @@ public class HighlighterService {
    */
   public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
     instance = new HighlighterService(configuration);
-    instance.register(BUILTIN_HIGHLIGHTERS.getHighlighters());
+    initializeBuiltinHighlighters();
     for (Plugin plugin : plugins) {
       if (plugin instanceof HighlighterPlugin) {
         HighlighterPlugin highlighterPlugin = (HighlighterPlugin) plugin;

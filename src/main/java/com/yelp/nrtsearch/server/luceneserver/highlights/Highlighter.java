@@ -17,23 +17,55 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import java.io.IOException;
-import java.util.Map;
 import org.apache.lucene.index.IndexReader;
 
+/**
+ * This is the highlighter interface to provide the new highlighters with different implementations.
+ * Highlighters are supposed to be initiated once at the startup time and registered in the {@link
+ * HighlighterService}. Therefore, a single instance of the highlighter will be responsible for
+ * handling all the corresponding highlighting fetch tasks.
+ */
 public interface Highlighter {
+
+  /**
+   * The name is used as the identifier of this highlighter. It must be unique. The highlight_type
+   * in the search request will be used to match this name during the highlighter selection.
+   *
+   * @return the unique name/identifier of this highlighter
+   */
   String getName();
 
+  /**
+   * Get highlighted segments for the given docId and field.
+   *
+   * <p>The indexReader gives the full readabity access to the highlighter. And using the docId and
+   * the fieldName derived from the textBasedFieldDef, the target field can be retrieved.</>
+   *
+   * @param indexReader the indexerReader has the random access to the entire index
+   * @param settings the highlight settings derived from the search request for this field
+   * @param textBaseFieldDef the target's field information
+   * @param docId the target's identifier to retrieve the highlighting document from the indexReader
+   * @param sharedHighlightContext a shared context per highlightFetchTask for cache and contexts
+   * @return an array of Strings containing all highlighted fragments
+   * @throws IOException will be thrown when fail during the document reading
+   */
   String[] getHighlights(
       IndexReader indexReader,
       HighlightSettings settings,
       TextBaseFieldDef textBaseFieldDef,
       int docId,
-      Map<String, Object> cache)
+      SharedHighlightContext sharedHighlightContext)
       throws IOException;
 
-  default void verifyTheSpecificHighlighter(IndexReader indexReader, TextBaseFieldDef fieldDef) {};
-
-  default boolean needCache() {
-    return false;
-  }
+  /**
+   * This will be invoked once per highlighted field before execution of the search request. All
+   * highlighter implementations' additional highlight-ability checks should be done here.
+   *
+   * <p>If failed, an {@link IllegalArgumentException} with detailed explanation must be thrown.
+   * Otherwise, do nothing.
+   *
+   * @param fieldDef a {@link TextBaseFieldDef} object of the field that is intended to be
+   *     highlighted
+   */
+  default void verifyFieldIsSupported(TextBaseFieldDef fieldDef) {};
 }

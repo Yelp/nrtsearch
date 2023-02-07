@@ -20,10 +20,9 @@ import java.util.Collections;
 
 /**
  * Plugin interface for providing custom highlighters. The plugins will be loaded at the startup
- * time of the {@link com.yelp.nrtsearch.server.grpc.LuceneServer}. {@link
- * com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService} will initialize a singleton
- * {@link com.yelp.nrtsearch.server.luceneserver.highlights.Highlighter} instance and register it by
- * the highlighter name for each Highlighter provided from the plugins.
+ * time of the {@link com.yelp.nrtsearch.server.grpc.LuceneServer}. The highlighter instances
+ * provided from the getHighlighters will be responsible for handling the corresponding highlight
+ * tasks (identified by name). Therefore, do not alter the instance object for any requests.
  */
 public interface HighlighterPlugin {
   /**

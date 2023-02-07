@@ -26,7 +26,6 @@ import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.DoubleAdder;
@@ -46,10 +45,7 @@ public class HighlightFetchTask implements FetchTask {
   private final IndexReader indexReader;
   private final Map<String, HighlightSettings> fieldSettings;
   private final Highlighter highlighter;
-
   private final DoubleAdder timeTakenMs = new DoubleAdder();
-
-  private Map<String, Object> fieldToHighlighterCache;
 
   public HighlightFetchTask(
       IndexState indexState,
@@ -62,7 +58,6 @@ public class HighlightFetchTask implements FetchTask {
     verifyHighlights(highlightV2);
     indexReader = searcherAndTaxonomy.searcher.getIndexReader();
     fieldSettings = createPerFieldSettings(highlightV2, searchQuery, indexState);
-    fieldToHighlighterCache = highlighter.needCache() ? new HashMap<>() : null;
   }
 
   /**
@@ -92,7 +87,7 @@ public class HighlightFetchTask implements FetchTask {
               fieldSetting.getValue(),
               textBaseFieldDef,
               hit.getLuceneDocId(),
-              fieldToHighlighterCache);
+              new SharedHighlightContext());
       if (highlights != null && highlights.length > 0 && highlights[0] != null) {
         Highlights.Builder builder = Highlights.newBuilder();
         for (String fragment : highlights) {
@@ -131,11 +126,7 @@ public class HighlightFetchTask implements FetchTask {
         throw new IllegalArgumentException(
             String.format("Field %s is not searchable and cannot support highlights", fieldName));
       }
-      if (!((TextBaseFieldDef) field).isStored()) {
-        throw new IllegalArgumentException(
-            String.format("Field %s is not stored and cannot support highlights", fieldName));
-      }
-      highlighter.verifyTheSpecificHighlighter(indexReader, ((TextBaseFieldDef) field));
+      highlighter.verifyFieldIsSupported(((TextBaseFieldDef) field));
     }
   }
 }

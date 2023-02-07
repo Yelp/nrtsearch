@@ -31,6 +31,8 @@ public class HighlightSettings {
   private final boolean scoreOrdered;
   private final String fragmenter;
 
+  private final boolean discreteMultivalue;
+
   public HighlightSettings(
       String highlighterType,
       String[] preTags,
@@ -40,7 +42,8 @@ public class HighlightSettings {
       Query highlightQuery,
       boolean fieldMatch,
       boolean scoreOrdered,
-      String fragmenter) {
+      String fragmenter,
+      boolean discreteMultivalue) {
     this.highlighterType = highlighterType;
     this.preTags = preTags;
     this.postTags = postTags;
@@ -50,6 +53,7 @@ public class HighlightSettings {
     this.fieldMatch = fieldMatch;
     this.scoreOrdered = scoreOrdered;
     this.fragmenter = fragmenter;
+    this.discreteMultivalue = discreteMultivalue;
   }
 
   public Builder toBuilder() {
@@ -101,6 +105,10 @@ public class HighlightSettings {
     return fragmenter;
   }
 
+  public boolean getDiscreteMultivalue() {
+    return discreteMultivalue;
+  }
+
   @Override
   public String toString() {
     return "HighlightSettings{"
@@ -124,6 +132,8 @@ public class HighlightSettings {
         + ", fragmenter='"
         + fragmenter
         + '\''
+        + ", discreteMultivalue="
+        + discreteMultivalue
         + '}';
   }
 
@@ -138,6 +148,7 @@ public class HighlightSettings {
     private boolean fieldMatch;
     private boolean scoreOrdered;
     private String fragmenter;
+    private boolean discreteMultivalue;
 
     public Builder() {}
 
@@ -186,6 +197,11 @@ public class HighlightSettings {
       return this;
     }
 
+    public Builder withDiscreteMultivalue(boolean discreteMultivalue) {
+      this.discreteMultivalue = discreteMultivalue;
+      return this;
+    }
+
     public HighlightSettings build() {
       return new HighlightSettings(
           highlighterType,
@@ -196,7 +212,8 @@ public class HighlightSettings {
           highlightQuery,
           fieldMatch,
           scoreOrdered,
-          fragmenter);
+          fragmenter,
+          discreteMultivalue);
     }
   }
 }

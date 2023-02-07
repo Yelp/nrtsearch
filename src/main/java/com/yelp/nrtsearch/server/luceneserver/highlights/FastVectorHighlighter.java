@@ -17,14 +17,13 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import java.io.IOException;
-import java.util.Map;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.DefaultEncoder;
+import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
 import org.apache.lucene.search.vectorhighlight.FragListBuilder;
-import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
 import org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder;
@@ -45,10 +44,6 @@ public class FastVectorHighlighter implements Highlighter {
           new org.apache.lucene.search.vectorhighlight.FastVectorHighlighter();
   private static final SimpleFragListBuilder SIMPLE_FRAG_LIST_BUILDER = new SimpleFragListBuilder();
   private static final SingleFragListBuilder SINGLE_FRAG_LIST_BUILDER = new SingleFragListBuilder();
-  private static final SimpleFragmentsBuilder SIMPLE_FRAGMENTS_BUILDER =
-      new SimpleFragmentsBuilder();
-  private static final ScoreOrderFragmentsBuilder SCORE_ORDER_FRAGMENTS_BUILDER =
-      new ScoreOrderFragmentsBuilder();
   private static final DefaultEncoder DEFAULT_ENCODER = new DefaultEncoder();
 
   private static final FastVectorHighlighter INSTANCE = new FastVectorHighlighter();
@@ -57,12 +52,6 @@ public class FastVectorHighlighter implements Highlighter {
 
   public static FastVectorHighlighter getInstance() {
     return INSTANCE;
-  }
-
-  static {
-    // always treat multivalue field discretely
-    SIMPLE_FRAGMENTS_BUILDER.setDiscreteMultiValueHighlighting(true);
-    SCORE_ORDER_FRAGMENTS_BUILDER.setDiscreteMultiValueHighlighting(true);
   }
 
   @Override
@@ -87,7 +76,7 @@ public class FastVectorHighlighter implements Highlighter {
       HighlightSettings settings,
       TextBaseFieldDef textBaseFieldDef,
       int docId,
-      Map<String, Object> _cache)
+      SharedHighlightContext _sharedHighlightContext)
       throws IOException {
     FragListBuilder fragListBuilder;
     int numberOfFragments = settings.getMaxNumFragments();
@@ -102,12 +91,13 @@ public class FastVectorHighlighter implements Highlighter {
       fragListBuilder = SIMPLE_FRAG_LIST_BUILDER;
     }
 
-    FragmentsBuilder fragmentsBuilder;
+    BaseFragmentsBuilder fragmentsBuilder;
     if (settings.isScoreOrdered()) {
-      fragmentsBuilder = SCORE_ORDER_FRAGMENTS_BUILDER;
+      fragmentsBuilder = new ScoreOrderFragmentsBuilder();
     } else {
-      fragmentsBuilder = SIMPLE_FRAGMENTS_BUILDER;
+      fragmentsBuilder = new SimpleFragmentsBuilder();
     }
+    fragmentsBuilder.setDiscreteMultiValueHighlighting(settings.getDiscreteMultivalue());
 
     return FAST_VECTOR_HIGHLIGHTER.getBestFragments(
         getFieldQuery(indexReader, settings.getHighlightQuery(), settings.getFieldMatch()),
@@ -129,12 +119,18 @@ public class FastVectorHighlighter implements Highlighter {
   }
 
   @Override
-  public void verifyTheSpecificHighlighter(IndexReader indexReader, TextBaseFieldDef fieldDef) {
+  public void verifyFieldIsSupported(TextBaseFieldDef fieldDef) {
     FieldType fieldType = fieldDef.getFieldType();
+    if (!fieldDef.isStored()) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Field %s is not stored and cannot support fast-vector-highlighter",
+              fieldDef.getName()));
+    }
     if (!fieldType.storeTermVectorPositions() || !fieldType.storeTermVectorOffsets()) {
       throw new IllegalArgumentException(
           String.format(
-              "Field %s does not have term vectors with positions and offsets and cannot support highlights",
+              "Field %s does not have term vectors with positions and offsets and cannot support fast-vector-highlighter",
               fieldDef.getName()));
     }
   }

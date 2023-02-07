@@ -162,7 +162,10 @@ public class FastVectorHighlighterTest extends ServerTestCase {
     HighlightV2 highlight =
         HighlightV2.newBuilder()
             .addFields("comment_multivalue")
-            .setSettings(Settings.newBuilder().setScoreOrdered(BoolValue.of(true)))
+            .setSettings(
+                Settings.newBuilder()
+                    .setScoreOrdered(BoolValue.of(true))
+                    .setDiscreteMultivalue(BoolValue.of(true)))
             .build();
     SearchResponse response = doHighlightQuery(highlight);
 
@@ -320,7 +323,8 @@ public class FastVectorHighlighterTest extends ServerTestCase {
       fail("No error for invalid field");
     } catch (StatusRuntimeException e) {
       assertThat(e.getMessage())
-          .contains("Field comment.no_store is not stored and cannot support highlights");
+          .contains(
+              "Field comment.no_store is not stored and cannot support fast-vector-highlighter");
     }
 
     highlight = HighlightV2.newBuilder().addFields("comment.no_term_vectors_with_offsets").build();
@@ -330,7 +334,7 @@ public class FastVectorHighlighterTest extends ServerTestCase {
     } catch (StatusRuntimeException e) {
       assertThat(e.getMessage())
           .contains(
-              "Field comment.no_term_vectors_with_offsets does not have term vectors with positions and offsets and cannot support highlights");
+              "Field comment.no_term_vectors_with_offsets does not have term vectors with positions and offsets and cannot support fast-vector-highlighter");
     }
   }
 

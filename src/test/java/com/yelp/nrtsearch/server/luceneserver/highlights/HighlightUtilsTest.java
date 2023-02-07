@@ -50,7 +50,8 @@ public class HighlightUtilsTest {
                     .setFragmentSize(UInt32Value.of(125))
                     .setMaxNumberOfFragments(UInt32Value.of(1))
                     .setScoreOrdered(BoolValue.of(true))
-                    .setFieldMatch(BoolValue.of(false)))
+                    .setFieldMatch(BoolValue.of(false))
+                    .setDiscreteMultivalue(BoolValue.of(false)))
             .addAllFields(List.of("field1", "field2"))
             .build();
 
@@ -96,7 +97,8 @@ public class HighlightUtilsTest {
                     .setMaxNumberOfFragments(UInt32Value.of(1))
                     .setHighlightQuery(q1)
                     .setScoreOrdered(BoolValue.of(true))
-                    .setFieldMatch(BoolValue.of(true)))
+                    .setFieldMatch(BoolValue.of(true))
+                    .setDiscreteMultivalue(BoolValue.of(false)))
             .addAllFields(List.of("field1", "field2"))
             .putFieldSettings(
                 "field2",
@@ -108,6 +110,7 @@ public class HighlightUtilsTest {
                     .setHighlightQuery(q2)
                     .setScoreOrdered(BoolValue.of(true))
                     .setFieldMatch(BoolValue.of(false))
+                    .setDiscreteMultivalue(BoolValue.of(false))
                     .build())
             .build();
 
