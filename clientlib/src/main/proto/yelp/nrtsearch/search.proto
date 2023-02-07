@@ -842,7 +842,7 @@ message HighlightV2 {
         Query highlight_query = 6;
         // Set to true to highlight fields only if specified in the search query.(Default is false)
         google.protobuf.BoolValue field_match = 7;
-        // Sorts highlighted fragments by score when set to true. By default, fragments will be output in the order they appear in the field. (Default is false)
+        // Sorts highlighted fragments by score when set to true. By default, fragments will be output in the order they appear in the field. (Default is true)
         google.protobuf.BoolValue score_ordered = 8;
         // Select Fragmenter between span (DEFAULT) and simple. This is only applicable for plain highlighters.
         google.protobuf.StringValue fragmenter = 9;
