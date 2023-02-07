@@ -18,51 +18,35 @@ package com.yelp.nrtsearch.server.utils;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import io.findify.s3mock.S3Mock;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.nio.file.Path;
 import org.apache.commons.io.IOUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 public class S3DownloaderTest {
   private static final String BUCKET_NAME = "s3-downloader-test";
   private static final String KEY = "test_key";
   private static final String CONTENT = "test_content";
 
-  @ClassRule public static final TemporaryFolder FOLDER = new TemporaryFolder();
+  @ClassRule public static final AmazonS3Provider S3_PROVIDER = new AmazonS3Provider(BUCKET_NAME);
 
-  private static S3Mock api;
   private static S3Downloader s3Downloader;
 
   @BeforeClass
   public static void setup() throws IOException {
-    Path s3Directory = FOLDER.newFolder("s3").toPath();
-    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-    api.start();
-    AmazonS3 s3 =
-        AmazonS3ClientBuilder.standard()
-            .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
-            .withEndpointConfiguration(new EndpointConfiguration("http://127.0.0.1:8011", ""))
-            .build();
-    s3.createBucket(BUCKET_NAME);
+    AmazonS3 s3 = S3_PROVIDER.getAmazonS3();
     s3Downloader = new S3Downloader(s3);
     s3.putObject(BUCKET_NAME, KEY, CONTENT);
   }
 
   @AfterClass
-  public static void shutdown() {
-    api.shutdown();
+  public static void cleanUp() {
     s3Downloader.close();
   }
 
