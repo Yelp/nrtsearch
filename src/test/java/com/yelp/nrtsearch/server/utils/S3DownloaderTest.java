@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import org.apache.commons.io.IOUtils;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -42,6 +43,11 @@ public class S3DownloaderTest {
     AmazonS3 s3 = S3_PROVIDER.getAmazonS3();
     s3Downloader = new S3Downloader(s3);
     s3.putObject(BUCKET_NAME, KEY, CONTENT);
+  }
+
+  @AfterClass
+  public static void cleanUp() {
+    s3Downloader.close();
   }
 
   @Test
