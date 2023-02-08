@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import java.io.IOException;
+import java.util.Map;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
@@ -76,7 +77,7 @@ public class FastVectorHighlighter implements Highlighter {
       HighlightSettings settings,
       TextBaseFieldDef textBaseFieldDef,
       int docId,
-      SharedHighlightContext _sharedHighlightContext)
+      Map<String, Object> _highlighterContext)
       throws IOException {
     FragListBuilder fragListBuilder;
     int numberOfFragments = settings.getMaxNumFragments();

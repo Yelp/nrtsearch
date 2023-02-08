@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import static com.yelp.nrtsearch.server.luceneserver.highlights.HighlightUtils.createPerFieldSettings;
 
-import com.yelp.nrtsearch.server.grpc.HighlightV2;
+import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Highlights;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
@@ -43,21 +43,23 @@ public class HighlightFetchTask implements FetchTask {
   private static final double TEN_TO_THE_POWER_SIX = Math.pow(10, 6);
   private final IndexState indexState;
   private final IndexReader indexReader;
+  private final Map<String, Object> highlighterContext;
   private final Map<String, HighlightSettings> fieldSettings;
-  private final Highlighter highlighter;
   private final DoubleAdder timeTakenMs = new DoubleAdder();
 
   public HighlightFetchTask(
       IndexState indexState,
       SearcherAndTaxonomy searcherAndTaxonomy,
       Query searchQuery,
-      Highlighter highlighter,
-      HighlightV2 highlightV2) {
+      HighlighterService highlighterService,
+      Highlight highlight,
+      Map<String, Object> highlighterContext) {
     this.indexState = indexState;
-    this.highlighter = highlighter;
-    verifyHighlights(highlightV2);
-    indexReader = searcherAndTaxonomy.searcher.getIndexReader();
-    fieldSettings = createPerFieldSettings(highlightV2, searchQuery, indexState);
+    this.indexReader = searcherAndTaxonomy.searcher.getIndexReader();
+    this.highlighterContext = highlighterContext;
+    this.fieldSettings =
+        createPerFieldSettings(highlight, searchQuery, indexState, highlighterService);
+    verifyHighlights();
   }
 
   /**
@@ -78,6 +80,7 @@ public class HighlightFetchTask implements FetchTask {
     long startTime = System.nanoTime();
     for (Entry<String, HighlightSettings> fieldSetting : fieldSettings.entrySet()) {
       String fieldName = fieldSetting.getKey();
+      Highlighter highlighter = fieldSetting.getValue().getHighlighter();
       FieldDef fieldDef = indexState.getField(fieldName);
       TextBaseFieldDef textBaseFieldDef =
           (TextBaseFieldDef) fieldDef; // This is safe as we verified earlier
@@ -87,7 +90,7 @@ public class HighlightFetchTask implements FetchTask {
               fieldSetting.getValue(),
               textBaseFieldDef,
               hit.getLuceneDocId(),
-              new SharedHighlightContext());
+              highlighterContext);
       if (highlights != null && highlights.length > 0 && highlights[0] != null) {
         Highlights.Builder builder = Highlights.newBuilder();
         for (String fragment : highlights) {
@@ -111,11 +114,12 @@ public class HighlightFetchTask implements FetchTask {
   /**
    * Verify each highlighted field is highlight-able.
    *
-   * @param highlightV2 the v2 version of highlight settings
    * @throws IllegalArgumentException if any field failed pass the verification.
    */
-  private void verifyHighlights(HighlightV2 highlightV2) {
-    for (String fieldName : highlightV2.getFieldsList()) {
+  private void verifyHighlights() {
+    for (Entry<String, HighlightSettings> entry : fieldSettings.entrySet()) {
+      String fieldName = entry.getKey();
+      Highlighter highlighter = entry.getValue().getHighlighter();
       FieldDef field = indexState.getField(fieldName);
       if (!(field instanceof TextBaseFieldDef)) {
         throw new IllegalArgumentException(

@@ -24,8 +24,9 @@ import com.google.protobuf.UInt32Value;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.grpc.HighlightV2;
-import com.yelp.nrtsearch.server.grpc.HighlightV2.Settings;
+import com.yelp.nrtsearch.server.grpc.Highlight;
+import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
+import com.yelp.nrtsearch.server.grpc.Highlight.Type;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
 import com.yelp.nrtsearch.server.grpc.PhraseQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
@@ -107,8 +108,8 @@ public class FastVectorHighlighterTest extends ServerTestCase {
 
   @Test
   public void testBasicHighlight() {
-    HighlightV2 highlight =
-        HighlightV2.newBuilder()
+    Highlight highlight =
+        Highlight.newBuilder()
             .addFields("comment")
             .setSettings(Settings.newBuilder().setScoreOrdered(BoolValue.of(true)))
             .build();
@@ -126,11 +127,10 @@ public class FastVectorHighlighterTest extends ServerTestCase {
 
   @Test
   public void testBasicHighlightWithName() {
-    HighlightV2 highlight =
-        HighlightV2.newBuilder()
-            .setHighlighterType("fast-vector-highlighter")
+    Highlight highlight =
+        Highlight.newBuilder()
             .addFields("comment")
-            .setSettings(Settings.newBuilder().setScoreOrdered(BoolValue.of(true)))
+            .setSettings(Settings.newBuilder().setHighlighterType(Type.FAST_VECTOR))
             .build();
     SearchResponse response = doHighlightQuery(highlight);
 
@@ -146,11 +146,13 @@ public class FastVectorHighlighterTest extends ServerTestCase {
 
   @Test
   public void testBasicHighlightWithUnknownName() {
-    HighlightV2 highlight =
-        HighlightV2.newBuilder()
-            .setHighlighterType("mysterious-highlighter")
+    Highlight highlight =
+        Highlight.newBuilder()
             .addFields("comment")
-            .setSettings(Settings.newBuilder().setScoreOrdered(BoolValue.of(true)))
+            .setSettings(
+                Settings.newBuilder()
+                    .setHighlighterType(Type.CUSTOM)
+                    .setCustomHighlighterName("doesn't-exist"))
             .build();
     assertThatThrownBy(() -> doHighlightQuery(highlight))
         .isInstanceOf(StatusRuntimeException.class)
@@ -159,8 +161,8 @@ public class FastVectorHighlighterTest extends ServerTestCase {
 
   @Test
   public void testHighlightMultivalueField() {
-    HighlightV2 highlight =
-        HighlightV2.newBuilder()
+    Highlight highlight =
+        Highlight.newBuilder()
             .addFields("comment_multivalue")
             .setSettings(
                 Settings.newBuilder()
@@ -194,8 +196,7 @@ public class FastVectorHighlighterTest extends ServerTestCase {
                         MatchQuery.newBuilder().setField("comment").setQuery("food is good")))
             .setScoreOrdered(BoolValue.of(true))
             .build();
-    HighlightV2 highlight =
-        HighlightV2.newBuilder().setSettings(settings).addFields("comment").build();
+    Highlight highlight = Highlight.newBuilder().setSettings(settings).addFields("comment").build();
     SearchResponse response = doHighlightQuery(highlight);
 
     assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
@@ -233,8 +234,8 @@ public class FastVectorHighlighterTest extends ServerTestCase {
                     .setMatchQuery(
                         MatchQuery.newBuilder().setField("comment").setQuery("food is good")))
             .build();
-    HighlightV2 highlight =
-        HighlightV2.newBuilder()
+    Highlight highlight =
+        Highlight.newBuilder()
             .setSettings(globalSettings)
             .addFields("comment")
             .putFieldSettings("comment", fieldSettings)
@@ -264,8 +265,8 @@ public class FastVectorHighlighterTest extends ServerTestCase {
             .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(3))
             .setScoreOrdered(BoolValue.of(false))
             .build();
-    HighlightV2 highlight =
-        HighlightV2.newBuilder().setSettings(globalSettings).addFields("comment").build();
+    Highlight highlight =
+        Highlight.newBuilder().setSettings(globalSettings).addFields("comment").build();
     SearchResponse response = doHighlightQuery(highlight);
 
     assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
@@ -280,8 +281,8 @@ public class FastVectorHighlighterTest extends ServerTestCase {
 
   @Test
   public void testHighlightsAbsentForOneHit() {
-    HighlightV2 highlight =
-        HighlightV2.newBuilder()
+    Highlight highlight =
+        Highlight.newBuilder()
             .addFields("comment")
             .setSettings(
                 Settings.newBuilder()
@@ -308,7 +309,7 @@ public class FastVectorHighlighterTest extends ServerTestCase {
 
   @Test
   public void testHighlightIncompatibleField() {
-    HighlightV2 highlight = HighlightV2.newBuilder().addFields("comment.no_search").build();
+    Highlight highlight = Highlight.newBuilder().addFields("comment.no_search").build();
     try {
       doHighlightQuery(highlight);
       fail("No error for invalid field");
@@ -317,7 +318,7 @@ public class FastVectorHighlighterTest extends ServerTestCase {
           .contains("Field comment.no_search is not searchable and cannot support highlights");
     }
 
-    highlight = HighlightV2.newBuilder().addFields("comment.no_store").build();
+    highlight = Highlight.newBuilder().addFields("comment.no_store").build();
     try {
       doHighlightQuery(highlight);
       fail("No error for invalid field");
@@ -327,7 +328,7 @@ public class FastVectorHighlighterTest extends ServerTestCase {
               "Field comment.no_store is not stored and cannot support fast-vector-highlighter");
     }
 
-    highlight = HighlightV2.newBuilder().addFields("comment.no_term_vectors_with_offsets").build();
+    highlight = Highlight.newBuilder().addFields("comment.no_term_vectors_with_offsets").build();
     try {
       doHighlightQuery(highlight);
       fail("No error for invalid field");
@@ -345,8 +346,8 @@ public class FastVectorHighlighterTest extends ServerTestCase {
             .setFragmentSize(UInt32Value.newBuilder().setValue(10))
             .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(0))
             .build();
-    HighlightV2 highlight =
-        HighlightV2.newBuilder().setSettings(globalSettings).addFields("comment").build();
+    Highlight highlight =
+        Highlight.newBuilder().setSettings(globalSettings).addFields("comment").build();
     SearchResponse response = doHighlightQuery(highlight);
 
     assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
@@ -369,8 +370,8 @@ public class FastVectorHighlighterTest extends ServerTestCase {
             .setFragmentSize(UInt32Value.newBuilder().setValue(10))
             .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(0))
             .build();
-    HighlightV2 highlight =
-        HighlightV2.newBuilder()
+    Highlight highlight =
+        Highlight.newBuilder()
             .setSettings(globalSettings)
             .addFields("comment")
             .putFieldSettings("comment", fieldSettings)
@@ -387,9 +388,9 @@ public class FastVectorHighlighterTest extends ServerTestCase {
 
   @Test
   public void testHighlightFieldMatchFalse() {
-    HighlightV2 highlight =
-        HighlightV2.newBuilder()
-            .setSettings(Settings.newBuilder().setFieldMatch(BoolValue.of(false)))
+    Highlight highlight =
+        Highlight.newBuilder()
+            .setSettings(Settings.newBuilder().setFieldMatchV2(BoolValue.of(false)))
             .addFields("comment2")
             .build();
     SearchResponse response = doHighlightQuery(highlight);
@@ -404,11 +405,11 @@ public class FastVectorHighlighterTest extends ServerTestCase {
 
   @Test
   public void testHighlightFieldMatchTrue() {
-    HighlightV2 highlight =
-        HighlightV2.newBuilder()
+    Highlight highlight =
+        Highlight.newBuilder()
             .setSettings(
                 Settings.newBuilder()
-                    .setFieldMatch(BoolValue.of(true))
+                    .setFieldMatchV2(BoolValue.of(true))
                     .setScoreOrdered(BoolValue.of(true)))
             .addFields("comment2")
             .build();
@@ -423,7 +424,7 @@ public class FastVectorHighlighterTest extends ServerTestCase {
     return getIndices().get(0);
   }
 
-  private SearchResponse doHighlightQuery(HighlightV2 highlight) {
+  private SearchResponse doHighlightQuery(Highlight highlight) {
     return getGrpcServer()
         .getBlockingStub()
         .search(
@@ -436,7 +437,7 @@ public class FastVectorHighlighterTest extends ServerTestCase {
                     Query.newBuilder()
                         .setMatchQuery(
                             MatchQuery.newBuilder().setField("comment").setQuery("food")))
-                .setHighlightV2(highlight)
+                .setHighlight(highlight)
                 .build());
   }
 

@@ -21,7 +21,7 @@ import org.apache.lucene.search.Query;
 /** Holds the context from the search request required to build highlights. */
 public class HighlightSettings {
 
-  private final String highlighterType;
+  private final Highlighter highlighter;
   private final String[] preTags;
   private final String[] postTags;
   private final int fragmentSize;
@@ -34,7 +34,7 @@ public class HighlightSettings {
   private final boolean discreteMultivalue;
 
   public HighlightSettings(
-      String highlighterType,
+      Highlighter highlighter,
       String[] preTags,
       String[] postTags,
       int fragmentSize,
@@ -44,7 +44,7 @@ public class HighlightSettings {
       boolean scoreOrdered,
       String fragmenter,
       boolean discreteMultivalue) {
-    this.highlighterType = highlighterType;
+    this.highlighter = highlighter;
     this.preTags = preTags;
     this.postTags = postTags;
     this.fragmentSize = fragmentSize;
@@ -58,7 +58,7 @@ public class HighlightSettings {
 
   public Builder toBuilder() {
     return new Builder()
-        .withHighlighterType(this.highlighterType)
+        .withHighlighter(this.highlighter)
         .withPreTags(this.preTags)
         .withPostTags(this.postTags)
         .withFragmentSize(this.fragmentSize)
@@ -69,8 +69,8 @@ public class HighlightSettings {
         .withFragmenter(this.fragmenter);
   }
 
-  public String getHighlighterType() {
-    return highlighterType;
+  public Highlighter getHighlighter() {
+    return highlighter;
   }
 
   public String[] getPreTags() {
@@ -112,8 +112,8 @@ public class HighlightSettings {
   @Override
   public String toString() {
     return "HighlightSettings{"
-        + "highlighterType='"
-        + highlighterType
+        + "highlighterName='"
+        + highlighter.getName()
         + '\''
         + ", preTags="
         + Arrays.toString(preTags)
@@ -139,7 +139,7 @@ public class HighlightSettings {
 
   public static final class Builder {
 
-    private String highlighterType;
+    private Highlighter highlighter;
     private String[] preTags;
     private String[] postTags;
     private int fragmentSize;
@@ -152,8 +152,8 @@ public class HighlightSettings {
 
     public Builder() {}
 
-    public Builder withHighlighterType(String highlighterType) {
-      this.highlighterType = highlighterType;
+    public Builder withHighlighter(Highlighter highlighter) {
+      this.highlighter = highlighter;
       return this;
     }
 
@@ -204,7 +204,7 @@ public class HighlightSettings {
 
     public HighlightSettings build() {
       return new HighlightSettings(
-          highlighterType,
+          highlighter,
           preTags,
           postTags,
           fragmentSize,

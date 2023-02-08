@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.HighlightV2;
 import com.yelp.nrtsearch.server.plugins.HighlighterPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.util.HashMap;
@@ -25,7 +24,6 @@ import java.util.Map;
 /** Factory class that handles registration and creation of {@link Highlighter}s. */
 public class HighlighterService {
 
-  private static String DEFAULT_HIGHLIGHTER_NAME = FastVectorHighlighter.HIGHLIGHTER_NAME;
   private static HighlighterService instance;
   private final Map<String, Highlighter> highlighterInstanceMap = new HashMap<>();
 
@@ -76,22 +74,17 @@ public class HighlighterService {
   }
 
   /**
-   * Fetch the corresponding highlighter based on the highlighter name. The default is
-   * "fast-vector-highlighter".
+   * Fetch the corresponding highlighter based on the highlighter name.
    *
-   * @param highlight the grpc highlight setting
+   * @param highlighterName the grpc highlight setting
    * @return the highlighter specified by the name in the highlight setting
    */
-  public Highlighter getHighlighter(HighlightV2 highlight) {
-    String highlighterName =
-        highlight.getHighlighterType().isEmpty()
-            ? DEFAULT_HIGHLIGHTER_NAME
-            : highlight.getHighlighterType();
+  public Highlighter getHighlighter(String highlighterName) {
     Highlighter highlighter = highlighterInstanceMap.get(highlighterName);
     if (highlighter == null) {
       throw new IllegalArgumentException(
           String.format(
-              "Unknown highlighter name [%s] is specified; The available highlighters are [%s]",
+              "Unknown highlighter name [%s] is specified; The available highlighters are %s",
               highlighterName, highlighterInstanceMap.keySet()));
     }
     return highlighter;
