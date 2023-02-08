@@ -23,16 +23,19 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** A simple client that requests a greeting from the {@link LuceneServer}. */
-public class LuceneServerClient {
+public class LuceneServerClient implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(LuceneServerClient.class.getName());
 
   private final ManagedChannel channel;
@@ -481,6 +484,13 @@ public class LuceneServerClient {
     logger.info("Response: {}", deleteIndexBackupResponse);
   }
 
+  public List<String> getIndices() {
+    return blockingStub.indices(IndicesRequest.newBuilder().build()).getIndicesResponseList()
+        .stream()
+        .map(IndexStatsResponse::getIndexName)
+        .collect(Collectors.toList());
+  }
+
   private FieldDefRequest getFieldDefRequest(String jsonStr) {
     logger.info(String.format("Converting fields %s to proto FieldDefRequest", jsonStr));
     FieldDefRequest.Builder fieldDefRequestBuilder = FieldDefRequest.newBuilder();
@@ -520,5 +530,10 @@ public class LuceneServerClient {
     logger.info(
         String.format("jsonStr converted to proto SettingsRequest %s", settingsRequest.toString()));
     return settingsRequest;
+  }
+
+  @Override
+  public void close() {
+    this.channel.shutdownNow();
   }
 }
