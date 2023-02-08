@@ -36,6 +36,14 @@ dependencies {
     testImplementation "org.assertj:assertj-core:3.19.0"
 }
 
+configurations {
+    zipDependency {
+        description = 'ZIPped artifacts that need to be extracted first.'
+        transitive = false
+        visible = false
+    }
+}
+
 distributions {
     main {
         contents {
