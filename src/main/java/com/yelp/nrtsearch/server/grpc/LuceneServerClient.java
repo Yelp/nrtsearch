@@ -79,6 +79,11 @@ public class LuceneServerClient implements Closeable {
     channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
   }
 
+  @Override
+  public void close() {
+    this.channel.shutdownNow();
+  }
+
   public void createIndex(
       String indexName,
       String existsWithId,
@@ -530,10 +535,5 @@ public class LuceneServerClient implements Closeable {
     logger.info(
         String.format("jsonStr converted to proto SettingsRequest %s", settingsRequest.toString()));
     return settingsRequest;
-  }
-
-  @Override
-  public void close() {
-    this.channel.shutdownNow();
   }
 }
