@@ -16,8 +16,8 @@
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
-import java.util.Map;
 import org.apache.lucene.index.IndexReader;
 
 /**
@@ -46,7 +46,7 @@ public interface Highlighter {
    * @param settings the highlight settings derived from the search request for this field
    * @param textBaseFieldDef the target's field information
    * @param docId the target's identifier to retrieve the highlighting document from the indexReader
-   * @param highlighterContext a shared context for cache and contexts
+   * @param searchContext the searchContext to keep the contexts for this search request
    * @return an array of Strings containing all highlighted fragments
    * @throws IOException will be thrown when fail during the document reading
    */
@@ -55,7 +55,7 @@ public interface Highlighter {
       HighlightSettings settings,
       TextBaseFieldDef textBaseFieldDef,
       int docId,
-      Map<String, Object> highlighterContext)
+      SearchContext searchContext)
       throws IOException;
 
   /**

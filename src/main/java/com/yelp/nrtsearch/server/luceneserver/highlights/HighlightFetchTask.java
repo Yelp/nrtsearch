@@ -43,7 +43,6 @@ public class HighlightFetchTask implements FetchTask {
   private static final double TEN_TO_THE_POWER_SIX = Math.pow(10, 6);
   private final IndexState indexState;
   private final IndexReader indexReader;
-  private final Map<String, Object> highlighterContext;
   private final Map<String, HighlightSettings> fieldSettings;
   private final DoubleAdder timeTakenMs = new DoubleAdder();
 
@@ -52,11 +51,9 @@ public class HighlightFetchTask implements FetchTask {
       SearcherAndTaxonomy searcherAndTaxonomy,
       Query searchQuery,
       HighlighterService highlighterService,
-      Highlight highlight,
-      Map<String, Object> highlighterContext) {
+      Highlight highlight) {
     this.indexState = indexState;
     this.indexReader = searcherAndTaxonomy.searcher.getIndexReader();
-    this.highlighterContext = highlighterContext;
     this.fieldSettings =
         createPerFieldSettings(highlight, searchQuery, indexState, highlighterService);
     verifyHighlights();
@@ -90,7 +87,7 @@ public class HighlightFetchTask implements FetchTask {
               fieldSetting.getValue(),
               textBaseFieldDef,
               hit.getLuceneDocId(),
-              highlighterContext);
+              searchContext);
       if (highlights != null && highlights.length > 0 && highlights[0] != null) {
         Highlights.Builder builder = Highlights.newBuilder();
         for (String fragment : highlights) {

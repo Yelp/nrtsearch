@@ -16,8 +16,8 @@
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
-import java.util.Map;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
@@ -68,6 +68,7 @@ public class NRTFastVectorHighlighter implements Highlighter {
    * @param settings {@link HighlightSettings} created from the search request
    * @param textBaseFieldDef Field in document to highlight
    * @param docId Lucene document ID of the document to highlight
+   * @param _searchContext not in used in fvh
    * @return Array of highlight fragments
    * @throws IOException if there is a low-level IO error
    */
@@ -77,7 +78,7 @@ public class NRTFastVectorHighlighter implements Highlighter {
       HighlightSettings settings,
       TextBaseFieldDef textBaseFieldDef,
       int docId,
-      Map<String, Object> _highlighterContext)
+      SearchContext _searchContext)
       throws IOException {
     FragListBuilder fragListBuilder;
     int numberOfFragments = settings.getMaxNumFragments();

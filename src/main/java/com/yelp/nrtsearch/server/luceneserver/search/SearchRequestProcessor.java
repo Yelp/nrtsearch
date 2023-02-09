@@ -157,17 +157,11 @@ public class SearchRequestProcessor {
 
     Highlight highlight = searchRequest.getHighlight();
     if (!highlight.getFieldsList().isEmpty()) {
-      Map<String, Object> highlighterContext = new HashMap<>();
-      contextBuilder.setHilighterContext(highlighterContext);
       HighlightFetchTask highlightFetchTask =
           new HighlightFetchTask(
-              indexState,
-              searcherAndTaxonomy,
-              query,
-              HighlighterService.getInstance(),
-              highlight,
-              highlighterContext);
+              indexState, searcherAndTaxonomy, query, HighlighterService.getInstance(), highlight);
       contextBuilder.setHighlightFetchTask(highlightFetchTask);
+      contextBuilder.setHilighterContext(new HashMap<>());
     }
 
     SearchContext searchContext = contextBuilder.build(true);
