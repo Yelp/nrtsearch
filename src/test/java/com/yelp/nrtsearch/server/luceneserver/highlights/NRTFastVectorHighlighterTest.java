@@ -44,7 +44,7 @@ import java.util.Set;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-public class FastVectorHighlighterTest extends ServerTestCase {
+public class NRTFastVectorHighlighterTest extends ServerTestCase {
 
   private static final List<String> ALL_FIELDS = List.of("doc_id", "comment");
 

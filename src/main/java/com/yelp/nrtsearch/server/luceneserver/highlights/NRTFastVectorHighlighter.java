@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
  * vector with positions and offsets. And the multivalue fields are always fragmented and scored
  * discretely.
  */
-public class FastVectorHighlighter implements Highlighter {
+public class NRTFastVectorHighlighter implements Highlighter {
 
   static final String HIGHLIGHTER_NAME = "fast-vector-highlighter";
   private static final org.apache.lucene.search.vectorhighlight.FastVectorHighlighter
@@ -47,11 +47,11 @@ public class FastVectorHighlighter implements Highlighter {
   private static final SingleFragListBuilder SINGLE_FRAG_LIST_BUILDER = new SingleFragListBuilder();
   private static final DefaultEncoder DEFAULT_ENCODER = new DefaultEncoder();
 
-  private static final FastVectorHighlighter INSTANCE = new FastVectorHighlighter();
+  private static final NRTFastVectorHighlighter INSTANCE = new NRTFastVectorHighlighter();
 
-  private static Logger logger = LoggerFactory.getLogger(FastVectorHighlighter.class);
+  private static Logger logger = LoggerFactory.getLogger(NRTFastVectorHighlighter.class);
 
-  public static FastVectorHighlighter getInstance() {
+  public static NRTFastVectorHighlighter getInstance() {
     return INSTANCE;
   }
 

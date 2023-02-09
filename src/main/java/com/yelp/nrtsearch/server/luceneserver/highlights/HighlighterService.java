@@ -47,8 +47,8 @@ public class HighlighterService {
 
   /** builtin highlighters are not shipped as plugins. They will be initialized here. */
   private static void initializeBuiltinHighlighters() {
-    FastVectorHighlighter fastVectorHighlighter = FastVectorHighlighter.getInstance();
-    instance.register(fastVectorHighlighter.getName(), fastVectorHighlighter);
+    NRTFastVectorHighlighter nrtFastVectorHighlighter = NRTFastVectorHighlighter.getInstance();
+    instance.register(nrtFastVectorHighlighter.getName(), nrtFastVectorHighlighter);
   }
   /**
    * Initialize singleton instance of {@link HighlighterService}. Registers all builtin highlighter
