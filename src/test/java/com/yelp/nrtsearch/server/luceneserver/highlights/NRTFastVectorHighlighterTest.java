@@ -390,7 +390,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
   public void testHighlightFieldMatchFalse() {
     Highlight highlight =
         Highlight.newBuilder()
-            .setSettings(Settings.newBuilder().setFieldMatchV2(BoolValue.of(false)))
+            .setSettings(Settings.newBuilder().setFieldMatch(BoolValue.of(false)))
             .addFields("comment2")
             .build();
     SearchResponse response = doHighlightQuery(highlight);
@@ -409,7 +409,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
         Highlight.newBuilder()
             .setSettings(
                 Settings.newBuilder()
-                    .setFieldMatchV2(BoolValue.of(true))
+                    .setFieldMatch(BoolValue.of(true))
                     .setScoreOrdered(BoolValue.of(true)))
             .addFields("comment2")
             .build();
