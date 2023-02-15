@@ -147,9 +147,7 @@ public class HighlightUtils {
         .withFragmenter(
             settings.hasFragmenter() ? settings.getFragmenter().getValue() : DEFAULT_FRAGMENTER)
         .withFieldMatch(
-            settings.hasFieldMatch()
-                ? settings.getFieldMatch().getValue()
-                : DEFAULT_FIELD_MATCH)
+            settings.hasFieldMatch() ? settings.getFieldMatch().getValue() : DEFAULT_FIELD_MATCH)
         .withDiscreteMultivalue(
             settings.hasDiscreteMultivalue()
                 ? settings.getDiscreteMultivalue().getValue()
