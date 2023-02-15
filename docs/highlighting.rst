@@ -20,7 +20,7 @@ fast-vector-highlighter:
 
 * The field must be stored, i.e. have "store: true"
 * The field must have term vectors with positions and offsets, i.e. have "termVectors: TERMS_POSITIONS_OFFSETS"
-* While not mandatory, the field must be tokenized for the highlights to be useful, i.e. have "tokenize: true" (We recently loose this restriction to allow highlighting on the non-tokenized fields.)
+* While not mandatory, the field must be tokenized for the highlights to be useful, i.e. have "tokenize: true"
 
 Query Syntax
 ------------
@@ -33,39 +33,37 @@ This is the proto definition for Highlight message which can be specified in Sea
   message Highlight {
 
     enum Type {
-        // The default highlighter in global settings is FAST_VECTOR; In field_settings is no-override (use global settings)
+        // When DEFAULT is set in global setting, use fast vector highlighter; when set for field setting, use the type from the global setting.
         DEFAULT = 0;
         FAST_VECTOR = 1;
-        PLAIN = 2;  // not supported yet
+        // not supported yet
+        PLAIN = 2;
         CUSTOM = 3;
     }
 
     message Settings {
         // Specify type of highlighter to use. Ignored right now in nrtsearch.
         Type highlighter_type = 1;
-        // Used along with post_tags to specify how to wrap the highlighted text
+        // Used along with post_tags to specify how to wrap the highlighted text.
         repeated string pre_tags = 2;
-        // Used along with pre_tags to specify how to wrap the highlighted text
+        // Used along with pre_tags to specify how to wrap the highlighted text.
         repeated string post_tags = 3;
-        // Number of characters in highlighted fragment, 100 by default
+        // Number of characters in highlighted fragment, 100 by default.
         google.protobuf.UInt32Value fragment_size = 4;
         // Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single fragment ignoring fragment_size.
         google.protobuf.UInt32Value max_number_of_fragments = 5;
-        // Specify a query here if highlighting is desired against a different query than the search query
+        // Specify a query here if highlighting is desired against a different query than the search query.
         Query highlight_query = 6;
         // Set to true to highlight fields only if specified in the search query.
-        // This field is identical to field_match_v2 but doesn't support field override. This setting will be ignored if field_match_v2 is present.
-        bool field_match = 7 [deprecated = true];
-        // Set to true to highlight fields only if specified in the search query. (Default is false)
-        google.protobuf.BoolValue field_match_v2 = 8;
+        google.protobuf.BoolValue field_match = 7;
         // Sorts highlighted fragments by score when set to true. By default, fragments will be output in the order they appear in the field. (Default is true)
-        google.protobuf.BoolValue score_ordered = 9;
+        google.protobuf.BoolValue score_ordered = 8;
         // Select Fragmenter between span (default) and simple. This is only applicable for plain highlighters.
-        google.protobuf.StringValue fragmenter = 10;
+        google.protobuf.StringValue fragmenter = 9;
         // Let the fragment builder respect the multivalue fields. Each fragment won't cross multiple value fields if set true. (Default is false)
-        google.protobuf.BoolValue discrete_multivalue = 11;
+        google.protobuf.BoolValue discrete_multivalue = 10;
         // When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for any other highlighter_types.
-        string custom_highlighter_name = 12;
+        string custom_highlighter_name = 11;
     }
 
     // Highlight settings

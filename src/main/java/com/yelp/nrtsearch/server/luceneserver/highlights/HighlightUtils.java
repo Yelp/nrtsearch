@@ -97,9 +97,8 @@ public class HighlightUtils {
                         ? settings.getFragmenter().getValue()
                         : globalSettings.getFragmenter())
                 .withFieldMatch(
-                    // ignore field_match(v1) in field override
-                    settings.hasFieldMatchV2()
-                        ? settings.getFieldMatchV2().getValue()
+                    settings.hasFieldMatch()
+                        ? settings.getFieldMatch().getValue()
                         : globalSettings.getFieldMatch())
                 .withDiscreteMultivalue(
                     settings.hasDiscreteMultivalue()
@@ -148,10 +147,9 @@ public class HighlightUtils {
         .withFragmenter(
             settings.hasFragmenter() ? settings.getFragmenter().getValue() : DEFAULT_FRAGMENTER)
         .withFieldMatch(
-            // for backward-compatibility get v1 if v2 is omitted
-            settings.hasFieldMatchV2()
-                ? settings.getFieldMatchV2().getValue()
-                : settings.getFieldMatch())
+            settings.hasFieldMatch()
+                ? settings.getFieldMatch().getValue()
+                : DEFAULT_FIELD_MATCH)
         .withDiscreteMultivalue(
             settings.hasDiscreteMultivalue()
                 ? settings.getDiscreteMultivalue().getValue()

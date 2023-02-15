@@ -48,7 +48,7 @@ public class SearchContext implements FieldFetchContext {
   private final List<RescoreTask> rescorers;
   private final SharedDocContext sharedDocContext;
   private final HighlightFetchTask highlightFetchTask;
-  private final Map<String, Object> highlighterContext;
+  private final Map<String, Object> extraContext;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -66,7 +66,7 @@ public class SearchContext implements FieldFetchContext {
     this.rescorers = builder.rescorers;
     this.sharedDocContext = builder.sharedDocContext;
     this.highlightFetchTask = builder.highlightFetchTask;
-    this.highlighterContext = builder.highlighterContext;
+    this.extraContext = builder.extraContext;
 
     if (validate) {
       validate();
@@ -158,11 +158,10 @@ public class SearchContext implements FieldFetchContext {
   }
 
   /**
-   * Get the highlighter context map which can be used for cache or data sharing. Null if no
-   * highlights are specified in the request.
+   * Get the extra custom context map which can be used for cache or data sharing.
    */
-  public Map<String, Object> getHighlighterContext() {
-    return highlighterContext;
+  public Map<String, Object> getExtraContext() {
+    return extraContext;
   }
 
   /** Get new context builder instance * */
@@ -219,7 +218,7 @@ public class SearchContext implements FieldFetchContext {
     private List<RescoreTask> rescorers;
     private SharedDocContext sharedDocContext;
     private HighlightFetchTask highlightFetchTask;
-    private Map<String, Object> highlighterContext;
+    private Map<String, Object> extraContext;
 
     private Builder() {}
 
@@ -316,8 +315,8 @@ public class SearchContext implements FieldFetchContext {
       return this;
     }
 
-    public Builder setHilighterContext(Map<String, Object> highlighterContext) {
-      this.highlighterContext = highlighterContext;
+    public Builder setExtraContext(Map<String, Object> extraContext) {
+      this.extraContext = extraContext;
       return this;
     }
 

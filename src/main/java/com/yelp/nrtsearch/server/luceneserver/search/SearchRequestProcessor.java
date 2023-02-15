@@ -161,9 +161,8 @@ public class SearchRequestProcessor {
           new HighlightFetchTask(
               indexState, searcherAndTaxonomy, query, HighlighterService.getInstance(), highlight);
       contextBuilder.setHighlightFetchTask(highlightFetchTask);
-      contextBuilder.setHilighterContext(new HashMap<>());
     }
-
+    contextBuilder.setExtraContext(new HashMap<>());
     SearchContext searchContext = contextBuilder.build(true);
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);
