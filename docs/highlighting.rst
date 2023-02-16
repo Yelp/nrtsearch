@@ -10,12 +10,12 @@ Requirements
 
 To be able to highlight a field the following settings must be enabled when registering the field:
 
-general:
+General:
 ^^^^^^^^
 * The field must be a TEXT field
 * The field must be searchable, i.e. have "search: true"
 
-fast-vector-highlighter:
+Fast-vector-highlighter:
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 * The field must be stored, i.e. have "store: true"

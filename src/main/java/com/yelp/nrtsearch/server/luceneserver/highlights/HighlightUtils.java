@@ -191,7 +191,7 @@ public class HighlightUtils {
         return settings.getCustomHighlighterName();
       default:
         throw new IllegalArgumentException(
-            String.format("Unknown highlighter_type [%s]", settings.getHighlighterType()));
+            String.format("Unknown highlighter_type: %s", settings.getHighlighterType()));
     }
   }
 }
