@@ -103,6 +103,7 @@ public class LuceneServerConfiguration {
   private final YamlConfigReader configReader;
   private final long maxConnectionAgeForReplication;
   private final long maxConnectionAgeGraceForReplication;
+  private final boolean savePluginBeforeUnzip;
 
   @Inject
   public LuceneServerConfiguration(InputStream yamlStream) {
@@ -172,6 +173,7 @@ public class LuceneServerConfiguration {
         FSTLoadMode.valueOf(configReader.getString("completionCodecLoadMode", "ON_HEAP"));
     filterIncompatibleSegmentReaders =
         configReader.getBoolean("filterIncompatibleSegmentReaders", false);
+    this.savePluginBeforeUnzip = configReader.getBoolean("savePluginBeforeUnzip", false);
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
@@ -332,6 +334,10 @@ public class LuceneServerConfiguration {
 
   public boolean getFilterIncompatibleSegmentReaders() {
     return filterIncompatibleSegmentReaders;
+  }
+
+  public boolean getSavePluginBeforeUnzip() {
+    return savePluginBeforeUnzip;
   }
 
   /**
