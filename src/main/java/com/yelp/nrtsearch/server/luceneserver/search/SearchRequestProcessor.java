@@ -55,6 +55,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -162,7 +163,7 @@ public class SearchRequestProcessor {
               indexState, searcherAndTaxonomy, query, HighlighterService.getInstance(), highlight);
       contextBuilder.setHighlightFetchTask(highlightFetchTask);
     }
-    contextBuilder.setExtraContext(new HashMap<>());
+    contextBuilder.setExtraContext(new ConcurrentHashMap<>());
     SearchContext searchContext = contextBuilder.build(true);
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);

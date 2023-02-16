@@ -157,7 +157,10 @@ public class SearchContext implements FieldFetchContext {
     return highlightFetchTask;
   }
 
-  /** Get the extra custom context map which can be used for cache or data sharing. */
+  /**
+   * Get the extra custom context map which can be used for cache or data sharing. This map should
+   * be threadsafe.
+   */
   public Map<String, Object> getExtraContext() {
     return extraContext;
   }
