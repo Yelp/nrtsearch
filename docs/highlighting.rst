@@ -17,10 +17,13 @@ General:
 
 Fast-vector-highlighter:
 ^^^^^^^^^^^^^^^^^^^^^^^^
-
 * The field must be stored, i.e. have "store: true"
 * The field must have term vectors with positions and offsets, i.e. have "termVectors: TERMS_POSITIONS_OFFSETS"
 * While not mandatory, the field must be tokenized for the highlights to be useful, i.e. have "tokenize: true"
+
+Plain-highlighter:
+^^^^^^^^^^^^^^^^^^^^^^^^
+* The field must be stored, i.e. have "store: true"
 
 Query Syntax
 ------------
@@ -36,7 +39,6 @@ This is the proto definition for Highlight message which can be specified in Sea
         // When DEFAULT is set in global setting, use fast vector highlighter; when set for field setting, use the type from the global setting.
         DEFAULT = 0;
         FAST_VECTOR = 1;
-        // not supported yet
         PLAIN = 2;
         CUSTOM = 3;
     }
@@ -61,6 +63,7 @@ This is the proto definition for Highlight message which can be specified in Sea
         // Select Fragmenter between span (default) and simple. This is only applicable for plain highlighters.
         google.protobuf.StringValue fragmenter = 9;
         // Let the fragment builder respect the multivalue fields. Each fragment won't cross multiple value fields if set true. (Default is false)
+        // Ignored in plain-highlighter, as we treat it always true.
         google.protobuf.BoolValue discrete_multivalue = 10;
         // When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for any other highlighter_types.
         string custom_highlighter_name = 11;

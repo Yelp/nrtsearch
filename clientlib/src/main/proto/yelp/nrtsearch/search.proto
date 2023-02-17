@@ -799,7 +799,6 @@ message Highlight {
         // When DEFAULT is set in global setting, use fast vector highlighter; when set for field setting, use the type from the global setting.
         DEFAULT = 0;
         FAST_VECTOR = 1;
-        // not supported yet
         PLAIN = 2;
         CUSTOM = 3;
     }
@@ -824,6 +823,7 @@ message Highlight {
         // Select Fragmenter between span (default) and simple. This is only applicable for plain highlighters.
         google.protobuf.StringValue fragmenter = 9;
         // Let the fragment builder respect the multivalue fields. Each fragment won't cross multiple value fields if set true. (Default is false)
+        // Ignored in plain-highlighter, as we treat it always true.
         google.protobuf.BoolValue discrete_multivalue = 10;
         // When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for any other highlighter_types.
         string custom_highlighter_name = 11;

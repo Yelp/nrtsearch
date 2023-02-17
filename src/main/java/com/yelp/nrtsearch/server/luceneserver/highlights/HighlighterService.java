@@ -49,6 +49,8 @@ public class HighlighterService {
   private static void initializeBuiltinHighlighters() {
     NRTFastVectorHighlighter nrtFastVectorHighlighter = NRTFastVectorHighlighter.getInstance();
     instance.register(nrtFastVectorHighlighter.getName(), nrtFastVectorHighlighter);
+    PlainHighlighter plainHighlighter = PlainHighlighter.getInstance();
+    instance.register(plainHighlighter.getName(), plainHighlighter);
   }
   /**
    * Initialize singleton instance of {@link HighlighterService}. Registers all builtin highlighter

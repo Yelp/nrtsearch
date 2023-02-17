@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
 import com.google.protobuf.BoolValue;
@@ -28,7 +27,6 @@ import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
 import com.yelp.nrtsearch.server.grpc.Highlight.Type;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
-import com.yelp.nrtsearch.server.grpc.PhraseQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -44,7 +42,7 @@ import java.util.Set;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-public class NRTFastVectorHighlighterTest extends ServerTestCase {
+public class PlainHighlighterTest extends ServerTestCase {
 
   private static final List<String> ALL_FIELDS = List.of("doc_id", "comment");
 
@@ -77,7 +75,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
                         List.of(
                             "The food is good there, but the service is terrible.",
                             "I personally don't like the staff at this place",
-                            "Not all food are good."))
+                            "Not all food are my favorite."))
                     .build())
             .build();
     docs.add(request);
@@ -111,205 +109,120 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
     Highlight highlight =
         Highlight.newBuilder()
             .addFields("comment")
-            .setSettings(Settings.newBuilder().setScoreOrdered(BoolValue.of(true)))
+            .setSettings(Settings.newBuilder().setHighlighterType(Type.PLAIN))
             .build();
     SearchResponse response = doHighlightQuery(highlight);
 
     assertFields(response);
 
     assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragments(0))
-        .isEqualTo("the <em>food</em> here is amazing, service was good");
-    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
         .isEqualTo(
-            "restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite <em>food</em> was chilly chicken");
+            "This is my first time eating at this restaurant. The <em>food</em> here is pretty good, the service could be better. My <em>favorite</em> <em>food</em> was chilly chicken.");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
+        .isEqualTo("the <em>food</em> here is amazing, service was good");
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
   @Test
-  public void testBasicHighlightWithName() {
-    Highlight highlight =
-        Highlight.newBuilder()
-            .addFields("comment")
-            .setSettings(Settings.newBuilder().setHighlighterType(Type.FAST_VECTOR))
-            .build();
-    SearchResponse response = doHighlightQuery(highlight);
-
-    assertFields(response);
-
-    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragments(0))
-        .isEqualTo("the <em>food</em> here is amazing, service was good");
-    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
-        .isEqualTo(
-            "restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite <em>food</em> was chilly chicken");
-    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
-  }
-
-  @Test
-  public void testBasicHighlightWithUnknownName() {
+  public void testSmallFragmentSize() {
     Highlight highlight =
         Highlight.newBuilder()
             .addFields("comment")
             .setSettings(
                 Settings.newBuilder()
-                    .setHighlighterType(Type.CUSTOM)
-                    .setCustomHighlighterName("doesn't-exist"))
+                    .setHighlighterType(Type.PLAIN)
+                    .setFragmentSize(UInt32Value.of(22)))
             .build();
-    assertThatThrownBy(() -> doHighlightQuery(highlight))
-        .isInstanceOf(StatusRuntimeException.class)
-        .hasMessageContaining("Unknown highlighter name");
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertFields(response);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly(
+            ". My <em>favorite</em> <em>food</em> was chilly chicken.",
+            " restaurant. The <em>food</em> here is");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
+        .isEqualTo("the <em>food</em> here is");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
   @Test
-  public void testHighlightMultivalueField() {
+  public void testNotScoreOrdered() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .addFields("comment")
+            .setSettings(
+                Settings.newBuilder()
+                    .setHighlighterType(Type.PLAIN)
+                    .setScoreOrdered(BoolValue.of(false))
+                    .setFragmentSize(UInt32Value.of(22)))
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertFields(response);
+
+    // For plain-highlighter, always sorted by score for singe-value fields.
+    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
+        .containsExactly(
+            ". My <em>favorite</em> <em>food</em> was chilly chicken.",
+            " restaurant. The <em>food</em> here is");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragments(0))
+        .isEqualTo("the <em>food</em> here is");
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
+  }
+
+  @Test
+  public void testMultivalueField() {
     Highlight highlight =
         Highlight.newBuilder()
             .addFields("comment_multivalue")
             .setSettings(
                 Settings.newBuilder()
-                    .setScoreOrdered(BoolValue.of(true))
-                    .setDiscreteMultivalue(BoolValue.of(true)))
+                    .setHighlighterType(Type.PLAIN)
+                    .setFragmentSize(UInt32Value.of(22)))
             .build();
     SearchResponse response = doHighlightQuery(highlight);
 
     assertFields(response);
 
     assertThat(response.getHits(0).getHighlightsMap().get("comment_multivalue").getFragmentsList())
-        .containsExactly(
-            "The <em>food</em> is good there, but the service is terrible.",
-            "Not all <em>food</em> are good.");
+        .containsExactly("High quality <em>food</em>");
     assertThat(response.getHits(1).getHighlightsMap().get("comment_multivalue").getFragmentsList())
-        .containsExactly("High quality <em>food</em>. Fresh and delicious!");
+        .containsExactly(
+            "Not all <em>food</em> are my <em>favorite</em>.", "The <em>food</em> is good");
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
   @Test
-  public void testHighlightGlobalSettings() {
-    Settings settings =
-        Settings.newBuilder()
-            .addPreTags("<START>")
-            .addPostTags("<END>")
-            .setFragmentSize(UInt32Value.newBuilder().setValue(18))
-            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(3))
-            .setHighlightQuery(
-                Query.newBuilder()
-                    .setMatchQuery(
-                        MatchQuery.newBuilder().setField("comment").setQuery("food is good")))
-            .setScoreOrdered(BoolValue.of(true))
-            .build();
-    Highlight highlight = Highlight.newBuilder().setSettings(settings).addFields("comment").build();
-    SearchResponse response = doHighlightQuery(highlight);
-
-    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
-        .containsExactly(
-            "the <START>food<END> here <START>is<END> amazing", "service was <START>good<END>");
-    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
-        .containsExactly(
-            "The <START>food<END> here <START>is<END> pretty",
-            "This <START>is<END> my first time",
-            "pretty <START>good<END>, the service");
-    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
-  }
-
-  @Test
-  public void testHighlightFieldSettings() {
-    Settings globalSettings =
-        Settings.newBuilder()
-            .addPreTags("<s>")
-            .addPostTags("<e>")
-            .setFragmentSize(UInt32Value.newBuilder().setValue(50))
-            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(5))
-            .setHighlightQuery(
-                Query.newBuilder()
-                    .setMatchQuery(MatchQuery.newBuilder().setField("comment").setQuery("pretty")))
-            .setScoreOrdered(BoolValue.of(true))
-            .build();
-    Settings fieldSettings =
-        Settings.newBuilder()
-            .addPreTags("<START>")
-            .addPostTags("<END>")
-            .setFragmentSize(UInt32Value.newBuilder().setValue(18))
-            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(3))
-            .setHighlightQuery(
-                Query.newBuilder()
-                    .setMatchQuery(
-                        MatchQuery.newBuilder().setField("comment").setQuery("food is good")))
-            .build();
+  public void testMultivalueFieldNotScoredOrder() {
     Highlight highlight =
         Highlight.newBuilder()
-            .setSettings(globalSettings)
-            .addFields("comment")
-            .putFieldSettings("comment", fieldSettings)
-            .build();
-    SearchResponse response = doHighlightQuery(highlight);
-
-    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
-        .containsExactly(
-            "the <START>food<END> here <START>is<END> amazing", "service was <START>good<END>");
-    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
-        .containsExactly(
-            "The <START>food<END> here <START>is<END> pretty",
-            "This <START>is<END> my first time",
-            "pretty <START>good<END>, the service");
-    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
-  }
-
-  @Test
-  public void testNotScoreOrdered() {
-    Settings globalSettings =
-        Settings.newBuilder()
-            .setHighlightQuery(
-                Query.newBuilder()
-                    .setMatchQuery(
-                        MatchQuery.newBuilder().setField("comment").setQuery("food is good")))
-            .setFragmentSize(UInt32Value.newBuilder().setValue(18))
-            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(3))
-            .setScoreOrdered(BoolValue.of(false))
-            .build();
-    Highlight highlight =
-        Highlight.newBuilder().setSettings(globalSettings).addFields("comment").build();
-    SearchResponse response = doHighlightQuery(highlight);
-
-    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
-        .containsExactly("the <em>food</em> here <em>is</em> amazing", "service was <em>good</em>");
-    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
-        .containsExactly(
-            "This <em>is</em> my first time",
-            "The <em>food</em> here <em>is</em> pretty",
-            "pretty <em>good</em>, the service");
-    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
-  }
-
-  @Test
-  public void testHighlightsAbsentForOneHit() {
-    Highlight highlight =
-        Highlight.newBuilder()
-            .addFields("comment")
+            .addFields("comment_multivalue")
             .setSettings(
                 Settings.newBuilder()
-                    .setHighlightQuery(
-                        Query.newBuilder()
-                            .setPhraseQuery(
-                                PhraseQuery.newBuilder()
-                                    .setField("comment")
-                                    .setSlop(5)
-                                    .addTerms("food")
-                                    .addTerms("pretty")
-                                    .addTerms("good"))))
+                    .setHighlighterType(Type.PLAIN)
+                    .setScoreOrdered(BoolValue.of(false))
+                    .setFragmentSize(UInt32Value.of(22)))
             .build();
     SearchResponse response = doHighlightQuery(highlight);
 
     assertFields(response);
 
-    assertThat(response.getHits(0).getHighlightsMap()).isEmpty();
-    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
+    assertThat(response.getHits(0).getHighlightsMap().get("comment_multivalue").getFragmentsList())
+        .containsExactly("High quality <em>food</em>");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment_multivalue").getFragmentsList())
         .containsExactly(
-            "first time eating at this restaurant. The <em>food</em> here is <em>pretty good</em>, the service could be better. My favorite");
+            "The <em>food</em> is good", "Not all <em>food</em> are my <em>favorite</em>.");
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
   @Test
   public void testHighlightIncompatibleField() {
-    Highlight highlight = Highlight.newBuilder().addFields("comment.no_search").build();
+    Highlight highlight =
+        Highlight.newBuilder()
+            .addFields("comment.no_search")
+            .setSettings(Settings.newBuilder().setHighlighterType(Type.PLAIN))
+            .build();
     try {
       doHighlightQuery(highlight);
       fail("No error for invalid field");
@@ -318,24 +231,17 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
           .contains("Field comment.no_search is not searchable and cannot support highlights");
     }
 
-    highlight = Highlight.newBuilder().addFields("comment.no_store").build();
+    highlight =
+        Highlight.newBuilder()
+            .addFields("comment.no_store")
+            .setSettings(Settings.newBuilder().setHighlighterType(Type.PLAIN))
+            .build();
     try {
       doHighlightQuery(highlight);
       fail("No error for invalid field");
     } catch (StatusRuntimeException e) {
       assertThat(e.getMessage())
-          .contains(
-              "Field comment.no_store is not stored and cannot support fast-vector-highlighter");
-    }
-
-    highlight = Highlight.newBuilder().addFields("comment.no_term_vectors_with_offsets").build();
-    try {
-      doHighlightQuery(highlight);
-      fail("No error for invalid field");
-    } catch (StatusRuntimeException e) {
-      assertThat(e.getMessage())
-          .contains(
-              "Field comment.no_term_vectors_with_offsets does not have term vectors with positions and offsets and cannot support fast-vector-highlighter");
+          .contains("Field comment.no_store is not stored and cannot support plain-highlighter");
     }
   }
 
@@ -343,6 +249,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
   public void testHighlightMaxNumFragmentsZeroGlobal() {
     Settings globalSettings =
         Settings.newBuilder()
+            .setHighlighterType(Type.PLAIN)
             .setFragmentSize(UInt32Value.newBuilder().setValue(10))
             .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(0))
             .build();
@@ -351,38 +258,10 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
     SearchResponse response = doHighlightQuery(highlight);
 
     assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
-        .containsExactly("the <em>food</em> here is amazing, service was good");
-    assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
         .containsExactly(
-            "This is my first time eating at this restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite <em>food</em> was chilly chicken.");
-    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
-  }
-
-  @Test
-  public void testHighlightMaxNumFragmentsZeroForField() {
-    Settings globalSettings =
-        Settings.newBuilder()
-            .setFragmentSize(UInt32Value.newBuilder().setValue(10))
-            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(1))
-            .build();
-    Settings fieldSettings =
-        Settings.newBuilder()
-            .setFragmentSize(UInt32Value.newBuilder().setValue(10))
-            .setMaxNumberOfFragments(UInt32Value.newBuilder().setValue(0))
-            .build();
-    Highlight highlight =
-        Highlight.newBuilder()
-            .setSettings(globalSettings)
-            .addFields("comment")
-            .putFieldSettings("comment", fieldSettings)
-            .build();
-    SearchResponse response = doHighlightQuery(highlight);
-
-    assertThat(response.getHits(0).getHighlightsMap().get("comment").getFragmentsList())
-        .containsExactly("the <em>food</em> here is amazing, service was good");
+            "This is my first time eating at this restaurant. The <em>food</em> here is pretty good, the service could be better. My <em>favorite</em> <em>food</em> was chilly chicken.");
     assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
-        .containsExactly(
-            "This is my first time eating at this restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite food was chilly chicken.");
+        .containsExactly("the <em>food</em> here is amazing, service was good");
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
@@ -390,16 +269,19 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
   public void testHighlightFieldMatchFalse() {
     Highlight highlight =
         Highlight.newBuilder()
-            .setSettings(Settings.newBuilder().setFieldMatch(BoolValue.of(false)))
+            .setSettings(
+                Settings.newBuilder()
+                    .setHighlighterType(Type.PLAIN)
+                    .setFieldMatch(BoolValue.of(false)))
             .addFields("comment2")
             .build();
     SearchResponse response = doHighlightQuery(highlight);
 
     assertThat(response.getHitsCount()).isEqualTo(2);
     assertThat(response.getHits(0).getHighlightsMap().get("comment2").getFragmentsList())
-        .containsExactly("This is my regular place, the <em>food</em> is good");
-    assertThat(response.getHits(1).getHighlightsMap().get("comment2").getFragmentsList())
         .containsExactly("There is some amazing <em>food</em> and also drinks here. Must visit!");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment2").getFragmentsList())
+        .containsExactly("This is my regular place, the <em>food</em> is good");
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
@@ -409,6 +291,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
         Highlight.newBuilder()
             .setSettings(
                 Settings.newBuilder()
+                    .setHighlighterType(Type.PLAIN)
                     .setFieldMatch(BoolValue.of(true))
                     .setScoreOrdered(BoolValue.of(true)))
             .addFields("comment2")
@@ -436,7 +319,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
                 .setQuery(
                     Query.newBuilder()
                         .setMatchQuery(
-                            MatchQuery.newBuilder().setField("comment").setQuery("food")))
+                            MatchQuery.newBuilder().setField("comment").setQuery("favorite food")))
                 .setHighlight(highlight)
                 .build());
   }

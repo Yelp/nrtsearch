@@ -153,19 +153,15 @@ public class HighlightUtils {
                 ? settings.getDiscreteMultivalue().getValue()
                 : DEFAULT_DISCRETE_MULTIVALUE);
 
-    if (settings.hasMaxNumberOfFragments() && settings.getMaxNumberOfFragments().getValue() == 0) {
-      builder.withMaxNumFragments(Integer.MAX_VALUE).withFragmentSize(Integer.MAX_VALUE);
-    } else {
-      builder
-          .withMaxNumFragments(
-              settings.hasMaxNumberOfFragments()
-                  ? settings.getMaxNumberOfFragments().getValue()
-                  : DEFAULT_MAX_NUM_FRAGMENTS)
-          .withFragmentSize(
-              settings.hasFragmentSize()
-                  ? settings.getFragmentSize().getValue()
-                  : DEFAULT_FRAGMENT_SIZE);
-    }
+    builder
+        .withMaxNumFragments(
+            settings.hasMaxNumberOfFragments()
+                ? settings.getMaxNumberOfFragments().getValue()
+                : DEFAULT_MAX_NUM_FRAGMENTS)
+        .withFragmentSize(
+            settings.hasFragmentSize()
+                ? settings.getFragmentSize().getValue()
+                : DEFAULT_FRAGMENT_SIZE);
 
     Query query =
         settings.hasHighlightQuery()
@@ -184,7 +180,7 @@ public class HighlightUtils {
          */
         return DEFAULT_HIGHLIGHTER_NAME;
       case PLAIN:
-        throw new UnsupportedOperationException("plain-highlighter is not supported yet.");
+        return PlainHighlighter.HIGHLIGHTER_NAME;
       case FAST_VECTOR:
         return NRTFastVectorHighlighter.HIGHLIGHTER_NAME;
       case CUSTOM:
