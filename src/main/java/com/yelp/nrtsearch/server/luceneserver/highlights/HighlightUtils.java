@@ -17,42 +17,47 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.Highlight.Settings;
+import com.yelp.nrtsearch.server.grpc.Highlight.Type;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightSettings.Builder;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.vectorhighlight.FieldQuery;
 
 /** Helper class to create {@link HighlightSettings} from a search request. */
-public class HighlightSettingsHelper {
+public class HighlightUtils {
 
   private static final String[] DEFAULT_PRE_TAGS = new String[] {"<em>"};
   private static final String[] DEFAULT_POST_TAGS = new String[] {"</em>"};
   private static final int DEFAULT_FRAGMENT_SIZE = 100; // In number of characters
   private static final int DEFAULT_MAX_NUM_FRAGMENTS = 5;
+
+  private static String DEFAULT_HIGHLIGHTER_NAME = NRTFastVectorHighlighter.HIGHLIGHTER_NAME;
+  private static final String DEFAULT_FRAGMENTER = "span";
+  private static final boolean DEFAULT_SCORE_ORDERED = true;
+  private static final boolean DEFAULT_FIELD_MATCH = false;
+  private static final boolean DEFAULT_DISCRETE_MULTIVALUE = false;
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
 
   /**
    * Create the {@link HighlightSettings} for every field that is required to be highlighted.
    * Converts query-level and field-level settings into a single setting for every field.
    *
-   * @param indexReader {@link IndexReader} for the index
    * @param highlight Highlighting-related information in search request
    * @param searchQuery Compiled Lucene-level query from the search request
    * @param indexState {@link IndexState} for the index
+   * @param highlighterService service to provide highlighters for each field
    * @return {@link Map} of field name to its {@link HighlightSettings}
-   * @throws IOException if there is a low-level IO exception
    */
   static Map<String, HighlightSettings> createPerFieldSettings(
-      IndexReader indexReader, Highlight highlight, Query searchQuery, IndexState indexState)
-      throws IOException {
+      Highlight highlight,
+      Query searchQuery,
+      IndexState indexState,
+      HighlighterService highlighterService) {
     HighlightSettings globalSettings =
-        createGlobalFieldSettings(indexReader, indexState, searchQuery, highlight);
+        createGlobalFieldSettings(indexState, searchQuery, highlight, highlighterService);
     Map<String, HighlightSettings> fieldSettings = new HashMap<>();
     Map<String, Settings> fieldSettingsFromRequest = highlight.getFieldSettingsMap();
     for (String field : highlight.getFieldsList()) {
@@ -62,6 +67,11 @@ public class HighlightSettingsHelper {
         Settings settings = fieldSettingsFromRequest.get(field);
         HighlightSettings.Builder builder =
             new Builder()
+                .withHighlighter(
+                    // DEFAULT in field override has a different meaning: no override
+                    settings.getHighlighterType() == Type.DEFAULT
+                        ? globalSettings.getHighlighter()
+                        : highlighterService.getHighlighter(resolveHighlighterName(settings)))
                 .withPreTags(
                     !settings.getPreTagsList().isEmpty()
                         ? settings.getPreTagsList().toArray(new String[0])
@@ -74,10 +84,27 @@ public class HighlightSettingsHelper {
                     settings.hasFragmentSize()
                         ? settings.getFragmentSize().getValue()
                         : globalSettings.getFragmentSize())
-                .withFieldQuery(
+                .withHighlightQuery(
                     settings.hasHighlightQuery()
-                        ? getFieldQuery(indexReader, indexState, settings)
-                        : globalSettings.getFieldQuery());
+                        ? QUERY_NODE_MAPPER.getQuery(settings.getHighlightQuery(), indexState)
+                        : globalSettings.getHighlightQuery())
+                .withScoreOrdered(
+                    settings.hasScoreOrdered()
+                        ? settings.getScoreOrdered().getValue()
+                        : globalSettings.isScoreOrdered())
+                .withFragmenter(
+                    settings.hasFragmenter()
+                        ? settings.getFragmenter().getValue()
+                        : globalSettings.getFragmenter())
+                .withFieldMatch(
+                    settings.hasFieldMatch()
+                        ? settings.getFieldMatch().getValue()
+                        : globalSettings.getFieldMatch())
+                .withDiscreteMultivalue(
+                    settings.hasDiscreteMultivalue()
+                        ? settings.getDiscreteMultivalue().getValue()
+                        : globalSettings.getDiscreteMultivalue());
+
         if (!settings.hasMaxNumberOfFragments()) {
           builder.withMaxNumFragments(globalSettings.getMaxNumFragments());
         } else {
@@ -95,20 +122,36 @@ public class HighlightSettingsHelper {
   }
 
   private static HighlightSettings createGlobalFieldSettings(
-      IndexReader indexReader, IndexState indexState, Query searchQuery, Highlight highlight)
-      throws IOException {
+      IndexState indexState,
+      Query searchQuery,
+      Highlight highlight,
+      HighlighterService highlighterService) {
     Settings settings = highlight.getSettings();
 
     HighlightSettings.Builder builder = new HighlightSettings.Builder();
 
-    builder.withPreTags(
-        settings.getPreTagsList().isEmpty()
-            ? DEFAULT_PRE_TAGS
-            : settings.getPreTagsList().toArray(new String[0]));
-    builder.withPostTags(
-        settings.getPostTagsList().isEmpty()
-            ? DEFAULT_POST_TAGS
-            : settings.getPostTagsList().toArray(new String[0]));
+    builder
+        .withHighlighter(highlighterService.getHighlighter(resolveHighlighterName(settings)))
+        .withPreTags(
+            settings.getPreTagsList().isEmpty()
+                ? DEFAULT_PRE_TAGS
+                : settings.getPreTagsList().toArray(new String[0]))
+        .withPostTags(
+            settings.getPostTagsList().isEmpty()
+                ? DEFAULT_POST_TAGS
+                : settings.getPostTagsList().toArray(new String[0]))
+        .withScoreOrdered(
+            settings.hasScoreOrdered()
+                ? settings.getScoreOrdered().getValue()
+                : DEFAULT_SCORE_ORDERED)
+        .withFragmenter(
+            settings.hasFragmenter() ? settings.getFragmenter().getValue() : DEFAULT_FRAGMENTER)
+        .withFieldMatch(
+            settings.hasFieldMatch() ? settings.getFieldMatch().getValue() : DEFAULT_FIELD_MATCH)
+        .withDiscreteMultivalue(
+            settings.hasDiscreteMultivalue()
+                ? settings.getDiscreteMultivalue().getValue()
+                : DEFAULT_DISCRETE_MULTIVALUE);
 
     if (settings.hasMaxNumberOfFragments() && settings.getMaxNumberOfFragments().getValue() == 0) {
       builder.withMaxNumFragments(Integer.MAX_VALUE).withFragmentSize(Integer.MAX_VALUE);
@@ -128,19 +171,27 @@ public class HighlightSettingsHelper {
         settings.hasHighlightQuery()
             ? QUERY_NODE_MAPPER.getQuery(settings.getHighlightQuery(), indexState)
             : searchQuery;
-    builder.withFieldQuery(getFieldQuery(indexReader, query, settings.getFieldMatch()));
+    builder.withHighlightQuery(query);
 
     return builder.build();
   }
 
-  private static FieldQuery getFieldQuery(
-      IndexReader indexReader, IndexState indexState, Settings settings) throws IOException {
-    Query query = QUERY_NODE_MAPPER.getQuery(settings.getHighlightQuery(), indexState);
-    return getFieldQuery(indexReader, query, settings.getFieldMatch());
-  }
-
-  private static FieldQuery getFieldQuery(IndexReader indexReader, Query query, boolean fieldMatch)
-      throws IOException {
-    return new FieldQuery(query, indexReader, true, fieldMatch);
+  private static String resolveHighlighterName(Settings settings) {
+    switch (settings.getHighlighterType()) {
+      case DEFAULT:
+        /* default -> default-highlighter is only applicable in global settings.
+         * In field override, we should return the one in global settings instead.
+         */
+        return DEFAULT_HIGHLIGHTER_NAME;
+      case PLAIN:
+        throw new UnsupportedOperationException("plain-highlighter is not supported yet.");
+      case FAST_VECTOR:
+        return NRTFastVectorHighlighter.HIGHLIGHTER_NAME;
+      case CUSTOM:
+        return settings.getCustomHighlighterName();
+      default:
+        throw new IllegalArgumentException(
+            String.format("Unknown highlighter_type: %s", settings.getHighlighterType()));
+    }
   }
 }

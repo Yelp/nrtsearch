@@ -48,6 +48,7 @@ public class SearchContext implements FieldFetchContext {
   private final List<RescoreTask> rescorers;
   private final SharedDocContext sharedDocContext;
   private final HighlightFetchTask highlightFetchTask;
+  private final Map<String, Object> extraContext;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -65,6 +66,7 @@ public class SearchContext implements FieldFetchContext {
     this.rescorers = builder.rescorers;
     this.sharedDocContext = builder.sharedDocContext;
     this.highlightFetchTask = builder.highlightFetchTask;
+    this.extraContext = builder.extraContext;
 
     if (validate) {
       validate();
@@ -155,6 +157,14 @@ public class SearchContext implements FieldFetchContext {
     return highlightFetchTask;
   }
 
+  /**
+   * Get the extra custom context map which can be used for cache or data sharing. This map should
+   * be threadsafe.
+   */
+  public Map<String, Object> getExtraContext() {
+    return extraContext;
+  }
+
   /** Get new context builder instance * */
   public static Builder newBuilder() {
     return new Builder();
@@ -209,6 +219,7 @@ public class SearchContext implements FieldFetchContext {
     private List<RescoreTask> rescorers;
     private SharedDocContext sharedDocContext;
     private HighlightFetchTask highlightFetchTask;
+    private Map<String, Object> extraContext;
 
     private Builder() {}
 
@@ -302,6 +313,11 @@ public class SearchContext implements FieldFetchContext {
     /** Set fetch task to generate highlights */
     public Builder setHighlightFetchTask(HighlightFetchTask highlightFetchTask) {
       this.highlightFetchTask = highlightFetchTask;
+      return this;
+    }
+
+    public Builder setExtraContext(Map<String, Object> extraContext) {
+      this.extraContext = extraContext;
       return this;
     }
 

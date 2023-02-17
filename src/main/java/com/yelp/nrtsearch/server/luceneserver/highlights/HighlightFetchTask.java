@@ -15,12 +15,14 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
-import static com.yelp.nrtsearch.server.luceneserver.highlights.HighlightSettingsHelper.createPerFieldSettings;
+import static com.yelp.nrtsearch.server.luceneserver.highlights.HighlightUtils.createPerFieldSettings;
 
 import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Highlights;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
@@ -39,20 +41,22 @@ import org.apache.lucene.search.Query;
 public class HighlightFetchTask implements FetchTask {
 
   private static final double TEN_TO_THE_POWER_SIX = Math.pow(10, 6);
+  private final IndexState indexState;
   private final IndexReader indexReader;
   private final Map<String, HighlightSettings> fieldSettings;
-  private final HighlightHandler highlightHandler = HighlightHandler.getInstance();
-
   private final DoubleAdder timeTakenMs = new DoubleAdder();
 
   public HighlightFetchTask(
       IndexState indexState,
       SearcherAndTaxonomy searcherAndTaxonomy,
       Query searchQuery,
-      Highlight highlight)
-      throws IOException {
-    indexReader = searcherAndTaxonomy.searcher.getIndexReader();
-    fieldSettings = createPerFieldSettings(indexReader, highlight, searchQuery, indexState);
+      HighlighterService highlighterService,
+      Highlight highlight) {
+    this.indexState = indexState;
+    this.indexReader = searcherAndTaxonomy.searcher.getIndexReader();
+    this.fieldSettings =
+        createPerFieldSettings(highlight, searchQuery, indexState, highlighterService);
+    verifyHighlights();
   }
 
   /**
@@ -73,9 +77,17 @@ public class HighlightFetchTask implements FetchTask {
     long startTime = System.nanoTime();
     for (Entry<String, HighlightSettings> fieldSetting : fieldSettings.entrySet()) {
       String fieldName = fieldSetting.getKey();
+      Highlighter highlighter = fieldSetting.getValue().getHighlighter();
+      FieldDef fieldDef = indexState.getField(fieldName);
+      TextBaseFieldDef textBaseFieldDef =
+          (TextBaseFieldDef) fieldDef; // This is safe as we verified earlier
       String[] highlights =
-          highlightHandler.getHighlights(
-              indexReader, fieldSetting.getValue(), fieldName, hit.getLuceneDocId());
+          highlighter.getHighlights(
+              indexReader,
+              fieldSetting.getValue(),
+              textBaseFieldDef,
+              hit.getLuceneDocId(),
+              searchContext);
       if (highlights != null && highlights.length > 0 && highlights[0] != null) {
         Highlights.Builder builder = Highlights.newBuilder();
         for (String fragment : highlights) {
@@ -94,5 +106,28 @@ public class HighlightFetchTask implements FetchTask {
    */
   public double getTimeTakenMs() {
     return timeTakenMs.doubleValue();
+  }
+
+  /**
+   * Verify each highlighted field is highlight-able.
+   *
+   * @throws IllegalArgumentException if any field failed pass the verification.
+   */
+  private void verifyHighlights() {
+    for (Entry<String, HighlightSettings> entry : fieldSettings.entrySet()) {
+      String fieldName = entry.getKey();
+      Highlighter highlighter = entry.getValue().getHighlighter();
+      FieldDef field = indexState.getField(fieldName);
+      if (!(field instanceof TextBaseFieldDef)) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Field %s is not a text field and does not support highlights", fieldName));
+      }
+      if (!((TextBaseFieldDef) field).isSearchable()) {
+        throw new IllegalArgumentException(
+            String.format("Field %s is not searchable and cannot support highlights", fieldName));
+      }
+      highlighter.verifyFieldIsSupported(((TextBaseFieldDef) field));
+    }
   }
 }

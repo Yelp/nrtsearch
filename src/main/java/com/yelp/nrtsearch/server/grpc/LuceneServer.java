@@ -42,6 +42,7 @@ import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler.DocumentIndexer
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.custom.request.CustomRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.LiveSettingsV2Handler;
@@ -347,6 +348,7 @@ public class LuceneServer {
       CustomRequestProcessor.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);
       FieldDefCreator.initialize(configuration, plugins);
+      HighlighterService.initialize(configuration, plugins);
       RescorerCreator.initialize(configuration, plugins);
       ScriptService.initialize(configuration, plugins);
       SimilarityCreator.initialize(configuration, plugins);
