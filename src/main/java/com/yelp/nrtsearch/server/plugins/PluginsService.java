@@ -15,11 +15,13 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
+import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import io.prometheus.client.CollectorRegistry;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -39,15 +41,19 @@ import org.slf4j.LoggerFactory;
  * give the loaded plugin access to the lucene server config.
  */
 public class PluginsService {
-  private static final Logger logger = LoggerFactory.getLogger(Plugin.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(PluginsService.class);
 
   private final LuceneServerConfiguration config;
   private final CollectorRegistry collectorRegistry;
   private final List<PluginDescriptor> loadedPluginDescriptors = new ArrayList<>();
 
-  public PluginsService(LuceneServerConfiguration config, CollectorRegistry collectorRegistry) {
+  private final AmazonS3 amazonS3;
+
+  public PluginsService(
+      LuceneServerConfiguration config, AmazonS3 amazonS3, CollectorRegistry collectorRegistry) {
     this.config = config;
     this.collectorRegistry = collectorRegistry;
+    this.amazonS3 = amazonS3;
   }
 
   /**
@@ -61,12 +67,14 @@ public class PluginsService {
     List<File> pluginSearchPath = getPluginSearchPath();
     logger.debug("Plugin search path: " + pluginSearchPath);
     List<Plugin> loadedPlugins = new ArrayList<>();
+    PluginDownloader pluginDownloader = new PluginDownloader(amazonS3, config);
     for (String plugin : config.getPlugins()) {
       logger.info("Loading plugin: " + plugin);
-      PluginDescriptor descriptor = loadPlugin(plugin, pluginSearchPath);
+      PluginDescriptor descriptor = loadPlugin(plugin, pluginSearchPath, pluginDownloader);
       loadedPluginDescriptors.add(descriptor);
       loadedPlugins.add(descriptor.getPlugin());
     }
+    pluginDownloader.close();
     return loadedPlugins;
   }
 
@@ -109,7 +117,11 @@ public class PluginsService {
    * @param searchPath list of directories to search
    * @return a descriptor representing the loaded plugin
    */
-  PluginDescriptor loadPlugin(String pluginName, List<File> searchPath) {
+  PluginDescriptor loadPlugin(
+      String pluginName, List<File> searchPath, PluginDownloader pluginDownloader) {
+    Path defaultSearchPath = searchPath.get(0).toPath();
+    pluginName = pluginDownloader.downloadPluginIfNeeded(pluginName, defaultSearchPath);
+
     File pluginInstallDir = findPluginInstallDir(pluginName, searchPath);
     logger.debug("Plugin install dir: " + pluginInstallDir);
     PluginMetadata metadata = PluginMetadata.fromInstallDir(pluginInstallDir);

@@ -82,10 +82,12 @@ public class AmazonS3Provider extends ExternalResource {
     temporaryFolder.delete();
   }
 
+  /** Get the test S3 client */
   public AmazonS3 getAmazonS3() {
     return s3;
   }
 
+  /** Get the local directory path where mock S3 files are stored */
   public String getS3DirectoryPath() {
     if (s3Path == null) {
       throw new IllegalStateException("S3 not initialized yet");
