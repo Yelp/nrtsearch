@@ -116,6 +116,7 @@ public class LuceneServer {
         new PluginsService(luceneServerConfiguration, amazonS3, collectorRegistry);
   }
 
+  @VisibleForTesting
   public void start() throws IOException {
     List<Plugin> plugins = pluginsService.loadPlugins();
     String serviceName = luceneServerConfiguration.getServiceName();
@@ -191,6 +192,7 @@ public class LuceneServer {
         "Server started, listening on " + luceneServerConfiguration.getPort() + " for messages");
   }
 
+  @VisibleForTesting
   public void stop() {
     if (server != null) {
       server.shutdown();

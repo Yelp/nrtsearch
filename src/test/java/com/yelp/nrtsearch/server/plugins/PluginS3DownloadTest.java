@@ -15,7 +15,8 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.grpc.CustomRequest;
 import com.yelp.nrtsearch.server.grpc.CustomResponse;
@@ -59,7 +60,7 @@ public class PluginS3DownloadTest extends NrtsearchTest {
 
   @Test
   public void testPluginS3Path() {
-    assertThat(Files.exists(getPluginSearchPath().resolve("example-plugin-0.0.1"))).isTrue();
+    assertTrue(Files.exists(getPluginSearchPath().resolve("example-plugin-0.0.1")));
     CustomResponse response =
         getClient()
             .getBlockingStub()
@@ -68,6 +69,6 @@ public class PluginS3DownloadTest extends NrtsearchTest {
                     .setId("custom_analyzers")
                     .setPath("get_available_analyzers")
                     .build());
-    assertThat(response.getResponseOrThrow("available_analyzers")).isEqualTo("plugin_analyzer");
+    assertEquals("plugin_analyzer", response.getResponseOrThrow("available_analyzers"));
   }
 }
