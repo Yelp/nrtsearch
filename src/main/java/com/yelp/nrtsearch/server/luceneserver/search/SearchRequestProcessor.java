@@ -159,8 +159,7 @@ public class SearchRequestProcessor {
     Highlight highlight = searchRequest.getHighlight();
     if (!highlight.getFieldsList().isEmpty()) {
       HighlightFetchTask highlightFetchTask =
-          new HighlightFetchTask(
-              indexState, searcherAndTaxonomy, query, HighlighterService.getInstance(), highlight);
+          new HighlightFetchTask(indexState, query, HighlighterService.getInstance(), highlight);
       contextBuilder.setHighlightFetchTask(highlightFetchTask);
     }
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());

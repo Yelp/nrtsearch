@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
@@ -64,22 +65,23 @@ public class NRTFastVectorHighlighter implements Highlighter {
    * Use {@link org.apache.lucene.search.vectorhighlight.FastVectorHighlighter} instance to obtain
    * highlighted fragments for a document.
    *
-   * @param indexReader {@link IndexReader} for the index
+   * @param hitLeaf {@link LeafReaderContext} for the index
    * @param settings {@link HighlightSettings} created from the search request
    * @param textBaseFieldDef Field in document to highlight
-   * @param docId Lucene document ID of the document to highlight
+   * @param leafDocId Lucene document ID of the document to highlight
    * @param _searchContext not in used in fvh
    * @return Array of highlight fragments
    * @throws IOException if there is a low-level IO error
    */
   @Override
   public String[] getHighlights(
-      IndexReader indexReader,
+      LeafReaderContext hitLeaf,
       HighlightSettings settings,
       TextBaseFieldDef textBaseFieldDef,
-      int docId,
+      int leafDocId,
       SearchContext _searchContext)
       throws IOException {
+
     FragListBuilder fragListBuilder;
     int numberOfFragments = settings.getMaxNumFragments();
     int fragmentCharSize = settings.getFragmentSize();
@@ -102,9 +104,9 @@ public class NRTFastVectorHighlighter implements Highlighter {
     fragmentsBuilder.setDiscreteMultiValueHighlighting(settings.getDiscreteMultivalue());
 
     return FAST_VECTOR_HIGHLIGHTER.getBestFragments(
-        getFieldQuery(indexReader, settings.getHighlightQuery(), settings.getFieldMatch()),
-        indexReader,
-        docId,
+        getFieldQuery(hitLeaf.reader(), settings.getHighlightQuery(), settings.getFieldMatch()),
+        hitLeaf.reader(),
+        leafDocId,
         textBaseFieldDef.getName(),
         fragmentCharSize,
         numberOfFragments,
