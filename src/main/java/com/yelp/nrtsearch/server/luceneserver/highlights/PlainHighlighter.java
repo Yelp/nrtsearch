@@ -28,8 +28,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.Formatter;
@@ -72,20 +72,20 @@ public class PlainHighlighter implements Highlighter {
 
   @Override
   public String[] getHighlights(
-      IndexReader indexReader,
-      HighlightSettings highlightSettings,
+      LeafReaderContext hitLeaf,
+      HighlightSettings settings,
       TextBaseFieldDef textBaseFieldDef,
-      int docId,
+      int leafDocId,
       SearchContext searchContext)
       throws IOException {
     String fieldName = textBaseFieldDef.getName();
     // always treat multivalue fields discretely
     String[] fieldTexts =
-        Arrays.stream(indexReader.document(docId).getFields(fieldName))
+        Arrays.stream(hitLeaf.reader().document(leafDocId).getFields(fieldName))
             .map(IndexableField::stringValue)
             .toArray(String[]::new);
 
-    return getHighlights(fieldTexts, highlightSettings, textBaseFieldDef, searchContext);
+    return getHighlights(fieldTexts, settings, textBaseFieldDef, searchContext);
   }
 
   public String[] getHighlights(
