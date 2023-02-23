@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 
 /**
  * This is the highlighter interface to provide the new highlighters with different implementations.
@@ -37,24 +37,25 @@ public interface Highlighter {
   String getName();
 
   /**
-   * Get highlighted segments for the given docId and field.
+   * Get highlighted segments for the given leafDocId and field.
    *
-   * <p>The indexReader gives the full readabity access to the highlighter. And using the docId and
-   * the fieldName derived from the textBasedFieldDef, the target field can be retrieved.</>
+   * <p>The indexReader gives the full readabity access to the highlighter. And using the leafDocId
+   * and the fieldName derived from the textBasedFieldDef, the target field can be retrieved.</>
    *
-   * @param indexReader the indexerReader has the random access to the entire index
+   * @param hitLeaf the hitLeaf context has the random access to the segment
    * @param settings the highlight settings derived from the search request for this field
    * @param textBaseFieldDef the target's field information
-   * @param docId the target's identifier to retrieve the highlighting document from the indexReader
+   * @param leafDocId the target's identifier to retrieve the highlighting document from the
+   *     leafReaderContext base (luceneId - hitLeaf.docBase)
    * @param searchContext the searchContext to keep the contexts for this search request
    * @return an array of Strings containing all highlighted fragments
    * @throws IOException will be thrown when fail during the document reading
    */
   String[] getHighlights(
-      IndexReader indexReader,
+      LeafReaderContext hitLeaf,
       HighlightSettings settings,
       TextBaseFieldDef textBaseFieldDef,
-      int docId,
+      int leafDocId,
       SearchContext searchContext)
       throws IOException;
 
@@ -68,5 +69,5 @@ public interface Highlighter {
    * @param fieldDef a {@link TextBaseFieldDef} object of the field that is intended to be
    *     highlighted
    */
-  default void verifyFieldIsSupported(TextBaseFieldDef fieldDef) {};
+  default void verifyFieldIsSupported(TextBaseFieldDef fieldDef) {}
 }

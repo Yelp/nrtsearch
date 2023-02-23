@@ -29,8 +29,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.DoubleAdder;
-import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 
@@ -42,18 +40,15 @@ public class HighlightFetchTask implements FetchTask {
 
   private static final double TEN_TO_THE_POWER_SIX = Math.pow(10, 6);
   private final IndexState indexState;
-  private final IndexReader indexReader;
   private final Map<String, HighlightSettings> fieldSettings;
   private final DoubleAdder timeTakenMs = new DoubleAdder();
 
   public HighlightFetchTask(
       IndexState indexState,
-      SearcherAndTaxonomy searcherAndTaxonomy,
       Query searchQuery,
       HighlighterService highlighterService,
       Highlight highlight) {
     this.indexState = indexState;
-    this.indexReader = searcherAndTaxonomy.searcher.getIndexReader();
     this.fieldSettings =
         createPerFieldSettings(highlight, searchQuery, indexState, highlighterService);
     verifyHighlights();
@@ -83,10 +78,10 @@ public class HighlightFetchTask implements FetchTask {
           (TextBaseFieldDef) fieldDef; // This is safe as we verified earlier
       String[] highlights =
           highlighter.getHighlights(
-              indexReader,
+              hitLeaf,
               fieldSetting.getValue(),
               textBaseFieldDef,
-              hit.getLuceneDocId(),
+              hit.getLuceneDocId() - hitLeaf.docBase,
               searchContext);
       if (highlights != null && highlights.length > 0 && highlights[0] != null) {
         Highlights.Builder builder = Highlights.newBuilder();
