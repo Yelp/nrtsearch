@@ -151,21 +151,15 @@ public class HighlightUtils {
         .withDiscreteMultivalue(
             settings.hasDiscreteMultivalue()
                 ? settings.getDiscreteMultivalue().getValue()
-                : DEFAULT_DISCRETE_MULTIVALUE);
-
-    if (settings.hasMaxNumberOfFragments() && settings.getMaxNumberOfFragments().getValue() == 0) {
-      builder.withMaxNumFragments(Integer.MAX_VALUE).withFragmentSize(Integer.MAX_VALUE);
-    } else {
-      builder
-          .withMaxNumFragments(
-              settings.hasMaxNumberOfFragments()
-                  ? settings.getMaxNumberOfFragments().getValue()
-                  : DEFAULT_MAX_NUM_FRAGMENTS)
-          .withFragmentSize(
-              settings.hasFragmentSize()
-                  ? settings.getFragmentSize().getValue()
-                  : DEFAULT_FRAGMENT_SIZE);
-    }
+                : DEFAULT_DISCRETE_MULTIVALUE)
+        .withMaxNumFragments(
+            settings.hasMaxNumberOfFragments()
+                ? settings.getMaxNumberOfFragments().getValue()
+                : DEFAULT_MAX_NUM_FRAGMENTS)
+        .withFragmentSize(
+            settings.hasFragmentSize()
+                ? settings.getFragmentSize().getValue()
+                : DEFAULT_FRAGMENT_SIZE);
 
     Query query =
         settings.hasHighlightQuery()
