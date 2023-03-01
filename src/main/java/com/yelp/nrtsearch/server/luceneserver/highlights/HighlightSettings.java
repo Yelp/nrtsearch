@@ -66,7 +66,8 @@ public class HighlightSettings {
         .withHighlightQuery(this.highlightQuery)
         .withFieldMatch(this.fieldMatch)
         .withScoreOrdered(this.scoreOrdered)
-        .withFragmenter(this.fragmenter);
+        .withFragmenter(this.fragmenter)
+        .withDiscreteMultivalue(this.discreteMultivalue);
   }
 
   public Highlighter getHighlighter() {

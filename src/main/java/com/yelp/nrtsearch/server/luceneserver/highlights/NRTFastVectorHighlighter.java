@@ -86,8 +86,7 @@ public class NRTFastVectorHighlighter implements Highlighter {
     int numberOfFragments = settings.getMaxNumFragments();
     int fragmentCharSize = settings.getFragmentSize();
     if (settings.getMaxNumFragments() == 0) {
-      // a HACK to make highlighter do highlighting, even though its using the single frag list
-      // builder
+      // This is required to support the feature to return the entire text as a single fragment.
       fragListBuilder = SINGLE_FRAG_LIST_BUILDER;
       numberOfFragments = Integer.MAX_VALUE;
       fragmentCharSize = Integer.MAX_VALUE;
