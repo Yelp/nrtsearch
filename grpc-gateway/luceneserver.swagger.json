@@ -1641,19 +1641,19 @@
           "items": {
             "type": "string"
           },
-          "title": "Used along with post_tags to specify how to wrap the highlighted text"
+          "description": "Used along with post_tags to specify how to wrap the highlighted text."
         },
         "post_tags": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "title": "Used along with pre_tags to specify how to wrap the highlighted text"
+          "description": "Used along with pre_tags to specify how to wrap the highlighted text."
         },
         "fragment_size": {
           "type": "integer",
           "format": "int64",
-          "title": "Number of characters in highlighted fragment, 100 by default"
+          "description": "Number of characters in highlighted fragment, 100 by default."
         },
         "max_number_of_fragments": {
           "type": "integer",
@@ -1662,11 +1662,27 @@
         },
         "highlight_query": {
           "$ref": "#/definitions/luceneserverQuery",
-          "title": "Specify a query here if highlighting is desired against a different query than the search query"
+          "description": "Specify a query here if highlighting is desired against a different query than the search query."
         },
         "field_match": {
           "type": "boolean",
-          "title": "Set to true to highlight fields only if specified in the search query"
+          "description": "Set to true to highlight fields only if specified in the search query."
+        },
+        "score_ordered": {
+          "type": "boolean",
+          "title": "Sorts highlighted fragments by score when set to true. By default, fragments will be output in the order they appear in the field. (Default is true)"
+        },
+        "fragmenter": {
+          "type": "string",
+          "description": "Select Fragmenter between span (default) and simple. This is only applicable for plain highlighters."
+        },
+        "discrete_multivalue": {
+          "type": "boolean",
+          "title": "Let the fragment builder respect the multivalue fields. Each fragment won't cross multiple value fields if set true. (Default is false)"
+        },
+        "custom_highlighter_name": {
+          "type": "string",
+          "description": "When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for any other highlighter_types."
         }
       }
     },
@@ -2512,6 +2528,16 @@
           }
         }
       }
+    },
+    "luceneserverConstantScoreQuery": {
+      "type": "object",
+      "properties": {
+        "filter": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Query to determine matching documents"
+        }
+      },
+      "description": "Query that produces a score of 1.0 (modifiable by query boost value) for documents that match the filter query."
     },
     "luceneserverCopyState": {
       "type": "object",
@@ -3437,9 +3463,12 @@
       "type": "string",
       "enum": [
         "DEFAULT",
-        "FAST_VECTOR"
+        "FAST_VECTOR",
+        "PLAIN",
+        "CUSTOM"
       ],
-      "default": "DEFAULT"
+      "default": "DEFAULT",
+      "title": "- DEFAULT: When DEFAULT is set in global setting, use fast vector highlighter; when set for field setting, use the type from the global setting.\n - PLAIN: not supported yet"
     },
     "luceneserverHitsResult": {
       "type": "object",
@@ -4172,6 +4201,9 @@
         },
         "prefixQuery": {
           "$ref": "#/definitions/luceneserverPrefixQuery"
+        },
+        "constantScoreQuery": {
+          "$ref": "#/definitions/luceneserverConstantScoreQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -4229,7 +4261,8 @@
         "COMPLETION",
         "MULTI_FUNCTION_SCORE_QUERY",
         "MATCH_PHRASE_PREFIX",
-        "PREFIX"
+        "PREFIX",
+        "CONSTANT_SCORE_QUERY"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."

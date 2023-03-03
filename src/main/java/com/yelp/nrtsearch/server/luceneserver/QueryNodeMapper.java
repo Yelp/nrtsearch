@@ -156,6 +156,8 @@ public class QueryNodeMapper {
         return MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), state);
       case PREFIXQUERY:
         return getPrefixQuery(query.getPrefixQuery(), state);
+      case CONSTANTSCOREQUERY:
+        return getConstantScoreQuery(query.getConstantScoreQuery(), state);
       case QUERYNODE_NOT_SET:
         return new MatchAllDocsQuery();
       default:
@@ -543,5 +545,12 @@ public class QueryNodeMapper {
       default:
         throw new IllegalArgumentException("Unknown rewrite method: " + rewriteMethodGrpc);
     }
+  }
+
+  private Query getConstantScoreQuery(
+      com.yelp.nrtsearch.server.grpc.ConstantScoreQuery constantScoreQueryGrpc,
+      IndexState indexState) {
+    Query filterQuery = getQuery(constantScoreQueryGrpc.getFilter(), indexState);
+    return new ConstantScoreQuery(filterQuery);
   }
 }
