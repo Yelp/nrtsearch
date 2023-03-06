@@ -382,7 +382,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
         .containsExactly("the <em>food</em> here is amazing, service was good");
     assertThat(response.getHits(1).getHighlightsMap().get("comment").getFragmentsList())
         .containsExactly(
-            "This is my first time eating at this restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite food was chilly chicken.");
+            "This is my first time eating at this restaurant. The <em>food</em> here is pretty good, the service could be better. My favorite <em>food</em> was chilly chicken.");
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
 
