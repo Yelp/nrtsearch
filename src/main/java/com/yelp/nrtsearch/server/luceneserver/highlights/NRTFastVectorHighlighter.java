@@ -90,6 +90,9 @@ public class NRTFastVectorHighlighter implements Highlighter {
       fragListBuilder = SINGLE_FRAG_LIST_BUILDER;
       numberOfFragments = Integer.MAX_VALUE;
       fragmentCharSize = Integer.MAX_VALUE;
+    } else if (fragmentCharSize == 0 || fragmentCharSize == Integer.MAX_VALUE) {
+      fragListBuilder = SINGLE_FRAG_LIST_BUILDER;
+      fragmentCharSize = Integer.MAX_VALUE;
     } else {
       fragListBuilder = SIMPLE_FRAG_LIST_BUILDER;
     }
