@@ -48,7 +48,7 @@ This is the proto definition for Highlight message which can be specified in Sea
         repeated string pre_tags = 2;
         // Used along with pre_tags to specify how to wrap the highlighted text.
         repeated string post_tags = 3;
-        // Number of characters in highlighted fragment, 100 by default. Set it to be 0/Integer.MAX_VALUE to fetch the entire field.
+        // Number of characters in highlighted fragment, 100 by default. Set it to be 0 to fetch the entire field.
         google.protobuf.UInt32Value fragment_size = 4;
         // Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single fragment ignoring fragment_size.
         google.protobuf.UInt32Value max_number_of_fragments = 5;

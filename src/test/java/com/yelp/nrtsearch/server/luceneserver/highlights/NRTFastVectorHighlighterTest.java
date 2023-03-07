@@ -433,7 +433,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
                                     .setField("comment_multivalue")
                                     .setQuery("food")))
                     .setMaxNumberOfFragments(UInt32Value.of(2))
-                    .setFragmentSize(UInt32Value.of(Integer.MAX_VALUE))
+                    .setFragmentSize(UInt32Value.of(0))
                     .setDiscreteMultivalue(BoolValue.of(true))
                     .setFieldMatch(BoolValue.of(true)))
             .addFields("comment_multivalue")
