@@ -109,7 +109,7 @@ public class HighlightUtils {
           builder.withMaxNumFragments(globalSettings.getMaxNumFragments());
         } else {
           if (settings.getMaxNumberOfFragments().getValue() == 0) {
-            builder.withMaxNumFragments(Integer.MAX_VALUE).withFragmentSize(Integer.MAX_VALUE);
+            builder.withMaxNumFragments(0).withFragmentSize(Integer.MAX_VALUE);
           } else {
             builder.withMaxNumFragments(settings.getMaxNumberOfFragments().getValue());
           }
