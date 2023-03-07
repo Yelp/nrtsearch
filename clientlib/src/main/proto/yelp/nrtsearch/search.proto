@@ -414,6 +414,7 @@ message SearchRequest {
     string responseCompression = 23;
     // Specify how to highlight matched text
     Highlight highlight = 24;
+    bool explain = 25;
 }
 
 /* Virtual field used during search */
@@ -562,6 +563,7 @@ message SearchResponse {
         map<string, CompositeFieldValue> sortedFields = 4; // Sorted field name to value
         // Field name to highlighted text fragments
         map<string, Highlights> highlights = 5;
+        string explain = 6;
     }
 
     message SearchState {

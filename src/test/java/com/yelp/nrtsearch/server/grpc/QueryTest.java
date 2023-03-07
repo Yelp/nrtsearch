@@ -875,6 +875,17 @@ public class QueryTest {
         .build();
   }
 
+  private SearchRequest buildSearchRequestWithExplain(Query query, boolean explain) {
+    return SearchRequest.newBuilder()
+        .setIndexName(grpcServer.getTestIndex())
+        .setStartHit(0)
+        .setTopHits(10)
+        .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+        .setQuery(query)
+        .setExplain(explain)
+        .build();
+  }
+
   private SearchRequest buildSearchRequestWithRescorers(Query query, List<Rescorer> rescorers) {
     return SearchRequest.newBuilder()
         .setIndexName(grpcServer.getTestIndex())
@@ -908,6 +919,22 @@ public class QueryTest {
       SearchResponse.Hit boostedHitWithoutScore =
           SearchResponse.Hit.newBuilder(boostedHit).setScore(0).build();
       assertEquals(hitWithoutScore, boostedHitWithoutScore);
+    }
+  }
+
+  private void testWithExplain(Query query, SearchResponse searchResponse) {
+    boolean explain = true;
+    SearchResponse searchResponseExplained =
+        grpcServer.getBlockingStub().search(buildSearchRequestWithExplain(query, explain));
+    for (int i = 0; i < searchResponse.getHitsCount(); i++) {
+      SearchResponse.Hit hit = searchResponse.getHits(i);
+      SearchResponse.Hit explainedHit = searchResponseExplained.getHits(i);
+      SearchResponse.Hit hitWithoutExplain =
+          SearchResponse.Hit.newBuilder(hit).setExplain("").build();
+      SearchResponse.Hit explainedHitWithoutExplain =
+          SearchResponse.Hit.newBuilder(explainedHit).setExplain("").build();
+      assertEquals(hitWithoutExplain, explainedHitWithoutExplain);
+      assertTrue(explainedHit.getExplain().contains(String.valueOf(explainedHit.getScore())));
     }
   }
 

@@ -66,6 +66,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.Explanation
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
@@ -176,6 +177,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         hits = searcherResult.getTopDocs();
       }
 
+      List<Explanation> explanations = null;
+      if (searchRequest.getExplain()) {
+        explanations = new ArrayList<>();
+        for (int i = 0; i < hits.scoreDocs.length; i++) {
+          explanations.add(s.searcher.explain(searchContext.getQuery(), i));
+        }
+      }
+
       // add results from any extra collectors
       searchContext
           .getResponseBuilder()
@@ -213,7 +222,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       hits = getHitsFromOffset(hits, searchContext.getStartHit(), searchContext.getTopHits());
 
       // create Hit.Builder for each hit, and populate with lucene doc id and ranking info
-      setResponseHits(searchContext, hits);
+      setResponseHits(searchContext, hits, explanations);
 
       // fill Hit.Builder with requested fields
       fetchFields(searchContext);
@@ -440,7 +449,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
    * @param context search context
    * @param hits hits from query
    */
-  private static void setResponseHits(SearchContext context, TopDocs hits) {
+  private static void setResponseHits(
+      SearchContext context, TopDocs hits, List<Explanation> explanations) {
     TotalHits totalHits =
         TotalHits.newBuilder()
             .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation.name()))
@@ -452,6 +462,9 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       ScoreDoc hit = hits.scoreDocs[hitIndex];
       hitResponse.setLuceneDocId(hit.doc);
       context.getCollector().fillHitRanking(hitResponse, hit);
+      if (explanations != null) {
+        hitResponse.setExplain(explanations.get(hitIndex).toString());
+      }
     }
   }
 
