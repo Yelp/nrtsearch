@@ -420,6 +420,35 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
     assertThat(response.getHits(1).getHighlightsMap()).isEmpty();
   }
 
+  @Test
+  public void testMaxFragmentSize() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .setSettings(
+                Settings.newBuilder()
+                    .setHighlightQuery(
+                        Query.newBuilder()
+                            .setMatchQuery(
+                                MatchQuery.newBuilder()
+                                    .setField("comment_multivalue")
+                                    .setQuery("food")))
+                    .setMaxNumberOfFragments(UInt32Value.of(2))
+                    .setFragmentSize(UInt32Value.of(Integer.MAX_VALUE))
+                    .setDiscreteMultivalue(BoolValue.of(true))
+                    .setFieldMatch(BoolValue.of(true)))
+            .addFields("comment_multivalue")
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertThat(response.getHitsCount()).isEqualTo(2);
+    assertThat(response.getHits(0).getHighlightsMap().get("comment_multivalue").getFragmentsList())
+        .containsExactly(
+            "The <em>food</em> is good there, but the service is terrible.",
+            "Not all <em>food</em> are good.");
+    assertThat(response.getHits(1).getHighlightsMap().get("comment_multivalue").getFragmentsList())
+        .containsExactly("High quality <em>food</em>. Fresh and delicious!");
+  }
+
   private String indexName() {
     return getIndices().get(0);
   }
