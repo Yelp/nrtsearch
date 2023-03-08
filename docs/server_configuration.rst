@@ -76,6 +76,11 @@ Example server configuration
      - Name of bucket to use for external storage
      - DEFAULT_ARCHIVE_BUCKET
 
+   * - maxS3ClientRetries
+     - int
+     - Max retries to configure for the server s3 client. If <= 0, the default retry policy is used.
+     - -1 (default policy)
+
    * - botoCfgPath
      - str
      - Path to AWS credentials (if using S3 for remote storage)
