@@ -143,4 +143,20 @@ public class LuceneServerConfigurationTest {
     LuceneServerConfiguration luceneConfig = getForConfig(config);
     assertEquals(100L, luceneConfig.getInitialSyncMaxTimeMs());
   }
+
+  @Test
+  public void testMaxS3ClientRetries_default() {
+    String config = "nodeName: \"lucene_server_foo\"";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(
+        LuceneServerConfiguration.DEFAULT_MAX_S3_CLIENT_RETRIES,
+        luceneConfig.getMaxS3ClientRetries());
+  }
+
+  @Test
+  public void testMaxS3ClientRetries_set() {
+    String config = "maxS3ClientRetries: 10";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(10, luceneConfig.getMaxS3ClientRetries());
+  }
 }

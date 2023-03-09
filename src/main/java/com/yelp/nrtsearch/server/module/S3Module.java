@@ -15,12 +15,15 @@
  */
 package com.yelp.nrtsearch.server.module;
 
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.auth.profile.ProfilesConfigFile;
 import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.retry.PredefinedRetryPolicies;
+import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.google.inject.AbstractModule;
@@ -64,7 +67,22 @@ public class S3Module extends AbstractModule {
       }
       String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
       logger.info(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
-      return AmazonS3ClientBuilder.standard()
+      AmazonS3ClientBuilder clientBuilder = AmazonS3ClientBuilder.standard();
+
+      int maxRetries = luceneServerConfiguration.getMaxS3ClientRetries();
+      if (maxRetries > 0) {
+        RetryPolicy retryPolicy =
+            new RetryPolicy(
+                PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION,
+                PredefinedRetryPolicies.DEFAULT_BACKOFF_STRATEGY,
+                maxRetries,
+                true);
+        ClientConfiguration clientConfiguration =
+            new ClientConfiguration().withRetryPolicy(retryPolicy);
+        clientBuilder.setClientConfiguration(clientConfiguration);
+      }
+
+      return clientBuilder
           .withCredentials(awsCredentialsProvider)
           .withEndpointConfiguration(
               new AwsClientBuilder.EndpointConfiguration(serviceEndpoint, region))
