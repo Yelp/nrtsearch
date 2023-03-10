@@ -180,8 +180,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       List<Explanation> explanations = null;
       if (searchRequest.getExplain()) {
         explanations = new ArrayList<>();
-        for (int i = 0; i < hits.scoreDocs.length; i++) {
-          explanations.add(s.searcher.explain(searchContext.getQuery(), i));
+        for (ScoreDoc doc : hits.scoreDocs) {
+          explanations.add(s.searcher.explain(searchContext.getQuery(), doc.doc));
         }
       }
 
