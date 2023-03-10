@@ -834,6 +834,59 @@ public class QueryTest {
     }
   }
 
+  @Test
+  public void testSearchExplain() {
+    Query query =
+        Query.newBuilder()
+            .setMatchPhraseQuery(
+                MatchPhraseQuery.newBuilder()
+                    .setField("vendor_name")
+                    .setQuery("SECOND second")
+                    .setSlop(1))
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(1, searchResponse.getTotalHits().getValue());
+          assertEquals(1, searchResponse.getHitsList().size());
+          SearchResponse.Hit hit = searchResponse.getHits(0);
+          String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("2", docId);
+          LuceneServerTest.checkHits(hit);
+        };
+    SearchResponse searchResponse = grpcServer.getBlockingStub().search(buildSearchRequest(query));
+    responseTester.accept(searchResponse);
+    boolean explain = true;
+    SearchResponse searchResponseExplained =
+        grpcServer.getBlockingStub().search(buildSearchRequestWithExplain(query, explain));
+    responseTester.accept(searchResponseExplained);
+    String expectedExplain =
+        "0.40773362 = weight(vendor_name:\"second second\"~1 in 1) [], result of:\n"
+            + "  0.40773362 = score(freq=0.5), computed as boost * idf * tf from:\n"
+            + "    1.3862944 = idf, sum of:\n"
+            + "      0.6931472 = idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:\n"
+            + "        1 = n, number of documents containing term\n"
+            + "        2 = N, total number of documents with field\n"
+            + "      0.6931472 = idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:\n"
+            + "        1 = n, number of documents containing term\n"
+            + "        2 = N, total number of documents with field\n"
+            + "    0.29411763 = tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:\n"
+            + "      0.5 = phraseFreq=0.5\n"
+            + "      1.2 = k1, term saturation parameter\n"
+            + "      0.75 = b, length normalization parameter\n"
+            + "      4.0 = dl, length of field\n"
+            + "      4.0 = avgdl, average length of field";
+    for (int i = 0; i < searchResponse.getHitsCount(); i++) {
+      SearchResponse.Hit hit = searchResponse.getHits(i);
+      SearchResponse.Hit explainedHit = searchResponseExplained.getHits(i);
+      SearchResponse.Hit hitWithoutExplain = hit.toBuilder().setExplain("").build();
+      SearchResponse.Hit explainedHitWithoutExplain =
+          explainedHit.toBuilder().setExplain("").build();
+      assertEquals(hitWithoutExplain, explainedHitWithoutExplain);
+      assertEquals(expectedExplain, explainedHit.getExplain().trim());
+    }
+  }
+
   /**
    * Search with the query and then test the response. Additional test with boost will also be
    * performed on the query.
@@ -872,6 +925,17 @@ public class QueryTest {
         .setTopHits(10)
         .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
         .setQuery(query)
+        .build();
+  }
+
+  private SearchRequest buildSearchRequestWithExplain(Query query, boolean explain) {
+    return SearchRequest.newBuilder()
+        .setIndexName(grpcServer.getTestIndex())
+        .setStartHit(0)
+        .setTopHits(10)
+        .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+        .setQuery(query)
+        .setExplain(explain)
         .build();
   }
 
