@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.luceneserver.analysis.AnalysisProvider;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 
 /**
@@ -56,6 +57,22 @@ public interface AnalysisPlugin {
    * @return registration Map for token filter name to {@link TokenFilterFactory} class
    */
   default Map<String, Class<? extends TokenFilterFactory>> getTokenFilters() {
+    return Collections.emptyMap();
+  }
+
+  /**
+   * Provides a set of custom {@link CharFilterFactory} classes to register with the {@link
+   * com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator} for use with {@link
+   * com.yelp.nrtsearch.server.grpc.CustomAnalyzer} building.
+   *
+   * <p>The class must have a constructor that takes only a param Map[String,String]. If nrtsearch
+   * specific context is required, implement the {@link
+   * com.yelp.nrtsearch.server.luceneserver.analysis.AnalysisComponent} interface to receive
+   * additional initialization during building.
+   *
+   * @return registration Map for char filter name to {@link CharFilterFactory} class
+   */
+  default Map<String, Class<? extends CharFilterFactory>> getCharFilters() {
     return Collections.emptyMap();
   }
 }

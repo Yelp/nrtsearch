@@ -33,6 +33,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.standard.ClassicAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.util.Version;
 
@@ -47,6 +48,7 @@ public class AnalyzerCreator {
   private final LuceneServerConfiguration configuration;
   private final Map<String, AnalysisProvider<? extends Analyzer>> analyzerMap = new HashMap<>();
   private final Map<String, Class<? extends TokenFilterFactory>> tokenFilterMap = new HashMap<>();
+  private final Map<String, Class<? extends CharFilterFactory>> charFilterMap = new HashMap<>();
 
   public AnalyzerCreator(LuceneServerConfiguration configuration) {
     this.configuration = configuration;
@@ -113,17 +115,40 @@ public class AnalyzerCreator {
     tokenFilterMap.put(name, filterClass);
   }
 
+  private void registerCharFilters(
+      Map<String, Class<? extends CharFilterFactory>> charFilters, Set<String> builtIn) {
+    charFilters.forEach((k, v) -> registerCharFilter(k, v, builtIn));
+  }
+
+  private void registerCharFilter(
+      String name, Class<? extends CharFilterFactory> filterClass, Set<String> builtIn) {
+    if (builtIn.contains(name.toLowerCase())) {
+      throw new IllegalArgumentException("Char filter " + name + " already provided by lucene");
+    }
+    if (charFilterMap.containsKey(name)) {
+      throw new IllegalArgumentException("Char filter " + name + " already exists");
+    }
+    charFilterMap.put(name, filterClass);
+  }
+
   public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
     instance = new AnalyzerCreator(configuration);
     Set<String> builtInTokenFilters =
         TokenFilterFactory.availableTokenFilters().stream()
             .map(String::toLowerCase)
             .collect(Collectors.toSet());
+    Set<String> builtInCharFilters =
+        CharFilterFactory.availableCharFilters().stream()
+            .map(String::toLowerCase)
+            .collect(Collectors.toSet());
+    instance.registerCharFilter(
+        MappingV2CharFilterFactory.NAME, MappingV2CharFilterFactory.class, builtInCharFilters);
     for (Plugin plugin : plugins) {
       if (plugin instanceof AnalysisPlugin) {
         AnalysisPlugin analysisPlugin = (AnalysisPlugin) plugin;
         instance.registerAnalyzers(analysisPlugin.getAnalyzers());
         instance.registerTokenFilters(analysisPlugin.getTokenFilters(), builtInTokenFilters);
+        instance.registerCharFilters(analysisPlugin.getCharFilters(), builtInCharFilters);
       }
     }
   }
@@ -152,7 +177,13 @@ public class AnalyzerCreator {
       }
 
       for (NameAndParams charFilter : analyzer.getCharFiltersList()) {
-        builder.addCharFilter(charFilter.getName(), new HashMap<>(charFilter.getParamsMap()));
+        // check first to see if this filter was registered
+        Class<? extends CharFilterFactory> filterClass = charFilterMap.get(charFilter.getName());
+        if (filterClass != null) {
+          builder.addCharFilter(filterClass, new HashMap<>(charFilter.getParamsMap()));
+        } else {
+          builder.addCharFilter(charFilter.getName(), new HashMap<>(charFilter.getParamsMap()));
+        }
       }
 
       builder.withTokenizer(
@@ -197,6 +228,11 @@ public class AnalyzerCreator {
    */
   private CustomAnalyzer initializeComponents(CustomAnalyzer customAnalyzer) {
     for (TokenFilterFactory filterFactory : customAnalyzer.getTokenFilterFactories()) {
+      if (filterFactory instanceof AnalysisComponent) {
+        ((AnalysisComponent) filterFactory).initializeComponent(configuration);
+      }
+    }
+    for (CharFilterFactory filterFactory : customAnalyzer.getCharFilterFactories()) {
       if (filterFactory instanceof AnalysisComponent) {
         ((AnalysisComponent) filterFactory).initializeComponent(configuration);
       }
