@@ -22,6 +22,7 @@ import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.auth.profile.ProfilesConfigFile;
 import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.retry.PredefinedRetryPolicies;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.s3.AmazonS3;
@@ -82,10 +83,14 @@ public class S3Module extends AbstractModule {
         clientBuilder.setClientConfiguration(clientConfiguration);
       }
 
-      return clientBuilder
+      AmazonS3ClientBuilder amazonS3ClientBuilder = clientBuilder
           .withCredentials(awsCredentialsProvider)
           .withEndpointConfiguration(
-              new AwsClientBuilder.EndpointConfiguration(serviceEndpoint, region))
+              new EndpointConfiguration(serviceEndpoint, region));
+      if (luceneServerConfiguration.getEnableGlobalBucketAccess()) {
+        amazonS3ClientBuilder.withForceGlobalBucketAccessEnabled(true);
+      }
+      return amazonS3ClientBuilder
           .build();
     }
   }
