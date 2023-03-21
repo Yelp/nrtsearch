@@ -83,15 +83,14 @@ public class S3Module extends AbstractModule {
         clientBuilder.setClientConfiguration(clientConfiguration);
       }
 
-      AmazonS3ClientBuilder amazonS3ClientBuilder = clientBuilder
-          .withCredentials(awsCredentialsProvider)
-          .withEndpointConfiguration(
-              new EndpointConfiguration(serviceEndpoint, region));
+      AmazonS3ClientBuilder amazonS3ClientBuilder =
+          clientBuilder
+              .withCredentials(awsCredentialsProvider)
+              .withEndpointConfiguration(new EndpointConfiguration(serviceEndpoint, region));
       if (luceneServerConfiguration.getEnableGlobalBucketAccess()) {
         amazonS3ClientBuilder.enableForceGlobalBucketAccess();
       }
-      return amazonS3ClientBuilder
-          .build();
+      return amazonS3ClientBuilder.build();
     }
   }
 }
