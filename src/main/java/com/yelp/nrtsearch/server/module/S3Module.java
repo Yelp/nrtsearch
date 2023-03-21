@@ -88,7 +88,7 @@ public class S3Module extends AbstractModule {
           .withEndpointConfiguration(
               new EndpointConfiguration(serviceEndpoint, region));
       if (luceneServerConfiguration.getEnableGlobalBucketAccess()) {
-        amazonS3ClientBuilder.withForceGlobalBucketAccessEnabled(true);
+        amazonS3ClientBuilder.enableForceGlobalBucketAccess();
       }
       return amazonS3ClientBuilder
           .build();
