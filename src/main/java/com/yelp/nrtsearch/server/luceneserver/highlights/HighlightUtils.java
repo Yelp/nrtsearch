@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.Highlight.Type;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightSettings.Builder;
+import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -103,7 +104,12 @@ public class HighlightUtils {
                 .withDiscreteMultivalue(
                     settings.hasDiscreteMultivalue()
                         ? settings.getDiscreteMultivalue().getValue()
-                        : globalSettings.getDiscreteMultivalue());
+                        : globalSettings.getDiscreteMultivalue())
+                .withCustomHighlighterParams(
+                    settings.hasCustomHighlighterParams()
+                        ? StructValueTransformer.transformStruct(
+                            settings.getCustomHighlighterParams())
+                        : globalSettings.getCustomHighlighterParams());
 
         if (!settings.hasMaxNumberOfFragments()) {
           builder.withMaxNumFragments(globalSettings.getMaxNumFragments());
@@ -159,7 +165,11 @@ public class HighlightUtils {
         .withFragmentSize(
             settings.hasFragmentSize()
                 ? settings.getFragmentSize().getValue()
-                : DEFAULT_FRAGMENT_SIZE);
+                : DEFAULT_FRAGMENT_SIZE)
+        .withCustomHighlighterParams(
+            settings.hasCustomHighlighterParams()
+                ? StructValueTransformer.transformStruct(settings.getCustomHighlighterParams())
+                : Collections.EMPTY_MAP);
 
     Query query =
         settings.hasHighlightQuery()

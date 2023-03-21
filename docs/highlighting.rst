@@ -64,6 +64,8 @@ This is the proto definition for Highlight message which can be specified in Sea
         google.protobuf.BoolValue discrete_multivalue = 10;
         // When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for any other highlighter_types.
         string custom_highlighter_name = 11;
+        // Optional Custom parameters for custom highlighters. If a field overriding is present, the global setting will be omitted for this field, and no merge will happen.
+        google.protobuf.Struct custom_highlighter_params = 12;
     }
 
     // Highlight settings
