@@ -107,6 +107,8 @@ public class LuceneServerConfiguration {
   private final long maxConnectionAgeGraceForReplication;
   private final boolean savePluginBeforeUnzip;
 
+  private final boolean enableGlobalBucketAccess;
+
   @Inject
   public LuceneServerConfiguration(InputStream yamlStream) {
     configReader = new YamlConfigReader(yamlStream);
@@ -177,7 +179,8 @@ public class LuceneServerConfiguration {
         FSTLoadMode.valueOf(configReader.getString("completionCodecLoadMode", "ON_HEAP"));
     filterIncompatibleSegmentReaders =
         configReader.getBoolean("filterIncompatibleSegmentReaders", false);
-    this.savePluginBeforeUnzip = configReader.getBoolean("savePluginBeforeUnzip", false);
+    savePluginBeforeUnzip = configReader.getBoolean("savePluginBeforeUnzip", false);
+    enableGlobalBucketAccess = configReader.getBoolean("enableGlobalBucketAccess", false);
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
@@ -347,6 +350,10 @@ public class LuceneServerConfiguration {
 
   public boolean getSavePluginBeforeUnzip() {
     return savePluginBeforeUnzip;
+  }
+
+  public boolean getEnableGlobalBucketAccess() {
+    return enableGlobalBucketAccess;
   }
 
   /**

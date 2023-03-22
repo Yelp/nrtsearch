@@ -22,6 +22,7 @@ import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.auth.profile.ProfilesConfigFile;
 import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.retry.PredefinedRetryPolicies;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.s3.AmazonS3;
@@ -67,7 +68,10 @@ public class S3Module extends AbstractModule {
       }
       String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
       logger.info(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
-      AmazonS3ClientBuilder clientBuilder = AmazonS3ClientBuilder.standard();
+      AmazonS3ClientBuilder clientBuilder =
+          AmazonS3ClientBuilder.standard()
+              .withCredentials(awsCredentialsProvider)
+              .withEndpointConfiguration(new EndpointConfiguration(serviceEndpoint, region));
 
       int maxRetries = luceneServerConfiguration.getMaxS3ClientRetries();
       if (maxRetries > 0) {
@@ -82,11 +86,10 @@ public class S3Module extends AbstractModule {
         clientBuilder.setClientConfiguration(clientConfiguration);
       }
 
-      return clientBuilder
-          .withCredentials(awsCredentialsProvider)
-          .withEndpointConfiguration(
-              new AwsClientBuilder.EndpointConfiguration(serviceEndpoint, region))
-          .build();
+      if (luceneServerConfiguration.getEnableGlobalBucketAccess()) {
+        clientBuilder.enableForceGlobalBucketAccess();
+      }
+      return clientBuilder.build();
     }
   }
 }
