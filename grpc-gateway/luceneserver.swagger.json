@@ -1653,7 +1653,7 @@
         "fragment_size": {
           "type": "integer",
           "format": "int64",
-          "description": "Number of characters in highlighted fragment, 100 by default."
+          "description": "Number of characters in highlighted fragment, 100 by default. Set it to be 0 to fetch the entire field."
         },
         "max_number_of_fragments": {
           "type": "integer",
@@ -1683,6 +1683,10 @@
         "custom_highlighter_name": {
           "type": "string",
           "description": "When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for any other highlighter_types."
+        },
+        "custom_highlighter_params": {
+          "type": "object",
+          "description": "Optional Custom parameters for custom highlighters. If a field overriding is present, the global setting will be omitted for this field, and no merge will happen."
         }
       }
     },
@@ -2049,6 +2053,10 @@
             "$ref": "#/definitions/HitHighlights"
           },
           "title": "Field name to highlighted text fragments"
+        },
+        "explain": {
+          "type": "string",
+          "title": "Lucene explanation of the hit"
         }
       }
     },
@@ -4520,6 +4528,10 @@
         "highlight": {
           "$ref": "#/definitions/luceneserverHighlight",
           "title": "Specify how to highlight matched text"
+        },
+        "explain": {
+          "type": "boolean",
+          "title": "If Lucene explanation should be included in the response"
         }
       }
     },
