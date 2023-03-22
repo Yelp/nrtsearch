@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import java.util.Arrays;
+import java.util.Map;
 import org.apache.lucene.search.Query;
 
 /** Holds the context from the search request required to build highlights. */
@@ -30,8 +31,8 @@ public class HighlightSettings {
   private final boolean fieldMatch;
   private final boolean scoreOrdered;
   private final String fragmenter;
-
   private final boolean discreteMultivalue;
+  private final Map<String, Object> customHighlighterParams;
 
   public HighlightSettings(
       Highlighter highlighter,
@@ -43,7 +44,8 @@ public class HighlightSettings {
       boolean fieldMatch,
       boolean scoreOrdered,
       String fragmenter,
-      boolean discreteMultivalue) {
+      boolean discreteMultivalue,
+      Map<String, Object> customHighlighterParams) {
     this.highlighter = highlighter;
     this.preTags = preTags;
     this.postTags = postTags;
@@ -54,6 +56,7 @@ public class HighlightSettings {
     this.scoreOrdered = scoreOrdered;
     this.fragmenter = fragmenter;
     this.discreteMultivalue = discreteMultivalue;
+    this.customHighlighterParams = customHighlighterParams;
   }
 
   public Builder toBuilder() {
@@ -67,7 +70,8 @@ public class HighlightSettings {
         .withFieldMatch(this.fieldMatch)
         .withScoreOrdered(this.scoreOrdered)
         .withFragmenter(this.fragmenter)
-        .withDiscreteMultivalue(this.discreteMultivalue);
+        .withDiscreteMultivalue(this.discreteMultivalue)
+        .withCustomHighlighterParams(this.customHighlighterParams);
   }
 
   public Highlighter getHighlighter() {
@@ -110,12 +114,15 @@ public class HighlightSettings {
     return discreteMultivalue;
   }
 
+  public Map<String, Object> getCustomHighlighterParams() {
+    return customHighlighterParams;
+  }
+
   @Override
   public String toString() {
     return "HighlightSettings{"
-        + "highlighterName='"
-        + highlighter.getName()
-        + '\''
+        + "highlighter="
+        + highlighter
         + ", preTags="
         + Arrays.toString(preTags)
         + ", postTags="
@@ -135,6 +142,8 @@ public class HighlightSettings {
         + '\''
         + ", discreteMultivalue="
         + discreteMultivalue
+        + ", customHighlighterParams="
+        + customHighlighterParams
         + '}';
   }
 
@@ -150,6 +159,7 @@ public class HighlightSettings {
     private boolean scoreOrdered;
     private String fragmenter;
     private boolean discreteMultivalue;
+    private Map<String, Object> customHighlighterParams;
 
     public Builder() {}
 
@@ -203,6 +213,11 @@ public class HighlightSettings {
       return this;
     }
 
+    public Builder withCustomHighlighterParams(Map<String, Object> customHighlighterParams) {
+      this.customHighlighterParams = customHighlighterParams;
+      return this;
+    }
+
     public HighlightSettings build() {
       return new HighlightSettings(
           highlighter,
@@ -214,7 +229,8 @@ public class HighlightSettings {
           fieldMatch,
           scoreOrdered,
           fragmenter,
-          discreteMultivalue);
+          discreteMultivalue,
+          customHighlighterParams);
     }
   }
 }
