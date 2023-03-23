@@ -77,7 +77,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
                         List.of(
                             "The food is good there, but the service is terrible.",
                             "I personally don't like the staff at this place",
-                            "Not all food are good."))
+                            "Not all food are good food."))
                     .build())
             .build();
     docs.add(request);
@@ -175,8 +175,8 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
 
     assertThat(response.getHits(0).getHighlightsMap().get("comment_multivalue").getFragmentsList())
         .containsExactly(
-            "The <em>food</em> is good there, but the service is terrible.",
-            "Not all <em>food</em> are good.");
+            "Not all <em>food</em> are good <em>food</em>.",
+            "The <em>food</em> is good there, but the service is terrible.");
     assertThat(response.getHits(1).getHighlightsMap().get("comment_multivalue").getFragmentsList())
         .containsExactly("High quality <em>food</em>. Fresh and delicious!");
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
@@ -443,8 +443,9 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
     assertThat(response.getHitsCount()).isEqualTo(2);
     assertThat(response.getHits(0).getHighlightsMap().get("comment_multivalue").getFragmentsList())
         .containsExactly(
-            "The <em>food</em> is good there, but the service is terrible.",
-            "Not all <em>food</em> are good.");
+            "Not all <em>food</em> are good <em>food</em>.",
+            // RP-7664: Note that " I" will be appended to this fragment without the fix
+            "The <em>food</em> is good there, but the service is terrible.");
     assertThat(response.getHits(1).getHighlightsMap().get("comment_multivalue").getFragmentsList())
         .containsExactly("High quality <em>food</em>. Fresh and delicious!");
   }
