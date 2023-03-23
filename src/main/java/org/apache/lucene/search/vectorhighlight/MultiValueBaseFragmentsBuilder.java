@@ -28,9 +28,7 @@ import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.S
 import org.apache.lucene.search.vectorhighlight.FieldPhraseList.WeightedPhraseInfo.Toffs;
 
 public abstract class MultiValueBaseFragmentsBuilder extends BaseFragmentsBuilder {
-  /**
-   * a constructor.
-   */
+  /** a constructor. */
   public MultiValueBaseFragmentsBuilder() {
     super();
   }
@@ -41,24 +39,27 @@ public abstract class MultiValueBaseFragmentsBuilder extends BaseFragmentsBuilde
    * @param preTags array of pre-tags for markup terms.
    * @param postTags array of post-tags for markup terms.
    */
-  public MultiValueBaseFragmentsBuilder( String[] preTags, String[] postTags ) {
-    super( preTags, postTags );
+  public MultiValueBaseFragmentsBuilder(String[] preTags, String[] postTags) {
+    super(preTags, postTags);
   }
 
-  public MultiValueBaseFragmentsBuilder( BoundaryScanner bs ) {
-    super( bs );
+  public MultiValueBaseFragmentsBuilder(BoundaryScanner bs) {
+    super(bs);
   }
 
-  public MultiValueBaseFragmentsBuilder( String[] preTags, String[] postTags, BoundaryScanner bs ) {
-    super( preTags, postTags, bs );
+  public MultiValueBaseFragmentsBuilder(String[] preTags, String[] postTags, BoundaryScanner bs) {
+    super(preTags, postTags, bs);
   }
-  protected List<WeightedFragInfo> discreteMultiValueHighlighting(List<WeightedFragInfo> fragInfos, Field[] fields) {
+
+  protected List<WeightedFragInfo> discreteMultiValueHighlighting(
+      List<WeightedFragInfo> fragInfos, Field[] fields) {
     Map<String, List<WeightedFragInfo>> fieldNameToFragInfos = new HashMap<>();
     for (Field field : fields) {
       fieldNameToFragInfos.put(field.name(), new ArrayList<WeightedFragInfo>());
     }
 
-    fragInfos: for (WeightedFragInfo fragInfo : fragInfos) {
+    fragInfos:
+    for (WeightedFragInfo fragInfo : fragInfos) {
       int fieldStart;
       int fieldEnd = 0;
       for (Field field : fields) {
@@ -69,8 +70,10 @@ public abstract class MultiValueBaseFragmentsBuilder extends BaseFragmentsBuilde
         fieldStart = fieldEnd;
         fieldEnd += field.stringValue().length() + 1; // + 1 for going to next field with same name.
 
-        if (fragInfo.getStartOffset() >= fieldStart && fragInfo.getEndOffset() >= fieldStart &&
-            fragInfo.getStartOffset() <= fieldEnd && fragInfo.getEndOffset() <= fieldEnd) {
+        if (fragInfo.getStartOffset() >= fieldStart
+            && fragInfo.getEndOffset() >= fieldStart
+            && fragInfo.getStartOffset() <= fieldEnd
+            && fragInfo.getEndOffset() <= fieldEnd) {
           fieldNameToFragInfos.get(field.name()).add(fragInfo);
           continue fragInfos;
         }
@@ -94,10 +97,10 @@ public abstract class MultiValueBaseFragmentsBuilder extends BaseFragmentsBuilde
           fragEnd = fragInfo.getEndOffset();
         }
 
-
         List<SubInfo> subInfos = new ArrayList<>();
         Iterator<SubInfo> subInfoIterator = fragInfo.getSubInfos().iterator();
-        float boost = 0.0f;  //  The boost of the new info will be the sum of the boosts of its SubInfos
+        float boost =
+            0.0f; //  The boost of the new info will be the sum of the boosts of its SubInfos
         while (subInfoIterator.hasNext()) {
           SubInfo subInfo = subInfoIterator.next();
           List<Toffs> toffsList = new ArrayList<>();
@@ -140,7 +143,8 @@ public abstract class MultiValueBaseFragmentsBuilder extends BaseFragmentsBuilde
             }
           }
           if (!toffsList.isEmpty()) {
-            subInfos.add(new SubInfo(subInfo.getText(), toffsList, subInfo.getSeqnum(), subInfo.getBoost()));
+            subInfos.add(
+                new SubInfo(subInfo.getText(), toffsList, subInfo.getSeqnum(), subInfo.getBoost()));
             boost += subInfo.getBoost();
           }
 
@@ -149,7 +153,8 @@ public abstract class MultiValueBaseFragmentsBuilder extends BaseFragmentsBuilde
           }
         }
         // RP-7664: fix a bug in case of multiValue highlighting
-        WeightedFragInfo weightedFragInfo = new WeightedFragInfo(fragStart, fragEnd - 1, subInfos, boost);
+        WeightedFragInfo weightedFragInfo =
+            new WeightedFragInfo(fragStart, fragEnd - 1, subInfos, boost);
         fieldNameToFragInfos.get(field.name()).add(weightedFragInfo);
       }
     }
@@ -158,14 +163,16 @@ public abstract class MultiValueBaseFragmentsBuilder extends BaseFragmentsBuilde
     for (List<WeightedFragInfo> weightedFragInfos : fieldNameToFragInfos.values()) {
       result.addAll(weightedFragInfos);
     }
-    Collections.sort(result, new Comparator<WeightedFragInfo>() {
+    Collections.sort(
+        result,
+        new Comparator<WeightedFragInfo>() {
 
-      @Override
-      public int compare(FieldFragList.WeightedFragInfo info1, FieldFragList.WeightedFragInfo info2) {
-        return info1.getStartOffset() - info2.getStartOffset();
-      }
-
-    });
+          @Override
+          public int compare(
+              FieldFragList.WeightedFragInfo info1, FieldFragList.WeightedFragInfo info2) {
+            return info1.getStartOffset() - info2.getStartOffset();
+          }
+        });
 
     return result;
   }
