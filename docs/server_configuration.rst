@@ -79,7 +79,7 @@ Example server configuration
    * - maxS3ClientRetries
      - int
      - Max retries to configure for the server s3 client. If <= 0, the default retry policy is used.
-     - -1 (default policy)
+     - 20
 
    * - botoCfgPath
      - str
