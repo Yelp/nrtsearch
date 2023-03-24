@@ -45,7 +45,7 @@ public class LuceneServerConfiguration {
   public static final Path DEFAULT_INDEX_DIR =
       Paths.get(DEFAULT_USER_DIR.toString(), "default_index");
   private static final String DEFAULT_BUCKET_NAME = "DEFAULT_ARCHIVE_BUCKET";
-  static final int DEFAULT_MAX_S3_CLIENT_RETRIES = -1;
+  static final int DEFAULT_MAX_S3_CLIENT_RETRIES = 20;
   private static final String DEFAULT_HOSTNAME = "localhost";
   private static final int DEFAULT_PORT = 50051;
   private static final int DEFAULT_REPLICATION_PORT = 50052;
