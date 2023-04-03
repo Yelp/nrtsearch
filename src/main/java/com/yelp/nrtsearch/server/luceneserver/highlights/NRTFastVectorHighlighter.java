@@ -26,9 +26,9 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
 import org.apache.lucene.search.vectorhighlight.FragListBuilder;
-import org.apache.lucene.search.vectorhighlight.MultiValueScoreOrderFragmentsBuilder;
-import org.apache.lucene.search.vectorhighlight.MultiValueSimpleFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
+import org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -99,9 +99,9 @@ public class NRTFastVectorHighlighter implements Highlighter {
 
     BaseFragmentsBuilder fragmentsBuilder;
     if (settings.isScoreOrdered()) {
-      fragmentsBuilder = new MultiValueScoreOrderFragmentsBuilder();
+      fragmentsBuilder = new ScoreOrderFragmentsBuilder();
     } else {
-      fragmentsBuilder = new MultiValueSimpleFragmentsBuilder();
+      fragmentsBuilder = new SimpleFragmentsBuilder();
     }
     fragmentsBuilder.setDiscreteMultiValueHighlighting(settings.getDiscreteMultivalue());
 
