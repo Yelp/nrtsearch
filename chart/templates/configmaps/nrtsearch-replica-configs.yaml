@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nrtsearch.name" . }}-replica-configs
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "nrtsearch.name" . }}
+    helm.sh/chart: {{ include "nrtsearch.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  lucene_server_configuration_replica.yaml: |
+{{ $file := .Files.Get "files/configs/lucene_server_configuration_replica_yaml.tpl" }}
+{{ tpl $file . | nindent 4 }}
+  start_replica.sh: |
+{{ $file := .Files.Get "files/scripts/start_replica_bash.tpl" }}
+{{ tpl $file . | nindent 4 }}
+{{ if (.Values.exploreNrtsearchMode.enabled) }}
+  settings_replica.json: |
+{{ $file := .Files.Get "files/configs/settings_replica_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+  registerFields.json: |
+{{ $file := .Files.Get "files/configs/registerFields_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+  startIndex_replica.json: |
+{{ $file := .Files.Get "files/configs/startIndex_replica_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+{{ end }}

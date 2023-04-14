@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nrtsearch.name" . }}-primary
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "nrtsearch.name" . }}-primary
+    helm.sh/chart: {{ include "nrtsearch.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.primary.count }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "nrtsearch.name" . }}-primary
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "nrtsearch.name" . }}-primary
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ include "nrtsearch.serviceAccountName" . }}
+      containers:
+        - name: {{ include "nrtsearch.name" . }}-primary-main
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.primary.command }}
+          command: {{ toJson .Values.primary.command }}
+          {{- end }}
+          {{- if .Values.primary.args }}
+          args: {{ toJson .Values.primary.args }}
+          {{- end }}
+          ports:
+          {{- if .Values.primary.ports.deployment }}
+          {{- toYaml .Values.primary.ports.deployment | trim | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: configs
+              mountPath: {{ .Values.primary.config.path }}
+      volumes:
+        - name: configs
+          configMap:
+            name: {{ include "nrtsearch.name" . }}-primary-configs
+            defaultMode: 0755
