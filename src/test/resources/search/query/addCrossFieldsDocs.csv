@@ -1,0 +1,8 @@
+doc_id,field1,field2,field3
+0,term3,term4,term0
+1,term1 term2,term0,term0
+2,term1,term2,term0
+3,term3,term2 term1,term0
+4,term4,term1,term2
+5,term1,term1,term0
+6,term2,term5,term1

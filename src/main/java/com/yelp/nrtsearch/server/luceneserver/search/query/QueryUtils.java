@@ -16,6 +16,14 @@
 package com.yelp.nrtsearch.server.luceneserver.search.query;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.Scorer;
@@ -47,6 +55,33 @@ public class QueryUtils {
     @Override
     public boolean advanceExact(int doc) throws IOException {
       return true;
+    }
+  }
+
+  /** Class to hold terms and positions produced by text analysis. */
+  public static class TermsAndPositions {
+    private final List<Term[]> termArrays;
+    private final List<Integer> positions;
+
+    /**
+     * Constructor.
+     *
+     * @param termArrays terms by position
+     * @param positions positions
+     */
+    public TermsAndPositions(List<Term[]> termArrays, List<Integer> positions) {
+      this.termArrays = termArrays;
+      this.positions = positions;
+    }
+
+    /** Get terms by position. */
+    public List<Term[]> getTermArrays() {
+      return termArrays;
+    }
+
+    /** Get positions. */
+    public List<Integer> getPositions() {
+      return positions;
     }
   }
 
@@ -121,5 +156,72 @@ public class QueryUtils {
         return maxDoc;
       }
     };
+  }
+
+  /**
+   * Analyze text for a field with the given Analyzer.
+   *
+   * @param field field name
+   * @param queryText query text
+   * @param analyzer analyzer
+   * @return terms and positions
+   * @throws IOException
+   */
+  public static TermsAndPositions getTermsAndPositions(
+      String field, String queryText, Analyzer analyzer) throws IOException {
+    try (TokenStream stream = analyzer.tokenStream(field, queryText)) {
+      return getTermsAndPositions(field, stream);
+    }
+  }
+
+  /**
+   * Extract terms and positions from a given analysis token stream.
+   *
+   * @param field field name
+   * @param stream token stream
+   * @return terms and positions
+   * @throws IOException
+   */
+  public static TermsAndPositions getTermsAndPositions(String field, TokenStream stream)
+      throws IOException {
+    List<Term[]> termArrays = new ArrayList<>();
+    List<Integer> positions = new ArrayList<>();
+
+    List<Term> currentTerms = new ArrayList<>();
+    TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+    PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
+    PositionLengthAttribute posLenAtt = stream.addAttribute(PositionLengthAttribute.class);
+
+    // no terms
+    if (termAtt == null) {
+      return new TermsAndPositions(termArrays, positions);
+    }
+
+    stream.reset();
+    int position = -1;
+    while (stream.incrementToken()) {
+      if (posIncrAtt.getPositionIncrement() != 0) {
+        if (!currentTerms.isEmpty()) {
+          termArrays.add(currentTerms.toArray(new Term[0]));
+          positions.add(position);
+        }
+        position += posIncrAtt.getPositionIncrement();
+        currentTerms.clear();
+      }
+      int positionLength = posLenAtt.getPositionLength();
+      if (positionLength > 1) {
+        throw new IllegalArgumentException(
+            "MatchPhrasePrefixQuery does not support graph type analyzers");
+      }
+      currentTerms.add(new Term(field, termAtt.getBytesRef()));
+    }
+    // no tokens in query text
+    if (position == -1) {
+      return new TermsAndPositions(termArrays, positions);
+    }
+    termArrays.add(currentTerms.toArray(new Term[0]));
+    positions.add(position);
+
+    return new TermsAndPositions(termArrays, positions);
   }
 }

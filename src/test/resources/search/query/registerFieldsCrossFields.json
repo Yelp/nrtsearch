@@ -1,0 +1,74 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "_ID",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "field1",
+      "type": "TEXT",
+      "search": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "childFields": [
+        {
+          "name": "not_searchable",
+          "type": "TEXT",
+          "tokenize": true,
+          "multiValued": true
+        },
+        {
+          "name": "atom",
+          "type": "ATOM",
+          "search": true,
+          "tokenize": true,
+          "multiValued": true
+        }
+      ]
+    },
+    {
+      "name": "field2",
+      "type": "TEXT",
+      "search": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "childFields": [
+        {
+          "name": "atom",
+          "type": "ATOM",
+          "search": true,
+          "tokenize": true,
+          "multiValued": true
+        }
+      ]
+    },
+    {
+      "name": "field3",
+      "type": "TEXT",
+      "search": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "childFields": [
+        {
+          "name": "atom",
+          "type": "ATOM",
+          "search": true,
+          "tokenize": true,
+          "multiValued": true
+        }
+      ]
+    },
+    {
+      "name": "not_analyzed",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    }
+  ]
+}

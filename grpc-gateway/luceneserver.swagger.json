@@ -1793,10 +1793,11 @@
       "type": "string",
       "enum": [
         "BEST_FIELDS",
-        "PHRASE_PREFIX"
+        "PHRASE_PREFIX",
+        "CROSS_FIELDS"
       ],
       "default": "BEST_FIELDS",
-      "description": "Type defining the execution behavior of the match.\n\n - BEST_FIELDS: Finds documents which match any field, but uses the _score from the best field.\n - PHRASE_PREFIX: Runs a MatchPhrasePrefixQuery query on each field and uses the _score from the best field."
+      "description": "Type defining the execution behavior of the match.\n\n - BEST_FIELDS: Finds documents which match any field, but uses the _score from the best field.\n - PHRASE_PREFIX: Runs a MatchPhrasePrefixQuery query on each field and uses the _score from the best field.\n - CROSS_FIELDS: Finds documents that match across multiple fields, as if they were a single field."
     },
     "NestedQueryScoreMode": {
       "type": "string",
