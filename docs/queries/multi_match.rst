@@ -14,6 +14,8 @@ Proto definition:
            BEST_FIELDS = 0;
            // Runs a MatchPhrasePrefixQuery query on each field and uses the _score from the best field.
            PHRASE_PREFIX = 1;
+           // Finds documents that match across multiple fields, as if they were a single field.
+           CROSS_FIELDS = 2;
        }
 
        repeated string fields = 1; // Fields in the document to query.
