@@ -720,6 +720,8 @@ message Collector {
         TopHitsCollector topHitsCollector = 4;
         //Collector that filters documents to nested collectors
         FilterCollector filter = 5;
+        //Collector for finding a max double value from collected documents.
+        MaxCollector max = 6;
     }
     //Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors.
     map<string, Collector> nestedCollectors = 3;
@@ -765,6 +767,14 @@ message FilterCollector {
     }
 }
 
+//Definition of collector to find a max double value over documents. Currently only allows for script based value production.
+message MaxCollector {
+    oneof ValueSource {
+        //Script to produce a double value
+        Script script = 1;
+    }
+}
+
 message CollectorResult {
     oneof CollectorResults {
         //Result of collector that produces buckets and counts.
@@ -775,6 +785,8 @@ message CollectorResult {
         HitsResult hitsResult = 4;
         //Result of collector that filters documents.
         FilterResult filterResult = 5;
+        //Result of collector that produces a single double value.
+        google.protobuf.DoubleValue doubleResult = 6;
     }
 }
 
