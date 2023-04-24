@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -82,6 +83,28 @@ public class QueryUtils {
     /** Get positions. */
     public List<Integer> getPositions() {
       return positions;
+    }
+  }
+
+  /**
+   * {@link DoubleValues} implementation that allows the produced value to be provided by setting a
+   * {@link Scorable}. Useful way to provide _score value to some lucene methods.
+   */
+  public static class ScorableDoubleValues extends DoubleValues {
+    private Scorable scorer;
+
+    public void setScorer(Scorable scorer) {
+      this.scorer = scorer;
+    }
+
+    @Override
+    public double doubleValue() throws IOException {
+      return scorer.score();
+    }
+
+    @Override
+    public boolean advanceExact(int doc) throws IOException {
+      return scorer != null && scorer.docID() == doc;
     }
   }
 

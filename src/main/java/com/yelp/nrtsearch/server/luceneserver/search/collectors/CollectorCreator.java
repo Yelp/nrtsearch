@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.PluginCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.FilterCollectorManager;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.MaxCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.TermsCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.TopHitsCollectorManager;
 import com.yelp.nrtsearch.server.plugins.CollectorPlugin;
@@ -99,6 +100,11 @@ public class CollectorCreator {
         return () ->
             new FilterCollectorManager(
                 name, collector.getFilter(), context, nestedCollectorSuppliers);
+      case MAX:
+        if (!nestedCollectorSuppliers.isEmpty()) {
+          throw new IllegalArgumentException("MaxCollector cannot have nested collectors");
+        }
+        return () -> new MaxCollectorManager(name, collector.getMax(), context);
       default:
         throw new IllegalArgumentException(
             "Unknown Collector type: " + collector.getCollectorsCase());

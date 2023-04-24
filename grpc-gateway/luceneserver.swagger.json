@@ -2422,6 +2422,10 @@
           "$ref": "#/definitions/luceneserverFilterCollector",
           "title": "Collector that filters documents to nested collectors"
         },
+        "max": {
+          "$ref": "#/definitions/luceneserverMaxCollector",
+          "description": "Collector for finding a max double value from collected documents."
+        },
         "nestedCollectors": {
           "type": "object",
           "additionalProperties": {
@@ -2450,6 +2454,11 @@
         "filterResult": {
           "$ref": "#/definitions/luceneserverFilterResult",
           "description": "Result of collector that filters documents."
+        },
+        "doubleResult": {
+          "type": "number",
+          "format": "double",
+          "description": "Result of collector that produces a single double value."
         }
       }
     },
@@ -3861,6 +3870,16 @@
         }
       },
       "description": "A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined using term queries in boolean clauses."
+    },
+    "luceneserverMaxCollector": {
+      "type": "object",
+      "properties": {
+        "script": {
+          "$ref": "#/definitions/luceneserverScript",
+          "title": "Script to produce a double value"
+        }
+      },
+      "description": "Definition of collector to find a max double value over documents. Currently only allows for script based value production."
     },
     "luceneserverMode": {
       "type": "string",
