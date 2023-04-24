@@ -755,6 +755,8 @@ message TopHitsCollector {
     QuerySortField querySort = 3;
     //Which fields to retrieve.
     repeated string retrieveFields = 4;
+    // If Lucene explanation should be included in the collector response
+    bool explain = 5;
 }
 
 //Definition of filtering collector, there must be at least one nested collector specified in the Collector message.
