@@ -156,6 +156,71 @@ public class TopHitsCollectorManagerTest extends ServerTestCase {
     assertEquals(5, hitsResult.getHitsCount());
     assertHits(hitsResult, 99, 98, 97, 96, 95);
     assertScores(hitsResult, 297, 294, 291, 288, 285);
+    // by default, no explain
+    assertExplain(hitsResult, "", "", "", "", "");
+  }
+
+  @Test
+  public void testTopHitsRelevanceWithExplain() {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .setQuery(
+                Query.newBuilder()
+                    .setFunctionScoreQuery(
+                        FunctionScoreQuery.newBuilder()
+                            .setScript(
+                                Script.newBuilder()
+                                    .setLang(JsScriptEngine.LANG)
+                                    .setSource("int_field_2*3")
+                                    .build())
+                            .build())
+                    .build())
+            .putCollectors(
+                "test_collector",
+                Collector.newBuilder()
+                    .setTopHitsCollector(
+                        TopHitsCollector.newBuilder()
+                            .setStartHit(0)
+                            .setTopHits(5)
+                            .addAllRetrieveFields(ALL_FIELDS)
+                            .setExplain(true)
+                            .build())
+                    .build())
+            .build();
+    SearchResponse response = getGrpcServer().getBlockingStub().search(request);
+
+    assertEquals(100, response.getTotalHits().getValue());
+    assertEquals(Relation.EQUAL_TO, response.getTotalHits().getRelation());
+    assertEquals(0, response.getHitsCount());
+
+    assertEquals(1, response.getCollectorResultsMap().size());
+    CollectorResult collectorResult = response.getCollectorResultsOrThrow("test_collector");
+    assertEquals(CollectorResultsCase.HITSRESULT, collectorResult.getCollectorResultsCase());
+
+    HitsResult hitsResult = collectorResult.getHitsResult();
+    assertEquals(100, hitsResult.getTotalHits().getValue());
+    assertEquals(Relation.EQUAL_TO, hitsResult.getTotalHits().getRelation());
+    assertEquals(5, hitsResult.getHitsCount());
+    assertHits(hitsResult, 99, 98, 97, 96, 95);
+    assertScores(hitsResult, 297, 294, 291, 288, 285);
+    assertExplain(
+        hitsResult,
+        "297.0 = weight(FunctionScoreQuery(*:*, scored by expr(int_field_2*3))), result of:\n"
+            + "  297.0 = int_field_2*3, computed from:\n"
+            + "    99.0 = double(int_field_2)\n",
+        "294.0 = weight(FunctionScoreQuery(*:*, scored by expr(int_field_2*3))), result of:\n"
+            + "  294.0 = int_field_2*3, computed from:\n"
+            + "    98.0 = double(int_field_2)\n",
+        "291.0 = weight(FunctionScoreQuery(*:*, scored by expr(int_field_2*3))), result of:\n"
+            + "  291.0 = int_field_2*3, computed from:\n"
+            + "    97.0 = double(int_field_2)\n",
+        "288.0 = weight(FunctionScoreQuery(*:*, scored by expr(int_field_2*3))), result of:\n"
+            + "  288.0 = int_field_2*3, computed from:\n"
+            + "    96.0 = double(int_field_2)\n",
+        "285.0 = weight(FunctionScoreQuery(*:*, scored by expr(int_field_2*3))), result of:\n"
+            + "  285.0 = int_field_2*3, computed from:\n"
+            + "    95.0 = double(int_field_2)\n");
   }
 
   @Test
@@ -459,6 +524,13 @@ public class TopHitsCollectorManagerTest extends ServerTestCase {
       assertEquals(1, hit.getSortedFieldsCount());
       assertEquals(
           sort[i], hit.getSortedFieldsOrThrow("virtual").getFieldValue(0).getDoubleValue(), 0);
+    }
+  }
+
+  private void assertExplain(HitsResult hitsResult, String... explains) {
+    assertEquals(hitsResult.getHitsCount(), explains.length);
+    for (int i = 0; i < explains.length; ++i) {
+      assertEquals(hitsResult.getHits(i).getExplain(), explains[i]);
     }
   }
 }
