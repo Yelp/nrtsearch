@@ -15,10 +15,13 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
+import static com.yelp.nrtsearch.server.collectors.BucketOrder.COUNT;
 import static org.junit.Assert.assertEquals;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.BucketOrder;
+import com.yelp.nrtsearch.server.grpc.BucketOrder.OrderType;
 import com.yelp.nrtsearch.server.grpc.BucketResult;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Script;
@@ -300,6 +303,25 @@ public class ScriptTermsCollectorManagerTest extends TermsCollectorManagerTestsB
   }
 
   @Test
+  public void testScriptIterableValue_asc() {
+    TermsCollector terms =
+        TermsCollector.newBuilder()
+            .setScript(Script.newBuilder().setLang("test_lang").setSource("combine").build())
+            .setOrder(BucketOrder.newBuilder().setKey(COUNT).setOrder(OrderType.ASC).build())
+            .setSize(10)
+            .build();
+    SearchResponse response = doQuery(terms);
+    assertResponse(
+        response,
+        3,
+        3,
+        0,
+        new ExpectedValues(new HashSet<>(Collections.singletonList("2")), 33),
+        new ExpectedValues(new HashSet<>(Collections.singletonList("1")), 66),
+        new ExpectedValues(new HashSet<>(Collections.singletonList("0")), 67));
+  }
+
+  @Test
   public void testScriptIterableBucketSubset() {
     TermsCollector terms =
         TermsCollector.newBuilder()
@@ -313,6 +335,24 @@ public class ScriptTermsCollectorManagerTest extends TermsCollectorManagerTestsB
         2,
         33,
         new ExpectedValues(new HashSet<>(Collections.singletonList("0")), 67),
+        new ExpectedValues(new HashSet<>(Collections.singletonList("1")), 66));
+  }
+
+  @Test
+  public void testScriptIterableBucketSubset_asc() {
+    TermsCollector terms =
+        TermsCollector.newBuilder()
+            .setScript(Script.newBuilder().setLang("test_lang").setSource("combine").build())
+            .setOrder(BucketOrder.newBuilder().setKey(COUNT).setOrder(OrderType.ASC).build())
+            .setSize(2)
+            .build();
+    SearchResponse response = doQuery(terms);
+    assertResponse(
+        response,
+        3,
+        2,
+        67,
+        new ExpectedValues(new HashSet<>(Collections.singletonList("2")), 33),
         new ExpectedValues(new HashSet<>(Collections.singletonList("1")), 66));
   }
 
@@ -450,6 +490,18 @@ public class ScriptTermsCollectorManagerTest extends TermsCollectorManagerTestsB
     TermsCollector terms =
         TermsCollector.newBuilder()
             .setScript(Script.newBuilder().setLang("test_lang").setSource("numeric_set").build())
+            .setSize(10)
+            .build();
+    SearchResponse response = doNestedQuery(terms);
+    assertNestedResult(response);
+  }
+
+  @Test
+  public void testNestedCollector_asc() {
+    TermsCollector terms =
+        TermsCollector.newBuilder()
+            .setScript(Script.newBuilder().setLang("test_lang").setSource("numeric_set").build())
+            .setOrder(BucketOrder.newBuilder().setKey(COUNT).setOrder(OrderType.ASC).build())
             .setSize(10)
             .build();
     SearchResponse response = doNestedQuery(terms);

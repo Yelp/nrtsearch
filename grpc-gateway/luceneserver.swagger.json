@@ -1598,6 +1598,15 @@
       "default": "SHOULD",
       "description": "Defines how clauses may occur in matching documents. This will always be SHOULD by default."
     },
+    "BucketOrderOrderType": {
+      "type": "string",
+      "enum": [
+        "DESC",
+        "ASC"
+      ],
+      "default": "DESC",
+      "title": "Sorting order type"
+    },
     "BucketResultBucket": {
       "type": "object",
       "properties": {
@@ -2332,6 +2341,20 @@
         }
       },
       "description": "A query that matches documents using boolean combinations of other queries."
+    },
+    "luceneserverBucketOrder": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "What to use for sorting. This can be _count for Bucket count, or the name of a nested collector that supports ordering."
+        },
+        "order": {
+          "$ref": "#/definitions/BucketOrderOrderType",
+          "title": "Sorting order"
+        }
+      },
+      "description": "Defines how Buckets should be ordered in BucketResult."
     },
     "luceneserverBucketResult": {
       "type": "object",
@@ -5116,6 +5139,10 @@
           "type": "integer",
           "format": "int32",
           "description": "Maximum number of top terms to return."
+        },
+        "order": {
+          "$ref": "#/definitions/luceneserverBucketOrder",
+          "description": "How results Buckets should be ordered, defaults to descending Bucket _count."
         }
       },
       "description": "Definition of term aggregating collector."
@@ -5143,6 +5170,10 @@
             "type": "string"
           },
           "description": "Which fields to retrieve."
+        },
+        "explain": {
+          "type": "boolean",
+          "title": "If Lucene explanation should be included in the collector response"
         }
       },
       "description": "Definition of top hits based collector."

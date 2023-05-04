@@ -21,7 +21,9 @@ import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollec
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -99,6 +101,22 @@ public class NestedCollectorManagers {
    */
   public Map<String, CollectorResult> reduce(
       Object value, Collection<NestedCollectors> nestedCollectors) throws IOException {
+    return reduce(value, nestedCollectors, Collections.emptySet());
+  }
+
+  /**
+   * Reduce all nested collectors into a mapping of collector results, except those specified to be
+   * excluded.
+   *
+   * @param value value key
+   * @param nestedCollectors all nested collectors
+   * @param excludes collectors to exclude
+   * @return mapping of sub-aggregation name to collector result
+   * @throws IOException
+   */
+  public Map<String, CollectorResult> reduce(
+      Object value, Collection<NestedCollectors> nestedCollectors, Set<String> excludes)
+      throws IOException {
     Map<String, AdditionalCollectorManager<?, CollectorResult>> collectorManagers =
         nestedCollectorManagersByValue.get(value);
     if (collectorManagers == null) {
@@ -107,6 +125,9 @@ public class NestedCollectorManagers {
     Map<String, CollectorResult> resultMap = new Object2ObjectOpenHashMap<>();
     for (Map.Entry<String, AdditionalCollectorManager<?, CollectorResult>> entry :
         collectorManagers.entrySet()) {
+      if (excludes.contains(entry.getKey())) {
+        continue;
+      }
       Collection<Collector> collectors =
           nestedCollectors.stream()
               .map(m -> m.nestedCollectorsByValue.get(value))
@@ -119,6 +140,38 @@ public class NestedCollectorManagers {
       resultMap.put(entry.getKey(), manager.reduce(collectors));
     }
     return resultMap;
+  }
+
+  /**
+   * Reduce a single nested collector to its collector result.
+   *
+   * @param value value key
+   * @param collectorName nested collector name
+   * @param nestedCollectors all nested collectors
+   * @return reduced collector result
+   * @throws IOException
+   */
+  public CollectorResult reduceSingle(
+      Object value, String collectorName, Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
+    Map<String, AdditionalCollectorManager<?, CollectorResult>> collectorManagers =
+        nestedCollectorManagersByValue.get(value);
+    if (collectorManagers == null) {
+      throw new IllegalArgumentException("Unknown value: " + value);
+    }
+    @SuppressWarnings("unchecked")
+    CollectorManager<Collector, CollectorResult> collectorManager =
+        (CollectorManager<Collector, CollectorResult>) collectorManagers.get(collectorName);
+    if (collectorManager == null) {
+      throw new IllegalArgumentException("No collector found: " + collectorName);
+    }
+    Collection<Collector> collectors =
+        nestedCollectors.stream()
+            .map(m -> m.nestedCollectorsByValue.get(value))
+            .filter(c -> c != null && c.containsKey(collectorName))
+            .map(c -> c.get(collectorName))
+            .collect(Collectors.toList());
+    return collectorManager.reduce(collectors);
   }
 
   /** Collector level nested aggregation object. Tracks collectors for all values. */

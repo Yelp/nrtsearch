@@ -15,7 +15,11 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
+import static com.yelp.nrtsearch.server.collectors.BucketOrder.COUNT;
+
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.BucketOrder;
+import com.yelp.nrtsearch.server.grpc.BucketOrder.OrderType;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
@@ -24,6 +28,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Set;
 import org.junit.ClassRule;
 import org.junit.Test;
 
@@ -31,12 +36,83 @@ public class OrdinalTermsCollectorManagerTest extends TermsCollectorManagerTests
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
+  static final ExpectedValues[] ORDINAL_EXPECTED_MULTI_ORDER_DESC =
+      new ExpectedValues[] {
+        new ExpectedValues(Set.of("-1"), 45),
+        new ExpectedValues(Set.of("0"), 22),
+        new ExpectedValues(Set.of("2"), 18),
+        new ExpectedValues(Set.of("1"), 15),
+        new ExpectedValues(Set.of("9"), 10),
+        new ExpectedValues(Set.of("8"), 9),
+        new ExpectedValues(Set.of("7"), 8),
+        new ExpectedValues(Set.of("6"), 7),
+        new ExpectedValues(Set.of("5"), 6),
+        new ExpectedValues(Set.of("4"), 5),
+        new ExpectedValues(Set.of("3"), 4)
+      };
+  static final ExpectedValues[] ORDINAL_EXPECTED_MULTI_ORDER_ASC =
+      new ExpectedValues[] {
+        new ExpectedValues(Set.of("3"), 4),
+        new ExpectedValues(Set.of("4"), 5),
+        new ExpectedValues(Set.of("5"), 6),
+        new ExpectedValues(Set.of("6"), 7),
+        new ExpectedValues(Set.of("7"), 8),
+        new ExpectedValues(Set.of("8"), 9),
+        new ExpectedValues(Set.of("9"), 10),
+        new ExpectedValues(Set.of("1"), 15),
+        new ExpectedValues(Set.of("2"), 18),
+        new ExpectedValues(Set.of("0"), 22),
+        new ExpectedValues(Set.of("-1"), 45)
+      };
+  static final ExpectedValues[] ORDINAL_EXPECTED_SUBSET_MULTI_ORDER_DESC =
+      new ExpectedValues[] {
+        new ExpectedValues(Set.of("-1"), 45), new ExpectedValues(Set.of("0"), 22)
+      };
+  static final ExpectedValues[] ORDINAL_EXPECTED_SUBSET_MULTI_ORDER_ASC =
+      new ExpectedValues[] {new ExpectedValues(Set.of("3"), 4), new ExpectedValues(Set.of("4"), 5)};
+  static final ExpectedValues[] ORDINAL_EXPECTED_RANGE_MULTI_ORDER_DESC =
+      new ExpectedValues[] {
+        new ExpectedValues(Set.of("-1"), 44),
+        new ExpectedValues(Set.of("0"), 15),
+        new ExpectedValues(Set.of("2"), 11),
+        new ExpectedValues(Set.of("1"), 9),
+        new ExpectedValues(Set.of("9"), 8),
+        new ExpectedValues(Set.of("8"), 7),
+        new ExpectedValues(Set.of("7"), 6),
+        new ExpectedValues(Set.of("6"), 5),
+        new ExpectedValues(Set.of("5"), 4),
+        new ExpectedValues(Set.of("4"), 3),
+        new ExpectedValues(Set.of("3"), 2)
+      };
+  static final ExpectedValues[] ORDINAL_EXPECTED_RANGE_MULTI_ORDER_ASC =
+      new ExpectedValues[] {
+        new ExpectedValues(Set.of("3"), 2),
+        new ExpectedValues(Set.of("4"), 3),
+        new ExpectedValues(Set.of("5"), 4),
+        new ExpectedValues(Set.of("6"), 5),
+        new ExpectedValues(Set.of("7"), 6),
+        new ExpectedValues(Set.of("8"), 7),
+        new ExpectedValues(Set.of("9"), 8),
+        new ExpectedValues(Set.of("1"), 9),
+        new ExpectedValues(Set.of("2"), 11),
+        new ExpectedValues(Set.of("0"), 15),
+        new ExpectedValues(Set.of("-1"), 44)
+      };
+  static final ExpectedValues[] ORDINAL_EXPECTED_SUBSET_RANGE_MULTI_ORDER_DESC =
+      new ExpectedValues[] {
+        new ExpectedValues(Set.of("-1"), 44), new ExpectedValues(Set.of("0"), 15)
+      };
+  static final ExpectedValues[] ORDINAL_EXPECTED_SUBSET_RANGE_MULTI_ORDER_ASC =
+      new ExpectedValues[] {new ExpectedValues(Set.of("3"), 2), new ExpectedValues(Set.of("4"), 3)};
+
   protected FieldDefRequest getIndexDef(String name) throws IOException {
     return getFieldsFromResourceFile("/search/collection/terms_ordinal.json");
   }
 
   @Override
   protected AddDocumentRequest getIndexRequest(String index, int id) {
+    int valueOrder = id / 10 + id % 10;
+    valueOrder = valueOrder < 10 ? valueOrder : -1;
     AddDocumentRequest.Builder builder =
         AddDocumentRequest.newBuilder()
             .setIndexName(index)
@@ -56,10 +132,21 @@ public class OrdinalTermsCollectorManagerTest extends TermsCollectorManagerTests
                     .addValue(String.valueOf(id % 3))
                     .build())
             .putFields(
+                "value_order",
+                AddDocumentRequest.MultiValuedField.newBuilder()
+                    .addValue(String.valueOf(valueOrder))
+                    .build())
+            .putFields(
                 "value_multi",
                 AddDocumentRequest.MultiValuedField.newBuilder()
                     .addValue(String.valueOf(id % 2))
                     .addValue(String.valueOf(id % 5))
+                    .build())
+            .putFields(
+                "value_multi_order",
+                AddDocumentRequest.MultiValuedField.newBuilder()
+                    .addValue(String.valueOf(valueOrder))
+                    .addValue(String.valueOf(valueOrder % 3))
                     .build());
 
     if ((id % 2) == 0) {
@@ -87,11 +174,21 @@ public class OrdinalTermsCollectorManagerTest extends TermsCollectorManagerTests
   }
 
   @Test
+  public void testTermsCollection_order() {
+    testTermsCollectionOrder();
+  }
+
+  @Test
   public void testTermsCollectionSubset() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(1).build();
     SearchResponse response = doQuery(terms);
     assertResponse(
         response, 3, 1, 66, new ExpectedValues(new HashSet<>(Collections.singletonList("0")), 34));
+  }
+
+  @Test
+  public void testTermsCollectionSubset_order() {
+    testTermsCollectionSubsetOrder();
   }
 
   @Test
@@ -105,6 +202,11 @@ public class OrdinalTermsCollectorManagerTest extends TermsCollectorManagerTests
         0,
         new ExpectedValues(new HashSet<>(Collections.singletonList("0")), 34),
         new ExpectedValues(new HashSet<>(Arrays.asList("1", "2")), 33));
+  }
+
+  @Test
+  public void testTermsCollectionGreaterSize_order() {
+    testTermsCollectionGreaterSizeOrder();
   }
 
   @Test
@@ -122,12 +224,24 @@ public class OrdinalTermsCollectorManagerTest extends TermsCollectorManagerTests
   }
 
   @Test
+  public void testTermsMultiCollection_order() {
+    testTermsMultiCollectionOrder(
+        ORDINAL_EXPECTED_MULTI_ORDER_DESC, ORDINAL_EXPECTED_MULTI_ORDER_ASC);
+  }
+
+  @Test
   public void testTermsMultiCollectionSubset() {
     TermsCollector terms =
         TermsCollector.newBuilder().setField(VALUE_MULTI_FIELD).setSize(2).build();
     SearchResponse response = doQuery(terms);
     assertResponse(
         response, 5, 2, 60, new ExpectedValues(new HashSet<>(Arrays.asList("0", "1")), 60));
+  }
+
+  @Test
+  public void testTermsMultiCollectionSubset_order() {
+    testTermsMultiCollectionSubsetOrder(
+        ORDINAL_EXPECTED_SUBSET_MULTI_ORDER_DESC, 82, ORDINAL_EXPECTED_SUBSET_MULTI_ORDER_ASC, 140);
   }
 
   @Test
@@ -145,6 +259,12 @@ public class OrdinalTermsCollectorManagerTest extends TermsCollectorManagerTests
   }
 
   @Test
+  public void testTermsMultiCollectionGreaterSize_order() {
+    testTermsMultiCollectionGreaterSizeOrder(
+        ORDINAL_EXPECTED_MULTI_ORDER_DESC, ORDINAL_EXPECTED_MULTI_ORDER_ASC);
+  }
+
+  @Test
   public void testTermsRange() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(3).build();
     SearchResponse response = doRangeQuery(terms);
@@ -158,11 +278,21 @@ public class OrdinalTermsCollectorManagerTest extends TermsCollectorManagerTests
   }
 
   @Test
+  public void testTermsRange_order() {
+    testTermsRangeOrder();
+  }
+
+  @Test
   public void testTermsRangeSubset() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(1).build();
     SearchResponse response = doRangeQuery(terms);
     assertResponse(
         response, 3, 1, 6, new ExpectedValues(new HashSet<>(Collections.singletonList("2")), 4));
+  }
+
+  @Test
+  public void testTermsRangeSubset_order() {
+    testTermsRangeSubsetOrder();
   }
 
   @Test
@@ -180,12 +310,27 @@ public class OrdinalTermsCollectorManagerTest extends TermsCollectorManagerTests
   }
 
   @Test
+  public void testTermsMultiRange_order() {
+    testTermsMultiRangeOrder(
+        ORDINAL_EXPECTED_RANGE_MULTI_ORDER_DESC, ORDINAL_EXPECTED_RANGE_MULTI_ORDER_ASC);
+  }
+
+  @Test
   public void testTermsMultiRangeSubset() {
     TermsCollector terms =
         TermsCollector.newBuilder().setField(VALUE_MULTI_FIELD).setSize(2).build();
     SearchResponse response = doRangeQuery(terms);
     assertResponse(
         response, 5, 2, 6, new ExpectedValues(new HashSet<>(Arrays.asList("0", "1")), 6));
+  }
+
+  @Test
+  public void testTermsMultiRangeSubset_order() {
+    testTermsMultiRangeSubsetOrder(
+        ORDINAL_EXPECTED_SUBSET_RANGE_MULTI_ORDER_DESC,
+        55,
+        ORDINAL_EXPECTED_SUBSET_RANGE_MULTI_ORDER_ASC,
+        109);
   }
 
   @Test
@@ -209,9 +354,44 @@ public class OrdinalTermsCollectorManagerTest extends TermsCollectorManagerTests
   }
 
   @Test
+  public void testSparseTerms_asc() {
+    TermsCollector terms =
+        TermsCollector.newBuilder()
+            .setField("sparse")
+            .setOrder(BucketOrder.newBuilder().setKey(COUNT).setOrder(OrderType.ASC).build())
+            .setSize(3)
+            .build();
+    SearchResponse response = doRangeQuery(terms);
+    assertResponse(
+        response,
+        2,
+        2,
+        0,
+        new ExpectedValues(new HashSet<>(Collections.singletonList("5")), 1),
+        new ExpectedValues(new HashSet<>(Collections.singletonList("4")), 4));
+  }
+
+  @Test
   public void testNestedCollector() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(3).build();
     SearchResponse response = doNestedQuery(terms);
     assertNestedResult(response);
+  }
+
+  @Test
+  public void testNestedCollector_asc() {
+    TermsCollector terms =
+        TermsCollector.newBuilder()
+            .setField(VALUE_FIELD)
+            .setOrder(BucketOrder.newBuilder().setKey(COUNT).setOrder(OrderType.ASC).build())
+            .setSize(3)
+            .build();
+    SearchResponse response = doNestedQuery(terms);
+    assertNestedResult(response);
+  }
+
+  @Test
+  public void testOrderByNestedCollector() {
+    super.testOrderByNestedCollector();
   }
 }

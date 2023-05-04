@@ -15,7 +15,11 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
+import static com.yelp.nrtsearch.server.collectors.BucketOrder.COUNT;
+
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.BucketOrder;
+import com.yelp.nrtsearch.server.grpc.BucketOrder.OrderType;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
@@ -37,6 +41,8 @@ public class FloatTermsCollectorManagerTest extends TermsCollectorManagerTestsBa
 
   @Override
   protected AddDocumentRequest getIndexRequest(String index, int id) {
+    int valueOrder = id / 10 + id % 10;
+    valueOrder = valueOrder < 10 ? valueOrder : -1;
     return AddDocumentRequest.newBuilder()
         .setIndexName(index)
         .putFields(
@@ -51,10 +57,21 @@ public class FloatTermsCollectorManagerTest extends TermsCollectorManagerTestsBa
                 .addValue(String.valueOf((id % 3) * 1.25f))
                 .build())
         .putFields(
+            "value_order",
+            AddDocumentRequest.MultiValuedField.newBuilder()
+                .addValue(String.valueOf(valueOrder))
+                .build())
+        .putFields(
             "value_multi",
             AddDocumentRequest.MultiValuedField.newBuilder()
                 .addValue(String.valueOf((id % 2) * 1.5f))
                 .addValue(String.valueOf((id % 5) * 1.5f))
+                .build())
+        .putFields(
+            "value_multi_order",
+            AddDocumentRequest.MultiValuedField.newBuilder()
+                .addValue(String.valueOf(valueOrder))
+                .addValue(String.valueOf(valueOrder % 3))
                 .build())
         .build();
   }
@@ -73,6 +90,11 @@ public class FloatTermsCollectorManagerTest extends TermsCollectorManagerTestsBa
   }
 
   @Test
+  public void testTermsCollection_order() {
+    testTermsCollectionOrder();
+  }
+
+  @Test
   public void testTermsCollectionSubset() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(1).build();
     SearchResponse response = doQuery(terms);
@@ -82,6 +104,11 @@ public class FloatTermsCollectorManagerTest extends TermsCollectorManagerTestsBa
         1,
         66,
         new ExpectedValues(new HashSet<>(Collections.singletonList("0.0")), 34));
+  }
+
+  @Test
+  public void testTermsCollectionSubset_order() {
+    testTermsCollectionSubsetOrder();
   }
 
   @Test
@@ -95,6 +122,11 @@ public class FloatTermsCollectorManagerTest extends TermsCollectorManagerTestsBa
         0,
         new ExpectedValues(new HashSet<>(Collections.singletonList("0.0")), 34),
         new ExpectedValues(new HashSet<>(Arrays.asList("1.25", "2.5")), 33));
+  }
+
+  @Test
+  public void testTermsCollectionGreaterSize_order() {
+    testTermsCollectionGreaterSizeOrder();
   }
 
   @Test
@@ -112,12 +144,22 @@ public class FloatTermsCollectorManagerTest extends TermsCollectorManagerTestsBa
   }
 
   @Test
+  public void testTermsMultiCollection_order() {
+    testTermsMultiCollectionOrder();
+  }
+
+  @Test
   public void testTermsMultiCollectionSubset() {
     TermsCollector terms =
         TermsCollector.newBuilder().setField(VALUE_MULTI_FIELD).setSize(2).build();
     SearchResponse response = doQuery(terms);
     assertResponse(
         response, 5, 2, 60, new ExpectedValues(new HashSet<>(Arrays.asList("0.0", "1.5")), 70));
+  }
+
+  @Test
+  public void testTermsMultiCollectionSubset_order() {
+    testTermsMultiCollectionSubsetOrder();
   }
 
   @Test
@@ -135,6 +177,11 @@ public class FloatTermsCollectorManagerTest extends TermsCollectorManagerTestsBa
   }
 
   @Test
+  public void testTermsMultiCollectionGreaterSize_order() {
+    testTermsMultiCollectionGreaterSizeOrder();
+  }
+
+  @Test
   public void testTermsRange() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(3).build();
     SearchResponse response = doRangeQuery(terms);
@@ -148,11 +195,21 @@ public class FloatTermsCollectorManagerTest extends TermsCollectorManagerTestsBa
   }
 
   @Test
+  public void testTermsRange_order() {
+    testTermsRangeOrder();
+  }
+
+  @Test
   public void testTermsRangeSubset() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(1).build();
     SearchResponse response = doRangeQuery(terms);
     assertResponse(
         response, 3, 1, 6, new ExpectedValues(new HashSet<>(Collections.singletonList("2.5")), 4));
+  }
+
+  @Test
+  public void testTermsRangeSubset_order() {
+    testTermsRangeSubsetOrder();
   }
 
   @Test
@@ -170,6 +227,11 @@ public class FloatTermsCollectorManagerTest extends TermsCollectorManagerTestsBa
   }
 
   @Test
+  public void testTermsMultiRange_order() {
+    testTermsMultiRangeOrder();
+  }
+
+  @Test
   public void testTermsMultiRangeSubset() {
     TermsCollector terms =
         TermsCollector.newBuilder().setField(VALUE_MULTI_FIELD).setSize(2).build();
@@ -179,9 +241,31 @@ public class FloatTermsCollectorManagerTest extends TermsCollectorManagerTestsBa
   }
 
   @Test
+  public void testTermsMultiRangeSubset_order() {
+    testTermsMultiRangeSubsetOrder();
+  }
+
+  @Test
   public void testNestedCollector() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(3).build();
     SearchResponse response = doNestedQuery(terms);
     assertNestedResult(response);
+  }
+
+  @Test
+  public void testNestedCollector_asc() {
+    TermsCollector terms =
+        TermsCollector.newBuilder()
+            .setField(VALUE_FIELD)
+            .setOrder(BucketOrder.newBuilder().setKey(COUNT).setOrder(OrderType.ASC).build())
+            .setSize(3)
+            .build();
+    SearchResponse response = doNestedQuery(terms);
+    assertNestedResult(response);
+  }
+
+  @Test
+  public void testOrderByNestedCollector() {
+    super.testOrderByNestedCollector();
   }
 }

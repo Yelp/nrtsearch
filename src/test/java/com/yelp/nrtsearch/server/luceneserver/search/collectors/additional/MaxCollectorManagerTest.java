@@ -22,6 +22,8 @@ import static org.junit.Assert.fail;
 import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
+import com.yelp.nrtsearch.server.grpc.BucketOrder;
+import com.yelp.nrtsearch.server.grpc.BucketOrder.OrderType;
 import com.yelp.nrtsearch.server.grpc.BucketResult.Bucket;
 import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.ExistsQuery;
@@ -238,6 +240,84 @@ public class MaxCollectorManagerTest extends ServerTestCase {
       assertEquals(20, bucket.getCount());
     }
     assertEquals(Map.of("1", 20.0, "2", 40.0, "3", 60.0, "4", 80.0, "5", 100.0), bucketValues);
+  }
+
+  @Test
+  public void testNestedOrderMaxCollector() {
+    nestedOrderMaxCollector(MATCH_ALL_QUERY, FIELD_SCRIPT);
+  }
+
+  @Test
+  public void testNestedOrderMaxCollector_score() {
+    nestedOrderMaxCollector(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
+  }
+
+  private void nestedOrderMaxCollector(Query query, Script script) {
+    SearchResponse response = doNestedOrderQuery(OrderType.DESC, query, script);
+    assertEquals(100, response.getTotalHits().getValue());
+    assertEquals(
+        5,
+        response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsCount());
+
+    List<String> keyOrder = new ArrayList<>();
+    List<Double> sortValues = new ArrayList<>();
+    for (Bucket bucket :
+        response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsList()) {
+      keyOrder.add(bucket.getKey());
+      sortValues.add(
+          bucket.getNestedCollectorResultsOrThrow("nested_collector").getDoubleResult().getValue());
+      assertEquals(20, bucket.getCount());
+    }
+    assertEquals(List.of("5", "4", "3", "2", "1"), keyOrder);
+    assertEquals(List.of(100.0, 80.0, 60.0, 40.0, 20.0), sortValues);
+
+    response = doNestedOrderQuery(OrderType.ASC, query, script);
+    assertEquals(100, response.getTotalHits().getValue());
+    assertEquals(
+        5,
+        response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsCount());
+
+    keyOrder = new ArrayList<>();
+    sortValues = new ArrayList<>();
+    for (Bucket bucket :
+        response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsList()) {
+      keyOrder.add(bucket.getKey());
+      sortValues.add(
+          bucket.getNestedCollectorResultsOrThrow("nested_collector").getDoubleResult().getValue());
+      assertEquals(20, bucket.getCount());
+    }
+    assertEquals(List.of("1", "2", "3", "4", "5"), keyOrder);
+    assertEquals(List.of(20.0, 40.0, 60.0, 80.0, 100.0), sortValues);
+  }
+
+  private SearchResponse doNestedOrderQuery(OrderType orderType, Query query, Script script) {
+    return getGrpcServer()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName(DEFAULT_TEST_INDEX)
+                .setTopHits(10)
+                .setQuery(query)
+                .putCollectors(
+                    "test_collector",
+                    Collector.newBuilder()
+                        .setTerms(
+                            TermsCollector.newBuilder()
+                                .setField("int_field")
+                                .setSize(10)
+                                .setOrder(
+                                    BucketOrder.newBuilder()
+                                        .setKey("nested_collector")
+                                        .setOrder(orderType)
+                                        .build())
+                                .build())
+                        .putNestedCollectors(
+                            "nested_collector",
+                            Collector.newBuilder()
+                                .setMax(MaxCollector.newBuilder().setScript(script).build())
+                                .build())
+                        .build())
+                .build());
   }
 
   @Test

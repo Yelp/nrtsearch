@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
+import com.yelp.nrtsearch.server.collectors.BucketOrder;
 import com.yelp.nrtsearch.server.grpc.BucketResult;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.TermsCollector.TermsSourceCase;
@@ -52,14 +53,16 @@ public class ScriptTermsCollectorManager extends TermsCollectorManager {
    * @param grpcTermsCollector Collector parameters from request
    * @param context context info for collector building
    * @param nestedCollectorSuppliers suppliers to create nested collector managers
+   * @param bucketOrder ordering for results buckets
    */
   public ScriptTermsCollectorManager(
       String name,
       com.yelp.nrtsearch.server.grpc.TermsCollector grpcTermsCollector,
       CollectorCreatorContext context,
       Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
-          nestedCollectorSuppliers) {
-    super(name, grpcTermsCollector.getSize(), nestedCollectorSuppliers);
+          nestedCollectorSuppliers,
+      BucketOrder bucketOrder) {
+    super(name, grpcTermsCollector.getSize(), nestedCollectorSuppliers, bucketOrder);
 
     if (grpcTermsCollector.getTermsSourceCase() == TermsSourceCase.SCRIPT) {
       Factory factory =

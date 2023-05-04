@@ -743,6 +743,8 @@ message TermsCollector {
     }
     //Maximum number of top terms to return.
     int32 size = 3;
+    //How results Buckets should be ordered, defaults to descending Bucket _count.
+    BucketOrder order = 4;
 }
 
 //Definition of top hits based collector.
@@ -790,6 +792,19 @@ message CollectorResult {
         //Result of collector that produces a single double value.
         google.protobuf.DoubleValue doubleResult = 6;
     }
+}
+
+//Defines how Buckets should be ordered in BucketResult.
+message BucketOrder {
+    //Sorting order type
+    enum OrderType {
+        DESC = 0;
+        ASC = 1;
+    }
+    //What to use for sorting. This can be _count for Bucket count, or the name of a nested collector that supports ordering.
+    string key = 1;
+    //Sorting order
+    OrderType order = 2;
 }
 
 message BucketResult {
