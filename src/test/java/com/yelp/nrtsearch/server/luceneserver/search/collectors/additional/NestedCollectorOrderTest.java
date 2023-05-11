@@ -27,6 +27,7 @@ import com.yelp.nrtsearch.server.grpc.BucketOrder.OrderType;
 import com.yelp.nrtsearch.server.grpc.BucketResult;
 import com.yelp.nrtsearch.server.grpc.BucketResult.Bucket;
 import com.yelp.nrtsearch.server.grpc.Collector;
+import com.yelp.nrtsearch.server.grpc.CommitRequest;
 import com.yelp.nrtsearch.server.grpc.ExistsQuery;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
@@ -40,19 +41,15 @@ import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
 import io.grpc.StatusRuntimeException;
-import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
-import org.junit.ClassRule;
 import org.junit.Test;
 
 public class NestedCollectorOrderTest extends ServerTestCase {
-  @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
-
   protected List<String> getIndices() {
     return Collections.singletonList(DEFAULT_TEST_INDEX);
   }
@@ -63,7 +60,7 @@ public class NestedCollectorOrderTest extends ServerTestCase {
 
   protected void initIndex(String name) throws Exception {
     IndexWriter writer = getGlobalState().getIndex(name).getShard(0).writer;
-    // don't want any merges for these tests
+    // don't want any merges for these tests to ensure we have multiple index slices
     writer.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
     getGlobalState()
         .getIndexStateManager(DEFAULT_TEST_INDEX)
@@ -103,7 +100,9 @@ public class NestedCollectorOrderTest extends ServerTestCase {
         chunk.add(docs.get((10 * i) + j));
       }
       addDocuments(chunk.stream());
-      writer.commit();
+      getGrpcServer()
+          .getBlockingStub()
+          .commit(CommitRequest.newBuilder().setIndexName(DEFAULT_TEST_INDEX).build());
     }
   }
 
