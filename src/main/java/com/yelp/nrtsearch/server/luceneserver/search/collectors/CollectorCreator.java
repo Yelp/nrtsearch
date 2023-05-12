@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
+import com.yelp.nrtsearch.server.collectors.BucketOrder;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
@@ -75,9 +76,17 @@ public class CollectorCreator {
                     e -> createCollectorManagerSupplier(context, e.getKey(), e.getValue())));
     switch (collector.getCollectorsCase()) {
       case TERMS:
+        BucketOrder bucketOrder;
+        if (collector.getTerms().hasOrder()) {
+          bucketOrder =
+              BucketOrder.createBucketOrder(
+                  collector.getTerms().getOrder(), collector.getNestedCollectorsMap());
+        } else {
+          bucketOrder = BucketOrder.DEFAULT_ORDER;
+        }
         return () ->
             TermsCollectorManager.buildManager(
-                name, collector.getTerms(), context, nestedCollectorSuppliers);
+                name, collector.getTerms(), context, nestedCollectorSuppliers, bucketOrder);
       case PLUGINCOLLECTOR:
         PluginCollector pluginCollector = collector.getPluginCollector();
         CollectorProvider<?> provider = collectorsMap.get(pluginCollector.getName());

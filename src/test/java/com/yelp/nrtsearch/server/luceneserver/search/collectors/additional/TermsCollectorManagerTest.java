@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
+import com.yelp.nrtsearch.server.collectors.BucketOrder;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
@@ -51,7 +52,11 @@ public class TermsCollectorManagerTest extends ServerTestCase {
           TermsCollector.newBuilder().setField("not_exist").setSize(10).build();
       try {
         TermsCollectorManager.buildManager(
-            "test_collector", termsCollector, context, Collections.emptyMap());
+            "test_collector",
+            termsCollector,
+            context,
+            Collections.emptyMap(),
+            BucketOrder.DEFAULT_ORDER);
         fail();
       } catch (IllegalArgumentException e) {
         assertEquals("Unknown field: not_exist", e.getMessage());
@@ -76,7 +81,11 @@ public class TermsCollectorManagerTest extends ServerTestCase {
           TermsCollector.newBuilder().setField("no_doc_values").setSize(10).build();
       try {
         TermsCollectorManager.buildManager(
-            "test_collector", termsCollector, context, Collections.emptyMap());
+            "test_collector",
+            termsCollector,
+            context,
+            Collections.emptyMap(),
+            BucketOrder.DEFAULT_ORDER);
         fail();
       } catch (IllegalArgumentException e) {
         assertEquals(
