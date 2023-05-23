@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.search;
 
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.Highlight;
+import com.yelp.nrtsearch.server.grpc.InnerHit;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
@@ -32,6 +33,8 @@ import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService;
+import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitContext;
+import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
@@ -126,6 +129,7 @@ public class SearchRequestProcessor {
         getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
+    contextBuilder.setQueryNestedPath(searchRequest.getQueryNestedPath());
     Query query =
         extractQuery(
             indexState,
@@ -169,6 +173,60 @@ public class SearchRequestProcessor {
       contextBuilder.setHighlightFetchTask(highlightFetchTask);
     }
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());
+
+    if (searchRequest.getInnerHitsCount() > 0) {
+      List<InnerHitFetchTask> innerHitFetchTasks =
+          new ArrayList<>(searchRequest.getInnerHitsCount());
+      for (String innerHitName : searchRequest.getInnerHitsMap().keySet()) {
+        InnerHit innerHit = searchRequest.getInnerHitsOrThrow(innerHitName);
+        Query childQuery =
+            extractQuery(indexState, "", innerHit.getInnerQuery(), innerHit.getQueryNestedPath());
+        DocCollector innerHitCollector =
+            buildDocCollector(
+                new CollectorCreatorContext(
+                    indexState,
+                    shardState,
+                    queryFields,
+                    searcherAndTaxonomy,
+                    innerHit.getInnerQuery(),
+                    Collections.EMPTY_MAP, // No additional collector support
+                    searchRequest
+                        .getTotalHitsThreshold(), // No child level totalHitsThreshold support
+                    innerHit.getTopHits(),
+                    Collections.EMPTY_LIST, // No facets support
+                    Collections.EMPTY_LIST, // No rescorer support
+                    searchRequest.getTimeoutSec(), // No child level timeoutSec support
+                    searchRequest
+                        .getTimeoutCheckEvery(), // No child level timeoutCheckEvery support
+                    searchRequest.getTerminateAfter(), // No child level terminateAfter support
+                    searchRequest.getProfile(),
+                    searchRequest.getDisallowPartialResults(),
+                    innerHit.getQuerySort()));
+        InnerHitContext innerHitContext =
+            new InnerHitContext(
+                innerHitName,
+                contextBuilder,
+                innerHit.getQueryNestedPath(),
+                childQuery,
+                innerHit.getStartHit(),
+                innerHit.getTopHits(),
+                getRetrieveFields(innerHit.getRetrieveFieldsList(), queryFields),
+                innerHitCollector,
+                innerHit.hasHighlight()
+                    ? new HighlightFetchTask(
+                        indexState,
+                        childQuery,
+                        HighlighterService.getInstance(),
+                        innerHit.getHighlight())
+                    : null);
+
+        innerHitCollector.setSearchContext(innerHitContext);
+
+        innerHitFetchTasks.add(new InnerHitFetchTask(innerHitContext));
+      }
+      contextBuilder.setInnerHitFetchTasks(innerHitFetchTasks);
+    }
+
     SearchContext searchContext = contextBuilder.build(true);
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);

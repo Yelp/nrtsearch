@@ -120,11 +120,6 @@ public class SearchContextTest extends ServerTestCase {
     getCompleteBuilder().setSearcherAndTaxonomy(null).build(true);
   }
 
-  @Test(expected = NullPointerException.class)
-  public void testMissingResponseBuilder() throws Exception {
-    getCompleteBuilder().setResponseBuilder(null).build(true);
-  }
-
   @Test(expected = IllegalStateException.class)
   public void testMissingTimestamp() throws Exception {
     getCompleteBuilder().setTimestampSec(-1).build(true);

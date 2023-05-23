@@ -109,13 +109,17 @@ public class QueryNodeMapper {
   }
 
   public Query applyQueryNestedPath(Query query, String path) {
+    BooleanQuery.Builder builder = new BooleanQuery.Builder();
+    builder.add(getNestedPathQuery(path), BooleanClause.Occur.FILTER);
+    builder.add(query, BooleanClause.Occur.MUST);
+    return builder.build();
+  }
+
+  public Query getNestedPathQuery(String path) {
     if (path == null || path.length() == 0) {
       path = IndexState.ROOT;
     }
-    BooleanQuery.Builder builder = new BooleanQuery.Builder();
-    builder.add(new TermQuery(new Term(IndexState.NESTED_PATH, path)), BooleanClause.Occur.FILTER);
-    builder.add(query, BooleanClause.Occur.MUST);
-    return builder.build();
+    return new TermQuery(new Term(IndexState.NESTED_PATH, path));
   }
 
   private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
@@ -200,12 +204,10 @@ public class QueryNodeMapper {
     Query childRawQuery = getQuery(nestedQuery.getQuery(), state);
     Query childQuery =
         new BooleanQuery.Builder()
-            .add(
-                new TermQuery(new Term(IndexState.NESTED_PATH, nestedQuery.getPath())),
-                BooleanClause.Occur.FILTER)
+            .add(getNestedPathQuery(nestedQuery.getPath()), BooleanClause.Occur.FILTER)
             .add(childRawQuery, BooleanClause.Occur.MUST)
             .build();
-    Query parentQuery = new TermQuery(new Term(IndexState.NESTED_PATH, IndexState.ROOT));
+    Query parentQuery = getNestedPathQuery(IndexState.ROOT);
     return new ToParentBlockJoinQuery(
         childQuery, new QueryBitSetProducer(parentQuery), getScoreMode(nestedQuery));
   }

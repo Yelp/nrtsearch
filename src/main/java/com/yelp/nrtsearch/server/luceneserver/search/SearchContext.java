@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
+import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.List;
@@ -49,8 +50,10 @@ public class SearchContext implements FieldFetchContext {
   private final SharedDocContext sharedDocContext;
   private final HighlightFetchTask highlightFetchTask;
   private final Map<String, Object> extraContext;
+  private final String queryNestedPath;
+  private final List<InnerHitFetchTask> innerHitFetchTasks;
 
-  private SearchContext(Builder builder, boolean validate) {
+  protected SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
     this.shardState = builder.shardState;
     this.searcherAndTaxonomy = builder.searcherAndTaxonomy;
@@ -67,6 +70,8 @@ public class SearchContext implements FieldFetchContext {
     this.sharedDocContext = builder.sharedDocContext;
     this.highlightFetchTask = builder.highlightFetchTask;
     this.extraContext = builder.extraContext;
+    this.queryNestedPath = builder.queryNestedPath;
+    this.innerHitFetchTasks = builder.innerHitFetchTasks;
 
     if (validate) {
       validate();
@@ -165,6 +170,18 @@ public class SearchContext implements FieldFetchContext {
     return extraContext;
   }
 
+  /** Get the query nested path. By default, it is _root * */
+  public String getQueryNestedPath() {
+    return queryNestedPath;
+  }
+
+  /**
+   * Get {@link InnerHitFetchTask} for innerHit. Null if no innerHit are specified in the request.
+   */
+  public List<InnerHitFetchTask> getInnerHitFetchTasks() {
+    return innerHitFetchTasks;
+  }
+
   /** Get new context builder instance * */
   public static Builder newBuilder() {
     return new Builder();
@@ -174,7 +191,6 @@ public class SearchContext implements FieldFetchContext {
     Objects.requireNonNull(indexState);
     Objects.requireNonNull(shardState);
     Objects.requireNonNull(searcherAndTaxonomy);
-    Objects.requireNonNull(responseBuilder);
     Objects.requireNonNull(queryFields);
     Objects.requireNonNull(retrieveFields);
     Objects.requireNonNull(query);
@@ -192,6 +208,12 @@ public class SearchContext implements FieldFetchContext {
     if (topHits < 0) {
       throw new IllegalStateException("Invalid topHits value: " + topHits);
     }
+
+    if (innerHitFetchTasks != null) {
+      if (!indexState.hasNestedChildFields()) {
+        throw new IllegalStateException("InnerHit only works with indices that have childFields");
+      }
+    }
   }
 
   /** Get search context. */
@@ -204,6 +226,79 @@ public class SearchContext implements FieldFetchContext {
   public static class Builder {
 
     private IndexState indexState;
+
+    public IndexState getIndexState() {
+      return indexState;
+    }
+
+    public ShardState getShardState() {
+      return shardState;
+    }
+
+    public SearcherAndTaxonomy getSearcherAndTaxonomy() {
+      return searcherAndTaxonomy;
+    }
+
+    public SearchResponse.Builder getResponseBuilder() {
+      return responseBuilder;
+    }
+
+    public long getTimestampSec() {
+      return timestampSec;
+    }
+
+    public int getStartHit() {
+      return startHit;
+    }
+
+    public int getTopHits() {
+      return topHits;
+    }
+
+    public Map<String, FieldDef> getQueryFields() {
+      return queryFields;
+    }
+
+    public Map<String, FieldDef> getRetrieveFields() {
+      return retrieveFields;
+    }
+
+    public Query getQuery() {
+      return query;
+    }
+
+    public DocCollector getCollector() {
+      return collector;
+    }
+
+    public FetchTasks getFetchTasks() {
+      return fetchTasks;
+    }
+
+    public List<RescoreTask> getRescorers() {
+      return rescorers;
+    }
+
+    public SharedDocContext getSharedDocContext() {
+      return sharedDocContext;
+    }
+
+    public HighlightFetchTask getHighlightFetchTask() {
+      return highlightFetchTask;
+    }
+
+    public Map<String, Object> getExtraContext() {
+      return extraContext;
+    }
+
+    public String getQueryNestedPath() {
+      return queryNestedPath;
+    }
+
+    public List<InnerHitFetchTask> getInnerHitFetchTasks() {
+      return innerHitFetchTasks;
+    }
+
     private ShardState shardState;
     private SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy;
     private SearchResponse.Builder responseBuilder;
@@ -220,6 +315,8 @@ public class SearchContext implements FieldFetchContext {
     private SharedDocContext sharedDocContext;
     private HighlightFetchTask highlightFetchTask;
     private Map<String, Object> extraContext;
+    private String queryNestedPath;
+    private List<InnerHitFetchTask> innerHitFetchTasks;
 
     private Builder() {}
 
@@ -318,6 +415,16 @@ public class SearchContext implements FieldFetchContext {
 
     public Builder setExtraContext(Map<String, Object> extraContext) {
       this.extraContext = extraContext;
+      return this;
+    }
+
+    public Builder setQueryNestedPath(String queryNestedPath) {
+      this.queryNestedPath = queryNestedPath;
+      return this;
+    }
+
+    public Builder setInnerHitFetchTasks(List<InnerHitFetchTask> innerHitFetchTasks) {
+      this.innerHitFetchTasks = innerHitFetchTasks;
       return this;
     }
 

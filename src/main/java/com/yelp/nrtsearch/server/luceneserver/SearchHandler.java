@@ -38,6 +38,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.PolygonfieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
@@ -58,6 +59,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.DrillSideways;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -246,6 +248,16 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       if (searchContext.getHighlightFetchTask() != null) {
         diagnostics.setHighlightTimeMs(searchContext.getHighlightFetchTask().getTimeTakenMs());
       }
+
+      if (searchContext.getInnerHitFetchTasks() != null) {
+        diagnostics.putAllInnerHitsTimeMs(
+            searchContext.getInnerHitFetchTasks().stream()
+                .collect(
+                    Collectors.toMap(
+                        task -> task.getInnerHitContext().getInnerHitName(),
+                        InnerHitFetchTask::getDiagnostic)));
+      }
+
       searchContext.getResponseBuilder().setDiagnostics(diagnostics);
 
       if (profileResultBuilder != null) {
@@ -376,6 +388,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         // TODO: combine with custom fetch tasks
         if (searchContext.getHighlightFetchTask() != null) {
           searchContext.getHighlightFetchTask().processHit(searchContext, leaf, hitResponse);
+        }
+        if (searchContext.getInnerHitFetchTasks() != null) {
+          for (InnerHitFetchTask task : searchContext.getInnerHitFetchTasks()) {
+            task.processHit(searchContext, leaf, hitResponse);
+          }
         }
       }
     } else if (!parallelFetchByField
@@ -909,6 +926,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
               .getSearchContext()
               .getHighlightFetchTask()
               .processHit(context.getSearchContext(), sliceSegment, hit);
+        }
+        if (context.getSearchContext().getInnerHitFetchTasks() != null) {
+          for (InnerHitFetchTask task : context.getSearchContext().getInnerHitFetchTasks()) {
+            task.processHit(context.getSearchContext(), sliceSegment, hit);
+          }
         }
       }
     }
