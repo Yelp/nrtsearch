@@ -122,10 +122,16 @@ public class SearchRequestProcessor {
     addIndexFields(indexState, queryFields);
     contextBuilder.setQueryFields(Collections.unmodifiableMap(queryFields));
 
-    Map<String, FieldDef> retrieveFields = getRetrieveFields(searchRequest, queryFields);
+    Map<String, FieldDef> retrieveFields =
+        getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
-    Query query = extractQuery(indexState, searchRequest);
+    Query query =
+        extractQuery(
+            indexState,
+            searchRequest.getQueryText(),
+            searchRequest.getQuery(),
+            searchRequest.getQueryNestedPath());
     if (profileResult != null) {
       profileResult.setParsedQuery(query.toString());
     }
@@ -199,15 +205,15 @@ public class SearchRequestProcessor {
   /**
    * Get map of fields that need to be retrieved for the given request.
    *
-   * @param request search requests
+   * @param fieldList fields to retrieve
    * @param queryFields all valid fields for this query
    * @return map of all fields to retrieve
    * @throws IllegalArgumentException if a field does not exist, or is not retrievable
    */
   private static Map<String, FieldDef> getRetrieveFields(
-      SearchRequest request, Map<String, FieldDef> queryFields) {
+      List<String> fieldList, Map<String, FieldDef> queryFields) {
     Map<String, FieldDef> retrieveFields = new HashMap<>();
-    if (request.getRetrieveFieldsCount() == 1 && request.getRetrieveFields(0).equals(WILDCARD)) {
+    if (fieldList.size() == 1 && fieldList.get(0).equals(WILDCARD)) {
       for (Entry<String, FieldDef> entry : queryFields.entrySet()) {
         if (isRetrievable(entry.getValue())) {
           retrieveFields.put(entry.getKey(), entry.getValue());
@@ -215,7 +221,7 @@ public class SearchRequestProcessor {
       }
       return retrieveFields;
     }
-    for (String field : request.getRetrieveFieldsList()) {
+    for (String field : fieldList) {
       FieldDef fieldDef = queryFields.get(field);
       if (fieldDef == null) {
         throw new IllegalArgumentException("RetrieveFields: " + field + " does not exist");
@@ -265,15 +271,19 @@ public class SearchRequestProcessor {
    * Get the lucene {@link Query} represented by this request.
    *
    * @param state index state
-   * @param searchRequest request
+   * @param queryText query in text
+   * @param query query in query objects
+   * @param queryNestedPath queryNestedPath to query nested fields directly
    * @return lucene query
    */
-  private static Query extractQuery(IndexState state, SearchRequest searchRequest) {
+  private static Query extractQuery(
+      IndexState state,
+      String queryText,
+      com.yelp.nrtsearch.server.grpc.Query query,
+      String queryNestedPath) {
     Query q;
-    if (!searchRequest.getQueryText().isEmpty()) {
+    if (!queryText.isEmpty()) {
       QueryBuilder queryParser = createQueryParser(state, null);
-
-      String queryText = searchRequest.getQueryText();
 
       try {
         q = parseQuery(queryParser, queryText);
@@ -282,11 +292,11 @@ public class SearchRequestProcessor {
             String.format("could not parse queryText: %s", queryText));
       }
     } else {
-      q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery(), state);
+      q = QUERY_NODE_MAPPER.getQuery(query, state);
     }
 
     if (state.hasNestedChildFields()) {
-      return QUERY_NODE_MAPPER.applyQueryNestedPath(q, searchRequest.getQueryNestedPath());
+      return QUERY_NODE_MAPPER.applyQueryNestedPath(q, queryNestedPath);
     }
     return q;
   }
@@ -327,10 +337,9 @@ public class SearchRequestProcessor {
    * @return collector
    */
   private static DocCollector buildDocCollector(CollectorCreatorContext collectorCreatorContext) {
-    SearchRequest searchRequest = collectorCreatorContext.getRequest();
     List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
         additionalCollectors =
-            searchRequest.getCollectorsMap().entrySet().stream()
+            collectorCreatorContext.getCollectorsMap().entrySet().stream()
                 .map(
                     e ->
                         CollectorCreator.getInstance()
@@ -339,10 +348,11 @@ public class SearchRequestProcessor {
                 .collect(Collectors.toList());
 
     DocCollector docCollector;
-    if (searchRequest.getQuery().hasCompletionQuery()) {
+    if (collectorCreatorContext.getQuery() != null
+        && collectorCreatorContext.getQuery().hasCompletionQuery()) {
       docCollector = new MyTopSuggestDocsCollector(collectorCreatorContext, additionalCollectors);
-    } else if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
-      if (hasLargeNumHits(searchRequest)) {
+    } else if (collectorCreatorContext.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
+      if (hasLargeNumHits(collectorCreatorContext)) {
         docCollector = new LargeNumHitsCollector(collectorCreatorContext, additionalCollectors);
       } else {
         docCollector = new RelevanceCollector(collectorCreatorContext, additionalCollectors);
@@ -358,9 +368,9 @@ public class SearchRequestProcessor {
   }
 
   /** If this query needs enough hits to use a {@link LargeNumHitsCollector}. */
-  private static boolean hasLargeNumHits(SearchRequest searchRequest) {
-    return searchRequest.hasQuery()
-        && searchRequest.getQuery().getQueryNodeCase()
+  private static boolean hasLargeNumHits(CollectorCreatorContext collectorCreatorContext) {
+    return collectorCreatorContext.getQuery() != null
+        && collectorCreatorContext.getQuery().getQueryNodeCase()
             == com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET;
   }
 

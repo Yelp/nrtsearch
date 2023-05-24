@@ -54,19 +54,18 @@ public class SortFieldCollector extends DocCollector {
     // if there are additional collectors, we cannot skip any recalled docs
     if (!additionalCollectors.isEmpty()) {
       totalHitsThreshold = Integer.MAX_VALUE;
-      if (context.getRequest().getTotalHitsThreshold() != 0) {
+      if (context.getTotalHitsThreshold() != 0) {
         logger.warn("Query totalHitsThreshold ignored when using additional collectors");
       }
-    } else if (context.getRequest().getTotalHitsThreshold() != 0) {
-      totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
+    } else if (context.getTotalHitsThreshold() != 0) {
+      totalHitsThreshold = context.getTotalHitsThreshold();
     }
 
-    sortNames =
-        new ArrayList<>(context.getRequest().getQuerySort().getFields().getSortedFieldsCount());
+    sortNames = new ArrayList<>(context.getQuerySort().getFields().getSortedFieldsCount());
     try {
       sort =
           SortParser.parseSort(
-              context.getRequest().getQuerySort().getFields().getSortedFieldsList(),
+              context.getQuerySort().getFields().getSortedFieldsList(),
               sortNames,
               context.getQueryFields());
     } catch (SearchHandler.SearchHandlerException e) {

@@ -20,6 +20,7 @@ import static org.junit.Assert.fail;
 
 import com.yelp.nrtsearch.server.collectors.BucketOrder;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
@@ -47,7 +48,12 @@ public class TermsCollectorManagerTest extends ServerTestCase {
     try {
       s = shardState.acquire();
       CollectorCreatorContext context =
-          new CollectorCreatorContext(null, indexState, shardState, indexState.getAllFields(), s);
+          new CollectorCreatorContext(
+              SearchRequest.newBuilder().build(),
+              indexState,
+              shardState,
+              indexState.getAllFields(),
+              s);
       TermsCollector termsCollector =
           TermsCollector.newBuilder().setField("not_exist").setSize(10).build();
       try {
@@ -76,7 +82,12 @@ public class TermsCollectorManagerTest extends ServerTestCase {
     try {
       s = shardState.acquire();
       CollectorCreatorContext context =
-          new CollectorCreatorContext(null, indexState, shardState, indexState.getAllFields(), s);
+          new CollectorCreatorContext(
+              SearchRequest.newBuilder().build(),
+              indexState,
+              shardState,
+              indexState.getAllFields(),
+              s);
       TermsCollector termsCollector =
           TermsCollector.newBuilder().setField("no_doc_values").setSize(10).build();
       try {
