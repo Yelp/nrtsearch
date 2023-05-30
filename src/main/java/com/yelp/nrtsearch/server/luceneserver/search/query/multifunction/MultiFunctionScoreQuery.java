@@ -31,6 +31,7 @@ import java.util.Set;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
 import org.apache.lucene.search.IndexSearcher;
@@ -38,6 +39,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 
@@ -53,6 +55,8 @@ public class MultiFunctionScoreQuery extends Query {
   private final FilterFunction[] functions;
   private final FunctionScoreMode scoreMode;
   private final BoostMode boostMode;
+  private final float minScore;
+  private final boolean minExcluded;
 
   /**
    * Builder method that creates a {@link MultiFunctionScoreQuery} from its gRPC message definiton.
@@ -75,7 +79,9 @@ public class MultiFunctionScoreQuery extends Query {
         innerQuery,
         functions,
         multiFunctionScoreQueryGrpc.getScoreMode(),
-        multiFunctionScoreQueryGrpc.getBoostMode());
+        multiFunctionScoreQueryGrpc.getBoostMode(),
+        multiFunctionScoreQueryGrpc.getMinScore(),
+        multiFunctionScoreQueryGrpc.getMinExclusive());
   }
 
   /**
@@ -85,16 +91,22 @@ public class MultiFunctionScoreQuery extends Query {
    * @param functions functions used to produce function score for documents
    * @param scoreMode mode to combine function scores
    * @param boostMode mode to combine function and document scores
+   * @param minScore min score to match
+   * @param minExcluded is min score excluded
    */
   public MultiFunctionScoreQuery(
       Query innerQuery,
       FilterFunction[] functions,
       FunctionScoreMode scoreMode,
-      BoostMode boostMode) {
+      BoostMode boostMode,
+      float minScore,
+      boolean minExcluded) {
     this.innerQuery = innerQuery;
     this.functions = functions;
     this.scoreMode = scoreMode;
     this.boostMode = boostMode;
+    this.minScore = minScore;
+    this.minExcluded = minExcluded;
   }
 
   @Override
@@ -111,7 +123,8 @@ public class MultiFunctionScoreQuery extends Query {
       needsRewrite |= (rewrittenFunctions[i] != functions[i]);
     }
     if (needsRewrite) {
-      return new MultiFunctionScoreQuery(rewrittenInner, rewrittenFunctions, scoreMode, boostMode);
+      return new MultiFunctionScoreQuery(
+          rewrittenInner, rewrittenFunctions, scoreMode, boostMode, minScore, minExcluded);
     } else {
       return this;
     }
@@ -252,13 +265,92 @@ public class MultiFunctionScoreQuery extends Query {
           docSets[i] = new Bits.MatchAllBits(context.reader().maxDoc());
         }
       }
-      return new MultiFunctionScorer(
-          innerScorer, this, scoreMode, boostMode, leafFunctions, docSets);
+
+      Scorer scorer =
+          new MultiFunctionScorer(innerScorer, this, scoreMode, boostMode, leafFunctions, docSets);
+      if (minScore > 0 || minExcluded) {
+        scorer = new MinScoreWrapper(scorer.getWeight(), scorer, minScore, minExcluded);
+      }
+      return scorer;
     }
 
     @Override
     public boolean isCacheable(LeafReaderContext ctx) {
       return true;
+    }
+  }
+
+  public static class MinScoreWrapper extends Scorer {
+    private final Scorer in;
+    private final float minScore;
+    private float curScore;
+    private final boolean minExcluded;
+
+    public MinScoreWrapper(Weight weight, Scorer in, float minScore, boolean minExcluded) {
+      super(weight);
+      this.in = in;
+      this.minScore = minScore;
+      this.minExcluded = minExcluded;
+    }
+
+    @Override
+    public TwoPhaseIterator twoPhaseIterator() {
+      TwoPhaseIterator inTwoPhase = in.twoPhaseIterator();
+      DocIdSetIterator approximation;
+      if (inTwoPhase == null) {
+        approximation = in.iterator();
+        if (TwoPhaseIterator.unwrap(approximation) != null) {
+          inTwoPhase = TwoPhaseIterator.unwrap(approximation);
+          approximation = inTwoPhase.approximation();
+        }
+      } else {
+        approximation = inTwoPhase.approximation();
+      }
+      final TwoPhaseIterator finalTwoPhase = inTwoPhase;
+      return new TwoPhaseIterator(approximation) {
+
+        @Override
+        public boolean matches() throws IOException {
+          if (finalTwoPhase != null && finalTwoPhase.matches() == false) {
+            return false;
+          }
+          // we need to check the two-phase iterator first
+          // otherwise calling score() is illegal
+          curScore = in.score();
+          return curScore > minScore || (!minExcluded && curScore == minScore);
+        }
+
+        @Override
+        public float matchCost() {
+          return 1000f // random constant for the score computation
+              + (finalTwoPhase == null ? 0 : finalTwoPhase.matchCost());
+        }
+      };
+    }
+
+    @Override
+    public DocIdSetIterator iterator() {
+      return TwoPhaseIterator.asDocIdSetIterator(twoPhaseIterator());
+    }
+
+    @Override
+    public float getMaxScore(int upTo) throws IOException {
+      return in.getMaxScore(upTo);
+    }
+
+    @Override
+    public float score() throws IOException {
+      return curScore;
+    }
+
+    @Override
+    public int advanceShallow(int target) throws IOException {
+      return in.advanceShallow(target);
+    }
+
+    @Override
+    public int docID() {
+      return in.docID();
     }
   }
 

@@ -326,6 +326,10 @@ message MultiFunctionScoreQuery {
     FunctionScoreMode score_mode = 3;
     // Method to modify query document scores with final function score
     BoostMode boost_mode = 4;
+    // Optional minimal score to match a document. By default, it's 0.
+    float minScore = 5;
+    // Determine minimal score is excluded or not. By default, it's false;
+    bool minExclusive = 6;
 }
 
 // Query that produces a score of 1.0 (modifiable by query boost value) for documents that match the filter query.
