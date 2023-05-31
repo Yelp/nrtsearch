@@ -58,6 +58,16 @@ public class MultiFunctionScoreQuery extends Query {
   private final float minScore;
   private final boolean minExcluded;
 
+  private static boolean isFilteredByMinScore(
+      float currentScore, float minimalScore, boolean minimalExcluded) {
+    if (currentScore > minimalScore) {
+      return true;
+    } else if (!minimalExcluded && currentScore == minimalScore) {
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Builder method that creates a {@link MultiFunctionScoreQuery} from its gRPC message definiton.
    *
@@ -107,6 +117,11 @@ public class MultiFunctionScoreQuery extends Query {
     this.boostMode = boostMode;
     this.minScore = minScore;
     this.minExcluded = minExcluded;
+
+    if (minScore < 0) {
+      throw new IllegalArgumentException(
+          "minScore must be a non-negative number, but got " + minScore);
+    }
   }
 
   @Override
@@ -134,7 +149,9 @@ public class MultiFunctionScoreQuery extends Query {
   public Weight createWeight(
       IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost)
       throws IOException {
-    if (scoreMode == ScoreMode.COMPLETE_NO_SCORES) {
+    if (scoreMode == ScoreMode.COMPLETE_NO_SCORES && !isMinScoreWrapperUsed()) {
+      // Even if the outer query doesn't require score, inner score is needed if the MinScoreWrapper
+      // is used for filtering
       return innerQuery.createWeight(searcher, scoreMode, boost);
     }
     Weight[] filterWeights = new Weight[functions.length];
@@ -231,7 +248,7 @@ public class MultiFunctionScoreQuery extends Query {
         expl = explainBoost(expl, factorExplanation);
       }
       float curScore = expl.getValue().floatValue();
-      if (minScore > curScore || (minExcluded && minScore == curScore)) {
+      if (isFilteredByMinScore(curScore, minScore, minExcluded)) {
         expl =
             Explanation.noMatch(
                 "Score value is too low, expected at least "
@@ -291,7 +308,7 @@ public class MultiFunctionScoreQuery extends Query {
 
       Scorer scorer =
           new MultiFunctionScorer(innerScorer, this, scoreMode, boostMode, leafFunctions, docSets);
-      if (minScore > 0 || minExcluded) {
+      if (isMinScoreWrapperUsed()) {
         scorer = new MinScoreWrapper(scorer.getWeight(), scorer, minScore, minExcluded);
       }
       return scorer;
@@ -300,8 +317,17 @@ public class MultiFunctionScoreQuery extends Query {
     @Override
     public boolean isCacheable(LeafReaderContext ctx) {
       // When not using MinScoreWrapper, it is cacheable.
-      return minScore == 0 && !minExcluded;
+      return isMinScoreWrapperUsed();
     }
+  }
+
+  /*
+   *  minScoreWrapper is used under either condition:
+   * 1. minScore is set to be a positive number (no matter min is excluded or not)
+   * 2. minScore is zero, but zero is excluded
+   * * */
+  private boolean isMinScoreWrapperUsed() {
+    return minScore > 0 || minExcluded;
   }
 
   /**
@@ -346,7 +372,7 @@ public class MultiFunctionScoreQuery extends Query {
           // we need to check the two-phase iterator first
           // otherwise calling score() is illegal
           curScore = in.score();
-          return curScore > minScore || (!minExcluded && curScore == minScore);
+          return isFilteredByMinScore(curScore, minScore, minExcluded);
         }
 
         @Override
