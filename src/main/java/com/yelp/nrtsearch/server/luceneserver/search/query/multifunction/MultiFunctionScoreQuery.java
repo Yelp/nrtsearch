@@ -147,7 +147,13 @@ public class MultiFunctionScoreQuery extends Query {
                 1.0f);
       }
     }
-    Weight innerWeight = innerQuery.createWeight(searcher, ScoreMode.COMPLETE, boost);
+    Weight innerWeight =
+        innerQuery.createWeight(
+            searcher,
+            boostMode == BoostMode.BOOST_MODE_REPLACE
+                ? ScoreMode.COMPLETE_NO_SCORES
+                : ScoreMode.COMPLETE,
+            boost);
     return new MultiFunctionWeight(this, innerWeight, filterWeights);
   }
 
@@ -250,6 +256,12 @@ public class MultiFunctionScoreQuery extends Query {
           return Explanation.match(
               funcExpl.getValue().floatValue() + queryExpl.getValue().floatValue(),
               "sum of",
+              queryExpl,
+              funcExpl);
+        case BOOST_MODE_REPLACE:
+          return Explanation.match(
+              funcExpl.getValue().floatValue(),
+              "Ignoring query score, function score of",
               queryExpl,
               funcExpl);
         default:
@@ -449,6 +461,8 @@ public class MultiFunctionScoreQuery extends Query {
           return (float) (innerQueryScore * functionScore);
         case BOOST_MODE_SUM:
           return (float) (innerQueryScore + functionScore);
+        case BOOST_MODE_REPLACE:
+          return (float) functionScore;
         default:
           throw new IllegalStateException("Unknown boost mode type: " + boostMode);
       }

@@ -316,6 +316,8 @@ message MultiFunctionScoreQuery {
         BOOST_MODE_MULTIPLY = 0;
         // Add scores together
         BOOST_MODE_SUM = 1;
+        // Ignore the query score, and use the function score only
+        BOOST_MODE_REPLACE = 2;
     }
 
     // Main query to produce recalled docs and scores, which will be modified by the final function score
