@@ -317,7 +317,7 @@ public class MultiFunctionScoreQuery extends Query {
     @Override
     public boolean isCacheable(LeafReaderContext ctx) {
       // When not using MinScoreWrapper, it is cacheable.
-      return isMinScoreWrapperUsed();
+      return !isMinScoreWrapperUsed();
     }
   }
 
