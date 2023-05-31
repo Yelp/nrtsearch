@@ -81,7 +81,7 @@ public class MultiFunctionScoreQuery extends Query {
         multiFunctionScoreQueryGrpc.getScoreMode(),
         multiFunctionScoreQueryGrpc.getBoostMode(),
         multiFunctionScoreQueryGrpc.getMinScore(),
-        multiFunctionScoreQueryGrpc.getMinExclusive());
+        multiFunctionScoreQueryGrpc.getMinExcluded());
   }
 
   /**
@@ -224,6 +224,17 @@ public class MultiFunctionScoreQuery extends Query {
         }
         expl = explainBoost(expl, factorExplanation);
       }
+      float curScore = expl.getValue().floatValue();
+      if (minScore > curScore || (minExcluded && minScore == curScore)) {
+        expl =
+            Explanation.noMatch(
+                "Score value is too low, expected at least "
+                    + minScore
+                    + (minExcluded ? " (excluded)" : " (included)")
+                    + " but got "
+                    + curScore,
+                expl);
+      }
       return expl;
     }
 
@@ -276,10 +287,16 @@ public class MultiFunctionScoreQuery extends Query {
 
     @Override
     public boolean isCacheable(LeafReaderContext ctx) {
-      return true;
+      // When not using MinScoreWrapper, it is cacheable.
+      return minScore == 0 && !minExcluded;
     }
   }
 
+  /**
+   * A port with minimal modification of Elasticsearch <a
+   * href="https://github.com/elastic/elasticsearch/blob/v7.2.0/server/src/main/java/org/elasticsearch/common/lucene/search/function/MinScoreScorer.java">MinScoreScorer</a>.
+   * We add minExcluded to make the boundary clear for inclusion/exclusion.
+   */
   public static class MinScoreWrapper extends Scorer {
     private final Scorer in;
     private final float minScore;
@@ -451,26 +468,27 @@ public class MultiFunctionScoreQuery extends Query {
       sb.append("{" + (function == null ? "" : function.toString()) + "}");
     }
     sb.append("])");
+    sb.append(", minScore: " + minScore).append(minExcluded ? " (excluded)" : " (included)");
     return sb.toString();
   }
 
   @Override
-  public boolean equals(Object obj) {
-    if (this == obj) {
-      return true;
-    }
-    if (!sameClassAs(obj)) {
-      return false;
-    }
-    MultiFunctionScoreQuery other = (MultiFunctionScoreQuery) obj;
-    return Objects.equals(this.innerQuery, other.innerQuery)
-        && Objects.equals(this.scoreMode, other.scoreMode)
-        && Objects.equals(this.boostMode, other.boostMode)
-        && Arrays.equals(this.functions, other.functions);
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof MultiFunctionScoreQuery)) return false;
+    MultiFunctionScoreQuery that = (MultiFunctionScoreQuery) o;
+    return Float.compare(that.minScore, minScore) == 0
+        && minExcluded == that.minExcluded
+        && Objects.equals(innerQuery, that.innerQuery)
+        && Arrays.equals(functions, that.functions)
+        && scoreMode == that.scoreMode
+        && boostMode == that.boostMode;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(classHash(), innerQuery, scoreMode, boostMode, Arrays.hashCode(functions));
+    int result = Objects.hash(innerQuery, scoreMode, boostMode, minScore, minExcluded);
+    result = 31 * result + Arrays.hashCode(functions);
+    return result;
   }
 }
