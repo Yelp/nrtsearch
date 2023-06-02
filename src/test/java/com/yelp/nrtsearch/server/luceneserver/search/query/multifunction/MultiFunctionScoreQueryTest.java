@@ -772,6 +772,69 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
     verifyResponseHits(response, List.of(), List.of());
   }
 
+  @Test
+  public void test_noFunctions() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("doc_id")
+                    .addRetrieveFields("text_field")
+                    .setExplain(true)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setMultiFunctionScoreQuery(
+                                MultiFunctionScoreQuery.newBuilder()
+                                    .setQuery(
+                                        Query.newBuilder()
+                                            .setMatchQuery(
+                                                MatchQuery.newBuilder()
+                                                    .setField("text_field")
+                                                    .setQuery("term1")
+                                                    .build())
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+    verifyResponseHits(response, List.of(2, 4), List.of(0.33812057971954346, 0.27725890278816223));
+  }
+
+  @Test
+  public void test_noFunctions_withMinScore() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("doc_id")
+                    .addRetrieveFields("text_field")
+                    .setExplain(true)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setMultiFunctionScoreQuery(
+                                MultiFunctionScoreQuery.newBuilder()
+                                    .setQuery(
+                                        Query.newBuilder()
+                                            .setMatchQuery(
+                                                MatchQuery.newBuilder()
+                                                    .setField("text_field")
+                                                    .setQuery("term1")
+                                                    .build())
+                                            .build())
+                                    .setMinScore(0.3f)
+                                    .build())
+                            .build())
+                    .build());
+    verifyResponseHits(response, List.of(2), List.of(0.33812057971954346));
+  }
+
   private void multiFunctionAndVerify(
       Query innerQuery,
       FunctionScoreMode scoreMode,
