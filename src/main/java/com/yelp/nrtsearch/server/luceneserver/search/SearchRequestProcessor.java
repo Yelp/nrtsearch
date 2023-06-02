@@ -34,6 +34,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitContext;
+import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitContext.InnerHitContextBuilder;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
@@ -62,6 +63,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
@@ -176,60 +178,33 @@ public class SearchRequestProcessor {
 
     if (searchRequest.getInnerHitsCount() > 0) {
       List<InnerHitFetchTask> innerHitFetchTasks =
-          new ArrayList<>(searchRequest.getInnerHitsCount());
-      for (String innerHitName : searchRequest.getInnerHitsMap().keySet()) {
-        InnerHit innerHit = searchRequest.getInnerHitsOrThrow(innerHitName);
-        Query childQuery =
-            extractQuery(indexState, "", innerHit.getInnerQuery(), innerHit.getQueryNestedPath());
-        DocCollector innerHitCollector =
-            buildDocCollector(
-                new CollectorCreatorContext(
-                    indexState,
-                    shardState,
-                    queryFields,
-                    searcherAndTaxonomy,
-                    innerHit.getInnerQuery(),
-                    Collections.EMPTY_MAP, // No additional collector support
-                    searchRequest
-                        .getTotalHitsThreshold(), // No child level totalHitsThreshold support
-                    innerHit.getTopHits(),
-                    Collections.EMPTY_LIST, // No facets support
-                    Collections.EMPTY_LIST, // No rescorer support
-                    searchRequest.getTimeoutSec(), // No child level timeoutSec support
-                    searchRequest
-                        .getTimeoutCheckEvery(), // No child level timeoutCheckEvery support
-                    searchRequest.getTerminateAfter(), // No child level terminateAfter support
-                    searchRequest.getProfile(),
-                    searchRequest.getDisallowPartialResults(),
-                    innerHit.getQuerySort()));
-        InnerHitContext innerHitContext =
-            new InnerHitContext(
-                innerHitName,
-                contextBuilder,
-                innerHit.getQueryNestedPath(),
-                childQuery,
-                innerHit.getStartHit(),
-                innerHit.getTopHits(),
-                getRetrieveFields(innerHit.getRetrieveFieldsList(), queryFields),
-                innerHitCollector,
-                innerHit.hasHighlight()
-                    ? new HighlightFetchTask(
-                        indexState,
-                        childQuery,
-                        HighlighterService.getInstance(),
-                        innerHit.getHighlight())
-                    : null);
-
-        innerHitCollector.setSearchContext(innerHitContext);
-
-        innerHitFetchTasks.add(new InnerHitFetchTask(innerHitContext));
-      }
+          searchRequest.getInnerHitsMap().keySet().stream()
+              .map(
+                  innerHitName ->
+                      buildInnerHitContext(
+                          indexState,
+                          shardState,
+                          queryFields,
+                          searcherAndTaxonomy,
+                          IndexState.ROOT,
+                          innerHitName,
+                          searchRequest.getInnerHitsOrThrow(innerHitName)))
+              .map(InnerHitFetchTask::new)
+              .collect(Collectors.toList());
       contextBuilder.setInnerHitFetchTasks(innerHitFetchTasks);
     }
-
     SearchContext searchContext = contextBuilder.build(true);
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);
+    // Give underlying innerHit access to the search context
+    if (searchContext.getInnerHitFetchTasks() != null) {
+      searchContext
+          .getInnerHitFetchTasks()
+          .forEach(
+              innerHitFetchTask -> {
+                innerHitFetchTask.getInnerHitContext().setSearchContext(searchContext);
+              });
+    }
     return searchContext;
   }
 
@@ -394,10 +369,17 @@ public class SearchRequestProcessor {
    *
    * @return collector
    */
+  /**
+   * Build {@link DocCollector} to provide the {@link org.apache.lucene.search.CollectorManager} for
+   * collecting hits for this query.
+   *
+   * @return collector
+   */
   private static DocCollector buildDocCollector(CollectorCreatorContext collectorCreatorContext) {
+    SearchRequest searchRequest = collectorCreatorContext.getRequest();
     List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
         additionalCollectors =
-            collectorCreatorContext.getCollectorsMap().entrySet().stream()
+            searchRequest.getCollectorsMap().entrySet().stream()
                 .map(
                     e ->
                         CollectorCreator.getInstance()
@@ -406,11 +388,10 @@ public class SearchRequestProcessor {
                 .collect(Collectors.toList());
 
     DocCollector docCollector;
-    if (collectorCreatorContext.getQuery() != null
-        && collectorCreatorContext.getQuery().hasCompletionQuery()) {
+    if (searchRequest.getQuery().hasCompletionQuery()) {
       docCollector = new MyTopSuggestDocsCollector(collectorCreatorContext, additionalCollectors);
-    } else if (collectorCreatorContext.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
-      if (hasLargeNumHits(collectorCreatorContext)) {
+    } else if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
+      if (hasLargeNumHits(searchRequest)) {
         docCollector = new LargeNumHitsCollector(collectorCreatorContext, additionalCollectors);
       } else {
         docCollector = new RelevanceCollector(collectorCreatorContext, additionalCollectors);
@@ -426,9 +407,9 @@ public class SearchRequestProcessor {
   }
 
   /** If this query needs enough hits to use a {@link LargeNumHitsCollector}. */
-  private static boolean hasLargeNumHits(CollectorCreatorContext collectorCreatorContext) {
-    return collectorCreatorContext.getQuery() != null
-        && collectorCreatorContext.getQuery().getQueryNodeCase()
+  private static boolean hasLargeNumHits(SearchRequest searchRequest) {
+    return searchRequest.hasQuery()
+        && searchRequest.getQuery().getQueryNodeCase()
             == com.yelp.nrtsearch.server.grpc.Query.QueryNodeCase.QUERYNODE_NOT_SET;
   }
 
@@ -474,5 +455,39 @@ public class SearchRequestProcessor {
               .build());
     }
     return rescorers;
+  }
+
+  private static InnerHitContext buildInnerHitContext(
+      IndexState indexState,
+      ShardState shardState,
+      Map<String, FieldDef> queryFields,
+      SearcherAndTaxonomy searcherAndTaxonomy,
+      String parentQueryNestedPath,
+      String innerHitName,
+      InnerHit innerHit) {
+    Query childQuery =
+        extractQuery(indexState, "", innerHit.getInnerQuery(), innerHit.getQueryNestedPath());
+    return InnerHitContextBuilder.Builder()
+        .withInnerHitName(innerHitName)
+        .withQuery(childQuery)
+        .withParentQueryNestedPath(parentQueryNestedPath)
+        .withQueryNestedPath(innerHit.getQueryNestedPath())
+        .withStartHit(innerHit.getStartHit())
+        .withTopHits(innerHit.getTopHits())
+        .withIndexState(indexState)
+        .withShardState(shardState)
+        .withSearcherAndTaxonomy(searcherAndTaxonomy)
+        .withRetrieveFields(getRetrieveFields(innerHit.getRetrieveFieldsList(), queryFields))
+        .withQueryFields(queryFields)
+        .withQuerySort(innerHit.hasQuerySort() ? innerHit.getQuerySort() : null)
+        .withHighlightFetchTask(
+            innerHit.hasHighlight()
+                ? new HighlightFetchTask(
+                    indexState,
+                    childQuery,
+                    HighlighterService.getInstance(),
+                    innerHit.getHighlight())
+                : null)
+        .build(true);
   }
 }

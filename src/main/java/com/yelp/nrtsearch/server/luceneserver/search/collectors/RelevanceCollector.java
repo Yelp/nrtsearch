@@ -46,11 +46,11 @@ public class RelevanceCollector extends DocCollector {
     // if there are additional collectors, we cannot skip any recalled docs
     if (!additionalCollectors.isEmpty()) {
       totalHitsThreshold = Integer.MAX_VALUE;
-      if (context.getTotalHitsThreshold() != 0) {
+      if (context.getRequest().getTotalHitsThreshold() != 0) {
         logger.warn("Query totalHitsThreshold ignored when using additional collectors");
       }
-    } else if (context.getTotalHitsThreshold() != 0) {
-      totalHitsThreshold = context.getTotalHitsThreshold();
+    } else if (context.getRequest().getTotalHitsThreshold() != 0) {
+      totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
     }
     manager = TopScoreDocCollector.createSharedManager(topHits, searchAfter, totalHitsThreshold);
   }

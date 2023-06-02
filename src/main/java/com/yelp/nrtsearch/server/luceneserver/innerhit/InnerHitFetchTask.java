@@ -24,19 +24,22 @@ import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
+import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.DoubleAdder;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 
 public class InnerHitFetchTask implements FetchTask {
-  private static final double TEN_TO_THE_POWER_SIX = Math.pow(10, 6);
+  private static final double NS_PER_MS = Math.pow(10, 6);
 
   public InnerHitContext getInnerHitContext() {
     return innerHitContext;
@@ -55,20 +58,18 @@ public class InnerHitFetchTask implements FetchTask {
       SearchContext searchContext, LeafReaderContext hitLeaf, SearchResponse.Hit.Builder hit)
       throws IOException {
     long startTime = System.nanoTime();
-
+    IndexSearcher searcher = innerHitContext.getSearcherAndTaxonomy().searcher;
     ParentChildrenBlockJoinQuery parentChildrenBlockJoinQuery =
         new ParentChildrenBlockJoinQuery(
             innerHitContext.getParentFilter(), innerHitContext.getQuery(), hit.getLuceneDocId());
-
-    IndexSearcher searcher = innerHitContext.getSearcherAndTaxonomy().searcher;
-    TopDocs topDocs =
-        searcher.search(parentChildrenBlockJoinQuery, innerHitContext.getCollector().getManager());
+    searcher.search(parentChildrenBlockJoinQuery, innerHitContext.getTopDocsCollector());
+    TopDocs topDocs = innerHitContext.getTopDocsCollector().topDocs();
     if (innerHitContext.getStartHit() > 0) {
       topDocs =
           SearchHandler.getHitsFromOffset(
               topDocs, innerHitContext.getStartHit(), innerHitContext.getTopHits());
     }
-    firstPassSearchTimeMs.add(((System.nanoTime() - startTime) / TEN_TO_THE_POWER_SIX));
+    firstPassSearchTimeMs.add(((System.nanoTime() - startTime) / NS_PER_MS));
 
     startTime = System.nanoTime();
     HitsResult.Builder innerHitResultBuilder = HitsResult.newBuilder();
@@ -78,24 +79,35 @@ public class InnerHitFetchTask implements FetchTask {
             .setValue(topDocs.totalHits.value)
             .build();
     innerHitResultBuilder.setTotalHits(totalInnerHits);
-    for (int hitIndex = 0; hitIndex < topDocs.scoreDocs.length; hitIndex++) {
-      var hitResponse = innerHitResultBuilder.addHitsBuilder();
-      ScoreDoc innerHit = topDocs.scoreDocs[hitIndex];
-      hitResponse.setLuceneDocId(innerHit.doc);
-      hitResponse.setScore(innerHit.score);
+
+    for (int innerHitIndex = 0; innerHitIndex < topDocs.scoreDocs.length; innerHitIndex++) {
+      SearchResponse.Hit.Builder innerHitResponse = innerHitResultBuilder.addHitsBuilder();
+      ScoreDoc innerHit = topDocs.scoreDocs[innerHitIndex];
+      innerHitResponse.setLuceneDocId(innerHit.doc);
+      if (!innerHitContext.getSortedFieldNames().isEmpty()) {
+        // fill the sortedFields
+        FieldDoc fd = (FieldDoc) innerHit;
+        for (int i = 0; i < fd.fields.length; ++i) {
+          SortField sortField = innerHitContext.getSort().getSort()[i];
+          innerHitResponse.putSortedFields(
+              innerHitContext.getSortedFieldNames().get(i),
+              SortParser.getValueForSortField(sortField, fd.fields[i]));
+        }
+        innerHitResponse.setScore(Double.NaN);
+      } else {
+        innerHitResponse.setScore(innerHit.score);
+      }
     }
 
     // sort hits by lucene doc id
     List<Hit.Builder> hitBuilders = new ArrayList<>(innerHitResultBuilder.getHitsBuilderList());
-    hitBuilders.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
-
+    hitBuilders.sort(Comparator.comparingInt(Hit.Builder::getLuceneDocId));
     new SearchHandler.FillDocsTask(innerHitContext, hitBuilders).run();
 
     if (hitBuilders.size() > 0) {
       hit.putInnerHits(innerHitContext.getInnerHitName(), innerHitResultBuilder.build());
     }
-
-    getFieldsTimeMs.add(((System.nanoTime() - startTime) / TEN_TO_THE_POWER_SIX));
+    getFieldsTimeMs.add(((System.nanoTime() - startTime) / NS_PER_MS));
   }
 
   public SearchResponse.Diagnostics getDiagnostic() {

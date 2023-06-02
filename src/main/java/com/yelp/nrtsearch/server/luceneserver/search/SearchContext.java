@@ -53,7 +53,7 @@ public class SearchContext implements FieldFetchContext {
   private final String queryNestedPath;
   private final List<InnerHitFetchTask> innerHitFetchTasks;
 
-  protected SearchContext(Builder builder, boolean validate) {
+  private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
     this.shardState = builder.shardState;
     this.searcherAndTaxonomy = builder.searcherAndTaxonomy;

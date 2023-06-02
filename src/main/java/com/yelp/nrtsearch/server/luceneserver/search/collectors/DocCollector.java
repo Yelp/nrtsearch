@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.Rescorer;
+import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCollectorManager;
@@ -38,7 +39,7 @@ import org.apache.lucene.search.TopDocs;
 /** Abstract base for classes that manage the collection of documents when executing queries. */
 public abstract class DocCollector {
 
-  private final CollectorCreatorContext context;
+  private final SearchRequest request;
   private final IndexState indexState;
   private final List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
       additionalCollectors;
@@ -58,19 +59,19 @@ public abstract class DocCollector {
       CollectorCreatorContext context,
       List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
           additionalCollectors) {
-    this.context = context;
+    this.request = context.getRequest();
     this.indexState = context.getIndexState();
     this.additionalCollectors = additionalCollectors;
 
     // determine how many hits to collect based on request, facets and rescore window
-    int collectHits = context.getTopHits();
-    for (Facet facet : context.getFacetsList()) {
+    int collectHits = request.getTopHits();
+    for (Facet facet : request.getFacetsList()) {
       int facetSample = facet.getSampleTopDocs();
       if (facetSample > 0 && facetSample > collectHits) {
         collectHits = facetSample;
       }
     }
-    for (Rescorer rescorer : context.getRescorersList()) {
+    for (Rescorer rescorer : request.getRescorersList()) {
       int windowSize = rescorer.getWindowSize();
       if (windowSize > 0 && windowSize > collectHits) {
         collectHits = windowSize;
@@ -164,13 +165,13 @@ public abstract class DocCollector {
       CollectorManager<C, SearcherResult> manager) {
     CollectorManager<? extends Collector, SearcherResult> wrapped = manager;
     double timeout =
-        context.getTimeoutSec() > 0.0
-            ? context.getTimeoutSec()
+        request.getTimeoutSec() > 0.0
+            ? request.getTimeoutSec()
             : indexState.getDefaultSearchTimeoutSec();
     if (timeout > 0.0) {
       int timeoutCheckEvery =
-          context.getTimeoutCheckEvery() > 0
-              ? context.getTimeoutCheckEvery()
+          request.getTimeoutCheckEvery() > 0
+              ? request.getTimeoutCheckEvery()
               : indexState.getDefaultSearchTimeoutCheckEvery();
       hadTimeout = false;
       wrapped =
@@ -178,17 +179,17 @@ public abstract class DocCollector {
               wrapped,
               timeout,
               timeoutCheckEvery,
-              context.isDisallowPartialResults(),
+              request.getDisallowPartialResults(),
               () -> hadTimeout = true);
     }
     int terminateAfter =
-        context.getTerminateAfter() > 0
-            ? context.getTerminateAfter()
+        request.getTerminateAfter() > 0
+            ? request.getTerminateAfter()
             : indexState.getDefaultTerminateAfter();
     if (terminateAfter > 0) {
       wrapped = new TerminateAfterWrapper<>(wrapped, terminateAfter, () -> terminatedEarly = true);
     }
-    if (context.isProfile()) {
+    if (request.getProfile()) {
       statsWrapper = new SearchStatsWrapper<>(wrapped);
       wrapped = statsWrapper;
     }
@@ -201,7 +202,7 @@ public abstract class DocCollector {
    */
   List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
       wrappedCollectors() {
-    if (!additionalCollectors.isEmpty() && context.isProfile()) {
+    if (!additionalCollectors.isEmpty() && request.getProfile()) {
       List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
           wrappedCollectors = new ArrayList<>(additionalCollectors.size());
       // hold the stats wrappers to fill profiling info later

@@ -427,20 +427,17 @@ message SearchRequest {
     // If Lucene explanation should be included in the response
     bool explain = 25;
     // Nested Object fetch
-    map<string, InnerHit> innerHits = 26;
+    map<string, InnerHit> inner_hits = 26;
 }
 
 message InnerHit {
-    string queryNestedPath = 1; //nested path to search against assuming same index as the parent Query.
-    int32 startHit = 2; // Which hit to start from (for pagination); default: 0
-    int32 topHits = 3; // How many top hits to retrieve; default: 10. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
-    Query innerQuery = 4;  // InnerHit query to query against the children documents specified by queryNestedPat.h
-    repeated VirtualField virtualFields = 5; // Not supported yet
-    repeated string retrieveFields = 6; // Fields to retrieve; Parent's fields except its id field are unavailable in the innerHit.
-    QuerySortField querySort = 7; //Sort hits by field (default is by relevance).
-    map<string, Collector> collectors = 8;  // Not supported yet
-    Highlight highlight = 9; // Highlight the children documents.
-    bool profile = 10;  // Not supported yet
+    string query_nested_path = 1; //nested path to search against assuming same index as the parent Query.
+    int32 start_hit = 2; // Which hit to start from (for pagination); default: 0
+    int32 top_hits = 3; // How many top hits to retrieve; default: 10. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
+    Query inner_query = 4;  // InnerHit query to query against the children documents specified by queryNestedPat.h
+    repeated string retrieve_fields = 5; // Fields to retrieve; Parent's fields except its id field are unavailable in the innerHit.
+    QuerySortField query_sort = 6; //Sort hits by field (default is by relevance).
+    Highlight highlight = 7; // Highlight the children documents.
 }
 
 /* Virtual field used during search */
