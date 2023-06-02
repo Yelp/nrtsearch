@@ -58,7 +58,7 @@ public class MultiFunctionScoreQuery extends Query {
   private final float minScore;
   private final boolean minExcluded;
 
-  private static boolean isFilteredByMinScore(
+  private static boolean hasPassedMinScore(
       float currentScore, float minimalScore, boolean minimalExcluded) {
     if (currentScore > minimalScore) {
       return true;
@@ -248,7 +248,7 @@ public class MultiFunctionScoreQuery extends Query {
         expl = explainBoost(expl, factorExplanation);
       }
       float curScore = expl.getValue().floatValue();
-      if (isFilteredByMinScore(curScore, minScore, minExcluded)) {
+      if (!hasPassedMinScore(curScore, minScore, minExcluded)) {
         expl =
             Explanation.noMatch(
                 "Score value is too low, expected at least "
@@ -372,7 +372,7 @@ public class MultiFunctionScoreQuery extends Query {
           // we need to check the two-phase iterator first
           // otherwise calling score() is illegal
           curScore = in.score();
-          return isFilteredByMinScore(curScore, minScore, minExcluded);
+          return hasPassedMinScore(curScore, minScore, minExcluded);
         }
 
         @Override
