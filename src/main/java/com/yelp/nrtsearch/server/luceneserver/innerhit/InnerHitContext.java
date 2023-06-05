@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -72,16 +73,17 @@ public class InnerHitContext implements FieldFetchContext {
   private final FetchTasks fetchTasks;
   private SearchContext searchContext = null;
 
-  private InnerHitContext(InnerHitContextBuilder builder, boolean needValidation) {
+  private InnerHitContext(InnerHitContextBuilder builder, boolean needValidation)
+      throws IOException {
     this.innerHitName = builder.innerHitName;
     this.queryNestedPath = builder.queryNestedPath;
-    this.query = builder.query;
     this.parentFilter =
         new QueryBitSetProducer(
             QueryNodeMapper.getInstance().getNestedPathQuery(builder.parentQueryNestedPath));
     this.indexState = builder.indexState;
     this.shardState = builder.shardState;
     this.searcherAndTaxonomy = builder.searcherAndTaxonomy;
+    this.query = searcherAndTaxonomy.searcher.rewrite(builder.query);
     this.startHit = builder.startHit;
     this.topHits =
         builder.topHits == 0
@@ -228,7 +230,11 @@ public class InnerHitContext implements FieldFetchContext {
     private InnerHitContextBuilder() {}
 
     public InnerHitContext build(boolean needValidation) {
-      return new InnerHitContext(this, needValidation);
+      try {
+        return new InnerHitContext(this, needValidation);
+      } catch (IOException e) {
+        throw new RuntimeException("Failed to build the InnerHitContext", e);
+      }
     }
 
     public static InnerHitContextBuilder Builder() {
