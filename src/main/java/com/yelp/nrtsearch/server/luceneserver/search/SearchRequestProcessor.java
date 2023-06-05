@@ -195,7 +195,6 @@ public class SearchRequestProcessor {
     contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());
-
     SearchContext searchContext = contextBuilder.build(true);
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);
@@ -357,12 +356,6 @@ public class SearchRequestProcessor {
     return new DrillDownQuery(state.getFacetsConfig(), q);
   }
 
-  /**
-   * Build {@link DocCollector} to provide the {@link org.apache.lucene.search.CollectorManager} for
-   * collecting hits for this query.
-   *
-   * @return collector
-   */
   /**
    * Build {@link DocCollector} to provide the {@link org.apache.lucene.search.CollectorManager} for
    * collecting hits for this query.
