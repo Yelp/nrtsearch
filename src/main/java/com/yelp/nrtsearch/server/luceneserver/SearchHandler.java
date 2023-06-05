@@ -245,13 +245,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       searchContext.getResponseBuilder().setSearchState(searchState);
 
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
-      if (searchContext.getHighlightFetchTask() != null) {
-        diagnostics.setHighlightTimeMs(searchContext.getHighlightFetchTask().getTimeTakenMs());
+      if (searchContext.getFetchTasks().getHighlightFetchTask() != null) {
+        diagnostics.setHighlightTimeMs(
+            searchContext.getFetchTasks().getHighlightFetchTask().getTimeTakenMs());
       }
 
-      if (searchContext.getInnerHitFetchTasks() != null) {
+      if (searchContext.getFetchTasks().getInnerHitFetchTaskList() != null) {
         diagnostics.putAllInnerHitsTimeMs(
-            searchContext.getInnerHitFetchTasks().stream()
+            searchContext.getFetchTasks().getInnerHitFetchTaskList().stream()
                 .collect(
                     Collectors.toMap(
                         task -> task.getInnerHitContext().getInnerHitName(),
@@ -385,15 +386,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         var hitResponse = hitBuilders.get(hitIndex);
         LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
         searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
-        // TODO: combine with custom fetch tasks
-        if (searchContext.getHighlightFetchTask() != null) {
-          searchContext.getHighlightFetchTask().processHit(searchContext, leaf, hitResponse);
-        }
-        if (searchContext.getInnerHitFetchTasks() != null) {
-          for (InnerHitFetchTask task : searchContext.getInnerHitFetchTasks()) {
-            task.processHit(searchContext, leaf, hitResponse);
-          }
-        }
       }
     } else if (!parallelFetchByField
         && fetch_thread_pool_size > 1
@@ -920,18 +912,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       // execute any per hit fetch tasks
       for (Hit.Builder hit : sliceHits) {
         context.getFetchTasks().processHit(context.getSearchContext(), sliceSegment, hit);
-        // TODO: combine with custom fetch tasks
-        if (context.getSearchContext().getHighlightFetchTask() != null) {
-          context
-              .getSearchContext()
-              .getHighlightFetchTask()
-              .processHit(context.getSearchContext(), sliceSegment, hit);
-        }
-        if (context.getSearchContext().getInnerHitFetchTasks() != null) {
-          for (InnerHitFetchTask task : context.getSearchContext().getInnerHitFetchTasks()) {
-            task.processHit(context.getSearchContext(), sliceSegment, hit);
-          }
-        }
       }
     }
 

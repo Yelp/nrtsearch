@@ -20,8 +20,6 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
-import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.List;
@@ -48,10 +46,8 @@ public class SearchContext implements FieldFetchContext {
   private final FetchTasks fetchTasks;
   private final List<RescoreTask> rescorers;
   private final SharedDocContext sharedDocContext;
-  private final HighlightFetchTask highlightFetchTask;
   private final Map<String, Object> extraContext;
   private final String queryNestedPath;
-  private final List<InnerHitFetchTask> innerHitFetchTasks;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -68,10 +64,8 @@ public class SearchContext implements FieldFetchContext {
     this.fetchTasks = builder.fetchTasks;
     this.rescorers = builder.rescorers;
     this.sharedDocContext = builder.sharedDocContext;
-    this.highlightFetchTask = builder.highlightFetchTask;
     this.extraContext = builder.extraContext;
     this.queryNestedPath = builder.queryNestedPath;
-    this.innerHitFetchTasks = builder.innerHitFetchTasks;
 
     if (validate) {
       validate();
@@ -155,14 +149,6 @@ public class SearchContext implements FieldFetchContext {
   }
 
   /**
-   * Get {@link HighlightFetchTask} which can be used to build highlights the request. Null if no
-   * highlights are specified in the request.
-   */
-  public HighlightFetchTask getHighlightFetchTask() {
-    return highlightFetchTask;
-  }
-
-  /**
    * Get the extra custom context map which can be used for cache or data sharing. This map should
    * be threadsafe.
    */
@@ -173,13 +159,6 @@ public class SearchContext implements FieldFetchContext {
   /** Get the query nested path. By default, it is _root * */
   public String getQueryNestedPath() {
     return queryNestedPath;
-  }
-
-  /**
-   * Get {@link InnerHitFetchTask} for innerHit. Null if no innerHit are specified in the request.
-   */
-  public List<InnerHitFetchTask> getInnerHitFetchTasks() {
-    return innerHitFetchTasks;
   }
 
   /** Get new context builder instance * */
@@ -207,12 +186,6 @@ public class SearchContext implements FieldFetchContext {
     }
     if (topHits < 0) {
       throw new IllegalStateException("Invalid topHits value: " + topHits);
-    }
-
-    if (innerHitFetchTasks != null) {
-      if (!indexState.hasNestedChildFields()) {
-        throw new IllegalStateException("InnerHit only works with indices that have childFields");
-      }
     }
   }
 
@@ -283,20 +256,12 @@ public class SearchContext implements FieldFetchContext {
       return sharedDocContext;
     }
 
-    public HighlightFetchTask getHighlightFetchTask() {
-      return highlightFetchTask;
-    }
-
     public Map<String, Object> getExtraContext() {
       return extraContext;
     }
 
     public String getQueryNestedPath() {
       return queryNestedPath;
-    }
-
-    public List<InnerHitFetchTask> getInnerHitFetchTasks() {
-      return innerHitFetchTasks;
     }
 
     private ShardState shardState;
@@ -313,10 +278,8 @@ public class SearchContext implements FieldFetchContext {
     private FetchTasks fetchTasks;
     private List<RescoreTask> rescorers;
     private SharedDocContext sharedDocContext;
-    private HighlightFetchTask highlightFetchTask;
     private Map<String, Object> extraContext;
     private String queryNestedPath;
-    private List<InnerHitFetchTask> innerHitFetchTasks;
 
     private Builder() {}
 
@@ -407,12 +370,6 @@ public class SearchContext implements FieldFetchContext {
       return this;
     }
 
-    /** Set fetch task to generate highlights */
-    public Builder setHighlightFetchTask(HighlightFetchTask highlightFetchTask) {
-      this.highlightFetchTask = highlightFetchTask;
-      return this;
-    }
-
     public Builder setExtraContext(Map<String, Object> extraContext) {
       this.extraContext = extraContext;
       return this;
@@ -420,11 +377,6 @@ public class SearchContext implements FieldFetchContext {
 
     public Builder setQueryNestedPath(String queryNestedPath) {
       this.queryNestedPath = queryNestedPath;
-      return this;
-    }
-
-    public Builder setInnerHitFetchTasks(List<InnerHitFetchTask> innerHitFetchTasks) {
-      this.innerHitFetchTasks = innerHitFetchTasks;
       return this;
     }
 

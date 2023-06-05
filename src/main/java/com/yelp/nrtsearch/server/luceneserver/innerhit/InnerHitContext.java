@@ -33,8 +33,10 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
@@ -62,13 +64,13 @@ public class InnerHitContext implements FieldFetchContext {
   private final int topHits;
   private final Map<String, FieldDef> queryFields;
   private final Map<String, FieldDef> retrieveFields;
-  private final HighlightFetchTask highlightFetchTask;
   private final List<String> sortedFieldNames;
   private final Sort sort;
   // Each innerHit is processed in a single leaf, so no parallelism is needed.
-  private final TopDocsCollector topDocsCollector;
-  private final FetchTasks fetchTasks = new FetchTasks(Collections.EMPTY_LIST);
-  private SearchContext searchContext;
+  private final CollectorManager<? extends TopDocsCollector, ? extends TopDocs>
+      topDocsCollectorManager;
+  private final FetchTasks fetchTasks;
+  private SearchContext searchContext = null;
 
   private InnerHitContext(InnerHitContextBuilder builder, boolean needValidation) {
     this.innerHitName = builder.innerHitName;
@@ -81,16 +83,20 @@ public class InnerHitContext implements FieldFetchContext {
     this.shardState = builder.shardState;
     this.searcherAndTaxonomy = builder.searcherAndTaxonomy;
     this.startHit = builder.startHit;
-    this.topHits = builder.topHits;
+    this.topHits =
+        builder.topHits == 0
+            ? 10
+            : builder.topHits; // Currently doesn't support zero-hit/hit count only
     this.queryFields = builder.queryFields;
     this.retrieveFields = builder.retrieveFields;
-    this.highlightFetchTask = builder.highlightFetchTask;
+    this.fetchTasks = new FetchTasks(Collections.EMPTY_LIST, builder.highlightFetchTask, null);
 
     if (builder.querySort == null) {
       // relevance collector
       this.sortedFieldNames = Collections.EMPTY_LIST;
       this.sort = null;
-      this.topDocsCollector = TopScoreDocCollector.create(topHits, null, Integer.MAX_VALUE);
+      this.topDocsCollectorManager =
+          TopScoreDocCollector.createSharedManager(topHits, null, Integer.MAX_VALUE);
     } else {
       // sortedField collector
       this.sortedFieldNames =
@@ -99,7 +105,8 @@ public class InnerHitContext implements FieldFetchContext {
         this.sort =
             SortParser.parseSort(
                 builder.querySort.getFields().getSortedFieldsList(), sortedFieldNames, queryFields);
-        this.topDocsCollector = TopFieldCollector.create(sort, topHits, null, Integer.MAX_VALUE);
+        this.topDocsCollectorManager =
+            TopFieldCollector.createSharedManager(sort, topHits, null, Integer.MAX_VALUE);
       } catch (SearchHandlerException e) {
         throw new IllegalArgumentException(e);
       }
@@ -118,7 +125,7 @@ public class InnerHitContext implements FieldFetchContext {
     Objects.requireNonNull(retrieveFields);
     Objects.requireNonNull(query);
     Objects.requireNonNull(queryNestedPath);
-    Objects.requireNonNull(topDocsCollector);
+    Objects.requireNonNull(topDocsCollectorManager);
 
     if (startHit < 0) {
       throw new IllegalStateException(
@@ -131,6 +138,9 @@ public class InnerHitContext implements FieldFetchContext {
     if (queryNestedPath.isEmpty()) {
       throw new IllegalStateException(
           String.format("queryNestedPath in InnerHit [%s] cannot be empty", innerHitName));
+    }
+    if (!indexState.hasNestedChildFields()) {
+      throw new IllegalStateException("InnerHit only works with indices that have childFields");
     }
   }
 
@@ -186,10 +196,6 @@ public class InnerHitContext implements FieldFetchContext {
     return retrieveFields;
   }
 
-  public HighlightFetchTask getHighlightFetchTask() {
-    return highlightFetchTask;
-  }
-
   public List<String> getSortedFieldNames() {
     return sortedFieldNames;
   }
@@ -198,8 +204,9 @@ public class InnerHitContext implements FieldFetchContext {
     return sort;
   }
 
-  public TopDocsCollector getTopDocsCollector() {
-    return topDocsCollector;
+  public CollectorManager<? extends TopDocsCollector, ? extends TopDocs>
+      getTopDocsCollectorManager() {
+    return topDocsCollectorManager;
   }
 
   public static final class InnerHitContextBuilder {

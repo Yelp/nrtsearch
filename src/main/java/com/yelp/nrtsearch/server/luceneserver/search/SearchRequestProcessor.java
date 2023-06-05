@@ -154,30 +154,16 @@ public class SearchRequestProcessor {
       }
     }
 
-    contextBuilder.setFetchTasks(new FetchTasks(searchRequest.getFetchTasksList()));
-
-    contextBuilder.setQuery(query);
-
-    CollectorCreatorContext collectorCreatorContext =
-        new CollectorCreatorContext(
-            searchRequest, indexState, shardState, queryFields, searcherAndTaxonomy);
-    DocCollector docCollector = buildDocCollector(collectorCreatorContext);
-    contextBuilder.setCollector(docCollector);
-
-    contextBuilder.setRescorers(
-        getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
-    contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
-
     Highlight highlight = searchRequest.getHighlight();
+    HighlightFetchTask highlightFetchTask = null;
     if (!highlight.getFieldsList().isEmpty()) {
-      HighlightFetchTask highlightFetchTask =
+      highlightFetchTask =
           new HighlightFetchTask(indexState, query, HighlighterService.getInstance(), highlight);
-      contextBuilder.setHighlightFetchTask(highlightFetchTask);
     }
-    contextBuilder.setExtraContext(new ConcurrentHashMap<>());
 
+    List<InnerHitFetchTask> innerHitFetchTasks = null;
     if (searchRequest.getInnerHitsCount() > 0) {
-      List<InnerHitFetchTask> innerHitFetchTasks =
+      innerHitFetchTasks =
           searchRequest.getInnerHitsMap().keySet().stream()
               .map(
                   innerHitName ->
@@ -191,20 +177,28 @@ public class SearchRequestProcessor {
                           searchRequest.getInnerHitsOrThrow(innerHitName)))
               .map(InnerHitFetchTask::new)
               .collect(Collectors.toList());
-      contextBuilder.setInnerHitFetchTasks(innerHitFetchTasks);
     }
+
+    contextBuilder.setFetchTasks(
+        new FetchTasks(searchRequest.getFetchTasksList(), highlightFetchTask, innerHitFetchTasks));
+
+    contextBuilder.setQuery(query);
+
+    CollectorCreatorContext collectorCreatorContext =
+        new CollectorCreatorContext(
+            searchRequest, indexState, shardState, queryFields, searcherAndTaxonomy);
+    DocCollector docCollector = buildDocCollector(collectorCreatorContext);
+    contextBuilder.setCollector(docCollector);
+
+    contextBuilder.setRescorers(
+        getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
+    contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
+
+    contextBuilder.setExtraContext(new ConcurrentHashMap<>());
+
     SearchContext searchContext = contextBuilder.build(true);
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);
-    // Give underlying innerHit access to the search context
-    if (searchContext.getInnerHitFetchTasks() != null) {
-      searchContext
-          .getInnerHitFetchTasks()
-          .forEach(
-              innerHitFetchTask -> {
-                innerHitFetchTask.getInnerHitContext().setSearchContext(searchContext);
-              });
-    }
     return searchContext;
   }
 

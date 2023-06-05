@@ -36,6 +36,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 
 public class InnerHitFetchTask implements FetchTask {
@@ -62,8 +63,9 @@ public class InnerHitFetchTask implements FetchTask {
     ParentChildrenBlockJoinQuery parentChildrenBlockJoinQuery =
         new ParentChildrenBlockJoinQuery(
             innerHitContext.getParentFilter(), innerHitContext.getQuery(), hit.getLuceneDocId());
-    searcher.search(parentChildrenBlockJoinQuery, innerHitContext.getTopDocsCollector());
-    TopDocs topDocs = innerHitContext.getTopDocsCollector().topDocs();
+    TopDocsCollector topDocsCollector = innerHitContext.getTopDocsCollectorManager().newCollector();
+    searcher.search(parentChildrenBlockJoinQuery, topDocsCollector);
+    TopDocs topDocs = topDocsCollector.topDocs();
     if (innerHitContext.getStartHit() > 0) {
       topDocs =
           SearchHandler.getHitsFromOffset(
@@ -115,8 +117,9 @@ public class InnerHitFetchTask implements FetchTask {
         Diagnostics.newBuilder()
             .setFirstPassSearchTimeMs(firstPassSearchTimeMs.doubleValue())
             .setGetFieldsTimeMs(getFieldsTimeMs.doubleValue());
-    if (innerHitContext.getHighlightFetchTask() != null) {
-      builder.setHighlightTimeMs(innerHitContext.getHighlightFetchTask().getTimeTakenMs());
+    if (innerHitContext.getFetchTasks().getHighlightFetchTask() != null) {
+      builder.setHighlightTimeMs(
+          innerHitContext.getFetchTasks().getHighlightFetchTask().getTimeTakenMs());
     }
     return builder.build();
   }

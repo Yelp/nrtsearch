@@ -493,40 +493,38 @@ public class innerHitTest extends ServerTestCase {
 
   @Test
   public void testNoNestedQueryPath() {
-    SearchResponse response =
-        getGrpcServer()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName(DEFAULT_TEST_INDEX)
-                    .setStartHit(0)
-                    .setTopHits(10)
-                    .setQuery(
-                        Query.newBuilder()
-                            .setTermQuery(
-                                TermQuery.newBuilder().setField("branch_id").setTextValue("102")))
-                    .addAllRetrieveFields(List.of("branch_id"))
-                    .putInnerHits(
-                        "menu",
-                        InnerHit.newBuilder()
+    assertThatThrownBy(
+            () ->
+                getGrpcServer()
+                    .getBlockingStub()
+                    .search(
+                        SearchRequest.newBuilder()
+                            .setIndexName(DEFAULT_TEST_INDEX)
                             .setStartHit(0)
                             .setTopHits(10)
-                            .setInnerQuery(
+                            .setQuery(
                                 Query.newBuilder()
-                                    .setRangeQuery(
-                                        RangeQuery.newBuilder()
-                                            .setField("food.price")
-                                            .setUpper("1.2")))
-                            .addAllRetrieveFields(List.of("food.name"))
-                            .build())
-                    .build());
-
-    assertThat(response.getHitsCount()).isEqualTo(1);
-    assertThat(response.getHits(0).getFieldsOrThrow("branch_id").getFieldValue(0).getTextValue())
-        .isEqualTo("102");
-    // If no nestedQueryPath present, innerHit will take default path to query _root.
-    // This will end up filtering root doc with child's fields, so no matching.
-    assertThat(response.getHits(0).getInnerHitsCount()).isEqualTo(0);
+                                    .setTermQuery(
+                                        TermQuery.newBuilder()
+                                            .setField("branch_id")
+                                            .setTextValue("102")))
+                            .addAllRetrieveFields(List.of("branch_id"))
+                            .putInnerHits(
+                                "menu",
+                                InnerHit.newBuilder()
+                                    .setStartHit(0)
+                                    .setTopHits(10)
+                                    .setInnerQuery(
+                                        Query.newBuilder()
+                                            .setRangeQuery(
+                                                RangeQuery.newBuilder()
+                                                    .setField("food.price")
+                                                    .setUpper("1.2")))
+                                    .addAllRetrieveFields(List.of("food.name"))
+                                    .build())
+                            .build()))
+        .isInstanceOf(StatusRuntimeException.class)
+        .hasMessageContaining("queryNestedPath in InnerHit [menu] cannot be empty");
   }
 
   @Test
@@ -627,7 +625,7 @@ public class innerHitTest extends ServerTestCase {
                         "menu",
                         InnerHit.newBuilder()
                             .setQueryNestedPath("food")
-                            .setStartHit(5)
+                            .setStartHit(8)
                             .setTopHits(10)
                             .addAllRetrieveFields(List.of("food.name"))
                             .build())
@@ -683,7 +681,7 @@ public class innerHitTest extends ServerTestCase {
   }
 
   @Test
-  public void testSmallTopHits() {
+  public void testTopHitsSmallerThanStartHit() {
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
@@ -701,8 +699,8 @@ public class innerHitTest extends ServerTestCase {
                         "menu",
                         InnerHit.newBuilder()
                             .setQueryNestedPath("food")
-                            .setStartHit(0)
-                            .setTopHits(0)
+                            .setStartHit(2)
+                            .setTopHits(1)
                             .addAllRetrieveFields(List.of("food.name"))
                             .build())
                     .build());
