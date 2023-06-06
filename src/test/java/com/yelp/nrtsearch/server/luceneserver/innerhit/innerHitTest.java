@@ -528,40 +528,78 @@ public class innerHitTest extends ServerTestCase {
   }
 
   @Test
-  public void testBadNestedQueryPath() {
-    SearchResponse response =
-        getGrpcServer()
-            .getBlockingStub()
-            .search(
-                SearchRequest.newBuilder()
-                    .setIndexName(DEFAULT_TEST_INDEX)
-                    .setStartHit(0)
-                    .setTopHits(10)
-                    .setQuery(
-                        Query.newBuilder()
-                            .setTermQuery(
-                                TermQuery.newBuilder().setField("branch_id").setTextValue("102")))
-                    .addAllRetrieveFields(List.of("branch_id"))
-                    .putInnerHits(
-                        "menu",
-                        InnerHit.newBuilder()
+  public void test_nestedQueryPath_notRegistered() {
+    assertThatThrownBy(
+            () ->
+                getGrpcServer()
+                    .getBlockingStub()
+                    .search(
+                        SearchRequest.newBuilder()
+                            .setIndexName(DEFAULT_TEST_INDEX)
                             .setStartHit(0)
                             .setTopHits(10)
-                            .setQueryNestedPath("abcdefg")
-                            .setInnerQuery(
+                            .setQuery(
                                 Query.newBuilder()
-                                    .setRangeQuery(
-                                        RangeQuery.newBuilder()
-                                            .setField("food.price")
-                                            .setUpper("1.2")))
-                            .addAllRetrieveFields(List.of("food.name"))
-                            .build())
-                    .build());
+                                    .setTermQuery(
+                                        TermQuery.newBuilder()
+                                            .setField("branch_id")
+                                            .setTextValue("102")))
+                            .addAllRetrieveFields(List.of("branch_id"))
+                            .putInnerHits(
+                                "menu",
+                                InnerHit.newBuilder()
+                                    .setStartHit(0)
+                                    .setTopHits(10)
+                                    .setQueryNestedPath("abcdefg")
+                                    .setInnerQuery(
+                                        Query.newBuilder()
+                                            .setRangeQuery(
+                                                RangeQuery.newBuilder()
+                                                    .setField("food.price")
+                                                    .setUpper("1.2")))
+                                    .addAllRetrieveFields(List.of("food.name"))
+                                    .build())
+                            .build()))
+        .isInstanceOf(StatusRuntimeException.class)
+        .hasMessageContaining(
+            "field \"abcdefg\" is unknown: it was not registered with registerField");
+  }
 
-    assertThat(response.getHitsCount()).isEqualTo(1);
-    assertThat(response.getHits(0).getFieldsOrThrow("branch_id").getFieldValue(0).getTextValue())
-        .isEqualTo("102");
-    assertThat(response.getHits(0).getInnerHitsCount()).isEqualTo(0);
+  @Test
+  public void test_nestedQueryPath_notNested() {
+    assertThatThrownBy(
+            () ->
+                getGrpcServer()
+                    .getBlockingStub()
+                    .search(
+                        SearchRequest.newBuilder()
+                            .setIndexName(DEFAULT_TEST_INDEX)
+                            .setStartHit(0)
+                            .setTopHits(10)
+                            .setQuery(
+                                Query.newBuilder()
+                                    .setTermQuery(
+                                        TermQuery.newBuilder()
+                                            .setField("branch_id")
+                                            .setTextValue("102")))
+                            .addAllRetrieveFields(List.of("branch_id"))
+                            .putInnerHits(
+                                "menu",
+                                InnerHit.newBuilder()
+                                    .setStartHit(0)
+                                    .setTopHits(10)
+                                    .setQueryNestedPath("food_not_nested")
+                                    .setInnerQuery(
+                                        Query.newBuilder()
+                                            .setRangeQuery(
+                                                RangeQuery.newBuilder()
+                                                    .setField("food.price")
+                                                    .setUpper("1.2")))
+                                    .addAllRetrieveFields(List.of("food_not_nested.name"))
+                                    .build())
+                            .build()))
+        .isInstanceOf(StatusRuntimeException.class)
+        .hasMessageContaining("Nested path is not a nested object field: food_not_nested");
   }
 
   @Test
@@ -635,7 +673,7 @@ public class innerHitTest extends ServerTestCase {
 
     assertThat(response.getHits(0).getFieldsOrThrow("branch_id").getFieldValue(0).getTextValue())
         .isEqualTo("102");
-    assertThat(response.getHits(0).getInnerHitsCount()).isEqualTo(0);
+    assertThat(response.getHits(0).getInnerHitsMap().get("menu").getHitsCount()).isEqualTo(0);
   }
 
   @Test
@@ -709,7 +747,7 @@ public class innerHitTest extends ServerTestCase {
 
     assertThat(response.getHits(0).getFieldsOrThrow("branch_id").getFieldValue(0).getTextValue())
         .isEqualTo("102");
-    assertThat(response.getHits(0).getInnerHitsCount()).isEqualTo(0);
+    assertThat(response.getHits(0).getInnerHitsMap().get("menu").getHitsCount()).isEqualTo(0);
   }
 
   @Test

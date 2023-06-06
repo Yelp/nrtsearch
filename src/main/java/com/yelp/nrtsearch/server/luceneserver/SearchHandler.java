@@ -245,20 +245,19 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       searchContext.getResponseBuilder().setSearchState(searchState);
 
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
+
       if (searchContext.getFetchTasks().getHighlightFetchTask() != null) {
         diagnostics.setHighlightTimeMs(
             searchContext.getFetchTasks().getHighlightFetchTask().getTimeTakenMs());
       }
-
       if (searchContext.getFetchTasks().getInnerHitFetchTaskList() != null) {
-        diagnostics.putAllInnerHitsTimeMs(
+        diagnostics.putAllInnerHitsDiagnostics(
             searchContext.getFetchTasks().getInnerHitFetchTaskList().stream()
                 .collect(
                     Collectors.toMap(
                         task -> task.getInnerHitContext().getInnerHitName(),
                         InnerHitFetchTask::getDiagnostic)));
       }
-
       searchContext.getResponseBuilder().setDiagnostics(diagnostics);
 
       if (profileResultBuilder != null) {

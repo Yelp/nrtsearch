@@ -91,6 +91,33 @@
           "termVectors": "TERMS_POSITIONS_OFFSETS"
         }
       ]
+    },{
+      "name": "food_not_nested",
+      "type": "OBJECT",
+      "nestedDoc": false,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "name",
+          "type": "TEXT",
+          "search": true,
+          "store": true
+        },
+        {
+          "name": "price",
+          "type": "DOUBLE",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "search": true,
+          "store": true,
+          "tokenize": true,
+          "termVectors": "TERMS_POSITIONS_OFFSETS"
+        }
+      ]
     }
   ]
 }

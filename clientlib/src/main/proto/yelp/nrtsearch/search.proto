@@ -426,18 +426,25 @@ message SearchRequest {
     Highlight highlight = 24;
     // If Lucene explanation should be included in the response
     bool explain = 25;
-    // Nested Object fetch
+    // Search nested object fields for each hit
     map<string, InnerHit> inner_hits = 26;
 }
 
 message InnerHit {
-    string query_nested_path = 1; //nested path to search against assuming same index as the parent Query.
-    int32 start_hit = 2; // Which hit to start from (for pagination); default: 0
-    int32 top_hits = 3; // How many top hits to retrieve; default: 10. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
-    Query inner_query = 4;  // InnerHit query to query against the children documents specified by queryNestedPat.h
-    repeated string retrieve_fields = 5; // Fields to retrieve; Parent's fields except its id field are unavailable in the innerHit.
-    QuerySortField query_sort = 6; //Sort hits by field (default is by relevance).
-    Highlight highlight = 7; // Highlight the children documents.
+    // Nested path to search against assuming same index as the parent Query.
+    string query_nested_path = 1;
+    // Which hit to start from (for pagination); default: 0
+    int32 start_hit = 2;
+    // How many top hits to retrieve; default: 3. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
+    int32 top_hits = 3;
+    // InnerHit query to query against the nested documents specified by queryNestedPath.
+    Query inner_query = 4;
+    // Fields to retrieve; Parent's fields except its id field are unavailable in the innerHit.
+    repeated string retrieve_fields = 5;
+    // Sort hits by field (default is by relevance).
+    QuerySortField query_sort = 6;
+    // Highlight the children documents.
+    Highlight highlight = 7;
 }
 
 /* Virtual field used during search */
@@ -548,7 +555,7 @@ message SearchResponse {
         map<string, double> facetTimeMs = 9;
         double rescoreTimeMs = 10;
         map<string, double> rescorersTimeMs = 11;
-        map<string, Diagnostics> innerHitsTimeMs = 12;
+        map<string, Diagnostics> innerHitsDiagnostics = 12;
     }
 
     message Hit {
@@ -589,6 +596,7 @@ message SearchResponse {
         map<string, Highlights> highlights = 5;
         // Lucene explanation of the hit
         string explain = 6;
+        // InnerHits for each hit
         map<string, HitsResult> innerHits = 7;
     }
 

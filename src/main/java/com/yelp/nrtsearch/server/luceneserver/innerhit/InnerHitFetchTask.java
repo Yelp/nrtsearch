@@ -39,6 +39,10 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 
+/**
+ * InnerHit fetch task does a mini-scale search per hit against all child documents for this hit.
+ * Parallelism is at the fetchTask level.
+ */
 public class InnerHitFetchTask implements FetchTask {
   private static final double NS_PER_MS = Math.pow(10, 6);
 
@@ -63,6 +67,8 @@ public class InnerHitFetchTask implements FetchTask {
     ParentChildrenBlockJoinQuery parentChildrenBlockJoinQuery =
         new ParentChildrenBlockJoinQuery(
             innerHitContext.getParentFilter(), innerHitContext.getQuery(), hit.getLuceneDocId());
+    // All child documents are guaranteed to be stored in the same leaf as the parent document.
+    // Therefore, a single collector without reduce is sufficient to collect all.
     TopDocsCollector topDocsCollector = innerHitContext.getTopDocsCollectorManager().newCollector();
     searcher.search(parentChildrenBlockJoinQuery, topDocsCollector);
     TopDocs topDocs = topDocsCollector.topDocs();
@@ -106,9 +112,8 @@ public class InnerHitFetchTask implements FetchTask {
     hitBuilders.sort(Comparator.comparingInt(Hit.Builder::getLuceneDocId));
     new SearchHandler.FillDocsTask(innerHitContext, hitBuilders).run();
 
-    if (hitBuilders.size() > 0) {
-      hit.putInnerHits(innerHitContext.getInnerHitName(), innerHitResultBuilder.build());
-    }
+    hit.putInnerHits(innerHitContext.getInnerHitName(), innerHitResultBuilder.build());
+
     getFieldsTimeMs.add(((System.nanoTime() - startTime) / NS_PER_MS));
   }
 

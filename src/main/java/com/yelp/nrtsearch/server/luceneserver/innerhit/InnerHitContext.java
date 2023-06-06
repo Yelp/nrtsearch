@@ -44,7 +44,13 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 
+/**
+ * Object to store all necessary context information for {@link InnerHitFetchTask} to search and
+ * fetch for each hit.
+ */
 public class InnerHitContext implements FieldFetchContext {
+
+  private static final int DEFAULT_INNER_HIT_TOP_HITS = 3;
 
   public BitSetProducer getParentFilter() {
     return parentFilter;
@@ -67,7 +73,6 @@ public class InnerHitContext implements FieldFetchContext {
   private final Map<String, FieldDef> retrieveFields;
   private final List<String> sortedFieldNames;
   private final Sort sort;
-  // Each innerHit is processed in a single leaf, so no parallelism is needed.
   private final CollectorManager<? extends TopDocsCollector, ? extends TopDocs>
       topDocsCollectorManager;
   private final FetchTasks fetchTasks;
@@ -77,18 +82,19 @@ public class InnerHitContext implements FieldFetchContext {
       throws IOException {
     this.innerHitName = builder.innerHitName;
     this.queryNestedPath = builder.queryNestedPath;
-    this.parentFilter =
-        new QueryBitSetProducer(
-            QueryNodeMapper.getInstance().getNestedPathQuery(builder.parentQueryNestedPath));
     this.indexState = builder.indexState;
     this.shardState = builder.shardState;
     this.searcherAndTaxonomy = builder.searcherAndTaxonomy;
+    this.parentFilter =
+        new QueryBitSetProducer(
+            QueryNodeMapper.getInstance()
+                .getNestedPathQuery(indexState, builder.parentQueryNestedPath));
+    // rewrite the query in advance so that it won't be rewritten per hit.
     this.query = searcherAndTaxonomy.searcher.rewrite(builder.query);
     this.startHit = builder.startHit;
-    this.topHits =
-        builder.topHits == 0
-            ? 10
-            : builder.topHits; // Currently doesn't support zero-hit/hit count only
+    // TODO: implement the totalCountCollector in case (topHits == 0 || startHit >= topHits).
+    // Currently, return DEFAULT_INNER_HIT_TOP_HITS results in case of 0.
+    this.topHits = builder.topHits == 0 ? DEFAULT_INNER_HIT_TOP_HITS : builder.topHits;
     this.queryFields = builder.queryFields;
     this.retrieveFields = builder.retrieveFields;
     this.fetchTasks = new FetchTasks(Collections.EMPTY_LIST, builder.highlightFetchTask, null);
@@ -119,6 +125,10 @@ public class InnerHitContext implements FieldFetchContext {
     }
   }
 
+  /**
+   * A basic and non-exhausted validation at the construction time. Fail before search so that we
+   * don't waste resources on invalid search request.
+   */
   private void validate() {
     Objects.requireNonNull(indexState);
     Objects.requireNonNull(shardState);
@@ -146,71 +156,96 @@ public class InnerHitContext implements FieldFetchContext {
     }
   }
 
-  public void setSearchContext(SearchContext searchContext) {
-    this.searchContext = searchContext;
-  }
-
+  /**
+   * Get the nested path for the innerHit query. This path is the field name of the nested object.
+   */
   public String getQueryNestedPath() {
     return queryNestedPath;
   }
 
+  /**
+   * Get the query for the innerHit. Should assume this query is directly searched against the child
+   * documents only. Omitted this field to retrieve all children for each hit.
+   */
   public Query getQuery() {
     return query;
   }
 
+  /** Get IndexState */
   public IndexState getIndexState() {
     return indexState;
   }
 
+  /** Get ShardState */
   public ShardState getShardState() {
     return shardState;
   }
 
+  /** Get SearcherAndTaxonomy */
   @Override
   public SearcherAndTaxonomy getSearcherAndTaxonomy() {
     return searcherAndTaxonomy;
   }
 
+  /** Get FetchTasks for the InnerHit. Currently, we only support highlight. */
   @Override
   public FetchTasks getFetchTasks() {
     return fetchTasks;
   }
 
+  /** Get the base SearchContext. This is not used in InnerHit, and is always null. */
   @Override
   public SearchContext getSearchContext() {
     return searchContext;
   }
 
+  /** Get the StartHit */
   public int getStartHit() {
     return startHit;
   }
 
+  /** Get the topHits */
   public int getTopHits() {
     return topHits;
   }
 
+  /**
+   * Get map of all fields usable for this query. This includes all fields defined in the index and
+   * dynamic fields from the request. This is read from the top level search.
+   */
   public Map<String, FieldDef> getQueryFields() {
     return queryFields;
   }
 
+  /** Get the fields to retrieve */
   @Override
   public Map<String, FieldDef> getRetrieveFields() {
     return retrieveFields;
   }
 
+  /**
+   * Get the field names used in sort if {@link QuerySortField} is in use, otherwise returns an
+   * empty list.
+   */
   public List<String> getSortedFieldNames() {
     return sortedFieldNames;
   }
 
+  /** Get the sort object if {@link QuerySortField} is in use, otherwise returns null. */
   public Sort getSort() {
     return sort;
   }
 
+  /** Get the topDocsCollectorManager to collect the search results. */
   public CollectorManager<? extends TopDocsCollector, ? extends TopDocs>
       getTopDocsCollectorManager() {
     return topDocsCollectorManager;
   }
 
+  /**
+   * A builder class to build the {@link InnerHitContext}. Use it to avoid the constructor with a
+   * long arguments list.
+   */
   public static final class InnerHitContextBuilder {
 
     private String innerHitName;

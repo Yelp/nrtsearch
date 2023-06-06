@@ -38,6 +38,11 @@ public class FetchTasks {
    * <p>b) The {@link FetchTask#processHit(SearchContext, LeafReaderContext,
    * SearchResponse.Hit.Builder)} method is called for each {@link FetchTask} in order
    *
+   * <p>c) The {@link HighlightFetchTask#processHit(SearchContext, LeafReaderContext,
+   * SearchResponse.Hit.Builder)} and {@link InnerHitFetchTask#processHit(SearchContext,
+   * LeafReaderContext, SearchResponse.Hit.Builder)} method is called for each {@link FetchTask} in
+   * order
+   *
    * <p>2) The {@link FetchTask#processAllHits(SearchContext, List)} method is called for each
    * {@link FetchTask} in order
    */

@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.field;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 
 import com.google.gson.Gson;
@@ -24,6 +25,7 @@ import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -497,6 +499,21 @@ public class ObjectFieldDefTest extends ServerTestCase {
             List.of("pickup_partners.name"),
             "pickup_partners");
     assertDataFields(response, "pickup_partners.name", "AAA", "BBB");
+  }
+
+  @Test
+  public void testQueryNestedPath_notNested() {
+    assertThatThrownBy(
+            () ->
+                doQueryWithNestedPath(
+                    Query.newBuilder()
+                        .setTermQuery(
+                            TermQuery.newBuilder().setField("real_id").setTextValue("1").build())
+                        .build(),
+                    List.of("pickup_partners.name"),
+                    "doc_id"))
+        .isInstanceOf(StatusRuntimeException.class)
+        .hasMessageContaining("Nested path is not a nested object field: doc_id");
   }
 
   @Test

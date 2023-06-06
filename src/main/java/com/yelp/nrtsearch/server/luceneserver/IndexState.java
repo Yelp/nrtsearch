@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.ContextSuggestFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexSimilarity;
@@ -305,6 +306,24 @@ public abstract class IndexState implements Closeable {
       String message = "index '" + name + "' isn't started; call startIndex first";
       throw new IllegalStateException(message);
     }
+  }
+
+  /**
+   * resolve the nested object path, and do validation if it is not _root.
+   *
+   * @param path path of the nested object
+   * @return resolved path
+   * @throws IllegalArgumentException if the non-root path is invalid
+   */
+  public String resolveQueryNestedPath(String path) {
+    if (path == null || path.length() == 0 || path.equals(IndexState.ROOT)) {
+      return IndexState.ROOT;
+    }
+    FieldDef fieldDef = getField(path);
+    if ((fieldDef instanceof ObjectFieldDef) && ((ObjectFieldDef) fieldDef).isNestedDoc()) {
+      return path;
+    }
+    throw new IllegalArgumentException("Nested path is not a nested object field: " + path);
   }
 
   /** Get if the index is started. */

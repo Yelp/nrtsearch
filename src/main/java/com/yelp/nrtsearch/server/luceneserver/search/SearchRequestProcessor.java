@@ -131,13 +131,15 @@ public class SearchRequestProcessor {
         getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
-    contextBuilder.setQueryNestedPath(searchRequest.getQueryNestedPath());
+    String rootQueryNestedPath =
+        indexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath());
+    contextBuilder.setQueryNestedPath(rootQueryNestedPath);
     Query query =
         extractQuery(
             indexState,
             searchRequest.getQueryText(),
             searchRequest.getQuery(),
-            searchRequest.getQueryNestedPath());
+            rootQueryNestedPath);
     if (profileResult != null) {
       profileResult.setParsedQuery(query.toString());
     }
@@ -172,7 +174,7 @@ public class SearchRequestProcessor {
                           shardState,
                           queryFields,
                           searcherAndTaxonomy,
-                          IndexState.ROOT,
+                          rootQueryNestedPath,
                           innerHitName,
                           searchRequest.getInnerHitsOrThrow(innerHitName)))
               .map(InnerHitFetchTask::new)
@@ -322,7 +324,7 @@ public class SearchRequestProcessor {
     }
 
     if (state.hasNestedChildFields()) {
-      return QUERY_NODE_MAPPER.applyQueryNestedPath(q, queryNestedPath);
+      return QUERY_NODE_MAPPER.applyQueryNestedPath(q, state, queryNestedPath);
     }
     return q;
   }
@@ -444,6 +446,7 @@ public class SearchRequestProcessor {
     return rescorers;
   }
 
+  /** build the {@link InnerHitContext}. */
   private static InnerHitContext buildInnerHitContext(
       IndexState indexState,
       ShardState shardState,
