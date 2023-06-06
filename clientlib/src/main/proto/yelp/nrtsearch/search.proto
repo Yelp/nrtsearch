@@ -430,6 +430,7 @@ message SearchRequest {
     map<string, InnerHit> inner_hits = 26;
 }
 
+/* Inner Hit search request */
 message InnerHit {
     // Nested path to search against assuming same index as the parent Query.
     string query_nested_path = 1;
