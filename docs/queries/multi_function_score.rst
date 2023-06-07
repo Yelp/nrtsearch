@@ -39,6 +39,8 @@ Proto definition:
             BOOST_MODE_MULTIPLY = 0;
             // Add scores together
             BOOST_MODE_SUM = 1;
+            // Ignore the query score, and use the function score only
+            BOOST_MODE_REPLACE = 2;
         }
 
         // Main query to produce recalled docs and scores, which will be modified by the final function score
@@ -49,4 +51,8 @@ Proto definition:
         FunctionScoreMode score_mode = 3;
         // Method to modify query document scores with final function score
         BoostMode boost_mode = 4;
+        // Optional minimal score to match a document. By default, it's 0.
+        float min_score = 5;
+        // Determine minimal score is excluded or not. By default, it's false;
+        bool min_excluded = 6;
     }

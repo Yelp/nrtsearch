@@ -1763,10 +1763,11 @@
       "type": "string",
       "enum": [
         "BOOST_MODE_MULTIPLY",
-        "BOOST_MODE_SUM"
+        "BOOST_MODE_SUM",
+        "BOOST_MODE_REPLACE"
       ],
       "default": "BOOST_MODE_MULTIPLY",
-      "description": "- BOOST_MODE_MULTIPLY: Multiply scores together\n - BOOST_MODE_SUM: Add scores together",
+      "description": "- BOOST_MODE_MULTIPLY: Multiply scores together\n - BOOST_MODE_SUM: Add scores together\n - BOOST_MODE_REPLACE: Ignore the query score, and use the function score only",
       "title": "How to combine final function score with query score"
     },
     "MultiFunctionScoreQueryFilterFunction": {
@@ -3986,6 +3987,15 @@
         "boost_mode": {
           "$ref": "#/definitions/MultiFunctionScoreQueryBoostMode",
           "title": "Method to modify query document scores with final function score"
+        },
+        "min_score": {
+          "type": "number",
+          "format": "float",
+          "description": "Optional minimal score to match a document. By default, it's 0."
+        },
+        "min_excluded": {
+          "type": "boolean",
+          "title": "Determine minimal score is excluded or not. By default, it's false;"
         }
       },
       "title": "A query to modify the score of documents with a given set of functions"

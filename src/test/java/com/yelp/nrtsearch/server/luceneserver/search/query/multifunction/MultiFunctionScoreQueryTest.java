@@ -210,6 +210,28 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
   }
 
   @Test
+  public void testSingle_boostModeReplace() {
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder().build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setFilter(
+                        Query.newBuilder()
+                            .setMatchQuery(
+                                MatchQuery.newBuilder()
+                                    .setField("text_field")
+                                    .setQuery("Document2")
+                                    .build())
+                            .build())
+                    .setWeight(1.5f)
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_REPLACE);
+    verifyResponseHits(response, List.of(1, 2, 3, 4), List.of(1.0, 1.5, 1.0, 1.5));
+  }
+
+  @Test
   public void testSingleWeightMatchAll_noFilter_noWeight() {
     SearchResponse response =
         doQuery(
@@ -552,6 +574,16 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
   }
 
   @Test
+  public void testMultiMatchAll_multiply_replace() {
+    multiFunctionAndVerify(
+        Query.newBuilder().build(),
+        FunctionScoreMode.SCORE_MODE_MULTIPLY,
+        BoostMode.BOOST_MODE_REPLACE,
+        List.of(1, 2, 3, 4),
+        List.of(105.0, 1155.0, 1365.0, 15015.0));
+  }
+
+  @Test
   public void testMultiMatchAll_sum_multiply() {
     multiFunctionAndVerify(
         Query.newBuilder().build(),
@@ -569,6 +601,16 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
         BoostMode.BOOST_MODE_SUM,
         List.of(1, 2, 3, 4),
         List.of(39.0, 50.0, 52.0, 63.0));
+  }
+
+  @Test
+  public void testMultiMatchAll_sum_replace() {
+    multiFunctionAndVerify(
+        Query.newBuilder().build(),
+        FunctionScoreMode.SCORE_MODE_SUM,
+        BoostMode.BOOST_MODE_REPLACE,
+        List.of(1, 2, 3, 4),
+        List.of(38.0, 49.0, 51.0, 62.0));
   }
 
   @Test
@@ -598,6 +640,19 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
   }
 
   @Test
+  public void testMultiInnerQuery_multiply_replace() {
+    multiFunctionAndVerify(
+        Query.newBuilder()
+            .setMatchQuery(
+                MatchQuery.newBuilder().setField("text_field").setQuery("filter").build())
+            .build(),
+        FunctionScoreMode.SCORE_MODE_MULTIPLY,
+        BoostMode.BOOST_MODE_REPLACE,
+        List.of(1, 2, 3, 4),
+        List.of(105d, 1155d, 1365d, 15015d));
+  }
+
+  @Test
   public void testMultiInnerQuery_sum_multiply() {
     multiFunctionAndVerify(
         Query.newBuilder()
@@ -621,6 +676,163 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
         BoostMode.BOOST_MODE_SUM,
         List.of(1, 2, 3, 4),
         List.of(38.047889709472656, 49.051395416259766, 51.051395416259766, 62.042144775390625));
+  }
+
+  @Test
+  public void testMultiInnerQuery_sum_replace() {
+    multiFunctionAndVerify(
+        Query.newBuilder()
+            .setMatchQuery(
+                MatchQuery.newBuilder().setField("text_field").setQuery("filter").build())
+            .build(),
+        FunctionScoreMode.SCORE_MODE_SUM,
+        BoostMode.BOOST_MODE_REPLACE,
+        List.of(1, 2, 3, 4),
+        List.of(38d, 49d, 51d, 62d));
+  }
+
+  @Test
+  public void testSingle_ScriptWithMinScore() {
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder().build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setScript(
+                        Script.newBuilder().setLang(JsScriptEngine.LANG).setSource("double_field"))
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_REPLACE,
+            5f,
+            false);
+    verifyResponseHits(response, List.of(3, 4), List.of(5.5, 6.6));
+  }
+
+  @Test
+  public void testSingle_ScriptWithMinScoreIncluded() {
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder().build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setScript(
+                        Script.newBuilder().setLang(JsScriptEngine.LANG).setSource("double_field"))
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_REPLACE,
+            4.4f,
+            false);
+    verifyResponseHits(response, List.of(4, 3, 2), List.of(6.6, 5.5, 4.4));
+  }
+
+  @Test
+  public void testSingle_ScriptWithMinScoreExcluded() {
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder().build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setScript(
+                        Script.newBuilder().setLang(JsScriptEngine.LANG).setSource("double_field"))
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_REPLACE,
+            4.4f,
+            true);
+    verifyResponseHits(response, List.of(4, 3), List.of(6.6, 5.5));
+  }
+
+  @Test
+  public void testSingle_ScriptWith_0_Score_default() {
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder().build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setScript(Script.newBuilder().setLang(JsScriptEngine.LANG).setSource("0.0"))
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_REPLACE);
+    verifyResponseHits(response, List.of(1, 2, 3, 4), List.of(0d, 0d, 0d, 0d));
+  }
+
+  @Test
+  public void testSingle_ScriptWith_0_Score_excluded() {
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder().build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setScript(Script.newBuilder().setLang(JsScriptEngine.LANG).setSource("0.0"))
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_REPLACE,
+            0,
+            true);
+    verifyResponseHits(response, List.of(), List.of());
+  }
+
+  @Test
+  public void test_noFunctions() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("doc_id")
+                    .addRetrieveFields("text_field")
+                    .setExplain(true)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setMultiFunctionScoreQuery(
+                                MultiFunctionScoreQuery.newBuilder()
+                                    .setQuery(
+                                        Query.newBuilder()
+                                            .setMatchQuery(
+                                                MatchQuery.newBuilder()
+                                                    .setField("text_field")
+                                                    .setQuery("term1")
+                                                    .build())
+                                            .build())
+                                    .build())
+                            .build())
+                    .build());
+    verifyResponseHits(response, List.of(2, 4), List.of(0.33812057971954346, 0.27725890278816223));
+  }
+
+  @Test
+  public void test_noFunctions_withMinScore() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addRetrieveFields("doc_id")
+                    .addRetrieveFields("text_field")
+                    .setExplain(true)
+                    .setQuery(
+                        Query.newBuilder()
+                            .setMultiFunctionScoreQuery(
+                                MultiFunctionScoreQuery.newBuilder()
+                                    .setQuery(
+                                        Query.newBuilder()
+                                            .setMatchQuery(
+                                                MatchQuery.newBuilder()
+                                                    .setField("text_field")
+                                                    .setQuery("term1")
+                                                    .build())
+                                            .build())
+                                    .setMinScore(0.3f)
+                                    .build())
+                            .build())
+                    .build());
+    verifyResponseHits(response, List.of(2), List.of(0.33812057971954346));
   }
 
   private void multiFunctionAndVerify(
@@ -700,6 +912,16 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
       List<MultiFunctionScoreQuery.FilterFunction> functions,
       FunctionScoreMode functionScoreMode,
       BoostMode boostMode) {
+    return doQuery(innerQuery, functions, functionScoreMode, boostMode, 0, false);
+  }
+
+  private SearchResponse doQuery(
+      Query innerQuery,
+      List<MultiFunctionScoreQuery.FilterFunction> functions,
+      FunctionScoreMode functionScoreMode,
+      BoostMode boostMode,
+      float minScore,
+      boolean minExcluded) {
     return getGrpcServer()
         .getBlockingStub()
         .search(
@@ -717,6 +939,8 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
                                 .addAllFunctions(functions)
                                 .setScoreMode(functionScoreMode)
                                 .setBoostMode(boostMode)
+                                .setMinScore(minScore)
+                                .setMinExcluded(minExcluded)
                                 .build())
                         .build())
                 .build());
