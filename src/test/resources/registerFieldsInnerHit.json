@@ -1,0 +1,123 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "real_id",
+      "type": "_ID",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "branch_id",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "location",
+      "type": "LAT_LON",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "street_name",
+      "type": "TEXT",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "street_number",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "employees",
+      "type": "OBJECT",
+      "nestedDoc": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "employee_id",
+          "type": "ATOM",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "search": true,
+          "store": true
+        },
+        {
+          "name": "age",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "motto",
+          "type": "TEXT",
+          "search": true,
+          "store": true,
+          "tokenize": true,
+          "termVectors": "TERMS_POSITIONS_OFFSETS"
+        }
+      ]
+    },{
+      "name": "food",
+      "type": "OBJECT",
+      "nestedDoc": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "name",
+          "type": "TEXT",
+          "search": true,
+          "store": true
+        },
+        {
+          "name": "price",
+          "type": "DOUBLE",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "search": true,
+          "store": true,
+          "tokenize": true,
+          "termVectors": "TERMS_POSITIONS_OFFSETS"
+        }
+      ]
+    },{
+      "name": "food_not_nested",
+      "type": "OBJECT",
+      "nestedDoc": false,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "name",
+          "type": "TEXT",
+          "search": true,
+          "store": true
+        },
+        {
+          "name": "price",
+          "type": "DOUBLE",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "search": true,
+          "store": true,
+          "tokenize": true,
+          "termVectors": "TERMS_POSITIONS_OFFSETS"
+        }
+      ]
+    }
+  ]
+}

@@ -17,6 +17,8 @@ package com.yelp.nrtsearch.server.luceneserver.search;
 
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
+import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,6 +37,11 @@ public class FetchTasks {
    *
    * <p>b) The {@link FetchTask#processHit(SearchContext, LeafReaderContext,
    * SearchResponse.Hit.Builder)} method is called for each {@link FetchTask} in order
+   *
+   * <p>c) The {@link HighlightFetchTask#processHit(SearchContext, LeafReaderContext,
+   * SearchResponse.Hit.Builder)} and {@link InnerHitFetchTask#processHit(SearchContext,
+   * LeafReaderContext, SearchResponse.Hit.Builder)} method is called for each {@link FetchTask} in
+   * order
    *
    * <p>2) The {@link FetchTask#processAllHits(SearchContext, List)} method is called for each
    * {@link FetchTask} in order
@@ -67,12 +74,47 @@ public class FetchTasks {
 
   private final List<FetchTask> taskList;
 
+  // TopHitsCollector supports highlightFetchTask only for now. Use this to retrieve
+  // highlightFetchTasks only.
+  private HighlightFetchTask highlightFetchTask;
+  private List<InnerHitFetchTask> innerHitFetchTaskList;
+
+  public HighlightFetchTask getHighlightFetchTask() {
+    return highlightFetchTask;
+  }
+
+  public List<InnerHitFetchTask> getInnerHitFetchTaskList() {
+    return innerHitFetchTaskList;
+  }
+
+  public void setHighlightFetchTask(HighlightFetchTask highlightFetchTask) {
+    this.highlightFetchTask = highlightFetchTask;
+  }
+
+  public void setInnerHitFetchTaskList(List<InnerHitFetchTask> innerHitFetchTaskList) {
+    this.innerHitFetchTaskList = innerHitFetchTaskList;
+  }
+
   /**
    * Constructor.
    *
    * @param grpcTaskList fetch task definitions from search request
    */
   public FetchTasks(List<com.yelp.nrtsearch.server.grpc.FetchTask> grpcTaskList) {
+    this(grpcTaskList, null, null);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param grpcTaskList fetch task definitions from search request
+   * @param highlightFetchTask highlight fetch task
+   * @param innerHitFetchTaskList innerHit fetch tasks
+   */
+  public FetchTasks(
+      List<com.yelp.nrtsearch.server.grpc.FetchTask> grpcTaskList,
+      HighlightFetchTask highlightFetchTask,
+      List<InnerHitFetchTask> innerHitFetchTaskList) {
     taskList =
         grpcTaskList.stream()
             .map(
@@ -80,6 +122,8 @@ public class FetchTasks {
                     com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator.getInstance()
                         .createFetchTask(t))
             .collect(Collectors.toList());
+    this.highlightFetchTask = highlightFetchTask;
+    this.innerHitFetchTaskList = innerHitFetchTaskList;
   }
 
   /**
@@ -95,6 +139,7 @@ public class FetchTasks {
     for (FetchTask task : taskList) {
       task.processAllHits(searchContext, hits);
     }
+    // highlight and innerHit doesn't support processAllHits now
   }
 
   /**
@@ -111,6 +156,14 @@ public class FetchTasks {
       throws IOException {
     for (FetchTask task : taskList) {
       task.processHit(searchContext, segment, hit);
+    }
+    if (highlightFetchTask != null) {
+      highlightFetchTask.processHit(searchContext, segment, hit);
+    }
+    if (innerHitFetchTaskList != null) {
+      for (InnerHitFetchTask innerHitFetchTask : innerHitFetchTaskList) {
+        innerHitFetchTask.processHit(searchContext, segment, hit);
+      }
     }
   }
 }

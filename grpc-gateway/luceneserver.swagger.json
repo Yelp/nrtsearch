@@ -2032,6 +2032,12 @@
             "type": "number",
             "format": "double"
           }
+        },
+        "innerHitsDiagnostics": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/SearchResponseDiagnostics"
+          }
         }
       }
     },
@@ -2068,6 +2074,13 @@
         "explain": {
           "type": "string",
           "title": "Lucene explanation of the hit"
+        },
+        "innerHits": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverHitsResult"
+          },
+          "title": "InnerHits for each hit"
         }
       }
     },
@@ -3688,6 +3701,45 @@
       },
       "title": "A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)"
     },
+    "luceneserverInnerHit": {
+      "type": "object",
+      "properties": {
+        "query_nested_path": {
+          "type": "string",
+          "description": "Nested path to search against assuming same index as the parent Query."
+        },
+        "start_hit": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Which hit to start from (for pagination); default: 0"
+        },
+        "top_hits": {
+          "type": "integer",
+          "format": "int32",
+          "description": "How many top hits to retrieve; default: 3. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size."
+        },
+        "inner_query": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "description": "InnerHit query to query against the nested documents specified by queryNestedPath."
+        },
+        "retrieve_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to retrieve; Parent's fields except its id field are unavailable in the innerHit."
+        },
+        "query_sort": {
+          "$ref": "#/definitions/luceneserverQuerySortField",
+          "description": "Sort hits by field (default is by relevance)."
+        },
+        "highlight": {
+          "$ref": "#/definitions/luceneserverHighlight",
+          "description": "Highlight the children documents."
+        }
+      },
+      "title": "Inner Hit search request"
+    },
     "luceneserverIntObject": {
       "type": "object",
       "properties": {
@@ -4585,6 +4637,13 @@
         "explain": {
           "type": "boolean",
           "title": "If Lucene explanation should be included in the response"
+        },
+        "inner_hits": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverInnerHit"
+          },
+          "title": "Search nested object fields for each hit"
         }
       }
     },

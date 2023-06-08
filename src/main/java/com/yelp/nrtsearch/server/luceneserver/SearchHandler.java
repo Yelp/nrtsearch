@@ -38,6 +38,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.PolygonfieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
@@ -58,6 +59,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.DrillSideways;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -243,8 +245,18 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       searchContext.getResponseBuilder().setSearchState(searchState);
 
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
-      if (searchContext.getHighlightFetchTask() != null) {
-        diagnostics.setHighlightTimeMs(searchContext.getHighlightFetchTask().getTimeTakenMs());
+
+      if (searchContext.getFetchTasks().getHighlightFetchTask() != null) {
+        diagnostics.setHighlightTimeMs(
+            searchContext.getFetchTasks().getHighlightFetchTask().getTimeTakenMs());
+      }
+      if (searchContext.getFetchTasks().getInnerHitFetchTaskList() != null) {
+        diagnostics.putAllInnerHitsDiagnostics(
+            searchContext.getFetchTasks().getInnerHitFetchTaskList().stream()
+                .collect(
+                    Collectors.toMap(
+                        task -> task.getInnerHitContext().getInnerHitName(),
+                        InnerHitFetchTask::getDiagnostic)));
       }
       searchContext.getResponseBuilder().setDiagnostics(diagnostics);
 
@@ -373,10 +385,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         var hitResponse = hitBuilders.get(hitIndex);
         LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
         searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
-        // TODO: combine with custom fetch tasks
-        if (searchContext.getHighlightFetchTask() != null) {
-          searchContext.getHighlightFetchTask().processHit(searchContext, leaf, hitResponse);
-        }
       }
     } else if (!parallelFetchByField
         && fetch_thread_pool_size > 1
@@ -903,13 +911,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       // execute any per hit fetch tasks
       for (Hit.Builder hit : sliceHits) {
         context.getFetchTasks().processHit(context.getSearchContext(), sliceSegment, hit);
-        // TODO: combine with custom fetch tasks
-        if (context.getSearchContext().getHighlightFetchTask() != null) {
-          context
-              .getSearchContext()
-              .getHighlightFetchTask()
-              .processHit(context.getSearchContext(), sliceSegment, hit);
-        }
       }
     }
 

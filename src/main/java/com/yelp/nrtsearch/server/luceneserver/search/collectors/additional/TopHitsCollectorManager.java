@@ -149,6 +149,9 @@ public class TopHitsCollectorManager
   @Override
   public void setSearchContext(SearchContext searchContext) {
     this.searchContext = searchContext;
+    // Backward compatibility: We reuse the highlightFetchTask from the SearchContext
+    this.retrievalContext.fetchTasks.setHighlightFetchTask(
+        searchContext.getFetchTasks().getHighlightFetchTask());
   }
 
   @Override

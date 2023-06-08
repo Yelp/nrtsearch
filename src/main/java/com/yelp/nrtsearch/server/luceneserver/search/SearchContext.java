@@ -20,7 +20,6 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import java.util.List;
@@ -47,8 +46,8 @@ public class SearchContext implements FieldFetchContext {
   private final FetchTasks fetchTasks;
   private final List<RescoreTask> rescorers;
   private final SharedDocContext sharedDocContext;
-  private final HighlightFetchTask highlightFetchTask;
   private final Map<String, Object> extraContext;
+  private final String queryNestedPath;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -65,8 +64,8 @@ public class SearchContext implements FieldFetchContext {
     this.fetchTasks = builder.fetchTasks;
     this.rescorers = builder.rescorers;
     this.sharedDocContext = builder.sharedDocContext;
-    this.highlightFetchTask = builder.highlightFetchTask;
     this.extraContext = builder.extraContext;
+    this.queryNestedPath = builder.queryNestedPath;
 
     if (validate) {
       validate();
@@ -150,19 +149,16 @@ public class SearchContext implements FieldFetchContext {
   }
 
   /**
-   * Get {@link HighlightFetchTask} which can be used to build highlights the request. Null if no
-   * highlights are specified in the request.
-   */
-  public HighlightFetchTask getHighlightFetchTask() {
-    return highlightFetchTask;
-  }
-
-  /**
    * Get the extra custom context map which can be used for cache or data sharing. This map should
    * be threadsafe.
    */
   public Map<String, Object> getExtraContext() {
     return extraContext;
+  }
+
+  /** Get the query nested path. By default, it is _root * */
+  public String getQueryNestedPath() {
+    return queryNestedPath;
   }
 
   /** Get new context builder instance * */
@@ -174,7 +170,6 @@ public class SearchContext implements FieldFetchContext {
     Objects.requireNonNull(indexState);
     Objects.requireNonNull(shardState);
     Objects.requireNonNull(searcherAndTaxonomy);
-    Objects.requireNonNull(responseBuilder);
     Objects.requireNonNull(queryFields);
     Objects.requireNonNull(retrieveFields);
     Objects.requireNonNull(query);
@@ -218,8 +213,8 @@ public class SearchContext implements FieldFetchContext {
     private FetchTasks fetchTasks;
     private List<RescoreTask> rescorers;
     private SharedDocContext sharedDocContext;
-    private HighlightFetchTask highlightFetchTask;
     private Map<String, Object> extraContext;
+    private String queryNestedPath;
 
     private Builder() {}
 
@@ -310,14 +305,13 @@ public class SearchContext implements FieldFetchContext {
       return this;
     }
 
-    /** Set fetch task to generate highlights */
-    public Builder setHighlightFetchTask(HighlightFetchTask highlightFetchTask) {
-      this.highlightFetchTask = highlightFetchTask;
+    public Builder setExtraContext(Map<String, Object> extraContext) {
+      this.extraContext = extraContext;
       return this;
     }
 
-    public Builder setExtraContext(Map<String, Object> extraContext) {
-      this.extraContext = extraContext;
+    public Builder setQueryNestedPath(String queryNestedPath) {
+      this.queryNestedPath = queryNestedPath;
       return this;
     }
 
