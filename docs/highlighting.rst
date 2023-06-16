@@ -66,6 +66,12 @@ This is the proto definition for Highlight message which can be specified in Sea
         string custom_highlighter_name = 11;
         // Optional Custom parameters for custom highlighters. If a field overriding is present, the global setting will be omitted for this field, and no merge will happen.
         google.protobuf.Struct custom_highlighter_params = 12;
+        // Define the boundary decision when creating fragments. Options are "boundary_chars" (default in fast vector highlighter), "word" or "sentence".
+        google.protobuf.StringValue  boundary_scanner = 13;
+        // Terminating chars when using "boundary_chars" boundary_scanner. The default is ".,!? \t\n".
+        google.protobuf.StringValue  boundary_chars = 14;
+        // Locale used in boundary scanner when using "word" or "sentence" boundary_scanner. Examples: "en-US", "ch-ZH".
+        google.protobuf.StringValue  boundary_scanner_locale = 15;
     }
 
     // Highlight settings

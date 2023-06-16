@@ -18,15 +18,19 @@ package com.yelp.nrtsearch.server.luceneserver.highlights;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
+import java.text.BreakIterator;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
+import org.apache.lucene.search.vectorhighlight.BreakIteratorBoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.FieldQuery;
 import org.apache.lucene.search.vectorhighlight.FragListBuilder;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
 import org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder;
 import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
@@ -97,11 +101,28 @@ public class NRTFastVectorHighlighter implements Highlighter {
       fragListBuilder = SIMPLE_FRAG_LIST_BUILDER;
     }
 
+    BoundaryScanner boundaryScanner;
+    if (settings.getBoundaryScanner() == null
+        || settings.getBoundaryScanner().equalsIgnoreCase("boundary_chars")) {
+      boundaryScanner = new SimpleBoundaryScanner(settings.getBoundaryChars());
+    } else if (settings.getBoundaryScanner().equalsIgnoreCase("word")) {
+      boundaryScanner =
+          new BreakIteratorBoundaryScanner(
+              BreakIterator.getWordInstance(settings.getBoundaryScannerLocale()));
+    } else if (settings.getBoundaryScanner().equalsIgnoreCase("sentence")) {
+      boundaryScanner =
+          new BreakIteratorBoundaryScanner(
+              BreakIterator.getSentenceInstance(settings.getBoundaryScannerLocale()));
+    } else {
+      throw new IllegalArgumentException(
+          "Unknown boundary scanner: " + settings.getBoundaryScanner());
+    }
+
     BaseFragmentsBuilder fragmentsBuilder;
     if (settings.isScoreOrdered()) {
-      fragmentsBuilder = new ScoreOrderFragmentsBuilder();
+      fragmentsBuilder = new ScoreOrderFragmentsBuilder(boundaryScanner);
     } else {
-      fragmentsBuilder = new SimpleFragmentsBuilder();
+      fragmentsBuilder = new SimpleFragmentsBuilder(boundaryScanner);
     }
     fragmentsBuilder.setDiscreteMultiValueHighlighting(settings.getDiscreteMultivalue());
 

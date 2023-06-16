@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.lucene.search.Query;
 
@@ -33,6 +34,9 @@ public class HighlightSettings {
   private final String fragmenter;
   private final boolean discreteMultivalue;
   private final Map<String, Object> customHighlighterParams;
+  private final String boundaryScanner;
+  private final Character[] boundaryChars;
+  private final Locale boundaryScannerLocale;
 
   public HighlightSettings(
       Highlighter highlighter,
@@ -45,6 +49,9 @@ public class HighlightSettings {
       boolean scoreOrdered,
       String fragmenter,
       boolean discreteMultivalue,
+      String boundaryScanner,
+      Character[] boundaryChars,
+      Locale boundaryScannerLocale,
       Map<String, Object> customHighlighterParams) {
     this.highlighter = highlighter;
     this.preTags = preTags;
@@ -56,6 +63,9 @@ public class HighlightSettings {
     this.scoreOrdered = scoreOrdered;
     this.fragmenter = fragmenter;
     this.discreteMultivalue = discreteMultivalue;
+    this.boundaryScanner = boundaryScanner;
+    this.boundaryChars = boundaryChars;
+    this.boundaryScannerLocale = boundaryScannerLocale;
     this.customHighlighterParams = customHighlighterParams;
   }
 
@@ -71,6 +81,9 @@ public class HighlightSettings {
         .withScoreOrdered(this.scoreOrdered)
         .withFragmenter(this.fragmenter)
         .withDiscreteMultivalue(this.discreteMultivalue)
+        .withBoundaryScanner(this.boundaryScanner)
+        .withBoundaryChars(this.boundaryChars)
+        .withBoundaryScannerLocale(this.boundaryScannerLocale)
         .withCustomHighlighterParams(this.customHighlighterParams);
   }
 
@@ -114,6 +127,18 @@ public class HighlightSettings {
     return discreteMultivalue;
   }
 
+  public String getBoundaryScanner() {
+    return boundaryScanner;
+  }
+
+  public Character[] getBoundaryChars() {
+    return boundaryChars;
+  }
+
+  public Locale getBoundaryScannerLocale() {
+    return boundaryScannerLocale;
+  }
+
   public Map<String, Object> getCustomHighlighterParams() {
     return customHighlighterParams;
   }
@@ -144,6 +169,15 @@ public class HighlightSettings {
         + discreteMultivalue
         + ", customHighlighterParams="
         + customHighlighterParams
+        + ", boundaryScanner='"
+        + boundaryScanner
+        + '\''
+        + ", boundaryChars='"
+        + Arrays.toString(boundaryChars)
+        + '\''
+        + ", boundaryScannerLocale='"
+        + boundaryScannerLocale.toLanguageTag()
+        + '\''
         + '}';
   }
 
@@ -159,6 +193,9 @@ public class HighlightSettings {
     private boolean scoreOrdered;
     private String fragmenter;
     private boolean discreteMultivalue;
+    private String boundaryScanner;
+    private Character[] boundaryChars;
+    private Locale boundaryScannerLocale;
     private Map<String, Object> customHighlighterParams;
 
     public Builder() {}
@@ -213,6 +250,21 @@ public class HighlightSettings {
       return this;
     }
 
+    public Builder withBoundaryScanner(String boundaryScanner) {
+      this.boundaryScanner = boundaryScanner;
+      return this;
+    }
+
+    public Builder withBoundaryChars(Character[] boundaryChars) {
+      this.boundaryChars = boundaryChars;
+      return this;
+    }
+
+    public Builder withBoundaryScannerLocale(Locale boundaryScannerLocale) {
+      this.boundaryScannerLocale = boundaryScannerLocale;
+      return this;
+    }
+
     public Builder withCustomHighlighterParams(Map<String, Object> customHighlighterParams) {
       this.customHighlighterParams = customHighlighterParams;
       return this;
@@ -230,6 +282,9 @@ public class HighlightSettings {
           scoreOrdered,
           fragmenter,
           discreteMultivalue,
+          boundaryScanner,
+          boundaryChars,
+          boundaryScannerLocale,
           customHighlighterParams);
     }
   }
