@@ -36,6 +36,7 @@ public class HighlightSettings {
   private final Map<String, Object> customHighlighterParams;
   private final String boundaryScanner;
   private final Character[] boundaryChars;
+  private final int simpleCharsMaxScan;
   private final Locale boundaryScannerLocale;
 
   public HighlightSettings(
@@ -51,6 +52,7 @@ public class HighlightSettings {
       boolean discreteMultivalue,
       String boundaryScanner,
       Character[] boundaryChars,
+      int simpleCharsMaxScan,
       Locale boundaryScannerLocale,
       Map<String, Object> customHighlighterParams) {
     this.highlighter = highlighter;
@@ -65,6 +67,7 @@ public class HighlightSettings {
     this.discreteMultivalue = discreteMultivalue;
     this.boundaryScanner = boundaryScanner;
     this.boundaryChars = boundaryChars;
+    this.simpleCharsMaxScan = simpleCharsMaxScan;
     this.boundaryScannerLocale = boundaryScannerLocale;
     this.customHighlighterParams = customHighlighterParams;
   }
@@ -83,6 +86,7 @@ public class HighlightSettings {
         .withDiscreteMultivalue(this.discreteMultivalue)
         .withBoundaryScanner(this.boundaryScanner)
         .withBoundaryChars(this.boundaryChars)
+        .withSimpleMaxScan(this.simpleCharsMaxScan)
         .withBoundaryScannerLocale(this.boundaryScannerLocale)
         .withCustomHighlighterParams(this.customHighlighterParams);
   }
@@ -135,6 +139,10 @@ public class HighlightSettings {
     return boundaryChars;
   }
 
+  public int getSimpleCharsMaxScan() {
+    return simpleCharsMaxScan;
+  }
+
   public Locale getBoundaryScannerLocale() {
     return boundaryScannerLocale;
   }
@@ -172,12 +180,12 @@ public class HighlightSettings {
         + ", boundaryScanner='"
         + boundaryScanner
         + '\''
-        + ", boundaryChars='"
+        + ", boundaryChars="
         + Arrays.toString(boundaryChars)
-        + '\''
-        + ", boundaryScannerLocale='"
+        + ", boundaryCharsMaxScan="
+        + simpleCharsMaxScan
+        + ", boundaryScannerLocale="
         + boundaryScannerLocale.toLanguageTag()
-        + '\''
         + '}';
   }
 
@@ -195,6 +203,7 @@ public class HighlightSettings {
     private boolean discreteMultivalue;
     private String boundaryScanner;
     private Character[] boundaryChars;
+    private int simpleMaxScan;
     private Locale boundaryScannerLocale;
     private Map<String, Object> customHighlighterParams;
 
@@ -260,6 +269,11 @@ public class HighlightSettings {
       return this;
     }
 
+    public Builder withSimpleMaxScan(int simpleMaxScan) {
+      this.simpleMaxScan = simpleMaxScan;
+      return this;
+    }
+
     public Builder withBoundaryScannerLocale(Locale boundaryScannerLocale) {
       this.boundaryScannerLocale = boundaryScannerLocale;
       return this;
@@ -284,6 +298,7 @@ public class HighlightSettings {
           discreteMultivalue,
           boundaryScanner,
           boundaryChars,
+          simpleMaxScan,
           boundaryScannerLocale,
           customHighlighterParams);
     }

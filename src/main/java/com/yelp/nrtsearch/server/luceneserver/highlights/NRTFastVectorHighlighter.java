@@ -103,8 +103,9 @@ public class NRTFastVectorHighlighter implements Highlighter {
 
     BoundaryScanner boundaryScanner;
     if (settings.getBoundaryScanner() == null
-        || settings.getBoundaryScanner().equalsIgnoreCase("boundary_chars")) {
-      boundaryScanner = new SimpleBoundaryScanner(settings.getBoundaryChars());
+        || settings.getBoundaryScanner().equalsIgnoreCase("simple")) {
+      boundaryScanner =
+          new SimpleBoundaryScanner(settings.getSimpleCharsMaxScan(), settings.getBoundaryChars());
     } else if (settings.getBoundaryScanner().equalsIgnoreCase("word")) {
       boundaryScanner =
           new BreakIteratorBoundaryScanner(

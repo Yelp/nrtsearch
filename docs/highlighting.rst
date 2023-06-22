@@ -70,8 +70,10 @@ This is the proto definition for Highlight message which can be specified in Sea
         google.protobuf.StringValue  boundary_scanner = 13;
         // Terminating chars when using "boundary_chars" boundary_scanner. The default is ".,!? \t\n".
         google.protobuf.StringValue  boundary_chars = 14;
+        // Number of chars to scan before finding the boundary_chars if using "boundary_chars" boundary scanner; If "boundary_chars" is not found after max scan, fragments will start/end at the original place. Default is 20.
+        google.protobuf.UInt32Value  boundary_chars_max_scan = 15;
         // Locale used in boundary scanner when using "word" or "sentence" boundary_scanner. Examples: "en-US", "ch-ZH".
-        google.protobuf.StringValue  boundary_scanner_locale = 15;
+        google.protobuf.StringValue  boundary_scanner_locale = 16;
     }
 
     // Highlight settings

@@ -85,7 +85,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
                 "boundary_scanner_field",
                 MultiValuedField.newBuilder()
                     .addValue(
-                        "This is a super longWordICouldEverImageAndTheBoundaryScannerShouldProperlyHandle-it-in a very decent way and  stops at.")
+                        "This is a super longWordICouldEverImagineAndTheBoundaryScannerShouldProperlyHandle-it-in a very decent way and  stops at.")
                     .build())
             .build();
     docs.add(request);
@@ -458,14 +458,14 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
   }
 
   @Test
-  public void testBasicHighlightWithExplicityBoundaryScanner() {
+  public void testBasicHighlightWithExplicitBoundaryScanner() {
     Highlight highlight =
         Highlight.newBuilder()
             .addFields("comment")
             .setSettings(
                 Settings.newBuilder()
                     .setScoreOrdered(BoolValue.of(true))
-                    .setBoundaryScanner(StringValue.of("boundary_chars")))
+                    .setBoundaryScanner(StringValue.of("simple")))
             .build();
     SearchResponse response = doHighlightQuery(highlight);
 
@@ -487,7 +487,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
             .setSettings(
                 Settings.newBuilder()
                     .setScoreOrdered(BoolValue.of(true))
-                    .setBoundaryScanner(StringValue.of("boundary_typo_chars")))
+                    .setBoundaryScanner(StringValue.of("doesnt_exist")))
             .build();
 
     assertThatThrownBy(() -> doHighlightQuery(highlight))
@@ -511,7 +511,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
                                     .build())
                             .build())
                     .setScoreOrdered(BoolValue.of(true))
-                    .setBoundaryScanner(StringValue.of("boundary_chars"))
+                    .setBoundaryScanner(StringValue.of("simple"))
                     .setFragmentSize(UInt32Value.of(75))
                     .setBoundaryChars(StringValue.of("-")))
             .build();
@@ -521,7 +521,38 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
 
     assertThat(response.getHits(0).getHighlightsMap().get("boundary_scanner_field").getFragments(0))
         .isEqualTo(
-            "This is a <em>super</em> longWordICouldEverImageAndTheBoundaryScannerShouldProperlyHandle");
+            "This is a <em>super</em> longWordICouldEverImagineAndTheBoundaryScannerShouldProperlyHandle");
+    assertThat(response.getHits(1).getHighlightsCount()).isEqualTo(0);
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
+  }
+
+  @Test
+  public void testBasicHighlightWithBoundaryScannerAndMaxScan() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .addFields("boundary_scanner_field")
+            .setSettings(
+                Settings.newBuilder()
+                    .setHighlightQuery(
+                        Query.newBuilder()
+                            .setTermQuery(
+                                TermQuery.newBuilder()
+                                    .setField("boundary_scanner_field")
+                                    .setTextValue("super")
+                                    .build())
+                            .build())
+                    .setScoreOrdered(BoolValue.of(true))
+                    .setBoundaryScanner(StringValue.of("simple"))
+                    .setFragmentSize(UInt32Value.of(75))
+                    .setSimpleMaxScan(UInt32Value.of(100)))
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertFields(response);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("boundary_scanner_field").getFragments(0))
+        .isEqualTo(
+            "This is a <em>super</em> longWordICouldEverImagineAndTheBoundaryScannerShouldProperlyHandle-it-in");
     assertThat(response.getHits(1).getHighlightsCount()).isEqualTo(0);
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
@@ -551,7 +582,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
 
     assertThat(response.getHits(0).getHighlightsMap().get("boundary_scanner_field").getFragments(0))
         .isEqualTo(
-            "This is a <em>super</em> longWordICouldEverImageAndTheBoundaryScannerShouldProperlyHandle-it-in");
+            "This is a <em>super</em> longWordICouldEverImagineAndTheBoundaryScannerShouldProperlyHandle-it-in");
     assertThat(response.getHits(1).getHighlightsCount()).isEqualTo(0);
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
@@ -573,7 +604,6 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
                             .build())
                     .setScoreOrdered(BoolValue.of(true))
                     .setBoundaryScanner(StringValue.of("sentence"))
-                    .setBoundaryScannerLocale(StringValue.of("zh-CN"))
                     .setFragmentSize(UInt32Value.of(75)))
             .build();
     SearchResponse response = doHighlightQuery(highlight);
@@ -582,7 +612,38 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
 
     assertThat(response.getHits(0).getHighlightsMap().get("boundary_scanner_field").getFragments(0))
         .isEqualTo(
-            "This is a <em>super</em> longWordICouldEverImageAndTheBoundaryScannerShouldProperlyHandle-it-in a very decent way and  stops at. ");
+            "This is a <em>super</em> longWordICouldEverImagineAndTheBoundaryScannerShouldProperlyHandle-it-in a very decent way and  stops at. ");
+    assertThat(response.getHits(1).getHighlightsCount()).isEqualTo(0);
+    assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
+  }
+
+  @Test
+  public void testBasicHighlightWithSentenceBoundaryScannerAndExplicitLocale() {
+    Highlight highlight =
+        Highlight.newBuilder()
+            .addFields("boundary_scanner_field")
+            .setSettings(
+                Settings.newBuilder()
+                    .setHighlightQuery(
+                        Query.newBuilder()
+                            .setTermQuery(
+                                TermQuery.newBuilder()
+                                    .setField("boundary_scanner_field")
+                                    .setTextValue("super")
+                                    .build())
+                            .build())
+                    .setScoreOrdered(BoolValue.of(true))
+                    .setBoundaryScanner(StringValue.of("sentence"))
+                    .setBoundaryScannerLocale(StringValue.of("en-US"))
+                    .setFragmentSize(UInt32Value.of(75)))
+            .build();
+    SearchResponse response = doHighlightQuery(highlight);
+
+    assertFields(response);
+
+    assertThat(response.getHits(0).getHighlightsMap().get("boundary_scanner_field").getFragments(0))
+        .isEqualTo(
+            "This is a <em>super</em> longWordICouldEverImagineAndTheBoundaryScannerShouldProperlyHandle-it-in a very decent way and  stops at. ");
     assertThat(response.getHits(1).getHighlightsCount()).isEqualTo(0);
     assertThat(response.getDiagnostics().getHighlightTimeMs()).isGreaterThan(0);
   }
