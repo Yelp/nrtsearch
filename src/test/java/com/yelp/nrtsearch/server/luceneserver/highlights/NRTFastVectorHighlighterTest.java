@@ -544,7 +544,7 @@ public class NRTFastVectorHighlighterTest extends ServerTestCase {
                     .setScoreOrdered(BoolValue.of(true))
                     .setBoundaryScanner(StringValue.of("simple"))
                     .setFragmentSize(UInt32Value.of(75))
-                    .setSimpleMaxScan(UInt32Value.of(100)))
+                    .setBoundaryMaxScan(UInt32Value.of(100)))
             .build();
     SearchResponse response = doHighlightQuery(highlight);
 
