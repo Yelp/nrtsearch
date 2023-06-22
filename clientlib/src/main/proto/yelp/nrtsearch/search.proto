@@ -901,6 +901,14 @@ message Highlight {
         string custom_highlighter_name = 11;
         // Optional Custom parameters for custom highlighters. If a field overriding is present, the global setting will be omitted for this field, and no merge will happen.
         google.protobuf.Struct custom_highlighter_params = 12;
+        // Define the boundary decision when creating fragments. Options are "simple" (default in fast vector highlighter), "word" or "sentence".
+        google.protobuf.StringValue  boundary_scanner = 13;
+        // Terminating chars when using "simple" boundary_scanner. The default is ".,!? \t\n".
+        google.protobuf.StringValue  boundary_chars = 14;
+        // Number of chars to scan before finding the boundary_chars if using "simple" boundary scanner; If "boundary_chars" is not found after max scan, fragments will start/end at the original place. Default is 20.
+        google.protobuf.UInt32Value  boundary_max_scan = 15;
+        // Locale used in boundary scanner when using "word" or "sentence" boundary_scanner. Examples: "en-US", "ch-ZH".
+        google.protobuf.StringValue  boundary_scanner_locale = 16;
     }
 
     // Highlight settings

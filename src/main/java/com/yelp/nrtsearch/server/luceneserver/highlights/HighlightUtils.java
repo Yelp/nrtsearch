@@ -24,8 +24,10 @@ import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightSettings.Build
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 
 /** Helper class to create {@link HighlightSettings} from a search request. */
 public class HighlightUtils {
@@ -40,6 +42,10 @@ public class HighlightUtils {
   private static final boolean DEFAULT_SCORE_ORDERED = true;
   private static final boolean DEFAULT_FIELD_MATCH = false;
   private static final boolean DEFAULT_DISCRETE_MULTIVALUE = false;
+  private static final Character[] DEFAULT_BOUNDARY_CHARS =
+      SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS;
+  private static final int DEFAULT_BOUNDARY_MAX_SCAN = SimpleBoundaryScanner.DEFAULT_MAX_SCAN;
+  private static final Locale DEFAULT_BOUNDARY_SCANNER_LOCALE = Locale.ROOT;
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
 
   /**
@@ -105,6 +111,27 @@ public class HighlightUtils {
                     settings.hasDiscreteMultivalue()
                         ? settings.getDiscreteMultivalue().getValue()
                         : globalSettings.getDiscreteMultivalue())
+                .withBoundaryScanner(
+                    settings.hasBoundaryScanner()
+                        ? settings.getBoundaryScanner().getValue()
+                        : globalSettings.getBoundaryScanner())
+                .withBoundaryChars(
+                    settings.hasBoundaryChars() && !settings.getBoundaryChars().getValue().isEmpty()
+                        ? settings
+                            .getBoundaryChars()
+                            .getValue()
+                            .chars()
+                            .mapToObj(c -> Character.valueOf((char) c))
+                            .toArray(Character[]::new)
+                        : globalSettings.getBoundaryChars())
+                .withBoundaryMaxScan(
+                    settings.hasBoundaryMaxScan()
+                        ? settings.getBoundaryMaxScan().getValue()
+                        : globalSettings.getBoundaryMaxScan())
+                .withBoundaryScannerLocale(
+                    settings.hasBoundaryScannerLocale()
+                        ? Locale.forLanguageTag(settings.getBoundaryScannerLocale().getValue())
+                        : globalSettings.getBoundaryScannerLocale())
                 .withCustomHighlighterParams(
                     settings.hasCustomHighlighterParams()
                         ? StructValueTransformer.transformStruct(
@@ -166,6 +193,25 @@ public class HighlightUtils {
             settings.hasFragmentSize()
                 ? settings.getFragmentSize().getValue()
                 : DEFAULT_FRAGMENT_SIZE)
+        .withBoundaryScanner(
+            settings.hasBoundaryScanner() ? settings.getBoundaryScanner().getValue() : null)
+        .withBoundaryChars(
+            settings.hasBoundaryChars() && !settings.getBoundaryChars().getValue().isEmpty()
+                ? settings
+                    .getBoundaryChars()
+                    .getValue()
+                    .chars()
+                    .mapToObj(c -> Character.valueOf((char) c))
+                    .toArray(Character[]::new)
+                : DEFAULT_BOUNDARY_CHARS)
+        .withBoundaryMaxScan(
+            settings.hasBoundaryMaxScan()
+                ? settings.getBoundaryMaxScan().getValue()
+                : DEFAULT_BOUNDARY_MAX_SCAN)
+        .withBoundaryScannerLocale(
+            settings.hasBoundaryScannerLocale()
+                ? Locale.forLanguageTag(settings.getBoundaryScannerLocale().getValue())
+                : DEFAULT_BOUNDARY_SCANNER_LOCALE)
         .withCustomHighlighterParams(
             settings.hasCustomHighlighterParams()
                 ? StructValueTransformer.transformStruct(settings.getCustomHighlighterParams())
