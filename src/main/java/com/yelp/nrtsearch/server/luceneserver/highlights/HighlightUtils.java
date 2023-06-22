@@ -44,7 +44,7 @@ public class HighlightUtils {
   private static final boolean DEFAULT_DISCRETE_MULTIVALUE = false;
   private static final Character[] DEFAULT_BOUNDARY_CHARS =
       SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS;
-  private static final int DEFAULT_SIMPLE_MAX_SCAN = SimpleBoundaryScanner.DEFAULT_MAX_SCAN;
+  private static final int DEFAULT_BOUNDARY_MAX_SCAN = SimpleBoundaryScanner.DEFAULT_MAX_SCAN;
   private static final Locale DEFAULT_BOUNDARY_SCANNER_LOCALE = Locale.ROOT;
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
 
@@ -124,10 +124,10 @@ public class HighlightUtils {
                             .mapToObj(c -> Character.valueOf((char) c))
                             .toArray(Character[]::new)
                         : globalSettings.getBoundaryChars())
-                .withSimpleMaxScan(
-                    settings.hasSimpleMaxScan()
-                        ? settings.getSimpleMaxScan().getValue()
-                        : globalSettings.getSimpleCharsMaxScan())
+                .withBoundaryMaxScan(
+                    settings.hasBoundaryMaxScan()
+                        ? settings.getBoundaryMaxScan().getValue()
+                        : globalSettings.getBoundaryMaxScan())
                 .withBoundaryScannerLocale(
                     settings.hasBoundaryScannerLocale()
                         ? Locale.forLanguageTag(settings.getBoundaryScannerLocale().getValue())
@@ -204,10 +204,10 @@ public class HighlightUtils {
                     .mapToObj(c -> Character.valueOf((char) c))
                     .toArray(Character[]::new)
                 : DEFAULT_BOUNDARY_CHARS)
-        .withSimpleMaxScan(
-            settings.hasSimpleMaxScan()
-                ? settings.getSimpleMaxScan().getValue()
-                : DEFAULT_SIMPLE_MAX_SCAN)
+        .withBoundaryMaxScan(
+            settings.hasBoundaryMaxScan()
+                ? settings.getBoundaryMaxScan().getValue()
+                : DEFAULT_BOUNDARY_MAX_SCAN)
         .withBoundaryScannerLocale(
             settings.hasBoundaryScannerLocale()
                 ? Locale.forLanguageTag(settings.getBoundaryScannerLocale().getValue())
