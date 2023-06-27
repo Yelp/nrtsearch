@@ -27,17 +27,28 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.DoubleAdder;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
+import org.apache.lucene.search.join.QueryBitSetProducer;
 
 /**
  * InnerHit fetch task does a mini-scale search per hit against all child documents for this hit.
@@ -51,27 +62,56 @@ public class InnerHitFetchTask implements FetchTask {
   }
 
   private final InnerHitContext innerHitContext;
+  private final IndexSearcher searcher;
+  private final BitSetProducer parentFilter;
+  private final Weight innerHitWeight;
 
   private final DoubleAdder getFieldsTimeMs = new DoubleAdder();
   private final DoubleAdder firstPassSearchTimeMs = new DoubleAdder();
 
-  public InnerHitFetchTask(InnerHitContext innerHitContext) {
+  public InnerHitFetchTask(InnerHitContext innerHitContext) throws IOException {
     this.innerHitContext = innerHitContext;
+    this.searcher = innerHitContext.getSearcherAndTaxonomy().searcher;
+    boolean needScore =
+        innerHitContext.getTopHits() >= innerHitContext.getStartHit()
+            && (innerHitContext.getSort() == null || innerHitContext.getSort().needsScores());
+    // We support TopDocsCollector only, so top_scores is good enough
+    this.innerHitWeight =
+        searcher
+            .rewrite(innerHitContext.getQuery())
+            .createWeight(
+                searcher, needScore ? ScoreMode.TOP_SCORES : ScoreMode.COMPLETE_NO_SCORES, 1f);
+    this.parentFilter =
+        new QueryBitSetProducer(searcher.rewrite(innerHitContext.getParentFilterQuery()));
   }
 
+  /**
+   * Collect all inner hits for each parent hit. Normally, {@link IndexSearcher} will create weight
+   * each time we search. But for innerHit, child query weight is reusable. Therefore, for max
+   * efficiency, we will not use search from the {@link IndexSearcher}. Instead, we create two
+   * weights separately - the non-reusable {@link ParentChildrenBlockJoinQuery}'s weight and the
+   * reusable innerHitQuery weight, and then intersect the {@link DocIdSetIterator}s created from
+   * them.
+   */
   public void processHit(
       SearchContext searchContext, LeafReaderContext hitLeaf, SearchResponse.Hit.Builder hit)
       throws IOException {
     long startTime = System.nanoTime();
-    IndexSearcher searcher = innerHitContext.getSearcherAndTaxonomy().searcher;
+
+    // This is just a children selection query for each parent hit. And score is not needed for this
+    // filter query.
     ParentChildrenBlockJoinQuery parentChildrenBlockJoinQuery =
         new ParentChildrenBlockJoinQuery(
-            innerHitContext.getParentFilter(), innerHitContext.getQuery(), hit.getLuceneDocId());
+            parentFilter, innerHitContext.getChildFilterQuery(), hit.getLuceneDocId());
+    Weight filterWeight =
+        parentChildrenBlockJoinQuery.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1f);
     // All child documents are guaranteed to be stored in the same leaf as the parent document.
     // Therefore, a single collector without reduce is sufficient to collect all.
     TopDocsCollector topDocsCollector = innerHitContext.getTopDocsCollectorManager().newCollector();
-    searcher.search(parentChildrenBlockJoinQuery, topDocsCollector);
+
+    intersectWeights(filterWeight, innerHitWeight, topDocsCollector, hitLeaf);
     TopDocs topDocs = topDocsCollector.topDocs();
+
     if (innerHitContext.getStartHit() > 0) {
       topDocs =
           SearchHandler.getHitsFromOffset(
@@ -115,6 +155,44 @@ public class InnerHitFetchTask implements FetchTask {
     hit.putInnerHits(innerHitContext.getInnerHitName(), innerHitResultBuilder.build());
 
     getFieldsTimeMs.add(((System.nanoTime() - startTime) / NS_PER_MS));
+  }
+
+  private void intersectWeights(
+      Weight filterWeight,
+      Weight innerHitWeight,
+      TopDocsCollector topDocsCollector,
+      LeafReaderContext hitLeaf)
+      throws IOException {
+    ScorerSupplier filterScorerSupplier = filterWeight.scorerSupplier(hitLeaf);
+    if (filterScorerSupplier == null) {
+      return;
+    }
+    Scorer filterScorer = filterScorerSupplier.get(0);
+
+    ScorerSupplier innerHitScorerSupplier = innerHitWeight.scorerSupplier(hitLeaf);
+    if (innerHitScorerSupplier == null) {
+      return;
+    }
+    Scorer innerHitScorer = innerHitScorerSupplier.get(0);
+
+    DocIdSetIterator iterator =
+        ConjunctionDISI.intersectIterators(
+            Arrays.asList(filterScorer.iterator(), innerHitScorer.iterator()));
+
+    LeafCollector leafCollector = topDocsCollector.getLeafCollector(hitLeaf);
+    // filterWeight is always COMPLETE_NO_SCORES
+    try {
+      leafCollector.setScorer(innerHitScorer);
+    } catch (CollectionTerminatedException exception) {
+      // Same as the indexSearcher, innerHit shall swallow this exception. No doc to collect in this
+      // case.
+      return;
+    }
+
+    int docId;
+    while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+      leafCollector.collect(docId);
+    }
   }
 
   public SearchResponse.Diagnostics getDiagnostic() {

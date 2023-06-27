@@ -165,20 +165,19 @@ public class SearchRequestProcessor {
 
     List<InnerHitFetchTask> innerHitFetchTasks = null;
     if (searchRequest.getInnerHitsCount() > 0) {
-      innerHitFetchTasks =
-          searchRequest.getInnerHitsMap().keySet().stream()
-              .map(
-                  innerHitName ->
-                      buildInnerHitContext(
-                          indexState,
-                          shardState,
-                          queryFields,
-                          searcherAndTaxonomy,
-                          rootQueryNestedPath,
-                          innerHitName,
-                          searchRequest.getInnerHitsOrThrow(innerHitName)))
-              .map(InnerHitFetchTask::new)
-              .collect(Collectors.toList());
+      innerHitFetchTasks = new ArrayList<>(searchRequest.getInnerHitsCount());
+      for (Entry<String, InnerHit> entry : searchRequest.getInnerHitsMap().entrySet()) {
+        innerHitFetchTasks.add(
+            new InnerHitFetchTask(
+                buildInnerHitContext(
+                    indexState,
+                    shardState,
+                    queryFields,
+                    searcherAndTaxonomy,
+                    rootQueryNestedPath,
+                    entry.getKey(),
+                    entry.getValue())));
+      }
     }
 
     contextBuilder.setFetchTasks(
@@ -455,8 +454,8 @@ public class SearchRequestProcessor {
       String parentQueryNestedPath,
       String innerHitName,
       InnerHit innerHit) {
-    Query childQuery =
-        extractQuery(indexState, "", innerHit.getInnerQuery(), innerHit.getQueryNestedPath());
+    // Do not apply nestedPath here. This is query is used to create a shared weight.
+    Query childQuery = extractQuery(indexState, "", innerHit.getInnerQuery(), null);
     return InnerHitContextBuilder.Builder()
         .withInnerHitName(innerHitName)
         .withQuery(childQuery)

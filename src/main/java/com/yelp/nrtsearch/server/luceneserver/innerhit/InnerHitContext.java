@@ -41,8 +41,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
-import org.apache.lucene.search.join.BitSetProducer;
-import org.apache.lucene.search.join.QueryBitSetProducer;
 
 /**
  * Object to store all necessary context information for {@link InnerHitFetchTask} to search and
@@ -52,17 +50,10 @@ public class InnerHitContext implements FieldFetchContext {
 
   private static final int DEFAULT_INNER_HIT_TOP_HITS = 3;
 
-  public BitSetProducer getParentFilter() {
-    return parentFilter;
-  }
-
-  public String getInnerHitName() {
-    return innerHitName;
-  }
-
   private final String innerHitName;
-  private final BitSetProducer parentFilter;
+  private final Query parentFilterQuery;
   private final String queryNestedPath;
+  private final Query childFilterQuery;
   private final Query query;
   private final IndexState indexState;
   private final ShardState shardState;
@@ -85,12 +76,11 @@ public class InnerHitContext implements FieldFetchContext {
     this.indexState = builder.indexState;
     this.shardState = builder.shardState;
     this.searcherAndTaxonomy = builder.searcherAndTaxonomy;
-    this.parentFilter =
-        new QueryBitSetProducer(
-            QueryNodeMapper.getInstance()
-                .getNestedPathQuery(indexState, builder.parentQueryNestedPath));
-    // rewrite the query in advance so that it won't be rewritten per hit.
-    this.query = searcherAndTaxonomy.searcher.rewrite(builder.query);
+    this.parentFilterQuery =
+        QueryNodeMapper.getInstance().getNestedPathQuery(indexState, builder.parentQueryNestedPath);
+    this.childFilterQuery =
+        QueryNodeMapper.getInstance().getNestedPathQuery(indexState, queryNestedPath);
+    this.query = builder.query;
     this.startHit = builder.startHit;
     // TODO: implement the totalCountCollector in case (topHits == 0 || startHit >= topHits).
     // Currently, return DEFAULT_INNER_HIT_TOP_HITS results in case of 0.
@@ -156,11 +146,26 @@ public class InnerHitContext implements FieldFetchContext {
     }
   }
 
+  /** Get parent filter query. */
+  public Query getParentFilterQuery() {
+    return parentFilterQuery;
+  }
+
+  /** Get the name of the innerHit task. */
+  public String getInnerHitName() {
+    return innerHitName;
+  }
+
   /**
    * Get the nested path for the innerHit query. This path is the field name of the nested object.
    */
   public String getQueryNestedPath() {
     return queryNestedPath;
+  }
+
+  /** Get child filter query. */
+  public Query getChildFilterQuery() {
+    return childFilterQuery;
   }
 
   /**

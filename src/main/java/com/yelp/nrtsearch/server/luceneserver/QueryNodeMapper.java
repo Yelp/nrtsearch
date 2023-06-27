@@ -109,6 +109,9 @@ public class QueryNodeMapper {
   }
 
   public Query applyQueryNestedPath(Query query, IndexState indexState, String path) {
+    if (path == null || path.isEmpty()) {
+      return query;
+    }
     BooleanQuery.Builder builder = new BooleanQuery.Builder();
     builder.add(getNestedPathQuery(indexState, path), BooleanClause.Occur.FILTER);
     builder.add(query, BooleanClause.Occur.MUST);
