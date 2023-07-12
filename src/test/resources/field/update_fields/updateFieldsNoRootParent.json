@@ -1,0 +1,10 @@
+{
+  "indexName": "test_index",
+  "field": [{
+    "name": "doesnt_exist.child",
+    "search": true,
+    "store": true,
+    "tokenize": true,
+    "type": "TEXT"
+  }]
+}

@@ -1,0 +1,10 @@
+{
+  "indexName": "test_index",
+  "field": [{
+    "name": "locations.store",
+    "search": true,
+    "store": true,
+    "tokenize": true,
+    "type": "TEXT"
+  }]
+}

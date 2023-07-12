@@ -1,0 +1,31 @@
+{
+  "indexName": "test_index",
+  "field": [{
+    "name": "locations",
+    "nestedDoc": false,
+    "multiValued": true,
+    "type": "OBJECT",
+    "childFields": [{
+      "name": "store",
+      "type": "TEXT",
+      "tokenize": true,
+      "storeDocValues": true,
+      "multiValued": true,
+      "search": true
+    }]
+  }, {
+    "name": "comment",
+    "type": "TEXT"
+  }, {
+    "name": "employees",
+    "nestedDoc": true,
+    "multiValued": true,
+    "type": "OBJECT",
+    "childFields": [{
+      "name": "id",
+      "type": "INT",
+      "storeDocValues": true,
+      "search": true
+    }]
+  }]
+}

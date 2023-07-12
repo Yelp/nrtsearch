@@ -1,0 +1,23 @@
+{
+  "indexName": "test_index",
+  "field": [{
+    "name": "locations.warehouse",
+    "type": "TEXT",
+    "multiValued": true,
+    "storeDocValues": true,
+    "tokenize": true,
+    "search": true
+  }, {
+    "name": "comment.searchable",
+    "search": true,
+    "store": true,
+    "tokenize": true,
+    "termVectors": "TERMS_POSITIONS_OFFSETS",
+    "type": "TEXT"
+  }, {
+    "name": "employees.salary",
+    "type": "DOUBLE",
+    "storeDocValues": true,
+    "search": true
+  }]
+}

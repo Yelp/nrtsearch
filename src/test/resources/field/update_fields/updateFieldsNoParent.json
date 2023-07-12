@@ -1,0 +1,10 @@
+{
+  "indexName": "test_index",
+  "field": [{
+    "name": "locations.doesnt_exist.B",
+    "search": true,
+    "store": true,
+    "tokenize": true,
+    "type": "TEXT"
+  }]
+}

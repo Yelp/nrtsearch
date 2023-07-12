@@ -23,7 +23,6 @@ import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,9 +109,9 @@ public abstract class IndexableFieldDef extends FieldDef {
         }
         childFields.put(childName, (IndexableFieldDef) fieldDef);
       }
-      this.childFields = Collections.unmodifiableMap(childFields);
+      this.childFields = childFields;
     } else {
-      this.childFields = Collections.emptyMap();
+      this.childFields = new HashMap<>();
     }
   }
 

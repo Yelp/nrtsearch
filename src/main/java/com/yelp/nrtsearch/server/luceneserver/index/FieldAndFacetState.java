@@ -178,6 +178,10 @@ public class FieldAndFacetState {
       return exprBindings;
     }
 
+    public FieldDef getField(String fieldName) {
+      return fields.get(fieldName);
+    }
+
     /**
      * Add {@link FieldDef} into the builder and update any related state.
      *

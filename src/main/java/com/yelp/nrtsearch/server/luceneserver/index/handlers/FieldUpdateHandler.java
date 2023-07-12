@@ -32,6 +32,7 @@ import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,14 +91,22 @@ public class FieldUpdateHandler {
     Map<String, Field> newFields = new HashMap<>(currentFields);
     FieldAndFacetState.Builder fieldStateBuilder = currentState.toBuilder();
     List<Field> nonVirtualFields = new ArrayList<>();
+    List<Field> childNonVirtualFields = new ArrayList<>();
     List<Field> virtualFields = new ArrayList<>();
 
     for (Field field : updateFields) {
-      checkFieldName(field.getName());
       if (FieldType.VIRTUAL.equals(field.getType())) {
+        checkFieldName(field.getName());
         virtualFields.add(field);
       } else {
-        nonVirtualFields.add(field);
+        int lastSeparator = field.getName().lastIndexOf(IndexState.CHILD_FIELD_SEPARATOR);
+        if (lastSeparator >= 0) {
+          checkFieldName(field.getName().substring(lastSeparator + 1));
+          childNonVirtualFields.add(field);
+        } else {
+          checkFieldName(field.getName());
+          nonVirtualFields.add(field);
+        }
       }
     }
 
@@ -107,6 +116,11 @@ public class FieldUpdateHandler {
       }
       parseField(field, fieldStateBuilder);
       newFields.put(field.getName(), field);
+    }
+
+    for (Field field : childNonVirtualFields) {
+      validateAndAddChildField(newFields, field);
+      parseField(field, fieldStateBuilder);
     }
 
     // Process the virtual fields after non-virtual fields, since they may depend on other
@@ -120,6 +134,45 @@ public class FieldUpdateHandler {
       newFields.put(field.getName(), field);
     }
     return new UpdatedFieldInfo(newFields, fieldStateBuilder.build());
+  }
+
+  public static void validateAndAddChildField(Map<String, Field> fieldMap, Field childField) {
+    String[] pathTokens = childField.getName().split("\\.");
+    if (!fieldMap.containsKey(pathTokens[0])) {
+      throw new IllegalArgumentException(
+          "Root field " + pathTokens[0] + " doesn't exist for field " + childField.getName());
+    }
+    Field.Builder currentField = fieldMap.get(pathTokens[0]).toBuilder();
+    for (int i = 1; i < pathTokens.length - 1; i++) {
+      String token = pathTokens[i];
+      currentField =
+          currentField.getChildFieldsBuilderList().stream()
+              .filter(f -> token.equals(f.getName()))
+              .findAny()
+              .orElseThrow(
+                  () ->
+                      new IllegalArgumentException(
+                          "Parent field "
+                              + token
+                              + " doesn't exist for field "
+                              + childField.getName()));
+    }
+    String fieldBaseName = pathTokens[pathTokens.length - 1];
+    if (currentField.getChildFieldsList().stream()
+        .filter(f -> fieldBaseName.equals(f.getName()))
+        .findAny()
+        .isPresent()) {
+      throw new IllegalArgumentException(
+          "Duplicate field registration: "
+              + childField.getName()
+              + " under its parent field: "
+              + String.join(
+                  IndexState.CHILD_FIELD_SEPARATOR,
+                  Arrays.copyOf(pathTokens, pathTokens.length - 1)));
+    }
+    fieldMap.put(
+        pathTokens[0],
+        currentField.addChildFields(childField.toBuilder().setName(fieldBaseName)).build());
   }
 
   /**
@@ -151,6 +204,18 @@ public class FieldUpdateHandler {
     fieldStateBuilder.addField(fieldDef, field);
     if (fieldDef instanceof IndexableFieldDef) {
       addChildFields((IndexableFieldDef) fieldDef, fieldStateBuilder);
+
+      // When adding a child field, we need to update its parent field's child map
+      int lastSeparator = field.getName().lastIndexOf(IndexState.CHILD_FIELD_SEPARATOR);
+      if (lastSeparator >= 0) {
+        String parentFieldName = field.getName().substring(0, lastSeparator);
+        FieldDef parentField = fieldStateBuilder.getField(parentFieldName);
+        if (parentField instanceof IndexableFieldDef) {
+          ((IndexableFieldDef) parentField)
+              .getChildFields()
+              .put(fieldDef.getName(), (IndexableFieldDef) fieldDef);
+        }
+      }
     }
     logger.info("REGISTER: " + fieldDef.getName() + " -> " + fieldDef);
   }
