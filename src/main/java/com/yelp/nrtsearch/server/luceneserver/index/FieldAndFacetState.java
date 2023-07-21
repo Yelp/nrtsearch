@@ -167,8 +167,8 @@ public class FieldAndFacetState {
         facetsConfig.setHierarchical(entry.getKey(), entry.getValue().hierarchical);
         facetsConfig.setIndexFieldName(entry.getKey(), entry.getValue().indexFieldName);
         facetsConfig.setRequireDimCount(entry.getKey(), entry.getValue().requireDimCount);
-        facetsConfig.setRequireDimensionDrillDown(
-            entry.getKey(), entry.getValue().requireDimensionDrillDown);
+        facetsConfig.setDrillDownTermsIndexing(
+            entry.getKey(), entry.getValue().drillDownTermsIndexing);
         facetsConfig.setMultiValued(entry.getKey(), entry.getValue().multiValued);
         internalFacetFieldNames.add(entry.getValue().indexFieldName);
       }

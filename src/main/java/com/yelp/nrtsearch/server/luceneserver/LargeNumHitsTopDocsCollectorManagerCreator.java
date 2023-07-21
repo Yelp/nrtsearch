@@ -17,8 +17,8 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import java.io.IOException;
 import java.util.Collection;
+import org.apache.lucene.sandbox.search.LargeNumHitsTopDocsCollector;
 import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.LargeNumHitsTopDocsCollector;
 import org.apache.lucene.search.TopDocs;
 
 public class LargeNumHitsTopDocsCollectorManagerCreator {

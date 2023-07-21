@@ -227,8 +227,7 @@ public class MyIndexSearcher extends IndexSearcher {
     for (List<LeafReaderContext> currentLeaf : groupedLeaves) {
       // LeafSlice constructor has changed in 9.x. This allows to use old constructor.
       Collections.sort(currentLeaf, Comparator.comparingInt(l -> l.docBase));
-      LeafReaderContext[] leavesArr = currentLeaf.toArray(new LeafReaderContext[0]);
-      slices[upto] = new LeafSlice(leavesArr);
+      slices[upto] = new LeafSlice(currentLeaf);
       ++upto;
     }
 

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Locale;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 
@@ -148,7 +149,7 @@ public class CopyOneFile implements Closeable {
                 + actualChecksumIn);
         throw new IOException("file " + name + ": checksum mismatch after file copy");
       }
-      out.writeLong(checksum);
+      CodecUtil.writeBELong(out, checksum);
       close();
       if (Node.VERBOSE_FILES) {
         dest.message(

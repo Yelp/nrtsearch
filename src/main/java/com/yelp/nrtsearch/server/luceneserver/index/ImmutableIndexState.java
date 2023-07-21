@@ -663,8 +663,8 @@ public class ImmutableIndexState extends IndexState {
         new ConcurrentMergeScheduler() {
           @Override
           public synchronized MergeThread getMergeThread(
-              IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
-            MergeThread thread = super.getMergeThread(writer, merge);
+              MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
+            MergeThread thread = super.getMergeThread(mergeSource, merge);
             thread.setName(thread.getName() + " [" + getName() + ":" + shardOrd + "]");
             return thread;
           }

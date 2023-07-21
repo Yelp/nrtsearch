@@ -20,31 +20,31 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Copy of the lucene Completion84PostingsFormat, but allows the FST load mode to be configured.
+ * Copy of the lucene Completion90PostingsFormat, but allows the FST load mode to be configured.
  * Since this codec is loaded by class name, it must have the same name as the original and be
  * present earlier in the class path.
  */
-public class Completion84PostingsFormat extends CompletionPostingsFormat {
-  private static final Logger logger = LoggerFactory.getLogger(Completion84PostingsFormat.class);
+public class Completion90PostingsFormat extends CompletionPostingsFormat {
+  private static final Logger logger = LoggerFactory.getLogger(Completion90PostingsFormat.class);
   /**
-   * Creates a {@link Completion84PostingsFormat} that will load the completion FST based on the
+   * Creates a {@link Completion90PostingsFormat} that will load the completion FST based on the
    * value present in {@link CompletionPostingsFormatUtil}.
    */
-  public Completion84PostingsFormat() {
+  public Completion90PostingsFormat() {
     this(CompletionPostingsFormatUtil.getCompletionCodecLoadMode());
   }
 
   /**
-   * Creates a {@link Completion84PostingsFormat} that will use the provided <code>fstLoadMode
+   * Creates a {@link Completion90PostingsFormat} that will use the provided <code>fstLoadMode
    * </code> to determine if the completion FST should be loaded on or off heap.
    */
-  public Completion84PostingsFormat(FSTLoadMode fstLoadMode) {
-    super("Completion84", fstLoadMode);
-    logger.info("Created Completion84PostingsFormat with fstLoadMode: " + fstLoadMode);
+  public Completion90PostingsFormat(FSTLoadMode fstLoadMode) {
+    super("Completion90", fstLoadMode);
+    logger.info("Created Completion90PostingsFormat with fstLoadMode: " + fstLoadMode);
   }
 
   @Override
   protected PostingsFormat delegatePostingsFormat() {
-    return PostingsFormat.forName("Lucene84");
+    return PostingsFormat.forName("Lucene90");
   }
 }

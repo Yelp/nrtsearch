@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.search.query;
 
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
 
-import com.carrotsearch.hppc.ObjectHashSet;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
@@ -25,9 +24,11 @@ import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Set;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
@@ -44,6 +45,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 
@@ -207,7 +209,7 @@ public class MatchPhrasePrefixQuery extends Query {
     }
     Term[] suffixTerms = termArrays.get(sizeMinus1);
     int position = positions.get(sizeMinus1);
-    ObjectHashSet<Term> terms = new ObjectHashSet<>();
+    Set<Term> terms = new HashSet<>();
     for (Term term : suffixTerms) {
       getPrefixTerms(terms, term, reader);
       if (terms.size() > maxExpansions) {
@@ -228,12 +230,15 @@ public class MatchPhrasePrefixQuery extends Query {
           .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
           .build();
     }
-    query.add(terms.toArray(Term.class), position);
+    query.add(terms.toArray(new Term[0]), position);
     return query.build();
   }
 
-  private void getPrefixTerms(
-      ObjectHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
+  @Override
+  public void visit(QueryVisitor visitor) {}
+
+  private void getPrefixTerms(Set<Term> terms, final Term prefix, final IndexReader reader)
+      throws IOException {
     // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment
     // into one terms
     // instance, which is very expensive. Therefore I think it is better to iterate over each leaf

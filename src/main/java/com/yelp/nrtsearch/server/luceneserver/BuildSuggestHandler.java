@@ -564,27 +564,31 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
       if (weightCase.equals(SuggestNonLocalSource.WeightCase.WEIGHTFIELD)) {
         // Weight is a field
         String weightField = nonLocalSource.getWeightField();
-        if (!payloadField.isEmpty() && !contextField.isEmpty() && !searchTextField.isEmpty()) {
-          dict =
-              new SuggestDocumentDictionary(
-                  searcher.searcher.getIndexReader(),
-                  suggestField,
-                  weightField,
-                  payloadField,
-                  contextField,
-                  searchTextField);
-        } else if (contextField.isEmpty()) {
-          dict =
-              new DocumentDictionary(
-                  searcher.searcher.getIndexReader(), suggestField, weightField, payloadField);
-        } else {
-          dict =
-              new DocumentDictionary(
-                  searcher.searcher.getIndexReader(),
-                  suggestField,
-                  weightField,
-                  payloadField,
-                  contextField);
+        try {
+          if (!payloadField.isEmpty() && !contextField.isEmpty() && !searchTextField.isEmpty()) {
+            dict =
+                new SuggestDocumentDictionary(
+                    searcher.searcher.getIndexReader(),
+                    suggestField,
+                    weightField,
+                    payloadField,
+                    contextField,
+                    searchTextField);
+          } else if (contextField.isEmpty()) {
+            dict =
+                new DocumentDictionary(
+                    searcher.searcher.getIndexReader(), suggestField, weightField, payloadField);
+          } else {
+            dict =
+                new DocumentDictionary(
+                    searcher.searcher.getIndexReader(),
+                    suggestField,
+                    weightField,
+                    payloadField,
+                    contextField);
+          }
+        } catch (IOException e) {
+          throw new HandlerException(e);
         }
       } else {
         // Weight is an expression; add bindings for all
@@ -596,23 +600,27 @@ public class BuildSuggestHandler implements Handler<BuildSuggestRequest, BuildSu
           throw new RuntimeException("weightExpression: expression does not compile", e);
         }
 
-        if (contextField.isEmpty()) {
-          dict =
-              new DocumentValueSourceDictionary(
-                  searcher.searcher.getIndexReader(),
-                  suggestField,
-                  expr.getDoubleValuesSource(indexState.getExpressionBindings())
-                      .toLongValuesSource(),
-                  payloadField);
-        } else {
-          dict =
-              new DocumentValueSourceDictionary(
-                  searcher.searcher.getIndexReader(),
-                  suggestField,
-                  expr.getDoubleValuesSource(indexState.getExpressionBindings())
-                      .toLongValuesSource(),
-                  payloadField,
-                  contextField);
+        try {
+          if (contextField.isEmpty()) {
+            dict =
+                new DocumentValueSourceDictionary(
+                    searcher.searcher.getIndexReader(),
+                    suggestField,
+                    expr.getDoubleValuesSource(indexState.getExpressionBindings())
+                        .toLongValuesSource(),
+                    payloadField);
+          } else {
+            dict =
+                new DocumentValueSourceDictionary(
+                    searcher.searcher.getIndexReader(),
+                    suggestField,
+                    expr.getDoubleValuesSource(indexState.getExpressionBindings())
+                        .toLongValuesSource(),
+                    payloadField,
+                    contextField);
+          }
+        } catch (IOException e) {
+          throw new HandlerException(e);
         }
       }
 

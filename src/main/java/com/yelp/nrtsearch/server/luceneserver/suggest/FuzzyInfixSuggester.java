@@ -95,6 +95,6 @@ public class FuzzyInfixSuggester extends CompletionInfixSuggester {
         nonFuzzyPrefix,
         minFuzzyLength,
         unicodeAware,
-        Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
   }
 }

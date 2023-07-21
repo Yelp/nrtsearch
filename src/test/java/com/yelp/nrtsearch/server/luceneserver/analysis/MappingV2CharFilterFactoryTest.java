@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.analysis;
 
-import static org.apache.lucene.analysis.util.AnalysisSPILoader.newFactoryClassInstance;
+import static org.apache.lucene.analysis.AnalysisSPILoader.newFactoryClassInstance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 

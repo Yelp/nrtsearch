@@ -21,9 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.lucene.analysis.CharFilterFactory;
 import org.apache.lucene.analysis.charfilter.MappingCharFilter;
 import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
-import org.apache.lucene.analysis.util.CharFilterFactory;
 
 /**
  * Implementation of a {@link CharFilterFactory} that allows for specification of character mapping

@@ -18,7 +18,6 @@ package org.apache.lucene.replicator.nrt;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -104,7 +103,7 @@ public class FilteringSegmentInfosSearcherManager extends SegmentInfosSearcherMa
     }
 
     // Open a new reader, sharing any common segment readers with the old one:
-    DirectoryReader r = StandardDirectoryReader.open(dir, newInfos, subs, Collections.emptyMap());
+    DirectoryReader r = StandardDirectoryReader.open(dir, newInfos, subs, null);
     addReaderClosedListenerFilter(r);
     node.message("refreshed to version=" + newInfos.getVersion() + " r=" + r);
     IndexReader oldReader = old != null ? old.getIndexReader() : null;
