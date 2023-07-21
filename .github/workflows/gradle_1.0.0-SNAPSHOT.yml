@@ -1,16 +1,16 @@
 # This workflow will build a Java project with Gradle
 # For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-gradle
 
-name: Java CI with Gradle for v1 branch
+name: Java CI with Gradle for 1.0.0-SNAPSHOT branch
 
 on:
   push:
-    branches: [ v1 ]
+    branches: [ 1.0.0-SNAPSHOT ]
   pull_request:
-    branches: [ v1 ]
+    branches: [ 1.0.0-SNAPSHOT ]
 
 jobs:
   build:
-    uses: Yelp/nrtsearch/.github/workflows/gradle.yml@v1
+    uses: Yelp/nrtsearch/.github/workflows/gradle.yml@1.0.0-SNAPSHOT
     with:
-      branch: v1
+      branch: 1.0.0-SNAPSHOT
