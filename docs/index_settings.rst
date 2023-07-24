@@ -20,11 +20,9 @@ directory
 
 Specifies the lucene `Directory <https://lucene.apache.org/core/8_4_0/core/org/apache/lucene/store/Directory.html>`_ to use for interacting with index data. Must be one of the following values:
 
-* FSDirectory - Let lucene choose the best implementation for your system from the `FSDirectory <https://lucene.apache.org/core/8_4_0/core/org/apache/lucene/store/FSDirectory.html>`_ subclasses (MMapDirectory, NIOFSDirectory, SimpleFSDirectory).
+* FSDirectory - Let lucene choose the best implementation for your system from the `FSDirectory <https://lucene.apache.org/core/9_7_0/core/org/apache/lucene/store/FSDirectory.html>`_ subclasses (MMapDirectory, NIOFSDirectory).
 * MMapDirectory - Uses memory-mapped IO when reading.
 * NIOFSDirectory - Uses java.nio's FileChannel's positional io when reading to avoid synchronization when reading from the same file.
-* SimpleFSDirectory - A straightforward implementation using Files.newByteChannel. However, it has poor concurrent performance (multiple threads will bottleneck) as it synchronizes when multiple threads read from the same file.
-* RAMDirectory - Deprecated, see `lucene docs <https://lucene.apache.org/core/8_4_0/core/org/apache/lucene/store/RAMDirectory.html>`_.
 
 Default: FSDirectory
 

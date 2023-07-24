@@ -1349,7 +1349,7 @@ type SettingsRequest struct {
 	IndexVerbose                    bool   `protobuf:"varint,8,opt,name=indexVerbose,proto3" json:"indexVerbose,omitempty"`                                       // Deprecated, moved to lucene config. Turn on IndexWriter's infoStream (to stdout)
 	IndexMergeSchedulerAutoThrottle bool   `protobuf:"varint,9,opt,name=indexMergeSchedulerAutoThrottle,proto3" json:"indexMergeSchedulerAutoThrottle,omitempty"` // Turn on/off the merge scheduler's auto throttling
 	NormsFormat                     string `protobuf:"bytes,10,opt,name=normsFormat,proto3" json:"normsFormat,omitempty"`                                         // Which NormsFormat should be used for all indexed fields. default: Lucene80NormsFormat
-	// Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
+	// Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
 	Directory string `protobuf:"bytes,11,opt,name=directory,proto3" json:"directory,omitempty"`
 }
 
@@ -5458,7 +5458,7 @@ type IndexSettings struct {
 	IndexSort *SortFields `protobuf:"bytes,5,opt,name=indexSort,proto3" json:"indexSort,omitempty"`
 	// Turn on/off the merge scheduler's auto throttling, default: off
 	IndexMergeSchedulerAutoThrottle *wrapperspb.BoolValue `protobuf:"bytes,6,opt,name=indexMergeSchedulerAutoThrottle,proto3" json:"indexMergeSchedulerAutoThrottle,omitempty"`
-	// Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
+	// Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory
 	Directory *wrapperspb.StringValue `protobuf:"bytes,7,opt,name=directory,proto3" json:"directory,omitempty"`
 }
 

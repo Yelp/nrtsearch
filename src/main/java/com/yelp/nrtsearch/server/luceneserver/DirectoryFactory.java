@@ -101,7 +101,7 @@ public abstract class DirectoryFactory {
 
   /**
    * Returns an instance, using the specified implementation {FSDirectory, MMapDirectory,
-   * NIOFSDirectory, SimpleFSDirectory or RAMDirectory}.
+   * NIOFSDirectory}.
    */
   public static DirectoryFactory get(final String dirImpl) {
     if (dirImpl.equals("FSDirectory")) {

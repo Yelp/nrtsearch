@@ -246,8 +246,8 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
   @Override
   public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.SORTED) {
-      SortedDocValues binaryDocValues = DocValues.getSorted(context.reader(), getName());
-      return new LoadedDocValues.SingleString(binaryDocValues);
+      SortedDocValues sortedDocValues = DocValues.getSorted(context.reader(), getName());
+      return new LoadedDocValues.SingleString(sortedDocValues);
     } else if (docValuesType == DocValuesType.BINARY) {
       BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
       return new LoadedDocValues.SingleBinaryString(binaryDocValues);

@@ -1522,7 +1522,7 @@
           },
           {
             "name": "settings.directory",
-            "description": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory.",
+            "description": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -3677,7 +3677,7 @@
         },
         "directory": {
           "type": "string",
-          "title": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory"
+          "title": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory"
         }
       }
     },
@@ -4796,7 +4796,7 @@
         },
         "directory": {
           "type": "string",
-          "title": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory"
+          "title": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory"
         }
       },
       "title": "Input to settings"
