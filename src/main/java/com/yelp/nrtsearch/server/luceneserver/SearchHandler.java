@@ -128,8 +128,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       long searchStartTime = System.nanoTime();
 
-      SearcherResult searcherResult = null;
-      TopDocs hits;
+      SearcherResult searcherResult;
       if (!searchRequest.getFacetsList().isEmpty()) {
         if (!(searchContext.getQuery() instanceof DrillDownQuery)) {
           throw new IllegalArgumentException("Can only use DrillSideways on DrillDownQuery");
@@ -165,19 +164,30 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           throw e;
         }
         searcherResult = concurrentDrillSidewaysResult.collectorResult;
-        hits = searcherResult.getTopDocs();
         searchContext.getResponseBuilder().addAllFacetResult(grpcFacetResults);
         searchContext
             .getResponseBuilder()
             .addAllFacetResult(
                 FacetTopDocs.facetTopDocsSample(
-                    hits, searchRequest.getFacetsList(), indexState, s.searcher, diagnostics));
+                    searcherResult.getTopDocs(),
+                    searchRequest.getFacetsList(),
+                    indexState,
+                    s.searcher,
+                    diagnostics));
       } else {
-        searcherResult =
-            s.searcher.search(
-                searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
-        hits = searcherResult.getTopDocs();
+        try {
+          searcherResult =
+              s.searcher.search(
+                  searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
+        } catch (RuntimeException e) {
+          CollectionTimeoutException timeoutException = findTimeoutException(e);
+          if (timeoutException != null) {
+            throw new CollectionTimeoutException(timeoutException.getMessage(), e);
+          }
+          throw e;
+        }
       }
+      TopDocs hits = searcherResult.getTopDocs();
 
       List<Explanation> explanations = null;
       if (searchRequest.getExplain()) {

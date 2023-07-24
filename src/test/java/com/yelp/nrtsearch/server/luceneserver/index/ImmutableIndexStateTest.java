@@ -80,7 +80,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -438,12 +438,12 @@ public class ImmutableIndexStateTest {
     DirectoryFactory factory =
         getIndexState(
                 getStateWithSettings(
-                    IndexSettings.newBuilder().setDirectory(wrap("SimpleFSDirectory")).build()))
+                    IndexSettings.newBuilder().setDirectory(wrap("NIOFSDirectory")).build()))
             .getDirectoryFactory();
     Directory directory =
         factory.open(
             folder.getRoot().toPath(), new IndexPreloadConfig(false, Collections.emptySet()));
-    assertTrue(directory instanceof SimpleFSDirectory);
+    assertTrue(directory instanceof NIOFSDirectory);
   }
 
   @Test

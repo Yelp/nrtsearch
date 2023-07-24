@@ -30,8 +30,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.IOUtils;
 
 /** A factory to open a {@link Directory} from a provided filesystem path. */
@@ -103,7 +101,7 @@ public abstract class DirectoryFactory {
 
   /**
    * Returns an instance, using the specified implementation {FSDirectory, MMapDirectory,
-   * NIOFSDirectory, SimpleFSDirectory or RAMDirectory}.
+   * NIOFSDirectory}.
    */
   public static DirectoryFactory get(final String dirImpl) {
     if (dirImpl.equals("FSDirectory")) {
@@ -140,20 +138,6 @@ public abstract class DirectoryFactory {
         @Override
         public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
           return new NIOFSDirectory(path);
-        }
-      };
-    } else if (dirImpl.equals("SimpleFSDirectory")) {
-      return new DirectoryFactory() {
-        @Override
-        public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
-          return new SimpleFSDirectory(path);
-        }
-      };
-    } else if (dirImpl.equals("RAMDirectory")) {
-      return new DirectoryFactory() {
-        @Override
-        public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
-          return new RAMDirectory();
         }
       };
     } else {

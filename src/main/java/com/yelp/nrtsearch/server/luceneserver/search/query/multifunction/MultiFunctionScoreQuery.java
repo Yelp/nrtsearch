@@ -27,15 +27,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
@@ -146,6 +145,11 @@ public class MultiFunctionScoreQuery extends Query {
   }
 
   @Override
+  public void visit(QueryVisitor visitor) {
+    innerQuery.visit(visitor);
+  }
+
+  @Override
   public Weight createWeight(
       IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost)
       throws IOException {
@@ -183,11 +187,6 @@ public class MultiFunctionScoreQuery extends Query {
       super(query);
       this.innerWeight = innerWeight;
       this.filterWeights = filterWeights;
-    }
-
-    @Override
-    public void extractTerms(Set<Term> terms) {
-      innerWeight.extractTerms(terms);
     }
 
     @Override

@@ -19,8 +19,8 @@ import com.yelp.nrtsearch.server.luceneserver.analysis.AnalysisProvider;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.util.CharFilterFactory;
-import org.apache.lucene.analysis.util.TokenFilterFactory;
+import org.apache.lucene.analysis.CharFilterFactory;
+import org.apache.lucene.analysis.TokenFilterFactory;
 
 /**
  * Plugin interface for providing custom analysis implementations.

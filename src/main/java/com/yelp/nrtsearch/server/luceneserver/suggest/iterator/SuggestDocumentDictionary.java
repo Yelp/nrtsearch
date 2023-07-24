@@ -45,7 +45,8 @@ public class SuggestDocumentDictionary extends DocumentDictionary {
       String weightField,
       String payloadField,
       String contextsField,
-      String searchTextsField) {
+      String searchTextsField)
+      throws IOException {
     super(reader, field, weightField, payloadField, contextsField);
     this.searchTextsField = searchTextsField;
     this.field = field;

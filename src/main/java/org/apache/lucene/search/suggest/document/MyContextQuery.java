@@ -29,6 +29,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.IntsRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -175,8 +176,8 @@ public class MyContextQuery extends ContextQuery {
 
     // If the inner automaton matches nothing, then we return an empty weight to avoid
     // traversing all contexts during scoring.
-    if (innerAutomaton.getNumStates() == 0) {
-      return new CompletionWeight(this, innerAutomaton);
+    if (Operations.isEmpty(innerAutomaton)) {
+      return new CompletionWeight(this, Automata.makeEmpty());
     }
 
     // if separators are preserved the fst contains a SEP_LABEL
@@ -188,9 +189,9 @@ public class MyContextQuery extends ContextQuery {
     Automaton contextsAutomaton =
         Operations.concatenate(toContextAutomaton(contexts, matchAllContexts), prefixAutomaton);
     contextsAutomaton =
-        Operations.determinize(contextsAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        Operations.determinize(contextsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
-    final Map<IntsRef, Float> contextMap = new HashMap<>(contexts.size());
+    final Map<IntsRef, Float> contextMap = CollectionUtil.newHashMap(contexts.size());
     final TreeSet<Integer> contextLengths = new TreeSet<>();
     for (Map.Entry<IntsRef, ContextMetaData> entry : contexts.entrySet()) {
       ContextMetaData contextMetaData = entry.getValue();

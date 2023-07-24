@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.concurrent.atomic.DoubleAdder;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
@@ -176,7 +176,7 @@ public class InnerHitFetchTask implements FetchTask {
     Scorer innerHitScorer = innerHitScorerSupplier.get(0);
 
     DocIdSetIterator iterator =
-        ConjunctionDISI.intersectIterators(
+        ConjunctionUtils.intersectIterators(
             Arrays.asList(filterScorer.iterator(), innerHitScorer.iterator()));
 
     LeafCollector leafCollector = topDocsCollector.getLeafCollector(hitLeaf);

@@ -360,7 +360,7 @@ public class DrillSidewaysImpl extends DrillSideways {
 
         facetResult =
             longRangeFacetCounts.getTopChildren(
-                0,
+                facet.getTopN(),
                 fieldDef.getName(),
                 facet.getPathsList().toArray(new String[facet.getPathsCount()]));
       } else if (fieldDef instanceof FloatFieldDef) {
@@ -400,7 +400,7 @@ public class DrillSidewaysImpl extends DrillSideways {
 
         facetResult =
             doubleRangeFacetCounts.getTopChildren(
-                0,
+                facet.getTopN(),
                 fieldDef.getName(),
                 facet.getPathsList().toArray(new String[facet.getPathsCount()]));
       } else {

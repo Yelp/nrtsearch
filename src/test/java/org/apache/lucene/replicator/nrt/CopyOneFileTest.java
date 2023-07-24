@@ -122,10 +122,12 @@ public class CopyOneFileTest {
       assertEquals(length - Long.BYTES, totalSize);
     }
 
-    ArgumentCaptor<Long> checksumCaptor = ArgumentCaptor.forClass(Long.class);
-    verify(mockOutput).writeLong(checksumCaptor.capture());
+    ArgumentCaptor<Byte> checksumCaptor = ArgumentCaptor.forClass(byte.class);
+    verify(mockOutput, times(8)).writeByte(checksumCaptor.capture());
 
-    copiedBuffer.putLong(checksumCaptor.getValue());
+    for (Byte b : checksumCaptor.getAllValues()) {
+      copiedBuffer.put(b);
+    }
 
     fileBuffer.rewind();
     copiedBuffer.rewind();

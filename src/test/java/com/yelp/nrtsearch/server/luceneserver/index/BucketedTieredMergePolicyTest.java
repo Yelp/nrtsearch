@@ -469,7 +469,8 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
               new byte[StringHelper.ID_LENGTH],
               Collections.emptyMap(),
               null);
-      SegmentCommitInfo sci = new SegmentCommitInfo(si, deletions.get(i), 0, 1, 1, 1);
+      SegmentCommitInfo sci =
+          new SegmentCommitInfo(si, deletions.get(i), 0, 1, 1, 1, StringHelper.randomId());
       infos.add(sci);
       id++;
     }

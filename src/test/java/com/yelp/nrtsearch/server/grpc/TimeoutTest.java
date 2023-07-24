@@ -338,7 +338,15 @@ public class TimeoutTest extends ServerTestCase {
             .setTimeoutSec(5)
             .build();
 
-    verifyTimeoutException(request);
+    try {
+      verifyTimeoutException(request);
+    } catch (RuntimeException e) {
+      CollectionTimeoutException timeoutException = findTimeoutException(e);
+      if (timeoutException != null) {
+        throw new CollectionTimeoutException(timeoutException.getMessage(), e);
+      }
+      throw e;
+    }
   }
 
   @Test(expected = CollectionTimeoutException.class)
@@ -377,8 +385,15 @@ public class TimeoutTest extends ServerTestCase {
             .setTimeoutSec(7)
             .setTimeoutCheckEvery(5)
             .build();
-
-    verifyTimeoutException(request);
+    try {
+      verifyTimeoutException(request);
+    } catch (RuntimeException e) {
+      CollectionTimeoutException timeoutException = findTimeoutException(e);
+      if (timeoutException != null) {
+        throw new CollectionTimeoutException(timeoutException.getMessage(), e);
+      }
+      throw e;
+    }
   }
 
   @Test(expected = CollectionTimeoutException.class)

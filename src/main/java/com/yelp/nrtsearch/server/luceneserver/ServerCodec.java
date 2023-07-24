@@ -21,13 +21,13 @@ import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene84.Lucene84Codec;
+import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 
 /** Implements per-index {@link Codec}. */
-public class ServerCodec extends Lucene84Codec {
+public class ServerCodec extends Lucene95Codec {
 
-  public static final String DEFAULT_POSTINGS_FORMAT = "Lucene84";
-  public static final String DEFAULT_DOC_VALUES_FORMAT = "Lucene80";
+  public static final String DEFAULT_POSTINGS_FORMAT = "Lucene90";
+  public static final String DEFAULT_DOC_VALUES_FORMAT = "Lucene90";
 
   private final IndexStateManager stateManager;
   // nocommit expose compression control

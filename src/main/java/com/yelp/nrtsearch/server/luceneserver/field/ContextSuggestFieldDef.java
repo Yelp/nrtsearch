@@ -113,6 +113,6 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
   }
 
   public String getPostingsFormat() {
-    return "Completion84";
+    return "Completion90";
   }
 }

@@ -19,9 +19,9 @@ import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.LargeNumHitsTopDocsCollectorManagerCreator;
 import java.util.List;
+import org.apache.lucene.sandbox.search.LargeNumHitsTopDocsCollector;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.LargeNumHitsTopDocsCollector;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 

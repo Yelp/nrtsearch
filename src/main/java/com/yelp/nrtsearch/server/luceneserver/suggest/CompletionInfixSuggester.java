@@ -24,7 +24,7 @@ import java.util.Set;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene84.Lucene84Codec;
+import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
@@ -37,7 +37,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingInfixSuggester;
-import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.ContextQuery;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
@@ -249,8 +249,8 @@ public class CompletionInfixSuggester extends AnalyzingInfixSuggester {
       Analyzer indexAnalyzer, IndexWriterConfig.OpenMode mode) {
     IndexWriterConfig iwc = super.getIndexWriterConfig(indexAnalyzer, mode);
     Codec filterCodec =
-        new Lucene84Codec() {
-          final PostingsFormat fstPostingsFormat = new Completion84PostingsFormat();
+        new Lucene95Codec() {
+          final PostingsFormat fstPostingsFormat = new Completion90PostingsFormat();
 
           @Override
           public PostingsFormat getPostingsFormatForField(String field) {

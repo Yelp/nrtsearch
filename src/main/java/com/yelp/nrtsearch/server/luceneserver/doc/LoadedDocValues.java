@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -447,9 +448,51 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
   }
 
-  public static final class SingleString extends SingleBinaryBase<String> {
-    public SingleString(BinaryDocValues docValues) {
+  public static final class SingleBinaryString extends SingleBinaryBase<String> {
+    public SingleBinaryString(BinaryDocValues docValues) {
       super(docValues, STRING_DECODER);
+    }
+
+    @Override
+    public SearchResponse.Hit.FieldValue toFieldValue(int index) {
+      return SearchResponse.Hit.FieldValue.newBuilder().setTextValue(get(index)).build();
+    }
+  }
+
+  public static final class SingleString extends LoadedDocValues<String> {
+    private final SortedDocValues docValues;
+    private String value;
+
+    public SingleString(SortedDocValues docValues) {
+      this.docValues = docValues;
+    }
+
+    @Override
+    public void setDocId(int docID) throws IOException {
+      if (docValues.advanceExact(docID)) {
+        value = docValues.lookupOrd(docValues.ordValue()).utf8ToString();
+      } else {
+        value = null;
+      }
+    }
+
+    @Override
+    public String get(int index) {
+      if (value == null) {
+        throw new IllegalStateException("No doc values for document");
+      } else if (index != 0) {
+        throw new IndexOutOfBoundsException("No doc value for index: " + index);
+      }
+      return value;
+    }
+
+    @Override
+    public int size() {
+      return value == null ? 0 : 1;
+    }
+
+    public String getValue() {
+      return get(0);
     }
 
     @Override

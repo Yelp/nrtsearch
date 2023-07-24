@@ -83,13 +83,13 @@ public class CreateIndexCommandTest {
             "--port=" + server.getPort(),
             "createIndex",
             "--indexName=test_index",
-            "--settings={\"directory\": \"SimpleFSDirectory\"}");
+            "--settings={\"directory\": \"NIOFSDirectory\"}");
     assertEquals(0, exitCode);
     assertTrue(server.indices().contains("test_index"));
     assertFalse(server.isStarted("test_index"));
 
     IndexSettings settings = getIndexSettings(server);
-    assertEquals("SimpleFSDirectory", settings.getDirectory().getValue());
+    assertEquals("NIOFSDirectory", settings.getDirectory().getValue());
 
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, getIndexLiveSettings(server));
     assertTrue(getIndexFields(server).isEmpty());
@@ -161,7 +161,7 @@ public class CreateIndexCommandTest {
             "--port=" + server.getPort(),
             "createIndex",
             "--indexName=test_index",
-            "--settings={\"directory\": \"SimpleFSDirectory\"}",
+            "--settings={\"directory\": \"NIOFSDirectory\"}",
             "--liveSettings={\"maxSearcherAgeSec\": 111}",
             "--fields={\"field\": [{\"name\": \"field1\", \"type\": \"LONG\", \"search\": true}, {\"name\": \"field2\", \"type\": \"FLOAT\", \"storeDocValues\": true}]}");
     assertEquals(0, exitCode);
@@ -169,7 +169,7 @@ public class CreateIndexCommandTest {
     assertFalse(server.isStarted("test_index"));
 
     IndexSettings settings = getIndexSettings(server);
-    assertEquals("SimpleFSDirectory", settings.getDirectory().getValue());
+    assertEquals("NIOFSDirectory", settings.getDirectory().getValue());
 
     IndexLiveSettings liveSettings = getIndexLiveSettings(server);
     assertEquals(111.0, liveSettings.getMaxSearcherAgeSec().getValue(), 0);
@@ -198,14 +198,14 @@ public class CreateIndexCommandTest {
             "--port=" + server.getPort(),
             "createIndex",
             "--indexName=test_index",
-            "--settings={\"directory\": \"SimpleFSDirectory\"}",
+            "--settings={\"directory\": \"NIOFSDirectory\"}",
             "--start");
     assertEquals(0, exitCode);
     assertTrue(server.indices().contains("test_index"));
     assertTrue(server.isStarted("test_index"));
 
     IndexSettings settings = getIndexSettings(server);
-    assertEquals("SimpleFSDirectory", settings.getDirectory().getValue());
+    assertEquals("NIOFSDirectory", settings.getDirectory().getValue());
 
     assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, getIndexLiveSettings(server));
     assertTrue(getIndexFields(server).isEmpty());

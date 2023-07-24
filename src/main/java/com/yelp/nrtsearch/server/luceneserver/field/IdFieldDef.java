@@ -21,14 +21,14 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -91,7 +91,7 @@ public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
     String fieldStr = fieldValues.get(0);
     if (hasDocValues()) {
       BytesRef stringBytes = new BytesRef(fieldStr);
-      document.add(new BinaryDocValuesField(getName(), stringBytes));
+      document.add(new SortedDocValuesField(getName(), stringBytes));
     }
     document.add(new FieldWithData(getName(), fieldType, fieldStr));
   }
@@ -99,7 +99,7 @@ public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
   @Override
   public DocValuesType parseDocValuesType(Field requestField) {
     if (requestField.getStoreDocValues()) {
-      return DocValuesType.BINARY;
+      return DocValuesType.SORTED;
     }
     return DocValuesType.NONE;
   }
@@ -114,9 +114,8 @@ public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
   @Override
   public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
     if (hasDocValues()) {
-      // The value is stored in a BINARY field, but it is always a String
-      BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
-      return new LoadedDocValues.SingleString(binaryDocValues);
+      SortedDocValues sortedDocValues = DocValues.getSorted(context.reader(), getName());
+      return new LoadedDocValues.SingleString(sortedDocValues);
     }
     throw new IllegalStateException(
         String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));

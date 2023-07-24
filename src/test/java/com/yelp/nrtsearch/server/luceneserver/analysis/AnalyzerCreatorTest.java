@@ -18,8 +18,8 @@ package com.yelp.nrtsearch.server.luceneserver.analysis;
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.getStandardAnalyzer;
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.hasAnalyzer;
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
-import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
-import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -43,11 +43,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.BaseTokenStreamTestCase;
+import org.apache.lucene.analysis.CharFilterFactory;
+import org.apache.lucene.analysis.TokenFilterFactory;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.bn.BengaliAnalyzer;
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilterFactory;
 import org.apache.lucene.analysis.charfilter.MappingCharFilterFactory;
+import org.apache.lucene.analysis.classic.ClassicAnalyzer;
+import org.apache.lucene.analysis.classic.ClassicTokenizerFactory;
 import org.apache.lucene.analysis.core.LowerCaseFilterFactory;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
@@ -55,12 +58,9 @@ import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.hy.ArmenianAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilterFactory;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
-import org.apache.lucene.analysis.standard.ClassicAnalyzer;
-import org.apache.lucene.analysis.standard.ClassicTokenizerFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
-import org.apache.lucene.analysis.util.CharFilterFactory;
-import org.apache.lucene.analysis.util.TokenFilterFactory;
+import org.apache.lucene.tests.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.junit.Before;
@@ -166,7 +166,6 @@ public class AnalyzerCreatorTest {
     assertSame(LowerCaseFilterFactory.class, tokenFilters.get(1).getClass());
     assertEquals(100, analyzer.getPositionIncrementGap("dummy"));
     assertEquals(1000, analyzer.getOffsetGap("dummy"));
-    assertSame(Version.LATEST, analyzer.getVersion());
 
     assertAnalyzesTo(
         analyzer,

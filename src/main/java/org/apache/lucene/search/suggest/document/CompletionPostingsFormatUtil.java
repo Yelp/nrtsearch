@@ -24,7 +24,7 @@ public class CompletionPostingsFormatUtil {
   private CompletionPostingsFormatUtil() {}
 
   /**
-   * Set the FST load mode used by the modified {@link Completion84PostingsFormat}. Must be set
+   * Set the FST load mode used by the modified {@link Completion90PostingsFormat}. Must be set
    * before any index data is loaded.
    *
    * @param loadMode new FST load mode
