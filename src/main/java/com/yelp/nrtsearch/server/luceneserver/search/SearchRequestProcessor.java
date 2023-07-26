@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
+import com.yelp.nrtsearch.server.grpc.SearchRequest.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
@@ -42,6 +43,7 @@ import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext.VectorScoringMode;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreator;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
@@ -61,7 +63,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
@@ -69,6 +70,7 @@ import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
 
@@ -149,13 +151,6 @@ public class SearchRequestProcessor {
       profileResult.setRewrittenQuery(query.toString());
     }
 
-    if (searchRequest.getFacetsCount() > 0) {
-      query = addDrillDowns(indexState, query);
-      if (profileResult != null) {
-        profileResult.setDrillDownQuery(query.toString());
-      }
-    }
-
     Highlight highlight = searchRequest.getHighlight();
     HighlightFetchTask highlightFetchTask = null;
     if (!highlight.getFieldsList().isEmpty()) {
@@ -196,6 +191,23 @@ public class SearchRequestProcessor {
     contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());
+
+    List<KnnCollector> knnCollectors = new ArrayList<>();
+    for (KnnQuery knnQuery : searchRequest.getKnnList()) {
+      knnCollectors.add(new KnnCollector(knnQuery, indexState, searcherAndTaxonomy.searcher));
+    }
+    contextBuilder.setKnnCollectors(knnCollectors);
+    // determine how vector search results should combine with standard query
+    if (!knnCollectors.isEmpty()) {
+      if (searchRequest.getQueryText().isEmpty() && !searchRequest.hasQuery()) {
+        contextBuilder.setVectorScoringMode(VectorScoringMode.VECTORS_ONLY);
+      } else {
+        contextBuilder.setVectorScoringMode(VectorScoringMode.HYBRID);
+      }
+    } else {
+      contextBuilder.setVectorScoringMode(VectorScoringMode.NONE);
+    }
+
     SearchContext searchContext = contextBuilder.build(true);
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);
@@ -350,11 +362,6 @@ public class SearchRequestProcessor {
     } else {
       return ((SimpleQueryParser) qp).parse(text);
     }
-  }
-
-  /** Fold in any drillDowns requests into the query. */
-  private static DrillDownQuery addDrillDowns(IndexState state, Query q) {
-    return new DrillDownQuery(state.getFacetsConfig(), q);
   }
 
   /**

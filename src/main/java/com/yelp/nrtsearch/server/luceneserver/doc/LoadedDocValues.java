@@ -37,6 +37,7 @@ import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -573,6 +574,62 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
 
     /** Provide field value containing the doc value data for a given index */
+    @Override
+    public FieldValue toFieldValue(int index) {
+      VectorType vector = get(index);
+      Builder vectorBuilder = Vector.newBuilder();
+      for (float value : vector.getVectorData()) {
+        vectorBuilder.addValue(value);
+      }
+      return SearchResponse.Hit.FieldValue.newBuilder()
+          .setVectorValue(vectorBuilder.build())
+          .build();
+    }
+
+    @Override
+    public VectorType get(int index) {
+      if (value == null) {
+        throw new IllegalStateException("No doc values for document");
+      } else if (index != 0) {
+        throw new IndexOutOfBoundsException("No doc value for index: " + index);
+      }
+      return value;
+    }
+
+    @Override
+    public int size() {
+      return value == null ? 0 : 1;
+    }
+
+    public VectorType getValue() {
+      return get(0);
+    }
+  }
+
+  /**
+   * Doc value interface for vector data loaded from index vector values indexed for vector search.
+   * Calls to {@link #setDocId(int)} must provide ids in increasing order.
+   */
+  public static final class SingleSearchVector extends LoadedDocValues<VectorType> {
+    private final FloatVectorValues vectorValues;
+    private VectorType value;
+
+    public SingleSearchVector(FloatVectorValues vectorValues) {
+      this.vectorValues = vectorValues;
+    }
+
+    @Override
+    public void setDocId(int docID) throws IOException {
+      if (vectorValues.docID() < docID) {
+        vectorValues.advance(docID);
+      }
+      if (vectorValues.docID() == docID) {
+        value = new VectorType(vectorValues.vectorValue());
+      } else {
+        value = null;
+      }
+    }
+
     @Override
     public FieldValue toFieldValue(int index) {
       VectorType vector = get(index);

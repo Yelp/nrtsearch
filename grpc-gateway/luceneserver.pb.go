@@ -292,6 +292,59 @@ func (FacetType) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{3}
 }
 
+// Method of computing vector similarity
+type VectorSimilarity int32
+
+const (
+	// Similarity based on Euclidean distance : 1 / (1 + l2_norm(query, vector)^2)
+	VectorSimilarity_L2_NORM VectorSimilarity = 0
+	// Similarity based on vector dot product, all vectors (index and query) must be normalized to unit length: (1 + dot_product(query, vector)) / 2
+	VectorSimilarity_DOT_PRODUCT VectorSimilarity = 1
+	// Cosine similarity, vector magnitudes must be non zero: (1 + cosine(query, vector)) / 2
+	VectorSimilarity_COSINE VectorSimilarity = 2
+)
+
+// Enum value maps for VectorSimilarity.
+var (
+	VectorSimilarity_name = map[int32]string{
+		0: "L2_NORM",
+		1: "DOT_PRODUCT",
+		2: "COSINE",
+	}
+	VectorSimilarity_value = map[string]int32{
+		"L2_NORM":     0,
+		"DOT_PRODUCT": 1,
+		"COSINE":      2,
+	}
+)
+
+func (x VectorSimilarity) Enum() *VectorSimilarity {
+	p := new(VectorSimilarity)
+	*p = x
+	return p
+}
+
+func (x VectorSimilarity) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (VectorSimilarity) Descriptor() protoreflect.EnumDescriptor {
+	return file_yelp_nrtsearch_luceneserver_proto_enumTypes[4].Descriptor()
+}
+
+func (VectorSimilarity) Type() protoreflect.EnumType {
+	return &file_yelp_nrtsearch_luceneserver_proto_enumTypes[4]
+}
+
+func (x VectorSimilarity) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use VectorSimilarity.Descriptor instead.
+func (VectorSimilarity) EnumDescriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{4}
+}
+
 type Mode int32
 
 const (
@@ -325,11 +378,11 @@ func (x Mode) String() string {
 }
 
 func (Mode) Descriptor() protoreflect.EnumDescriptor {
-	return file_yelp_nrtsearch_luceneserver_proto_enumTypes[4].Descriptor()
+	return file_yelp_nrtsearch_luceneserver_proto_enumTypes[5].Descriptor()
 }
 
 func (Mode) Type() protoreflect.EnumType {
-	return &file_yelp_nrtsearch_luceneserver_proto_enumTypes[4]
+	return &file_yelp_nrtsearch_luceneserver_proto_enumTypes[5]
 }
 
 func (x Mode) Number() protoreflect.EnumNumber {
@@ -338,7 +391,7 @@ func (x Mode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Mode.Descriptor instead.
 func (Mode) EnumDescriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{4}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{5}
 }
 
 type TransferStatusCode int32
@@ -377,11 +430,11 @@ func (x TransferStatusCode) String() string {
 }
 
 func (TransferStatusCode) Descriptor() protoreflect.EnumDescriptor {
-	return file_yelp_nrtsearch_luceneserver_proto_enumTypes[5].Descriptor()
+	return file_yelp_nrtsearch_luceneserver_proto_enumTypes[6].Descriptor()
 }
 
 func (TransferStatusCode) Type() protoreflect.EnumType {
-	return &file_yelp_nrtsearch_luceneserver_proto_enumTypes[5]
+	return &file_yelp_nrtsearch_luceneserver_proto_enumTypes[6]
 }
 
 func (x TransferStatusCode) Number() protoreflect.EnumNumber {
@@ -390,7 +443,52 @@ func (x TransferStatusCode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TransferStatusCode.Descriptor instead.
 func (TransferStatusCode) EnumDescriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{5}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{6}
+}
+
+// kNN algorithm types
+type VectorIndexingOptions_KnnType int32
+
+const (
+	// Hierarchical Navigable Small Worlds
+	VectorIndexingOptions_HNSW VectorIndexingOptions_KnnType = 0
+)
+
+// Enum value maps for VectorIndexingOptions_KnnType.
+var (
+	VectorIndexingOptions_KnnType_name = map[int32]string{
+		0: "HNSW",
+	}
+	VectorIndexingOptions_KnnType_value = map[string]int32{
+		"HNSW": 0,
+	}
+)
+
+func (x VectorIndexingOptions_KnnType) Enum() *VectorIndexingOptions_KnnType {
+	p := new(VectorIndexingOptions_KnnType)
+	*p = x
+	return p
+}
+
+func (x VectorIndexingOptions_KnnType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (VectorIndexingOptions_KnnType) Descriptor() protoreflect.EnumDescriptor {
+	return file_yelp_nrtsearch_luceneserver_proto_enumTypes[7].Descriptor()
+}
+
+func (VectorIndexingOptions_KnnType) Type() protoreflect.EnumType {
+	return &file_yelp_nrtsearch_luceneserver_proto_enumTypes[7]
+}
+
+func (x VectorIndexingOptions_KnnType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use VectorIndexingOptions_KnnType.Descriptor instead.
+func (VectorIndexingOptions_KnnType) EnumDescriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{7, 0}
 }
 
 type ForceMergeResponse_Status int32
@@ -423,11 +521,11 @@ func (x ForceMergeResponse_Status) String() string {
 }
 
 func (ForceMergeResponse_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_yelp_nrtsearch_luceneserver_proto_enumTypes[6].Descriptor()
+	return file_yelp_nrtsearch_luceneserver_proto_enumTypes[8].Descriptor()
 }
 
 func (ForceMergeResponse_Status) Type() protoreflect.EnumType {
-	return &file_yelp_nrtsearch_luceneserver_proto_enumTypes[6]
+	return &file_yelp_nrtsearch_luceneserver_proto_enumTypes[8]
 }
 
 func (x ForceMergeResponse_Status) Number() protoreflect.EnumNumber {
@@ -436,7 +534,7 @@ func (x ForceMergeResponse_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ForceMergeResponse_Status.Descriptor instead.
 func (ForceMergeResponse_Status) EnumDescriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{76, 0}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{77, 0}
 }
 
 type ForceMergeDeletesResponse_Status int32
@@ -469,11 +567,11 @@ func (x ForceMergeDeletesResponse_Status) String() string {
 }
 
 func (ForceMergeDeletesResponse_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_yelp_nrtsearch_luceneserver_proto_enumTypes[7].Descriptor()
+	return file_yelp_nrtsearch_luceneserver_proto_enumTypes[9].Descriptor()
 }
 
 func (ForceMergeDeletesResponse_Status) Type() protoreflect.EnumType {
-	return &file_yelp_nrtsearch_luceneserver_proto_enumTypes[7]
+	return &file_yelp_nrtsearch_luceneserver_proto_enumTypes[9]
 }
 
 func (x ForceMergeDeletesResponse_Status) Number() protoreflect.EnumNumber {
@@ -482,7 +580,7 @@ func (x ForceMergeDeletesResponse_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ForceMergeDeletesResponse_Status.Descriptor instead.
 func (ForceMergeDeletesResponse_Status) EnumDescriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{78, 0}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{79, 0}
 }
 
 // Input to createIndex
@@ -983,6 +1081,10 @@ type Field struct {
 	VectorDimensions     int32            `protobuf:"varint,29,opt,name=vectorDimensions,proto3" json:"vectorDimensions,omitempty"`        // Dimensions for vector field type
 	// If field based global ordinals should be built up front, otherwise this is done lazily on first access. Currently only for fields with text doc values (TEXT/ATOM).
 	EagerFieldGlobalOrdinals bool `protobuf:"varint,30,opt,name=eagerFieldGlobalOrdinals,proto3" json:"eagerFieldGlobalOrdinals,omitempty"`
+	// Similarity type for search enabled VECTOR fields. This is a required option when search=true.
+	VectorSimilarity VectorSimilarity `protobuf:"varint,31,opt,name=vectorSimilarity,proto3,enum=luceneserver.VectorSimilarity" json:"vectorSimilarity,omitempty"`
+	// Indexing options for search enabled VECTOR field type. This is optional, defaulting to HNSW with m=16, ef_construction=100 when not set.
+	VectorIndexingOptions *VectorIndexingOptions `protobuf:"bytes,32,opt,name=vectorIndexingOptions,proto3" json:"vectorIndexingOptions,omitempty"`
 }
 
 func (x *Field) Reset() {
@@ -1228,6 +1330,87 @@ func (x *Field) GetEagerFieldGlobalOrdinals() bool {
 	return false
 }
 
+func (x *Field) GetVectorSimilarity() VectorSimilarity {
+	if x != nil {
+		return x.VectorSimilarity
+	}
+	return VectorSimilarity_L2_NORM
+}
+
+func (x *Field) GetVectorIndexingOptions() *VectorIndexingOptions {
+	if x != nil {
+		return x.VectorIndexingOptions
+	}
+	return nil
+}
+
+// Options for indexing a VECTOR field for search
+type VectorIndexingOptions struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// The kNN algorithm type
+	Type VectorIndexingOptions_KnnType `protobuf:"varint,1,opt,name=type,proto3,enum=luceneserver.VectorIndexingOptions_KnnType" json:"type,omitempty"`
+	// The number of neighbors each node will be connected to in the HNSW graph, default: 16
+	HnswM int32 `protobuf:"varint,2,opt,name=hnsw_m,json=hnswM,proto3" json:"hnsw_m,omitempty"`
+	// The number of candidates to track while assembling the list of nearest neighbors for each new node, default: 100
+	HnswEfConstruction int32 `protobuf:"varint,3,opt,name=hnsw_ef_construction,json=hnswEfConstruction,proto3" json:"hnsw_ef_construction,omitempty"`
+}
+
+func (x *VectorIndexingOptions) Reset() {
+	*x = VectorIndexingOptions{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *VectorIndexingOptions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VectorIndexingOptions) ProtoMessage() {}
+
+func (x *VectorIndexingOptions) ProtoReflect() protoreflect.Message {
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VectorIndexingOptions.ProtoReflect.Descriptor instead.
+func (*VectorIndexingOptions) Descriptor() ([]byte, []int) {
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *VectorIndexingOptions) GetType() VectorIndexingOptions_KnnType {
+	if x != nil {
+		return x.Type
+	}
+	return VectorIndexingOptions_HNSW
+}
+
+func (x *VectorIndexingOptions) GetHnswM() int32 {
+	if x != nil {
+		return x.HnswM
+	}
+	return 0
+}
+
+func (x *VectorIndexingOptions) GetHnswEfConstruction() int32 {
+	if x != nil {
+		return x.HnswEfConstruction
+	}
+	return 0
+}
+
 // Input to registerFields
 type FieldDefRequest struct {
 	state         protoimpl.MessageState
@@ -1241,7 +1424,7 @@ type FieldDefRequest struct {
 func (x *FieldDefRequest) Reset() {
 	*x = FieldDefRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[7]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1254,7 +1437,7 @@ func (x *FieldDefRequest) String() string {
 func (*FieldDefRequest) ProtoMessage() {}
 
 func (x *FieldDefRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[7]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1267,7 +1450,7 @@ func (x *FieldDefRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FieldDefRequest.ProtoReflect.Descriptor instead.
 func (*FieldDefRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{7}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *FieldDefRequest) GetIndexName() string {
@@ -1296,7 +1479,7 @@ type FieldDefResponse struct {
 func (x *FieldDefResponse) Reset() {
 	*x = FieldDefResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[8]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1309,7 +1492,7 @@ func (x *FieldDefResponse) String() string {
 func (*FieldDefResponse) ProtoMessage() {}
 
 func (x *FieldDefResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[8]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1322,7 +1505,7 @@ func (x *FieldDefResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FieldDefResponse.ProtoReflect.Descriptor instead.
 func (*FieldDefResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{8}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *FieldDefResponse) GetResponse() string {
@@ -1356,7 +1539,7 @@ type SettingsRequest struct {
 func (x *SettingsRequest) Reset() {
 	*x = SettingsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[9]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1369,7 +1552,7 @@ func (x *SettingsRequest) String() string {
 func (*SettingsRequest) ProtoMessage() {}
 
 func (x *SettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[9]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1382,7 +1565,7 @@ func (x *SettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingsRequest.ProtoReflect.Descriptor instead.
 func (*SettingsRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{9}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SettingsRequest) GetIndexName() string {
@@ -1475,7 +1658,7 @@ type SettingsResponse struct {
 func (x *SettingsResponse) Reset() {
 	*x = SettingsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[10]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1488,7 +1671,7 @@ func (x *SettingsResponse) String() string {
 func (*SettingsResponse) ProtoMessage() {}
 
 func (x *SettingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[10]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1501,7 +1684,7 @@ func (x *SettingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingsResponse.ProtoReflect.Descriptor instead.
 func (*SettingsResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{10}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SettingsResponse) GetResponse() string {
@@ -1525,7 +1708,7 @@ type SettingsV2Request struct {
 func (x *SettingsV2Request) Reset() {
 	*x = SettingsV2Request{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[11]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1538,7 +1721,7 @@ func (x *SettingsV2Request) String() string {
 func (*SettingsV2Request) ProtoMessage() {}
 
 func (x *SettingsV2Request) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[11]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1551,7 +1734,7 @@ func (x *SettingsV2Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingsV2Request.ProtoReflect.Descriptor instead.
 func (*SettingsV2Request) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{11}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SettingsV2Request) GetIndexName() string {
@@ -1580,7 +1763,7 @@ type SettingsV2Response struct {
 func (x *SettingsV2Response) Reset() {
 	*x = SettingsV2Response{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[12]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1593,7 +1776,7 @@ func (x *SettingsV2Response) String() string {
 func (*SettingsV2Response) ProtoMessage() {}
 
 func (x *SettingsV2Response) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[12]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1606,7 +1789,7 @@ func (x *SettingsV2Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettingsV2Response.ProtoReflect.Descriptor instead.
 func (*SettingsV2Response) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{12}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SettingsV2Response) GetSettings() *IndexSettings {
@@ -1635,7 +1818,7 @@ type StartIndexRequest struct {
 func (x *StartIndexRequest) Reset() {
 	*x = StartIndexRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[13]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1648,7 +1831,7 @@ func (x *StartIndexRequest) String() string {
 func (*StartIndexRequest) ProtoMessage() {}
 
 func (x *StartIndexRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[13]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1661,7 +1844,7 @@ func (x *StartIndexRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartIndexRequest.ProtoReflect.Descriptor instead.
 func (*StartIndexRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{13}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *StartIndexRequest) GetIndexName() string {
@@ -1726,7 +1909,7 @@ type StartIndexV2Request struct {
 func (x *StartIndexV2Request) Reset() {
 	*x = StartIndexV2Request{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[14]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1739,7 +1922,7 @@ func (x *StartIndexV2Request) String() string {
 func (*StartIndexV2Request) ProtoMessage() {}
 
 func (x *StartIndexV2Request) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[14]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1752,7 +1935,7 @@ func (x *StartIndexV2Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartIndexV2Request.ProtoReflect.Descriptor instead.
 func (*StartIndexV2Request) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{14}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *StartIndexV2Request) GetIndexName() string {
@@ -1776,7 +1959,7 @@ type StartIndexResponse struct {
 func (x *StartIndexResponse) Reset() {
 	*x = StartIndexResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[15]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1789,7 +1972,7 @@ func (x *StartIndexResponse) String() string {
 func (*StartIndexResponse) ProtoMessage() {}
 
 func (x *StartIndexResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[15]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1802,7 +1985,7 @@ func (x *StartIndexResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartIndexResponse.ProtoReflect.Descriptor instead.
 func (*StartIndexResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{15}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *StartIndexResponse) GetMaxDoc() int32 {
@@ -1845,7 +2028,7 @@ type AddDocumentRequest struct {
 func (x *AddDocumentRequest) Reset() {
 	*x = AddDocumentRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[16]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1858,7 +2041,7 @@ func (x *AddDocumentRequest) String() string {
 func (*AddDocumentRequest) ProtoMessage() {}
 
 func (x *AddDocumentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[16]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1871,7 +2054,7 @@ func (x *AddDocumentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddDocumentRequest.ProtoReflect.Descriptor instead.
 func (*AddDocumentRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{16}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AddDocumentRequest) GetIndexName() string {
@@ -1899,7 +2082,7 @@ type FacetHierarchyPath struct {
 func (x *FacetHierarchyPath) Reset() {
 	*x = FacetHierarchyPath{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[17]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1912,7 +2095,7 @@ func (x *FacetHierarchyPath) String() string {
 func (*FacetHierarchyPath) ProtoMessage() {}
 
 func (x *FacetHierarchyPath) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[17]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1925,7 +2108,7 @@ func (x *FacetHierarchyPath) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FacetHierarchyPath.ProtoReflect.Descriptor instead.
 func (*FacetHierarchyPath) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{17}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *FacetHierarchyPath) GetValue() []string {
@@ -1948,7 +2131,7 @@ type AddDocumentResponse struct {
 func (x *AddDocumentResponse) Reset() {
 	*x = AddDocumentResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[18]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1961,7 +2144,7 @@ func (x *AddDocumentResponse) String() string {
 func (*AddDocumentResponse) ProtoMessage() {}
 
 func (x *AddDocumentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[18]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1974,7 +2157,7 @@ func (x *AddDocumentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddDocumentResponse.ProtoReflect.Descriptor instead.
 func (*AddDocumentResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{18}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *AddDocumentResponse) GetGenId() string {
@@ -2002,7 +2185,7 @@ type RefreshRequest struct {
 func (x *RefreshRequest) Reset() {
 	*x = RefreshRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[19]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2015,7 +2198,7 @@ func (x *RefreshRequest) String() string {
 func (*RefreshRequest) ProtoMessage() {}
 
 func (x *RefreshRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[19]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2028,7 +2211,7 @@ func (x *RefreshRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshRequest.ProtoReflect.Descriptor instead.
 func (*RefreshRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{19}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *RefreshRequest) GetIndexName() string {
@@ -2049,7 +2232,7 @@ type RefreshResponse struct {
 func (x *RefreshResponse) Reset() {
 	*x = RefreshResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[20]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[21]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2062,7 +2245,7 @@ func (x *RefreshResponse) String() string {
 func (*RefreshResponse) ProtoMessage() {}
 
 func (x *RefreshResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[20]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[21]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2075,7 +2258,7 @@ func (x *RefreshResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RefreshResponse.ProtoReflect.Descriptor instead.
 func (*RefreshResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{20}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *RefreshResponse) GetRefreshTimeMS() float64 {
@@ -2096,7 +2279,7 @@ type CommitRequest struct {
 func (x *CommitRequest) Reset() {
 	*x = CommitRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[21]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2109,7 +2292,7 @@ func (x *CommitRequest) String() string {
 func (*CommitRequest) ProtoMessage() {}
 
 func (x *CommitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[21]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2122,7 +2305,7 @@ func (x *CommitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitRequest.ProtoReflect.Descriptor instead.
 func (*CommitRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{21}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *CommitRequest) GetIndexName() string {
@@ -2147,7 +2330,7 @@ type CommitResponse struct {
 func (x *CommitResponse) Reset() {
 	*x = CommitResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[22]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[23]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2160,7 +2343,7 @@ func (x *CommitResponse) String() string {
 func (*CommitResponse) ProtoMessage() {}
 
 func (x *CommitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[22]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[23]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2173,7 +2356,7 @@ func (x *CommitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommitResponse.ProtoReflect.Descriptor instead.
 func (*CommitResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{22}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *CommitResponse) GetGen() int64 {
@@ -2201,7 +2384,7 @@ type StatsRequest struct {
 func (x *StatsRequest) Reset() {
 	*x = StatsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[23]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[24]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2214,7 +2397,7 @@ func (x *StatsRequest) String() string {
 func (*StatsRequest) ProtoMessage() {}
 
 func (x *StatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[23]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[24]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2227,7 +2410,7 @@ func (x *StatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatsRequest.ProtoReflect.Descriptor instead.
 func (*StatsRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{23}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *StatsRequest) GetIndexName() string {
@@ -2263,7 +2446,7 @@ type StatsResponse struct {
 func (x *StatsResponse) Reset() {
 	*x = StatsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[24]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[25]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2276,7 +2459,7 @@ func (x *StatsResponse) String() string {
 func (*StatsResponse) ProtoMessage() {}
 
 func (x *StatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[24]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[25]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2289,7 +2472,7 @@ func (x *StatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatsResponse.ProtoReflect.Descriptor instead.
 func (*StatsResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{24}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *StatsResponse) GetOrd() int32 {
@@ -2360,7 +2543,7 @@ type Taxonomy struct {
 func (x *Taxonomy) Reset() {
 	*x = Taxonomy{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[25]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[26]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2373,7 +2556,7 @@ func (x *Taxonomy) String() string {
 func (*Taxonomy) ProtoMessage() {}
 
 func (x *Taxonomy) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[25]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[26]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2386,7 +2569,7 @@ func (x *Taxonomy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Taxonomy.ProtoReflect.Descriptor instead.
 func (*Taxonomy) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{25}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Taxonomy) GetNumOrds() int32 {
@@ -2420,7 +2603,7 @@ type Searcher struct {
 func (x *Searcher) Reset() {
 	*x = Searcher{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[26]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[27]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2433,7 +2616,7 @@ func (x *Searcher) String() string {
 func (*Searcher) ProtoMessage() {}
 
 func (x *Searcher) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[26]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[27]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2446,7 +2629,7 @@ func (x *Searcher) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Searcher.ProtoReflect.Descriptor instead.
 func (*Searcher) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{26}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *Searcher) GetVersion() int64 {
@@ -2495,7 +2678,7 @@ type DeleteAllDocumentsRequest struct {
 func (x *DeleteAllDocumentsRequest) Reset() {
 	*x = DeleteAllDocumentsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[27]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[28]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2508,7 +2691,7 @@ func (x *DeleteAllDocumentsRequest) String() string {
 func (*DeleteAllDocumentsRequest) ProtoMessage() {}
 
 func (x *DeleteAllDocumentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[27]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[28]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2521,7 +2704,7 @@ func (x *DeleteAllDocumentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAllDocumentsRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAllDocumentsRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{27}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DeleteAllDocumentsRequest) GetIndexName() string {
@@ -2542,7 +2725,7 @@ type DeleteAllDocumentsResponse struct {
 func (x *DeleteAllDocumentsResponse) Reset() {
 	*x = DeleteAllDocumentsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[28]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[29]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2555,7 +2738,7 @@ func (x *DeleteAllDocumentsResponse) String() string {
 func (*DeleteAllDocumentsResponse) ProtoMessage() {}
 
 func (x *DeleteAllDocumentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[28]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[29]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2568,7 +2751,7 @@ func (x *DeleteAllDocumentsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAllDocumentsResponse.ProtoReflect.Descriptor instead.
 func (*DeleteAllDocumentsResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{28}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DeleteAllDocumentsResponse) GetGenId() string {
@@ -2589,7 +2772,7 @@ type DeleteIndexRequest struct {
 func (x *DeleteIndexRequest) Reset() {
 	*x = DeleteIndexRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[29]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[30]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2602,7 +2785,7 @@ func (x *DeleteIndexRequest) String() string {
 func (*DeleteIndexRequest) ProtoMessage() {}
 
 func (x *DeleteIndexRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[29]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[30]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2615,7 +2798,7 @@ func (x *DeleteIndexRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteIndexRequest.ProtoReflect.Descriptor instead.
 func (*DeleteIndexRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{29}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *DeleteIndexRequest) GetIndexName() string {
@@ -2636,7 +2819,7 @@ type DeleteIndexResponse struct {
 func (x *DeleteIndexResponse) Reset() {
 	*x = DeleteIndexResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[30]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[31]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2649,7 +2832,7 @@ func (x *DeleteIndexResponse) String() string {
 func (*DeleteIndexResponse) ProtoMessage() {}
 
 func (x *DeleteIndexResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[30]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[31]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2662,7 +2845,7 @@ func (x *DeleteIndexResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteIndexResponse.ProtoReflect.Descriptor instead.
 func (*DeleteIndexResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{30}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *DeleteIndexResponse) GetOk() string {
@@ -2683,7 +2866,7 @@ type DummyResponse struct {
 func (x *DummyResponse) Reset() {
 	*x = DummyResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[31]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[32]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2696,7 +2879,7 @@ func (x *DummyResponse) String() string {
 func (*DummyResponse) ProtoMessage() {}
 
 func (x *DummyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[31]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[32]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2709,7 +2892,7 @@ func (x *DummyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DummyResponse.ProtoReflect.Descriptor instead.
 func (*DummyResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{31}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *DummyResponse) GetOk() string {
@@ -2730,7 +2913,7 @@ type StopIndexRequest struct {
 func (x *StopIndexRequest) Reset() {
 	*x = StopIndexRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[32]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[33]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2743,7 +2926,7 @@ func (x *StopIndexRequest) String() string {
 func (*StopIndexRequest) ProtoMessage() {}
 
 func (x *StopIndexRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[32]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[33]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2756,7 +2939,7 @@ func (x *StopIndexRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopIndexRequest.ProtoReflect.Descriptor instead.
 func (*StopIndexRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{32}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *StopIndexRequest) GetIndexName() string {
@@ -2775,7 +2958,7 @@ type ReloadStateRequest struct {
 func (x *ReloadStateRequest) Reset() {
 	*x = ReloadStateRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[33]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[34]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2788,7 +2971,7 @@ func (x *ReloadStateRequest) String() string {
 func (*ReloadStateRequest) ProtoMessage() {}
 
 func (x *ReloadStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[33]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[34]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2801,7 +2984,7 @@ func (x *ReloadStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReloadStateRequest.ProtoReflect.Descriptor instead.
 func (*ReloadStateRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{33}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{34}
 }
 
 type ReloadStateResponse struct {
@@ -2813,7 +2996,7 @@ type ReloadStateResponse struct {
 func (x *ReloadStateResponse) Reset() {
 	*x = ReloadStateResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[34]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[35]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2826,7 +3009,7 @@ func (x *ReloadStateResponse) String() string {
 func (*ReloadStateResponse) ProtoMessage() {}
 
 func (x *ReloadStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[34]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[35]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2839,7 +3022,7 @@ func (x *ReloadStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReloadStateResponse.ProtoReflect.Descriptor instead.
 func (*ReloadStateResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{34}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{35}
 }
 
 //
@@ -2869,7 +3052,7 @@ type CreateSnapshotRequest struct {
 func (x *CreateSnapshotRequest) Reset() {
 	*x = CreateSnapshotRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[35]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[36]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2882,7 +3065,7 @@ func (x *CreateSnapshotRequest) String() string {
 func (*CreateSnapshotRequest) ProtoMessage() {}
 
 func (x *CreateSnapshotRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[35]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[36]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2895,7 +3078,7 @@ func (x *CreateSnapshotRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSnapshotRequest.ProtoReflect.Descriptor instead.
 func (*CreateSnapshotRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{35}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *CreateSnapshotRequest) GetIndexName() string {
@@ -2926,7 +3109,7 @@ type CreateSnapshotResponse struct {
 func (x *CreateSnapshotResponse) Reset() {
 	*x = CreateSnapshotResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[36]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[37]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2939,7 +3122,7 @@ func (x *CreateSnapshotResponse) String() string {
 func (*CreateSnapshotResponse) ProtoMessage() {}
 
 func (x *CreateSnapshotResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[36]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[37]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2952,7 +3135,7 @@ func (x *CreateSnapshotResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSnapshotResponse.ProtoReflect.Descriptor instead.
 func (*CreateSnapshotResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{36}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *CreateSnapshotResponse) GetIndexFiles() []string {
@@ -2996,7 +3179,7 @@ type SnapshotId struct {
 func (x *SnapshotId) Reset() {
 	*x = SnapshotId{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[37]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[38]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3009,7 +3192,7 @@ func (x *SnapshotId) String() string {
 func (*SnapshotId) ProtoMessage() {}
 
 func (x *SnapshotId) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[37]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[38]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3022,7 +3205,7 @@ func (x *SnapshotId) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SnapshotId.ProtoReflect.Descriptor instead.
 func (*SnapshotId) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{37}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *SnapshotId) GetIndexGen() int64 {
@@ -3058,7 +3241,7 @@ type ReleaseSnapshotRequest struct {
 func (x *ReleaseSnapshotRequest) Reset() {
 	*x = ReleaseSnapshotRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[38]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[39]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3071,7 +3254,7 @@ func (x *ReleaseSnapshotRequest) String() string {
 func (*ReleaseSnapshotRequest) ProtoMessage() {}
 
 func (x *ReleaseSnapshotRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[38]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[39]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3084,7 +3267,7 @@ func (x *ReleaseSnapshotRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseSnapshotRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseSnapshotRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{38}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ReleaseSnapshotRequest) GetIndexName() string {
@@ -3112,7 +3295,7 @@ type ReleaseSnapshotResponse struct {
 func (x *ReleaseSnapshotResponse) Reset() {
 	*x = ReleaseSnapshotResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[39]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[40]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3125,7 +3308,7 @@ func (x *ReleaseSnapshotResponse) String() string {
 func (*ReleaseSnapshotResponse) ProtoMessage() {}
 
 func (x *ReleaseSnapshotResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[39]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[40]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3138,7 +3321,7 @@ func (x *ReleaseSnapshotResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseSnapshotResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseSnapshotResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{39}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *ReleaseSnapshotResponse) GetSuccess() bool {
@@ -3159,7 +3342,7 @@ type GetAllSnapshotGenRequest struct {
 func (x *GetAllSnapshotGenRequest) Reset() {
 	*x = GetAllSnapshotGenRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[40]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[41]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3172,7 +3355,7 @@ func (x *GetAllSnapshotGenRequest) String() string {
 func (*GetAllSnapshotGenRequest) ProtoMessage() {}
 
 func (x *GetAllSnapshotGenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[40]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[41]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3185,7 +3368,7 @@ func (x *GetAllSnapshotGenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllSnapshotGenRequest.ProtoReflect.Descriptor instead.
 func (*GetAllSnapshotGenRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{40}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *GetAllSnapshotGenRequest) GetIndexName() string {
@@ -3206,7 +3389,7 @@ type GetAllSnapshotGenResponse struct {
 func (x *GetAllSnapshotGenResponse) Reset() {
 	*x = GetAllSnapshotGenResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[41]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[42]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3219,7 +3402,7 @@ func (x *GetAllSnapshotGenResponse) String() string {
 func (*GetAllSnapshotGenResponse) ProtoMessage() {}
 
 func (x *GetAllSnapshotGenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[41]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[42]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3232,7 +3415,7 @@ func (x *GetAllSnapshotGenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAllSnapshotGenResponse.ProtoReflect.Descriptor instead.
 func (*GetAllSnapshotGenResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{41}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *GetAllSnapshotGenResponse) GetIndexGens() []int64 {
@@ -3257,7 +3440,7 @@ type BackupIndexRequest struct {
 func (x *BackupIndexRequest) Reset() {
 	*x = BackupIndexRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[42]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[43]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3270,7 +3453,7 @@ func (x *BackupIndexRequest) String() string {
 func (*BackupIndexRequest) ProtoMessage() {}
 
 func (x *BackupIndexRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[42]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[43]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3283,7 +3466,7 @@ func (x *BackupIndexRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BackupIndexRequest.ProtoReflect.Descriptor instead.
 func (*BackupIndexRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{42}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *BackupIndexRequest) GetIndexName() string {
@@ -3333,7 +3516,7 @@ type BackupIndexResponse struct {
 func (x *BackupIndexResponse) Reset() {
 	*x = BackupIndexResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[43]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[44]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3346,7 +3529,7 @@ func (x *BackupIndexResponse) String() string {
 func (*BackupIndexResponse) ProtoMessage() {}
 
 func (x *BackupIndexResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[43]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[44]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3359,7 +3542,7 @@ func (x *BackupIndexResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BackupIndexResponse.ProtoReflect.Descriptor instead.
 func (*BackupIndexResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{43}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *BackupIndexResponse) GetDataVersionHash() string {
@@ -3390,7 +3573,7 @@ type BackupWarmingQueriesRequest struct {
 func (x *BackupWarmingQueriesRequest) Reset() {
 	*x = BackupWarmingQueriesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[44]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[45]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3403,7 +3586,7 @@ func (x *BackupWarmingQueriesRequest) String() string {
 func (*BackupWarmingQueriesRequest) ProtoMessage() {}
 
 func (x *BackupWarmingQueriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[44]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[45]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3416,7 +3599,7 @@ func (x *BackupWarmingQueriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BackupWarmingQueriesRequest.ProtoReflect.Descriptor instead.
 func (*BackupWarmingQueriesRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{44}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *BackupWarmingQueriesRequest) GetIndex() string {
@@ -3456,7 +3639,7 @@ type BackupWarmingQueriesResponse struct {
 func (x *BackupWarmingQueriesResponse) Reset() {
 	*x = BackupWarmingQueriesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[45]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[46]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3469,7 +3652,7 @@ func (x *BackupWarmingQueriesResponse) String() string {
 func (*BackupWarmingQueriesResponse) ProtoMessage() {}
 
 func (x *BackupWarmingQueriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[45]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[46]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3482,7 +3665,7 @@ func (x *BackupWarmingQueriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BackupWarmingQueriesResponse.ProtoReflect.Descriptor instead.
 func (*BackupWarmingQueriesResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{45}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{46}
 }
 
 type DeleteIndexBackupRequest struct {
@@ -3499,7 +3682,7 @@ type DeleteIndexBackupRequest struct {
 func (x *DeleteIndexBackupRequest) Reset() {
 	*x = DeleteIndexBackupRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[46]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[47]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3512,7 +3695,7 @@ func (x *DeleteIndexBackupRequest) String() string {
 func (*DeleteIndexBackupRequest) ProtoMessage() {}
 
 func (x *DeleteIndexBackupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[46]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[47]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3525,7 +3708,7 @@ func (x *DeleteIndexBackupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteIndexBackupRequest.ProtoReflect.Descriptor instead.
 func (*DeleteIndexBackupRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{46}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *DeleteIndexBackupRequest) GetIndexName() string {
@@ -3570,7 +3753,7 @@ type DeleteIndexBackupResponse struct {
 func (x *DeleteIndexBackupResponse) Reset() {
 	*x = DeleteIndexBackupResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[47]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[48]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3583,7 +3766,7 @@ func (x *DeleteIndexBackupResponse) String() string {
 func (*DeleteIndexBackupResponse) ProtoMessage() {}
 
 func (x *DeleteIndexBackupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[47]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[48]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3596,7 +3779,7 @@ func (x *DeleteIndexBackupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteIndexBackupResponse.ProtoReflect.Descriptor instead.
 func (*DeleteIndexBackupResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{47}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *DeleteIndexBackupResponse) GetDeletedResourceDataHashes() []string {
@@ -3636,7 +3819,7 @@ type IndicesRequest struct {
 func (x *IndicesRequest) Reset() {
 	*x = IndicesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[48]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[49]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3649,7 +3832,7 @@ func (x *IndicesRequest) String() string {
 func (*IndicesRequest) ProtoMessage() {}
 
 func (x *IndicesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[48]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[49]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3662,7 +3845,7 @@ func (x *IndicesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndicesRequest.ProtoReflect.Descriptor instead.
 func (*IndicesRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{48}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{49}
 }
 
 type IndicesResponse struct {
@@ -3676,7 +3859,7 @@ type IndicesResponse struct {
 func (x *IndicesResponse) Reset() {
 	*x = IndicesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[49]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[50]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3689,7 +3872,7 @@ func (x *IndicesResponse) String() string {
 func (*IndicesResponse) ProtoMessage() {}
 
 func (x *IndicesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[49]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[50]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3702,7 +3885,7 @@ func (x *IndicesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndicesResponse.ProtoReflect.Descriptor instead.
 func (*IndicesResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{49}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *IndicesResponse) GetIndicesResponse() []*IndexStatsResponse {
@@ -3724,7 +3907,7 @@ type IndexStatsResponse struct {
 func (x *IndexStatsResponse) Reset() {
 	*x = IndexStatsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[50]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[51]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3737,7 +3920,7 @@ func (x *IndexStatsResponse) String() string {
 func (*IndexStatsResponse) ProtoMessage() {}
 
 func (x *IndexStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[50]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[51]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3750,7 +3933,7 @@ func (x *IndexStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexStatsResponse.ProtoReflect.Descriptor instead.
 func (*IndexStatsResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{50}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *IndexStatsResponse) GetIndexName() string {
@@ -3780,7 +3963,7 @@ type RestoreIndex struct {
 func (x *RestoreIndex) Reset() {
 	*x = RestoreIndex{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[51]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[52]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3793,7 +3976,7 @@ func (x *RestoreIndex) String() string {
 func (*RestoreIndex) ProtoMessage() {}
 
 func (x *RestoreIndex) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[51]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[52]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3806,7 +3989,7 @@ func (x *RestoreIndex) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestoreIndex.ProtoReflect.Descriptor instead.
 func (*RestoreIndex) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{51}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *RestoreIndex) GetServiceName() string {
@@ -3841,7 +4024,7 @@ type StateRequest struct {
 func (x *StateRequest) Reset() {
 	*x = StateRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[52]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[53]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3854,7 +4037,7 @@ func (x *StateRequest) String() string {
 func (*StateRequest) ProtoMessage() {}
 
 func (x *StateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[52]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[53]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3867,7 +4050,7 @@ func (x *StateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateRequest.ProtoReflect.Descriptor instead.
 func (*StateRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{52}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *StateRequest) GetIndexName() string {
@@ -3888,7 +4071,7 @@ type StateResponse struct {
 func (x *StateResponse) Reset() {
 	*x = StateResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[53]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[54]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3901,7 +4084,7 @@ func (x *StateResponse) String() string {
 func (*StateResponse) ProtoMessage() {}
 
 func (x *StateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[53]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[54]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3914,7 +4097,7 @@ func (x *StateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StateResponse.ProtoReflect.Descriptor instead.
 func (*StateResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{53}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *StateResponse) GetResponse() string {
@@ -3939,7 +4122,7 @@ type AddReplicaRequest struct {
 func (x *AddReplicaRequest) Reset() {
 	*x = AddReplicaRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[54]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[55]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -3952,7 +4135,7 @@ func (x *AddReplicaRequest) String() string {
 func (*AddReplicaRequest) ProtoMessage() {}
 
 func (x *AddReplicaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[54]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[55]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3965,7 +4148,7 @@ func (x *AddReplicaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddReplicaRequest.ProtoReflect.Descriptor instead.
 func (*AddReplicaRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{54}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *AddReplicaRequest) GetMagicNumber() int32 {
@@ -4014,7 +4197,7 @@ type AddReplicaResponse struct {
 func (x *AddReplicaResponse) Reset() {
 	*x = AddReplicaResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[55]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[56]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4027,7 +4210,7 @@ func (x *AddReplicaResponse) String() string {
 func (*AddReplicaResponse) ProtoMessage() {}
 
 func (x *AddReplicaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[55]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[56]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4040,7 +4223,7 @@ func (x *AddReplicaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddReplicaResponse.ProtoReflect.Descriptor instead.
 func (*AddReplicaResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{55}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *AddReplicaResponse) GetOk() string {
@@ -4069,7 +4252,7 @@ type CopyState struct {
 func (x *CopyState) Reset() {
 	*x = CopyState{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[56]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[57]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4082,7 +4265,7 @@ func (x *CopyState) String() string {
 func (*CopyState) ProtoMessage() {}
 
 func (x *CopyState) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[56]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[57]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4095,7 +4278,7 @@ func (x *CopyState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyState.ProtoReflect.Descriptor instead.
 func (*CopyState) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{56}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *CopyState) GetInfoBytesLength() int32 {
@@ -4166,7 +4349,7 @@ type FilesMetadata struct {
 func (x *FilesMetadata) Reset() {
 	*x = FilesMetadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[57]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[58]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4179,7 +4362,7 @@ func (x *FilesMetadata) String() string {
 func (*FilesMetadata) ProtoMessage() {}
 
 func (x *FilesMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[57]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[58]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4192,7 +4375,7 @@ func (x *FilesMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilesMetadata.ProtoReflect.Descriptor instead.
 func (*FilesMetadata) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{57}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *FilesMetadata) GetNumFiles() int32 {
@@ -4226,7 +4409,7 @@ type FileMetadata struct {
 func (x *FileMetadata) Reset() {
 	*x = FileMetadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[58]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[59]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4239,7 +4422,7 @@ func (x *FileMetadata) String() string {
 func (*FileMetadata) ProtoMessage() {}
 
 func (x *FileMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[58]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[59]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4252,7 +4435,7 @@ func (x *FileMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileMetadata.ProtoReflect.Descriptor instead.
 func (*FileMetadata) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{58}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *FileMetadata) GetFileName() string {
@@ -4319,7 +4502,7 @@ type CopyFiles struct {
 func (x *CopyFiles) Reset() {
 	*x = CopyFiles{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[59]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[60]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4332,7 +4515,7 @@ func (x *CopyFiles) String() string {
 func (*CopyFiles) ProtoMessage() {}
 
 func (x *CopyFiles) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[59]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[60]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4345,7 +4528,7 @@ func (x *CopyFiles) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyFiles.ProtoReflect.Descriptor instead.
 func (*CopyFiles) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{59}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *CopyFiles) GetMagicNumber() int32 {
@@ -4390,7 +4573,7 @@ type CopyStateRequest struct {
 func (x *CopyStateRequest) Reset() {
 	*x = CopyStateRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[60]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[61]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4403,7 +4586,7 @@ func (x *CopyStateRequest) String() string {
 func (*CopyStateRequest) ProtoMessage() {}
 
 func (x *CopyStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[60]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[61]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4416,7 +4599,7 @@ func (x *CopyStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CopyStateRequest.ProtoReflect.Descriptor instead.
 func (*CopyStateRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{60}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *CopyStateRequest) GetMagicNumber() int32 {
@@ -4454,7 +4637,7 @@ type FilesInfo struct {
 func (x *FilesInfo) Reset() {
 	*x = FilesInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[61]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[62]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4467,7 +4650,7 @@ func (x *FilesInfo) String() string {
 func (*FilesInfo) ProtoMessage() {}
 
 func (x *FilesInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[61]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[62]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4480,7 +4663,7 @@ func (x *FilesInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilesInfo.ProtoReflect.Descriptor instead.
 func (*FilesInfo) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{61}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *FilesInfo) GetMagicNumber() int32 {
@@ -4526,7 +4709,7 @@ type FileInfo struct {
 func (x *FileInfo) Reset() {
 	*x = FileInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[62]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[63]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4539,7 +4722,7 @@ func (x *FileInfo) String() string {
 func (*FileInfo) ProtoMessage() {}
 
 func (x *FileInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[62]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[63]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4552,7 +4735,7 @@ func (x *FileInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileInfo.ProtoReflect.Descriptor instead.
 func (*FileInfo) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{62}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *FileInfo) GetFileName() string {
@@ -4598,7 +4781,7 @@ type RawFileChunk struct {
 func (x *RawFileChunk) Reset() {
 	*x = RawFileChunk{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[63]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[64]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4611,7 +4794,7 @@ func (x *RawFileChunk) String() string {
 func (*RawFileChunk) ProtoMessage() {}
 
 func (x *RawFileChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[63]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[64]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4624,7 +4807,7 @@ func (x *RawFileChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RawFileChunk.ProtoReflect.Descriptor instead.
 func (*RawFileChunk) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{63}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *RawFileChunk) GetContent() []byte {
@@ -4659,7 +4842,7 @@ type HealthCheckRequest struct {
 func (x *HealthCheckRequest) Reset() {
 	*x = HealthCheckRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[64]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[65]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4672,7 +4855,7 @@ func (x *HealthCheckRequest) String() string {
 func (*HealthCheckRequest) ProtoMessage() {}
 
 func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[64]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[65]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4685,7 +4868,7 @@ func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckRequest.ProtoReflect.Descriptor instead.
 func (*HealthCheckRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{64}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *HealthCheckRequest) GetCheck() bool {
@@ -4706,7 +4889,7 @@ type HealthCheckResponse struct {
 func (x *HealthCheckResponse) Reset() {
 	*x = HealthCheckResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[65]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[66]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4719,7 +4902,7 @@ func (x *HealthCheckResponse) String() string {
 func (*HealthCheckResponse) ProtoMessage() {}
 
 func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[65]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[66]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4732,7 +4915,7 @@ func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*HealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{65}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *HealthCheckResponse) GetHealth() TransferStatusCode {
@@ -4753,7 +4936,7 @@ type ReadyCheckRequest struct {
 func (x *ReadyCheckRequest) Reset() {
 	*x = ReadyCheckRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[66]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[67]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4766,7 +4949,7 @@ func (x *ReadyCheckRequest) String() string {
 func (*ReadyCheckRequest) ProtoMessage() {}
 
 func (x *ReadyCheckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[66]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[67]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4779,7 +4962,7 @@ func (x *ReadyCheckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadyCheckRequest.ProtoReflect.Descriptor instead.
 func (*ReadyCheckRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{66}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *ReadyCheckRequest) GetIndexNames() string {
@@ -4801,7 +4984,7 @@ type TransferStatus struct {
 func (x *TransferStatus) Reset() {
 	*x = TransferStatus{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[67]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[68]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4814,7 +4997,7 @@ func (x *TransferStatus) String() string {
 func (*TransferStatus) ProtoMessage() {}
 
 func (x *TransferStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[67]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[68]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4827,7 +5010,7 @@ func (x *TransferStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TransferStatus.ProtoReflect.Descriptor instead.
 func (*TransferStatus) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{67}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *TransferStatus) GetMessage() string {
@@ -4858,7 +5041,7 @@ type NewNRTPoint struct {
 func (x *NewNRTPoint) Reset() {
 	*x = NewNRTPoint{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[68]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[69]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4871,7 +5054,7 @@ func (x *NewNRTPoint) String() string {
 func (*NewNRTPoint) ProtoMessage() {}
 
 func (x *NewNRTPoint) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[68]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[69]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4884,7 +5067,7 @@ func (x *NewNRTPoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NewNRTPoint.ProtoReflect.Descriptor instead.
 func (*NewNRTPoint) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{68}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *NewNRTPoint) GetMagicNumber() int32 {
@@ -4927,7 +5110,7 @@ type IndexName struct {
 func (x *IndexName) Reset() {
 	*x = IndexName{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[69]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[70]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4940,7 +5123,7 @@ func (x *IndexName) String() string {
 func (*IndexName) ProtoMessage() {}
 
 func (x *IndexName) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[69]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[70]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4953,7 +5136,7 @@ func (x *IndexName) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexName.ProtoReflect.Descriptor instead.
 func (*IndexName) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{69}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *IndexName) GetMagicNumber() int32 {
@@ -4982,7 +5165,7 @@ type SearcherVersion struct {
 func (x *SearcherVersion) Reset() {
 	*x = SearcherVersion{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[70]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[71]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -4995,7 +5178,7 @@ func (x *SearcherVersion) String() string {
 func (*SearcherVersion) ProtoMessage() {}
 
 func (x *SearcherVersion) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[70]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[71]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5008,7 +5191,7 @@ func (x *SearcherVersion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearcherVersion.ProtoReflect.Descriptor instead.
 func (*SearcherVersion) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{70}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *SearcherVersion) GetVersion() int64 {
@@ -5036,7 +5219,7 @@ type GetNodesRequest struct {
 func (x *GetNodesRequest) Reset() {
 	*x = GetNodesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[71]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[72]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5049,7 +5232,7 @@ func (x *GetNodesRequest) String() string {
 func (*GetNodesRequest) ProtoMessage() {}
 
 func (x *GetNodesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[71]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[72]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5062,7 +5245,7 @@ func (x *GetNodesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodesRequest.ProtoReflect.Descriptor instead.
 func (*GetNodesRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{71}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *GetNodesRequest) GetIndexName() string {
@@ -5083,7 +5266,7 @@ type GetNodesResponse struct {
 func (x *GetNodesResponse) Reset() {
 	*x = GetNodesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[72]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[73]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5096,7 +5279,7 @@ func (x *GetNodesResponse) String() string {
 func (*GetNodesResponse) ProtoMessage() {}
 
 func (x *GetNodesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[72]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[73]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5109,7 +5292,7 @@ func (x *GetNodesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetNodesResponse.ProtoReflect.Descriptor instead.
 func (*GetNodesResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{72}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *GetNodesResponse) GetNodes() []*NodeInfo {
@@ -5131,7 +5314,7 @@ type NodeInfo struct {
 func (x *NodeInfo) Reset() {
 	*x = NodeInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[73]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[74]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5144,7 +5327,7 @@ func (x *NodeInfo) String() string {
 func (*NodeInfo) ProtoMessage() {}
 
 func (x *NodeInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[73]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[74]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5157,7 +5340,7 @@ func (x *NodeInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NodeInfo.ProtoReflect.Descriptor instead.
 func (*NodeInfo) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{73}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *NodeInfo) GetHostname() string {
@@ -5186,7 +5369,7 @@ type DeleteByQueryRequest struct {
 func (x *DeleteByQueryRequest) Reset() {
 	*x = DeleteByQueryRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[74]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[75]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5199,7 +5382,7 @@ func (x *DeleteByQueryRequest) String() string {
 func (*DeleteByQueryRequest) ProtoMessage() {}
 
 func (x *DeleteByQueryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[74]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[75]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5212,7 +5395,7 @@ func (x *DeleteByQueryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteByQueryRequest.ProtoReflect.Descriptor instead.
 func (*DeleteByQueryRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{74}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *DeleteByQueryRequest) GetIndexName() string {
@@ -5242,7 +5425,7 @@ type ForceMergeRequest struct {
 func (x *ForceMergeRequest) Reset() {
 	*x = ForceMergeRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[75]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[76]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5255,7 +5438,7 @@ func (x *ForceMergeRequest) String() string {
 func (*ForceMergeRequest) ProtoMessage() {}
 
 func (x *ForceMergeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[75]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[76]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5268,7 +5451,7 @@ func (x *ForceMergeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForceMergeRequest.ProtoReflect.Descriptor instead.
 func (*ForceMergeRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{75}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *ForceMergeRequest) GetIndexName() string {
@@ -5303,7 +5486,7 @@ type ForceMergeResponse struct {
 func (x *ForceMergeResponse) Reset() {
 	*x = ForceMergeResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[76]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[77]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5316,7 +5499,7 @@ func (x *ForceMergeResponse) String() string {
 func (*ForceMergeResponse) ProtoMessage() {}
 
 func (x *ForceMergeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[76]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[77]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5329,7 +5512,7 @@ func (x *ForceMergeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForceMergeResponse.ProtoReflect.Descriptor instead.
 func (*ForceMergeResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{76}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *ForceMergeResponse) GetStatus() ForceMergeResponse_Status {
@@ -5351,7 +5534,7 @@ type ForceMergeDeletesRequest struct {
 func (x *ForceMergeDeletesRequest) Reset() {
 	*x = ForceMergeDeletesRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[77]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[78]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5364,7 +5547,7 @@ func (x *ForceMergeDeletesRequest) String() string {
 func (*ForceMergeDeletesRequest) ProtoMessage() {}
 
 func (x *ForceMergeDeletesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[77]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[78]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5377,7 +5560,7 @@ func (x *ForceMergeDeletesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForceMergeDeletesRequest.ProtoReflect.Descriptor instead.
 func (*ForceMergeDeletesRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{77}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *ForceMergeDeletesRequest) GetIndexName() string {
@@ -5405,7 +5588,7 @@ type ForceMergeDeletesResponse struct {
 func (x *ForceMergeDeletesResponse) Reset() {
 	*x = ForceMergeDeletesResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[78]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[79]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5418,7 +5601,7 @@ func (x *ForceMergeDeletesResponse) String() string {
 func (*ForceMergeDeletesResponse) ProtoMessage() {}
 
 func (x *ForceMergeDeletesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[78]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[79]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5431,7 +5614,7 @@ func (x *ForceMergeDeletesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ForceMergeDeletesResponse.ProtoReflect.Descriptor instead.
 func (*ForceMergeDeletesResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{78}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *ForceMergeDeletesResponse) GetStatus() ForceMergeDeletesResponse_Status {
@@ -5465,7 +5648,7 @@ type IndexSettings struct {
 func (x *IndexSettings) Reset() {
 	*x = IndexSettings{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[79]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[80]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5478,7 +5661,7 @@ func (x *IndexSettings) String() string {
 func (*IndexSettings) ProtoMessage() {}
 
 func (x *IndexSettings) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[79]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[80]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5491,7 +5674,7 @@ func (x *IndexSettings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexSettings.ProtoReflect.Descriptor instead.
 func (*IndexSettings) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{79}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *IndexSettings) GetNrtCachingDirectoryMaxMergeSizeMB() *wrapperspb.DoubleValue {
@@ -5581,7 +5764,7 @@ type IndexLiveSettings struct {
 func (x *IndexLiveSettings) Reset() {
 	*x = IndexLiveSettings{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[80]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[81]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5594,7 +5777,7 @@ func (x *IndexLiveSettings) String() string {
 func (*IndexLiveSettings) ProtoMessage() {}
 
 func (x *IndexLiveSettings) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[80]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[81]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5607,7 +5790,7 @@ func (x *IndexLiveSettings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexLiveSettings.ProtoReflect.Descriptor instead.
 func (*IndexLiveSettings) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{80}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *IndexLiveSettings) GetMaxRefreshSec() *wrapperspb.DoubleValue {
@@ -5730,7 +5913,7 @@ type IndexStateInfo struct {
 func (x *IndexStateInfo) Reset() {
 	*x = IndexStateInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[81]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[82]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5743,7 +5926,7 @@ func (x *IndexStateInfo) String() string {
 func (*IndexStateInfo) ProtoMessage() {}
 
 func (x *IndexStateInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[81]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[82]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5756,7 +5939,7 @@ func (x *IndexStateInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexStateInfo.ProtoReflect.Descriptor instead.
 func (*IndexStateInfo) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{81}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *IndexStateInfo) GetIndexName() string {
@@ -5815,7 +5998,7 @@ type IndexGlobalState struct {
 func (x *IndexGlobalState) Reset() {
 	*x = IndexGlobalState{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[82]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[83]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5828,7 +6011,7 @@ func (x *IndexGlobalState) String() string {
 func (*IndexGlobalState) ProtoMessage() {}
 
 func (x *IndexGlobalState) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[82]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[83]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5841,7 +6024,7 @@ func (x *IndexGlobalState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexGlobalState.ProtoReflect.Descriptor instead.
 func (*IndexGlobalState) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{82}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *IndexGlobalState) GetId() string {
@@ -5872,7 +6055,7 @@ type GlobalStateInfo struct {
 func (x *GlobalStateInfo) Reset() {
 	*x = GlobalStateInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[83]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[84]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5885,7 +6068,7 @@ func (x *GlobalStateInfo) String() string {
 func (*GlobalStateInfo) ProtoMessage() {}
 
 func (x *GlobalStateInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[83]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[84]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5898,7 +6081,7 @@ func (x *GlobalStateInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GlobalStateInfo.ProtoReflect.Descriptor instead.
 func (*GlobalStateInfo) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{83}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *GlobalStateInfo) GetGen() int64 {
@@ -5928,7 +6111,7 @@ type CustomRequest struct {
 func (x *CustomRequest) Reset() {
 	*x = CustomRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[84]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[85]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -5941,7 +6124,7 @@ func (x *CustomRequest) String() string {
 func (*CustomRequest) ProtoMessage() {}
 
 func (x *CustomRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[84]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[85]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5954,7 +6137,7 @@ func (x *CustomRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomRequest.ProtoReflect.Descriptor instead.
 func (*CustomRequest) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{84}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *CustomRequest) GetId() string {
@@ -5989,7 +6172,7 @@ type CustomResponse struct {
 func (x *CustomResponse) Reset() {
 	*x = CustomResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[85]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[86]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6002,7 +6185,7 @@ func (x *CustomResponse) String() string {
 func (*CustomResponse) ProtoMessage() {}
 
 func (x *CustomResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[85]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[86]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6015,7 +6198,7 @@ func (x *CustomResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CustomResponse.ProtoReflect.Descriptor instead.
 func (*CustomResponse) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{85}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *CustomResponse) GetResponse() map[string]string {
@@ -6039,7 +6222,7 @@ type AddDocumentRequest_MultiValuedField struct {
 func (x *AddDocumentRequest_MultiValuedField) Reset() {
 	*x = AddDocumentRequest_MultiValuedField{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[86]
+		mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[87]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -6052,7 +6235,7 @@ func (x *AddDocumentRequest_MultiValuedField) String() string {
 func (*AddDocumentRequest_MultiValuedField) ProtoMessage() {}
 
 func (x *AddDocumentRequest_MultiValuedField) ProtoReflect() protoreflect.Message {
-	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[86]
+	mi := &file_yelp_nrtsearch_luceneserver_proto_msgTypes[87]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6065,7 +6248,7 @@ func (x *AddDocumentRequest_MultiValuedField) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use AddDocumentRequest_MultiValuedField.ProtoReflect.Descriptor instead.
 func (*AddDocumentRequest_MultiValuedField) Descriptor() ([]byte, []int) {
-	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{16, 0}
+	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{17, 0}
 }
 
 func (x *AddDocumentRequest_MultiValuedField) GetValue() []string {
@@ -6184,8 +6367,8 @@ var file_yelp_nrtsearch_luceneserver_proto_rawDesc = []byte{
 	0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32,
 	0x1f, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x49,
 	0x6e, 0x64, 0x65, 0x78, 0x4c, 0x69, 0x76, 0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73,
-	0x52, 0x0c, 0x6c, 0x69, 0x76, 0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x22, 0x9f,
-	0x0a, 0x0a, 0x05, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65,
+	0x52, 0x0c, 0x6c, 0x69, 0x76, 0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x22, 0xc6,
+	0x0b, 0x0a, 0x05, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65,
 	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x2b, 0x0a, 0x04,
 	0x74, 0x79, 0x70, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x17, 0x2e, 0x6c, 0x75, 0x63,
 	0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x54,
@@ -6267,6 +6450,28 @@ var file_yelp_nrtsearch_luceneserver_proto_rawDesc = []byte{
 	0x6c, 0x64, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4f, 0x72, 0x64, 0x69, 0x6e, 0x61, 0x6c, 0x73,
 	0x18, 0x1e, 0x20, 0x01, 0x28, 0x08, 0x52, 0x18, 0x65, 0x61, 0x67, 0x65, 0x72, 0x46, 0x69, 0x65,
 	0x6c, 0x64, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x4f, 0x72, 0x64, 0x69, 0x6e, 0x61, 0x6c, 0x73,
+	0x12, 0x4a, 0x0a, 0x10, 0x76, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x53, 0x69, 0x6d, 0x69, 0x6c, 0x61,
+	0x72, 0x69, 0x74, 0x79, 0x18, 0x1f, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x1e, 0x2e, 0x6c, 0x75, 0x63,
+	0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x56, 0x65, 0x63, 0x74, 0x6f, 0x72,
+	0x53, 0x69, 0x6d, 0x69, 0x6c, 0x61, 0x72, 0x69, 0x74, 0x79, 0x52, 0x10, 0x76, 0x65, 0x63, 0x74,
+	0x6f, 0x72, 0x53, 0x69, 0x6d, 0x69, 0x6c, 0x61, 0x72, 0x69, 0x74, 0x79, 0x12, 0x59, 0x0a, 0x15,
+	0x76, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x69, 0x6e, 0x67, 0x4f, 0x70,
+	0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x20, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x56, 0x65, 0x63, 0x74, 0x6f,
+	0x72, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x69, 0x6e, 0x67, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73,
+	0x52, 0x15, 0x76, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x69, 0x6e, 0x67,
+	0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x22, 0xb6, 0x01, 0x0a, 0x15, 0x56, 0x65, 0x63, 0x74,
+	0x6f, 0x72, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x69, 0x6e, 0x67, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e,
+	0x73, 0x12, 0x3f, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32,
+	0x2b, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x56,
+	0x65, 0x63, 0x74, 0x6f, 0x72, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x69, 0x6e, 0x67, 0x4f, 0x70, 0x74,
+	0x69, 0x6f, 0x6e, 0x73, 0x2e, 0x4b, 0x6e, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x52, 0x04, 0x74, 0x79,
+	0x70, 0x65, 0x12, 0x15, 0x0a, 0x06, 0x68, 0x6e, 0x73, 0x77, 0x5f, 0x6d, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x05, 0x52, 0x05, 0x68, 0x6e, 0x73, 0x77, 0x4d, 0x12, 0x30, 0x0a, 0x14, 0x68, 0x6e, 0x73,
+	0x77, 0x5f, 0x65, 0x66, 0x5f, 0x63, 0x6f, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f,
+	0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x05, 0x52, 0x12, 0x68, 0x6e, 0x73, 0x77, 0x45, 0x66, 0x43,
+	0x6f, 0x6e, 0x73, 0x74, 0x72, 0x75, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x13, 0x0a, 0x07, 0x4b,
+	0x6e, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x12, 0x08, 0x0a, 0x04, 0x48, 0x4e, 0x53, 0x57, 0x10, 0x00,
 	0x22, 0x5a, 0x0a, 0x0f, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x44, 0x65, 0x66, 0x52, 0x65, 0x71, 0x75,
 	0x65, 0x73, 0x74, 0x12, 0x1c, 0x0a, 0x09, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d, 0x65,
 	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d,
@@ -6979,345 +7184,348 @@ var file_yelp_nrtsearch_luceneserver_proto_rawDesc = []byte{
 	0x49, 0x45, 0x52, 0x41, 0x52, 0x43, 0x48, 0x59, 0x10, 0x02, 0x12, 0x11, 0x0a, 0x0d, 0x4e, 0x55,
 	0x4d, 0x45, 0x52, 0x49, 0x43, 0x5f, 0x52, 0x41, 0x4e, 0x47, 0x45, 0x10, 0x03, 0x12, 0x19, 0x0a,
 	0x15, 0x53, 0x4f, 0x52, 0x54, 0x45, 0x44, 0x5f, 0x53, 0x45, 0x54, 0x5f, 0x44, 0x4f, 0x43, 0x5f,
-	0x56, 0x41, 0x4c, 0x55, 0x45, 0x53, 0x10, 0x04, 0x2a, 0x30, 0x0a, 0x04, 0x4d, 0x6f, 0x64, 0x65,
-	0x12, 0x0e, 0x0a, 0x0a, 0x53, 0x54, 0x41, 0x4e, 0x44, 0x41, 0x4c, 0x4f, 0x4e, 0x45, 0x10, 0x00,
-	0x12, 0x0b, 0x0a, 0x07, 0x50, 0x52, 0x49, 0x4d, 0x41, 0x52, 0x59, 0x10, 0x01, 0x12, 0x0b, 0x0a,
-	0x07, 0x52, 0x45, 0x50, 0x4c, 0x49, 0x43, 0x41, 0x10, 0x02, 0x2a, 0x44, 0x0a, 0x12, 0x54, 0x72,
-	0x61, 0x6e, 0x73, 0x66, 0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x43, 0x6f, 0x64, 0x65,
-	0x12, 0x0b, 0x0a, 0x07, 0x55, 0x6e, 0x6b, 0x6e, 0x6f, 0x77, 0x6e, 0x10, 0x00, 0x12, 0x08, 0x0a,
-	0x04, 0x44, 0x6f, 0x6e, 0x65, 0x10, 0x01, 0x12, 0x0a, 0x0a, 0x06, 0x46, 0x61, 0x69, 0x6c, 0x65,
-	0x64, 0x10, 0x02, 0x12, 0x0b, 0x0a, 0x07, 0x4f, 0x6e, 0x67, 0x6f, 0x69, 0x6e, 0x67, 0x10, 0x03,
-	0x32, 0x9f, 0x22, 0x0a, 0x0c, 0x4c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x53, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x12, 0x6f, 0x0a, 0x0b, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78,
-	0x12, 0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
-	0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1b, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x15, 0x22, 0x10, 0x2f,
-	0x76, 0x31, 0x2f, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x3a,
-	0x01, 0x2a, 0x12, 0x73, 0x0a, 0x0c, 0x6c, 0x69, 0x76, 0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e,
-	0x67, 0x73, 0x12, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x2e, 0x4c, 0x69, 0x76, 0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x2e, 0x4c, 0x69, 0x76, 0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67,
-	0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1c, 0x82, 0xd3, 0xe4, 0x93, 0x02,
-	0x16, 0x22, 0x11, 0x2f, 0x76, 0x31, 0x2f, 0x6c, 0x69, 0x76, 0x65, 0x5f, 0x73, 0x65, 0x74, 0x74,
-	0x69, 0x6e, 0x67, 0x73, 0x3a, 0x01, 0x2a, 0x12, 0x9a, 0x01, 0x0a, 0x0e, 0x6c, 0x69, 0x76, 0x65,
-	0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x56, 0x32, 0x12, 0x23, 0x2e, 0x6c, 0x75, 0x63,
-	0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x4c, 0x69, 0x76, 0x65, 0x53, 0x65,
-	0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x56, 0x32, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x24, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x4c,
-	0x69, 0x76, 0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x56, 0x32, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x3d, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x37, 0x22, 0x11, 0x2f,
-	0x76, 0x32, 0x2f, 0x6c, 0x69, 0x76, 0x65, 0x5f, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73,
-	0x3a, 0x01, 0x2a, 0x5a, 0x1f, 0x12, 0x1d, 0x2f, 0x76, 0x32, 0x2f, 0x6c, 0x69, 0x76, 0x65, 0x5f,
-	0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x2f, 0x7b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e,
-	0x61, 0x6d, 0x65, 0x7d, 0x12, 0x6f, 0x0a, 0x0e, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72,
-	0x46, 0x69, 0x65, 0x6c, 0x64, 0x73, 0x12, 0x1d, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73,
-	0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x44, 0x65, 0x66, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x2e, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x44, 0x65, 0x66, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1e, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x18, 0x22, 0x13, 0x2f,
-	0x76, 0x31, 0x2f, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x5f, 0x66, 0x69, 0x65, 0x6c,
-	0x64, 0x73, 0x3a, 0x01, 0x2a, 0x12, 0x6b, 0x0a, 0x0c, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x46,
-	0x69, 0x65, 0x6c, 0x64, 0x73, 0x12, 0x1d, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x2e, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x44, 0x65, 0x66, 0x52, 0x65, 0x71,
-	0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x2e, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x44, 0x65, 0x66, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1c, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x16, 0x22, 0x11, 0x2f, 0x76,
-	0x31, 0x2f, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x5f, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x73, 0x3a,
-	0x01, 0x2a, 0x12, 0x62, 0x0a, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x12, 0x1d,
-	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65,
-	0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e,
-	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x74,
-	0x74, 0x69, 0x6e, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x17, 0x82,
-	0xd3, 0xe4, 0x93, 0x02, 0x11, 0x22, 0x0c, 0x2f, 0x76, 0x31, 0x2f, 0x73, 0x65, 0x74, 0x74, 0x69,
-	0x6e, 0x67, 0x73, 0x3a, 0x01, 0x2a, 0x12, 0x84, 0x01, 0x0a, 0x0a, 0x73, 0x65, 0x74, 0x74, 0x69,
-	0x6e, 0x67, 0x73, 0x56, 0x32, 0x12, 0x1f, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x56, 0x32, 0x52,
-	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73,
-	0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x56, 0x32,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x33, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x2d,
-	0x22, 0x0c, 0x2f, 0x76, 0x32, 0x2f, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x3a, 0x01,
-	0x2a, 0x5a, 0x1a, 0x12, 0x18, 0x2f, 0x76, 0x32, 0x2f, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67,
-	0x73, 0x2f, 0x7b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d, 0x65, 0x7d, 0x12, 0x6b, 0x0a,
-	0x0a, 0x73, 0x74, 0x61, 0x72, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x12, 0x1f, 0x2e, 0x6c, 0x75,
-	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74,
-	0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x6c,
-	0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x72,
-	0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1a,
-	0x82, 0xd3, 0xe4, 0x93, 0x02, 0x14, 0x22, 0x0f, 0x2f, 0x76, 0x31, 0x2f, 0x73, 0x74, 0x61, 0x72,
-	0x74, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x3a, 0x01, 0x2a, 0x12, 0x6f, 0x0a, 0x0c, 0x73, 0x74,
-	0x61, 0x72, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x56, 0x32, 0x12, 0x21, 0x2e, 0x6c, 0x75, 0x63,
+	0x56, 0x41, 0x4c, 0x55, 0x45, 0x53, 0x10, 0x04, 0x2a, 0x3c, 0x0a, 0x10, 0x56, 0x65, 0x63, 0x74,
+	0x6f, 0x72, 0x53, 0x69, 0x6d, 0x69, 0x6c, 0x61, 0x72, 0x69, 0x74, 0x79, 0x12, 0x0b, 0x0a, 0x07,
+	0x4c, 0x32, 0x5f, 0x4e, 0x4f, 0x52, 0x4d, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x44, 0x4f, 0x54,
+	0x5f, 0x50, 0x52, 0x4f, 0x44, 0x55, 0x43, 0x54, 0x10, 0x01, 0x12, 0x0a, 0x0a, 0x06, 0x43, 0x4f,
+	0x53, 0x49, 0x4e, 0x45, 0x10, 0x02, 0x2a, 0x30, 0x0a, 0x04, 0x4d, 0x6f, 0x64, 0x65, 0x12, 0x0e,
+	0x0a, 0x0a, 0x53, 0x54, 0x41, 0x4e, 0x44, 0x41, 0x4c, 0x4f, 0x4e, 0x45, 0x10, 0x00, 0x12, 0x0b,
+	0x0a, 0x07, 0x50, 0x52, 0x49, 0x4d, 0x41, 0x52, 0x59, 0x10, 0x01, 0x12, 0x0b, 0x0a, 0x07, 0x52,
+	0x45, 0x50, 0x4c, 0x49, 0x43, 0x41, 0x10, 0x02, 0x2a, 0x44, 0x0a, 0x12, 0x54, 0x72, 0x61, 0x6e,
+	0x73, 0x66, 0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x43, 0x6f, 0x64, 0x65, 0x12, 0x0b,
+	0x0a, 0x07, 0x55, 0x6e, 0x6b, 0x6e, 0x6f, 0x77, 0x6e, 0x10, 0x00, 0x12, 0x08, 0x0a, 0x04, 0x44,
+	0x6f, 0x6e, 0x65, 0x10, 0x01, 0x12, 0x0a, 0x0a, 0x06, 0x46, 0x61, 0x69, 0x6c, 0x65, 0x64, 0x10,
+	0x02, 0x12, 0x0b, 0x0a, 0x07, 0x4f, 0x6e, 0x67, 0x6f, 0x69, 0x6e, 0x67, 0x10, 0x03, 0x32, 0x9f,
+	0x22, 0x0a, 0x0c, 0x4c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12,
+	0x6f, 0x0a, 0x0b, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x12, 0x20,
+	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x72,
+	0x65, 0x61, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
+	0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x22, 0x1b, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x15, 0x22, 0x10, 0x2f, 0x76, 0x31,
+	0x2f, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x3a, 0x01, 0x2a,
+	0x12, 0x73, 0x0a, 0x0c, 0x6c, 0x69, 0x76, 0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73,
+	0x12, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
+	0x4c, 0x69, 0x76, 0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x22, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x2e, 0x4c, 0x69, 0x76, 0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1c, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x16, 0x22,
+	0x11, 0x2f, 0x76, 0x31, 0x2f, 0x6c, 0x69, 0x76, 0x65, 0x5f, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e,
+	0x67, 0x73, 0x3a, 0x01, 0x2a, 0x12, 0x9a, 0x01, 0x0a, 0x0e, 0x6c, 0x69, 0x76, 0x65, 0x53, 0x65,
+	0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x56, 0x32, 0x12, 0x23, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e,
+	0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x4c, 0x69, 0x76, 0x65, 0x53, 0x65, 0x74, 0x74,
+	0x69, 0x6e, 0x67, 0x73, 0x56, 0x32, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e,
+	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x4c, 0x69, 0x76,
+	0x65, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x56, 0x32, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x22, 0x3d, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x37, 0x22, 0x11, 0x2f, 0x76, 0x32,
+	0x2f, 0x6c, 0x69, 0x76, 0x65, 0x5f, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x3a, 0x01,
+	0x2a, 0x5a, 0x1f, 0x12, 0x1d, 0x2f, 0x76, 0x32, 0x2f, 0x6c, 0x69, 0x76, 0x65, 0x5f, 0x73, 0x65,
+	0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x2f, 0x7b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d,
+	0x65, 0x7d, 0x12, 0x6f, 0x0a, 0x0e, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x46, 0x69,
+	0x65, 0x6c, 0x64, 0x73, 0x12, 0x1d, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
+	0x76, 0x65, 0x72, 0x2e, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x44, 0x65, 0x66, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x2e, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x44, 0x65, 0x66, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x22, 0x1e, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x18, 0x22, 0x13, 0x2f, 0x76, 0x31,
+	0x2f, 0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x5f, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x73,
+	0x3a, 0x01, 0x2a, 0x12, 0x6b, 0x0a, 0x0c, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x46, 0x69, 0x65,
+	0x6c, 0x64, 0x73, 0x12, 0x1d, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x2e, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x44, 0x65, 0x66, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65,
+	0x72, 0x2e, 0x46, 0x69, 0x65, 0x6c, 0x64, 0x44, 0x65, 0x66, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x22, 0x1c, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x16, 0x22, 0x11, 0x2f, 0x76, 0x31, 0x2f,
+	0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x5f, 0x66, 0x69, 0x65, 0x6c, 0x64, 0x73, 0x3a, 0x01, 0x2a,
+	0x12, 0x62, 0x0a, 0x08, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x12, 0x1d, 0x2e, 0x6c,
+	0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x74, 0x74,
+	0x69, 0x6e, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x74, 0x74, 0x69,
+	0x6e, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x17, 0x82, 0xd3, 0xe4,
+	0x93, 0x02, 0x11, 0x22, 0x0c, 0x2f, 0x76, 0x31, 0x2f, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67,
+	0x73, 0x3a, 0x01, 0x2a, 0x12, 0x84, 0x01, 0x0a, 0x0a, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67,
+	0x73, 0x56, 0x32, 0x12, 0x1f, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x2e, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x56, 0x32, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
+	0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x56, 0x32, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x33, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x2d, 0x22, 0x0c,
+	0x2f, 0x76, 0x32, 0x2f, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x3a, 0x01, 0x2a, 0x5a,
+	0x1a, 0x12, 0x18, 0x2f, 0x76, 0x32, 0x2f, 0x73, 0x65, 0x74, 0x74, 0x69, 0x6e, 0x67, 0x73, 0x2f,
+	0x7b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d, 0x65, 0x7d, 0x12, 0x6b, 0x0a, 0x0a, 0x73,
+	0x74, 0x61, 0x72, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x12, 0x1f, 0x2e, 0x6c, 0x75, 0x63, 0x65,
+	0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74, 0x49, 0x6e,
+	0x64, 0x65, 0x78, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x6c, 0x75, 0x63,
 	0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74, 0x49,
-	0x6e, 0x64, 0x65, 0x78, 0x56, 0x32, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e,
-	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61,
-	0x72, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22,
-	0x1a, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x14, 0x22, 0x0f, 0x2f, 0x76, 0x32, 0x2f, 0x73, 0x74, 0x61,
-	0x72, 0x74, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x3a, 0x01, 0x2a, 0x12, 0x63, 0x0a, 0x09, 0x73,
-	0x74, 0x6f, 0x70, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x12, 0x1e, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e,
-	0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x6f, 0x70, 0x49, 0x6e, 0x64, 0x65,
-	0x78, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e,
-	0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44, 0x75, 0x6d, 0x6d, 0x79, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x19, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x13, 0x22, 0x0e, 0x2f,
-	0x76, 0x31, 0x2f, 0x73, 0x74, 0x6f, 0x70, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x3a, 0x01, 0x2a,
-	0x12, 0x6f, 0x0a, 0x0b, 0x72, 0x65, 0x6c, 0x6f, 0x61, 0x64, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12,
-	0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52,
-	0x65, 0x6c, 0x6f, 0x61, 0x64, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2e, 0x52, 0x65, 0x6c, 0x6f, 0x61, 0x64, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1b, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x15, 0x22, 0x10, 0x2f, 0x76,
-	0x31, 0x2f, 0x72, 0x65, 0x6c, 0x6f, 0x61, 0x64, 0x5f, 0x73, 0x74, 0x61, 0x74, 0x65, 0x3a, 0x01,
-	0x2a, 0x12, 0x73, 0x0a, 0x0c, 0x61, 0x64, 0x64, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74,
-	0x73, 0x12, 0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2e, 0x41, 0x64, 0x64, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
-	0x65, 0x72, 0x2e, 0x41, 0x64, 0x64, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1c, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x16, 0x22, 0x11,
-	0x2f, 0x76, 0x31, 0x2f, 0x61, 0x64, 0x64, 0x5f, 0x64, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74,
-	0x73, 0x3a, 0x01, 0x2a, 0x28, 0x01, 0x12, 0x5e, 0x0a, 0x07, 0x72, 0x65, 0x66, 0x72, 0x65, 0x73,
-	0x68, 0x12, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2e, 0x52, 0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x1d, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52,
-	0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x16,
-	0x82, 0xd3, 0xe4, 0x93, 0x02, 0x10, 0x22, 0x0b, 0x2f, 0x76, 0x31, 0x2f, 0x72, 0x65, 0x66, 0x72,
-	0x65, 0x73, 0x68, 0x3a, 0x01, 0x2a, 0x12, 0x5a, 0x0a, 0x06, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74,
-	0x12, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
-	0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1c, 0x2e,
-	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x6f, 0x6d,
-	0x6d, 0x69, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x15, 0x82, 0xd3, 0xe4,
-	0x93, 0x02, 0x0f, 0x22, 0x0a, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x3a,
-	0x01, 0x2a, 0x12, 0x6f, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74, 0x73, 0x12, 0x1a, 0x2e, 0x6c, 0x75,
-	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x73,
-	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65,
-	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x2d, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x27, 0x22, 0x09, 0x2f, 0x76,
-	0x31, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x73, 0x3a, 0x01, 0x2a, 0x5a, 0x17, 0x12, 0x15, 0x2f, 0x76,
-	0x31, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x73, 0x2f, 0x7b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61,
-	0x6d, 0x65, 0x7d, 0x12, 0x5a, 0x0a, 0x06, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x12, 0x1b, 0x2e,
-	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x61,
-	0x72, 0x63, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1c, 0x2e, 0x6c, 0x75, 0x63,
-	0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x15, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x0f,
-	0x22, 0x0a, 0x2f, 0x76, 0x31, 0x2f, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x3a, 0x01, 0x2a, 0x12,
-	0x54, 0x0a, 0x08, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x56, 0x32, 0x12, 0x1b, 0x2e, 0x6c, 0x75,
-	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63,
-	0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x14, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c,
-	0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x41, 0x6e, 0x79, 0x22, 0x15,
-	0x82, 0xd3, 0xe4, 0x93, 0x02, 0x0f, 0x22, 0x0a, 0x2f, 0x76, 0x32, 0x2f, 0x73, 0x65, 0x61, 0x72,
-	0x63, 0x68, 0x3a, 0x01, 0x2a, 0x12, 0x64, 0x0a, 0x06, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x12,
+	0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1a, 0x82, 0xd3,
+	0xe4, 0x93, 0x02, 0x14, 0x22, 0x0f, 0x2f, 0x76, 0x31, 0x2f, 0x73, 0x74, 0x61, 0x72, 0x74, 0x5f,
+	0x69, 0x6e, 0x64, 0x65, 0x78, 0x3a, 0x01, 0x2a, 0x12, 0x6f, 0x0a, 0x0c, 0x73, 0x74, 0x61, 0x72,
+	0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x56, 0x32, 0x12, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e,
+	0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74, 0x49, 0x6e, 0x64,
+	0x65, 0x78, 0x56, 0x32, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x72, 0x74,
+	0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1a, 0x82,
+	0xd3, 0xe4, 0x93, 0x02, 0x14, 0x22, 0x0f, 0x2f, 0x76, 0x32, 0x2f, 0x73, 0x74, 0x61, 0x72, 0x74,
+	0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x3a, 0x01, 0x2a, 0x12, 0x63, 0x0a, 0x09, 0x73, 0x74, 0x6f,
+	0x70, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x12, 0x1e, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73,
+	0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x6f, 0x70, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73,
+	0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44, 0x75, 0x6d, 0x6d, 0x79, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x22, 0x19, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x13, 0x22, 0x0e, 0x2f, 0x76, 0x31,
+	0x2f, 0x73, 0x74, 0x6f, 0x70, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x3a, 0x01, 0x2a, 0x12, 0x6f,
+	0x0a, 0x0b, 0x72, 0x65, 0x6c, 0x6f, 0x61, 0x64, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x20, 0x2e,
+	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52, 0x65, 0x6c,
+	0x6f, 0x61, 0x64, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52,
+	0x65, 0x6c, 0x6f, 0x61, 0x64, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x22, 0x1b, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x15, 0x22, 0x10, 0x2f, 0x76, 0x31, 0x2f,
+	0x72, 0x65, 0x6c, 0x6f, 0x61, 0x64, 0x5f, 0x73, 0x74, 0x61, 0x74, 0x65, 0x3a, 0x01, 0x2a, 0x12,
+	0x73, 0x0a, 0x0c, 0x61, 0x64, 0x64, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x12,
 	0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x41,
 	0x64, 0x64, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
 	0x74, 0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
 	0x2e, 0x41, 0x64, 0x64, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x15, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x0f, 0x22, 0x0a, 0x2f, 0x76,
-	0x31, 0x2f, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x3a, 0x01, 0x2a, 0x12, 0x76, 0x0a, 0x0d, 0x64,
-	0x65, 0x6c, 0x65, 0x74, 0x65, 0x42, 0x79, 0x51, 0x75, 0x65, 0x72, 0x79, 0x12, 0x22, 0x2e, 0x6c,
-	0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44, 0x65, 0x6c, 0x65,
-	0x74, 0x65, 0x42, 0x79, 0x51, 0x75, 0x65, 0x72, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
-	0x41, 0x64, 0x64, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x22, 0x1e, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x18, 0x22, 0x13, 0x2f, 0x76, 0x31,
-	0x2f, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x5f, 0x62, 0x79, 0x5f, 0x71, 0x75, 0x65, 0x72, 0x79,
-	0x3a, 0x01, 0x2a, 0x12, 0x79, 0x0a, 0x09, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x41, 0x6c, 0x6c,
-	0x12, 0x27, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
-	0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x41, 0x6c, 0x6c, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e,
-	0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e, 0x6c, 0x75, 0x63, 0x65,
-	0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x41,
-	0x6c, 0x6c, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x22, 0x19, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x13, 0x22, 0x0e, 0x2f, 0x76, 0x31,
-	0x2f, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x5f, 0x61, 0x6c, 0x6c, 0x3a, 0x01, 0x2a, 0x12, 0x6f,
-	0x0a, 0x0b, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x12, 0x20, 0x2e,
+	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1c, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x16, 0x22, 0x11, 0x2f, 0x76,
+	0x31, 0x2f, 0x61, 0x64, 0x64, 0x5f, 0x64, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x3a,
+	0x01, 0x2a, 0x28, 0x01, 0x12, 0x5e, 0x0a, 0x07, 0x72, 0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x12,
+	0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52,
+	0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e,
+	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52, 0x65, 0x66,
+	0x72, 0x65, 0x73, 0x68, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x16, 0x82, 0xd3,
+	0xe4, 0x93, 0x02, 0x10, 0x22, 0x0b, 0x2f, 0x76, 0x31, 0x2f, 0x72, 0x65, 0x66, 0x72, 0x65, 0x73,
+	0x68, 0x3a, 0x01, 0x2a, 0x12, 0x5a, 0x0a, 0x06, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x12, 0x1b,
+	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x6f,
+	0x6d, 0x6d, 0x69, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1c, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x69,
+	0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x15, 0x82, 0xd3, 0xe4, 0x93, 0x02,
+	0x0f, 0x22, 0x0a, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x3a, 0x01, 0x2a,
+	0x12, 0x6f, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74, 0x73, 0x12, 0x1a, 0x2e, 0x6c, 0x75, 0x63, 0x65,
+	0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x65,
+	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
+	0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x22, 0x2d, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x27, 0x22, 0x09, 0x2f, 0x76, 0x31, 0x2f,
+	0x73, 0x74, 0x61, 0x74, 0x73, 0x3a, 0x01, 0x2a, 0x5a, 0x17, 0x12, 0x15, 0x2f, 0x76, 0x31, 0x2f,
+	0x73, 0x74, 0x61, 0x74, 0x73, 0x2f, 0x7b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d, 0x65,
+	0x7d, 0x12, 0x5a, 0x0a, 0x06, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x12, 0x1b, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63,
+	0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e,
+	0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x15, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x0f, 0x22, 0x0a,
+	0x2f, 0x76, 0x31, 0x2f, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x3a, 0x01, 0x2a, 0x12, 0x54, 0x0a,
+	0x08, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x56, 0x32, 0x12, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65,
+	0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x14, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x41, 0x6e, 0x79, 0x22, 0x15, 0x82, 0xd3,
+	0xe4, 0x93, 0x02, 0x0f, 0x22, 0x0a, 0x2f, 0x76, 0x32, 0x2f, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68,
+	0x3a, 0x01, 0x2a, 0x12, 0x64, 0x0a, 0x06, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x12, 0x20, 0x2e,
+	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x41, 0x64, 0x64,
+	0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x41,
+	0x64, 0x64, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x22, 0x15, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x0f, 0x22, 0x0a, 0x2f, 0x76, 0x31, 0x2f,
+	0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x3a, 0x01, 0x2a, 0x12, 0x76, 0x0a, 0x0d, 0x64, 0x65, 0x6c,
+	0x65, 0x74, 0x65, 0x42, 0x79, 0x51, 0x75, 0x65, 0x72, 0x79, 0x12, 0x22, 0x2e, 0x6c, 0x75, 0x63,
+	0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65,
+	0x42, 0x79, 0x51, 0x75, 0x65, 0x72, 0x79, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21,
+	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x41, 0x64,
+	0x64, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x22, 0x1e, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x18, 0x22, 0x13, 0x2f, 0x76, 0x31, 0x2f, 0x64,
+	0x65, 0x6c, 0x65, 0x74, 0x65, 0x5f, 0x62, 0x79, 0x5f, 0x71, 0x75, 0x65, 0x72, 0x79, 0x3a, 0x01,
+	0x2a, 0x12, 0x79, 0x0a, 0x09, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x41, 0x6c, 0x6c, 0x12, 0x27,
+	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44, 0x65,
+	0x6c, 0x65, 0x74, 0x65, 0x41, 0x6c, 0x6c, 0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x73,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x28, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65,
+	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x41, 0x6c, 0x6c,
+	0x44, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x22, 0x19, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x13, 0x22, 0x0e, 0x2f, 0x76, 0x31, 0x2f, 0x64,
+	0x65, 0x6c, 0x65, 0x74, 0x65, 0x5f, 0x61, 0x6c, 0x6c, 0x3a, 0x01, 0x2a, 0x12, 0x6f, 0x0a, 0x0b,
+	0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x12, 0x20, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74,
+	0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e,
 	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44, 0x65, 0x6c,
-	0x65, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44,
-	0x65, 0x6c, 0x65, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
-	0x73, 0x65, 0x22, 0x1b, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x15, 0x22, 0x10, 0x2f, 0x76, 0x31, 0x2f,
-	0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x3a, 0x01, 0x2a, 0x12,
-	0x73, 0x0a, 0x0c, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x12,
-	0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x42,
-	0x75, 0x69, 0x6c, 0x64, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x1a, 0x22, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x2e, 0x42, 0x75, 0x69, 0x6c, 0x64, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1c, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x16, 0x22, 0x11,
-	0x2f, 0x76, 0x31, 0x2f, 0x73, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x5f, 0x62, 0x75, 0x69, 0x6c,
-	0x64, 0x3a, 0x01, 0x2a, 0x12, 0x77, 0x0a, 0x0d, 0x73, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x4c,
-	0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x12, 0x22, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x4c, 0x6f, 0x6f, 0x6b,
-	0x75, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x6c, 0x75, 0x63, 0x65,
-	0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74,
-	0x4c, 0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1d,
-	0x82, 0xd3, 0xe4, 0x93, 0x02, 0x17, 0x22, 0x12, 0x2f, 0x76, 0x31, 0x2f, 0x73, 0x75, 0x67, 0x67,
-	0x65, 0x73, 0x74, 0x5f, 0x6c, 0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x3a, 0x01, 0x2a, 0x12, 0x75, 0x0a,
-	0x0d, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x12, 0x21,
-	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x42, 0x75,
-	0x69, 0x6c, 0x64, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x22, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2e, 0x42, 0x75, 0x69, 0x6c, 0x64, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1d, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x17, 0x22, 0x12, 0x2f,
-	0x76, 0x31, 0x2f, 0x73, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x5f, 0x75, 0x70, 0x64, 0x61, 0x74,
-	0x65, 0x3a, 0x01, 0x2a, 0x12, 0x7b, 0x0a, 0x0e, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x6e,
-	0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x12, 0x23, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73,
-	0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x6e, 0x61, 0x70,
-	0x73, 0x68, 0x6f, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x6c, 0x75,
-	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74,
-	0x65, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
-	0x65, 0x22, 0x1e, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x18, 0x22, 0x13, 0x2f, 0x76, 0x31, 0x2f, 0x63,
-	0x72, 0x65, 0x61, 0x74, 0x65, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x3a, 0x01,
-	0x2a, 0x12, 0x7f, 0x0a, 0x0f, 0x72, 0x65, 0x6c, 0x65, 0x61, 0x73, 0x65, 0x53, 0x6e, 0x61, 0x70,
-	0x73, 0x68, 0x6f, 0x74, 0x12, 0x24, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x2e, 0x52, 0x65, 0x6c, 0x65, 0x61, 0x73, 0x65, 0x53, 0x6e, 0x61, 0x70, 0x73,
-	0x68, 0x6f, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e, 0x6c, 0x75, 0x63,
-	0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52, 0x65, 0x6c, 0x65, 0x61, 0x73,
-	0x65, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
-	0x65, 0x22, 0x1f, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x19, 0x22, 0x14, 0x2f, 0x76, 0x31, 0x2f, 0x72,
-	0x65, 0x6c, 0x65, 0x61, 0x73, 0x65, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x3a,
-	0x01, 0x2a, 0x12, 0x9d, 0x01, 0x0a, 0x16, 0x67, 0x65, 0x74, 0x41, 0x6c, 0x6c, 0x53, 0x6e, 0x61,
-	0x70, 0x73, 0x68, 0x6f, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x47, 0x65, 0x6e, 0x12, 0x26, 0x2e,
-	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x47, 0x65, 0x74,
-	0x41, 0x6c, 0x6c, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x47, 0x65, 0x6e, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x2e, 0x47, 0x65, 0x74, 0x41, 0x6c, 0x6c, 0x53, 0x6e, 0x61, 0x70, 0x73,
-	0x68, 0x6f, 0x74, 0x47, 0x65, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x32,
-	0x82, 0xd3, 0xe4, 0x93, 0x02, 0x2c, 0x12, 0x2a, 0x2f, 0x76, 0x31, 0x2f, 0x67, 0x65, 0x74, 0x5f,
-	0x61, 0x6c, 0x6c, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x5f, 0x69, 0x6e, 0x64,
-	0x65, 0x78, 0x5f, 0x67, 0x65, 0x6e, 0x2f, 0x7b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d,
-	0x65, 0x7d, 0x12, 0x6f, 0x0a, 0x0b, 0x62, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x49, 0x6e, 0x64, 0x65,
-	0x78, 0x12, 0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2e, 0x42, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
-	0x65, 0x72, 0x2e, 0x42, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1b, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x15, 0x22, 0x10,
-	0x2f, 0x76, 0x31, 0x2f, 0x62, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78,
-	0x3a, 0x01, 0x2a, 0x12, 0x88, 0x01, 0x0a, 0x11, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x49, 0x6e,
-	0x64, 0x65, 0x78, 0x42, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x12, 0x26, 0x2e, 0x6c, 0x75, 0x63, 0x65,
-	0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x49,
-	0x6e, 0x64, 0x65, 0x78, 0x42, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x27, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x42, 0x61, 0x63, 0x6b,
-	0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x22, 0x82, 0xd3, 0xe4, 0x93,
-	0x02, 0x1c, 0x22, 0x17, 0x2f, 0x76, 0x31, 0x2f, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x5f, 0x69,
-	0x6e, 0x64, 0x65, 0x78, 0x5f, 0x62, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x3a, 0x01, 0x2a, 0x12, 0x94,
-	0x01, 0x0a, 0x14, 0x62, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x57, 0x61, 0x72, 0x6d, 0x69, 0x6e, 0x67,
-	0x51, 0x75, 0x65, 0x72, 0x69, 0x65, 0x73, 0x12, 0x29, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65,
-	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x42, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x57, 0x61, 0x72,
-	0x6d, 0x69, 0x6e, 0x67, 0x51, 0x75, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x1a, 0x2a, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x2e, 0x42, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x57, 0x61, 0x72, 0x6d, 0x69, 0x6e, 0x67, 0x51,
-	0x75, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x25,
-	0x82, 0xd3, 0xe4, 0x93, 0x02, 0x1f, 0x22, 0x1a, 0x2f, 0x76, 0x31, 0x2f, 0x62, 0x61, 0x63, 0x6b,
-	0x75, 0x70, 0x5f, 0x77, 0x61, 0x72, 0x6d, 0x69, 0x6e, 0x67, 0x5f, 0x71, 0x75, 0x65, 0x72, 0x69,
-	0x65, 0x73, 0x3a, 0x01, 0x2a, 0x12, 0x6f, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x12, 0x1a,
-	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74,
-	0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x6c, 0x75, 0x63,
-	0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x2d, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x27, 0x22,
-	0x09, 0x2f, 0x76, 0x31, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x65, 0x3a, 0x01, 0x2a, 0x5a, 0x17, 0x12,
-	0x15, 0x2f, 0x76, 0x31, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x65, 0x2f, 0x7b, 0x69, 0x6e, 0x64, 0x65,
-	0x78, 0x4e, 0x61, 0x6d, 0x65, 0x7d, 0x12, 0x61, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73,
-	0x12, 0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
-	0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x43, 0x68, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x2e, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x43, 0x68, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x73,
-	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x12, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x0c, 0x12, 0x0a, 0x2f,
-	0x76, 0x31, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x78, 0x0a, 0x05, 0x72, 0x65, 0x61,
-	0x64, 0x79, 0x12, 0x1f, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x2e, 0x52, 0x65, 0x61, 0x64, 0x79, 0x43, 0x68, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
-	0x65, 0x72, 0x2e, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x43, 0x68, 0x65, 0x63, 0x6b, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x2b, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x25, 0x12, 0x09,
-	0x2f, 0x76, 0x31, 0x2f, 0x72, 0x65, 0x61, 0x64, 0x79, 0x5a, 0x18, 0x12, 0x16, 0x2f, 0x76, 0x31,
-	0x2f, 0x72, 0x65, 0x61, 0x64, 0x79, 0x2f, 0x7b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d,
-	0x65, 0x73, 0x7d, 0x12, 0x50, 0x0a, 0x07, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x16,
-	0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66,
-	0x2e, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x1a, 0x14, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e,
-	0x61, 0x70, 0x69, 0x2e, 0x48, 0x74, 0x74, 0x70, 0x42, 0x6f, 0x64, 0x79, 0x22, 0x17, 0x82, 0xd3,
-	0xe4, 0x93, 0x02, 0x11, 0x12, 0x0f, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x2f, 0x6d, 0x65,
-	0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x5b, 0x0a, 0x07, 0x69, 0x6e, 0x64, 0x69, 0x63, 0x65, 0x73,
-	0x12, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
-	0x49, 0x6e, 0x64, 0x69, 0x63, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d,
-	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x49, 0x6e,
-	0x64, 0x69, 0x63, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x13, 0x82,
-	0xd3, 0xe4, 0x93, 0x02, 0x0d, 0x12, 0x0b, 0x2f, 0x76, 0x31, 0x2f, 0x69, 0x6e, 0x64, 0x69, 0x63,
-	0x65, 0x73, 0x12, 0x6b, 0x0a, 0x0a, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x4d, 0x65, 0x72, 0x67, 0x65,
+	0x65, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x22, 0x1b, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x15, 0x22, 0x10, 0x2f, 0x76, 0x31, 0x2f, 0x64, 0x65,
+	0x6c, 0x65, 0x74, 0x65, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x3a, 0x01, 0x2a, 0x12, 0x73, 0x0a,
+	0x0c, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x12, 0x21, 0x2e,
+	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x42, 0x75, 0x69,
+	0x6c, 0x64, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x22, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
+	0x42, 0x75, 0x69, 0x6c, 0x64, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1c, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x16, 0x22, 0x11, 0x2f, 0x76,
+	0x31, 0x2f, 0x73, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x5f, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x3a,
+	0x01, 0x2a, 0x12, 0x77, 0x0a, 0x0d, 0x73, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x4c, 0x6f, 0x6f,
+	0x6b, 0x75, 0x70, 0x12, 0x22, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x2e, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x4c, 0x6f, 0x6f, 0x6b, 0x75, 0x70,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x23, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65,
+	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x4c, 0x6f,
+	0x6f, 0x6b, 0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1d, 0x82, 0xd3,
+	0xe4, 0x93, 0x02, 0x17, 0x22, 0x12, 0x2f, 0x76, 0x31, 0x2f, 0x73, 0x75, 0x67, 0x67, 0x65, 0x73,
+	0x74, 0x5f, 0x6c, 0x6f, 0x6f, 0x6b, 0x75, 0x70, 0x3a, 0x01, 0x2a, 0x12, 0x75, 0x0a, 0x0d, 0x75,
+	0x70, 0x64, 0x61, 0x74, 0x65, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x12, 0x21, 0x2e, 0x6c,
+	0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x42, 0x75, 0x69, 0x6c,
+	0x64, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x22, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x42,
+	0x75, 0x69, 0x6c, 0x64, 0x53, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x22, 0x1d, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x17, 0x22, 0x12, 0x2f, 0x76, 0x31,
+	0x2f, 0x73, 0x75, 0x67, 0x67, 0x65, 0x73, 0x74, 0x5f, 0x75, 0x70, 0x64, 0x61, 0x74, 0x65, 0x3a,
+	0x01, 0x2a, 0x12, 0x7b, 0x0a, 0x0e, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x6e, 0x61, 0x70,
+	0x73, 0x68, 0x6f, 0x74, 0x12, 0x23, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
+	0x76, 0x65, 0x72, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68,
+	0x6f, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x24, 0x2e, 0x6c, 0x75, 0x63, 0x65,
+	0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x53,
+	0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22,
+	0x1e, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x18, 0x22, 0x13, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x65,
+	0x61, 0x74, 0x65, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x3a, 0x01, 0x2a, 0x12,
+	0x7f, 0x0a, 0x0f, 0x72, 0x65, 0x6c, 0x65, 0x61, 0x73, 0x65, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68,
+	0x6f, 0x74, 0x12, 0x24, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65,
+	0x72, 0x2e, 0x52, 0x65, 0x6c, 0x65, 0x61, 0x73, 0x65, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f,
+	0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x25, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e,
+	0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52, 0x65, 0x6c, 0x65, 0x61, 0x73, 0x65, 0x53,
+	0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22,
+	0x1f, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x19, 0x22, 0x14, 0x2f, 0x76, 0x31, 0x2f, 0x72, 0x65, 0x6c,
+	0x65, 0x61, 0x73, 0x65, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x3a, 0x01, 0x2a,
+	0x12, 0x9d, 0x01, 0x0a, 0x16, 0x67, 0x65, 0x74, 0x41, 0x6c, 0x6c, 0x53, 0x6e, 0x61, 0x70, 0x73,
+	0x68, 0x6f, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x47, 0x65, 0x6e, 0x12, 0x26, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x47, 0x65, 0x74, 0x41, 0x6c,
+	0x6c, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x47, 0x65, 0x6e, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x2e, 0x47, 0x65, 0x74, 0x41, 0x6c, 0x6c, 0x53, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f,
+	0x74, 0x47, 0x65, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x32, 0x82, 0xd3,
+	0xe4, 0x93, 0x02, 0x2c, 0x12, 0x2a, 0x2f, 0x76, 0x31, 0x2f, 0x67, 0x65, 0x74, 0x5f, 0x61, 0x6c,
+	0x6c, 0x5f, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78,
+	0x5f, 0x67, 0x65, 0x6e, 0x2f, 0x7b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d, 0x65, 0x7d,
+	0x12, 0x6f, 0x0a, 0x0b, 0x62, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x12,
+	0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x42,
+	0x61, 0x63, 0x6b, 0x75, 0x70, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
+	0x2e, 0x42, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x1b, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x15, 0x22, 0x10, 0x2f, 0x76,
+	0x31, 0x2f, 0x62, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x5f, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x3a, 0x01,
+	0x2a, 0x12, 0x88, 0x01, 0x0a, 0x11, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65,
+	0x78, 0x42, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x12, 0x26, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65,
+	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x49, 0x6e, 0x64,
+	0x65, 0x78, 0x42, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x27, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x44,
+	0x65, 0x6c, 0x65, 0x74, 0x65, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x42, 0x61, 0x63, 0x6b, 0x75, 0x70,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x22, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x1c,
+	0x22, 0x17, 0x2f, 0x76, 0x31, 0x2f, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x5f, 0x69, 0x6e, 0x64,
+	0x65, 0x78, 0x5f, 0x62, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x3a, 0x01, 0x2a, 0x12, 0x94, 0x01, 0x0a,
+	0x14, 0x62, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x57, 0x61, 0x72, 0x6d, 0x69, 0x6e, 0x67, 0x51, 0x75,
+	0x65, 0x72, 0x69, 0x65, 0x73, 0x12, 0x29, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
+	0x72, 0x76, 0x65, 0x72, 0x2e, 0x42, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x57, 0x61, 0x72, 0x6d, 0x69,
+	0x6e, 0x67, 0x51, 0x75, 0x65, 0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x2a, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
+	0x42, 0x61, 0x63, 0x6b, 0x75, 0x70, 0x57, 0x61, 0x72, 0x6d, 0x69, 0x6e, 0x67, 0x51, 0x75, 0x65,
+	0x72, 0x69, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x25, 0x82, 0xd3,
+	0xe4, 0x93, 0x02, 0x1f, 0x22, 0x1a, 0x2f, 0x76, 0x31, 0x2f, 0x62, 0x61, 0x63, 0x6b, 0x75, 0x70,
+	0x5f, 0x77, 0x61, 0x72, 0x6d, 0x69, 0x6e, 0x67, 0x5f, 0x71, 0x75, 0x65, 0x72, 0x69, 0x65, 0x73,
+	0x3a, 0x01, 0x2a, 0x12, 0x6f, 0x0a, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x12, 0x1a, 0x2e, 0x6c,
+	0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x74,
+	0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e,
+	0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x2d, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x27, 0x22, 0x09, 0x2f,
+	0x76, 0x31, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x65, 0x3a, 0x01, 0x2a, 0x5a, 0x17, 0x12, 0x15, 0x2f,
+	0x76, 0x31, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x65, 0x2f, 0x7b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e,
+	0x61, 0x6d, 0x65, 0x7d, 0x12, 0x61, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x20,
+	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x48, 0x65,
+	0x61, 0x6c, 0x74, 0x68, 0x43, 0x68, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
+	0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x43, 0x68, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x73, 0x70, 0x6f,
+	0x6e, 0x73, 0x65, 0x22, 0x12, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x0c, 0x12, 0x0a, 0x2f, 0x76, 0x31,
+	0x2f, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x78, 0x0a, 0x05, 0x72, 0x65, 0x61, 0x64, 0x79,
 	0x12, 0x1f, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
-	0x46, 0x6f, 0x72, 0x63, 0x65, 0x4d, 0x65, 0x72, 0x67, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2e, 0x46, 0x6f, 0x72, 0x63, 0x65, 0x4d, 0x65, 0x72, 0x67, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f,
-	0x6e, 0x73, 0x65, 0x22, 0x1a, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x14, 0x22, 0x0f, 0x2f, 0x76, 0x31,
-	0x2f, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x5f, 0x6d, 0x65, 0x72, 0x67, 0x65, 0x3a, 0x01, 0x2a, 0x12,
-	0x88, 0x01, 0x0a, 0x11, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x4d, 0x65, 0x72, 0x67, 0x65, 0x44, 0x65,
-	0x6c, 0x65, 0x74, 0x65, 0x73, 0x12, 0x26, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x2e, 0x46, 0x6f, 0x72, 0x63, 0x65, 0x4d, 0x65, 0x72, 0x67, 0x65, 0x44,
-	0x65, 0x6c, 0x65, 0x74, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e,
-	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x46, 0x6f, 0x72,
-	0x63, 0x65, 0x4d, 0x65, 0x72, 0x67, 0x65, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x73, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x22, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x1c, 0x22, 0x17,
-	0x2f, 0x76, 0x31, 0x2f, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x5f, 0x6d, 0x65, 0x72, 0x67, 0x65, 0x5f,
-	0x64, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x73, 0x3a, 0x01, 0x2a, 0x12, 0x66, 0x0a, 0x06, 0x63, 0x75,
-	0x73, 0x74, 0x6f, 0x6d, 0x12, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x2e, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x1a, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2e, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22,
-	0x21, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x1b, 0x22, 0x16, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x75, 0x73,
-	0x74, 0x6f, 0x6d, 0x2f, 0x7b, 0x69, 0x64, 0x7d, 0x2f, 0x7b, 0x70, 0x61, 0x74, 0x68, 0x7d, 0x3a,
-	0x01, 0x2a, 0x32, 0x9c, 0x06, 0x0a, 0x11, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74, 0x69,
-	0x6f, 0x6e, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x52, 0x0a, 0x0b, 0x61, 0x64, 0x64, 0x52,
-	0x65, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x73, 0x12, 0x1f, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65,
-	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x41, 0x64, 0x64, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63,
-	0x61, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e,
-	0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x41, 0x64, 0x64, 0x52, 0x65, 0x70, 0x6c, 0x69,
-	0x63, 0x61, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x4a, 0x0a, 0x0d,
-	0x72, 0x65, 0x63, 0x76, 0x43, 0x6f, 0x70, 0x79, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x1e, 0x2e,
-	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x6f, 0x70,
-	0x79, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x17, 0x2e,
-	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x6f, 0x70,
-	0x79, 0x53, 0x74, 0x61, 0x74, 0x65, 0x22, 0x00, 0x12, 0x4b, 0x0a, 0x0b, 0x73, 0x65, 0x6e, 0x64,
-	0x52, 0x61, 0x77, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x1a, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65,
-	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52, 0x61, 0x77, 0x46, 0x69, 0x6c, 0x65, 0x43, 0x68,
-	0x75, 0x6e, 0x6b, 0x1a, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
-	0x65, 0x72, 0x2e, 0x54, 0x72, 0x61, 0x6e, 0x73, 0x66, 0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x75,
-	0x73, 0x22, 0x00, 0x28, 0x01, 0x12, 0x45, 0x0a, 0x0b, 0x72, 0x65, 0x63, 0x76, 0x52, 0x61, 0x77,
-	0x46, 0x69, 0x6c, 0x65, 0x12, 0x16, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x1a, 0x1a, 0x2e, 0x6c,
-	0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52, 0x61, 0x77, 0x46,
-	0x69, 0x6c, 0x65, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x22, 0x00, 0x30, 0x01, 0x12, 0x49, 0x0a, 0x0d,
-	0x72, 0x65, 0x63, 0x76, 0x52, 0x61, 0x77, 0x46, 0x69, 0x6c, 0x65, 0x56, 0x32, 0x12, 0x16, 0x2e,
-	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x46, 0x69, 0x6c,
-	0x65, 0x49, 0x6e, 0x66, 0x6f, 0x1a, 0x1a, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
+	0x52, 0x65, 0x61, 0x64, 0x79, 0x43, 0x68, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x1a, 0x21, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
+	0x2e, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x43, 0x68, 0x65, 0x63, 0x6b, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x2b, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x25, 0x12, 0x09, 0x2f, 0x76,
+	0x31, 0x2f, 0x72, 0x65, 0x61, 0x64, 0x79, 0x5a, 0x18, 0x12, 0x16, 0x2f, 0x76, 0x31, 0x2f, 0x72,
+	0x65, 0x61, 0x64, 0x79, 0x2f, 0x7b, 0x69, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d, 0x65, 0x73,
+	0x7d, 0x12, 0x50, 0x0a, 0x07, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x73, 0x12, 0x16, 0x2e, 0x67,
+	0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x45,
+	0x6d, 0x70, 0x74, 0x79, 0x1a, 0x14, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x48, 0x74, 0x74, 0x70, 0x42, 0x6f, 0x64, 0x79, 0x22, 0x17, 0x82, 0xd3, 0xe4, 0x93,
+	0x02, 0x11, 0x12, 0x0f, 0x2f, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x2f, 0x6d, 0x65, 0x74, 0x72,
+	0x69, 0x63, 0x73, 0x12, 0x5b, 0x0a, 0x07, 0x69, 0x6e, 0x64, 0x69, 0x63, 0x65, 0x73, 0x12, 0x1c,
+	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x49, 0x6e,
+	0x64, 0x69, 0x63, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1d, 0x2e, 0x6c,
+	0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x49, 0x6e, 0x64, 0x69,
+	0x63, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x13, 0x82, 0xd3, 0xe4,
+	0x93, 0x02, 0x0d, 0x12, 0x0b, 0x2f, 0x76, 0x31, 0x2f, 0x69, 0x6e, 0x64, 0x69, 0x63, 0x65, 0x73,
+	0x12, 0x6b, 0x0a, 0x0a, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x4d, 0x65, 0x72, 0x67, 0x65, 0x12, 0x1f,
+	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x46, 0x6f,
+	0x72, 0x63, 0x65, 0x4d, 0x65, 0x72, 0x67, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x46,
+	0x6f, 0x72, 0x63, 0x65, 0x4d, 0x65, 0x72, 0x67, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x22, 0x1a, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x14, 0x22, 0x0f, 0x2f, 0x76, 0x31, 0x2f, 0x66,
+	0x6f, 0x72, 0x63, 0x65, 0x5f, 0x6d, 0x65, 0x72, 0x67, 0x65, 0x3a, 0x01, 0x2a, 0x12, 0x88, 0x01,
+	0x0a, 0x11, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x4d, 0x65, 0x72, 0x67, 0x65, 0x44, 0x65, 0x6c, 0x65,
+	0x74, 0x65, 0x73, 0x12, 0x26, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x2e, 0x46, 0x6f, 0x72, 0x63, 0x65, 0x4d, 0x65, 0x72, 0x67, 0x65, 0x44, 0x65, 0x6c,
+	0x65, 0x74, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x46, 0x6f, 0x72, 0x63, 0x65,
+	0x4d, 0x65, 0x72, 0x67, 0x65, 0x44, 0x65, 0x6c, 0x65, 0x74, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x22, 0x22, 0x82, 0xd3, 0xe4, 0x93, 0x02, 0x1c, 0x22, 0x17, 0x2f, 0x76,
+	0x31, 0x2f, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x5f, 0x6d, 0x65, 0x72, 0x67, 0x65, 0x5f, 0x64, 0x65,
+	0x6c, 0x65, 0x74, 0x65, 0x73, 0x3a, 0x01, 0x2a, 0x12, 0x66, 0x0a, 0x06, 0x63, 0x75, 0x73, 0x74,
+	0x6f, 0x6d, 0x12, 0x1b, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65,
+	0x72, 0x2e, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
+	0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43,
+	0x75, 0x73, 0x74, 0x6f, 0x6d, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x21, 0x82,
+	0xd3, 0xe4, 0x93, 0x02, 0x1b, 0x22, 0x16, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x75, 0x73, 0x74, 0x6f,
+	0x6d, 0x2f, 0x7b, 0x69, 0x64, 0x7d, 0x2f, 0x7b, 0x70, 0x61, 0x74, 0x68, 0x7d, 0x3a, 0x01, 0x2a,
+	0x32, 0x9c, 0x06, 0x0a, 0x11, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x52, 0x0a, 0x0b, 0x61, 0x64, 0x64, 0x52, 0x65, 0x70,
+	0x6c, 0x69, 0x63, 0x61, 0x73, 0x12, 0x1f, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
+	0x72, 0x76, 0x65, 0x72, 0x2e, 0x41, 0x64, 0x64, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x20, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73,
+	0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x41, 0x64, 0x64, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63, 0x61,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x12, 0x4a, 0x0a, 0x0d, 0x72, 0x65,
+	0x63, 0x76, 0x43, 0x6f, 0x70, 0x79, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x1e, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x6f, 0x70, 0x79, 0x53,
+	0x74, 0x61, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x17, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x43, 0x6f, 0x70, 0x79, 0x53,
+	0x74, 0x61, 0x74, 0x65, 0x22, 0x00, 0x12, 0x4b, 0x0a, 0x0b, 0x73, 0x65, 0x6e, 0x64, 0x52, 0x61,
+	0x77, 0x46, 0x69, 0x6c, 0x65, 0x12, 0x1a, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65,
 	0x72, 0x76, 0x65, 0x72, 0x2e, 0x52, 0x61, 0x77, 0x46, 0x69, 0x6c, 0x65, 0x43, 0x68, 0x75, 0x6e,
-	0x6b, 0x22, 0x00, 0x28, 0x01, 0x30, 0x01, 0x12, 0x46, 0x0a, 0x09, 0x63, 0x6f, 0x70, 0x79, 0x46,
-	0x69, 0x6c, 0x65, 0x73, 0x12, 0x17, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x2e, 0x43, 0x6f, 0x70, 0x79, 0x46, 0x69, 0x6c, 0x65, 0x73, 0x1a, 0x1c, 0x2e,
-	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x54, 0x72, 0x61,
-	0x6e, 0x73, 0x66, 0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x00, 0x30, 0x01, 0x12,
-	0x48, 0x0a, 0x0b, 0x6e, 0x65, 0x77, 0x4e, 0x52, 0x54, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x12, 0x19,
-	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x4e, 0x65,
-	0x77, 0x4e, 0x52, 0x54, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x1a, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65,
-	0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x54, 0x72, 0x61, 0x6e, 0x73, 0x66, 0x65,
-	0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x00, 0x12, 0x49, 0x0a, 0x0d, 0x77, 0x72, 0x69,
-	0x74, 0x65, 0x4e, 0x52, 0x54, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x12, 0x17, 0x2e, 0x6c, 0x75, 0x63,
-	0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x4e,
-	0x61, 0x6d, 0x65, 0x1a, 0x1d, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
-	0x65, 0x72, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x65, 0x72, 0x56, 0x65, 0x72, 0x73, 0x69,
-	0x6f, 0x6e, 0x22, 0x00, 0x12, 0x55, 0x0a, 0x19, 0x67, 0x65, 0x74, 0x43, 0x75, 0x72, 0x72, 0x65,
-	0x6e, 0x74, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x65, 0x72, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f,
-	0x6e, 0x12, 0x17, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
-	0x2e, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d, 0x65, 0x1a, 0x1d, 0x2e, 0x6c, 0x75, 0x63,
-	0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68,
-	0x65, 0x72, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x22, 0x00, 0x12, 0x54, 0x0a, 0x11, 0x67,
-	0x65, 0x74, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x65, 0x64, 0x4e, 0x6f, 0x64, 0x65, 0x73,
-	0x12, 0x1d, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e,
-	0x47, 0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a,
-	0x1e, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x47,
-	0x65, 0x74, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22,
-	0x00, 0x42, 0x56, 0x0a, 0x1e, 0x63, 0x6f, 0x6d, 0x2e, 0x79, 0x65, 0x6c, 0x70, 0x2e, 0x6e, 0x72,
-	0x74, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x67,
-	0x72, 0x70, 0x63, 0x42, 0x11, 0x4c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x53, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x19, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62,
-	0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x59, 0x65, 0x6c, 0x70, 0x2f, 0x6e, 0x72, 0x74, 0x73, 0x65, 0x61,
-	0x72, 0x63, 0x68, 0xa2, 0x02, 0x03, 0x48, 0x4c, 0x57, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x33,
+	0x6b, 0x1a, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
+	0x2e, 0x54, 0x72, 0x61, 0x6e, 0x73, 0x66, 0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22,
+	0x00, 0x28, 0x01, 0x12, 0x45, 0x0a, 0x0b, 0x72, 0x65, 0x63, 0x76, 0x52, 0x61, 0x77, 0x46, 0x69,
+	0x6c, 0x65, 0x12, 0x16, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65,
+	0x72, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x1a, 0x1a, 0x2e, 0x6c, 0x75, 0x63,
+	0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x52, 0x61, 0x77, 0x46, 0x69, 0x6c,
+	0x65, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x22, 0x00, 0x30, 0x01, 0x12, 0x49, 0x0a, 0x0d, 0x72, 0x65,
+	0x63, 0x76, 0x52, 0x61, 0x77, 0x46, 0x69, 0x6c, 0x65, 0x56, 0x32, 0x12, 0x16, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x46, 0x69, 0x6c, 0x65, 0x49,
+	0x6e, 0x66, 0x6f, 0x1a, 0x1a, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x2e, 0x52, 0x61, 0x77, 0x46, 0x69, 0x6c, 0x65, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x22,
+	0x00, 0x28, 0x01, 0x30, 0x01, 0x12, 0x46, 0x0a, 0x09, 0x63, 0x6f, 0x70, 0x79, 0x46, 0x69, 0x6c,
+	0x65, 0x73, 0x12, 0x17, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65,
+	0x72, 0x2e, 0x43, 0x6f, 0x70, 0x79, 0x46, 0x69, 0x6c, 0x65, 0x73, 0x1a, 0x1c, 0x2e, 0x6c, 0x75,
+	0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x54, 0x72, 0x61, 0x6e, 0x73,
+	0x66, 0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x00, 0x30, 0x01, 0x12, 0x48, 0x0a,
+	0x0b, 0x6e, 0x65, 0x77, 0x4e, 0x52, 0x54, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x12, 0x19, 0x2e, 0x6c,
+	0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x4e, 0x65, 0x77, 0x4e,
+	0x52, 0x54, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x1a, 0x1c, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65,
+	0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x54, 0x72, 0x61, 0x6e, 0x73, 0x66, 0x65, 0x72, 0x53,
+	0x74, 0x61, 0x74, 0x75, 0x73, 0x22, 0x00, 0x12, 0x49, 0x0a, 0x0d, 0x77, 0x72, 0x69, 0x74, 0x65,
+	0x4e, 0x52, 0x54, 0x50, 0x6f, 0x69, 0x6e, 0x74, 0x12, 0x17, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e,
+	0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d,
+	0x65, 0x1a, 0x1d, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72,
+	0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x65, 0x72, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e,
+	0x22, 0x00, 0x12, 0x55, 0x0a, 0x19, 0x67, 0x65, 0x74, 0x43, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74,
+	0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x65, 0x72, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12,
+	0x17, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x49,
+	0x6e, 0x64, 0x65, 0x78, 0x4e, 0x61, 0x6d, 0x65, 0x1a, 0x1d, 0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e,
+	0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x65, 0x72,
+	0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x22, 0x00, 0x12, 0x54, 0x0a, 0x11, 0x67, 0x65, 0x74,
+	0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x65, 0x64, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x12, 0x1d,
+	0x2e, 0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x47, 0x65,
+	0x74, 0x4e, 0x6f, 0x64, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1e, 0x2e,
+	0x6c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x47, 0x65, 0x74,
+	0x4e, 0x6f, 0x64, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x00, 0x42,
+	0x56, 0x0a, 0x1e, 0x63, 0x6f, 0x6d, 0x2e, 0x79, 0x65, 0x6c, 0x70, 0x2e, 0x6e, 0x72, 0x74, 0x73,
+	0x65, 0x61, 0x72, 0x63, 0x68, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x67, 0x72, 0x70,
+	0x63, 0x42, 0x11, 0x4c, 0x75, 0x63, 0x65, 0x6e, 0x65, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x50,
+	0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x19, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63,
+	0x6f, 0x6d, 0x2f, 0x59, 0x65, 0x6c, 0x70, 0x2f, 0x6e, 0x72, 0x74, 0x73, 0x65, 0x61, 0x72, 0x63,
+	0x68, 0xa2, 0x02, 0x03, 0x48, 0x4c, 0x57, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -7332,302 +7540,308 @@ func file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP() []byte {
 	return file_yelp_nrtsearch_luceneserver_proto_rawDescData
 }
 
-var file_yelp_nrtsearch_luceneserver_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_yelp_nrtsearch_luceneserver_proto_msgTypes = make([]protoimpl.MessageInfo, 92)
+var file_yelp_nrtsearch_luceneserver_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
+var file_yelp_nrtsearch_luceneserver_proto_msgTypes = make([]protoimpl.MessageInfo, 93)
 var file_yelp_nrtsearch_luceneserver_proto_goTypes = []interface{}{
 	(FieldType)(0),                              // 0: luceneserver.FieldType
 	(IndexOptions)(0),                           // 1: luceneserver.IndexOptions
 	(TermVectors)(0),                            // 2: luceneserver.TermVectors
 	(FacetType)(0),                              // 3: luceneserver.FacetType
-	(Mode)(0),                                   // 4: luceneserver.Mode
-	(TransferStatusCode)(0),                     // 5: luceneserver.TransferStatusCode
-	(ForceMergeResponse_Status)(0),              // 6: luceneserver.ForceMergeResponse.Status
-	(ForceMergeDeletesResponse_Status)(0),       // 7: luceneserver.ForceMergeDeletesResponse.Status
-	(*CreateIndexRequest)(nil),                  // 8: luceneserver.CreateIndexRequest
-	(*CreateIndexResponse)(nil),                 // 9: luceneserver.CreateIndexResponse
-	(*LiveSettingsRequest)(nil),                 // 10: luceneserver.LiveSettingsRequest
-	(*LiveSettingsResponse)(nil),                // 11: luceneserver.LiveSettingsResponse
-	(*LiveSettingsV2Request)(nil),               // 12: luceneserver.LiveSettingsV2Request
-	(*LiveSettingsV2Response)(nil),              // 13: luceneserver.LiveSettingsV2Response
-	(*Field)(nil),                               // 14: luceneserver.Field
-	(*FieldDefRequest)(nil),                     // 15: luceneserver.FieldDefRequest
-	(*FieldDefResponse)(nil),                    // 16: luceneserver.FieldDefResponse
-	(*SettingsRequest)(nil),                     // 17: luceneserver.SettingsRequest
-	(*SettingsResponse)(nil),                    // 18: luceneserver.SettingsResponse
-	(*SettingsV2Request)(nil),                   // 19: luceneserver.SettingsV2Request
-	(*SettingsV2Response)(nil),                  // 20: luceneserver.SettingsV2Response
-	(*StartIndexRequest)(nil),                   // 21: luceneserver.StartIndexRequest
-	(*StartIndexV2Request)(nil),                 // 22: luceneserver.StartIndexV2Request
-	(*StartIndexResponse)(nil),                  // 23: luceneserver.StartIndexResponse
-	(*AddDocumentRequest)(nil),                  // 24: luceneserver.AddDocumentRequest
-	(*FacetHierarchyPath)(nil),                  // 25: luceneserver.FacetHierarchyPath
-	(*AddDocumentResponse)(nil),                 // 26: luceneserver.AddDocumentResponse
-	(*RefreshRequest)(nil),                      // 27: luceneserver.RefreshRequest
-	(*RefreshResponse)(nil),                     // 28: luceneserver.RefreshResponse
-	(*CommitRequest)(nil),                       // 29: luceneserver.CommitRequest
-	(*CommitResponse)(nil),                      // 30: luceneserver.CommitResponse
-	(*StatsRequest)(nil),                        // 31: luceneserver.StatsRequest
-	(*StatsResponse)(nil),                       // 32: luceneserver.StatsResponse
-	(*Taxonomy)(nil),                            // 33: luceneserver.Taxonomy
-	(*Searcher)(nil),                            // 34: luceneserver.Searcher
-	(*DeleteAllDocumentsRequest)(nil),           // 35: luceneserver.DeleteAllDocumentsRequest
-	(*DeleteAllDocumentsResponse)(nil),          // 36: luceneserver.DeleteAllDocumentsResponse
-	(*DeleteIndexRequest)(nil),                  // 37: luceneserver.DeleteIndexRequest
-	(*DeleteIndexResponse)(nil),                 // 38: luceneserver.DeleteIndexResponse
-	(*DummyResponse)(nil),                       // 39: luceneserver.DummyResponse
-	(*StopIndexRequest)(nil),                    // 40: luceneserver.StopIndexRequest
-	(*ReloadStateRequest)(nil),                  // 41: luceneserver.ReloadStateRequest
-	(*ReloadStateResponse)(nil),                 // 42: luceneserver.ReloadStateResponse
-	(*CreateSnapshotRequest)(nil),               // 43: luceneserver.CreateSnapshotRequest
-	(*CreateSnapshotResponse)(nil),              // 44: luceneserver.CreateSnapshotResponse
-	(*SnapshotId)(nil),                          // 45: luceneserver.SnapshotId
-	(*ReleaseSnapshotRequest)(nil),              // 46: luceneserver.ReleaseSnapshotRequest
-	(*ReleaseSnapshotResponse)(nil),             // 47: luceneserver.ReleaseSnapshotResponse
-	(*GetAllSnapshotGenRequest)(nil),            // 48: luceneserver.GetAllSnapshotGenRequest
-	(*GetAllSnapshotGenResponse)(nil),           // 49: luceneserver.GetAllSnapshotGenResponse
-	(*BackupIndexRequest)(nil),                  // 50: luceneserver.BackupIndexRequest
-	(*BackupIndexResponse)(nil),                 // 51: luceneserver.BackupIndexResponse
-	(*BackupWarmingQueriesRequest)(nil),         // 52: luceneserver.BackupWarmingQueriesRequest
-	(*BackupWarmingQueriesResponse)(nil),        // 53: luceneserver.BackupWarmingQueriesResponse
-	(*DeleteIndexBackupRequest)(nil),            // 54: luceneserver.DeleteIndexBackupRequest
-	(*DeleteIndexBackupResponse)(nil),           // 55: luceneserver.DeleteIndexBackupResponse
-	(*IndicesRequest)(nil),                      // 56: luceneserver.IndicesRequest
-	(*IndicesResponse)(nil),                     // 57: luceneserver.IndicesResponse
-	(*IndexStatsResponse)(nil),                  // 58: luceneserver.IndexStatsResponse
-	(*RestoreIndex)(nil),                        // 59: luceneserver.RestoreIndex
-	(*StateRequest)(nil),                        // 60: luceneserver.StateRequest
-	(*StateResponse)(nil),                       // 61: luceneserver.StateResponse
-	(*AddReplicaRequest)(nil),                   // 62: luceneserver.AddReplicaRequest
-	(*AddReplicaResponse)(nil),                  // 63: luceneserver.AddReplicaResponse
-	(*CopyState)(nil),                           // 64: luceneserver.CopyState
-	(*FilesMetadata)(nil),                       // 65: luceneserver.FilesMetadata
-	(*FileMetadata)(nil),                        // 66: luceneserver.FileMetadata
-	(*CopyFiles)(nil),                           // 67: luceneserver.CopyFiles
-	(*CopyStateRequest)(nil),                    // 68: luceneserver.CopyStateRequest
-	(*FilesInfo)(nil),                           // 69: luceneserver.FilesInfo
-	(*FileInfo)(nil),                            // 70: luceneserver.FileInfo
-	(*RawFileChunk)(nil),                        // 71: luceneserver.RawFileChunk
-	(*HealthCheckRequest)(nil),                  // 72: luceneserver.HealthCheckRequest
-	(*HealthCheckResponse)(nil),                 // 73: luceneserver.HealthCheckResponse
-	(*ReadyCheckRequest)(nil),                   // 74: luceneserver.ReadyCheckRequest
-	(*TransferStatus)(nil),                      // 75: luceneserver.TransferStatus
-	(*NewNRTPoint)(nil),                         // 76: luceneserver.NewNRTPoint
-	(*IndexName)(nil),                           // 77: luceneserver.IndexName
-	(*SearcherVersion)(nil),                     // 78: luceneserver.SearcherVersion
-	(*GetNodesRequest)(nil),                     // 79: luceneserver.GetNodesRequest
-	(*GetNodesResponse)(nil),                    // 80: luceneserver.GetNodesResponse
-	(*NodeInfo)(nil),                            // 81: luceneserver.NodeInfo
-	(*DeleteByQueryRequest)(nil),                // 82: luceneserver.DeleteByQueryRequest
-	(*ForceMergeRequest)(nil),                   // 83: luceneserver.ForceMergeRequest
-	(*ForceMergeResponse)(nil),                  // 84: luceneserver.ForceMergeResponse
-	(*ForceMergeDeletesRequest)(nil),            // 85: luceneserver.ForceMergeDeletesRequest
-	(*ForceMergeDeletesResponse)(nil),           // 86: luceneserver.ForceMergeDeletesResponse
-	(*IndexSettings)(nil),                       // 87: luceneserver.IndexSettings
-	(*IndexLiveSettings)(nil),                   // 88: luceneserver.IndexLiveSettings
-	(*IndexStateInfo)(nil),                      // 89: luceneserver.IndexStateInfo
-	(*IndexGlobalState)(nil),                    // 90: luceneserver.IndexGlobalState
-	(*GlobalStateInfo)(nil),                     // 91: luceneserver.GlobalStateInfo
-	(*CustomRequest)(nil),                       // 92: luceneserver.CustomRequest
-	(*CustomResponse)(nil),                      // 93: luceneserver.CustomResponse
-	(*AddDocumentRequest_MultiValuedField)(nil), // 94: luceneserver.AddDocumentRequest.MultiValuedField
-	nil,                            // 95: luceneserver.AddDocumentRequest.FieldsEntry
-	nil,                            // 96: luceneserver.IndexStateInfo.FieldsEntry
-	nil,                            // 97: luceneserver.GlobalStateInfo.IndicesEntry
-	nil,                            // 98: luceneserver.CustomRequest.ParamsEntry
-	nil,                            // 99: luceneserver.CustomResponse.ResponseEntry
-	(*Script)(nil),                 // 100: luceneserver.Script
-	(*Analyzer)(nil),               // 101: luceneserver.Analyzer
-	(*structpb.Struct)(nil),        // 102: google.protobuf.Struct
-	(*SortFields)(nil),             // 103: luceneserver.SortFields
-	(*Query)(nil),                  // 104: luceneserver.Query
-	(*wrapperspb.DoubleValue)(nil), // 105: google.protobuf.DoubleValue
-	(*wrapperspb.Int32Value)(nil),  // 106: google.protobuf.Int32Value
-	(*wrapperspb.BoolValue)(nil),   // 107: google.protobuf.BoolValue
-	(*wrapperspb.StringValue)(nil), // 108: google.protobuf.StringValue
-	(*wrapperspb.UInt64Value)(nil), // 109: google.protobuf.UInt64Value
-	(*SearchRequest)(nil),          // 110: luceneserver.SearchRequest
-	(*BuildSuggestRequest)(nil),    // 111: luceneserver.BuildSuggestRequest
-	(*SuggestLookupRequest)(nil),   // 112: luceneserver.SuggestLookupRequest
-	(*emptypb.Empty)(nil),          // 113: google.protobuf.Empty
-	(*SearchResponse)(nil),         // 114: luceneserver.SearchResponse
-	(*anypb.Any)(nil),              // 115: google.protobuf.Any
-	(*BuildSuggestResponse)(nil),   // 116: luceneserver.BuildSuggestResponse
-	(*SuggestLookupResponse)(nil),  // 117: luceneserver.SuggestLookupResponse
-	(*httpbody.HttpBody)(nil),      // 118: google.api.HttpBody
+	(VectorSimilarity)(0),                       // 4: luceneserver.VectorSimilarity
+	(Mode)(0),                                   // 5: luceneserver.Mode
+	(TransferStatusCode)(0),                     // 6: luceneserver.TransferStatusCode
+	(VectorIndexingOptions_KnnType)(0),          // 7: luceneserver.VectorIndexingOptions.KnnType
+	(ForceMergeResponse_Status)(0),              // 8: luceneserver.ForceMergeResponse.Status
+	(ForceMergeDeletesResponse_Status)(0),       // 9: luceneserver.ForceMergeDeletesResponse.Status
+	(*CreateIndexRequest)(nil),                  // 10: luceneserver.CreateIndexRequest
+	(*CreateIndexResponse)(nil),                 // 11: luceneserver.CreateIndexResponse
+	(*LiveSettingsRequest)(nil),                 // 12: luceneserver.LiveSettingsRequest
+	(*LiveSettingsResponse)(nil),                // 13: luceneserver.LiveSettingsResponse
+	(*LiveSettingsV2Request)(nil),               // 14: luceneserver.LiveSettingsV2Request
+	(*LiveSettingsV2Response)(nil),              // 15: luceneserver.LiveSettingsV2Response
+	(*Field)(nil),                               // 16: luceneserver.Field
+	(*VectorIndexingOptions)(nil),               // 17: luceneserver.VectorIndexingOptions
+	(*FieldDefRequest)(nil),                     // 18: luceneserver.FieldDefRequest
+	(*FieldDefResponse)(nil),                    // 19: luceneserver.FieldDefResponse
+	(*SettingsRequest)(nil),                     // 20: luceneserver.SettingsRequest
+	(*SettingsResponse)(nil),                    // 21: luceneserver.SettingsResponse
+	(*SettingsV2Request)(nil),                   // 22: luceneserver.SettingsV2Request
+	(*SettingsV2Response)(nil),                  // 23: luceneserver.SettingsV2Response
+	(*StartIndexRequest)(nil),                   // 24: luceneserver.StartIndexRequest
+	(*StartIndexV2Request)(nil),                 // 25: luceneserver.StartIndexV2Request
+	(*StartIndexResponse)(nil),                  // 26: luceneserver.StartIndexResponse
+	(*AddDocumentRequest)(nil),                  // 27: luceneserver.AddDocumentRequest
+	(*FacetHierarchyPath)(nil),                  // 28: luceneserver.FacetHierarchyPath
+	(*AddDocumentResponse)(nil),                 // 29: luceneserver.AddDocumentResponse
+	(*RefreshRequest)(nil),                      // 30: luceneserver.RefreshRequest
+	(*RefreshResponse)(nil),                     // 31: luceneserver.RefreshResponse
+	(*CommitRequest)(nil),                       // 32: luceneserver.CommitRequest
+	(*CommitResponse)(nil),                      // 33: luceneserver.CommitResponse
+	(*StatsRequest)(nil),                        // 34: luceneserver.StatsRequest
+	(*StatsResponse)(nil),                       // 35: luceneserver.StatsResponse
+	(*Taxonomy)(nil),                            // 36: luceneserver.Taxonomy
+	(*Searcher)(nil),                            // 37: luceneserver.Searcher
+	(*DeleteAllDocumentsRequest)(nil),           // 38: luceneserver.DeleteAllDocumentsRequest
+	(*DeleteAllDocumentsResponse)(nil),          // 39: luceneserver.DeleteAllDocumentsResponse
+	(*DeleteIndexRequest)(nil),                  // 40: luceneserver.DeleteIndexRequest
+	(*DeleteIndexResponse)(nil),                 // 41: luceneserver.DeleteIndexResponse
+	(*DummyResponse)(nil),                       // 42: luceneserver.DummyResponse
+	(*StopIndexRequest)(nil),                    // 43: luceneserver.StopIndexRequest
+	(*ReloadStateRequest)(nil),                  // 44: luceneserver.ReloadStateRequest
+	(*ReloadStateResponse)(nil),                 // 45: luceneserver.ReloadStateResponse
+	(*CreateSnapshotRequest)(nil),               // 46: luceneserver.CreateSnapshotRequest
+	(*CreateSnapshotResponse)(nil),              // 47: luceneserver.CreateSnapshotResponse
+	(*SnapshotId)(nil),                          // 48: luceneserver.SnapshotId
+	(*ReleaseSnapshotRequest)(nil),              // 49: luceneserver.ReleaseSnapshotRequest
+	(*ReleaseSnapshotResponse)(nil),             // 50: luceneserver.ReleaseSnapshotResponse
+	(*GetAllSnapshotGenRequest)(nil),            // 51: luceneserver.GetAllSnapshotGenRequest
+	(*GetAllSnapshotGenResponse)(nil),           // 52: luceneserver.GetAllSnapshotGenResponse
+	(*BackupIndexRequest)(nil),                  // 53: luceneserver.BackupIndexRequest
+	(*BackupIndexResponse)(nil),                 // 54: luceneserver.BackupIndexResponse
+	(*BackupWarmingQueriesRequest)(nil),         // 55: luceneserver.BackupWarmingQueriesRequest
+	(*BackupWarmingQueriesResponse)(nil),        // 56: luceneserver.BackupWarmingQueriesResponse
+	(*DeleteIndexBackupRequest)(nil),            // 57: luceneserver.DeleteIndexBackupRequest
+	(*DeleteIndexBackupResponse)(nil),           // 58: luceneserver.DeleteIndexBackupResponse
+	(*IndicesRequest)(nil),                      // 59: luceneserver.IndicesRequest
+	(*IndicesResponse)(nil),                     // 60: luceneserver.IndicesResponse
+	(*IndexStatsResponse)(nil),                  // 61: luceneserver.IndexStatsResponse
+	(*RestoreIndex)(nil),                        // 62: luceneserver.RestoreIndex
+	(*StateRequest)(nil),                        // 63: luceneserver.StateRequest
+	(*StateResponse)(nil),                       // 64: luceneserver.StateResponse
+	(*AddReplicaRequest)(nil),                   // 65: luceneserver.AddReplicaRequest
+	(*AddReplicaResponse)(nil),                  // 66: luceneserver.AddReplicaResponse
+	(*CopyState)(nil),                           // 67: luceneserver.CopyState
+	(*FilesMetadata)(nil),                       // 68: luceneserver.FilesMetadata
+	(*FileMetadata)(nil),                        // 69: luceneserver.FileMetadata
+	(*CopyFiles)(nil),                           // 70: luceneserver.CopyFiles
+	(*CopyStateRequest)(nil),                    // 71: luceneserver.CopyStateRequest
+	(*FilesInfo)(nil),                           // 72: luceneserver.FilesInfo
+	(*FileInfo)(nil),                            // 73: luceneserver.FileInfo
+	(*RawFileChunk)(nil),                        // 74: luceneserver.RawFileChunk
+	(*HealthCheckRequest)(nil),                  // 75: luceneserver.HealthCheckRequest
+	(*HealthCheckResponse)(nil),                 // 76: luceneserver.HealthCheckResponse
+	(*ReadyCheckRequest)(nil),                   // 77: luceneserver.ReadyCheckRequest
+	(*TransferStatus)(nil),                      // 78: luceneserver.TransferStatus
+	(*NewNRTPoint)(nil),                         // 79: luceneserver.NewNRTPoint
+	(*IndexName)(nil),                           // 80: luceneserver.IndexName
+	(*SearcherVersion)(nil),                     // 81: luceneserver.SearcherVersion
+	(*GetNodesRequest)(nil),                     // 82: luceneserver.GetNodesRequest
+	(*GetNodesResponse)(nil),                    // 83: luceneserver.GetNodesResponse
+	(*NodeInfo)(nil),                            // 84: luceneserver.NodeInfo
+	(*DeleteByQueryRequest)(nil),                // 85: luceneserver.DeleteByQueryRequest
+	(*ForceMergeRequest)(nil),                   // 86: luceneserver.ForceMergeRequest
+	(*ForceMergeResponse)(nil),                  // 87: luceneserver.ForceMergeResponse
+	(*ForceMergeDeletesRequest)(nil),            // 88: luceneserver.ForceMergeDeletesRequest
+	(*ForceMergeDeletesResponse)(nil),           // 89: luceneserver.ForceMergeDeletesResponse
+	(*IndexSettings)(nil),                       // 90: luceneserver.IndexSettings
+	(*IndexLiveSettings)(nil),                   // 91: luceneserver.IndexLiveSettings
+	(*IndexStateInfo)(nil),                      // 92: luceneserver.IndexStateInfo
+	(*IndexGlobalState)(nil),                    // 93: luceneserver.IndexGlobalState
+	(*GlobalStateInfo)(nil),                     // 94: luceneserver.GlobalStateInfo
+	(*CustomRequest)(nil),                       // 95: luceneserver.CustomRequest
+	(*CustomResponse)(nil),                      // 96: luceneserver.CustomResponse
+	(*AddDocumentRequest_MultiValuedField)(nil), // 97: luceneserver.AddDocumentRequest.MultiValuedField
+	nil,                            // 98: luceneserver.AddDocumentRequest.FieldsEntry
+	nil,                            // 99: luceneserver.IndexStateInfo.FieldsEntry
+	nil,                            // 100: luceneserver.GlobalStateInfo.IndicesEntry
+	nil,                            // 101: luceneserver.CustomRequest.ParamsEntry
+	nil,                            // 102: luceneserver.CustomResponse.ResponseEntry
+	(*Script)(nil),                 // 103: luceneserver.Script
+	(*Analyzer)(nil),               // 104: luceneserver.Analyzer
+	(*structpb.Struct)(nil),        // 105: google.protobuf.Struct
+	(*SortFields)(nil),             // 106: luceneserver.SortFields
+	(*Query)(nil),                  // 107: luceneserver.Query
+	(*wrapperspb.DoubleValue)(nil), // 108: google.protobuf.DoubleValue
+	(*wrapperspb.Int32Value)(nil),  // 109: google.protobuf.Int32Value
+	(*wrapperspb.BoolValue)(nil),   // 110: google.protobuf.BoolValue
+	(*wrapperspb.StringValue)(nil), // 111: google.protobuf.StringValue
+	(*wrapperspb.UInt64Value)(nil), // 112: google.protobuf.UInt64Value
+	(*SearchRequest)(nil),          // 113: luceneserver.SearchRequest
+	(*BuildSuggestRequest)(nil),    // 114: luceneserver.BuildSuggestRequest
+	(*SuggestLookupRequest)(nil),   // 115: luceneserver.SuggestLookupRequest
+	(*emptypb.Empty)(nil),          // 116: google.protobuf.Empty
+	(*SearchResponse)(nil),         // 117: luceneserver.SearchResponse
+	(*anypb.Any)(nil),              // 118: google.protobuf.Any
+	(*BuildSuggestResponse)(nil),   // 119: luceneserver.BuildSuggestResponse
+	(*SuggestLookupResponse)(nil),  // 120: luceneserver.SuggestLookupResponse
+	(*httpbody.HttpBody)(nil),      // 121: google.api.HttpBody
 }
 var file_yelp_nrtsearch_luceneserver_proto_depIdxs = []int32{
-	87,  // 0: luceneserver.CreateIndexRequest.settings:type_name -> luceneserver.IndexSettings
-	88,  // 1: luceneserver.CreateIndexRequest.liveSettings:type_name -> luceneserver.IndexLiveSettings
-	14,  // 2: luceneserver.CreateIndexRequest.fields:type_name -> luceneserver.Field
-	88,  // 3: luceneserver.LiveSettingsV2Request.liveSettings:type_name -> luceneserver.IndexLiveSettings
-	88,  // 4: luceneserver.LiveSettingsV2Response.liveSettings:type_name -> luceneserver.IndexLiveSettings
+	90,  // 0: luceneserver.CreateIndexRequest.settings:type_name -> luceneserver.IndexSettings
+	91,  // 1: luceneserver.CreateIndexRequest.liveSettings:type_name -> luceneserver.IndexLiveSettings
+	16,  // 2: luceneserver.CreateIndexRequest.fields:type_name -> luceneserver.Field
+	91,  // 3: luceneserver.LiveSettingsV2Request.liveSettings:type_name -> luceneserver.IndexLiveSettings
+	91,  // 4: luceneserver.LiveSettingsV2Response.liveSettings:type_name -> luceneserver.IndexLiveSettings
 	0,   // 5: luceneserver.Field.type:type_name -> luceneserver.FieldType
 	1,   // 6: luceneserver.Field.indexOptions:type_name -> luceneserver.IndexOptions
-	100, // 7: luceneserver.Field.script:type_name -> luceneserver.Script
-	101, // 8: luceneserver.Field.analyzer:type_name -> luceneserver.Analyzer
-	101, // 9: luceneserver.Field.indexAnalyzer:type_name -> luceneserver.Analyzer
-	101, // 10: luceneserver.Field.searchAnalyzer:type_name -> luceneserver.Analyzer
+	103, // 7: luceneserver.Field.script:type_name -> luceneserver.Script
+	104, // 8: luceneserver.Field.analyzer:type_name -> luceneserver.Analyzer
+	104, // 9: luceneserver.Field.indexAnalyzer:type_name -> luceneserver.Analyzer
+	104, // 10: luceneserver.Field.searchAnalyzer:type_name -> luceneserver.Analyzer
 	2,   // 11: luceneserver.Field.termVectors:type_name -> luceneserver.TermVectors
 	3,   // 12: luceneserver.Field.facet:type_name -> luceneserver.FacetType
-	102, // 13: luceneserver.Field.additionalProperties:type_name -> google.protobuf.Struct
-	102, // 14: luceneserver.Field.similarityParams:type_name -> google.protobuf.Struct
-	14,  // 15: luceneserver.Field.childFields:type_name -> luceneserver.Field
-	14,  // 16: luceneserver.FieldDefRequest.field:type_name -> luceneserver.Field
-	103, // 17: luceneserver.SettingsRequest.indexSort:type_name -> luceneserver.SortFields
-	87,  // 18: luceneserver.SettingsV2Request.settings:type_name -> luceneserver.IndexSettings
-	87,  // 19: luceneserver.SettingsV2Response.settings:type_name -> luceneserver.IndexSettings
-	4,   // 20: luceneserver.StartIndexRequest.mode:type_name -> luceneserver.Mode
-	59,  // 21: luceneserver.StartIndexRequest.restore:type_name -> luceneserver.RestoreIndex
-	95,  // 22: luceneserver.AddDocumentRequest.fields:type_name -> luceneserver.AddDocumentRequest.FieldsEntry
-	33,  // 23: luceneserver.StatsResponse.taxonomy:type_name -> luceneserver.Taxonomy
-	34,  // 24: luceneserver.StatsResponse.searchers:type_name -> luceneserver.Searcher
-	34,  // 25: luceneserver.StatsResponse.currentSearcher:type_name -> luceneserver.Searcher
-	45,  // 26: luceneserver.CreateSnapshotResponse.snapshotId:type_name -> luceneserver.SnapshotId
-	45,  // 27: luceneserver.ReleaseSnapshotRequest.snapshotId:type_name -> luceneserver.SnapshotId
-	58,  // 28: luceneserver.IndicesResponse.indicesResponse:type_name -> luceneserver.IndexStatsResponse
-	32,  // 29: luceneserver.IndexStatsResponse.statsResponse:type_name -> luceneserver.StatsResponse
-	65,  // 30: luceneserver.CopyState.filesMetadata:type_name -> luceneserver.FilesMetadata
-	66,  // 31: luceneserver.FilesMetadata.fileMetadata:type_name -> luceneserver.FileMetadata
-	65,  // 32: luceneserver.CopyFiles.filesMetadata:type_name -> luceneserver.FilesMetadata
-	70,  // 33: luceneserver.FilesInfo.fileInfo:type_name -> luceneserver.FileInfo
-	5,   // 34: luceneserver.HealthCheckResponse.health:type_name -> luceneserver.TransferStatusCode
-	5,   // 35: luceneserver.TransferStatus.Code:type_name -> luceneserver.TransferStatusCode
-	81,  // 36: luceneserver.GetNodesResponse.nodes:type_name -> luceneserver.NodeInfo
-	104, // 37: luceneserver.DeleteByQueryRequest.query:type_name -> luceneserver.Query
-	6,   // 38: luceneserver.ForceMergeResponse.status:type_name -> luceneserver.ForceMergeResponse.Status
-	7,   // 39: luceneserver.ForceMergeDeletesResponse.status:type_name -> luceneserver.ForceMergeDeletesResponse.Status
-	105, // 40: luceneserver.IndexSettings.nrtCachingDirectoryMaxMergeSizeMB:type_name -> google.protobuf.DoubleValue
-	105, // 41: luceneserver.IndexSettings.nrtCachingDirectoryMaxSizeMB:type_name -> google.protobuf.DoubleValue
-	106, // 42: luceneserver.IndexSettings.concurrentMergeSchedulerMaxThreadCount:type_name -> google.protobuf.Int32Value
-	106, // 43: luceneserver.IndexSettings.concurrentMergeSchedulerMaxMergeCount:type_name -> google.protobuf.Int32Value
-	103, // 44: luceneserver.IndexSettings.indexSort:type_name -> luceneserver.SortFields
-	107, // 45: luceneserver.IndexSettings.indexMergeSchedulerAutoThrottle:type_name -> google.protobuf.BoolValue
-	108, // 46: luceneserver.IndexSettings.directory:type_name -> google.protobuf.StringValue
-	105, // 47: luceneserver.IndexLiveSettings.maxRefreshSec:type_name -> google.protobuf.DoubleValue
-	105, // 48: luceneserver.IndexLiveSettings.minRefreshSec:type_name -> google.protobuf.DoubleValue
-	105, // 49: luceneserver.IndexLiveSettings.maxSearcherAgeSec:type_name -> google.protobuf.DoubleValue
-	105, // 50: luceneserver.IndexLiveSettings.indexRamBufferSizeMB:type_name -> google.protobuf.DoubleValue
-	106, // 51: luceneserver.IndexLiveSettings.addDocumentsMaxBufferLen:type_name -> google.protobuf.Int32Value
-	106, // 52: luceneserver.IndexLiveSettings.sliceMaxDocs:type_name -> google.protobuf.Int32Value
-	106, // 53: luceneserver.IndexLiveSettings.sliceMaxSegments:type_name -> google.protobuf.Int32Value
-	106, // 54: luceneserver.IndexLiveSettings.virtualShards:type_name -> google.protobuf.Int32Value
-	106, // 55: luceneserver.IndexLiveSettings.maxMergedSegmentMB:type_name -> google.protobuf.Int32Value
-	106, // 56: luceneserver.IndexLiveSettings.segmentsPerTier:type_name -> google.protobuf.Int32Value
-	105, // 57: luceneserver.IndexLiveSettings.defaultSearchTimeoutSec:type_name -> google.protobuf.DoubleValue
-	106, // 58: luceneserver.IndexLiveSettings.defaultSearchTimeoutCheckEvery:type_name -> google.protobuf.Int32Value
-	106, // 59: luceneserver.IndexLiveSettings.defaultTerminateAfter:type_name -> google.protobuf.Int32Value
-	109, // 60: luceneserver.IndexLiveSettings.maxMergePreCopyDurationSec:type_name -> google.protobuf.UInt64Value
-	87,  // 61: luceneserver.IndexStateInfo.settings:type_name -> luceneserver.IndexSettings
-	88,  // 62: luceneserver.IndexStateInfo.liveSettings:type_name -> luceneserver.IndexLiveSettings
-	96,  // 63: luceneserver.IndexStateInfo.fields:type_name -> luceneserver.IndexStateInfo.FieldsEntry
-	97,  // 64: luceneserver.GlobalStateInfo.indices:type_name -> luceneserver.GlobalStateInfo.IndicesEntry
-	98,  // 65: luceneserver.CustomRequest.params:type_name -> luceneserver.CustomRequest.ParamsEntry
-	99,  // 66: luceneserver.CustomResponse.response:type_name -> luceneserver.CustomResponse.ResponseEntry
-	25,  // 67: luceneserver.AddDocumentRequest.MultiValuedField.faceHierarchyPaths:type_name -> luceneserver.FacetHierarchyPath
-	94,  // 68: luceneserver.AddDocumentRequest.FieldsEntry.value:type_name -> luceneserver.AddDocumentRequest.MultiValuedField
-	14,  // 69: luceneserver.IndexStateInfo.FieldsEntry.value:type_name -> luceneserver.Field
-	90,  // 70: luceneserver.GlobalStateInfo.IndicesEntry.value:type_name -> luceneserver.IndexGlobalState
-	8,   // 71: luceneserver.LuceneServer.createIndex:input_type -> luceneserver.CreateIndexRequest
-	10,  // 72: luceneserver.LuceneServer.liveSettings:input_type -> luceneserver.LiveSettingsRequest
-	12,  // 73: luceneserver.LuceneServer.liveSettingsV2:input_type -> luceneserver.LiveSettingsV2Request
-	15,  // 74: luceneserver.LuceneServer.registerFields:input_type -> luceneserver.FieldDefRequest
-	15,  // 75: luceneserver.LuceneServer.updateFields:input_type -> luceneserver.FieldDefRequest
-	17,  // 76: luceneserver.LuceneServer.settings:input_type -> luceneserver.SettingsRequest
-	19,  // 77: luceneserver.LuceneServer.settingsV2:input_type -> luceneserver.SettingsV2Request
-	21,  // 78: luceneserver.LuceneServer.startIndex:input_type -> luceneserver.StartIndexRequest
-	22,  // 79: luceneserver.LuceneServer.startIndexV2:input_type -> luceneserver.StartIndexV2Request
-	40,  // 80: luceneserver.LuceneServer.stopIndex:input_type -> luceneserver.StopIndexRequest
-	41,  // 81: luceneserver.LuceneServer.reloadState:input_type -> luceneserver.ReloadStateRequest
-	24,  // 82: luceneserver.LuceneServer.addDocuments:input_type -> luceneserver.AddDocumentRequest
-	27,  // 83: luceneserver.LuceneServer.refresh:input_type -> luceneserver.RefreshRequest
-	29,  // 84: luceneserver.LuceneServer.commit:input_type -> luceneserver.CommitRequest
-	31,  // 85: luceneserver.LuceneServer.stats:input_type -> luceneserver.StatsRequest
-	110, // 86: luceneserver.LuceneServer.search:input_type -> luceneserver.SearchRequest
-	110, // 87: luceneserver.LuceneServer.searchV2:input_type -> luceneserver.SearchRequest
-	24,  // 88: luceneserver.LuceneServer.delete:input_type -> luceneserver.AddDocumentRequest
-	82,  // 89: luceneserver.LuceneServer.deleteByQuery:input_type -> luceneserver.DeleteByQueryRequest
-	35,  // 90: luceneserver.LuceneServer.deleteAll:input_type -> luceneserver.DeleteAllDocumentsRequest
-	37,  // 91: luceneserver.LuceneServer.deleteIndex:input_type -> luceneserver.DeleteIndexRequest
-	111, // 92: luceneserver.LuceneServer.buildSuggest:input_type -> luceneserver.BuildSuggestRequest
-	112, // 93: luceneserver.LuceneServer.suggestLookup:input_type -> luceneserver.SuggestLookupRequest
-	111, // 94: luceneserver.LuceneServer.updateSuggest:input_type -> luceneserver.BuildSuggestRequest
-	43,  // 95: luceneserver.LuceneServer.createSnapshot:input_type -> luceneserver.CreateSnapshotRequest
-	46,  // 96: luceneserver.LuceneServer.releaseSnapshot:input_type -> luceneserver.ReleaseSnapshotRequest
-	48,  // 97: luceneserver.LuceneServer.getAllSnapshotIndexGen:input_type -> luceneserver.GetAllSnapshotGenRequest
-	50,  // 98: luceneserver.LuceneServer.backupIndex:input_type -> luceneserver.BackupIndexRequest
-	54,  // 99: luceneserver.LuceneServer.deleteIndexBackup:input_type -> luceneserver.DeleteIndexBackupRequest
-	52,  // 100: luceneserver.LuceneServer.backupWarmingQueries:input_type -> luceneserver.BackupWarmingQueriesRequest
-	60,  // 101: luceneserver.LuceneServer.state:input_type -> luceneserver.StateRequest
-	72,  // 102: luceneserver.LuceneServer.status:input_type -> luceneserver.HealthCheckRequest
-	74,  // 103: luceneserver.LuceneServer.ready:input_type -> luceneserver.ReadyCheckRequest
-	113, // 104: luceneserver.LuceneServer.metrics:input_type -> google.protobuf.Empty
-	56,  // 105: luceneserver.LuceneServer.indices:input_type -> luceneserver.IndicesRequest
-	83,  // 106: luceneserver.LuceneServer.forceMerge:input_type -> luceneserver.ForceMergeRequest
-	85,  // 107: luceneserver.LuceneServer.forceMergeDeletes:input_type -> luceneserver.ForceMergeDeletesRequest
-	92,  // 108: luceneserver.LuceneServer.custom:input_type -> luceneserver.CustomRequest
-	62,  // 109: luceneserver.ReplicationServer.addReplicas:input_type -> luceneserver.AddReplicaRequest
-	68,  // 110: luceneserver.ReplicationServer.recvCopyState:input_type -> luceneserver.CopyStateRequest
-	71,  // 111: luceneserver.ReplicationServer.sendRawFile:input_type -> luceneserver.RawFileChunk
-	70,  // 112: luceneserver.ReplicationServer.recvRawFile:input_type -> luceneserver.FileInfo
-	70,  // 113: luceneserver.ReplicationServer.recvRawFileV2:input_type -> luceneserver.FileInfo
-	67,  // 114: luceneserver.ReplicationServer.copyFiles:input_type -> luceneserver.CopyFiles
-	76,  // 115: luceneserver.ReplicationServer.newNRTPoint:input_type -> luceneserver.NewNRTPoint
-	77,  // 116: luceneserver.ReplicationServer.writeNRTPoint:input_type -> luceneserver.IndexName
-	77,  // 117: luceneserver.ReplicationServer.getCurrentSearcherVersion:input_type -> luceneserver.IndexName
-	79,  // 118: luceneserver.ReplicationServer.getConnectedNodes:input_type -> luceneserver.GetNodesRequest
-	9,   // 119: luceneserver.LuceneServer.createIndex:output_type -> luceneserver.CreateIndexResponse
-	11,  // 120: luceneserver.LuceneServer.liveSettings:output_type -> luceneserver.LiveSettingsResponse
-	13,  // 121: luceneserver.LuceneServer.liveSettingsV2:output_type -> luceneserver.LiveSettingsV2Response
-	16,  // 122: luceneserver.LuceneServer.registerFields:output_type -> luceneserver.FieldDefResponse
-	16,  // 123: luceneserver.LuceneServer.updateFields:output_type -> luceneserver.FieldDefResponse
-	18,  // 124: luceneserver.LuceneServer.settings:output_type -> luceneserver.SettingsResponse
-	20,  // 125: luceneserver.LuceneServer.settingsV2:output_type -> luceneserver.SettingsV2Response
-	23,  // 126: luceneserver.LuceneServer.startIndex:output_type -> luceneserver.StartIndexResponse
-	23,  // 127: luceneserver.LuceneServer.startIndexV2:output_type -> luceneserver.StartIndexResponse
-	39,  // 128: luceneserver.LuceneServer.stopIndex:output_type -> luceneserver.DummyResponse
-	42,  // 129: luceneserver.LuceneServer.reloadState:output_type -> luceneserver.ReloadStateResponse
-	26,  // 130: luceneserver.LuceneServer.addDocuments:output_type -> luceneserver.AddDocumentResponse
-	28,  // 131: luceneserver.LuceneServer.refresh:output_type -> luceneserver.RefreshResponse
-	30,  // 132: luceneserver.LuceneServer.commit:output_type -> luceneserver.CommitResponse
-	32,  // 133: luceneserver.LuceneServer.stats:output_type -> luceneserver.StatsResponse
-	114, // 134: luceneserver.LuceneServer.search:output_type -> luceneserver.SearchResponse
-	115, // 135: luceneserver.LuceneServer.searchV2:output_type -> google.protobuf.Any
-	26,  // 136: luceneserver.LuceneServer.delete:output_type -> luceneserver.AddDocumentResponse
-	26,  // 137: luceneserver.LuceneServer.deleteByQuery:output_type -> luceneserver.AddDocumentResponse
-	36,  // 138: luceneserver.LuceneServer.deleteAll:output_type -> luceneserver.DeleteAllDocumentsResponse
-	38,  // 139: luceneserver.LuceneServer.deleteIndex:output_type -> luceneserver.DeleteIndexResponse
-	116, // 140: luceneserver.LuceneServer.buildSuggest:output_type -> luceneserver.BuildSuggestResponse
-	117, // 141: luceneserver.LuceneServer.suggestLookup:output_type -> luceneserver.SuggestLookupResponse
-	116, // 142: luceneserver.LuceneServer.updateSuggest:output_type -> luceneserver.BuildSuggestResponse
-	44,  // 143: luceneserver.LuceneServer.createSnapshot:output_type -> luceneserver.CreateSnapshotResponse
-	47,  // 144: luceneserver.LuceneServer.releaseSnapshot:output_type -> luceneserver.ReleaseSnapshotResponse
-	49,  // 145: luceneserver.LuceneServer.getAllSnapshotIndexGen:output_type -> luceneserver.GetAllSnapshotGenResponse
-	51,  // 146: luceneserver.LuceneServer.backupIndex:output_type -> luceneserver.BackupIndexResponse
-	55,  // 147: luceneserver.LuceneServer.deleteIndexBackup:output_type -> luceneserver.DeleteIndexBackupResponse
-	53,  // 148: luceneserver.LuceneServer.backupWarmingQueries:output_type -> luceneserver.BackupWarmingQueriesResponse
-	61,  // 149: luceneserver.LuceneServer.state:output_type -> luceneserver.StateResponse
-	73,  // 150: luceneserver.LuceneServer.status:output_type -> luceneserver.HealthCheckResponse
-	73,  // 151: luceneserver.LuceneServer.ready:output_type -> luceneserver.HealthCheckResponse
-	118, // 152: luceneserver.LuceneServer.metrics:output_type -> google.api.HttpBody
-	57,  // 153: luceneserver.LuceneServer.indices:output_type -> luceneserver.IndicesResponse
-	84,  // 154: luceneserver.LuceneServer.forceMerge:output_type -> luceneserver.ForceMergeResponse
-	86,  // 155: luceneserver.LuceneServer.forceMergeDeletes:output_type -> luceneserver.ForceMergeDeletesResponse
-	93,  // 156: luceneserver.LuceneServer.custom:output_type -> luceneserver.CustomResponse
-	63,  // 157: luceneserver.ReplicationServer.addReplicas:output_type -> luceneserver.AddReplicaResponse
-	64,  // 158: luceneserver.ReplicationServer.recvCopyState:output_type -> luceneserver.CopyState
-	75,  // 159: luceneserver.ReplicationServer.sendRawFile:output_type -> luceneserver.TransferStatus
-	71,  // 160: luceneserver.ReplicationServer.recvRawFile:output_type -> luceneserver.RawFileChunk
-	71,  // 161: luceneserver.ReplicationServer.recvRawFileV2:output_type -> luceneserver.RawFileChunk
-	75,  // 162: luceneserver.ReplicationServer.copyFiles:output_type -> luceneserver.TransferStatus
-	75,  // 163: luceneserver.ReplicationServer.newNRTPoint:output_type -> luceneserver.TransferStatus
-	78,  // 164: luceneserver.ReplicationServer.writeNRTPoint:output_type -> luceneserver.SearcherVersion
-	78,  // 165: luceneserver.ReplicationServer.getCurrentSearcherVersion:output_type -> luceneserver.SearcherVersion
-	80,  // 166: luceneserver.ReplicationServer.getConnectedNodes:output_type -> luceneserver.GetNodesResponse
-	119, // [119:167] is the sub-list for method output_type
-	71,  // [71:119] is the sub-list for method input_type
-	71,  // [71:71] is the sub-list for extension type_name
-	71,  // [71:71] is the sub-list for extension extendee
-	0,   // [0:71] is the sub-list for field type_name
+	105, // 13: luceneserver.Field.additionalProperties:type_name -> google.protobuf.Struct
+	105, // 14: luceneserver.Field.similarityParams:type_name -> google.protobuf.Struct
+	16,  // 15: luceneserver.Field.childFields:type_name -> luceneserver.Field
+	4,   // 16: luceneserver.Field.vectorSimilarity:type_name -> luceneserver.VectorSimilarity
+	17,  // 17: luceneserver.Field.vectorIndexingOptions:type_name -> luceneserver.VectorIndexingOptions
+	7,   // 18: luceneserver.VectorIndexingOptions.type:type_name -> luceneserver.VectorIndexingOptions.KnnType
+	16,  // 19: luceneserver.FieldDefRequest.field:type_name -> luceneserver.Field
+	106, // 20: luceneserver.SettingsRequest.indexSort:type_name -> luceneserver.SortFields
+	90,  // 21: luceneserver.SettingsV2Request.settings:type_name -> luceneserver.IndexSettings
+	90,  // 22: luceneserver.SettingsV2Response.settings:type_name -> luceneserver.IndexSettings
+	5,   // 23: luceneserver.StartIndexRequest.mode:type_name -> luceneserver.Mode
+	62,  // 24: luceneserver.StartIndexRequest.restore:type_name -> luceneserver.RestoreIndex
+	98,  // 25: luceneserver.AddDocumentRequest.fields:type_name -> luceneserver.AddDocumentRequest.FieldsEntry
+	36,  // 26: luceneserver.StatsResponse.taxonomy:type_name -> luceneserver.Taxonomy
+	37,  // 27: luceneserver.StatsResponse.searchers:type_name -> luceneserver.Searcher
+	37,  // 28: luceneserver.StatsResponse.currentSearcher:type_name -> luceneserver.Searcher
+	48,  // 29: luceneserver.CreateSnapshotResponse.snapshotId:type_name -> luceneserver.SnapshotId
+	48,  // 30: luceneserver.ReleaseSnapshotRequest.snapshotId:type_name -> luceneserver.SnapshotId
+	61,  // 31: luceneserver.IndicesResponse.indicesResponse:type_name -> luceneserver.IndexStatsResponse
+	35,  // 32: luceneserver.IndexStatsResponse.statsResponse:type_name -> luceneserver.StatsResponse
+	68,  // 33: luceneserver.CopyState.filesMetadata:type_name -> luceneserver.FilesMetadata
+	69,  // 34: luceneserver.FilesMetadata.fileMetadata:type_name -> luceneserver.FileMetadata
+	68,  // 35: luceneserver.CopyFiles.filesMetadata:type_name -> luceneserver.FilesMetadata
+	73,  // 36: luceneserver.FilesInfo.fileInfo:type_name -> luceneserver.FileInfo
+	6,   // 37: luceneserver.HealthCheckResponse.health:type_name -> luceneserver.TransferStatusCode
+	6,   // 38: luceneserver.TransferStatus.Code:type_name -> luceneserver.TransferStatusCode
+	84,  // 39: luceneserver.GetNodesResponse.nodes:type_name -> luceneserver.NodeInfo
+	107, // 40: luceneserver.DeleteByQueryRequest.query:type_name -> luceneserver.Query
+	8,   // 41: luceneserver.ForceMergeResponse.status:type_name -> luceneserver.ForceMergeResponse.Status
+	9,   // 42: luceneserver.ForceMergeDeletesResponse.status:type_name -> luceneserver.ForceMergeDeletesResponse.Status
+	108, // 43: luceneserver.IndexSettings.nrtCachingDirectoryMaxMergeSizeMB:type_name -> google.protobuf.DoubleValue
+	108, // 44: luceneserver.IndexSettings.nrtCachingDirectoryMaxSizeMB:type_name -> google.protobuf.DoubleValue
+	109, // 45: luceneserver.IndexSettings.concurrentMergeSchedulerMaxThreadCount:type_name -> google.protobuf.Int32Value
+	109, // 46: luceneserver.IndexSettings.concurrentMergeSchedulerMaxMergeCount:type_name -> google.protobuf.Int32Value
+	106, // 47: luceneserver.IndexSettings.indexSort:type_name -> luceneserver.SortFields
+	110, // 48: luceneserver.IndexSettings.indexMergeSchedulerAutoThrottle:type_name -> google.protobuf.BoolValue
+	111, // 49: luceneserver.IndexSettings.directory:type_name -> google.protobuf.StringValue
+	108, // 50: luceneserver.IndexLiveSettings.maxRefreshSec:type_name -> google.protobuf.DoubleValue
+	108, // 51: luceneserver.IndexLiveSettings.minRefreshSec:type_name -> google.protobuf.DoubleValue
+	108, // 52: luceneserver.IndexLiveSettings.maxSearcherAgeSec:type_name -> google.protobuf.DoubleValue
+	108, // 53: luceneserver.IndexLiveSettings.indexRamBufferSizeMB:type_name -> google.protobuf.DoubleValue
+	109, // 54: luceneserver.IndexLiveSettings.addDocumentsMaxBufferLen:type_name -> google.protobuf.Int32Value
+	109, // 55: luceneserver.IndexLiveSettings.sliceMaxDocs:type_name -> google.protobuf.Int32Value
+	109, // 56: luceneserver.IndexLiveSettings.sliceMaxSegments:type_name -> google.protobuf.Int32Value
+	109, // 57: luceneserver.IndexLiveSettings.virtualShards:type_name -> google.protobuf.Int32Value
+	109, // 58: luceneserver.IndexLiveSettings.maxMergedSegmentMB:type_name -> google.protobuf.Int32Value
+	109, // 59: luceneserver.IndexLiveSettings.segmentsPerTier:type_name -> google.protobuf.Int32Value
+	108, // 60: luceneserver.IndexLiveSettings.defaultSearchTimeoutSec:type_name -> google.protobuf.DoubleValue
+	109, // 61: luceneserver.IndexLiveSettings.defaultSearchTimeoutCheckEvery:type_name -> google.protobuf.Int32Value
+	109, // 62: luceneserver.IndexLiveSettings.defaultTerminateAfter:type_name -> google.protobuf.Int32Value
+	112, // 63: luceneserver.IndexLiveSettings.maxMergePreCopyDurationSec:type_name -> google.protobuf.UInt64Value
+	90,  // 64: luceneserver.IndexStateInfo.settings:type_name -> luceneserver.IndexSettings
+	91,  // 65: luceneserver.IndexStateInfo.liveSettings:type_name -> luceneserver.IndexLiveSettings
+	99,  // 66: luceneserver.IndexStateInfo.fields:type_name -> luceneserver.IndexStateInfo.FieldsEntry
+	100, // 67: luceneserver.GlobalStateInfo.indices:type_name -> luceneserver.GlobalStateInfo.IndicesEntry
+	101, // 68: luceneserver.CustomRequest.params:type_name -> luceneserver.CustomRequest.ParamsEntry
+	102, // 69: luceneserver.CustomResponse.response:type_name -> luceneserver.CustomResponse.ResponseEntry
+	28,  // 70: luceneserver.AddDocumentRequest.MultiValuedField.faceHierarchyPaths:type_name -> luceneserver.FacetHierarchyPath
+	97,  // 71: luceneserver.AddDocumentRequest.FieldsEntry.value:type_name -> luceneserver.AddDocumentRequest.MultiValuedField
+	16,  // 72: luceneserver.IndexStateInfo.FieldsEntry.value:type_name -> luceneserver.Field
+	93,  // 73: luceneserver.GlobalStateInfo.IndicesEntry.value:type_name -> luceneserver.IndexGlobalState
+	10,  // 74: luceneserver.LuceneServer.createIndex:input_type -> luceneserver.CreateIndexRequest
+	12,  // 75: luceneserver.LuceneServer.liveSettings:input_type -> luceneserver.LiveSettingsRequest
+	14,  // 76: luceneserver.LuceneServer.liveSettingsV2:input_type -> luceneserver.LiveSettingsV2Request
+	18,  // 77: luceneserver.LuceneServer.registerFields:input_type -> luceneserver.FieldDefRequest
+	18,  // 78: luceneserver.LuceneServer.updateFields:input_type -> luceneserver.FieldDefRequest
+	20,  // 79: luceneserver.LuceneServer.settings:input_type -> luceneserver.SettingsRequest
+	22,  // 80: luceneserver.LuceneServer.settingsV2:input_type -> luceneserver.SettingsV2Request
+	24,  // 81: luceneserver.LuceneServer.startIndex:input_type -> luceneserver.StartIndexRequest
+	25,  // 82: luceneserver.LuceneServer.startIndexV2:input_type -> luceneserver.StartIndexV2Request
+	43,  // 83: luceneserver.LuceneServer.stopIndex:input_type -> luceneserver.StopIndexRequest
+	44,  // 84: luceneserver.LuceneServer.reloadState:input_type -> luceneserver.ReloadStateRequest
+	27,  // 85: luceneserver.LuceneServer.addDocuments:input_type -> luceneserver.AddDocumentRequest
+	30,  // 86: luceneserver.LuceneServer.refresh:input_type -> luceneserver.RefreshRequest
+	32,  // 87: luceneserver.LuceneServer.commit:input_type -> luceneserver.CommitRequest
+	34,  // 88: luceneserver.LuceneServer.stats:input_type -> luceneserver.StatsRequest
+	113, // 89: luceneserver.LuceneServer.search:input_type -> luceneserver.SearchRequest
+	113, // 90: luceneserver.LuceneServer.searchV2:input_type -> luceneserver.SearchRequest
+	27,  // 91: luceneserver.LuceneServer.delete:input_type -> luceneserver.AddDocumentRequest
+	85,  // 92: luceneserver.LuceneServer.deleteByQuery:input_type -> luceneserver.DeleteByQueryRequest
+	38,  // 93: luceneserver.LuceneServer.deleteAll:input_type -> luceneserver.DeleteAllDocumentsRequest
+	40,  // 94: luceneserver.LuceneServer.deleteIndex:input_type -> luceneserver.DeleteIndexRequest
+	114, // 95: luceneserver.LuceneServer.buildSuggest:input_type -> luceneserver.BuildSuggestRequest
+	115, // 96: luceneserver.LuceneServer.suggestLookup:input_type -> luceneserver.SuggestLookupRequest
+	114, // 97: luceneserver.LuceneServer.updateSuggest:input_type -> luceneserver.BuildSuggestRequest
+	46,  // 98: luceneserver.LuceneServer.createSnapshot:input_type -> luceneserver.CreateSnapshotRequest
+	49,  // 99: luceneserver.LuceneServer.releaseSnapshot:input_type -> luceneserver.ReleaseSnapshotRequest
+	51,  // 100: luceneserver.LuceneServer.getAllSnapshotIndexGen:input_type -> luceneserver.GetAllSnapshotGenRequest
+	53,  // 101: luceneserver.LuceneServer.backupIndex:input_type -> luceneserver.BackupIndexRequest
+	57,  // 102: luceneserver.LuceneServer.deleteIndexBackup:input_type -> luceneserver.DeleteIndexBackupRequest
+	55,  // 103: luceneserver.LuceneServer.backupWarmingQueries:input_type -> luceneserver.BackupWarmingQueriesRequest
+	63,  // 104: luceneserver.LuceneServer.state:input_type -> luceneserver.StateRequest
+	75,  // 105: luceneserver.LuceneServer.status:input_type -> luceneserver.HealthCheckRequest
+	77,  // 106: luceneserver.LuceneServer.ready:input_type -> luceneserver.ReadyCheckRequest
+	116, // 107: luceneserver.LuceneServer.metrics:input_type -> google.protobuf.Empty
+	59,  // 108: luceneserver.LuceneServer.indices:input_type -> luceneserver.IndicesRequest
+	86,  // 109: luceneserver.LuceneServer.forceMerge:input_type -> luceneserver.ForceMergeRequest
+	88,  // 110: luceneserver.LuceneServer.forceMergeDeletes:input_type -> luceneserver.ForceMergeDeletesRequest
+	95,  // 111: luceneserver.LuceneServer.custom:input_type -> luceneserver.CustomRequest
+	65,  // 112: luceneserver.ReplicationServer.addReplicas:input_type -> luceneserver.AddReplicaRequest
+	71,  // 113: luceneserver.ReplicationServer.recvCopyState:input_type -> luceneserver.CopyStateRequest
+	74,  // 114: luceneserver.ReplicationServer.sendRawFile:input_type -> luceneserver.RawFileChunk
+	73,  // 115: luceneserver.ReplicationServer.recvRawFile:input_type -> luceneserver.FileInfo
+	73,  // 116: luceneserver.ReplicationServer.recvRawFileV2:input_type -> luceneserver.FileInfo
+	70,  // 117: luceneserver.ReplicationServer.copyFiles:input_type -> luceneserver.CopyFiles
+	79,  // 118: luceneserver.ReplicationServer.newNRTPoint:input_type -> luceneserver.NewNRTPoint
+	80,  // 119: luceneserver.ReplicationServer.writeNRTPoint:input_type -> luceneserver.IndexName
+	80,  // 120: luceneserver.ReplicationServer.getCurrentSearcherVersion:input_type -> luceneserver.IndexName
+	82,  // 121: luceneserver.ReplicationServer.getConnectedNodes:input_type -> luceneserver.GetNodesRequest
+	11,  // 122: luceneserver.LuceneServer.createIndex:output_type -> luceneserver.CreateIndexResponse
+	13,  // 123: luceneserver.LuceneServer.liveSettings:output_type -> luceneserver.LiveSettingsResponse
+	15,  // 124: luceneserver.LuceneServer.liveSettingsV2:output_type -> luceneserver.LiveSettingsV2Response
+	19,  // 125: luceneserver.LuceneServer.registerFields:output_type -> luceneserver.FieldDefResponse
+	19,  // 126: luceneserver.LuceneServer.updateFields:output_type -> luceneserver.FieldDefResponse
+	21,  // 127: luceneserver.LuceneServer.settings:output_type -> luceneserver.SettingsResponse
+	23,  // 128: luceneserver.LuceneServer.settingsV2:output_type -> luceneserver.SettingsV2Response
+	26,  // 129: luceneserver.LuceneServer.startIndex:output_type -> luceneserver.StartIndexResponse
+	26,  // 130: luceneserver.LuceneServer.startIndexV2:output_type -> luceneserver.StartIndexResponse
+	42,  // 131: luceneserver.LuceneServer.stopIndex:output_type -> luceneserver.DummyResponse
+	45,  // 132: luceneserver.LuceneServer.reloadState:output_type -> luceneserver.ReloadStateResponse
+	29,  // 133: luceneserver.LuceneServer.addDocuments:output_type -> luceneserver.AddDocumentResponse
+	31,  // 134: luceneserver.LuceneServer.refresh:output_type -> luceneserver.RefreshResponse
+	33,  // 135: luceneserver.LuceneServer.commit:output_type -> luceneserver.CommitResponse
+	35,  // 136: luceneserver.LuceneServer.stats:output_type -> luceneserver.StatsResponse
+	117, // 137: luceneserver.LuceneServer.search:output_type -> luceneserver.SearchResponse
+	118, // 138: luceneserver.LuceneServer.searchV2:output_type -> google.protobuf.Any
+	29,  // 139: luceneserver.LuceneServer.delete:output_type -> luceneserver.AddDocumentResponse
+	29,  // 140: luceneserver.LuceneServer.deleteByQuery:output_type -> luceneserver.AddDocumentResponse
+	39,  // 141: luceneserver.LuceneServer.deleteAll:output_type -> luceneserver.DeleteAllDocumentsResponse
+	41,  // 142: luceneserver.LuceneServer.deleteIndex:output_type -> luceneserver.DeleteIndexResponse
+	119, // 143: luceneserver.LuceneServer.buildSuggest:output_type -> luceneserver.BuildSuggestResponse
+	120, // 144: luceneserver.LuceneServer.suggestLookup:output_type -> luceneserver.SuggestLookupResponse
+	119, // 145: luceneserver.LuceneServer.updateSuggest:output_type -> luceneserver.BuildSuggestResponse
+	47,  // 146: luceneserver.LuceneServer.createSnapshot:output_type -> luceneserver.CreateSnapshotResponse
+	50,  // 147: luceneserver.LuceneServer.releaseSnapshot:output_type -> luceneserver.ReleaseSnapshotResponse
+	52,  // 148: luceneserver.LuceneServer.getAllSnapshotIndexGen:output_type -> luceneserver.GetAllSnapshotGenResponse
+	54,  // 149: luceneserver.LuceneServer.backupIndex:output_type -> luceneserver.BackupIndexResponse
+	58,  // 150: luceneserver.LuceneServer.deleteIndexBackup:output_type -> luceneserver.DeleteIndexBackupResponse
+	56,  // 151: luceneserver.LuceneServer.backupWarmingQueries:output_type -> luceneserver.BackupWarmingQueriesResponse
+	64,  // 152: luceneserver.LuceneServer.state:output_type -> luceneserver.StateResponse
+	76,  // 153: luceneserver.LuceneServer.status:output_type -> luceneserver.HealthCheckResponse
+	76,  // 154: luceneserver.LuceneServer.ready:output_type -> luceneserver.HealthCheckResponse
+	121, // 155: luceneserver.LuceneServer.metrics:output_type -> google.api.HttpBody
+	60,  // 156: luceneserver.LuceneServer.indices:output_type -> luceneserver.IndicesResponse
+	87,  // 157: luceneserver.LuceneServer.forceMerge:output_type -> luceneserver.ForceMergeResponse
+	89,  // 158: luceneserver.LuceneServer.forceMergeDeletes:output_type -> luceneserver.ForceMergeDeletesResponse
+	96,  // 159: luceneserver.LuceneServer.custom:output_type -> luceneserver.CustomResponse
+	66,  // 160: luceneserver.ReplicationServer.addReplicas:output_type -> luceneserver.AddReplicaResponse
+	67,  // 161: luceneserver.ReplicationServer.recvCopyState:output_type -> luceneserver.CopyState
+	78,  // 162: luceneserver.ReplicationServer.sendRawFile:output_type -> luceneserver.TransferStatus
+	74,  // 163: luceneserver.ReplicationServer.recvRawFile:output_type -> luceneserver.RawFileChunk
+	74,  // 164: luceneserver.ReplicationServer.recvRawFileV2:output_type -> luceneserver.RawFileChunk
+	78,  // 165: luceneserver.ReplicationServer.copyFiles:output_type -> luceneserver.TransferStatus
+	78,  // 166: luceneserver.ReplicationServer.newNRTPoint:output_type -> luceneserver.TransferStatus
+	81,  // 167: luceneserver.ReplicationServer.writeNRTPoint:output_type -> luceneserver.SearcherVersion
+	81,  // 168: luceneserver.ReplicationServer.getCurrentSearcherVersion:output_type -> luceneserver.SearcherVersion
+	83,  // 169: luceneserver.ReplicationServer.getConnectedNodes:output_type -> luceneserver.GetNodesResponse
+	122, // [122:170] is the sub-list for method output_type
+	74,  // [74:122] is the sub-list for method input_type
+	74,  // [74:74] is the sub-list for extension type_name
+	74,  // [74:74] is the sub-list for extension extendee
+	0,   // [0:74] is the sub-list for field type_name
 }
 
 func init() { file_yelp_nrtsearch_luceneserver_proto_init() }
@@ -7724,7 +7938,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FieldDefRequest); i {
+			switch v := v.(*VectorIndexingOptions); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7736,7 +7950,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FieldDefResponse); i {
+			switch v := v.(*FieldDefRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7748,7 +7962,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SettingsRequest); i {
+			switch v := v.(*FieldDefResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7760,7 +7974,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SettingsResponse); i {
+			switch v := v.(*SettingsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7772,7 +7986,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SettingsV2Request); i {
+			switch v := v.(*SettingsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7784,7 +7998,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SettingsV2Response); i {
+			switch v := v.(*SettingsV2Request); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7796,7 +8010,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StartIndexRequest); i {
+			switch v := v.(*SettingsV2Response); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7808,7 +8022,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StartIndexV2Request); i {
+			switch v := v.(*StartIndexRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7820,7 +8034,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StartIndexResponse); i {
+			switch v := v.(*StartIndexV2Request); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7832,7 +8046,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AddDocumentRequest); i {
+			switch v := v.(*StartIndexResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7844,7 +8058,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FacetHierarchyPath); i {
+			switch v := v.(*AddDocumentRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7856,7 +8070,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AddDocumentResponse); i {
+			switch v := v.(*FacetHierarchyPath); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7868,7 +8082,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RefreshRequest); i {
+			switch v := v.(*AddDocumentResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7880,7 +8094,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RefreshResponse); i {
+			switch v := v.(*RefreshRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7892,7 +8106,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CommitRequest); i {
+			switch v := v.(*RefreshResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7904,7 +8118,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CommitResponse); i {
+			switch v := v.(*CommitRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7916,7 +8130,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StatsRequest); i {
+			switch v := v.(*CommitResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7928,7 +8142,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StatsResponse); i {
+			switch v := v.(*StatsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7940,7 +8154,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Taxonomy); i {
+			switch v := v.(*StatsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7952,7 +8166,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Searcher); i {
+			switch v := v.(*Taxonomy); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7964,7 +8178,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteAllDocumentsRequest); i {
+			switch v := v.(*Searcher); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7976,7 +8190,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteAllDocumentsResponse); i {
+			switch v := v.(*DeleteAllDocumentsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -7988,7 +8202,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[29].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteIndexRequest); i {
+			switch v := v.(*DeleteAllDocumentsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8000,7 +8214,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[30].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteIndexResponse); i {
+			switch v := v.(*DeleteIndexRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8012,7 +8226,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[31].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DummyResponse); i {
+			switch v := v.(*DeleteIndexResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8024,7 +8238,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[32].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StopIndexRequest); i {
+			switch v := v.(*DummyResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8036,7 +8250,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[33].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReloadStateRequest); i {
+			switch v := v.(*StopIndexRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8048,7 +8262,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[34].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReloadStateResponse); i {
+			switch v := v.(*ReloadStateRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8060,7 +8274,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[35].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateSnapshotRequest); i {
+			switch v := v.(*ReloadStateResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8072,7 +8286,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[36].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CreateSnapshotResponse); i {
+			switch v := v.(*CreateSnapshotRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8084,7 +8298,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[37].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SnapshotId); i {
+			switch v := v.(*CreateSnapshotResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8096,7 +8310,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[38].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReleaseSnapshotRequest); i {
+			switch v := v.(*SnapshotId); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8108,7 +8322,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[39].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReleaseSnapshotResponse); i {
+			switch v := v.(*ReleaseSnapshotRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8120,7 +8334,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[40].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetAllSnapshotGenRequest); i {
+			switch v := v.(*ReleaseSnapshotResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8132,7 +8346,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[41].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetAllSnapshotGenResponse); i {
+			switch v := v.(*GetAllSnapshotGenRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8144,7 +8358,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[42].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*BackupIndexRequest); i {
+			switch v := v.(*GetAllSnapshotGenResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8156,7 +8370,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[43].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*BackupIndexResponse); i {
+			switch v := v.(*BackupIndexRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8168,7 +8382,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[44].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*BackupWarmingQueriesRequest); i {
+			switch v := v.(*BackupIndexResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8180,7 +8394,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[45].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*BackupWarmingQueriesResponse); i {
+			switch v := v.(*BackupWarmingQueriesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8192,7 +8406,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[46].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteIndexBackupRequest); i {
+			switch v := v.(*BackupWarmingQueriesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8204,7 +8418,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[47].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteIndexBackupResponse); i {
+			switch v := v.(*DeleteIndexBackupRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8216,7 +8430,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[48].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*IndicesRequest); i {
+			switch v := v.(*DeleteIndexBackupResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8228,7 +8442,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[49].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*IndicesResponse); i {
+			switch v := v.(*IndicesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8240,7 +8454,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[50].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*IndexStatsResponse); i {
+			switch v := v.(*IndicesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8252,7 +8466,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[51].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RestoreIndex); i {
+			switch v := v.(*IndexStatsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8264,7 +8478,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[52].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StateRequest); i {
+			switch v := v.(*RestoreIndex); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8276,7 +8490,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[53].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*StateResponse); i {
+			switch v := v.(*StateRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8288,7 +8502,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[54].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AddReplicaRequest); i {
+			switch v := v.(*StateResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8300,7 +8514,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[55].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*AddReplicaResponse); i {
+			switch v := v.(*AddReplicaRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8312,7 +8526,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[56].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CopyState); i {
+			switch v := v.(*AddReplicaResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8324,7 +8538,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[57].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FilesMetadata); i {
+			switch v := v.(*CopyState); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8336,7 +8550,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[58].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FileMetadata); i {
+			switch v := v.(*FilesMetadata); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8348,7 +8562,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[59].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CopyFiles); i {
+			switch v := v.(*FileMetadata); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8360,7 +8574,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[60].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CopyStateRequest); i {
+			switch v := v.(*CopyFiles); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8372,7 +8586,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[61].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FilesInfo); i {
+			switch v := v.(*CopyStateRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8384,7 +8598,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[62].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FileInfo); i {
+			switch v := v.(*FilesInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8396,7 +8610,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[63].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RawFileChunk); i {
+			switch v := v.(*FileInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8408,7 +8622,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[64].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*HealthCheckRequest); i {
+			switch v := v.(*RawFileChunk); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8420,7 +8634,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[65].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*HealthCheckResponse); i {
+			switch v := v.(*HealthCheckRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8432,7 +8646,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[66].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReadyCheckRequest); i {
+			switch v := v.(*HealthCheckResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8444,7 +8658,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[67].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TransferStatus); i {
+			switch v := v.(*ReadyCheckRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8456,7 +8670,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[68].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NewNRTPoint); i {
+			switch v := v.(*TransferStatus); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8468,7 +8682,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[69].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*IndexName); i {
+			switch v := v.(*NewNRTPoint); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8480,7 +8694,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[70].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SearcherVersion); i {
+			switch v := v.(*IndexName); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8492,7 +8706,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[71].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetNodesRequest); i {
+			switch v := v.(*SearcherVersion); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8504,7 +8718,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[72].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetNodesResponse); i {
+			switch v := v.(*GetNodesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8516,7 +8730,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[73].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NodeInfo); i {
+			switch v := v.(*GetNodesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8528,7 +8742,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[74].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*DeleteByQueryRequest); i {
+			switch v := v.(*NodeInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8540,7 +8754,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[75].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ForceMergeRequest); i {
+			switch v := v.(*DeleteByQueryRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8552,7 +8766,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[76].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ForceMergeResponse); i {
+			switch v := v.(*ForceMergeRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8564,7 +8778,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[77].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ForceMergeDeletesRequest); i {
+			switch v := v.(*ForceMergeResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8576,7 +8790,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[78].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ForceMergeDeletesResponse); i {
+			switch v := v.(*ForceMergeDeletesRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8588,7 +8802,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[79].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*IndexSettings); i {
+			switch v := v.(*ForceMergeDeletesResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8600,7 +8814,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[80].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*IndexLiveSettings); i {
+			switch v := v.(*IndexSettings); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8612,7 +8826,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[81].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*IndexStateInfo); i {
+			switch v := v.(*IndexLiveSettings); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8624,7 +8838,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[82].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*IndexGlobalState); i {
+			switch v := v.(*IndexStateInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8636,7 +8850,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[83].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GlobalStateInfo); i {
+			switch v := v.(*IndexGlobalState); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8648,7 +8862,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[84].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CustomRequest); i {
+			switch v := v.(*GlobalStateInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8660,7 +8874,7 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[85].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CustomResponse); i {
+			switch v := v.(*CustomRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -8672,6 +8886,18 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 			}
 		}
 		file_yelp_nrtsearch_luceneserver_proto_msgTypes[86].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CustomResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yelp_nrtsearch_luceneserver_proto_msgTypes[87].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*AddDocumentRequest_MultiValuedField); i {
 			case 0:
 				return &v.state
@@ -8689,8 +8915,8 @@ func file_yelp_nrtsearch_luceneserver_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_yelp_nrtsearch_luceneserver_proto_rawDesc,
-			NumEnums:      8,
-			NumMessages:   92,
+			NumEnums:      10,
+			NumMessages:   93,
 			NumExtensions: 0,
 			NumServices:   2,
 		},
