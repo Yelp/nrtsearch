@@ -396,23 +396,6 @@ message Query {
 }
 
 message SearchRequest {
-
-    // Specification for kNN vector search query
-    message KnnQuery {
-        // Vector field name
-        string field = 1;
-        // Query used to filter vector search, or unset for no filter
-        Query filter = 2;
-        // Number of top nearest neighbor documents to collect, must be <= num_candidates
-        int32 k = 3;
-        // Number of nearest neighbors to consider per segment. A larger value produces a more accurate top k. Must be <= 10000.
-        int32 num_candidates = 4;
-        // Vector value to use for query
-        repeated float query_vector = 5;
-        // Boost multiplier for similarity score
-        float boost = 6;
-    }
-
     string indexName = 1; //index to search against
     int32 startHit = 2; // Which hit to start from (for pagination); default: 0
     int32 topHits = 3; // How many top hits to retrieve; default: 10. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size.
@@ -936,4 +919,20 @@ message Highlight {
     repeated string fields = 2;
     // Map of field name to highlight settings for field, overrides request level highlight settings
     map<string, Settings> field_settings = 3;
+}
+
+// Specification for kNN vector search query
+message KnnQuery {
+    // Vector field name
+    string field = 1;
+    // Query used to filter vector search, or unset for no filter
+    Query filter = 2;
+    // Number of top nearest neighbor documents to collect, must be <= num_candidates
+    int32 k = 3;
+    // Number of nearest neighbors to consider per segment. A larger value produces a more accurate top k. Must be <= 10000.
+    int32 num_candidates = 4;
+    // Vector value to use for query
+    repeated float query_vector = 5;
+    // Boost multiplier for similarity score
+    float boost = 6;
 }

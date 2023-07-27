@@ -29,15 +29,14 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
+import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
-import com.yelp.nrtsearch.server.grpc.SearchRequest.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
-import com.yelp.nrtsearch.server.grpc.VectorSimilarity;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -650,7 +649,7 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setType(FieldType.VECTOR)
             .setSearch(true)
             .setVectorDimensions(3)
-            .setVectorSimilarity(VectorSimilarity.L2_NORM)
+            .setVectorSimilarity("l2_norm")
             .build();
     VectorFieldDef vectorFieldDef = new VectorFieldDef("vector", field);
     assertNull(vectorFieldDef.getVectorsFormat());
@@ -664,8 +663,9 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setType(FieldType.VECTOR)
             .setSearch(true)
             .setVectorDimensions(3)
-            .setVectorSimilarity(VectorSimilarity.L2_NORM)
-            .setVectorIndexingOptions(VectorIndexingOptions.newBuilder().setHnswM(5).build())
+            .setVectorSimilarity("l2_norm")
+            .setVectorIndexingOptions(
+                VectorIndexingOptions.newBuilder().setType("hnsw").setHnswM(5).build())
             .build();
     VectorFieldDef vectorFieldDef = new VectorFieldDef("vector", field);
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
@@ -683,9 +683,12 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setType(FieldType.VECTOR)
             .setSearch(true)
             .setVectorDimensions(3)
-            .setVectorSimilarity(VectorSimilarity.L2_NORM)
+            .setVectorSimilarity("l2_norm")
             .setVectorIndexingOptions(
-                VectorIndexingOptions.newBuilder().setHnswEfConstruction(50).build())
+                VectorIndexingOptions.newBuilder()
+                    .setType("hnsw")
+                    .setHnswEfConstruction(50)
+                    .build())
             .build();
     VectorFieldDef vectorFieldDef = new VectorFieldDef("vector", field);
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
@@ -693,6 +696,45 @@ public class VectorFieldDefTest extends ServerTestCase {
     assertEquals(
         "Lucene95HnswVectorsFormat(name=Lucene95HnswVectorsFormat, maxConn=16, beamWidth=50)",
         format.toString());
+  }
+
+  @Test
+  public void testVectorFormat_invalid_type() {
+    Field field =
+        Field.newBuilder()
+            .setName("vector")
+            .setType(FieldType.VECTOR)
+            .setSearch(true)
+            .setVectorDimensions(3)
+            .setVectorSimilarity("l2_norm")
+            .setVectorIndexingOptions(VectorIndexingOptions.newBuilder().setType("invalid").build())
+            .build();
+    try {
+      new VectorFieldDef("vector", field);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("Unexpected vector format type \"invalid\", expected: hnsw", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testVectorFormat_invalid_similarity() {
+    Field field =
+        Field.newBuilder()
+            .setName("vector")
+            .setType(FieldType.VECTOR)
+            .setSearch(true)
+            .setVectorDimensions(3)
+            .setVectorSimilarity("invalid")
+            .build();
+    try {
+      new VectorFieldDef("vector", field);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertTrue(
+          e.getMessage()
+              .startsWith("Unexpected vector similarity \"invalid\", expected one of: ["));
+    }
   }
 
   @Test
@@ -720,7 +762,7 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setType(FieldType.VECTOR)
             .setVectorDimensions(1025)
             .setSearch(true)
-            .setVectorSimilarity(VectorSimilarity.COSINE)
+            .setVectorSimilarity("cosine")
             .build();
     try {
       new VectorFieldDef("vector", field);

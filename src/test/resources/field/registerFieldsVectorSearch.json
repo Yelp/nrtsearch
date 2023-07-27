@@ -7,14 +7,14 @@
       "storeDocValues": true,
       "search": true,
       "vectorDimensions": 3,
-      "vectorSimilarity": "L2_NORM",
+      "vectorSimilarity": "l2_norm",
       "childFields": [
         {
           "name": "no_doc_values",
           "type": "VECTOR",
           "search": true,
           "vectorDimensions": 3,
-          "vectorSimilarity": "L2_NORM"
+          "vectorSimilarity": "l2_norm"
         }
       ]
     },
@@ -24,7 +24,7 @@
       "storeDocValues": true,
       "search": true,
       "vectorDimensions": 3,
-      "vectorSimilarity": "COSINE"
+      "vectorSimilarity": "cosine"
     },
     {
       "name": "vector_dot",
@@ -32,7 +32,7 @@
       "storeDocValues": true,
       "search": true,
       "vectorDimensions": 3,
-      "vectorSimilarity": "DOT_PRODUCT"
+      "vectorSimilarity": "dot_product"
     },
     {
       "name": "filter",

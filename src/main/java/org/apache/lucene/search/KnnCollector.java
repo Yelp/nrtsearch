@@ -15,8 +15,8 @@
  */
 package org.apache.lucene.search;
 
+import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
-import com.yelp.nrtsearch.server.grpc.SearchRequest.KnnQuery;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;

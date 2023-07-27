@@ -19,13 +19,13 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
-import com.yelp.nrtsearch.server.grpc.VectorSimilarity;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleSearchVector;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleVector;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -40,23 +40,50 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.BytesRef;
 
 public class VectorFieldDef extends IndexableFieldDef {
+  private static final Map<String, VectorSimilarityFunction> SIMILARITY_FUNCTION_MAP =
+      Map.of(
+          "l2_norm",
+          VectorSimilarityFunction.EUCLIDEAN,
+          "dot_product",
+          VectorSimilarityFunction.DOT_PRODUCT,
+          "cosine",
+          VectorSimilarityFunction.COSINE);
+  private static final String HNSW_FORMAT_TYPE = "hnsw";
   private static final int MAX_DOC_VALUE_DIMENSIONS = 2048;
   private final int vectorDimensions;
   private final VectorSimilarityFunction similarityFunction;
   private final KnnVectorsFormat vectorsFormat;
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
-  private static VectorSimilarityFunction getSimilarityFunction(VectorSimilarity vectorSimilarity) {
-    switch (vectorSimilarity) {
-      case L2_NORM:
-        return VectorSimilarityFunction.EUCLIDEAN;
-      case DOT_PRODUCT:
-        return VectorSimilarityFunction.DOT_PRODUCT;
-      case COSINE:
-        return VectorSimilarityFunction.COSINE;
-      default:
-        throw new IllegalArgumentException("Unknown vector similarity type: " + vectorSimilarity);
+  private static VectorSimilarityFunction getSimilarityFunction(String vectorSimilarity) {
+    VectorSimilarityFunction similarityFunction = SIMILARITY_FUNCTION_MAP.get(vectorSimilarity);
+    if (similarityFunction == null) {
+      throw new IllegalArgumentException(
+          "Unexpected vector similarity \""
+              + vectorSimilarity
+              + "\", expected one of: "
+              + SIMILARITY_FUNCTION_MAP.keySet());
     }
+    return similarityFunction;
+  }
+
+  private static KnnVectorsFormat createVectorsFormat(VectorIndexingOptions vectorIndexingOptions) {
+    if (!HNSW_FORMAT_TYPE.equals(vectorIndexingOptions.getType())) {
+      throw new IllegalArgumentException(
+          "Unexpected vector format type \""
+              + vectorIndexingOptions.getType()
+              + "\", expected: "
+              + HNSW_FORMAT_TYPE);
+    }
+    int m =
+        vectorIndexingOptions.getHnswM() > 0
+            ? vectorIndexingOptions.getHnswM()
+            : Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN;
+    int efConstruction =
+        vectorIndexingOptions.getHnswEfConstruction() > 0
+            ? vectorIndexingOptions.getHnswEfConstruction()
+            : Lucene95HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+    return new Lucene95HnswVectorsFormat(m, efConstruction);
   }
 
   /**
@@ -66,20 +93,15 @@ public class VectorFieldDef extends IndexableFieldDef {
   protected VectorFieldDef(String name, Field requestField) {
     super(name, requestField);
     this.vectorDimensions = requestField.getVectorDimensions();
-    this.similarityFunction = getSimilarityFunction(requestField.getVectorSimilarity());
-    if (requestField.hasVectorIndexingOptions()) {
-      VectorIndexingOptions vectorIndexingOptions = requestField.getVectorIndexingOptions();
-      int m =
-          vectorIndexingOptions.getHnswM() > 0
-              ? vectorIndexingOptions.getHnswM()
-              : Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN;
-      int ef_construction =
-          vectorIndexingOptions.getHnswEfConstruction() > 0
-              ? vectorIndexingOptions.getHnswEfConstruction()
-              : Lucene95HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-      vectorsFormat = new Lucene95HnswVectorsFormat(m, ef_construction);
+    if (isSearchable()) {
+      this.similarityFunction = getSimilarityFunction(requestField.getVectorSimilarity());
+      this.vectorsFormat =
+          requestField.hasVectorIndexingOptions()
+              ? createVectorsFormat(requestField.getVectorIndexingOptions())
+              : null;
     } else {
-      vectorsFormat = null;
+      this.similarityFunction = null;
+      this.vectorsFormat = null;
     }
   }
 

@@ -1999,43 +1999,6 @@
       },
       "title": "script parameter entry"
     },
-    "SearchRequestKnnQuery": {
-      "type": "object",
-      "properties": {
-        "field": {
-          "type": "string",
-          "title": "Vector field name"
-        },
-        "filter": {
-          "$ref": "#/definitions/luceneserverQuery",
-          "title": "Query used to filter vector search, or unset for no filter"
-        },
-        "k": {
-          "type": "integer",
-          "format": "int32",
-          "title": "Number of top nearest neighbor documents to collect, must be \u003c= num_candidates"
-        },
-        "num_candidates": {
-          "type": "integer",
-          "format": "int32",
-          "description": "Number of nearest neighbors to consider per segment. A larger value produces a more accurate top k. Must be \u003c= 10000."
-        },
-        "query_vector": {
-          "type": "array",
-          "items": {
-            "type": "number",
-            "format": "float"
-          },
-          "title": "Vector value to use for query"
-        },
-        "boost": {
-          "type": "number",
-          "format": "float",
-          "title": "Boost multiplier for similarity score"
-        }
-      },
-      "title": "Specification for kNN vector search query"
-    },
     "SearchResponseDiagnostics": {
       "type": "object",
       "properties": {
@@ -2232,15 +2195,6 @@
       ],
       "default": "EQUAL_TO",
       "description": "* How the {TotalHits#value} should be interpreted.\n\n - EQUAL_TO: The total hit count is equal to {@link TotalHits#value}.\n - GREATER_THAN_OR_EQUAL_TO: The total hit count is greater than or equal to {@link TotalHits#value}."
-    },
-    "VectorIndexingOptionsKnnType": {
-      "type": "string",
-      "enum": [
-        "HNSW"
-      ],
-      "default": "HNSW",
-      "description": "- HNSW: Hierarchical Navigable Small Worlds",
-      "title": "kNN algorithm types"
     },
     "apiHttpBody": {
       "type": "object",
@@ -3173,8 +3127,8 @@
           "description": "If field based global ordinals should be built up front, otherwise this is done lazily on first access. Currently only for fields with text doc values (TEXT/ATOM)."
         },
         "vectorSimilarity": {
-          "$ref": "#/definitions/luceneserverVectorSimilarity",
-          "description": "Similarity type for search enabled VECTOR fields. This is a required option when search=true."
+          "type": "string",
+          "description": "Similarity type for search enabled VECTOR fields. This is a required option when search=true. Accepts built in types 'l2_norm' (1 / (1 + l2_norm(query, vector)^2)), 'dot_product' ((1 + dot_product(query, vector)) / 2) (all vectors must be unit length), 'cosine' ((1 + cosine(query, vector)) / 2)."
         },
         "vectorIndexingOptions": {
           "$ref": "#/definitions/luceneserverVectorIndexingOptions",
@@ -3820,6 +3774,43 @@
         }
       },
       "title": "Used to be able to check if a value was set"
+    },
+    "luceneserverKnnQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "title": "Vector field name"
+        },
+        "filter": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Query used to filter vector search, or unset for no filter"
+        },
+        "k": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Number of top nearest neighbor documents to collect, must be \u003c= num_candidates"
+        },
+        "num_candidates": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of nearest neighbors to consider per segment. A larger value produces a more accurate top k. Must be \u003c= 10000."
+        },
+        "query_vector": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "title": "Vector value to use for query"
+        },
+        "boost": {
+          "type": "number",
+          "format": "float",
+          "title": "Boost multiplier for similarity score"
+        }
+      },
+      "title": "Specification for kNN vector search query"
     },
     "luceneserverLabelAndValue": {
       "type": "object",
@@ -4719,7 +4710,7 @@
         "knn": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/SearchRequestKnnQuery"
+            "$ref": "#/definitions/luceneserverKnnQuery"
           },
           "title": "Request kNN vector search queries, results will be combined with the standard query (if provided) using the boolean query SHOULD logic"
         }
@@ -5363,8 +5354,8 @@
       "type": "object",
       "properties": {
         "type": {
-          "$ref": "#/definitions/VectorIndexingOptionsKnnType",
-          "title": "The kNN algorithm type"
+          "type": "string",
+          "title": "The kNN algorithm type, supports 'hnsw' built in type"
         },
         "hnsw_m": {
           "type": "integer",
@@ -5378,17 +5369,6 @@
         }
       },
       "title": "Options for indexing a VECTOR field for search"
-    },
-    "luceneserverVectorSimilarity": {
-      "type": "string",
-      "enum": [
-        "L2_NORM",
-        "DOT_PRODUCT",
-        "COSINE"
-      ],
-      "default": "L2_NORM",
-      "description": "- L2_NORM: Similarity based on Euclidean distance : 1 / (1 + l2_norm(query, vector)^2)\n - DOT_PRODUCT: Similarity based on vector dot product, all vectors (index and query) must be normalized to unit length: (1 + dot_product(query, vector)) / 2\n - COSINE: Cosine similarity, vector magnitudes must be non zero: (1 + cosine(query, vector)) / 2",
-      "title": "Method of computing vector similarity"
     },
     "luceneserverVirtualField": {
       "type": "object",
