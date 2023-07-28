@@ -42,6 +42,7 @@ import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
+import com.yelp.nrtsearch.server.luceneserver.search.SearchContext.VectorScoringMode;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
@@ -67,9 +68,13 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -128,12 +133,49 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       long searchStartTime = System.nanoTime();
 
+      List<Query> vectorQueries = null;
+      // If vector queries are needed, resolve them into Queries. These Queries
+      // produce the top k documents with their similarity scores.
+      if (searchContext.getVectorScoringMode() != VectorScoringMode.NONE) {
+        vectorQueries = new ArrayList<>();
+        for (KnnCollector knnCollector : searchContext.getKnnCollectors()) {
+          vectorQueries.add(
+              knnCollector.getResultQuery(
+                  searchContext.getSearcherAndTaxonomy().searcher, threadPoolExecutor));
+        }
+      }
+
+      // Build final query that includes the standard and vector queries as needed with
+      // Boolean SHOULD clauses
+      Query finalQuery;
+      BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
+      switch (searchContext.getVectorScoringMode()) {
+        case HYBRID:
+          queryBuilder.add(searchContext.getQuery(), Occur.SHOULD);
+        case VECTORS_ONLY:
+          for (Query query : vectorQueries) {
+            queryBuilder.add(query, Occur.SHOULD);
+          }
+          finalQuery = queryBuilder.build();
+          break;
+        case NONE:
+          finalQuery = searchContext.getQuery();
+          break;
+        default:
+          throw new IllegalArgumentException(
+              "Unknown vector scoring mode: " + searchContext.getVectorScoringMode());
+      }
+
       SearcherResult searcherResult;
       if (!searchRequest.getFacetsList().isEmpty()) {
-        if (!(searchContext.getQuery() instanceof DrillDownQuery)) {
-          throw new IllegalArgumentException("Can only use DrillSideways on DrillDownQuery");
+        // Wrap with DrillDownQuery after combining vector and standard Queries, as this
+        // must be the top level Query for DrillSidewaysImpl
+        DrillDownQuery ddq =
+            new DrillDownQuery(searchContext.getIndexState().getFacetsConfig(), finalQuery);
+        finalQuery = ddq;
+        if (profileResultBuilder != null) {
+          profileResultBuilder.setDrillDownQuery(ddq.toString());
         }
-        DrillDownQuery ddq = (DrillDownQuery) searchContext.getQuery();
 
         List<FacetResult> grpcFacetResults = new ArrayList<>();
         DrillSideways drillS =
@@ -177,8 +219,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       } else {
         try {
           searcherResult =
-              s.searcher.search(
-                  searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
+              s.searcher.search(finalQuery, searchContext.getCollector().getWrappedManager());
         } catch (RuntimeException e) {
           CollectionTimeoutException timeoutException = findTimeoutException(e);
           if (timeoutException != null) {
@@ -193,7 +234,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       if (searchRequest.getExplain()) {
         explanations = new ArrayList<>();
         for (ScoreDoc doc : hits.scoreDocs) {
-          explanations.add(s.searcher.explain(searchContext.getQuery(), doc.doc));
+          explanations.add(s.searcher.explain(finalQuery, doc.doc));
         }
       }
 

@@ -17,9 +17,11 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.VectorFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 
@@ -79,5 +81,21 @@ public class ServerCodec extends Lucene95Codec {
       }
     }
     return DocValuesFormat.forName(dvf);
+  }
+
+  @Override
+  public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+    IndexState state = stateManager.getCurrent();
+    try {
+      FieldDef fd = state.getField(field);
+      if (fd instanceof VectorFieldDef) {
+        KnnVectorsFormat vectorsFormat = ((VectorFieldDef) fd).getVectorsFormat();
+        if (vectorsFormat != null) {
+          return vectorsFormat;
+        }
+      }
+    } catch (IllegalArgumentException ignored) {
+    }
+    return super.getKnnVectorsFormatForField(field);
   }
 }

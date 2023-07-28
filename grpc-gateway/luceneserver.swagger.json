@@ -3125,6 +3125,14 @@
         "eagerFieldGlobalOrdinals": {
           "type": "boolean",
           "description": "If field based global ordinals should be built up front, otherwise this is done lazily on first access. Currently only for fields with text doc values (TEXT/ATOM)."
+        },
+        "vectorSimilarity": {
+          "type": "string",
+          "description": "Similarity type for search enabled VECTOR fields. This is a required option when search=true. Accepts built in types 'l2_norm' (1 / (1 + l2_norm(query, vector)^2)), 'dot_product' ((1 + dot_product(query, vector)) / 2) (all vectors must be unit length), 'cosine' ((1 + cosine(query, vector)) / 2)."
+        },
+        "vectorIndexingOptions": {
+          "$ref": "#/definitions/luceneserverVectorIndexingOptions",
+          "description": "Indexing options for search enabled VECTOR field type. This is optional, defaulting to HNSW with m=16, ef_construction=100 when not set."
         }
       }
     },
@@ -3766,6 +3774,43 @@
         }
       },
       "title": "Used to be able to check if a value was set"
+    },
+    "luceneserverKnnQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "title": "Vector field name"
+        },
+        "filter": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Query used to filter vector search, or unset for no filter"
+        },
+        "k": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Number of top nearest neighbor documents to collect, must be \u003c= num_candidates"
+        },
+        "num_candidates": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of nearest neighbors to consider per segment. A larger value produces a more accurate top k. Must be \u003c= 10000."
+        },
+        "query_vector": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "title": "Vector value to use for query"
+        },
+        "boost": {
+          "type": "number",
+          "format": "float",
+          "title": "Boost multiplier for similarity score"
+        }
+      },
+      "title": "Specification for kNN vector search query"
     },
     "luceneserverLabelAndValue": {
       "type": "object",
@@ -4661,6 +4706,13 @@
             "$ref": "#/definitions/luceneserverInnerHit"
           },
           "title": "Search nested object fields for each hit"
+        },
+        "knn": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverKnnQuery"
+          },
+          "title": "Request kNN vector search queries, results will be combined with the standard query (if provided) using the boolean query SHOULD logic"
         }
       }
     },
@@ -5297,6 +5349,26 @@
         "Ongoing"
       ],
       "default": "Unknown"
+    },
+    "luceneserverVectorIndexingOptions": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "title": "The kNN algorithm type, supports 'hnsw' built in type"
+        },
+        "hnsw_m": {
+          "type": "integer",
+          "format": "int32",
+          "title": "The number of neighbors each node will be connected to in the HNSW graph, default: 16"
+        },
+        "hnsw_ef_construction": {
+          "type": "integer",
+          "format": "int32",
+          "title": "The number of candidates to track while assembling the list of nearest neighbors for each new node, default: 100"
+        }
+      },
+      "title": "Options for indexing a VECTOR field for search"
     },
     "luceneserverVirtualField": {
       "type": "object",

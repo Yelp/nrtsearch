@@ -1,0 +1,50 @@
+{
+  "indexName": "vector_search_index",
+  "field": [
+    {
+      "name": "vector_l2_norm",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "l2_norm",
+      "childFields": [
+        {
+          "name": "no_doc_values",
+          "type": "VECTOR",
+          "search": true,
+          "vectorDimensions": 3,
+          "vectorSimilarity": "l2_norm"
+        }
+      ]
+    },
+    {
+      "name": "vector_cosine",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "cosine"
+    },
+    {
+      "name": "vector_dot",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "dot_product"
+    },
+    {
+      "name": "filter",
+      "type": "ATOM",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "vector_not_search",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "vectorDimensions": 3
+    }
+  ]
+}

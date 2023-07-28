@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
 
 /** Search context class to provide all the information to perform a search. */
@@ -48,6 +49,14 @@ public class SearchContext implements FieldFetchContext {
   private final SharedDocContext sharedDocContext;
   private final Map<String, Object> extraContext;
   private final String queryNestedPath;
+  private final List<KnnCollector> knnCollectors;
+  private final VectorScoringMode vectorScoringMode;
+
+  public enum VectorScoringMode {
+    NONE,
+    VECTORS_ONLY,
+    HYBRID
+  }
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -66,6 +75,8 @@ public class SearchContext implements FieldFetchContext {
     this.sharedDocContext = builder.sharedDocContext;
     this.extraContext = builder.extraContext;
     this.queryNestedPath = builder.queryNestedPath;
+    this.knnCollectors = builder.knnCollectors;
+    this.vectorScoringMode = builder.vectorScoringMode;
 
     if (validate) {
       validate();
@@ -161,6 +172,16 @@ public class SearchContext implements FieldFetchContext {
     return queryNestedPath;
   }
 
+  /** Get collector to perform kNN vector search queries */
+  public List<KnnCollector> getKnnCollectors() {
+    return knnCollectors;
+  }
+
+  /** Get how vector queries should be used for search */
+  public VectorScoringMode getVectorScoringMode() {
+    return vectorScoringMode;
+  }
+
   /** Get new context builder instance * */
   public static Builder newBuilder() {
     return new Builder();
@@ -177,6 +198,8 @@ public class SearchContext implements FieldFetchContext {
     Objects.requireNonNull(fetchTasks);
     Objects.requireNonNull(rescorers);
     Objects.requireNonNull(sharedDocContext);
+    Objects.requireNonNull(knnCollectors);
+    Objects.requireNonNull(vectorScoringMode);
 
     if (timestampSec < 0) {
       throw new IllegalStateException("Invalid timestamp value: " + timestampSec);
@@ -215,6 +238,8 @@ public class SearchContext implements FieldFetchContext {
     private SharedDocContext sharedDocContext;
     private Map<String, Object> extraContext;
     private String queryNestedPath;
+    private List<KnnCollector> knnCollectors;
+    private VectorScoringMode vectorScoringMode;
 
     private Builder() {}
 
@@ -312,6 +337,26 @@ public class SearchContext implements FieldFetchContext {
 
     public Builder setQueryNestedPath(String queryNestedPath) {
       this.queryNestedPath = queryNestedPath;
+      return this;
+    }
+
+    /**
+     * Set collector to perform kNN vector search queries
+     *
+     * @param knnCollectors vector search collectors
+     */
+    public Builder setKnnCollectors(List<KnnCollector> knnCollectors) {
+      this.knnCollectors = knnCollectors;
+      return this;
+    }
+
+    /**
+     * Set how vector queries should be used for search
+     *
+     * @param vectorScoringMode scoring mode
+     */
+    public Builder setVectorScoringMode(VectorScoringMode vectorScoringMode) {
+      this.vectorScoringMode = vectorScoringMode;
       return this;
     }
 

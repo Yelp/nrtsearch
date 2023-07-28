@@ -434,6 +434,8 @@ message SearchRequest {
     bool explain = 25;
     // Search nested object fields for each hit
     map<string, InnerHit> inner_hits = 26;
+    // Request kNN vector search queries, results will be combined with the standard query (if provided) using the boolean query SHOULD logic
+    repeated KnnQuery knn = 27;
 }
 
 /* Inner Hit search request */
@@ -917,4 +919,20 @@ message Highlight {
     repeated string fields = 2;
     // Map of field name to highlight settings for field, overrides request level highlight settings
     map<string, Settings> field_settings = 3;
+}
+
+// Specification for kNN vector search query
+message KnnQuery {
+    // Vector field name
+    string field = 1;
+    // Query used to filter vector search, or unset for no filter
+    Query filter = 2;
+    // Number of top nearest neighbor documents to collect, must be <= num_candidates
+    int32 k = 3;
+    // Number of nearest neighbors to consider per segment. A larger value produces a more accurate top k. Must be <= 10000.
+    int32 num_candidates = 4;
+    // Vector value to use for query
+    repeated float query_vector = 5;
+    // Boost multiplier for similarity score
+    float boost = 6;
 }

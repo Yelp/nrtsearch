@@ -577,6 +577,20 @@ message Field {
     int32 vectorDimensions = 29; // Dimensions for vector field type
     // If field based global ordinals should be built up front, otherwise this is done lazily on first access. Currently only for fields with text doc values (TEXT/ATOM).
     bool eagerFieldGlobalOrdinals = 30;
+    // Similarity type for search enabled VECTOR fields. This is a required option when search=true. Accepts built in types 'l2_norm' (1 / (1 + l2_norm(query, vector)^2)), 'dot_product' ((1 + dot_product(query, vector)) / 2) (all vectors must be unit length), 'cosine' ((1 + cosine(query, vector)) / 2).
+    string vectorSimilarity = 31;
+    // Indexing options for search enabled VECTOR field type. This is optional, defaulting to HNSW with m=16, ef_construction=100 when not set.
+    VectorIndexingOptions vectorIndexingOptions = 32;
+}
+
+// Options for indexing a VECTOR field for search
+message VectorIndexingOptions {
+    // The kNN algorithm type, supports 'hnsw' built in type
+    string type = 1;
+    // The number of neighbors each node will be connected to in the HNSW graph, default: 16
+    int32 hnsw_m = 2;
+    // The number of candidates to track while assembling the list of nearest neighbors for each new node, default: 100
+    int32 hnsw_ef_construction = 3;
 }
 
 /* Input to registerFields */
