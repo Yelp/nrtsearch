@@ -146,6 +146,10 @@ public class InnerHitContext implements FieldFetchContext {
     }
   }
 
+  public void setSearchContext(SearchContext searchContext) {
+    this.searchContext = searchContext;
+  }
+
   /** Get parent filter query. */
   public Query getParentFilterQuery() {
     return parentFilterQuery;

@@ -119,7 +119,8 @@ public class SearchRequestProcessor {
         .setResponseBuilder(responseBuilder)
         .setTimestampSec(System.currentTimeMillis() / 1000)
         .setStartHit(searchRequest.getStartHit())
-        .setTopHits(searchRequest.getTopHits());
+        .setTopHits(searchRequest.getTopHits())
+        .setIsExplain(searchRequest.getExplain());
 
     Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
 
@@ -197,6 +198,12 @@ public class SearchRequestProcessor {
 
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());
     SearchContext searchContext = contextBuilder.build(true);
+    if (searchRequest.getInnerHitsCount() > 0) {
+      for (InnerHitFetchTask innerHitFetchTask :
+          searchContext.getFetchTasks().getInnerHitFetchTaskList()) {
+        innerHitFetchTask.getInnerHitContext().setSearchContext(searchContext);
+      }
+    }
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);
     return searchContext;
