@@ -493,7 +493,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("0", "1", "2", "3", "4");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Integer> expectedSort = Arrays.asList(0, 1, 2, 3, 4);
+    List<Integer> expectedSort = Arrays.asList(1, 3, 5, 7, 9);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -523,7 +523,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("99", "98", "97", "96", "95");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Integer> expectedSort = Arrays.asList(99, 98, 97, 96, 95);
+    List<Integer> expectedSort = Arrays.asList(199, 197, 195, 193, 191);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
