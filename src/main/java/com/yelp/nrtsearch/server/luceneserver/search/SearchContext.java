@@ -49,7 +49,7 @@ public class SearchContext implements FieldFetchContext {
   private final Map<String, Object> extraContext;
   private final String queryNestedPath;
 
-  private final boolean isExplain;
+  private final boolean explain;
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
@@ -68,7 +68,7 @@ public class SearchContext implements FieldFetchContext {
     this.sharedDocContext = builder.sharedDocContext;
     this.extraContext = builder.extraContext;
     this.queryNestedPath = builder.queryNestedPath;
-    this.isExplain = builder.isExplain;
+    this.explain = builder.explain;
 
     if (validate) {
       validate();
@@ -165,8 +165,8 @@ public class SearchContext implements FieldFetchContext {
   }
 
   /** Get the boolean flat whether to return the lucene explain */
-  public boolean getIsExplain() {
-    return isExplain;
+  public boolean isExplain() {
+    return explain;
   }
 
   /** Get new context builder instance * */
@@ -223,7 +223,7 @@ public class SearchContext implements FieldFetchContext {
     private SharedDocContext sharedDocContext;
     private Map<String, Object> extraContext;
     private String queryNestedPath;
-    private boolean isExplain;
+    private boolean explain;
 
     private Builder() {}
 
@@ -324,8 +324,8 @@ public class SearchContext implements FieldFetchContext {
       return this;
     }
 
-    public Builder setIsExplain(boolean isExplain) {
-      this.isExplain = isExplain;
+    public Builder setExplain(boolean explain) {
+      this.explain = explain;
       return this;
     }
 

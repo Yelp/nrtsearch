@@ -375,7 +375,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         var hitResponse = hitBuilders.get(hitIndex);
         LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
-        if (searchContext.getIsExplain()) {
+        if (searchContext.isExplain()) {
           hitResponse.setExplain(
               searchContext
                   .getSearcherAndTaxonomy()
@@ -905,7 +905,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       // execute any per hit fetch tasks
       for (Hit.Builder hit : sliceHits) {
-        if (context.getSearchContext().getIsExplain()) {
+        if (context.getSearchContext().isExplain()) {
           hit.setExplain(
               context
                   .getSearcherAndTaxonomy()

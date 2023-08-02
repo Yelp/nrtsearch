@@ -120,7 +120,7 @@ public class SearchRequestProcessor {
         .setTimestampSec(System.currentTimeMillis() / 1000)
         .setStartHit(searchRequest.getStartHit())
         .setTopHits(searchRequest.getTopHits())
-        .setIsExplain(searchRequest.getExplain());
+        .setExplain(searchRequest.getExplain());
 
     Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
 
