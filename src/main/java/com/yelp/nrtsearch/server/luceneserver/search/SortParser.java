@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.HasSortableValueParser;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,10 +43,15 @@ public class SortParser {
    * @param fields list of {@link SortType} from grpc request
    * @param sortFieldNames mutable list which will have all sort field names added in sort order,
    *     may be null
+   * @param sortableValueParserMap mutable map which contains all sorted fields that use sortable
+   *     value parser, may be null
    * @param queryFields collection of all possible fields which may be used to sort
    */
   public static Sort parseSort(
-      List<SortType> fields, List<String> sortFieldNames, Map<String, FieldDef> queryFields)
+      List<SortType> fields,
+      List<String> sortFieldNames,
+      Map<String, HasSortableValueParser> sortableValueParserMap,
+      Map<String, FieldDef> queryFields)
       throws SearchHandler.SearchHandlerException {
     List<SortField> sortFields = new ArrayList<>();
     for (SortType sub : fields) {
@@ -81,6 +87,10 @@ public class SortParser {
         }
 
         sf = ((Sortable) fd).getSortField(sub);
+
+        if (fd instanceof HasSortableValueParser) {
+          sortableValueParserMap.put(fieldName, (HasSortableValueParser) fd);
+        }
       }
       sortFields.add(sf);
     }

@@ -21,9 +21,12 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
 import com.yelp.nrtsearch.server.grpc.GeoRadiusQuery;
 import com.yelp.nrtsearch.server.grpc.Point;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.HasSortableValueParser;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoUtils;
 import java.io.IOException;
@@ -40,7 +43,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 
 /** Field class for 'LAT_LON' field type. */
-public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQueryable {
+public class LatLonFieldDef extends IndexableFieldDef
+    implements Sortable, GeoQueryable, HasSortableValueParser {
   public LatLonFieldDef(String name, Field requestField) {
     super(name, requestField);
   }
@@ -155,5 +159,24 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQu
         geoRadiusQuery.getCenter().getLatitude(),
         geoRadiusQuery.getCenter().getLongitude(),
         radius);
+  }
+
+  /**
+   * * LatLongFieldDef sorted value supports return in different units.
+   *
+   * @param querySortField the sort settings in query
+   * @param value the original sorted value
+   * @return the final value after unit conversion
+   */
+  @Override
+  public CompositeFieldValue parseSortedValue(SortType querySortField, Object value) {
+    return CompositeFieldValue.newBuilder()
+        .addFieldValue(
+            FieldValue.newBuilder()
+                .setDoubleValue(
+                    GeoUtils.convertDistanceToADifferentUnit(
+                        (double) value, querySortField.getUnit()))
+                .build())
+        .build();
   }
 }

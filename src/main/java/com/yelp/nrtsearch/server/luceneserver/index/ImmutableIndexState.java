@@ -236,6 +236,7 @@ public class ImmutableIndexState extends IndexState {
             SortParser.parseSort(
                 mergedSettings.getIndexSort().getSortedFieldsList(),
                 null,
+                null,
                 fieldAndFacetState.getFields());
         validateIndexSort(indexSort);
       } catch (SearchHandlerException e) {
