@@ -100,6 +100,11 @@ public class TopHitsCollectorManager
     public SearchContext getSearchContext() {
       return searchContext;
     }
+
+    @Override
+    public boolean isExplain() {
+      return getSearchContext().isExplain();
+    }
   }
 
   /**

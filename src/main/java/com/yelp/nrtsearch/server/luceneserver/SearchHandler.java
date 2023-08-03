@@ -68,7 +68,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DoubleValues;
-import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
@@ -179,14 +178,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         hits = searcherResult.getTopDocs();
       }
 
-      List<Explanation> explanations = null;
-      if (searchRequest.getExplain()) {
-        explanations = new ArrayList<>();
-        for (ScoreDoc doc : hits.scoreDocs) {
-          explanations.add(s.searcher.explain(searchContext.getQuery(), doc.doc));
-        }
-      }
-
       // add results from any extra collectors
       searchContext
           .getResponseBuilder()
@@ -224,7 +215,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       hits = getHitsFromOffset(hits, searchContext.getStartHit(), searchContext.getTopHits());
 
       // create Hit.Builder for each hit, and populate with lucene doc id and ranking info
-      setResponseHits(searchContext, hits, explanations);
+      setResponseHits(searchContext, hits);
 
       // fill Hit.Builder with requested fields
       fetchFields(searchContext);
@@ -384,6 +375,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         var hitResponse = hitBuilders.get(hitIndex);
         LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
+        if (searchContext.isExplain()) {
+          hitResponse.setExplain(
+              searchContext
+                  .getSearcherAndTaxonomy()
+                  .searcher
+                  .explain(searchContext.getQuery(), hitResponse.getLuceneDocId())
+                  .toString());
+        }
         searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
       }
     } else if (!parallelFetchByField
@@ -457,8 +456,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
    * @param context search context
    * @param hits hits from query
    */
-  private static void setResponseHits(
-      SearchContext context, TopDocs hits, List<Explanation> explanations) {
+  private static void setResponseHits(SearchContext context, TopDocs hits) {
     TotalHits totalHits =
         TotalHits.newBuilder()
             .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation.name()))
@@ -470,9 +468,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       ScoreDoc hit = hits.scoreDocs[hitIndex];
       hitResponse.setLuceneDocId(hit.doc);
       context.getCollector().fillHitRanking(hitResponse, hit);
-      if (explanations != null) {
-        hitResponse.setExplain(explanations.get(hitIndex).toString());
-      }
     }
   }
 
@@ -910,6 +905,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       // execute any per hit fetch tasks
       for (Hit.Builder hit : sliceHits) {
+        if (context.isExplain()) {
+          hit.setExplain(
+              context
+                  .getSearcherAndTaxonomy()
+                  .searcher
+                  .explain(context.getSearchContext().getQuery(), hit.getLuceneDocId())
+                  .toString());
+        }
         context.getFetchTasks().processHit(context.getSearchContext(), sliceSegment, hit);
       }
     }
