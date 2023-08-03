@@ -905,7 +905,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       // execute any per hit fetch tasks
       for (Hit.Builder hit : sliceHits) {
-        if (context.getSearchContext().isExplain()) {
+        if (context.isExplain()) {
           hit.setExplain(
               context
                   .getSearcherAndTaxonomy()

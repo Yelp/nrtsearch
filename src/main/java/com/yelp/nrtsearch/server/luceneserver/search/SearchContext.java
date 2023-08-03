@@ -165,6 +165,7 @@ public class SearchContext implements FieldFetchContext {
   }
 
   /** Get the boolean flat whether to return the lucene explain */
+  @Override
   public boolean isExplain() {
     return explain;
   }

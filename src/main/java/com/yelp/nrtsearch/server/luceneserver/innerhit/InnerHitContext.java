@@ -68,6 +68,7 @@ public class InnerHitContext implements FieldFetchContext {
       topDocsCollectorManager;
   private final FetchTasks fetchTasks;
   private SearchContext searchContext = null;
+  private final boolean explain;
 
   private InnerHitContext(InnerHitContextBuilder builder, boolean needValidation)
       throws IOException {
@@ -87,6 +88,7 @@ public class InnerHitContext implements FieldFetchContext {
     this.topHits = builder.topHits == 0 ? DEFAULT_INNER_HIT_TOP_HITS : builder.topHits;
     this.queryFields = builder.queryFields;
     this.retrieveFields = builder.retrieveFields;
+    this.explain = builder.explain;
     this.fetchTasks = new FetchTasks(Collections.EMPTY_LIST, builder.highlightFetchTask, null);
 
     if (builder.querySort == null) {
@@ -218,6 +220,11 @@ public class InnerHitContext implements FieldFetchContext {
     return topHits;
   }
 
+  @Override
+  public boolean isExplain() {
+    return explain;
+  }
+
   /**
    * Get map of all fields usable for this query. This includes all fields defined in the index and
    * dynamic fields from the request. This is read from the top level search.
@@ -270,6 +277,7 @@ public class InnerHitContext implements FieldFetchContext {
     private Map<String, FieldDef> retrieveFields;
     private HighlightFetchTask highlightFetchTask;
     private QuerySortField querySort;
+    private boolean explain;
 
     private InnerHitContextBuilder() {}
 
@@ -347,6 +355,11 @@ public class InnerHitContext implements FieldFetchContext {
 
     public InnerHitContextBuilder withQuerySort(QuerySortField querySort) {
       this.querySort = querySort;
+      return this;
+    }
+
+    public InnerHitContextBuilder withExplain(boolean explain) {
+      this.explain = explain;
       return this;
     }
   }
