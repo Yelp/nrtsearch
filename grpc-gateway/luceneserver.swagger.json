@@ -1626,6 +1626,21 @@
         }
       }
     },
+    "DiagnosticsVectorDiagnostics": {
+      "type": "object",
+      "properties": {
+        "searchTimeMs": {
+          "type": "number",
+          "format": "double",
+          "title": "Time to do kNN search"
+        },
+        "totalHits": {
+          "$ref": "#/definitions/luceneserverTotalHits",
+          "title": "Total hits from kNN execution"
+        }
+      },
+      "title": "Diagnostic info related kNN vector search queries"
+    },
     "FieldValueVector": {
       "type": "object",
       "properties": {
@@ -2054,6 +2069,12 @@
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/SearchResponseDiagnostics"
+          }
+        },
+        "vectorDiagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/DiagnosticsVectorDiagnostics"
           }
         }
       }
