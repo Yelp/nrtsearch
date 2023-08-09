@@ -552,6 +552,13 @@ message Point {
 
 message SearchResponse {
     message Diagnostics {
+        // Diagnostic info related kNN vector search queries
+        message VectorDiagnostics {
+            // Time to do kNN search
+            double searchTimeMs = 1;
+            // Total hits from kNN execution
+            TotalHits totalHits = 2;
+        }
         // Query debug has been moved to ProfileResult
         string parsedQuery = 1 [deprecated = true];
         string rewrittenQuery = 2 [deprecated = true];
@@ -565,6 +572,7 @@ message SearchResponse {
         double rescoreTimeMs = 10;
         map<string, double> rescorersTimeMs = 11;
         map<string, Diagnostics> innerHitsDiagnostics = 12;
+        repeated VectorDiagnostics vectorDiagnostics = 13;
     }
 
     message Hit {

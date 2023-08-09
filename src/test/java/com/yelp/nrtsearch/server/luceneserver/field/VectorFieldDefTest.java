@@ -33,6 +33,7 @@ import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics.VectorDiagnostics;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
@@ -521,6 +522,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     assertTrue(searchResponse.getHits(0).getScore() > 1.0);
     assertTrue(searchResponse.getHits(1).getScore() > 1.0);
     assertTrue(searchResponse.getHits(2).getScore() <= 1.0);
+    assertEquals(2, searchResponse.getDiagnostics().getVectorDiagnosticsCount());
   }
 
   @Test
@@ -612,6 +614,10 @@ public class VectorFieldDefTest extends ServerTestCase {
                             .build())
                     .build());
     assertEquals(5, searchResponse.getHitsCount());
+    assertEquals(1, searchResponse.getDiagnostics().getVectorDiagnosticsCount());
+    VectorDiagnostics vectorDiagnostics = searchResponse.getDiagnostics().getVectorDiagnostics(0);
+    assertTrue(vectorDiagnostics.getSearchTimeMs() > 0.0);
+    assertTrue(vectorDiagnostics.getTotalHits().getValue() > 0);
     verifyHitsSimilarity(field, queryVector, searchResponse, similarityFunction, boost);
   }
 

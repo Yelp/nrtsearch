@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics.VectorDiagnostics;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
@@ -139,9 +140,26 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       if (searchContext.getVectorScoringMode() != VectorScoringMode.NONE) {
         vectorQueries = new ArrayList<>();
         for (KnnCollector knnCollector : searchContext.getKnnCollectors()) {
+          VectorDiagnostics.Builder vectorDiagnosticsBuilder = VectorDiagnostics.newBuilder();
+          long vectorSearchStart = System.nanoTime();
           vectorQueries.add(
               knnCollector.getResultQuery(
                   searchContext.getSearcherAndTaxonomy().searcher, threadPoolExecutor));
+
+          // fill diagnostic info
+          vectorDiagnosticsBuilder.setSearchTimeMs(
+              ((System.nanoTime() - vectorSearchStart) / 1000000.0));
+          // the result will be cached from above
+          org.apache.lucene.search.TotalHits vectorTotalHits =
+              knnCollector.getResult(
+                      searchContext.getSearcherAndTaxonomy().searcher, threadPoolExecutor)
+                  .totalHits;
+          vectorDiagnosticsBuilder.setTotalHits(
+              TotalHits.newBuilder()
+                  .setRelation(TotalHits.Relation.valueOf(vectorTotalHits.relation.name()))
+                  .setValue(vectorTotalHits.value)
+                  .build());
+          diagnostics.addVectorDiagnostics(vectorDiagnosticsBuilder.build());
         }
       }
 
