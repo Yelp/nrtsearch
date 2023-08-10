@@ -891,7 +891,7 @@ public class QueryTest {
   public void testEmptyBooleanQuery() {
     Query query = Query.newBuilder().setBooleanQuery(BooleanQuery.newBuilder().build()).build();
     SearchResponse response = grpcServer.getBlockingStub().search(buildSearchRequest(query));
-    assertTrue(response.getHitsCount() > 0);
+    assertEquals(response.getHitsCount(), 2);
     for (SearchResponse.Hit hit : response.getHitsList()) {
       assertEquals(1.0, hit.getScore(), 0.0);
     }
