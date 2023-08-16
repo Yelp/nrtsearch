@@ -26,11 +26,11 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
-import com.yelp.nrtsearch.server.luceneserver.field.properties.HasSortableValueParser;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoUtils;
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiFunction;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
@@ -43,8 +43,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 
 /** Field class for 'LAT_LON' field type. */
-public class LatLonFieldDef extends IndexableFieldDef
-    implements Sortable, GeoQueryable, HasSortableValueParser {
+public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQueryable {
   public LatLonFieldDef(String name, Field requestField) {
     super(name, requestField);
   }
@@ -161,22 +160,12 @@ public class LatLonFieldDef extends IndexableFieldDef
         radius);
   }
 
-  /**
-   * * LatLongFieldDef sorted value supports return in different units.
-   *
-   * @param querySortField the sort settings in query
-   * @param value the original sorted value
-   * @return the final value after unit conversion
-   */
   @Override
-  public CompositeFieldValue parseSortedValue(SortType querySortField, Object value) {
-    return CompositeFieldValue.newBuilder()
-        .addFieldValue(
-            FieldValue.newBuilder()
-                .setDoubleValue(
-                    GeoUtils.convertDistanceToADifferentUnit(
-                        (double) value, querySortField.getUnit()))
-                .build())
-        .build();
+  public BiFunction<SortField, Object, CompositeFieldValue> sortValueExtractor(SortType sortType) {
+    double multiplier = GeoUtils.convertDistanceToADifferentUnit(1.0, sortType.getUnit());
+    return (sortField, value) ->
+        CompositeFieldValue.newBuilder()
+            .addFieldValue(FieldValue.newBuilder().setDoubleValue(multiplier * (double) value))
+            .build();
   }
 }

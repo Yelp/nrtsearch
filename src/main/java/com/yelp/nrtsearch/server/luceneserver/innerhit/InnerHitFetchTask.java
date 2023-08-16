@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -135,7 +136,7 @@ public class InnerHitFetchTask implements FetchTask {
         // fill the sortedFields
         FieldDoc fd = (FieldDoc) innerHit;
         innerHitResponse.putAllSortedFields(
-            innerHitContext.getSortContext().getAllSortedValues(fd));
+            SortParser.getAllSortedValues(fd, innerHitContext.getSortContext()));
         innerHitResponse.setScore(Double.NaN);
       } else {
         innerHitResponse.setScore(innerHit.score);

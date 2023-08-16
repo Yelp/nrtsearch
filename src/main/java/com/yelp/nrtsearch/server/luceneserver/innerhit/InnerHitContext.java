@@ -24,7 +24,7 @@ import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
-import com.yelp.nrtsearch.server.luceneserver.search.SortContext;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;

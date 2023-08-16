@@ -36,7 +36,7 @@ public class SortFieldTest extends ServerTestCase {
   private static final String TEST_INDEX = "test_index";
   private static final int NUM_DOCS = 100;
   private static final int SEGMENT_CHUNK = 10;
-  private static ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 

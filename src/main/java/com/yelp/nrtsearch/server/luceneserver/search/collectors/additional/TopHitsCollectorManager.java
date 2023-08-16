@@ -24,9 +24,10 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
-import com.yelp.nrtsearch.server.luceneserver.search.SortContext;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortContext;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -169,7 +170,7 @@ public class TopHitsCollectorManager
       hitResponse.setLuceneDocId(hit.doc);
       if (grpcTopHitsCollector.hasQuerySort()) {
         FieldDoc fd = (FieldDoc) hit;
-        hitResponse.putAllSortedFields(sortContext.getAllSortedValues(fd));
+        hitResponse.putAllSortedFields(SortParser.getAllSortedValues(fd, sortContext));
         hitResponse.setScore(Double.NaN);
       } else {
         hitResponse.setScore(hit.score);

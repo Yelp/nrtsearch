@@ -19,7 +19,8 @@ import static com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcess
 
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.luceneserver.search.SortContext;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortContext;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
 import java.util.List;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
@@ -70,7 +71,7 @@ public class SortFieldCollector extends DocCollector {
   @Override
   public void fillHitRanking(SearchResponse.Hit.Builder hitResponse, ScoreDoc scoreDoc) {
     FieldDoc fd = (FieldDoc) scoreDoc;
-    hitResponse.putAllSortedFields(sortContext.getAllSortedValues(fd));
+    hitResponse.putAllSortedFields(SortParser.getAllSortedValues(fd, sortContext));
   }
 
   @Override

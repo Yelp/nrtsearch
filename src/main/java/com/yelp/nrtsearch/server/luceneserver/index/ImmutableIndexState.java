@@ -51,7 +51,7 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
-import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import java.io.File;
 import java.io.IOException;
@@ -235,8 +235,6 @@ public class ImmutableIndexState extends IndexState {
         indexSort =
             SortParser.parseSort(
                 mergedSettings.getIndexSort().getSortedFieldsList(),
-                null,
-                null,
                 fieldAndFacetState.getFields());
         validateIndexSort(indexSort);
       } catch (SearchHandlerException e) {
