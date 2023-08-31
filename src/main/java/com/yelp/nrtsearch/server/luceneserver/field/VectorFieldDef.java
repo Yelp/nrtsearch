@@ -24,8 +24,10 @@ import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleSearchVe
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleVector;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
@@ -167,18 +169,32 @@ public class VectorFieldDef extends IndexableFieldDef {
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
     float[] floatArr = null;
+    List<String> cleanedFieldValues = new ArrayList<>();
     if (fieldValues.size() > 1 && !isMultiValue()) {
-      throw new IllegalArgumentException(
-          "Cannot index multiple values into single value field: " + getName());
-    } else if (fieldValues.size() == 1) {
+      if (getVectorDimensions() == fieldValues.size()) {
+        // A hacky way to merge multi value data generated in ElasticPipe as long as the size of
+        // input array is the same as the vector dimension size.
+        // TODO: Fix the issue in the indexer and remove this hacky block.
+        String joined =
+            String.join(
+                ", ", fieldValues.stream().map(Object::toString).collect(Collectors.toList()));
+        cleanedFieldValues.add("[" + joined + "]");
+      } else {
+        throw new IllegalArgumentException(
+            "Cannot index multiple values into single value field: " + getName());
+      }
+    } else {
+      cleanedFieldValues.addAll(fieldValues);
+    }
+    if (cleanedFieldValues.size() == 1) {
       if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
-        floatArr = parseVectorFieldToFloatArr(fieldValues.get(0));
+        floatArr = parseVectorFieldToFloatArr(cleanedFieldValues.get(0));
         byte[] floatBytes = convertFloatArrToBytes(floatArr);
         document.add(new BinaryDocValuesField(getName(), new BytesRef(floatBytes)));
       }
       if (isSearchable()) {
         if (floatArr == null) {
-          floatArr = parseVectorFieldToFloatArr(fieldValues.get(0));
+          floatArr = parseVectorFieldToFloatArr(cleanedFieldValues.get(0));
         }
         validateVectorForSearch(floatArr);
         document.add(new KnnFloatVectorField(getName(), floatArr, similarityFunction));

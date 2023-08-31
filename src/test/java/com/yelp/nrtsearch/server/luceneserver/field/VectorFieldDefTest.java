@@ -67,6 +67,8 @@ public class VectorFieldDefTest extends ServerTestCase {
   private static final List<String> VECTOR_FIELD_VALUES =
       Arrays.asList("[1.0, 2.5, 1000.1000]", "[0.1, -2.0, 5.6]");
 
+  private static final List<String> VECTOR_FIELD_EPIPE_VALUES = Arrays.asList("1.2", "3.4", "5.6");
+
   @Override
   protected List<String> getIndices() {
     return List.of(DEFAULT_TEST_INDEX, VECTOR_SEARCH_INDEX_NAME);
@@ -224,6 +226,22 @@ public class VectorFieldDefTest extends ServerTestCase {
             .getMessage()
             .contains(
                 "The size of the vector data: 2 should match vectorDimensions field property: 3"));
+  }
+
+  @Test
+  public void vectorFieldMultiValueSameSizeAsDimension() throws Exception {
+    List<AddDocumentRequest> documentRequests = new ArrayList<>();
+    documentRequests.add(
+        AddDocumentRequest.newBuilder()
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .putFields(
+                FIELD_NAME,
+                AddDocumentRequest.MultiValuedField.newBuilder()
+                    .addAllValue(VECTOR_FIELD_EPIPE_VALUES)
+                    .build())
+            .build());
+
+    addDocuments(documentRequests.stream());
   }
 
   @Test
