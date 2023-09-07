@@ -612,7 +612,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
    */
   public static final class SingleSearchVector extends LoadedDocValues<VectorType> {
     private final FloatVectorValues vectorValues;
-    private VectorType value;
+    private VectorType value = null;
 
     public SingleSearchVector(FloatVectorValues vectorValues) {
       this.vectorValues = vectorValues;
@@ -620,13 +620,15 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
 
     @Override
     public void setDocId(int docID) throws IOException {
-      if (vectorValues.docID() < docID) {
-        vectorValues.advance(docID);
-      }
-      if (vectorValues.docID() == docID) {
-        value = new VectorType(vectorValues.vectorValue());
-      } else {
-        value = null;
+      if (vectorValues != null) {
+        if (vectorValues.docID() < docID) {
+          vectorValues.advance(docID);
+        }
+        if (vectorValues.docID() == docID) {
+          value = new VectorType(vectorValues.vectorValue());
+        } else {
+          value = null;
+        }
       }
     }
 
