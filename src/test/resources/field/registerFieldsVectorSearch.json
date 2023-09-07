@@ -45,6 +45,13 @@
       "type": "VECTOR",
       "storeDocValues": true,
       "vectorDimensions": 3
+    },
+    {
+      "name": "vector_no_data",
+      "type": "VECTOR",
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "dot_product"
     }
   ]
 }

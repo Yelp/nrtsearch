@@ -424,6 +424,24 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void testVectorSearch_index_value_no_data() {
+    String field = "vector_no_data";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setTopHits(3)
+                    .build());
+    assertEquals(3, searchResponse.getHitsCount());
+    assertEquals(0, searchResponse.getHits(0).getFieldsOrThrow(field).getFieldValueCount());
+    assertEquals(0, searchResponse.getHits(1).getFieldsOrThrow(field).getFieldValueCount());
+    assertEquals(0, searchResponse.getHits(2).getFieldsOrThrow(field).getFieldValueCount());
+  }
+
+  @Test
   public void testVectorSearch_start_hit() {
     List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
     String field = "vector_cosine";
