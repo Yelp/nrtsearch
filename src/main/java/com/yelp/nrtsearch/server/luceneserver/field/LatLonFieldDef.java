@@ -21,6 +21,8 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
 import com.yelp.nrtsearch.server.grpc.GeoRadiusQuery;
 import com.yelp.nrtsearch.server.grpc.Point;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
@@ -28,6 +30,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoUtils;
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiFunction;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
@@ -155,5 +158,14 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQu
         geoRadiusQuery.getCenter().getLatitude(),
         geoRadiusQuery.getCenter().getLongitude(),
         radius);
+  }
+
+  @Override
+  public BiFunction<SortField, Object, CompositeFieldValue> sortValueExtractor(SortType sortType) {
+    double multiplier = GeoUtils.convertDistanceToADifferentUnit(1.0, sortType.getUnit());
+    return (sortField, value) ->
+        CompositeFieldValue.newBuilder()
+            .addFieldValue(FieldValue.newBuilder().setDoubleValue(multiplier * (double) value))
+            .build();
   }
 }

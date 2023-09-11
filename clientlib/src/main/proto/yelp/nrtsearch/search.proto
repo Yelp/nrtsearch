@@ -519,6 +519,8 @@ message SortType {
     bool missingLat = 4;
     // Sort in reverse of the field's natural order
     bool reverse = 5;
+    // The unit used for the distance sort. Supported options are m, km and mi, default is m
+    string unit = 6;
 }
 
 /* For multi valued fields, how to select which value is used for sorting */

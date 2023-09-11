@@ -18,16 +18,16 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.HitsResult;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
-import com.yelp.nrtsearch.server.grpc.TopHitsCollector;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
-import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortContext;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -46,8 +46,6 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
@@ -59,8 +57,7 @@ public class TopHitsCollectorManager
   private final String name;
   private final com.yelp.nrtsearch.server.grpc.TopHitsCollector grpcTopHitsCollector;
   private final CollectorManager<? extends Collector, ? extends TopDocs> collectorManager;
-  private final Sort sort;
-  private final List<String> sortNames;
+  private final SortContext sortContext;
   private final RetrievalContext retrievalContext;
   private SearchContext searchContext;
 
@@ -123,26 +120,15 @@ public class TopHitsCollectorManager
     this.retrievalContext = new RetrievalContext(context);
 
     if (grpcTopHitsCollector.hasQuerySort()) {
-      sortNames =
-          new ArrayList<>(grpcTopHitsCollector.getQuerySort().getFields().getSortedFieldsCount());
-      try {
-        sort =
-            SortParser.parseSort(
-                grpcTopHitsCollector.getQuerySort().getFields().getSortedFieldsList(),
-                sortNames,
-                context.getQueryFields());
-      } catch (SearchHandler.SearchHandlerException e) {
-        throw new IllegalArgumentException(e);
-      }
+      sortContext = new SortContext(grpcTopHitsCollector.getQuerySort(), context.getQueryFields());
       collectorManager =
           TopFieldCollector.createSharedManager(
-              sort, grpcTopHitsCollector.getTopHits(), null, Integer.MAX_VALUE);
+              sortContext.getSort(), grpcTopHitsCollector.getTopHits(), null, Integer.MAX_VALUE);
     } else {
       collectorManager =
           TopScoreDocCollector.createSharedManager(
               grpcTopHitsCollector.getTopHits(), null, Integer.MAX_VALUE);
-      sort = null;
-      sortNames = null;
+      sortContext = null;
     }
   }
 
@@ -189,11 +175,7 @@ public class TopHitsCollectorManager
       hitResponse.setLuceneDocId(hit.doc);
       if (grpcTopHitsCollector.hasQuerySort()) {
         FieldDoc fd = (FieldDoc) hit;
-        for (int i = 0; i < fd.fields.length; ++i) {
-          SortField sortField = sort.getSort()[i];
-          hitResponse.putSortedFields(
-              sortNames.get(i), SortParser.getValueForSortField(sortField, fd.fields[i]));
-        }
+        hitResponse.putAllSortedFields(SortParser.getAllSortedValues(fd, sortContext));
         hitResponse.setScore(Double.NaN);
       } else {
         hitResponse.setScore(hit.score);

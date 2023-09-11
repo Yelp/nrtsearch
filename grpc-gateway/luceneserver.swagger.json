@@ -4880,6 +4880,10 @@
         "reverse": {
           "type": "boolean",
           "title": "Sort in reverse of the field's natural order"
+        },
+        "unit": {
+          "type": "string",
+          "title": "The unit used for the distance sort. Supported options are m, km and mi, default is m"
         }
       },
       "description": "\"The field to sort on. Pass \u003ccode\u003edocid\u003c/code\u003e for index order and \u003ccode\u003escore\u003c/code\u003e for relevance sort."
