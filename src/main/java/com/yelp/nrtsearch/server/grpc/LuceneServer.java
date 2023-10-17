@@ -233,6 +233,7 @@ public class LuceneServer {
     DeadlineMetrics.register(collectorRegistry);
     // register directory size metrics
     new DirSizeCollector(globalState).register(collectorRegistry);
+    new ProcStatCollector().register(collectorRegistry);
   }
 
   /** Main launches the server from the command line. */
