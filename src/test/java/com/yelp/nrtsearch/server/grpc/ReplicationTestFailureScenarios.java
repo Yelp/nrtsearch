@@ -44,11 +44,13 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class ReplicationTestFailureScenarios {
   public static final String TEST_INDEX = "test_index";
+
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
    * end of test.
    */
   @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
   /**
    * This rule ensure the temporary folder which maintains stateDir are cleaned up after each test
    */

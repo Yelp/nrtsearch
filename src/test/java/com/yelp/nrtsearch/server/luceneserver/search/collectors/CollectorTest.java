@@ -395,8 +395,12 @@ public class CollectorTest extends ServerTestCase {
             "7", 93.0,
             "8", 92.0);
     Map<String, Double> collectedHits =
-        collectorsResult.get(COLLECTOR_NAME).getAnyResult().unpack(SearchResponse.class)
-            .getHitsList().stream()
+        collectorsResult
+            .get(COLLECTOR_NAME)
+            .getAnyResult()
+            .unpack(SearchResponse.class)
+            .getHitsList()
+            .stream()
             .collect(
                 Collectors.toMap(
                     hit -> hit.getFieldsMap().get("review_id").getFieldValue(0).getTextValue(),

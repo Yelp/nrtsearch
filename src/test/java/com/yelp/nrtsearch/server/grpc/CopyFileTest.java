@@ -35,6 +35,7 @@ import org.junit.runners.JUnit4;
 public class CopyFileTest {
   private static final int TOTAL_CHUNKS = 10;
   private static final int CHUNK_SIZE = 1024 * 64;
+
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
    * end of test.

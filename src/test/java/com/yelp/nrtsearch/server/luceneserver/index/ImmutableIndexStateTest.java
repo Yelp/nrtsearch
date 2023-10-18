@@ -801,8 +801,7 @@ public class ImmutableIndexStateTest {
             .build();
     ImmutableIndexState indexState = getIndexState(getStateWithSettings(settings));
     IndexSettings expectedMergedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_SETTINGS.toBuilder()
             .setConcurrentMergeSchedulerMaxMergeCount(wrap(5))
             .setConcurrentMergeSchedulerMaxThreadCount(wrap(2))
             .setNrtCachingDirectoryMaxSizeMB(wrap(100.0))
@@ -820,8 +819,7 @@ public class ImmutableIndexStateTest {
             .build();
     ImmutableIndexState indexState = getIndexState(getStateWithLiveSettings(liveSettings));
     IndexLiveSettings expectedMergedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(wrap(100))
             .setMaxRefreshSec(wrap(10.0))
             .setSegmentsPerTier(wrap(5))
@@ -1443,8 +1441,7 @@ public class ImmutableIndexStateTest {
   @Test
   public void testGetSaveState_fields() throws IOException {
     IndexStateInfo stateInfo =
-        getEmptyState()
-            .toBuilder()
+        getEmptyState().toBuilder()
             .putFields(
                 "field1",
                 Field.newBuilder()

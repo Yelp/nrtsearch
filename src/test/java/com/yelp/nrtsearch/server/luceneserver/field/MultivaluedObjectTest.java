@@ -206,8 +206,7 @@ public class MultivaluedObjectTest extends ServerTestCase {
                             BooleanClause.newBuilder()
                                 .setOccur(BooleanClause.Occur.SHOULD)
                                 .setQuery(
-                                    buildTermQuery("multivalued_object.field1", "22")
-                                        .toBuilder()
+                                    buildTermQuery("multivalued_object.field1", "22").toBuilder()
                                         .setBoost(2))
                                 .build())
                         .addClauses(

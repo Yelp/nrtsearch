@@ -221,6 +221,7 @@ public abstract class TermsCollectorManager
       nestedCollectorManagers.setSearchContext(searchContext);
     }
   }
+
   /** Get max number of buckets to return */
   public int getSize() {
     return size;

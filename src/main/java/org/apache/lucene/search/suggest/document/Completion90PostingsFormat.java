@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
  */
 public class Completion90PostingsFormat extends CompletionPostingsFormat {
   private static final Logger logger = LoggerFactory.getLogger(Completion90PostingsFormat.class);
+
   /**
    * Creates a {@link Completion90PostingsFormat} that will load the completion FST based on the
    * value present in {@link CompletionPostingsFormatUtil}.

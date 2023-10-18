@@ -230,8 +230,7 @@ public class StateCommandUtilsTest {
         ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
             .getCurrentStateInfo();
     IndexStateInfo updatedState =
-        currentState
-            .toBuilder()
+        currentState.toBuilder()
             .setLiveSettings(
                 IndexLiveSettings.newBuilder()
                     .setSliceMaxSegments(Int32Value.newBuilder().setValue(1).build())

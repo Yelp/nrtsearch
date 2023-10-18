@@ -35,6 +35,7 @@ import org.apache.lucene.search.TotalHits.Relation;
  */
 public class HitCountCollector extends DocCollector {
   private final HitCountCollectorManager manager;
+
   /**
    * Constructor
    *
