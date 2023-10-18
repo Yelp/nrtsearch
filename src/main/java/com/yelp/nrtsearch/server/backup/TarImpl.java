@@ -131,6 +131,10 @@ public class TarImpl implements Tar {
     if (!Files.exists(sourceDir)) {
       throw new IOException("source path doesn't exist: " + sourceDir);
     }
+    // Since commons-compress version 1.21, user/group ids are added for archive entries.
+    // Without enabling big number support, adding files will fail if these ids exceed
+    // 2097151. https://issues.apache.org/jira/browse/COMPRESS-587
+    tarArchiveOutputStream.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_POSIX);
     addFilestoTarGz(
         sourceDir.toString(),
         "",
