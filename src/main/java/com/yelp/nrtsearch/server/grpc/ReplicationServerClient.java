@@ -42,7 +42,6 @@ public class ReplicationServerClient implements Closeable {
 
   private static final ObjectMapper OBJECT_MAPPER =
       new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-  ;
   private static final Logger logger = LoggerFactory.getLogger(ReplicationServerClient.class);
 
   private final String host;
