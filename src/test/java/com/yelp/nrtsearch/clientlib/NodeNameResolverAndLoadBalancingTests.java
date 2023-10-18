@@ -71,6 +71,7 @@ public class NodeNameResolverAndLoadBalancingTests {
    * end of test.
    */
   @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
   /**
    * This rule ensures the temporary folder which maintains indexes are cleaned up after each test
    */

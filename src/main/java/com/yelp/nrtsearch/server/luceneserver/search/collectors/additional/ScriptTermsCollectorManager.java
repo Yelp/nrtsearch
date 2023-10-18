@@ -46,6 +46,7 @@ import org.apache.lucene.search.ScoreMode;
 /** Collector manager that aggregates terms from a {@link FacetScript} into buckets. */
 public class ScriptTermsCollectorManager extends TermsCollectorManager {
   private final FacetScript.SegmentFactory scriptFactory;
+
   /**
    * Constructor.
    *

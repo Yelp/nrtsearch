@@ -32,6 +32,7 @@ public class ServerCodec extends Lucene95Codec {
   public static final String DEFAULT_DOC_VALUES_FORMAT = "Lucene90";
 
   private final IndexStateManager stateManager;
+
   // nocommit expose compression control
 
   /** Sole constructor. */
