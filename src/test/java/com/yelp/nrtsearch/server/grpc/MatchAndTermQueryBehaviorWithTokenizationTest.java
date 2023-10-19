@@ -52,13 +52,6 @@ public class MatchAndTermQueryBehaviorWithTokenizationTest extends ServerTestCas
                 .setStoreDocValues(true)
                 .addChildFields(
                     Field.newBuilder()
-                        .setName("tokenized")
-                        .setType(FieldType.TEXT)
-                        .setSearch(true)
-                        .setTokenize(true)
-                        .setStoreDocValues(true))
-                .addChildFields(
-                    Field.newBuilder()
                         .setName("keyword_tokenized")
                         .setType(FieldType.TEXT)
                         .setAnalyzer(
@@ -70,7 +63,6 @@ public class MatchAndTermQueryBehaviorWithTokenizationTest extends ServerTestCas
                                         .setTokenizer(
                                             NameAndParams.newBuilder().setName("keyword"))))
                         .setSearch(true)
-                        .setTokenize(true)
                         .setStoreDocValues(true)))
         .build();
   }
@@ -103,29 +95,12 @@ public class MatchAndTermQueryBehaviorWithTokenizationTest extends ServerTestCas
   public void testMatchQuery_A() {
     SearchResponse response = doSearch(createMatchQuery("tag", "A"));
 
-    // Match query on non-tokenized field does not return all possible matches after analysis
-    assertThat(getDocIds(response)).containsExactlyInAnyOrder("1");
+    assertThat(getDocIds(response)).containsExactlyInAnyOrder("1", "2", "3", "4", "5", "6");
   }
 
   @Test
   public void testMatchQuery_a() {
     SearchResponse response = doSearch(createMatchQuery("tag", "a"));
-
-    // Match query on non-tokenized field only returns documents which exactly match the analyzed
-    // query
-    assertThat(getDocIds(response)).containsExactlyInAnyOrder("1");
-  }
-
-  @Test
-  public void testMatchQuery_tokenized_A() {
-    SearchResponse response = doSearch(createMatchQuery("tag.tokenized", "A"));
-
-    assertThat(getDocIds(response)).containsExactlyInAnyOrder("1", "2", "3", "4", "5", "6");
-  }
-
-  @Test
-  public void testMatchQuery_tokenized_a() {
-    SearchResponse response = doSearch(createMatchQuery("tag.tokenized", "a"));
 
     assertThat(getDocIds(response)).containsExactlyInAnyOrder("1", "2", "3", "4", "5", "6");
   }
@@ -148,27 +123,13 @@ public class MatchAndTermQueryBehaviorWithTokenizationTest extends ServerTestCas
   public void testTermQuery_a() {
     SearchResponse response = doSearch(createTermQuery("tag", "a"));
 
-    assertThat(getDocIds(response)).containsExactlyInAnyOrder("1");
-  }
-
-  @Test
-  public void testTermQuery_A() {
-    SearchResponse response = doSearch(createTermQuery("tag", "A"));
-
-    assertThat(getDocIds(response)).containsExactlyInAnyOrder("2");
-  }
-
-  @Test
-  public void testTermQuery_a_tokenized() {
-    SearchResponse response = doSearch(createTermQuery("tag.tokenized", "a"));
-
     // Term query on tokenized field doesn't return exact match
     assertThat(getDocIds(response)).containsExactlyInAnyOrder("1", "2", "3", "4", "5", "6");
   }
 
   @Test
-  public void testTermQuery_A_tokenized() {
-    SearchResponse response = doSearch(createTermQuery("tag.tokenized", "A"));
+  public void testTermQuery_A() {
+    SearchResponse response = doSearch(createTermQuery("tag", "A"));
 
     // Term query on tokenized field doesn't return exact match
     assertThat(getDocIds(response)).isEmpty();

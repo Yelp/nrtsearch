@@ -543,7 +543,6 @@ public class FieldUpdateHandlerTest {
             .setSearch(true)
             .setStoreDocValues(true)
             .setMultiValued(true)
-            .setTokenize(true)
             .setFacet(FacetType.SORTED_SET_DOC_VALUES)
             .setFacetIndexFieldName("$field3")
             .setEagerGlobalOrdinals(true)
@@ -594,7 +593,6 @@ public class FieldUpdateHandlerTest {
             .setType(FieldType.TEXT)
             .setStoreDocValues(true)
             .setMultiValued(false)
-            .setTokenize(true)
             .setFacet(FacetType.HIERARCHY)
             .build());
 

@@ -20,6 +20,7 @@
     {
       "name": "doc_id",
       "type": "ATOM",
+      "search": true,
       "storeDocValues": true
     },
     {
@@ -27,7 +28,6 @@
       "type": "TEXT",
       "search": true,
       "store": true,
-      "tokenize": true,
       "multiValued": true,
       "storeDocValues": true,
       "analyzer": {
@@ -126,7 +126,6 @@
       "type": "TEXT",
       "search": true,
       "store": true,
-      "tokenize": true,
       "multiValued": true,
       "storeDocValues": true
     },

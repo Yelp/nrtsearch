@@ -549,7 +549,7 @@ message Field {
     bool store = 4; // True if the value should be stored.
     bool storeDocValues = 5; // Whether to index the value into doc values.
     bool sort = 6; // True if the value should be indexed into doc values for sorting.
-    bool tokenize = 7; // True if the value should be tokenized.
+    bool tokenize = 7 [deprecated = true]; // This is now determined from the field type
     bool group = 8; // True if the value should be indexed into doc values for grouping.
     bool multiValued = 9; // True if this field may sometimes have more than one value.
     bool highlight = 10 [deprecated = true]; // This parameter would be ignored

@@ -128,7 +128,6 @@ public class LuceneServerIdFieldTest {
                         .setStoreDocValues(true)
                         .setSearch(true)
                         .setMultiValued(true)
-                        .setTokenize(true)
                         .build())
                 .build());
     // 2 docs addDocuments
@@ -274,24 +273,11 @@ public class LuceneServerIdFieldTest {
   @Test(expected = StatusRuntimeException.class)
   public void testMultiValued() throws Exception {
     try {
-      registerFields(List.of(getFieldBuilder("doc_id", true, true, true, false)));
+      registerFields(List.of(getFieldBuilder("doc_id", true, true, true)));
     } catch (RuntimeException e) {
       String message =
           "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index\n"
-              + "field: doc_id cannot have multivalued fields or tokenization as it's an _ID field";
-      assertEquals(message, e.getMessage());
-      throw e;
-    }
-  }
-
-  @Test(expected = StatusRuntimeException.class)
-  public void testTokenized() throws Exception {
-    try {
-      registerFields(List.of(getFieldBuilder("doc_id", true, true, false, true)));
-    } catch (RuntimeException e) {
-      String message =
-          "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index\n"
-              + "field: doc_id cannot have multivalued fields or tokenization as it's an _ID field";
+              + "field: doc_id cannot have multivalued fields as it's an _ID field";
       assertEquals(message, e.getMessage());
       throw e;
     }
@@ -300,7 +286,7 @@ public class LuceneServerIdFieldTest {
   @Test(expected = StatusRuntimeException.class)
   public void testStoreAndDocValuesFalse() throws IOException {
     try {
-      registerFields(List.of(getFieldBuilder("doc_id", false, false, false, false)));
+      registerFields(List.of(getFieldBuilder("doc_id", false, false, false)));
     } catch (RuntimeException e) {
       String message =
           "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index\n"
@@ -312,12 +298,12 @@ public class LuceneServerIdFieldTest {
 
   @Test
   public void testStoreTrueAndDocValuesFalse() throws IOException {
-    registerFields(List.of(getFieldBuilder("doc_id", false, true, false, false)));
+    registerFields(List.of(getFieldBuilder("doc_id", false, true, false)));
   }
 
   @Test
   public void testStoreFalseAndDocValuesTrue() throws IOException {
-    registerFields(List.of(getFieldBuilder("doc_id", true, false, false, false)));
+    registerFields(List.of(getFieldBuilder("doc_id", true, false, false)));
   }
 
   @Test(expected = StatusRuntimeException.class)
@@ -325,8 +311,8 @@ public class LuceneServerIdFieldTest {
     try {
       registerFields(
           List.of(
-              getFieldBuilder("doc_id", true, true, false, false),
-              getFieldBuilder("doc_id_2", true, true, false, false)));
+              getFieldBuilder("doc_id", true, true, false),
+              getFieldBuilder("doc_id_2", true, true, false)));
     } catch (RuntimeException e) {
       String message =
           "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index\n"
@@ -337,18 +323,13 @@ public class LuceneServerIdFieldTest {
   }
 
   private Field getFieldBuilder(
-      String fieldName,
-      boolean storeDocValues,
-      boolean store,
-      boolean multiValued,
-      boolean tokenized) {
+      String fieldName, boolean storeDocValues, boolean store, boolean multiValued) {
     return Field.newBuilder()
         .setName(fieldName)
         .setStoreDocValues(storeDocValues)
         .setStore(store)
         .setType(FieldType._ID)
         .setMultiValued(multiValued)
-        .setTokenize(tokenized)
         .build();
   }
 

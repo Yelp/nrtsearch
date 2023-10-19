@@ -327,7 +327,6 @@ public class LuceneServerTest {
                             .setStoreDocValues(true)
                             .setSearch(true)
                             .setMultiValued(true)
-                            .setTokenize(true)
                             .build())
                     .build());
     assertTrue(reply.getResponse().contains("new_text_field"));
@@ -392,7 +391,6 @@ public class LuceneServerTest {
                             .setStoreDocValues(true)
                             .setSearch(true)
                             .setMultiValued(true)
-                            .setTokenize(true)
                             .build())
                     .build());
     assertTrue(reply.getResponse().contains("new_virtual_field"));
@@ -456,7 +454,6 @@ public class LuceneServerTest {
                         .setStoreDocValues(true)
                         .setSearch(true)
                         .setMultiValued(true)
-                        .setTokenize(true)
                         .build())
                 .build());
 

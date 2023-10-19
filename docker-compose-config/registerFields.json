@@ -5,13 +5,13 @@
     {
       "name": "doc_id",
       "type": "ATOM",
+      "search": true,
       "storeDocValues": true},
     {
       "name": "vendor_name",
       "type": "TEXT" ,
       "search": true,
-      "store": true,
-      "tokenize": true
+      "store": true
     },
     {
       "name": "license_no",

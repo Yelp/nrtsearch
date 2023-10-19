@@ -13,7 +13,6 @@
       "type": "TEXT",
       "storeDocValues": true,
       "multiValued": true,
-      "tokenize": true,
       "search": true
     }
   ]

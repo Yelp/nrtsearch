@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.IndexOptions;
 import com.yelp.nrtsearch.server.grpc.TermVectors;
 import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
@@ -45,7 +46,6 @@ import org.apache.lucene.facet.sortedset.SortedSetDocValuesFacetField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
@@ -185,42 +185,6 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
     } else {
       return null;
     }
-  }
-
-  @Override
-  protected void setSearchProperties(FieldType fieldType, Field requestField) {
-    if (requestField.getSearch()) {
-      switch (requestField.getIndexOptions()) {
-        case DOCS:
-          fieldType.setIndexOptions(IndexOptions.DOCS);
-          break;
-        case DOCS_FREQS:
-          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
-          break;
-        case DOCS_FREQS_POSITIONS:
-          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-          break;
-        case DOCS_FREQS_POSITIONS_OFFSETS:
-          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
-          break;
-        default:
-          fieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-          break;
-      }
-
-      switch (requestField.getTermVectors()) {
-        case TERMS_POSITIONS_OFFSETS_PAYLOADS:
-          fieldType.setStoreTermVectorPayloads(true);
-        case TERMS_POSITIONS_OFFSETS:
-          fieldType.setStoreTermVectorOffsets(true);
-        case TERMS_POSITIONS:
-          fieldType.setStoreTermVectorPositions(true);
-        case TERMS:
-          fieldType.setStoreTermVectors(true);
-      }
-    }
-    fieldType.setTokenized(requestField.getTokenize());
-    fieldType.setOmitNorms(requestField.getOmitNorms());
   }
 
   /**
@@ -394,5 +358,30 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
     }
 
     return ordinalLookup;
+  }
+
+  static void setIndexOptions(
+      IndexOptions grpcIndexOptions,
+      FieldType fieldType,
+      org.apache.lucene.index.IndexOptions defaultOptions) {
+    switch (grpcIndexOptions) {
+      case DOCS:
+        fieldType.setIndexOptions(org.apache.lucene.index.IndexOptions.DOCS);
+        break;
+      case DOCS_FREQS:
+        fieldType.setIndexOptions(org.apache.lucene.index.IndexOptions.DOCS_AND_FREQS);
+        break;
+      case DOCS_FREQS_POSITIONS:
+        fieldType.setIndexOptions(
+            org.apache.lucene.index.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        break;
+      case DOCS_FREQS_POSITIONS_OFFSETS:
+        fieldType.setIndexOptions(
+            org.apache.lucene.index.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+        break;
+      default:
+        fieldType.setIndexOptions(defaultOptions);
+        break;
+    }
   }
 }

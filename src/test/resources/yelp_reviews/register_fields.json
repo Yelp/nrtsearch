@@ -55,8 +55,7 @@
       "type": "TEXT",
       "search": true,
       "store": true,
-      "storeDocValues": true,
-      "tokenize": true
+      "storeDocValues": true
     },
     {
       "name": "date",
