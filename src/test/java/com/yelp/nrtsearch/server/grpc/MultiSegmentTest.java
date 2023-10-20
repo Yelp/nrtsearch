@@ -171,4 +171,54 @@ public class MultiSegmentTest extends ServerTestCase {
       }
     }
   }
+
+  @Test
+  public void testExplain() {
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(NUM_DOCS)
+                    .addRetrieveFields("doc_id")
+                    .addRetrieveFields("int_score")
+                    .addRetrieveFields("int_field")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setFunctionScoreQuery(
+                                FunctionScoreQuery.newBuilder()
+                                    .setScript(
+                                        Script.newBuilder()
+                                            .setLang("js")
+                                            .setSource("int_score")
+                                            .build())
+                                    .setQuery(
+                                        Query.newBuilder()
+                                            .setRangeQuery(
+                                                RangeQuery.newBuilder()
+                                                    .setField("int_field")
+                                                    .setLower(String.valueOf(0))
+                                                    .setUpper(String.valueOf(NUM_DOCS))
+                                                    .build())
+                                            .build())
+                                    .build())
+                            .build())
+                    .setExplain(true)
+                    .build());
+    for (int i = 0; i < searchResponse.getHitsCount(); i++) {
+      var hit = searchResponse.getHits(i);
+      int fieldVal = hit.getFieldsOrThrow("int_field").getFieldValue(0).getIntValue();
+      assertEquals(i, fieldVal);
+      var explain = hit.getExplain();
+      var expectedExplain =
+          String.format(
+              "%d.0 = weight(FunctionScoreQuery(int_field:[0 TO 100], scored by expr(int_score))), result of:\n"
+                  + "  %<d.0 = int_score, computed from:\n"
+                  + "    %<d.0 = double(int_score)",
+              NUM_DOCS - i);
+      assertEquals(expectedExplain, explain.trim());
+    }
+  }
 }

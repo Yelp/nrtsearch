@@ -239,6 +239,10 @@ public class QueryNodeMapper {
         new BooleanQuery.Builder()
             .setMinimumNumberShouldMatch(booleanQuery.getMinimumNumberShouldMatch());
 
+    if (booleanQuery.getClausesCount() == 0) {
+      return builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST).build();
+    }
+
     AtomicBoolean allMustNot = new AtomicBoolean(true);
     booleanQuery
         .getClausesList()

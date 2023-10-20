@@ -121,7 +121,8 @@ public class SearchRequestProcessor {
         .setResponseBuilder(responseBuilder)
         .setTimestampSec(System.currentTimeMillis() / 1000)
         .setStartHit(searchRequest.getStartHit())
-        .setTopHits(searchRequest.getTopHits());
+        .setTopHits(searchRequest.getTopHits())
+        .setExplain(searchRequest.getExplain());
 
     Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
 
@@ -171,7 +172,8 @@ public class SearchRequestProcessor {
                     searcherAndTaxonomy,
                     rootQueryNestedPath,
                     entry.getKey(),
-                    entry.getValue())));
+                    entry.getValue(),
+                    searchRequest.getExplain())));
       }
     }
 
@@ -209,6 +211,7 @@ public class SearchRequestProcessor {
     }
 
     SearchContext searchContext = contextBuilder.build(true);
+
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);
     return searchContext;
@@ -460,7 +463,8 @@ public class SearchRequestProcessor {
       SearcherAndTaxonomy searcherAndTaxonomy,
       String parentQueryNestedPath,
       String innerHitName,
-      InnerHit innerHit) {
+      InnerHit innerHit,
+      boolean explain) {
     // Do not apply nestedPath here. This is query is used to create a shared weight.
     Query childQuery = extractQuery(indexState, "", innerHit.getInnerQuery(), null);
     return InnerHitContextBuilder.Builder()
@@ -484,6 +488,7 @@ public class SearchRequestProcessor {
                     HighlighterService.getInstance(),
                     innerHit.getHighlight())
                 : null)
+        .withExplain(explain)
         .build(true);
   }
 }
