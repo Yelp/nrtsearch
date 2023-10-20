@@ -72,7 +72,6 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValues;
-import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
@@ -248,14 +247,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
       TopDocs hits = searcherResult.getTopDocs();
 
-      List<Explanation> explanations = null;
-      if (searchRequest.getExplain()) {
-        explanations = new ArrayList<>();
-        for (ScoreDoc doc : hits.scoreDocs) {
-          explanations.add(s.searcher.explain(finalQuery, doc.doc));
-        }
-      }
-
       // add results from any extra collectors
       searchContext
           .getResponseBuilder()
@@ -293,10 +284,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       hits = getHitsFromOffset(hits, searchContext.getStartHit(), searchContext.getTopHits());
 
       // create Hit.Builder for each hit, and populate with lucene doc id and ranking info
-      setResponseHits(searchContext, hits, explanations);
+      setResponseHits(searchContext, hits);
 
       // fill Hit.Builder with requested fields
-      fetchFields(searchContext);
+      fetchFields(searchContext, finalQuery);
 
       SearchState.Builder searchState = SearchState.newBuilder();
       searchContext.getResponseBuilder().setSearchState(searchState);
@@ -378,7 +369,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
    * @throws ExecutionException on error when performing parallel fetch
    * @throws InterruptedException if parallel fetch is interrupted
    */
-  private void fetchFields(SearchContext searchContext)
+  private void fetchFields(SearchContext searchContext, Query explainQuery)
       throws IOException, ExecutionException, InterruptedException {
     if (searchContext.getResponseBuilder().getHitsBuilderList().isEmpty()) {
       return;
@@ -453,6 +444,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         var hitResponse = hitBuilders.get(hitIndex);
         LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
+        if (searchContext.isExplain()) {
+          hitResponse.setExplain(
+              searchContext
+                  .getSearcherAndTaxonomy()
+                  .searcher
+                  .explain(explainQuery, hitResponse.getLuceneDocId())
+                  .toString());
+        }
         searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
       }
     } else if (!parallelFetchByField
@@ -475,7 +474,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         futures.add(
             indexState
                 .getFetchThreadPoolExecutor()
-                .submit(new FillDocsTask(searchContext, docChunk)));
+                .submit(new FillDocsTask(searchContext, docChunk, explainQuery)));
       }
       for (Future<?> future : futures) {
         future.get();
@@ -483,7 +482,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       // no need to run the per hit fetch tasks here, since they were done in the FillDocsTask
     } else {
       // single threaded fetch
-      FillDocsTask fillDocsTask = new FillDocsTask(searchContext, hitBuilders);
+      FillDocsTask fillDocsTask = new FillDocsTask(searchContext, hitBuilders, explainQuery);
       fillDocsTask.run();
     }
 
@@ -526,8 +525,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
    * @param context search context
    * @param hits hits from query
    */
-  private static void setResponseHits(
-      SearchContext context, TopDocs hits, List<Explanation> explanations) {
+  private static void setResponseHits(SearchContext context, TopDocs hits) {
     TotalHits totalHits =
         TotalHits.newBuilder()
             .setRelation(TotalHits.Relation.valueOf(hits.totalHits.relation.name()))
@@ -539,9 +537,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       ScoreDoc hit = hits.scoreDocs[hitIndex];
       hitResponse.setLuceneDocId(hit.doc);
       context.getCollector().fillHitRanking(hitResponse, hit);
-      if (explanations != null) {
-        hitResponse.setExplain(explanations.get(hitIndex).toString());
-      }
     }
   }
 
@@ -890,6 +885,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
   public static class FillDocsTask implements Runnable {
     private final FieldFetchContext fieldFetchContext;
     private final List<Hit.Builder> docChunk;
+    private final Query explainQuery;
 
     /**
      * Constructor.
@@ -898,8 +894,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
      * @param docChunk list of hit builders for query response, must be in lucene doc id order
      */
     public FillDocsTask(FieldFetchContext fieldFetchContext, List<Hit.Builder> docChunk) {
+      this(fieldFetchContext, docChunk, null);
+    }
+
+    public FillDocsTask(
+        FieldFetchContext fieldFetchContext, List<Hit.Builder> docChunk, Query explainQuery) {
       this.fieldFetchContext = fieldFetchContext;
       this.docChunk = docChunk;
+      this.explainQuery = explainQuery;
     }
 
     @Override
@@ -915,7 +917,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         // get all hits in the same segment and process them together for better resource reuse
         List<Hit.Builder> sliceHits = getSliceHits(docChunk, hitIndex, sliceSegment);
         try {
-          fetchSlice(fieldFetchContext, sliceHits, sliceSegment);
+          fetchSlice(fieldFetchContext, explainQuery, sliceHits, sliceSegment);
         } catch (IOException e) {
           throw new RuntimeException("Error fetching field data", e);
         }
@@ -951,6 +953,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
      */
     private static void fetchSlice(
         FieldFetchContext context,
+        Query explainQuery,
         List<SearchResponse.Hit.Builder> sliceHits,
         LeafReaderContext sliceSegment)
         throws IOException {
@@ -978,7 +981,20 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
 
       // execute any per hit fetch tasks
+      Query resolvedExplainQuery = null;
+      if (context.isExplain()) {
+        resolvedExplainQuery =
+            explainQuery != null ? explainQuery : context.getSearchContext().getQuery();
+      }
       for (Hit.Builder hit : sliceHits) {
+        if (context.isExplain()) {
+          hit.setExplain(
+              context
+                  .getSearcherAndTaxonomy()
+                  .searcher
+                  .explain(resolvedExplainQuery, hit.getLuceneDocId())
+                  .toString());
+        }
         context.getFetchTasks().processHit(context.getSearchContext(), sliceSegment, hit);
       }
     }

@@ -36,4 +36,6 @@ public interface FieldFetchContext {
 
   /** Get search context. Only used for executing fetch tasks. */
   SearchContext getSearchContext();
+
+  boolean isExplain();
 }

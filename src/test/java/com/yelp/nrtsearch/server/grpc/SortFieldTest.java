@@ -17,12 +17,15 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
@@ -33,6 +36,7 @@ public class SortFieldTest extends ServerTestCase {
   private static final String TEST_INDEX = "test_index";
   private static final int NUM_DOCS = 100;
   private static final int SEGMENT_CHUNK = 10;
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
@@ -81,6 +85,23 @@ public class SortFieldTest extends ServerTestCase {
                   "double_field",
                   AddDocumentRequest.MultiValuedField.newBuilder()
                       .addValue(String.valueOf(((i + 90) % NUM_DOCS) * 2.75))
+                      .build())
+              .putFields(
+                  "lat_lon_field",
+                  AddDocumentRequest.MultiValuedField.newBuilder()
+                      .addValue(String.valueOf(44.9985 + ((i % NUM_DOCS) / 1000d)))
+                      .addValue(String.valueOf(-99.9985 - ((i % NUM_DOCS) / 1000d)))
+                      .build())
+              .putFields(
+                  "nested_object_field",
+                  AddDocumentRequest.MultiValuedField.newBuilder()
+                      .addValue(
+                          OBJECT_MAPPER.writeValueAsString(
+                              Map.of(
+                                  "nested_lat_lon_field",
+                                  List.of(
+                                      44.9985 + ((i % NUM_DOCS) / 1000d),
+                                      -99.9985 - ((i % NUM_DOCS) / 1000d)))))
                       .build())
               .build();
       addDocuments(Stream.of(request));
@@ -472,7 +493,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("0", "1", "2", "3", "4");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Integer> expectedSort = Arrays.asList(0, 1, 2, 3, 4);
+    List<Integer> expectedSort = Arrays.asList(1, 3, 5, 7, 9);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -502,7 +523,7 @@ public class SortFieldTest extends ServerTestCase {
     List<String> expectedIds = Arrays.asList("99", "98", "97", "96", "95");
     assertFields(expectedIds, searchResponse.getHitsList());
 
-    List<Integer> expectedSort = Arrays.asList(99, 98, 97, 96, 95);
+    List<Integer> expectedSort = Arrays.asList(199, 197, 195, 193, 191);
     for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
       var hit = searchResponse.getHits(i);
       assertEquals(1, hit.getSortedFieldsCount());
@@ -605,6 +626,163 @@ public class SortFieldTest extends ServerTestCase {
     }
   }
 
+  @Test
+  public void testSortLanLonDistance() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(
+                        SortType.newBuilder()
+                            .setFieldName("lat_lon_field")
+                            .setOrigin(Point.newBuilder().setLatitude(45).setLongitude(-100)))
+                    .build())
+            .build();
+    SearchResponse searchResponse = doSortQueryWithGeoRadius(querySortField);
+    assertEquals(5, searchResponse.getHitsCount());
+
+    List<String> expectedIds = Arrays.asList("2", "1", "3", "0", "4");
+    assertFields(expectedIds, searchResponse.getHitsList());
+
+    List<Double> expectedSort =
+        Arrays.asList(
+            68.09342498718514,
+            68.09451648799866,
+            204.27675784229385,
+            204.27936772550663,
+            340.4630661331218);
+    for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
+      var hit = searchResponse.getHits(i);
+      assertEquals(1, hit.getSortedFieldsCount());
+      assertEquals(
+          expectedSort.get(i),
+          hit.getSortedFieldsOrThrow("lat_lon_field").getFieldValue(0).getDoubleValue(),
+          0.00001);
+
+      assertEquals(0.0, hit.getScore(), 0);
+      assertEquals(7, hit.getFieldsCount());
+    }
+  }
+
+  @Test
+  public void testSortLanLonDistanceInMiles() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(
+                        SortType.newBuilder()
+                            .setFieldName("lat_lon_field")
+                            .setOrigin(Point.newBuilder().setLatitude(45).setLongitude(-100))
+                            .setUnit("mi"))
+                    .build())
+            .build();
+    SearchResponse searchResponse = doSortQueryWithGeoRadius(querySortField);
+    assertEquals(5, searchResponse.getHitsCount());
+
+    List<String> expectedIds = Arrays.asList("2", "1", "3", "0", "4");
+    assertFields(expectedIds, searchResponse.getHitsList());
+
+    List<Double> expectedSort =
+        Arrays.asList(
+            0.0423112926678107,
+            0.042311970894972524,
+            0.12693169256684328,
+            0.12693331427308682,
+            0.21155394131591618);
+    for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
+      var hit = searchResponse.getHits(i);
+      assertEquals(1, hit.getSortedFieldsCount());
+      assertEquals(
+          expectedSort.get(i),
+          hit.getSortedFieldsOrThrow("lat_lon_field").getFieldValue(0).getDoubleValue(),
+          0.00000000001);
+
+      assertEquals(0.0, hit.getScore(), 0);
+      assertEquals(7, hit.getFieldsCount());
+    }
+  }
+
+  @Test
+  public void testSortLanLonDistanceInInnerHit() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(
+                        SortType.newBuilder()
+                            .setFieldName("nested_object_field.nested_lat_lon_field")
+                            .setOrigin(Point.newBuilder().setLatitude(45).setLongitude(-100)))
+                    .build())
+            .build();
+
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(TEST_INDEX)
+                    .setStartHit(0)
+                    .setTopHits(5)
+                    .addRetrieveFields("doc_id")
+                    .addRetrieveFields("int_field")
+                    .addRetrieveFields("long_field")
+                    .addRetrieveFields("float_field")
+                    .addRetrieveFields("double_field")
+                    .addRetrieveFields("index_virtual_field")
+                    .addRetrieveFields("lat_lon_field")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setGeoRadiusQuery(
+                                GeoRadiusQuery.newBuilder()
+                                    .setCenter(
+                                        LatLng.newBuilder()
+                                            .setLatitude(45.0)
+                                            .setLongitude(-100.0)
+                                            .build())
+                                    .setField("lat_lon_field")
+                                    .setRadius("0.8 mi"))
+                            .build())
+                    .putInnerHits(
+                        "inner",
+                        InnerHit.newBuilder()
+                            .setQueryNestedPath("nested_object_field")
+                            .setQuerySort(querySortField)
+                            .setTopHits(1)
+                            .build())
+                    .build());
+
+    assertEquals(5, searchResponse.getHitsCount());
+
+    // We don't set querySort at the top level, now ordered by (score, id)
+    List<String> expectedIds = Arrays.asList("0", "1", "2", "3", "4");
+    assertFields(expectedIds, searchResponse.getHitsList());
+
+    List<Double> expectedSort =
+        Arrays.asList(
+            204.27936772550663,
+            68.09451648799866,
+            68.09342498718514,
+            204.27675784229385,
+            340.4630661331218);
+    for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
+      var hit = searchResponse.getHits(i);
+      var innerHit = hit.getInnerHitsOrThrow("inner").getHits(0);
+      assertEquals(0, hit.getSortedFieldsCount());
+      assertEquals(1, innerHit.getSortedFieldsCount());
+      assertEquals(
+          expectedSort.get(i),
+          innerHit
+              .getSortedFieldsOrThrow("nested_object_field.nested_lat_lon_field")
+              .getFieldValue(0)
+              .getDoubleValue(),
+          0.00001);
+
+      assertEquals(1.0, hit.getScore(), 0);
+      assertEquals(7, hit.getFieldsCount());
+    }
+  }
+
   private SearchResponse doSortQuery(QuerySortField querySortField) {
     return getGrpcServer()
         .getBlockingStub()
@@ -650,6 +828,37 @@ public class SortFieldTest extends ServerTestCase {
                                 .setSource("-int_field * 2.0 + double_field")
                                 .build())
                         .build())
+                .build());
+  }
+
+  private SearchResponse doSortQueryWithGeoRadius(QuerySortField querySortField) {
+    return getGrpcServer()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName(TEST_INDEX)
+                .setStartHit(0)
+                .setTopHits(5)
+                .addRetrieveFields("doc_id")
+                .addRetrieveFields("int_field")
+                .addRetrieveFields("long_field")
+                .addRetrieveFields("float_field")
+                .addRetrieveFields("double_field")
+                .addRetrieveFields("index_virtual_field")
+                .addRetrieveFields("lat_lon_field")
+                .setQuery(
+                    Query.newBuilder()
+                        .setGeoRadiusQuery(
+                            GeoRadiusQuery.newBuilder()
+                                .setCenter(
+                                    LatLng.newBuilder()
+                                        .setLatitude(45.0)
+                                        .setLongitude(-100.0)
+                                        .build())
+                                .setField("lat_lon_field")
+                                .setRadius("0.8 mi"))
+                        .build())
+                .setQuerySort(querySortField)
                 .build());
   }
 

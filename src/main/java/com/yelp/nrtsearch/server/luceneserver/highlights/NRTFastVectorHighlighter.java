@@ -127,18 +127,24 @@ public class NRTFastVectorHighlighter implements Highlighter {
     }
     fragmentsBuilder.setDiscreteMultiValueHighlighting(settings.getDiscreteMultivalue());
 
-    return FAST_VECTOR_HIGHLIGHTER.getBestFragments(
-        getFieldQuery(hitLeaf.reader(), settings.getHighlightQuery(), settings.getFieldMatch()),
-        hitLeaf.reader(),
-        leafDocId,
-        textBaseFieldDef.getName(),
-        fragmentCharSize,
-        numberOfFragments,
-        fragListBuilder,
-        fragmentsBuilder,
-        settings.getPreTags(),
-        settings.getPostTags(),
-        DEFAULT_ENCODER);
+    try {
+      return FAST_VECTOR_HIGHLIGHTER.getBestFragments(
+          getFieldQuery(hitLeaf.reader(), settings.getHighlightQuery(), settings.getFieldMatch()),
+          hitLeaf.reader(),
+          leafDocId,
+          textBaseFieldDef.getName(),
+          fragmentCharSize,
+          numberOfFragments,
+          fragListBuilder,
+          fragmentsBuilder,
+          settings.getPreTags(),
+          settings.getPostTags(),
+          DEFAULT_ENCODER);
+    } catch (RuntimeException runtimeException) {
+      logger.warn(
+          "FVH failed creating fragments, and the exception is: ", runtimeException.getMessage());
+      return new String[0];
+    }
   }
 
   private static FieldQuery getFieldQuery(IndexReader indexReader, Query query, boolean fieldMatch)

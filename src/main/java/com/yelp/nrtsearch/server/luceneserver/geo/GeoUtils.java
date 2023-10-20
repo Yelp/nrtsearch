@@ -51,4 +51,17 @@ public class GeoUtils {
       throw new IllegalArgumentException("Invalid distance " + rawDistance);
     }
   }
+
+  public static double convertDistanceToADifferentUnit(double distanceNumber, String unit) {
+    String distanceUnit = unit.strip().toLowerCase();
+    if (distanceUnit.isEmpty() || distanceUnit.equals("m")) {
+      return distanceNumber;
+    } else if (distanceUnit.equals("km")) {
+      return distanceNumber / KM_TO_M;
+    } else if (distanceUnit.equals("mi")) {
+      return distanceNumber / MI_TO_M;
+    } else {
+      throw new IllegalArgumentException("Invalid unit " + unit);
+    }
+  }
 }

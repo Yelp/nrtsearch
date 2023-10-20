@@ -24,7 +24,7 @@ import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
-import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,7 +42,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.Weight;
@@ -74,7 +73,8 @@ public class InnerHitFetchTask implements FetchTask {
     this.searcher = innerHitContext.getSearcherAndTaxonomy().searcher;
     boolean needScore =
         innerHitContext.getTopHits() >= innerHitContext.getStartHit()
-            && (innerHitContext.getSort() == null || innerHitContext.getSort().needsScores());
+            && (innerHitContext.getSortContext() == null
+                || innerHitContext.getSortContext().getSort().needsScores());
     // We support TopDocsCollector only, so top_scores is good enough
     this.innerHitWeight =
         searcher
@@ -132,15 +132,11 @@ public class InnerHitFetchTask implements FetchTask {
       SearchResponse.Hit.Builder innerHitResponse = innerHitResultBuilder.addHitsBuilder();
       ScoreDoc innerHit = topDocs.scoreDocs[innerHitIndex];
       innerHitResponse.setLuceneDocId(innerHit.doc);
-      if (!innerHitContext.getSortedFieldNames().isEmpty()) {
+      if (innerHitContext.getSortContext() != null) {
         // fill the sortedFields
         FieldDoc fd = (FieldDoc) innerHit;
-        for (int i = 0; i < fd.fields.length; ++i) {
-          SortField sortField = innerHitContext.getSort().getSort()[i];
-          innerHitResponse.putSortedFields(
-              innerHitContext.getSortedFieldNames().get(i),
-              SortParser.getValueForSortField(sortField, fd.fields[i]));
-        }
+        innerHitResponse.putAllSortedFields(
+            SortParser.getAllSortedValues(fd, innerHitContext.getSortContext()));
         innerHitResponse.setScore(Double.NaN);
       } else {
         innerHitResponse.setScore(innerHit.score);

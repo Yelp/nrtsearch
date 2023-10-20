@@ -19,16 +19,13 @@ import static com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcess
 
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
-import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
-import java.util.ArrayList;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortContext;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
 import java.util.List;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
@@ -40,8 +37,7 @@ public class SortFieldCollector extends DocCollector {
   private static final Logger logger = LoggerFactory.getLogger(SortFieldCollector.class);
 
   private final CollectorManager<TopFieldCollector, TopFieldDocs> manager;
-  private final Sort sort;
-  private final List<String> sortNames;
+  private final SortContext sortContext;
 
   public SortFieldCollector(
       CollectorCreatorContext context,
@@ -61,18 +57,10 @@ public class SortFieldCollector extends DocCollector {
       totalHitsThreshold = context.getRequest().getTotalHitsThreshold();
     }
 
-    sortNames =
-        new ArrayList<>(context.getRequest().getQuerySort().getFields().getSortedFieldsCount());
-    try {
-      sort =
-          SortParser.parseSort(
-              context.getRequest().getQuerySort().getFields().getSortedFieldsList(),
-              sortNames,
-              context.getQueryFields());
-    } catch (SearchHandler.SearchHandlerException e) {
-      throw new IllegalArgumentException(e);
-    }
-    manager = TopFieldCollector.createSharedManager(sort, topHits, searchAfter, totalHitsThreshold);
+    sortContext = new SortContext(context.getRequest().getQuerySort(), context.getQueryFields());
+    manager =
+        TopFieldCollector.createSharedManager(
+            sortContext.getSort(), topHits, searchAfter, totalHitsThreshold);
   }
 
   @Override
@@ -83,26 +71,7 @@ public class SortFieldCollector extends DocCollector {
   @Override
   public void fillHitRanking(SearchResponse.Hit.Builder hitResponse, ScoreDoc scoreDoc) {
     FieldDoc fd = (FieldDoc) scoreDoc;
-    if (fd.fields.length != sort.getSort().length) {
-      throw new IllegalArgumentException(
-          "Size mismatch between Sort and ScoreDoc: "
-              + sort.getSort().length
-              + " != "
-              + fd.fields.length);
-    }
-    if (fd.fields.length != sortNames.size()) {
-      throw new IllegalArgumentException(
-          "Size mismatch between Sort and Sort names: "
-              + fd.fields.length
-              + " != "
-              + sortNames.size());
-    }
-
-    for (int i = 0; i < fd.fields.length; ++i) {
-      SortField sortField = sort.getSort()[i];
-      hitResponse.putSortedFields(
-          sortNames.get(i), SortParser.getValueForSortField(sortField, fd.fields[i]));
-    }
+    hitResponse.putAllSortedFields(SortParser.getAllSortedValues(fd, sortContext));
   }
 
   @Override
