@@ -15,8 +15,11 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.field.properties;
 
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.grpc.Selector;
 import com.yelp.nrtsearch.server.grpc.SortType;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
@@ -62,4 +65,16 @@ public interface Sortable {
    * @return sort field for this type
    */
   SortField getSortField(SortType type);
+
+  /**
+   * Allow customized sorted value processing before return per fieldDef. The validation must be
+   * completed here, and throw an exception if it is failed.
+   *
+   * @param sortType settings for this sort
+   * @return Extractor method to process the value
+   * @throws IllegalArgumentException if validation fails
+   */
+  default BiFunction<SortField, Object, CompositeFieldValue> sortValueExtractor(SortType sortType) {
+    return SortParser.DEFAULT_SORT_VALUE_EXTRACTOR;
+  }
 }

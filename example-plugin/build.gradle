@@ -34,7 +34,7 @@ dependencies {
     compileOnly "com.yelp.nrtsearch:server:${nrtsearchVersion}"
     testImplementation "com.yelp.nrtsearch:server:${nrtsearchVersion}"
     testImplementation("com.yelp.nrtsearch:server:${nrtsearchVersion}:tests")
-    testImplementation "junit:junit:4.13"
+    testImplementation "junit:junit:4.13.2"
     testImplementation "org.assertj:assertj-core:3.19.0"
     testImplementation "io.grpc:grpc-testing:1.46.0"
 }

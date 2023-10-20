@@ -58,6 +58,8 @@ public class SearchContext implements FieldFetchContext {
     HYBRID
   }
 
+  private final boolean explain;
+
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
     this.shardState = builder.shardState;
@@ -77,6 +79,7 @@ public class SearchContext implements FieldFetchContext {
     this.queryNestedPath = builder.queryNestedPath;
     this.knnCollectors = builder.knnCollectors;
     this.vectorScoringMode = builder.vectorScoringMode;
+    this.explain = builder.explain;
 
     if (validate) {
       validate();
@@ -182,6 +185,12 @@ public class SearchContext implements FieldFetchContext {
     return vectorScoringMode;
   }
 
+  /** Get the boolean flat whether to return the lucene explain */
+  @Override
+  public boolean isExplain() {
+    return explain;
+  }
+
   /** Get new context builder instance * */
   public static Builder newBuilder() {
     return new Builder();
@@ -240,6 +249,7 @@ public class SearchContext implements FieldFetchContext {
     private String queryNestedPath;
     private List<KnnCollector> knnCollectors;
     private VectorScoringMode vectorScoringMode;
+    private boolean explain;
 
     private Builder() {}
 
@@ -337,6 +347,11 @@ public class SearchContext implements FieldFetchContext {
 
     public Builder setQueryNestedPath(String queryNestedPath) {
       this.queryNestedPath = queryNestedPath;
+      return this;
+    }
+
+    public Builder setExplain(boolean explain) {
+      this.explain = explain;
       return this;
     }
 

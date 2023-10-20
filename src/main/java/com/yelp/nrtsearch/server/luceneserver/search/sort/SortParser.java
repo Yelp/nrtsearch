@@ -13,16 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver.search;
+package com.yelp.nrtsearch.server.luceneserver.search.sort;
 
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 
@@ -30,7 +34,8 @@ import org.apache.lucene.search.SortField;
  * Class to handle creation of a {@link Sort} used to sort documents by field values for queries.
  */
 public class SortParser {
-
+  public static final BiFunction<SortField, Object, CompositeFieldValue>
+      DEFAULT_SORT_VALUE_EXTRACTOR = (sortField, value) -> getValueForSortField(sortField, value);
   private static final String DOCID = "docid";
   private static final String SCORE = "score";
 
@@ -40,20 +45,14 @@ public class SortParser {
    * Decodes a list of request {@link SortType} into the corresponding {@link Sort}.
    *
    * @param fields list of {@link SortType} from grpc request
-   * @param sortFieldNames mutable list which will have all sort field names added in sort order,
-   *     may be null
    * @param queryFields collection of all possible fields which may be used to sort
    */
-  public static Sort parseSort(
-      List<SortType> fields, List<String> sortFieldNames, Map<String, FieldDef> queryFields)
+  public static Sort parseSort(List<SortType> fields, Map<String, FieldDef> queryFields)
       throws SearchHandler.SearchHandlerException {
     List<SortField> sortFields = new ArrayList<>();
     for (SortType sub : fields) {
       String fieldName = sub.getFieldName();
       SortField sf;
-      if (sortFieldNames != null) {
-        sortFieldNames.add(fieldName);
-      }
       if (fieldName.equals(DOCID)) {
         if (!sub.getReverse()) {
           sf = SortField.FIELD_DOC;
@@ -89,6 +88,44 @@ public class SortParser {
   }
 
   /**
+   * Validate the sort result of a {@link FieldDoc}, and parse the values. The method will try to
+   * use the FieldDef specific parser to parse the value first if applicable; Otherwise, it will
+   * check the value type and cast the value into the corresponding value object.
+   *
+   * @param fd Doc that contains the sorting values
+   * @param sortContext sortContext for the sort configurations
+   * @return sorted values for all sorted fields in map
+   */
+  public static Map<String, CompositeFieldValue> getAllSortedValues(
+      FieldDoc fd, SortContext sortContext) {
+    Sort sort = sortContext.getSort();
+    if (fd.fields.length != sort.getSort().length) {
+      throw new IllegalArgumentException(
+          "Size mismatch between Sort and ScoreDoc: "
+              + sort.getSort().length
+              + " != "
+              + fd.fields.length);
+    }
+    if (fd.fields.length != sortContext.getSortNames().size()) {
+      throw new IllegalArgumentException(
+          "Size mismatch between Sort and Sort names: "
+              + fd.fields.length
+              + " != "
+              + sortContext.getSortNames().size());
+    }
+
+    Map<String, CompositeFieldValue> values = new HashMap<>(fd.fields.length);
+    for (int i = 0; i < fd.fields.length; ++i) {
+      SortField sortField = sort.getSort()[i];
+      String fieldName = sortContext.getSortNames().get(i);
+      values.put(
+          fieldName, sortContext.getSortValueExtractors().get(i).apply(sortField, fd.fields[i]));
+    }
+
+    return values;
+  }
+
+  /**
    * Get the {@link SearchResponse.Hit.CompositeFieldValue} containing the sort value for the given
    * {@link SortField}.
    *
@@ -96,7 +133,7 @@ public class SortParser {
    * @param sortValue FieldDoc value for this sort field
    * @return hit message field value containing sort field value
    */
-  public static SearchResponse.Hit.CompositeFieldValue getValueForSortField(
+  private static SearchResponse.Hit.CompositeFieldValue getValueForSortField(
       SortField sortField, Object sortValue) {
     var fieldValue = SearchResponse.Hit.FieldValue.newBuilder();
     switch (sortField.getType()) {

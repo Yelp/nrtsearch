@@ -18,25 +18,21 @@ package com.yelp.nrtsearch.server.luceneserver.innerhit;
 import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
-import com.yelp.nrtsearch.server.luceneserver.SearchHandler.SearchHandlerException;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
-import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortContext;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
@@ -62,12 +58,13 @@ public class InnerHitContext implements FieldFetchContext {
   private final int topHits;
   private final Map<String, FieldDef> queryFields;
   private final Map<String, FieldDef> retrieveFields;
-  private final List<String> sortedFieldNames;
-  private final Sort sort;
+  private final SortContext sortContext;
+
   private final CollectorManager<? extends TopDocsCollector, ? extends TopDocs>
       topDocsCollectorManager;
   private final FetchTasks fetchTasks;
   private SearchContext searchContext = null;
+  private final boolean explain;
 
   private InnerHitContext(InnerHitContextBuilder builder, boolean needValidation)
       throws IOException {
@@ -87,27 +84,20 @@ public class InnerHitContext implements FieldFetchContext {
     this.topHits = builder.topHits == 0 ? DEFAULT_INNER_HIT_TOP_HITS : builder.topHits;
     this.queryFields = builder.queryFields;
     this.retrieveFields = builder.retrieveFields;
+    this.explain = builder.explain;
     this.fetchTasks = new FetchTasks(Collections.EMPTY_LIST, builder.highlightFetchTask, null);
 
     if (builder.querySort == null) {
       // relevance collector
-      this.sortedFieldNames = Collections.EMPTY_LIST;
-      this.sort = null;
+      this.sortContext = null;
       this.topDocsCollectorManager =
           TopScoreDocCollector.createSharedManager(topHits, null, Integer.MAX_VALUE);
     } else {
       // sortedField collector
-      this.sortedFieldNames =
-          new ArrayList<>(builder.querySort.getFields().getSortedFieldsList().size());
-      try {
-        this.sort =
-            SortParser.parseSort(
-                builder.querySort.getFields().getSortedFieldsList(), sortedFieldNames, queryFields);
-        this.topDocsCollectorManager =
-            TopFieldCollector.createSharedManager(sort, topHits, null, Integer.MAX_VALUE);
-      } catch (SearchHandlerException e) {
-        throw new IllegalArgumentException(e);
-      }
+      this.sortContext = new SortContext(builder.querySort, queryFields);
+      this.topDocsCollectorManager =
+          TopFieldCollector.createSharedManager(
+              sortContext.getSort(), topHits, null, Integer.MAX_VALUE);
     }
 
     if (needValidation) {
@@ -144,6 +134,10 @@ public class InnerHitContext implements FieldFetchContext {
     if (!indexState.hasNestedChildFields()) {
       throw new IllegalStateException("InnerHit only works with indices that have childFields");
     }
+  }
+
+  public void setSearchContext(SearchContext searchContext) {
+    this.searchContext = searchContext;
   }
 
   /** Get parent filter query. */
@@ -214,6 +208,11 @@ public class InnerHitContext implements FieldFetchContext {
     return topHits;
   }
 
+  @Override
+  public boolean isExplain() {
+    return explain;
+  }
+
   /**
    * Get map of all fields usable for this query. This includes all fields defined in the index and
    * dynamic fields from the request. This is read from the top level search.
@@ -228,17 +227,9 @@ public class InnerHitContext implements FieldFetchContext {
     return retrieveFields;
   }
 
-  /**
-   * Get the field names used in sort if {@link QuerySortField} is in use, otherwise returns an
-   * empty list.
-   */
-  public List<String> getSortedFieldNames() {
-    return sortedFieldNames;
-  }
-
   /** Get the sort object if {@link QuerySortField} is in use, otherwise returns null. */
-  public Sort getSort() {
-    return sort;
+  public SortContext getSortContext() {
+    return sortContext;
   }
 
   /** Get the topDocsCollectorManager to collect the search results. */
@@ -266,6 +257,7 @@ public class InnerHitContext implements FieldFetchContext {
     private Map<String, FieldDef> retrieveFields;
     private HighlightFetchTask highlightFetchTask;
     private QuerySortField querySort;
+    private boolean explain;
 
     private InnerHitContextBuilder() {}
 
@@ -343,6 +335,11 @@ public class InnerHitContext implements FieldFetchContext {
 
     public InnerHitContextBuilder withQuerySort(QuerySortField querySort) {
       this.querySort = querySort;
+      return this;
+    }
+
+    public InnerHitContextBuilder withExplain(boolean explain) {
+      this.explain = explain;
       return this;
     }
   }
