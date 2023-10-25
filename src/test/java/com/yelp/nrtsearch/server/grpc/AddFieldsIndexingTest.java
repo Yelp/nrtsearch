@@ -49,7 +49,6 @@ public class AddFieldsIndexingTest {
               .setName("field2")
               .setStoreDocValues(true)
               .setSearch(true)
-              .setTokenize(true)
               .setType(FieldType.TEXT)
               .build());
 
@@ -64,7 +63,6 @@ public class AddFieldsIndexingTest {
               .setName("field4")
               .setStoreDocValues(true)
               .setSearch(true)
-              .setTokenize(true)
               .setType(FieldType.TEXT)
               .build());
 

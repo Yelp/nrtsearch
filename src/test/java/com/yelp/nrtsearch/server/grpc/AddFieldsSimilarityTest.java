@@ -45,7 +45,6 @@ public class AddFieldsSimilarityTest {
               .setName("field1")
               .setStoreDocValues(true)
               .setSearch(true)
-              .setTokenize(true)
               .setType(FieldType.TEXT)
               .setSimilarity("classic")
               .build());
@@ -56,7 +55,6 @@ public class AddFieldsSimilarityTest {
               .setName("field2")
               .setStoreDocValues(true)
               .setSearch(true)
-              .setTokenize(true)
               .setType(FieldType.TEXT)
               .setSimilarity("classic")
               .build());

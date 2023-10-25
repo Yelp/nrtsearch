@@ -6,7 +6,6 @@
       "type": "TEXT",
       "storeDocValues": true,
       "multiValued": true,
-      "tokenize": true,
       "search": true,
       "facet": "SORTED_SET_DOC_VALUES",
       "facetIndexFieldName" : "$sorted_doc_values_facet_field"
@@ -15,7 +14,6 @@
       "name": "sorted_doc_values_facet_field_single_valued",
       "type": "TEXT",
       "storeDocValues": true,
-      "tokenize": true,
       "search": true,
       "facet": "SORTED_SET_DOC_VALUES",
       "facetIndexFieldName" : "$sorted_doc_values_facet_field_single_valued"

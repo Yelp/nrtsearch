@@ -31,7 +31,7 @@ Text search types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 * TEXT
-The tradition field for full-text content. Text fields are best suited for unstructured but human-readable content. Content of this field can be tokenized and analyzed.
+The tradition field for full-text content. Text fields are best suited for unstructured but human-readable content. Content of this field will be tokenized and analyzed.
 
 Object types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -60,11 +60,8 @@ This parameter indicates whether this field is indexed so that certain types of 
 * storeDocValues
 This parameter indicates whether this field is stored as doc value so that we can retrieve this field in the NRTSearch response.
 
-* tokenize
-This parameter is only for text. This parameter indicates whether this text field should be tokenized.
-
 * indexAnalyzer
-This parameter is only for text usually together with tokenize. This parameter specifies the analyzer to use for this field during indexing.
+This parameter is only for text. This parameter specifies the analyzer to use for this field during indexing.
 
 * searchAnalyzer
-This parameter is only for text usually together with tokenize. This parameter specifies the analyzer to use for this field during searching.
+This parameter is only for text. This parameter specifies the analyzer to use for this field during searching.

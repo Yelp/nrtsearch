@@ -60,7 +60,6 @@
           "type": "TEXT",
           "search": true,
           "store": true,
-          "tokenize": true,
           "termVectors": "TERMS_POSITIONS_OFFSETS"
         }
       ]
@@ -87,7 +86,6 @@
           "type": "TEXT",
           "search": true,
           "store": true,
-          "tokenize": true,
           "termVectors": "TERMS_POSITIONS_OFFSETS"
         }
       ]
@@ -114,7 +112,6 @@
           "type": "TEXT",
           "search": true,
           "store": true,
-          "tokenize": true,
           "termVectors": "TERMS_POSITIONS_OFFSETS"
         }
       ]

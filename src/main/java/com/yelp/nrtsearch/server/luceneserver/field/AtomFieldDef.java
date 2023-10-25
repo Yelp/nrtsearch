@@ -86,25 +86,13 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
 
   @Override
   protected void setSearchProperties(FieldType fieldType, Field requestField) {
-    // This is how things are currently expected, if the field is searchable it
-    // gets the same properties set as a text field. Even if it is not set
-    // searchable, it is expected to at least have the DOCS index option so
-    // it can be deleted by Term. This doesn't seem right and we should think
-    // about changing it.
+    // TODO: make this configurable and default to true, this is hard to do with the
+    // current grpc field type
+    fieldType.setOmitNorms(true);
+    fieldType.setTokenized(false);
     if (requestField.getSearch()) {
-      super.setSearchProperties(fieldType, requestField);
-    } else {
-      fieldType.setOmitNorms(true);
-      fieldType.setTokenized(false);
-      fieldType.setIndexOptions(IndexOptions.DOCS);
+      setIndexOptions(requestField.getIndexOptions(), fieldType, IndexOptions.DOCS);
     }
-  }
-
-  @Override
-  public boolean isSearchable() {
-    // even if the search property is not set this field may have index options,
-    // see setSearchProperties.
-    return super.isSearchable() || fieldType.indexOptions() != IndexOptions.NONE;
   }
 
   @Override

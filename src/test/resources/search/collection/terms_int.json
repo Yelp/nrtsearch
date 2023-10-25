@@ -4,6 +4,7 @@
     {
       "name": "doc_id",
       "type": "ATOM",
+      "search": true,
       "storeDocValues": true,
       "childFields": [
         {

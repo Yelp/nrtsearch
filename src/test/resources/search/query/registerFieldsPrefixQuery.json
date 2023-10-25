@@ -11,21 +11,18 @@
       "name": "text_field",
       "type": "TEXT",
       "search": true,
-      "tokenize": true,
       "multiValued": true,
       "storeDocValues": true,
       "childFields": [
         {
           "name": "not_searchable",
           "type": "TEXT",
-          "tokenize": true,
           "multiValued": true
         },
         {
           "name": "atom",
           "type": "ATOM",
           "search": true,
-          "tokenize": true,
           "multiValued": true
         }
       ]

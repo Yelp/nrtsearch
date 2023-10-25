@@ -47,10 +47,10 @@ public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
    * @param requestField field properties to validate
    */
   protected void validateRequest(Field requestField) {
-    if (requestField.getMultiValued() || requestField.getTokenize()) {
+    if (requestField.getMultiValued()) {
       throw new IllegalArgumentException(
           String.format(
-              "field: %s cannot have multivalued fields or tokenization as it's an _ID field",
+              "field: %s cannot have multivalued fields as it's an _ID field",
               requestField.getName()));
     }
     if (!requestField.getStore() && !requestField.getStoreDocValues()) {

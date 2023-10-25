@@ -11,7 +11,6 @@
       "name": "field_1",
       "type": "TEXT",
       "search": true,
-      "tokenize": true,
       "storeDocValues": true,
       "childFields": [
         {
@@ -26,7 +25,6 @@
       "name": "field_2",
       "type": "TEXT",
       "search": true,
-      "tokenize": true,
       "storeDocValues": true,
       "childFields": [
         {
@@ -61,7 +59,6 @@
           "name": "text",
           "type": "TEXT",
           "search": true,
-          "tokenize": true,
           "storeDocValues": true
         }
       ]

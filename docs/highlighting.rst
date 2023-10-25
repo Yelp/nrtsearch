@@ -20,7 +20,6 @@ Fast-vector-highlighter:
 
 * The field must be stored, i.e. have "store: true"
 * The field must have term vectors with positions and offsets, i.e. have "termVectors: TERMS_POSITIONS_OFFSETS"
-* While not mandatory, the field must be tokenized for the highlights to be useful, i.e. have "tokenize: true"
 
 Query Syntax
 ------------

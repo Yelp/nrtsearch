@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.IndexOptions;
 
 /** Field class for 'TEXT' field type. */
 public class TextFieldDef extends TextBaseFieldDef {
@@ -26,5 +28,26 @@ public class TextFieldDef extends TextBaseFieldDef {
   @Override
   public String getType() {
     return "TEXT";
+  }
+
+  @Override
+  protected void setSearchProperties(FieldType fieldType, Field requestField) {
+    if (requestField.getSearch()) {
+      setIndexOptions(
+          requestField.getIndexOptions(), fieldType, IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+
+      switch (requestField.getTermVectors()) {
+        case TERMS_POSITIONS_OFFSETS_PAYLOADS:
+          fieldType.setStoreTermVectorPayloads(true);
+        case TERMS_POSITIONS_OFFSETS:
+          fieldType.setStoreTermVectorOffsets(true);
+        case TERMS_POSITIONS:
+          fieldType.setStoreTermVectorPositions(true);
+        case TERMS:
+          fieldType.setStoreTermVectors(true);
+      }
+    }
+    fieldType.setTokenized(true);
+    fieldType.setOmitNorms(requestField.getOmitNorms());
   }
 }
