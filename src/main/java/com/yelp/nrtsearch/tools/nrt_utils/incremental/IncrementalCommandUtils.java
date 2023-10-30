@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.tools.nrt_utils.incremental;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.S3Object;
-import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -52,7 +52,7 @@ public class IncrementalCommandUtils {
    * @return index warming queries resource
    */
   public static String getWarmingQueriesResource(String indexResource) {
-    return indexResource + Warmer.WARMING_QUERIES_RESOURCE;
+    return indexResource + S3Backend.WARMING_QUERIES_RESOURCE_SUFFIX;
   }
 
   /**

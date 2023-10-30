@@ -27,8 +27,6 @@ Example server configuration
   archiveDirectory: "/user/app/primary_index_archiver"
   serviceName: "nrtsearch-service-test"
   restoreState: False
-  restoreFromIncArchiver: "true"
-  backupWithIncArchiver: "true"
   downloadAsStream: "true"
 
 
@@ -99,16 +97,6 @@ Example server configuration
    * - restoreState
      - bool
      - Enables loading state from external storage on startup
-     - false
-
-   * - restoreFromIncArchiver
-     - bool
-     - If enabled, uses the incremental archiver when restoring index data and state
-     - false
-
-   * - backupWithIncArchiver
-     - bool
-     - If enabled, uses the incremental archiver for backups
      - false
 
    * - deadlineCancellation

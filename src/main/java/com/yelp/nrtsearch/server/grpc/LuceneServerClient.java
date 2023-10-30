@@ -434,22 +434,6 @@ public class LuceneServerClient implements Closeable {
     blockingStub.stopIndex(StopIndexRequest.newBuilder().setIndexName(indexName).build());
   }
 
-  public void backupIndex(
-      String indexName,
-      String serviceName,
-      String resourceName,
-      boolean completeDirectory,
-      boolean stream) {
-    blockingStub.backupIndex(
-        BackupIndexRequest.newBuilder()
-            .setServiceName(serviceName)
-            .setResourceName(resourceName)
-            .setIndexName(indexName)
-            .setCompleteDirectory(completeDirectory)
-            .setStream(stream)
-            .build());
-  }
-
   public void backupWarmingQueries(
       String index, String service, int numQueriesThreshold, int uptimeMinutesThreshold) {
     blockingStub.backupWarmingQueries(
@@ -474,19 +458,6 @@ public class LuceneServerClient implements Closeable {
     }
     this.shutdown();
     System.exit(1);
-  }
-
-  public void deleteIndexBackup(
-      String indexName, String serviceName, String resourceName, int nDays) {
-    DeleteIndexBackupRequest request =
-        DeleteIndexBackupRequest.newBuilder()
-            .setIndexName(indexName)
-            .setServiceName(serviceName)
-            .setResourceName(resourceName)
-            .setNDays(nDays)
-            .build();
-    DeleteIndexBackupResponse deleteIndexBackupResponse = blockingStub.deleteIndexBackup(request);
-    logger.info("Response: {}", deleteIndexBackupResponse);
   }
 
   public List<String> getIndices() {

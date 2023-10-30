@@ -22,15 +22,12 @@ import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
-import com.yelp.nrtsearch.server.backup.Archiver;
-import com.yelp.nrtsearch.server.backup.ArchiverImpl;
-import com.yelp.nrtsearch.server.backup.Tar;
-import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Iterator;
 import org.junit.After;
@@ -516,16 +513,13 @@ public class ReplicationServerTest {
 
   private void initLuceneServers(String extraConfig) throws IOException {
     // setup S3 for backup/restore
-    Path s3Directory = folder.newFolder("s3").toPath();
-    Path archiverDirectory = folder.newFolder("archiver").toPath();
     AmazonS3 s3 = s3Provider.getAmazonS3();
-    Archiver archiver =
-        new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl(Tar.CompressionMode.LZ4));
 
     // set up primary servers
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerPrimaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot(), extraConfig);
+    RemoteBackend remoteBackend = new S3Backend(luceneServerPrimaryConfiguration, s3);
     luceneServerPrimary =
         new GrpcServer(
             grpcCleanup,
@@ -535,7 +529,7 @@ public class ReplicationServerTest {
             luceneServerPrimaryConfiguration.getIndexDir(),
             testIndex,
             luceneServerPrimaryConfiguration.getPort(),
-            archiver);
+            remoteBackend);
     replicationServerPrimary =
         new GrpcServer(
             grpcCleanup,
@@ -545,7 +539,7 @@ public class ReplicationServerTest {
             luceneServerPrimaryConfiguration.getIndexDir(),
             testIndex,
             luceneServerPrimaryConfiguration.getReplicationPort(),
-            archiver);
+            remoteBackend);
     luceneServerPrimary
         .getGlobalState()
         .replicationStarted(luceneServerPrimaryConfiguration.getReplicationPort());
@@ -562,7 +556,7 @@ public class ReplicationServerTest {
             luceneServerSecondaryConfiguration.getIndexDir(),
             testIndex,
             luceneServerSecondaryConfiguration.getPort(),
-            archiver);
+            remoteBackend);
     replicationServerSecondary =
         new GrpcServer(
             grpcCleanup,
@@ -572,7 +566,7 @@ public class ReplicationServerTest {
             luceneServerSecondaryConfiguration.getIndexDir(),
             testIndex,
             luceneServerSecondaryConfiguration.getReplicationPort(),
-            archiver);
+            remoteBackend);
     luceneServerSecondary
         .getGlobalState()
         .replicationStarted(luceneServerSecondaryConfiguration.getReplicationPort());

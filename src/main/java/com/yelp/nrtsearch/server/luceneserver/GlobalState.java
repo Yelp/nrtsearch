@@ -26,6 +26,7 @@ import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.io.Closeable;
 import java.io.IOException;
@@ -48,6 +49,7 @@ public abstract class GlobalState implements Closeable {
   private final int port;
   private final ThreadPoolConfiguration threadPoolConfiguration;
   private final Archiver incArchiver;
+  private final RemoteBackend remoteBackend;
   private int replicaReplicationPortPingInterval;
   private final String ephemeralId = UUID.randomUUID().toString();
   private final long generation = System.currentTimeMillis();
@@ -66,32 +68,29 @@ public abstract class GlobalState implements Closeable {
   private final ExecutorService fetchService;
   private final ThreadPoolExecutor searchThreadPoolExecutor;
 
-  public static GlobalState createState(LuceneServerConfiguration luceneServerConfiguration)
-      throws IOException {
-    return createState(luceneServerConfiguration, null);
-  }
-
-  public static GlobalState createState(
-      LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
-      throws IOException {
-    return createState(luceneServerConfiguration, incArchiver, null);
-  }
-
   public static GlobalState createState(
       LuceneServerConfiguration luceneServerConfiguration,
       Archiver incArchiver,
-      Archiver legacyArchiver)
+      RemoteBackend remoteBackend)
       throws IOException {
-    return new BackendGlobalState(luceneServerConfiguration, incArchiver, legacyArchiver);
+    return new BackendGlobalState(luceneServerConfiguration, incArchiver, remoteBackend);
   }
 
   public Optional<Archiver> getIncArchiver() {
     return Optional.ofNullable(incArchiver);
   }
 
-  protected GlobalState(LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
+  public RemoteBackend getRemoteBackend() {
+    return remoteBackend;
+  }
+
+  protected GlobalState(
+      LuceneServerConfiguration luceneServerConfiguration,
+      Archiver incArchiver,
+      RemoteBackend remoteBackend)
       throws IOException {
     this.incArchiver = incArchiver;
+    this.remoteBackend = remoteBackend;
     this.nodeName = luceneServerConfiguration.getNodeName();
     this.stateDir = Paths.get(luceneServerConfiguration.getStateDir());
     this.indexDirBase = Paths.get(luceneServerConfiguration.getIndexDir());

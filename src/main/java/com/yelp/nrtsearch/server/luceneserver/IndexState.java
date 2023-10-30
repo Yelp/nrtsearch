@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonObject;
-import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.grpc.*;
@@ -32,6 +31,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable
 import com.yelp.nrtsearch.server.luceneserver.index.IndexSimilarity;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.Closeable;
 import java.io.IOException;
@@ -244,17 +244,17 @@ public abstract class IndexState implements Closeable {
     return rootDir;
   }
 
-  public void initWarmer(Archiver archiver) {
-    initWarmer(archiver, name);
+  public void initWarmer(RemoteBackend remoteBackend) {
+    initWarmer(remoteBackend, name);
   }
 
-  public void initWarmer(Archiver archiver, String indexName) {
+  public void initWarmer(RemoteBackend remoteBackend, String indexName) {
     LuceneServerConfiguration configuration = globalState.getConfiguration();
     WarmerConfig warmerConfig = configuration.getWarmerConfig();
     if (warmerConfig.isWarmOnStartup() || warmerConfig.getMaxWarmingQueries() > 0) {
       this.warmer =
           new Warmer(
-              archiver,
+              remoteBackend,
               configuration.getServiceName(),
               indexName,
               warmerConfig.getMaxWarmingQueries());
@@ -390,11 +390,8 @@ public abstract class IndexState implements Closeable {
   /** Get mapping of ordinal to shard state. */
   public abstract Map<Integer, ShardState> getShards();
 
-  /**
-   * Commit all state and shards. If backupFromIncArchiver is passed in it will also attempt to use
-   * IndexArchiver to upload files to remote storage
-   */
-  public abstract long commit(boolean backupFromIncArchiver) throws IOException;
+  /** Commit all state and shards */
+  public abstract long commit() throws IOException;
 
   /** True if this index has at least one commit. */
   public abstract boolean hasCommit() throws IOException;

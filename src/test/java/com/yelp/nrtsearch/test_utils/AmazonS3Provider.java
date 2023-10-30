@@ -94,4 +94,8 @@ public class AmazonS3Provider extends ExternalResource {
     }
     return s3Path;
   }
+
+  public TemporaryFolder getTemporaryFolder() {
+    return temporaryFolder;
+  }
 }

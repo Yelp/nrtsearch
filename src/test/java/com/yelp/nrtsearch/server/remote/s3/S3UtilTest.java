@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.utils;
+package com.yelp.nrtsearch.server.remote.s3;
 
-import static com.yelp.nrtsearch.server.utils.S3Util.getS3FileName;
-import static com.yelp.nrtsearch.server.utils.S3Util.isValidS3FilePath;
+import static com.yelp.nrtsearch.server.remote.s3.S3Util.getS3FileName;
+import static com.yelp.nrtsearch.server.remote.s3.S3Util.isValidS3FilePath;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThrows;

@@ -17,13 +17,13 @@ package com.yelp.nrtsearch.server.grpc;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
@@ -50,12 +50,12 @@ import org.junit.rules.TemporaryFolder;
 
 public class GrpcServer {
   // TODO: use this everywhere instead of importing test index name from
-  // ReplicationTestFailureScenarios
+  // ReplicationFailureScenariosTest
   public static final String TEST_INDEX = "test_index";
 
   private final GrpcCleanupRule grpcCleanup;
   private final TemporaryFolder temporaryFolder;
-  private final Archiver archiver;
+  private final RemoteBackend remoteBackend;
   private String indexDir;
   private String testIndex;
   private LuceneServerGrpc.LuceneServerBlockingStub blockingStub;
@@ -79,7 +79,7 @@ public class GrpcServer {
       String indexDir,
       String index,
       int port,
-      Archiver archiver,
+      RemoteBackend remoteBackend,
       List<Plugin> plugins)
       throws IOException {
     this.grpcCleanup = grpcCleanup;
@@ -88,8 +88,8 @@ public class GrpcServer {
     this.globalState = replicationGlobalState;
     this.indexDir = indexDir;
     this.testIndex = index;
-    this.archiver = archiver;
-    invoke(collectorRegistry, replicationGlobalState != null, port, archiver, plugins);
+    this.remoteBackend = remoteBackend;
+    invoke(collectorRegistry, replicationGlobalState != null, port, remoteBackend, plugins);
   }
 
   public GrpcServer(
@@ -100,7 +100,7 @@ public class GrpcServer {
       String indexDir,
       String index,
       int port,
-      Archiver archiver)
+      RemoteBackend remoteBackend)
       throws IOException {
     this(
         null,
@@ -111,7 +111,7 @@ public class GrpcServer {
         indexDir,
         index,
         port,
-        archiver,
+        remoteBackend,
         Collections.emptyList());
   }
 
@@ -163,8 +163,8 @@ public class GrpcServer {
     return globalState;
   }
 
-  private Archiver getArchiver() {
-    return archiver;
+  private RemoteBackend getRemoteBackend() {
+    return remoteBackend;
   }
 
   public void shutdown() {
@@ -205,7 +205,7 @@ public class GrpcServer {
       CollectorRegistry collectorRegistry,
       boolean isReplication,
       int port,
-      Archiver archiver,
+      RemoteBackend remoteBackend,
       List<Plugin> plugins)
       throws IOException {
     // Generate a unique in-process server name.
@@ -215,7 +215,7 @@ public class GrpcServer {
       if (collectorRegistry == null) {
         LuceneServerImpl serverImpl =
             new LuceneServer.LuceneServerImpl(
-                configuration, archiver, null, collectorRegistry, plugins);
+                configuration, null, remoteBackend, collectorRegistry, plugins);
         globalState = serverImpl.getGlobalState();
         // Create a server, add service, start, and register for automatic graceful shutdown.
         server =
@@ -235,7 +235,7 @@ public class GrpcServer {
                 nodeName);
         LuceneServerImpl serverImpl =
             new LuceneServer.LuceneServerImpl(
-                configuration, archiver, null, collectorRegistry, plugins);
+                configuration, null, remoteBackend, collectorRegistry, plugins);
         globalState = serverImpl.getGlobalState();
         // Create a server, add service, start, and register for automatic graceful shutdown.
         server =

@@ -15,33 +15,27 @@
  */
 package com.yelp.nrtsearch.server.backup;
 
-import com.amazonaws.event.ProgressEvent;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.transfer.Download;
-import com.amazonaws.services.s3.transfer.PersistableTransfer;
 import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.internal.S3ProgressListener;
 import com.google.inject.Inject;
+import com.yelp.nrtsearch.server.remote.s3.S3ProgressListenerImpl;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicLong;
 import net.jpountz.lz4.LZ4FrameInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
@@ -98,7 +92,7 @@ public class ContentDownloaderImpl implements ContentDownloader {
           transferManager.download(
               new GetObjectRequest(bucketName, absoluteResourcePath),
               tmpFile.toFile(),
-              new ContentDownloaderImpl.S3ProgressListenerImpl(serviceName, resource, "download"));
+              new S3ProgressListenerImpl(serviceName, resource, "download"));
       try {
         download.waitForCompletion();
         logger.debug("S3 Download complete");
@@ -244,58 +238,5 @@ public class ContentDownloaderImpl implements ContentDownloader {
 
   private String getTmpName() {
     return UUID.randomUUID().toString() + TMP_SUFFIX;
-  }
-
-  public static class S3ProgressListenerImpl implements S3ProgressListener {
-    private static final Logger logger =
-        LoggerFactory.getLogger(ContentDownloaderImpl.S3ProgressListenerImpl.class);
-
-    private static final long LOG_THRESHOLD_BYTES = 1024 * 1024 * 500; // 500 MB
-    private static final long LOG_THRESHOLD_SECONDS = 30;
-
-    private final String serviceName;
-    private final String resource;
-    private final String operation;
-
-    private final Semaphore lock = new Semaphore(1);
-    private final AtomicLong totalBytesTransferred = new AtomicLong();
-    private long bytesTransferredSinceLastLog = 0;
-    private LocalDateTime lastLoggedTime = LocalDateTime.now();
-
-    public S3ProgressListenerImpl(String serviceName, String resource, String operation) {
-      this.serviceName = serviceName;
-      this.resource = resource;
-      this.operation = operation;
-    }
-
-    @Override
-    public void onPersistableTransfer(PersistableTransfer persistableTransfer) {}
-
-    @Override
-    public void progressChanged(ProgressEvent progressEvent) {
-      long totalBytes = totalBytesTransferred.addAndGet(progressEvent.getBytesTransferred());
-
-      boolean acquired = lock.tryAcquire();
-
-      if (acquired) {
-        try {
-          bytesTransferredSinceLastLog += progressEvent.getBytesTransferred();
-          long secondsSinceLastLog =
-              Duration.between(lastLoggedTime, LocalDateTime.now()).getSeconds();
-
-          if (bytesTransferredSinceLastLog > LOG_THRESHOLD_BYTES
-              || secondsSinceLastLog > LOG_THRESHOLD_SECONDS) {
-            logger.info(
-                String.format(
-                    "service: %s, resource: %s, %s transferred bytes: %s",
-                    serviceName, resource, operation, totalBytes));
-            bytesTransferredSinceLastLog = 0;
-            lastLoggedTime = LocalDateTime.now();
-          }
-        } finally {
-          lock.release();
-        }
-      }
-    }
   }
 }

@@ -19,13 +19,15 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -41,23 +43,20 @@ import org.slf4j.LoggerFactory;
 
 public class Warmer {
   private static final Logger logger = LoggerFactory.getLogger(Warmer.class);
-  public static final String WARMING_QUERIES_RESOURCE = "_warming_queries";
   public static final String WARMING_QUERIES_DIR = "warming_queries";
   private static final String WARMING_QUERIES_FILE = "warming_queries.txt";
 
-  private final Archiver archiver;
+  private final RemoteBackend remoteBackend;
   private final String service;
-  private final String resource;
   private final List<SearchRequest> warmingRequests;
   private final ReservoirSampler reservoirSampler;
   private final String index;
   private final int maxWarmingQueries;
 
-  public Warmer(Archiver archiver, String service, String index, int maxWarmingQueries) {
-    this.archiver = archiver;
+  public Warmer(RemoteBackend remoteBackend, String service, String index, int maxWarmingQueries) {
+    this.remoteBackend = remoteBackend;
     this.service = service;
     this.index = index;
-    this.resource = index + WARMING_QUERIES_RESOURCE;
     this.warmingRequests = Collections.synchronizedList(new ArrayList<>(maxWarmingQueries));
     this.reservoirSampler = new ReservoirSampler(maxWarmingQueries);
     this.maxWarmingQueries = maxWarmingQueries;
@@ -101,15 +100,14 @@ public class Warmer {
       }
       writer.close();
       writer = null;
-      String versionHash =
-          archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), true);
-      archiver.blessVersion(service, resource, versionHash);
+      remoteBackend.uploadFile(
+          service, index, IndexResourceType.WARMING_QUERIES, warmingQueriesFile);
       logger.info(
-          "Backed up {} warming queries for index: {} to service: {}, resource: {}",
+          "Backed up {} warming queries for index: {} to service: {}, type: {}",
           count,
           index,
           service,
-          resource);
+          IndexResourceType.WARMING_QUERIES);
     } finally {
       if (writer != null) {
         writer.close();
@@ -132,9 +130,8 @@ public class Warmer {
   @VisibleForTesting
   void warmFromS3(IndexState indexState, int parallelism, SearchHandler searchHandler)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
-    if (archiver.getVersionedResource(service, resource).isEmpty()) {
-      logger.info(
-          "No warming queries found in S3 for service: {} and resource: {}", service, resource);
+    if (!remoteBackend.exists(service, index, IndexResourceType.WARMING_QUERIES)) {
+      logger.info("No warming queries found in S3 for service: {} and index: {}", service, index);
       return;
     }
     ThreadPoolExecutor threadPoolExecutor = null;
@@ -150,10 +147,10 @@ public class Warmer {
               new NamedThreadFactory("warming-"),
               new ThreadPoolExecutor.CallerRunsPolicy());
     }
-    Path downloadDir = archiver.download(service, resource);
-    Path warmingRequestsDir = downloadDir.resolve(WARMING_QUERIES_DIR);
     try (BufferedReader reader =
-        Files.newBufferedReader(warmingRequestsDir.resolve(WARMING_QUERIES_FILE))) {
+        new BufferedReader(
+            new InputStreamReader(
+                remoteBackend.downloadStream(service, index, IndexResourceType.WARMING_QUERIES)))) {
       String line;
       int count = 0;
       while ((line = reader.readLine()) != null) {

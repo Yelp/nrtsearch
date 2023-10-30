@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,28 +40,22 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
     STATE
   }
 
-  private final Archiver archiver;
   private final Archiver incArchiver;
+  private final RemoteBackend remoteBackend;
   private final String archiveDirectory;
   private final IndexStateManager indexStateManager;
-  private final boolean backupFromIncArchiver;
-  private final boolean restoreFromIncArchiver;
   private final int discoveryFileUpdateIntervalMs;
   private static final Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
 
   public StartIndexHandler(
-      Archiver archiver,
       Archiver incArchiver,
+      RemoteBackend remoteBackend,
       String archiveDirectory,
-      boolean backupFromIncArchiver,
-      boolean restoreFromIncArchiver,
       IndexStateManager indexStateManager,
       int discoveryFileUpdateIntervalMs) {
-    this.archiver = archiver;
     this.incArchiver = incArchiver;
+    this.remoteBackend = remoteBackend;
     this.archiveDirectory = archiveDirectory;
-    this.backupFromIncArchiver = backupFromIncArchiver;
-    this.restoreFromIncArchiver = restoreFromIncArchiver;
     this.indexStateManager = indexStateManager;
     this.discoveryFileUpdateIntervalMs = discoveryFileUpdateIntervalMs;
   }
@@ -95,8 +90,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
                   downloadArtifact(
                       restoreIndex.getServiceName(),
                       restoreIndex.getResourceName(),
-                      INDEXED_DATA_TYPE.DATA,
-                      restoreFromIncArchiver);
+                      INDEXED_DATA_TYPE.DATA);
             } else {
               throw new IllegalStateException(
                   "Index " + indexState.getName() + " already restored");
@@ -121,24 +115,10 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       long t0 = System.nanoTime();
       try {
         if (mode.equals(Mode.REPLICA)) {
-          indexState.initWarmer(archiver);
+          indexState.initWarmer(remoteBackend);
         }
 
         indexStateManager.start(mode, dataPath, primaryGen, primaryClient);
-
-        if (mode.equals(Mode.PRIMARY)) {
-          BackupIndexRequestHandler backupIndexRequestHandler =
-              new BackupIndexRequestHandler(
-                  archiver, incArchiver, archiveDirectory, backupFromIncArchiver);
-          if (backupIndexRequestHandler.wasBackupPotentiallyInterrupted()) {
-            if (backupIndexRequestHandler
-                .getIndexNameOfInterruptedBackup()
-                .equals(indexState.getName())) {
-              backupIndexRequestHandler.interruptedBackupCleanup(
-                  indexState, shardState.snapshotGenToVersion.keySet());
-            }
-          }
-        }
       } catch (Exception e) {
         logger.error("Cannot start IndexState/ShardState", e);
         throw new StartIndexHandlerException(e);
@@ -171,9 +151,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
     } finally {
       if (startIndexRequest.hasRestore()) {
         cleanupDownloadedArtifacts(
-            startIndexRequest.getRestore().getResourceName(),
-            INDEXED_DATA_TYPE.DATA,
-            restoreFromIncArchiver);
+            startIndexRequest.getRestore().getResourceName(), INDEXED_DATA_TYPE.DATA);
       }
     }
   }
@@ -201,10 +179,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
    * index data
    */
   public Path downloadArtifact(
-      String serviceName,
-      String resourceName,
-      INDEXED_DATA_TYPE indexDataType,
-      boolean disableLegacyArchiver) {
+      String serviceName, String resourceName, INDEXED_DATA_TYPE indexDataType) {
     String resource;
     if (indexDataType.equals(INDEXED_DATA_TYPE.DATA)) {
       resource = IndexBackupUtils.getResourceData(resourceName);
@@ -214,18 +189,13 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       throw new RuntimeException("Invalid INDEXED_DATA_TYPE " + indexDataType);
     }
     try {
-      if (!disableLegacyArchiver) {
-        return archiver.download(serviceName, resource);
-      } else {
-        return incArchiver.download(serviceName, resource);
-      }
+      return incArchiver.download(serviceName, resource);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
 
-  void cleanupDownloadedArtifacts(
-      String resourceName, INDEXED_DATA_TYPE indexDataType, boolean disableLegacyArchiver) {
+  void cleanupDownloadedArtifacts(String resourceName, INDEXED_DATA_TYPE indexDataType) {
     String resource;
     if (indexDataType.equals(INDEXED_DATA_TYPE.DATA)) {
       resource = IndexBackupUtils.getResourceData(resourceName);
@@ -235,11 +205,7 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       throw new RuntimeException("Invalid INDEXED_DATA_TYPE " + indexDataType);
     }
     logger.info("Cleaning up local index resource: " + resource);
-    if (!disableLegacyArchiver) {
-      archiver.deleteLocalFiles(resource);
-    } else {
-      incArchiver.deleteLocalFiles(resource);
-    }
+    incArchiver.deleteLocalFiles(resource);
   }
 
   public static class StartIndexHandlerException extends HandlerException {

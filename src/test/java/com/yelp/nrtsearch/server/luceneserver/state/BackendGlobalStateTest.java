@@ -98,7 +98,7 @@ public class BackendGlobalStateTest {
     public MockBackendGlobalState(
         LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
         throws IOException {
-      super(luceneServerConfiguration, incArchiver);
+      super(luceneServerConfiguration, incArchiver, null);
     }
 
     @Override
@@ -624,7 +624,7 @@ public class BackendGlobalStateTest {
             "indexDir: " + folder.newFolder("index").getAbsolutePath());
     LuceneServerConfiguration config =
         new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
-    BackendGlobalState backendGlobalState = new BackendGlobalState(config, null);
+    BackendGlobalState backendGlobalState = new BackendGlobalState(config, null, null);
     assertTrue(backendGlobalState.getStateBackend() instanceof LocalStateBackend);
   }
 
@@ -648,7 +648,7 @@ public class BackendGlobalStateTest {
     Archiver archiver = mock(Archiver.class);
     when(archiver.download(any(), any())).thenReturn(Paths.get(folder.getRoot().getAbsolutePath()));
 
-    BackendGlobalState backendGlobalState = new BackendGlobalState(config, archiver);
+    BackendGlobalState backendGlobalState = new BackendGlobalState(config, archiver, null);
     assertTrue(backendGlobalState.getStateBackend() instanceof RemoteStateBackend);
   }
 

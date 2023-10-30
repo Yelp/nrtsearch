@@ -39,6 +39,7 @@ import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.LocalStateBackend;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.StateBackend;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -80,7 +81,6 @@ public class BackendGlobalState extends GlobalState {
   // volatile for atomic replacement
   private volatile ImmutableState immutableState;
   private final StateBackend stateBackend;
-  private final Archiver legacyArchiver;
 
   /**
    * Build unique index name from index name and instance id (UUID).
@@ -101,29 +101,15 @@ public class BackendGlobalState extends GlobalState {
    *
    * @param luceneServerConfiguration server config
    * @param incArchiver archiver for remote backends
-   * @throws IOException on filesystem error
-   */
-  public BackendGlobalState(
-      LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
-      throws IOException {
-    this(luceneServerConfiguration, incArchiver, null);
-  }
-
-  /**
-   * Constructor.
-   *
-   * @param luceneServerConfiguration server config
-   * @param incArchiver archiver for remote backends
-   * @param legacyArchiver legacy archiver
+   * @param remoteBackend backend for persistent remote storage
    * @throws IOException on filesystem error
    */
   public BackendGlobalState(
       LuceneServerConfiguration luceneServerConfiguration,
       Archiver incArchiver,
-      Archiver legacyArchiver)
+      RemoteBackend remoteBackend)
       throws IOException {
-    super(luceneServerConfiguration, incArchiver);
-    this.legacyArchiver = legacyArchiver;
+    super(luceneServerConfiguration, incArchiver, remoteBackend);
     stateBackend = createStateBackend();
     GlobalStateInfo globalStateInfo = stateBackend.loadOrCreateGlobalState();
     // init index state managers
@@ -427,11 +413,9 @@ public class BackendGlobalState extends GlobalState {
       IndexStateManager indexStateManager, StartIndexRequest startIndexRequest) throws IOException {
     StartIndexHandler startIndexHandler =
         new StartIndexHandler(
-            legacyArchiver,
             getIncArchiver().orElse(null),
+            getRemoteBackend(),
             getConfiguration().getArchiveDirectory(),
-            getConfiguration().getBackupWithInArchiver(),
-            getConfiguration().getRestoreFromIncArchiver(),
             indexStateManager,
             getConfiguration().getDiscoveryFileUpdateIntervalMs());
     try {

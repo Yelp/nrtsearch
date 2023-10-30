@@ -20,11 +20,9 @@ import static com.yelp.nrtsearch.server.grpc.ReplicationServerTest.validateSearc
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
-import com.yelp.nrtsearch.server.backup.Archiver;
-import com.yelp.nrtsearch.server.backup.ArchiverImpl;
-import com.yelp.nrtsearch.server.backup.Tar;
-import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -56,7 +54,7 @@ public class AckedCopyTest {
   private GrpcServer replicationServerSecondary;
 
   private static final String BUCKET_NAME = "archiver-unittest";
-  private Archiver archiver;
+  private RemoteBackend remoteBackend;
   private AmazonS3 s3;
   private Path archiverDirectory;
 
@@ -71,8 +69,6 @@ public class AckedCopyTest {
   public void setUp(int chunkSize, int ackEvery, int maxInFlight) throws IOException {
     archiverDirectory = folder.newFolder("archiver").toPath();
     s3 = s3Provider.getAmazonS3();
-    archiver =
-        new ArchiverImpl(s3, BUCKET_NAME, archiverDirectory, new TarImpl(Tar.CompressionMode.LZ4));
 
     String extraConfig =
         String.join(
@@ -87,6 +83,7 @@ public class AckedCopyTest {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerPrimaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot(), extraConfig);
+    remoteBackend = new S3Backend(luceneServerPrimaryConfiguration, s3);
     luceneServerPrimary =
         new GrpcServer(
             grpcCleanup,
@@ -96,7 +93,7 @@ public class AckedCopyTest {
             luceneServerPrimaryConfiguration.getIndexDir(),
             testIndex,
             luceneServerPrimaryConfiguration.getPort(),
-            archiver);
+            remoteBackend);
     replicationServerPrimary =
         new GrpcServer(
             grpcCleanup,
@@ -106,7 +103,7 @@ public class AckedCopyTest {
             luceneServerPrimaryConfiguration.getIndexDir(),
             testIndex,
             luceneServerPrimaryConfiguration.getReplicationPort(),
-            archiver);
+            remoteBackend);
     luceneServerPrimary
         .getGlobalState()
         .replicationStarted(luceneServerPrimaryConfiguration.getReplicationPort());
@@ -123,7 +120,7 @@ public class AckedCopyTest {
             luceneServerSecondaryConfiguration.getIndexDir(),
             testIndex,
             luceneServerSecondaryConfiguration.getPort(),
-            archiver);
+            remoteBackend);
     replicationServerSecondary =
         new GrpcServer(
             grpcCleanup,
@@ -133,7 +130,7 @@ public class AckedCopyTest {
             luceneServerSecondaryConfiguration.getIndexDir(),
             testIndex,
             luceneServerSecondaryConfiguration.getReplicationPort(),
-            archiver);
+            remoteBackend);
     luceneServerSecondary
         .getGlobalState()
         .replicationStarted(luceneServerSecondaryConfiguration.getReplicationPort());

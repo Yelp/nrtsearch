@@ -282,21 +282,6 @@ service LuceneServer {
 
     }
 
-    /* backs up a resource (index) and it associated metadata e.g. settings, schema to s3 */
-    rpc backupIndex (BackupIndexRequest) returns (BackupIndexResponse) {
-        option (google.api.http) = {
-      post: "/v1/backup_index"
-      body: "*"
-    };
-    }
-
-    rpc deleteIndexBackup (DeleteIndexBackupRequest) returns (DeleteIndexBackupResponse) {
-        option (google.api.http) = {
-            post: "/v1/delete_index_backup"
-            body: "*"
-        };
-    }
-
     /* Backup warming queries to S3 */
     rpc backupWarmingQueries (BackupWarmingQueriesRequest) returns (BackupWarmingQueriesResponse) {
         option (google.api.http) = {
@@ -830,19 +815,6 @@ message GetAllSnapshotGenResponse {
     repeated int64 indexGens = 1; // list of snapshotted index gens
 }
 
-message BackupIndexRequest {
-    string indexName = 1; //name of the index to backup
-    string serviceName = 2; // remote storage namespace qualifier for service
-    string resourceName = 3; //remote storage namespace qualifier for resource e.g. indexName
-    bool completeDirectory = 4; // backup complete directory including all current snapshots if true (may backup corrupt segments if backup is created while indexing is happening), otherwise only backup the required segments and segment files
-    bool stream = 5; // if the built tar should be directly streamed to s3, instead of being written to a file first (experimental)
-}
-
-message BackupIndexResponse {
-    string dataVersionHash = 1; //version identifier for data on s3
-    string metadataVersionHash = 2; //version identifier for metadata on s3
-}
-
 message BackupWarmingQueriesRequest {
     string index = 1; // Index whose warming queries to backup
     string serviceName = 2; // remote storage namespace qualifier for service
@@ -851,20 +823,6 @@ message BackupWarmingQueriesRequest {
 }
 
 message BackupWarmingQueriesResponse {
-}
-
-message DeleteIndexBackupRequest {
-    string indexName = 1; //name of the index to backup
-    string serviceName = 2; // remote storage namespace qualifier for service
-    string resourceName = 3; //remote storage namespace qualifier for resource e.g. indexName
-    int32 nDays = 4; //backups older than nDays will be deleted from s3
-}
-
-message DeleteIndexBackupResponse {
-    repeated string deletedResourceDataHashes = 1;     // version hashes of deleted backups from {resource}_data folder
-    repeated string deletedResourceMetadataHashes = 2; // version hashes of deleted metadata of backups from {resource}_metadata folder
-    repeated string deletedDataVersions = 3;           // versions of deleted backup data from _version/{resource}_data folder
-    repeated string deletedMetadataVersions = 4;       // versions of deleted backup data from _version/{resource}_metadata folder
 }
 
 message IndicesRequest {

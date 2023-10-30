@@ -13,21 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.module;
+package com.yelp.nrtsearch.server.remote;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.google.inject.AbstractModule;
-import com.google.inject.Inject;
-import com.google.inject.Provides;
-import com.google.inject.Singleton;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.remote.s3.S3Util;
+import java.io.Closeable;
+import java.nio.file.Path;
 
-public class S3Module extends AbstractModule {
-  @Inject
-  @Singleton
-  @Provides
-  protected AmazonS3 providesAmazonS3(LuceneServerConfiguration luceneServerConfiguration) {
-    return S3Util.buildS3Client(luceneServerConfiguration);
-  }
+/** Interface for downloading plugins from an external source. */
+public interface PluginDownloader extends Closeable {
+
+  /**
+   * If the plugin name is a path supported by this downloader, download the plugin to the specified
+   * directory.
+   *
+   * @param pluginNameOrPath potential plugin path to download
+   * @param destPath directory to store downloaded plugin folder
+   * @return resolved plugin name
+   */
+  String downloadPluginIfNeeded(String pluginNameOrPath, Path destPath);
 }

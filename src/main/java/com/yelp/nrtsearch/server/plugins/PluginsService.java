@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.remote.PluginDownloader;
 import io.prometheus.client.CollectorRegistry;
 import java.io.File;
 import java.net.MalformedURLException;
@@ -47,13 +47,15 @@ public class PluginsService {
   private final CollectorRegistry collectorRegistry;
   private final List<PluginDescriptor> loadedPluginDescriptors = new ArrayList<>();
 
-  private final AmazonS3 amazonS3;
+  private final PluginDownloader pluginDownloader;
 
   public PluginsService(
-      LuceneServerConfiguration config, AmazonS3 amazonS3, CollectorRegistry collectorRegistry) {
+      LuceneServerConfiguration config,
+      PluginDownloader pluginDownloader,
+      CollectorRegistry collectorRegistry) {
     this.config = config;
     this.collectorRegistry = collectorRegistry;
-    this.amazonS3 = amazonS3;
+    this.pluginDownloader = pluginDownloader;
   }
 
   /**
@@ -67,14 +69,12 @@ public class PluginsService {
     List<File> pluginSearchPath = getPluginSearchPath();
     logger.debug("Plugin search path: " + pluginSearchPath);
     List<Plugin> loadedPlugins = new ArrayList<>();
-    PluginDownloader pluginDownloader = new PluginDownloader(amazonS3, config);
     for (String plugin : config.getPlugins()) {
       logger.info("Loading plugin: " + plugin);
       PluginDescriptor descriptor = loadPlugin(plugin, pluginSearchPath, pluginDownloader);
       loadedPluginDescriptors.add(descriptor);
       loadedPlugins.add(descriptor.getPlugin());
     }
-    pluginDownloader.close();
     return loadedPlugins;
   }
 

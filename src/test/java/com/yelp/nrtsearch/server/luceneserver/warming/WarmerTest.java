@@ -21,17 +21,22 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.yelp.nrtsearch.server.backup.Archiver;
-import com.yelp.nrtsearch.server.backup.ArchiverImpl;
-import com.yelp.nrtsearch.server.backup.TarImpl;
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -46,9 +51,8 @@ public class WarmerTest {
 
   private final String service = "test_service";
   private final String index = "test_index";
-  private final String resource = "test_index_warming_queries";
   private final String bucketName = "warmer-unittest";
-  private Archiver archiver;
+  private RemoteBackend remoteBackend;
   private AmazonS3 s3;
   private Warmer warmer;
 
@@ -57,13 +61,12 @@ public class WarmerTest {
 
   @Before
   public void setup() throws IOException {
-    Path archiverDirectory = folder.newFolder("archiver").toPath();
-
+    String configStr = "bucketName: " + bucketName;
+    LuceneServerConfiguration config =
+        new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
     s3 = s3Provider.getAmazonS3();
-    archiver =
-        new ArchiverImpl(
-            s3, bucketName, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4));
-    warmer = new Warmer(archiver, service, index, 2);
+    remoteBackend = new S3Backend(config, s3);
+    warmer = new Warmer(remoteBackend, service, index, 2);
   }
 
   @Test
@@ -74,11 +77,16 @@ public class WarmerTest {
 
     warmer.backupWarmingQueriesToS3(service);
 
-    Path downloadPath = archiver.download(service, resource);
+    InputStream queriesStream =
+        remoteBackend.downloadStream(service, index, IndexResourceType.WARMING_QUERIES);
+    List<String> lines = new ArrayList<>();
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(queriesStream))) {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        lines.add(line);
+      }
+    }
 
-    Path warmingQueriesDir = downloadPath.resolve("warming_queries");
-    Path warmingQueriesFile = warmingQueriesDir.resolve("warming_queries.txt");
-    List<String> lines = Files.readAllLines(warmingQueriesFile);
     Assertions.assertThat(lines).containsAll(getTestSearchRequestsAsJsonStrings());
   }
 
@@ -86,8 +94,8 @@ public class WarmerTest {
   public void testWarmFromS3()
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
-    try (BufferedWriter writer =
-        Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
+    Path warmingQueriesPath = warmingQueriesDir.resolve("warming_queries.txt");
+    try (BufferedWriter writer = Files.newBufferedWriter(warmingQueriesPath)) {
       List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
       for (String line : testSearchRequestsJson) {
         writer.write(line);
@@ -95,9 +103,8 @@ public class WarmerTest {
       }
       writer.flush();
     }
-    String versionHash =
-        archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), false);
-    archiver.blessVersion(service, resource, versionHash);
+    remoteBackend.uploadFile(
+        service, "test_index", IndexResourceType.WARMING_QUERIES, warmingQueriesPath);
 
     IndexState mockIndexState = mock(IndexState.class);
     SearchHandler mockSearchHandler = mock(SearchHandler.class);
@@ -114,8 +121,8 @@ public class WarmerTest {
   public void testWarmFromS3_multiple()
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
-    try (BufferedWriter writer =
-        Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
+    Path warmingQueriesPath = warmingQueriesDir.resolve("warming_queries.txt");
+    try (BufferedWriter writer = Files.newBufferedWriter(warmingQueriesPath)) {
       List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
       for (String line : testSearchRequestsJson) {
         writer.write(line);
@@ -123,9 +130,8 @@ public class WarmerTest {
       }
       writer.flush();
     }
-    String versionHash =
-        archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), false);
-    archiver.blessVersion(service, resource, versionHash);
+    remoteBackend.uploadFile(
+        service, "test_index", IndexResourceType.WARMING_QUERIES, warmingQueriesPath);
 
     IndexState mockIndexState = mock(IndexState.class);
     SearchHandler mockSearchHandler = mock(SearchHandler.class);
@@ -143,9 +149,9 @@ public class WarmerTest {
   public void testWarmFromS3_parallel()
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
+    Path warmingQueriesPath = warmingQueriesDir.resolve("warming_queries.txt");
     int warmingCountPerQuery = 10;
-    try (BufferedWriter writer =
-        Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
+    try (BufferedWriter writer = Files.newBufferedWriter(warmingQueriesPath)) {
       List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
       List<String> moreTestSearchRequestsJson = new ArrayList<>();
       for (int i = 0; i < warmingCountPerQuery; i++) {
@@ -157,9 +163,8 @@ public class WarmerTest {
       }
       writer.flush();
     }
-    String versionHash =
-        archiver.upload(service, resource, warmingQueriesDir, List.of(), List.of(), false);
-    archiver.blessVersion(service, resource, versionHash);
+    remoteBackend.uploadFile(
+        service, "test_index", IndexResourceType.WARMING_QUERIES, warmingQueriesPath);
 
     IndexState mockIndexState = mock(IndexState.class);
     SearchHandler mockSearchHandler = mock(SearchHandler.class);
