@@ -219,7 +219,10 @@ public class StateBackendServerTest {
             "stateConfig:",
             "  backendType: REMOTE",
             "  remote:",
-            "    readOnly: false");
+            "    readOnly: false",
+            "indexStartConfig:",
+            "  mode: PRIMARY",
+            "  dataLocationType: REMOTE");
     return new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
   }
 
@@ -250,7 +253,10 @@ public class StateBackendServerTest {
             // don't sync on start to make restore testing easier
             "syncInitialNrtPoint: false",
             "stateConfig:",
-            "  backendType: REMOTE");
+            "  backendType: REMOTE",
+            "indexStartConfig:",
+            "  mode: REPLICA",
+            "  dataLocationType: REMOTE");
     return new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
   }
 

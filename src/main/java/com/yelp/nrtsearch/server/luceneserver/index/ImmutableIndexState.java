@@ -32,6 +32,7 @@ import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.FieldMaskUtil;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.CreateSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
@@ -590,7 +591,11 @@ public class ImmutableIndexState extends IndexState {
 
       SnapshotId snapshotId = null;
       try {
-        if (this.getShard(0).isPrimary() && getGlobalState().getIncArchiver().isPresent()) {
+        IndexDataLocationType locationType =
+            getGlobalState().getConfiguration().getIndexStartConfig().getDataLocationType();
+        if (this.getShard(0).isPrimary()
+            && getGlobalState().getIncArchiver().isPresent()
+            && locationType.equals(IndexDataLocationType.REMOTE)) {
           CreateSnapshotRequest createSnapshotRequest =
               CreateSnapshotRequest.newBuilder().setIndexName(getName()).build();
 
