@@ -3665,12 +3665,13 @@
     "luceneserverIndexOptions": {
       "type": "string",
       "enum": [
-        "DOCS_FREQS_POSITIONS",
+        "DEFAULT",
         "DOCS",
         "DOCS_FREQS",
+        "DOCS_FREQS_POSITIONS",
         "DOCS_FREQS_POSITIONS_OFFSETS"
       ],
-      "default": "DOCS_FREQS_POSITIONS",
+      "default": "DEFAULT",
       "description": "How the tokens should be indexed."
     },
     "luceneserverIndexSettings": {
