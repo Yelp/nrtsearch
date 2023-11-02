@@ -268,6 +268,8 @@ public class NRTPrimaryNode extends PrimaryNode {
       return;
     }
 
+    NrtMetrics.nrtMergeCopyStartCount.labels(indexName).inc();
+
     long maxMergePreCopyDurationSec = getCurrentMaxMergePreCopyDurationSec();
     Deadline deadline;
     if (maxMergePreCopyDurationSec > 0) {
@@ -354,6 +356,7 @@ public class NRTPrimaryNode extends PrimaryNode {
       NrtMetrics.nrtPrimaryMergeTime
           .labels(indexName)
           .observe((System.nanoTime() - mergeStartNS) / 1000000.0);
+      NrtMetrics.nrtMergeCopyEndCount.labels(indexName).inc();
     }
   }
 
