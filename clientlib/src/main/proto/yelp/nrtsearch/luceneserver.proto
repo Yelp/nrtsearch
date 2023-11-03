@@ -503,10 +503,11 @@ enum FieldType {
 
 //How the tokens should be indexed.
 enum IndexOptions {
-    DOCS_FREQS_POSITIONS = 0; // Index doc ids, term frequencies and positions.
+    DEFAULT = 0; // Use field default index options: ATOM=DOCS, TEXT=DOCS_FREQS_POSITIONS
     DOCS = 1; // Index only doc ids (for binary search).
     DOCS_FREQS = 2; // Index doc ids and term frequencies.
-    DOCS_FREQS_POSITIONS_OFFSETS = 3; // Index doc ids, term frequencies, positions and offsets.
+    DOCS_FREQS_POSITIONS = 3; // Index doc ids, term frequencies and positions.
+    DOCS_FREQS_POSITIONS_OFFSETS = 4; // Index doc ids, term frequencies, positions and offsets.
 }
 
 //Whether/how term vectors should be indexed.
