@@ -1382,6 +1382,13 @@
             "required": false,
             "type": "string",
             "format": "uint64"
+          },
+          {
+            "name": "liveSettings.verboseMetrics",
+            "description": "Collect and publish additional index metrics, default: false.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -3630,6 +3637,10 @@
           "type": "string",
           "format": "uint64",
           "title": "Merge precopy would be stopped after this time, or 0 for no checks, default: 0"
+        },
+        "verboseMetrics": {
+          "type": "boolean",
+          "title": "Collect and publish additional index metrics, default: false"
         }
       }
     },

@@ -1463,6 +1463,7 @@ public class StateBackendServerTest {
             .setDefaultSearchTimeoutCheckEvery(Int32Value.newBuilder().setValue(500).build())
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(5000).build())
             .setMaxMergePreCopyDurationSec(UInt64Value.newBuilder().setValue(0))
+            .setVerboseMetrics(BoolValue.newBuilder().setValue(false).build())
             .build();
 
     IndexLiveSettings.Builder builder = IndexLiveSettings.newBuilder();

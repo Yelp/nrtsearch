@@ -45,6 +45,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
+import com.yelp.nrtsearch.server.monitoring.VerboseIndexCollector;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -287,7 +288,12 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
     // if we are out of time, don't bother with serialization
     DeadlineUtils.checkDeadline("SearchHandler: end", "SEARCH");
-    return searchContext.getResponseBuilder().build();
+    SearchResponse searchResponse = searchContext.getResponseBuilder().build();
+    if (!warming && searchContext.getIndexState().getVerboseMetrics()) {
+      VerboseIndexCollector.updateSearchResponseMetrics(
+          searchResponse, searchContext.getIndexState().getName());
+    }
+    return searchResponse;
   }
 
   /**

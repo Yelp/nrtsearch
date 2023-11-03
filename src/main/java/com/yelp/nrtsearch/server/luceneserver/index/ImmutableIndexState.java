@@ -164,6 +164,7 @@ public class ImmutableIndexState extends IndexState {
           .setDefaultSearchTimeoutCheckEvery(Int32Value.newBuilder().setValue(0).build())
           .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(0).build())
           .setMaxMergePreCopyDurationSec(UInt64Value.newBuilder().setValue(0))
+          .setVerboseMetrics(BoolValue.newBuilder().setValue(false).build())
           .build();
 
   // Live Settings
@@ -181,6 +182,7 @@ public class ImmutableIndexState extends IndexState {
   private final int defaultSearchTimeoutCheckEvery;
   private final int defaultTerminateAfter;
   private final long maxMergePreCopyDurationSec;
+  private final boolean verboseMetrics;
 
   private final IndexStateManager indexStateManager;
   private final String uniqueName;
@@ -267,6 +269,7 @@ public class ImmutableIndexState extends IndexState {
         mergedLiveSettings.getDefaultSearchTimeoutCheckEvery().getValue();
     defaultTerminateAfter = mergedLiveSettings.getDefaultTerminateAfter().getValue();
     maxMergePreCopyDurationSec = mergedLiveSettings.getMaxMergePreCopyDurationSec().getValue();
+    verboseMetrics = mergedLiveSettings.getVerboseMetrics().getValue();
 
     // If there is previous shard state, use it. Otherwise, initialize the shard.
     if (previousShardState != null) {
@@ -828,6 +831,11 @@ public class ImmutableIndexState extends IndexState {
   @Override
   public Map<String, Lookup> getSuggesters() {
     throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean getVerboseMetrics() {
+    return verboseMetrics;
   }
 
   @Override

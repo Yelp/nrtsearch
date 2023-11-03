@@ -483,6 +483,9 @@ public abstract class IndexState implements Closeable {
 
   public abstract Map<String, Lookup> getSuggesters();
 
+  /** Get if additional index metrics should be collected and published. */
+  public abstract boolean getVerboseMetrics();
+
   @Override
   public void close() throws IOException {}
 
