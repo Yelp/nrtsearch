@@ -185,6 +185,16 @@ public class ImmutableIndexStateTest {
         expected, getFunc.apply(getIndexState(getStateWithLiveSettings(builder.build()))), 0.0);
   }
 
+  private void verifyBoolLiveSetting(
+      boolean expected,
+      Function<ImmutableIndexState, Boolean> getFunc,
+      Consumer<IndexLiveSettings.Builder> setMessage)
+      throws IOException {
+    IndexLiveSettings.Builder builder = IndexLiveSettings.newBuilder();
+    setMessage.accept(builder);
+    assertEquals(expected, getFunc.apply(getIndexState(getStateWithLiveSettings(builder.build()))));
+  }
+
   private void verifyIntLiveSetting(
       int expected,
       Function<ImmutableIndexState, Integer> getFunc,
@@ -235,6 +245,10 @@ public class ImmutableIndexStateTest {
 
   private DoubleValue wrap(double value) {
     return DoubleValue.newBuilder().setValue(value).build();
+  }
+
+  private BoolValue wrap(boolean value) {
+    return BoolValue.newBuilder().setValue(value).build();
   }
 
   private Int32Value wrap(int value) {
@@ -782,6 +796,17 @@ public class ImmutableIndexStateTest {
   public void testMaxMergePreCopyDurationSec_invalid() throws IOException {
     String expectedMsg = "maxMergePreCopyDurationSec must be >= 0";
     assertLiveSettingException(expectedMsg, b -> b.setMaxMergePreCopyDurationSec(wrap(-1L)));
+  }
+
+  @Test
+  public void testVerboseMetrics_default() throws IOException {
+    assertFalse(getIndexState(getEmptyState()).getVerboseMetrics());
+  }
+
+  @Test
+  public void testVerboseMetrics_set() throws IOException {
+    verifyBoolLiveSetting(
+        true, ImmutableIndexState::getVerboseMetrics, b -> b.setVerboseMetrics(wrap(true)));
   }
 
   @Test

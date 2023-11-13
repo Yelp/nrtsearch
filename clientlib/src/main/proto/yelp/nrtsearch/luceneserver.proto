@@ -1089,6 +1089,8 @@ message IndexLiveSettings {
     google.protobuf.Int32Value defaultTerminateAfter = 13;
     // Merge precopy would be stopped after this time, or 0 for no checks, default: 0
     google.protobuf.UInt64Value maxMergePreCopyDurationSec = 14;
+    // Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false
+    google.protobuf.BoolValue verboseMetrics = 15;
 }
 
 message IndexStateInfo {

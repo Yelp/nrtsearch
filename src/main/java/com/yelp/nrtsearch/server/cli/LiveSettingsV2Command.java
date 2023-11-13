@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
+import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.UInt64Value;
@@ -110,6 +111,12 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       description = "Maximum time allowed for merge precopy in seconds")
   private Long maxMergePreCopyDurationSec;
 
+  @CommandLine.Option(
+      names = {"--verboseMetrics"},
+      description =
+          "If additional index metrics should be collected and published, must be 'true' or 'false'")
+  private String verboseMetrics;
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -172,6 +179,10 @@ public class LiveSettingsV2Command implements Callable<Integer> {
         liveSettingsBuilder.setMaxMergePreCopyDurationSec(
             UInt64Value.newBuilder().setValue(maxMergePreCopyDurationSec));
       }
+      if (verboseMetrics != null) {
+        liveSettingsBuilder.setVerboseMetrics(
+            BoolValue.newBuilder().setValue(parseBoolean(verboseMetrics)).build());
+      }
 
       IndexLiveSettings indexLiveSettings = liveSettingsBuilder.build();
       if (!indexLiveSettings.getAllFields().isEmpty()) {
@@ -182,5 +193,16 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       client.shutdown();
     }
     return 0;
+  }
+
+  private Boolean parseBoolean(String booleanStr) {
+    String lowerCaseStr = booleanStr.toLowerCase();
+    if ("true".equals(lowerCaseStr)) {
+      return Boolean.TRUE;
+    } else if ("false".equals(lowerCaseStr)) {
+      return Boolean.FALSE;
+    } else {
+      throw new IllegalArgumentException("Invalid boolean string: " + booleanStr);
+    }
   }
 }
