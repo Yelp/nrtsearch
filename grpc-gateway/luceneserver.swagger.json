@@ -1385,7 +1385,7 @@
           },
           {
             "name": "liveSettings.verboseMetrics",
-            "description": "Collect and publish additional index metrics, default: false.",
+            "description": "Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false.",
             "in": "query",
             "required": false,
             "type": "boolean"
@@ -3640,7 +3640,7 @@
         },
         "verboseMetrics": {
           "type": "boolean",
-          "title": "Collect and publish additional index metrics, default: false"
+          "title": "Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false"
         }
       }
     },

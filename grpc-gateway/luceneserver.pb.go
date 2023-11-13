@@ -5576,7 +5576,7 @@ type IndexLiveSettings struct {
 	DefaultTerminateAfter *wrapperspb.Int32Value `protobuf:"bytes,13,opt,name=defaultTerminateAfter,proto3" json:"defaultTerminateAfter,omitempty"`
 	// Merge precopy would be stopped after this time, or 0 for no checks, default: 0
 	MaxMergePreCopyDurationSec *wrapperspb.UInt64Value `protobuf:"bytes,14,opt,name=maxMergePreCopyDurationSec,proto3" json:"maxMergePreCopyDurationSec,omitempty"`
-	// Collect and publish additional index metrics, default: false
+	// Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false
 	VerboseMetrics *wrapperspb.BoolValue `protobuf:"bytes,15,opt,name=verboseMetrics,proto3" json:"verboseMetrics,omitempty"`
 }
 
