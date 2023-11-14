@@ -43,7 +43,7 @@ public class LiveSettingsV2Handler {
       responseSettings =
           indexStateManager.updateLiveSettings(liveSettingsRequest.getLiveSettings());
     } else {
-      responseSettings = indexStateManager.getLiveSettings();
+      responseSettings = indexStateManager.getLiveSettings(false);
     }
     return LiveSettingsV2Response.newBuilder().setLiveSettings(responseSettings).build();
   }

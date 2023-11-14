@@ -216,7 +216,7 @@ public class CreateIndexCommandTest {
   }
 
   private IndexLiveSettings getIndexLiveSettings(TestServer server) throws IOException {
-    return server.getGlobalState().getIndexStateManager("test_index").getLiveSettings();
+    return server.getGlobalState().getIndexStateManager("test_index").getLiveSettings(false);
   }
 
   private Map<String, FieldDef> getIndexFields(TestServer server) throws IOException {

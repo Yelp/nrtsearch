@@ -17,6 +17,9 @@ package com.yelp.nrtsearch.server.config;
 
 import static org.junit.Assert.assertEquals;
 
+import com.google.protobuf.DoubleValue;
+import com.google.protobuf.Int32Value;
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Field;
@@ -158,5 +161,43 @@ public class LuceneServerConfigurationTest {
     String config = "maxS3ClientRetries: 10";
     LuceneServerConfiguration luceneConfig = getForConfig(config);
     assertEquals(10, luceneConfig.getMaxS3ClientRetries());
+  }
+
+  @Test
+  public void testLiveSettingsOverride_default() {
+    String config = "nodeName: \"lucene_server_foo\"";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(
+        IndexLiveSettings.newBuilder().build(), luceneConfig.getLiveSettingsOverride("test_index"));
+  }
+
+  @Test
+  public void testLiveSettingsOverride_set() {
+    String config =
+        String.join(
+            "\n",
+            "indexLiveSettingsOverrides:",
+            "  test_index:",
+            "    sliceMaxDocs: 1",
+            "    virtualShards: 100",
+            "  test_index_2:",
+            "    defaultSearchTimeoutSec: 10.25",
+            "    segmentsPerTier: 30");
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(
+        IndexLiveSettings.newBuilder()
+            .setSliceMaxDocs(Int32Value.newBuilder().setValue(1).build())
+            .setVirtualShards(Int32Value.newBuilder().setValue(100).build())
+            .build(),
+        luceneConfig.getLiveSettingsOverride("test_index"));
+    assertEquals(
+        IndexLiveSettings.newBuilder()
+            .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(10.25).build())
+            .setSegmentsPerTier(Int32Value.newBuilder().setValue(30).build())
+            .build(),
+        luceneConfig.getLiveSettingsOverride("test_index_2"));
+    assertEquals(
+        IndexLiveSettings.newBuilder().build(),
+        luceneConfig.getLiveSettingsOverride("test_index_3"));
   }
 }

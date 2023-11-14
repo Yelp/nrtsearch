@@ -189,6 +189,7 @@ public class ImmutableIndexState extends IndexState {
   private final IndexStateInfo currentStateInfo;
   private final IndexSettings mergedSettings;
   private final IndexLiveSettings mergedLiveSettings;
+  private final IndexLiveSettings mergedLiveSettingsWithLocal;
   private final FieldAndFacetState fieldAndFacetState;
   private final Map<Integer, ShardState> shards;
 
@@ -201,6 +202,7 @@ public class ImmutableIndexState extends IndexState {
    * @param uniqueName index name with instance identifier
    * @param stateInfo current settings state
    * @param fieldAndFacetState current field state
+   * @param liveSettingsOverrides local overrides for index live settings
    * @param previousShardState shard state from previous index state, or null
    * @throws IOException on file system error
    */
@@ -211,6 +213,7 @@ public class ImmutableIndexState extends IndexState {
       String uniqueName,
       IndexStateInfo stateInfo,
       FieldAndFacetState fieldAndFacetState,
+      IndexLiveSettings liveSettingsOverrides,
       Map<Integer, ShardState> previousShardState)
       throws IOException {
     super(globalState, name, globalState.getIndexDirBase().resolve(uniqueName));
@@ -252,24 +255,27 @@ public class ImmutableIndexState extends IndexState {
     // live settings
     mergedLiveSettings =
         mergeLiveSettings(DEFAULT_INDEX_LIVE_SETTINGS, stateInfo.getLiveSettings());
-    validateLiveSettings(mergedLiveSettings);
+    mergedLiveSettingsWithLocal = mergeLiveSettings(mergedLiveSettings, liveSettingsOverrides);
 
-    maxRefreshSec = mergedLiveSettings.getMaxRefreshSec().getValue();
-    minRefreshSec = mergedLiveSettings.getMinRefreshSec().getValue();
-    maxSearcherAgeSec = mergedLiveSettings.getMaxSearcherAgeSec().getValue();
-    indexRamBufferSizeMB = mergedLiveSettings.getIndexRamBufferSizeMB().getValue();
-    addDocumentsMaxBufferLen = mergedLiveSettings.getAddDocumentsMaxBufferLen().getValue();
-    sliceMaxDocs = mergedLiveSettings.getSliceMaxDocs().getValue();
-    sliceMaxSegments = mergedLiveSettings.getSliceMaxSegments().getValue();
-    virtualShards = mergedLiveSettings.getVirtualShards().getValue();
-    maxMergedSegmentMB = mergedLiveSettings.getMaxMergedSegmentMB().getValue();
-    segmentsPerTier = mergedLiveSettings.getSegmentsPerTier().getValue();
-    defaultSearchTimeoutSec = mergedLiveSettings.getDefaultSearchTimeoutSec().getValue();
+    validateLiveSettings(mergedLiveSettingsWithLocal);
+
+    maxRefreshSec = mergedLiveSettingsWithLocal.getMaxRefreshSec().getValue();
+    minRefreshSec = mergedLiveSettingsWithLocal.getMinRefreshSec().getValue();
+    maxSearcherAgeSec = mergedLiveSettingsWithLocal.getMaxSearcherAgeSec().getValue();
+    indexRamBufferSizeMB = mergedLiveSettingsWithLocal.getIndexRamBufferSizeMB().getValue();
+    addDocumentsMaxBufferLen = mergedLiveSettingsWithLocal.getAddDocumentsMaxBufferLen().getValue();
+    sliceMaxDocs = mergedLiveSettingsWithLocal.getSliceMaxDocs().getValue();
+    sliceMaxSegments = mergedLiveSettingsWithLocal.getSliceMaxSegments().getValue();
+    virtualShards = mergedLiveSettingsWithLocal.getVirtualShards().getValue();
+    maxMergedSegmentMB = mergedLiveSettingsWithLocal.getMaxMergedSegmentMB().getValue();
+    segmentsPerTier = mergedLiveSettingsWithLocal.getSegmentsPerTier().getValue();
+    defaultSearchTimeoutSec = mergedLiveSettingsWithLocal.getDefaultSearchTimeoutSec().getValue();
     defaultSearchTimeoutCheckEvery =
-        mergedLiveSettings.getDefaultSearchTimeoutCheckEvery().getValue();
-    defaultTerminateAfter = mergedLiveSettings.getDefaultTerminateAfter().getValue();
-    maxMergePreCopyDurationSec = mergedLiveSettings.getMaxMergePreCopyDurationSec().getValue();
-    verboseMetrics = mergedLiveSettings.getVerboseMetrics().getValue();
+        mergedLiveSettingsWithLocal.getDefaultSearchTimeoutCheckEvery().getValue();
+    defaultTerminateAfter = mergedLiveSettingsWithLocal.getDefaultTerminateAfter().getValue();
+    maxMergePreCopyDurationSec =
+        mergedLiveSettingsWithLocal.getMaxMergePreCopyDurationSec().getValue();
+    verboseMetrics = mergedLiveSettingsWithLocal.getVerboseMetrics().getValue();
 
     // If there is previous shard state, use it. Otherwise, initialize the shard.
     if (previousShardState != null) {
@@ -360,9 +366,13 @@ public class ImmutableIndexState extends IndexState {
     return mergedSettings;
   }
 
-  /** Get the fully merged (with defaults) index live settings. */
-  public IndexLiveSettings getMergedLiveSettings() {
-    return mergedLiveSettings;
+  /**
+   * Get the fully merged (with defaults) index live settings.
+   *
+   * @param withLocal If local overrides should be included in the live settings
+   */
+  public IndexLiveSettings getMergedLiveSettings(boolean withLocal) {
+    return withLocal ? mergedLiveSettingsWithLocal : mergedLiveSettings;
   }
 
   /** Get field and facet state for index. */
