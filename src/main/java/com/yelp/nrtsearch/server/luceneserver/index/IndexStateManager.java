@@ -63,8 +63,12 @@ public interface IndexStateManager extends Closeable {
    */
   IndexSettings updateSettings(IndexSettings settings) throws IOException;
 
-  /** Get the current index live settings. */
-  IndexLiveSettings getLiveSettings();
+  /**
+   * Get the current index live settings.
+   *
+   * @param withLocal If local overrides should be included in the live settings
+   */
+  IndexLiveSettings getLiveSettings(boolean withLocal);
 
   /**
    * Update the index live setting from the given input settings. Input settings will be merged into

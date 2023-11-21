@@ -16,14 +16,20 @@
 package com.yelp.nrtsearch.server.config;
 
 import com.google.inject.Inject;
+import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
+import com.yelp.nrtsearch.server.utils.JsonUtils;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -101,6 +107,7 @@ public class LuceneServerConfiguration {
   private final int discoveryFileUpdateIntervalMs;
   private final FSTLoadMode completionCodecLoadMode;
   private final boolean filterIncompatibleSegmentReaders;
+  private final Map<String, IndexLiveSettings> indexLiveSettingsOverrides;
 
   private final YamlConfigReader configReader;
   private final long maxConnectionAgeForReplication;
@@ -181,6 +188,27 @@ public class LuceneServerConfiguration {
         configReader.getBoolean("filterIncompatibleSegmentReaders", false);
     savePluginBeforeUnzip = configReader.getBoolean("savePluginBeforeUnzip", false);
     enableGlobalBucketAccess = configReader.getBoolean("enableGlobalBucketAccess", false);
+
+    List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
+    Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();
+    for (String index : indicesWithOverrides) {
+      IndexLiveSettings liveSettings =
+          configReader.get(
+              "indexLiveSettingsOverrides." + index,
+              obj -> {
+                try {
+                  String jsonStr = JsonUtils.objectToJsonStr(obj);
+                  IndexLiveSettings.Builder liveSettingsBuilder = IndexLiveSettings.newBuilder();
+                  JsonFormat.parser().ignoringUnknownFields().merge(jsonStr, liveSettingsBuilder);
+                  return liveSettingsBuilder.build();
+                } catch (IOException e) {
+                  throw new RuntimeException(e);
+                }
+              },
+              IndexLiveSettings.newBuilder().build());
+      liveSettingsMap.put(index, liveSettings);
+    }
+    indexLiveSettingsOverrides = Collections.unmodifiableMap(liveSettingsMap);
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
@@ -354,6 +382,11 @@ public class LuceneServerConfiguration {
 
   public boolean getEnableGlobalBucketAccess() {
     return enableGlobalBucketAccess;
+  }
+
+  public IndexLiveSettings getLiveSettingsOverride(String indexName) {
+    return indexLiveSettingsOverrides.getOrDefault(
+        indexName, IndexLiveSettings.newBuilder().build());
   }
 
   /**

@@ -147,6 +147,7 @@ public class ImmutableIndexStateTest {
         BackendGlobalState.getUniqueIndexName("test_index", "test_id"),
         stateInfo,
         fieldState,
+        IndexLiveSettings.newBuilder().build(),
         shards);
   }
 
@@ -636,6 +637,7 @@ public class ImmutableIndexStateTest {
         BackendGlobalState.getUniqueIndexName("test_index", "test_id"),
         getStateWithLiveSettings(settings),
         new FieldAndFacetState(),
+        IndexLiveSettings.newBuilder().build(),
         new HashMap<>());
   }
 
@@ -851,7 +853,68 @@ public class ImmutableIndexStateTest {
             .setMaxRefreshSec(wrap(10.0))
             .setSegmentsPerTier(wrap(5))
             .build();
-    assertEquals(expectedMergedSettings, indexState.getMergedLiveSettings());
+    assertEquals(expectedMergedSettings, indexState.getMergedLiveSettings(false));
+    assertEquals(expectedMergedSettings, indexState.getMergedLiveSettings(true));
+  }
+
+  private ImmutableIndexState getIndexStateForLiveSettingsOverrides(
+      IndexLiveSettings settings, IndexLiveSettings overrides) throws IOException {
+    IndexStateManager mockManager = mock(IndexStateManager.class);
+    GlobalState mockGlobalState = mock(GlobalState.class);
+
+    String configFile = "nodeName: \"lucene_server_foo\"";
+    LuceneServerConfiguration dummyConfig =
+        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+
+    when(mockGlobalState.getIndexDirBase()).thenReturn(folder.getRoot().toPath());
+    when(mockGlobalState.getConfiguration()).thenReturn(dummyConfig);
+    return new ImmutableIndexState(
+        mockManager,
+        mockGlobalState,
+        "test_index",
+        BackendGlobalState.getUniqueIndexName("test_index", "test_id"),
+        getStateWithLiveSettings(settings),
+        new FieldAndFacetState(),
+        overrides,
+        new HashMap<>());
+  }
+
+  @Test
+  public void testLiveSettingsOverrides() throws IOException {
+    IndexLiveSettings liveSettings =
+        IndexLiveSettings.newBuilder()
+            .setDefaultTerminateAfter(wrap(100))
+            .setMaxRefreshSec(wrap(10.0))
+            .setSegmentsPerTier(wrap(5))
+            .build();
+    IndexLiveSettings liveSettingsOverrides =
+        IndexLiveSettings.newBuilder()
+            .setSliceMaxDocs(Int32Value.newBuilder().setValue(1).build())
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(1).build())
+            .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(10).build())
+            .build();
+    ImmutableIndexState indexState =
+        getIndexStateForLiveSettingsOverrides(liveSettings, liveSettingsOverrides);
+    IndexLiveSettings expectedMergedSettings =
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
+            .toBuilder()
+            .setDefaultTerminateAfter(wrap(100))
+            .setMaxRefreshSec(wrap(10.0))
+            .setSegmentsPerTier(wrap(5))
+            .build();
+    IndexLiveSettings expectedMergedSettingsWithLocal =
+        expectedMergedSettings
+            .toBuilder()
+            .setSliceMaxDocs(Int32Value.newBuilder().setValue(1).build())
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(1).build())
+            .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(10).build())
+            .build();
+    assertEquals(expectedMergedSettings, indexState.getMergedLiveSettings(false));
+    assertEquals(expectedMergedSettingsWithLocal, indexState.getMergedLiveSettings(true));
+
+    assertEquals(1, indexState.getSliceMaxDocs());
+    assertEquals(1, indexState.getSliceMaxSegments());
+    assertEquals(10, indexState.getDefaultTerminateAfter());
   }
 
   @Test
