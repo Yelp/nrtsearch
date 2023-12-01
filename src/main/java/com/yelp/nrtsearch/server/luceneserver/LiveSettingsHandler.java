@@ -120,7 +120,7 @@ public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSet
                 .build());
       }
       try {
-        updatedSettings = indexStateManager.updateLiveSettings(settingsBuilder.build());
+        updatedSettings = indexStateManager.updateLiveSettings(settingsBuilder.build(), false);
       } catch (IOException e) {
         throw new RuntimeException("Unable to update index live settings", e);
       }

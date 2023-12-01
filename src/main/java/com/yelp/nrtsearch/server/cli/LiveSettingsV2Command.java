@@ -117,6 +117,12 @@ public class LiveSettingsV2Command implements Callable<Integer> {
           "If additional index metrics should be collected and published, must be 'true' or 'false'")
   private String verboseMetrics;
 
+  @CommandLine.Option(
+      names = {"--local"},
+      description =
+          "Applies changes ephemerally to local node only. Response contains local settings only when this flag is used.")
+  private boolean local;
+
   @Override
   public Integer call() throws Exception {
     LuceneServerClient client = baseCmd.getClient();
@@ -188,6 +194,7 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       if (!indexLiveSettings.getAllFields().isEmpty()) {
         settingsRequestV2Builder.setLiveSettings(indexLiveSettings);
       }
+      settingsRequestV2Builder.setLocal(local);
       client.liveSettingsV2(settingsRequestV2Builder.build());
     } finally {
       client.shutdown();

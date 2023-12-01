@@ -109,4 +109,59 @@ public class LiveSettingsV2CommandTest {
             "--verboseMetrics=invalid");
     assertEquals(1, exitCode);
   }
+
+  @Test
+  public void testSetsSettings() throws IOException {
+    TestServer server = getTestServer();
+    server.createSimpleIndex("test_index");
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+
+    assertEquals(
+        0.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+
+    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    int exitCode =
+        cmd.execute(
+            "--hostname=localhost",
+            "--port=" + server.getPort(),
+            "liveSettingsV2",
+            "--indexName=test_index",
+            "--defaultSearchTimeoutSec=1.0");
+    assertEquals(0, exitCode);
+    assertEquals(
+        1.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+
+    server.restart();
+
+    assertEquals(
+        1.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+  }
+
+  @Test
+  public void testSetsLocalSettings() throws IOException {
+    TestServer server = getTestServer();
+    server.createSimpleIndex("test_index");
+    server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
+
+    assertEquals(
+        0.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+
+    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    int exitCode =
+        cmd.execute(
+            "--hostname=localhost",
+            "--port=" + server.getPort(),
+            "liveSettingsV2",
+            "--indexName=test_index",
+            "--defaultSearchTimeoutSec=1.0",
+            "--local");
+    assertEquals(0, exitCode);
+    assertEquals(
+        1.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+
+    server.restart();
+
+    assertEquals(
+        0.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+  }
 }

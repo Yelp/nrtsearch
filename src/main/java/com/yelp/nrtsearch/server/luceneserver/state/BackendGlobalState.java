@@ -297,7 +297,7 @@ public class BackendGlobalState extends GlobalState {
       stateManager.updateSettings(createIndexRequest.getSettings());
     }
     if (createIndexRequest.hasLiveSettings()) {
-      stateManager.updateLiveSettings(createIndexRequest.getLiveSettings());
+      stateManager.updateLiveSettings(createIndexRequest.getLiveSettings(), false);
     }
     if (!createIndexRequest.getFieldsList().isEmpty()) {
       stateManager.updateFields(createIndexRequest.getFieldsList());

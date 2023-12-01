@@ -152,7 +152,8 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
             IndexLiveSettings.newBuilder()
                 .setDefaultTerminateAfter(
                     Int32Value.newBuilder().setValue(defaultTerminateAfter).build())
-                .build());
+                .build(),
+            false);
   }
 
   private SearchResponse doQuery(int terminateAfter, double timeout, boolean profile) {
