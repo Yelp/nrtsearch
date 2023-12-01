@@ -75,10 +75,13 @@ public interface IndexStateManager extends Closeable {
    * the existing index settings, replacing any values that exist.
    *
    * @param liveSettings live settings modifications
-   * @return merged index settings, including default values
+   * @param local only apply settings changes to local node
+   * @return merged index settings, including default values. Only if local is true will local
+   *     overrides be included.
    * @throws IOException on error accessing state
    */
-  IndexLiveSettings updateLiveSettings(IndexLiveSettings liveSettings) throws IOException;
+  IndexLiveSettings updateLiveSettings(IndexLiveSettings liveSettings, boolean local)
+      throws IOException;
 
   /**
    * Update index fields with the given {@link Field} messages. Current only supports addition of

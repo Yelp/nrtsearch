@@ -87,7 +87,7 @@ public class FilterCollectorManagerTest extends ServerTestCase {
     getGlobalState()
         .getIndexStateManager(DEFAULT_TEST_INDEX)
         .updateLiveSettings(
-            IndexLiveSettings.newBuilder().setSliceMaxSegments(Int32Value.of(1)).build());
+            IndexLiveSettings.newBuilder().setSliceMaxSegments(Int32Value.of(1)).build(), false);
 
     List<AddDocumentRequest> docs = new ArrayList<>();
 

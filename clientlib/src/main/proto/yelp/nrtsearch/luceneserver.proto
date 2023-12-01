@@ -485,6 +485,8 @@ message LiveSettingsV2Request {
     string indexName = 1;
     // Live settings to merge into existing live settings, or unset to get current live settings
     IndexLiveSettings liveSettings = 2;
+    // When set to true, live settings changes are only applied to the local node. These changes are ephemeral, so will not persist through a restart. Also, the live settings returned in the response will contain the local overrides only when this flag is true.
+    bool local = 3;
 }
 
 message LiveSettingsV2Response {

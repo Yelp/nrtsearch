@@ -827,7 +827,7 @@ public class BackendStateManagerTest {
 
     assertEquals(
         ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS,
-        stateManager.updateLiveSettings(IndexLiveSettings.newBuilder().build()));
+        stateManager.updateLiveSettings(IndexLiveSettings.newBuilder().build(), false));
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
@@ -894,7 +894,7 @@ public class BackendStateManagerTest {
     MockStateManager.nextState = mockState2;
     MockStateManager.expectedState = expectedStateInfo;
 
-    assertEquals(expectedMergedSettings, stateManager.updateLiveSettings(settingsUpdate));
+    assertEquals(expectedMergedSettings, stateManager.updateLiveSettings(settingsUpdate, false));
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
@@ -976,7 +976,7 @@ public class BackendStateManagerTest {
     MockStateManager.nextState = mockState2;
     MockStateManager.expectedState = expectedStateInfo;
 
-    assertEquals(expectedMergedSettings, stateManager.updateLiveSettings(settingsUpdate));
+    assertEquals(expectedMergedSettings, stateManager.updateLiveSettings(settingsUpdate, false));
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
@@ -1061,7 +1061,7 @@ public class BackendStateManagerTest {
     MockStateManager.expectedState = expectedStateInfo;
     MockStateManager.expectedLiveSettingsOverrides = LIVE_SETTINGS_OVERRIDES;
 
-    assertEquals(expectedMergedSettings, stateManager.updateLiveSettings(settingsUpdate));
+    assertEquals(expectedMergedSettings, stateManager.updateLiveSettings(settingsUpdate, false));
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
@@ -1088,11 +1088,160 @@ public class BackendStateManagerTest {
         .thenReturn(null);
 
     try {
-      stateManager.updateLiveSettings(IndexLiveSettings.newBuilder().build());
+      stateManager.updateLiveSettings(IndexLiveSettings.newBuilder().build(), false);
       fail();
     } catch (IllegalStateException e) {
       assertEquals("No state for index: test_index", e.getMessage());
     }
+  }
+
+  @Test
+  public void testUpdateLocalLiveSettings_noInitialOverride() throws IOException {
+    StateBackend mockBackend = mock(StateBackend.class);
+    GlobalState mockGlobalState = mock(GlobalState.class);
+    BackendStateManager stateManager =
+        new MockStateManager("test_index", "test_id", mockBackend, mockGlobalState);
+
+    IndexStateInfo initialState =
+        IndexStateInfo.newBuilder()
+            .setIndexName("test_index")
+            .setCommitted(true)
+            .setLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setMaxRefreshSec(DoubleValue.newBuilder().setValue(15.0).build())
+                    .setSliceMaxSegments(Int32Value.newBuilder().setValue(10).build())
+                    .setAddDocumentsMaxBufferLen(Int32Value.newBuilder().setValue(250).build())
+                    .build())
+            .build();
+    when(mockBackend.loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id")))
+        .thenReturn(initialState);
+
+    ImmutableIndexState mockState = mock(ImmutableIndexState.class);
+    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
+    MockStateManager.nextState = mockState;
+    MockStateManager.expectedState = initialState;
+
+    stateManager.load();
+    assertSame(mockState, stateManager.getCurrent());
+
+    IndexLiveSettings settingsUpdate =
+        IndexLiveSettings.newBuilder()
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(3).build())
+            .setSliceMaxDocs(Int32Value.newBuilder().setValue(10000).build())
+            .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(512.0).build())
+            .build();
+    IndexLiveSettings expectedMergedSettingsWithLocal =
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
+            .toBuilder()
+            .setMaxRefreshSec(DoubleValue.newBuilder().setValue(15.0).build())
+            .setAddDocumentsMaxBufferLen(Int32Value.newBuilder().setValue(250).build())
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(3).build())
+            .setSliceMaxDocs(Int32Value.newBuilder().setValue(10000).build())
+            .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(512.0).build())
+            .build();
+
+    ImmutableIndexState mockState2 = mock(ImmutableIndexState.class);
+    when(mockState2.getMergedLiveSettings(true)).thenReturn(expectedMergedSettingsWithLocal);
+    ShardState mockShard = mock(ShardState.class);
+    Map<Integer, ShardState> mockShardMap =
+        ImmutableMap.<Integer, ShardState>builder().put(0, mockShard).build();
+    when(mockState2.getShards()).thenReturn(mockShardMap);
+
+    MockStateManager.nextState = mockState2;
+    MockStateManager.expectedState = initialState;
+    MockStateManager.expectedLiveSettingsOverrides = settingsUpdate;
+
+    assertEquals(
+        expectedMergedSettingsWithLocal, stateManager.updateLiveSettings(settingsUpdate, true));
+
+    verify(mockBackend, times(1))
+        .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getFieldAndFacetState();
+    verify(mockState2, times(1)).getMergedLiveSettings(true);
+    verify(mockState2, times(1)).getShards();
+    verify(mockShard, times(1)).updatedLiveSettings(settingsUpdate);
+
+    verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState, mockState2, mockShard);
+  }
+
+  @Test
+  public void testUpdateLocalLiveSettings_withInitialOverride() throws IOException {
+    StateBackend mockBackend = mock(StateBackend.class);
+    GlobalState mockGlobalState = mock(GlobalState.class);
+    BackendStateManager stateManager =
+        new MockStateManager(
+            "test_index", "test_id", LIVE_SETTINGS_OVERRIDES, mockBackend, mockGlobalState);
+
+    IndexStateInfo initialState =
+        IndexStateInfo.newBuilder()
+            .setIndexName("test_index")
+            .setCommitted(true)
+            .setLiveSettings(
+                IndexLiveSettings.newBuilder()
+                    .setMaxRefreshSec(DoubleValue.newBuilder().setValue(15.0).build())
+                    .setSliceMaxSegments(Int32Value.newBuilder().setValue(10).build())
+                    .setAddDocumentsMaxBufferLen(Int32Value.newBuilder().setValue(250).build())
+                    .build())
+            .build();
+    when(mockBackend.loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id")))
+        .thenReturn(initialState);
+
+    ImmutableIndexState mockState = mock(ImmutableIndexState.class);
+    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
+    MockStateManager.nextState = mockState;
+    MockStateManager.expectedState = initialState;
+    MockStateManager.expectedLiveSettingsOverrides = LIVE_SETTINGS_OVERRIDES;
+
+    stateManager.load();
+    assertSame(mockState, stateManager.getCurrent());
+
+    IndexLiveSettings settingsUpdate =
+        IndexLiveSettings.newBuilder()
+            .setSliceMaxDocs(Int32Value.newBuilder().setValue(10000).build())
+            .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(512.0).build())
+            .build();
+    IndexLiveSettings expectedMergedLocalSettings =
+        LIVE_SETTINGS_OVERRIDES
+            .toBuilder()
+            .setSliceMaxDocs(Int32Value.newBuilder().setValue(10000).build())
+            .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(512.0).build())
+            .build();
+    IndexLiveSettings expectedMergedSettingsWithLocal =
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
+            .toBuilder()
+            .setMaxRefreshSec(DoubleValue.newBuilder().setValue(15.0).build())
+            .setAddDocumentsMaxBufferLen(Int32Value.newBuilder().setValue(250).build())
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(1).build())
+            .setSliceMaxDocs(Int32Value.newBuilder().setValue(10000).build())
+            .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(512.0).build())
+            .build();
+
+    ImmutableIndexState mockState2 = mock(ImmutableIndexState.class);
+    when(mockState2.getMergedLiveSettings(true)).thenReturn(expectedMergedSettingsWithLocal);
+    ShardState mockShard = mock(ShardState.class);
+    Map<Integer, ShardState> mockShardMap =
+        ImmutableMap.<Integer, ShardState>builder().put(0, mockShard).build();
+    when(mockState2.getShards()).thenReturn(mockShardMap);
+
+    MockStateManager.nextState = mockState2;
+    MockStateManager.expectedState = initialState;
+    MockStateManager.expectedLiveSettingsOverrides = expectedMergedLocalSettings;
+
+    assertEquals(
+        expectedMergedSettingsWithLocal, stateManager.updateLiveSettings(settingsUpdate, true));
+
+    verify(mockBackend, times(1))
+        .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
+    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getFieldAndFacetState();
+    verify(mockState2, times(1)).getMergedLiveSettings(true);
+    verify(mockState2, times(1)).getShards();
+    verify(mockShard, times(1)).updatedLiveSettings(settingsUpdate);
+
+    verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState, mockState2, mockShard);
   }
 
   @Test
