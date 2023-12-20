@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.ExistsQuery;
 import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
 import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
 import com.yelp.nrtsearch.server.grpc.GeoPointQuery;
+import com.yelp.nrtsearch.server.grpc.GeoPolygonQuery;
 import com.yelp.nrtsearch.server.grpc.GeoRadiusQuery;
 import com.yelp.nrtsearch.server.grpc.MatchOperator;
 import com.yelp.nrtsearch.server.grpc.MatchPhraseQuery;
@@ -169,6 +170,8 @@ public class QueryNodeMapper {
         return getPrefixQuery(query.getPrefixQuery(), state);
       case CONSTANTSCOREQUERY:
         return getConstantScoreQuery(query.getConstantScoreQuery(), state);
+      case GEOPOLYGONQUERY:
+        return getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
       case QUERYNODE_NOT_SET:
         return new MatchAllDocsQuery();
       default:
@@ -539,6 +542,17 @@ public class QueryNodeMapper {
       throw new IllegalArgumentException("Field " + fieldName + "does not support GeoPolygonQuery");
     }
     return ((PolygonQueryable) field).getGeoPointQuery(geoPolygonQuery);
+  }
+
+  private Query getGeoPolygonQuery(GeoPolygonQuery geoPolygonQuery, IndexState state) {
+    String fieldName = geoPolygonQuery.getField();
+    FieldDef field = state.getField(fieldName);
+
+    if (!(field instanceof GeoQueryable)) {
+      throw new IllegalArgumentException(
+          "Field " + fieldName + " does not support GeoPolygonQuery");
+    }
+    return ((GeoQueryable) field).getGeoPolygonQuery(geoPolygonQuery);
   }
 
   private Map<com.yelp.nrtsearch.server.grpc.BooleanClause.Occur, BooleanClause.Occur>
