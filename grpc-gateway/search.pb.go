@@ -2287,7 +2287,7 @@ type Polygon struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Points defining the polygon. Coordinates must be in clockwise order, except for holes. Holes must be in counter-clockwise order. The shape is assumed to be closed, with the first point automatically also used as the last point. The polygon must not be self-crossing, otherwise may result in unexpected behavior. Polygons cannot cross the 180th meridian. Instead, use two polygons: one on each side.
+	// Points defining the polygon, conforming to the https://geojson.org/ standard. The polygon must not be self-crossing, otherwise may result in unexpected behavior. Polygons cannot cross the 180th meridian. Instead, use two polygons: one on each side.
 	Points []*latlng.LatLng `protobuf:"bytes,1,rep,name=points,proto3" json:"points,omitempty"`
 	// Specify holes in the polygon. Hole polygons cannot themselves contain holes.
 	Holes []*Polygon `protobuf:"bytes,2,rep,name=holes,proto3" json:"holes,omitempty"`

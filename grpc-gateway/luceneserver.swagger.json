@@ -4268,7 +4268,7 @@
           "items": {
             "$ref": "#/definitions/typeLatLng"
           },
-          "description": "Points defining the polygon. Coordinates must be in clockwise order, except for holes. Holes must be in counter-clockwise order. The shape is assumed to be closed, with the first point automatically also used as the last point. The polygon must not be self-crossing, otherwise may result in unexpected behavior. Polygons cannot cross the 180th meridian. Instead, use two polygons: one on each side."
+          "description": "Points defining the polygon, conforming to the https://geojson.org/ standard. The polygon must not be self-crossing, otherwise may result in unexpected behavior. Polygons cannot cross the 180th meridian. Instead, use two polygons: one on each side."
         },
         "holes": {
           "type": "array",

@@ -183,15 +183,31 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQu
     if (pointsCount < 3) {
       throw new IllegalArgumentException("Polygon must have at least three points");
     }
-    // The first point is also used as the last point to create a closed shape
-    double[] latValues = new double[pointsCount + 1];
-    double[] lonValues = new double[pointsCount + 1];
+
+    boolean closedShape =
+        grpcPolygon.getPoints(0).equals(grpcPolygon.getPoints(grpcPolygon.getPointsCount() - 1));
+    int pointsArraySize;
+    if (closedShape) {
+      if (pointsCount < 4) {
+        throw new IllegalArgumentException("Closed Polygon must have at least four points");
+      }
+      pointsArraySize = pointsCount;
+    } else {
+      pointsArraySize = pointsCount + 1;
+    }
+
+    double[] latValues = new double[pointsArraySize];
+    double[] lonValues = new double[pointsArraySize];
     for (int i = 0; i < grpcPolygon.getPointsCount(); ++i) {
       latValues[i] = grpcPolygon.getPoints(i).getLatitude();
       lonValues[i] = grpcPolygon.getPoints(i).getLongitude();
     }
-    latValues[pointsCount] = grpcPolygon.getPoints(0).getLatitude();
-    lonValues[pointsCount] = grpcPolygon.getPoints(0).getLongitude();
+
+    // The first point is also used as the last point to create a closed shape
+    if (!closedShape) {
+      latValues[pointsCount] = grpcPolygon.getPoints(0).getLatitude();
+      lonValues[pointsCount] = grpcPolygon.getPoints(0).getLongitude();
+    }
 
     Polygon[] holes = new Polygon[grpcPolygon.getHolesCount()];
     for (int i = 0; i < grpcPolygon.getHolesCount(); ++i) {
