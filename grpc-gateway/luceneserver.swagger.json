@@ -3475,6 +3475,23 @@
       },
       "description": "A query that matches documents with polygon that contains the geo point."
     },
+    "luceneserverGeoPolygonQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "title": "Field in the document to query"
+        },
+        "polygons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverPolygon"
+          },
+          "title": "Geo polygons to search for containing points"
+        }
+      },
+      "title": "A query that matches documents with geo points within polygons"
+    },
     "luceneserverGeoRadiusQuery": {
       "type": "object",
       "properties": {
@@ -4243,6 +4260,26 @@
       },
       "title": "Point representation"
     },
+    "luceneserverPolygon": {
+      "type": "object",
+      "properties": {
+        "points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/typeLatLng"
+          },
+          "description": "Points defining the polygon, conforming to the https://geojson.org/ standard. The polygon must not be self-crossing, otherwise may result in unexpected behavior. Polygons cannot cross the 180th meridian. Instead, use two polygons: one on each side."
+        },
+        "holes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverPolygon"
+          },
+          "description": "Specify holes in the polygon. Hole polygons cannot themselves contain holes."
+        }
+      },
+      "title": "Polygon defined by a list of geo points"
+    },
     "luceneserverPrefixQuery": {
       "type": "object",
       "properties": {
@@ -4356,6 +4393,9 @@
         },
         "constantScoreQuery": {
           "$ref": "#/definitions/luceneserverConstantScoreQuery"
+        },
+        "geoPolygonQuery": {
+          "$ref": "#/definitions/luceneserverGeoPolygonQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -4414,7 +4454,8 @@
         "MULTI_FUNCTION_SCORE_QUERY",
         "MATCH_PHRASE_PREFIX",
         "PREFIX",
-        "CONSTANT_SCORE_QUERY"
+        "CONSTANT_SCORE_QUERY",
+        "GEO_POLYGON"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."

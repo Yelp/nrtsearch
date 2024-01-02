@@ -263,6 +263,22 @@ message GeoPointQuery {
     google.type.LatLng point = 2; // point used to query whether the polygon contains it.
 }
 
+// Polygon defined by a list of geo points
+message Polygon {
+    // Points defining the polygon, conforming to the https://geojson.org/ standard. The polygon must not be self-crossing, otherwise may result in unexpected behavior. Polygons cannot cross the 180th meridian. Instead, use two polygons: one on each side.
+    repeated google.type.LatLng points = 1;
+    // Specify holes in the polygon. Hole polygons cannot themselves contain holes.
+    repeated Polygon holes = 2;
+}
+
+// A query that matches documents with geo points within polygons
+message GeoPolygonQuery {
+    // Field in the document to query
+    string field = 1;
+    // Geo polygons to search for containing points
+    repeated Polygon polygons = 2;
+}
+
 // A query that matches documents which contain a value for a field.
 message ExistsQuery {
     string field = 1; // Field in the document to query
@@ -363,6 +379,7 @@ enum QueryType {
     MATCH_PHRASE_PREFIX = 18;
     PREFIX = 19;
     CONSTANT_SCORE_QUERY = 20;
+    GEO_POLYGON = 21;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -392,6 +409,7 @@ message Query {
         MatchPhrasePrefixQuery matchPhrasePrefixQuery = 21;
         PrefixQuery prefixQuery = 22;
         ConstantScoreQuery constantScoreQuery = 23;
+        GeoPolygonQuery geoPolygonQuery = 24;
     }
 }
 
