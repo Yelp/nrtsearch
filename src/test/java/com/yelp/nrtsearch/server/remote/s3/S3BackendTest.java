@@ -44,7 +44,9 @@ import org.apache.commons.io.IOUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class S3BackendTest {
   private static final String BUCKET_NAME = "s3-backend-test";
@@ -52,6 +54,8 @@ public class S3BackendTest {
   private static final String CONTENT = "test_content";
 
   @ClassRule public static final AmazonS3Provider S3_PROVIDER = new AmazonS3Provider(BUCKET_NAME);
+
+  @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   private static AmazonS3 s3;
   private static S3Backend s3Backend;
@@ -238,7 +242,7 @@ public class S3BackendTest {
 
   @Test
   public void testUploadFile() throws IOException {
-    File uploadFile = S3_PROVIDER.getTemporaryFolder().newFile("upload_file");
+    File uploadFile = folder.newFile("upload_file");
     Files.write(uploadFile.toPath(), "file_data".getBytes());
 
     s3Backend.uploadFile(
@@ -262,7 +266,7 @@ public class S3BackendTest {
 
   @Test
   public void testUploadFile_updateResource() throws IOException {
-    File uploadFile = S3_PROVIDER.getTemporaryFolder().newFile("upload_file_1");
+    File uploadFile = folder.newFile("upload_file_1");
     Files.write(uploadFile.toPath(), "file_data_1".getBytes());
 
     s3Backend.uploadFile(
@@ -288,7 +292,7 @@ public class S3BackendTest {
     assertEquals("file_data_1", contents);
 
     // update data
-    uploadFile = S3_PROVIDER.getTemporaryFolder().newFile("upload_file_2");
+    uploadFile = folder.newFile("upload_file_2");
     Files.write(uploadFile.toPath(), "file_data_2".getBytes());
 
     s3Backend.uploadFile(
@@ -312,7 +316,7 @@ public class S3BackendTest {
 
   @Test
   public void testUploadFile_notExist() throws IOException {
-    Path path = Path.of(S3_PROVIDER.getTemporaryFolder().getRoot().toString(), "not_exist");
+    Path path = Path.of(folder.getRoot().toString(), "not_exist");
     try {
       s3Backend.uploadFile(
           "upload_service_2", "upload_index_2", IndexResourceType.WARMING_QUERIES, path);
@@ -325,7 +329,7 @@ public class S3BackendTest {
 
   @Test
   public void testUploadFile_notRegularFile() throws IOException {
-    Path path = S3_PROVIDER.getTemporaryFolder().newFolder("upload_folder").toPath();
+    Path path = folder.newFolder("upload_folder").toPath();
     try {
       s3Backend.uploadFile(
           "upload_service_3", "upload_index_3", IndexResourceType.WARMING_QUERIES, path);
