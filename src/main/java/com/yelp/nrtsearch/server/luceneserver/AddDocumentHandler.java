@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.protobuf.ProtocolStringList;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.FacetHierarchyPath;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
@@ -181,6 +182,8 @@ public class AddDocumentHandler {
     }
 
     public long runIndexingJob() throws Exception {
+      DeadlineUtils.checkDeadline("DocumentIndexer: runIndexingJob", "INDEXING");
+
       logger.debug(
           String.format(
               "running indexing job on threadId: %s",
