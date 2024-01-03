@@ -22,7 +22,8 @@ import com.google.inject.name.Named;
 import com.google.inject.name.Names;
 import com.yelp.nrtsearch.server.backup.*;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import java.nio.file.Path;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import java.nio.file.Paths;
 import java.util.concurrent.*;
 
@@ -45,10 +46,6 @@ public class ArchiverModule extends AbstractModule {
     bind(FileCompressAndUploader.class)
         .annotatedWith(Names.named("fileCompressAndUploaderWithTar"))
         .toProvider(FileCompressAndUploaderWithTar.class)
-        .asEagerSingleton();
-    bind(Archiver.class)
-        .annotatedWith(Names.named("legacyArchiver"))
-        .toProvider(LegacyArchiverProvider.class)
         .asEagerSingleton();
     bind(BackupDiffManager.class).toProvider(BackupDiffManagerProvider.class).asEagerSingleton();
     bind(Archiver.class)
@@ -160,23 +157,6 @@ public class ArchiverModule extends AbstractModule {
     }
   }
 
-  private static class LegacyArchiverProvider implements Provider<Archiver> {
-    @Inject AmazonS3 s3;
-    @Inject LuceneServerConfiguration luceneServerConfiguration;
-    @Inject Tar tar;
-
-    @Override
-    public Archiver get() {
-      Path archiveDir = Paths.get(luceneServerConfiguration.getArchiveDirectory());
-      return new ArchiverImpl(
-          s3,
-          luceneServerConfiguration.getBucketName(),
-          archiveDir,
-          tar,
-          luceneServerConfiguration.getDownloadAsStream());
-    }
-  }
-
   private static class IncArchiverProvider implements Provider<Archiver> {
     @Inject BackupDiffManager backupDiffManager;
 
@@ -200,5 +180,13 @@ public class ArchiverModule extends AbstractModule {
           new VersionManager(s3, luceneServerConfiguration.getBucketName()),
           Paths.get(luceneServerConfiguration.getArchiveDirectory()));
     }
+  }
+
+  @Inject
+  @Singleton
+  @Provides
+  protected RemoteBackend providesRemoteBackend(
+      LuceneServerConfiguration configuration, AmazonS3 s3) {
+    return new S3Backend(configuration, s3);
   }
 }

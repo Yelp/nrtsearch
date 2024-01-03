@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.google.api.HttpBody;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
@@ -59,6 +58,7 @@ import com.yelp.nrtsearch.server.monitoring.*;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector.RejectionCounterWrapper;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import io.grpc.Context;
 import io.grpc.Server;
@@ -93,8 +93,8 @@ import picocli.CommandLine;
 public class LuceneServer {
   private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
   private static final Splitter COMMA_SPLITTER = Splitter.on(",");
-  private final Archiver archiver;
   private final Archiver incArchiver;
+  private final RemoteBackend remoteBackend;
   private final CollectorRegistry collectorRegistry;
   private final PluginsService pluginsService;
 
@@ -105,16 +105,15 @@ public class LuceneServer {
   @Inject
   public LuceneServer(
       LuceneServerConfiguration luceneServerConfiguration,
-      @Named("legacyArchiver") Archiver archiver,
       @Named("incArchiver") Archiver incArchiver,
-      AmazonS3 amazonS3,
+      RemoteBackend remoteBackend,
       CollectorRegistry collectorRegistry) {
     this.luceneServerConfiguration = luceneServerConfiguration;
-    this.archiver = archiver;
     this.incArchiver = incArchiver;
+    this.remoteBackend = remoteBackend;
     this.collectorRegistry = collectorRegistry;
     this.pluginsService =
-        new PluginsService(luceneServerConfiguration, amazonS3, collectorRegistry);
+        new PluginsService(luceneServerConfiguration, remoteBackend, collectorRegistry);
   }
 
   @VisibleForTesting
@@ -125,7 +124,7 @@ public class LuceneServer {
 
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
-            luceneServerConfiguration, archiver, incArchiver, collectorRegistry, plugins);
+            luceneServerConfiguration, incArchiver, remoteBackend, collectorRegistry, plugins);
     GlobalState globalState = serverImpl.getGlobalState();
 
     registerMetrics(globalState);
@@ -289,36 +288,28 @@ public class LuceneServer {
     private final JsonFormat.Printer protoMessagePrinter =
         JsonFormat.printer().omittingInsignificantWhitespace();
     private final GlobalState globalState;
-    private final Archiver archiver;
-    private final Archiver incArchiver;
     private final CollectorRegistry collectorRegistry;
     private final ThreadPoolExecutor searchThreadPoolExecutor;
-    private final String archiveDirectory;
-    private final boolean backupFromIncArchiver;
 
     /**
      * Constructor used with newer state handling. Defers initialization of global state until after
      * extendable components.
      *
      * @param configuration server configuration
-     * @param archiver archiver for external file transfer
      * @param incArchiver archiver for incremental index data copy
+     * @param remoteBackend backend for persistent remote storage
      * @param collectorRegistry metrics collector registry
      * @param plugins loaded plugins
      * @throws IOException
      */
     LuceneServerImpl(
         LuceneServerConfiguration configuration,
-        Archiver archiver,
         Archiver incArchiver,
+        RemoteBackend remoteBackend,
         CollectorRegistry collectorRegistry,
         List<Plugin> plugins)
         throws IOException {
-      this.archiver = archiver;
-      this.incArchiver = incArchiver;
-      this.archiveDirectory = configuration.getArchiveDirectory();
       this.collectorRegistry = collectorRegistry;
-      this.backupFromIncArchiver = configuration.getBackupWithInArchiver();
 
       DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
       CompletionPostingsFormatUtil.setCompletionCodecLoadMode(
@@ -327,7 +318,7 @@ public class LuceneServer {
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
 
-      this.globalState = GlobalState.createState(configuration, incArchiver, archiver);
+      this.globalState = GlobalState.createState(configuration, incArchiver, remoteBackend);
       this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
     }
 
@@ -955,7 +946,7 @@ public class LuceneServer {
                     () -> {
                       try {
                         IndexState indexState = globalState.getIndex(commitRequest.getIndexName());
-                        long gen = indexState.commit(backupFromIncArchiver);
+                        long gen = indexState.commit();
                         CommitResponse reply =
                             CommitResponse.newBuilder()
                                 .setGen(gen)
@@ -1535,77 +1526,6 @@ public class LuceneServer {
         logger.error(
             "Error getting all snapshotted index gens for index: {}", request.getIndexName(), e);
         responseObserver.onError(e);
-      }
-    }
-
-    @Override
-    public void backupIndex(
-        BackupIndexRequest backupIndexRequest,
-        StreamObserver<BackupIndexResponse> responseObserver) {
-      logger.info("Received backup index request: {}", backupIndexRequest);
-      try {
-        IndexState indexState = globalState.getIndex(backupIndexRequest.getIndexName());
-        BackupIndexRequestHandler backupIndexRequestHandler =
-            new BackupIndexRequestHandler(
-                archiver, incArchiver, archiveDirectory, backupFromIncArchiver);
-        BackupIndexResponse reply =
-            backupIndexRequestHandler.handle(indexState, backupIndexRequest);
-        logger.info(String.format("BackupRequestHandler returned results %s", reply.toString()));
-        responseObserver.onNext(reply);
-        responseObserver.onCompleted();
-      } catch (Exception e) {
-        logger.warn(
-            String.format(
-                "error while trying to backupIndex for index: %s for service: %s, resource: %s",
-                backupIndexRequest.getIndexName(),
-                backupIndexRequest.getServiceName(),
-                backupIndexRequest.getResourceName()),
-            e);
-        responseObserver.onError(
-            Status.UNKNOWN
-                .withCause(e)
-                .withDescription(
-                    String.format(
-                        "error while trying to backupIndex for index %s for service: %s, resource: %s",
-                        backupIndexRequest.getIndexName(),
-                        backupIndexRequest.getServiceName(),
-                        backupIndexRequest.getResourceName()))
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
-      }
-    }
-
-    @Override
-    public void deleteIndexBackup(
-        DeleteIndexBackupRequest request,
-        StreamObserver<DeleteIndexBackupResponse> responseObserver) {
-      try {
-        IndexState indexState = globalState.getIndex(request.getIndexName());
-        DeleteIndexBackupHandler backupIndexRequestHandler = new DeleteIndexBackupHandler(archiver);
-        DeleteIndexBackupResponse reply = backupIndexRequestHandler.handle(indexState, request);
-        logger.info("DeleteIndexBackupHandler returned results {}", reply.toString());
-        responseObserver.onNext(reply);
-        responseObserver.onCompleted();
-      } catch (Exception e) {
-        logger.warn(
-            "error while trying to deleteIndexBackup for index: {} for service: {}, resource: {}, nDays: {}",
-            request.getIndexName(),
-            request.getServiceName(),
-            request.getResourceName(),
-            request.getNDays(),
-            e);
-        responseObserver.onError(
-            Status.UNKNOWN
-                .withCause(e)
-                .withDescription(
-                    String.format(
-                        "error while trying to deleteIndexBackup for index %s for service: %s, resource: %s, nDays: %s",
-                        request.getIndexName(),
-                        request.getServiceName(),
-                        request.getResourceName(),
-                        request.getNDays()))
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
       }
     }
 

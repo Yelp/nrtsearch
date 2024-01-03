@@ -1086,11 +1086,6 @@ public class BackendStateManagerTest {
     when(mockBackend.loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id")))
         .thenReturn(initialState);
 
-    String configFile = String.join("\n", "backupWithIncArchiver: true");
-    LuceneServerConfiguration configuration =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
-    when(mockGlobalState.getConfiguration()).thenReturn(configuration);
-
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
     when(mockState.isStarted()).thenReturn(false);
     MockStateManager.nextState = mockState;
@@ -1122,11 +1117,6 @@ public class BackendStateManagerTest {
     when(mockBackend.loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id")))
         .thenReturn(initialState);
 
-    String configFile = String.join("\n", "backupWithIncArchiver: true");
-    LuceneServerConfiguration configuration =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
-    when(mockGlobalState.getConfiguration()).thenReturn(configuration);
-
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
     when(mockState.getFieldAndFacetState()).thenReturn(new FieldAndFacetState());
     when(mockState.getCurrentStateInfo()).thenReturn(initialState);
@@ -1151,11 +1141,10 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), updatedState);
-    verify(mockGlobalState, times(1)).getConfiguration();
     verify(mockState, times(3)).getCurrentStateInfo();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).start(Mode.PRIMARY, Path.of("/tmp"), 1, mockReplicationClient);
-    verify(mockState, times(1)).commit(true);
+    verify(mockState, times(1)).commit();
     verify(mockState, times(1)).getFieldAndFacetState();
 
     verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState, mockState2);

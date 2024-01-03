@@ -15,13 +15,10 @@
  */
 package com.yelp.nrtsearch.server.cli;
 
-import com.amazonaws.services.s3.AmazonS3;
 import com.yelp.nrtsearch.server.backup.*;
 import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,27 +30,10 @@ public class RestoreHelper implements Callable<Integer> {
   @CommandLine.ParentCommand private BackupRestoreCommand baseCmd;
   private static final Logger logger = LoggerFactory.getLogger(RestoreHelper.class.getName());
 
-  @CommandLine.Option(
-      names = {"-l", "--legacy"},
-      description = "Use legacy version for restore")
-  private boolean legacy;
-
   @Override
   public Integer call() throws Exception {
-    if (legacy) {
-      AmazonS3 amazonS3 = baseCmd.getAmazonS3();
-      Archiver archiver =
-          new ArchiverImpl(
-              amazonS3,
-              baseCmd.getBucket(),
-              Paths.get(baseCmd.getArchiveDir(), UUID.randomUUID().toString()),
-              new TarImpl(Tar.CompressionMode.LZ4),
-              true);
-      restore(archiver);
-    } else {
-      Archiver archiver = baseCmd.getArchiver();
-      restore(archiver);
-    }
+    Archiver archiver = baseCmd.getArchiver();
+    restore(archiver);
     return 0;
   }
 

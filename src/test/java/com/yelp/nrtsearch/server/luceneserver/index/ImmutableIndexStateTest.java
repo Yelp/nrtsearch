@@ -1077,7 +1077,7 @@ public class ImmutableIndexStateTest {
     shardStateMap.put(0, mockShard);
     ImmutableIndexState indexState =
         getIndexState(getEmptyState(), new FieldAndFacetState(), shardStateMap);
-    indexState.commit(false);
+    indexState.commit();
     verify(mockShard, times(1)).commit();
   }
 

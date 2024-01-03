@@ -206,7 +206,7 @@ public class BackendStateManager implements IndexStateManager {
     currentState.start(serverMode, dataPath, primaryGen, primaryClient);
     if (serverMode != Mode.REPLICA && !currentState.getCurrentStateInfo().getCommitted()) {
       logger.info("Doing initial commit for index: " + indexName);
-      currentState.commit(globalState.getConfiguration().getBackupWithInArchiver());
+      currentState.commit();
       IndexStateInfo updatedStateInfo =
           currentState.getCurrentStateInfo().toBuilder()
               .setCommitted(true)

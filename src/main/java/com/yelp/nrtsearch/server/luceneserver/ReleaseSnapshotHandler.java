@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotResponse;
+import com.yelp.nrtsearch.server.grpc.SnapshotId;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,5 +55,23 @@ public class ReleaseSnapshotHandler
       throw new RuntimeException(e);
     }
     return ReleaseSnapshotResponse.newBuilder().setSuccess(true).build();
+  }
+
+  /**
+   * Release resources held by the given snapshot.
+   *
+   * @param indexState index state
+   * @param indexName index name
+   * @param snapshotId snapshot id
+   */
+  public static void releaseSnapshot(
+      IndexState indexState, String indexName, SnapshotId snapshotId) {
+    ReleaseSnapshotRequest releaseSnapshotRequest =
+        ReleaseSnapshotRequest.newBuilder()
+            .setIndexName(indexName)
+            .setSnapshotId(snapshotId)
+            .build();
+    ReleaseSnapshotResponse releaseSnapshotResponse =
+        new ReleaseSnapshotHandler().handle(indexState, releaseSnapshotRequest);
   }
 }

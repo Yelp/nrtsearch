@@ -20,11 +20,13 @@ import com.yelp.nrtsearch.server.grpc.CreateSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.CreateSnapshotResponse;
 import com.yelp.nrtsearch.server.grpc.SnapshotId;
 import java.io.IOException;
+import java.util.Collection;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 
 public class CreateSnapshotHandler
@@ -117,5 +119,47 @@ public class CreateSnapshotHandler
         + snapshotId.getTaxonomyGen()
         + ":"
         + snapshotId.getStateGen();
+  }
+
+  /**
+   * Get names of all index files in a given snapshot.
+   *
+   * @param indexState index state
+   * @param snapshotId snapshot id
+   * @return collection of file names
+   * @throws IOException
+   */
+  public static Collection<String> getSegmentFilesInSnapshot(
+      IndexState indexState, SnapshotId snapshotId) throws IOException {
+    String snapshotIdAsString = CreateSnapshotHandler.getSnapshotIdAsString(snapshotId);
+    IndexState.Gens snapshot = new IndexState.Gens(snapshotIdAsString);
+    if (indexState.getShards().size() != 1) {
+      throw new IllegalStateException(
+          String.format(
+              "%s shards found index %s instead of exactly 1",
+              indexState.getShards().size(), indexState.getName()));
+    }
+    ShardState state = indexState.getShards().entrySet().iterator().next().getValue();
+    SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy = null;
+    IndexReader indexReader = null;
+    try {
+      searcherAndTaxonomy = state.acquire();
+      indexReader =
+          DirectoryReader.openIfChanged(
+              (DirectoryReader) searcherAndTaxonomy.searcher.getIndexReader(),
+              state.snapshots.getIndexCommit(snapshot.indexGen));
+      if (!(indexReader instanceof StandardDirectoryReader)) {
+        throw new IllegalStateException("Unable to find segments to backup");
+      }
+      StandardDirectoryReader standardDirectoryReader = (StandardDirectoryReader) indexReader;
+      return standardDirectoryReader.getSegmentInfos().files(true);
+    } finally {
+      if (searcherAndTaxonomy != null) {
+        state.release(searcherAndTaxonomy);
+      }
+      if (indexReader != null) {
+        indexReader.close();
+      }
+    }
   }
 }

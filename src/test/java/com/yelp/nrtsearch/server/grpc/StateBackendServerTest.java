@@ -216,12 +216,13 @@ public class StateBackendServerTest {
             "stateDir: " + getStateDir(),
             "indexDir: " + getPrimaryIndexDir(),
             "archiveDirectory: " + getPrimaryArchiveDir(),
-            "backupWithIncArchiver: true",
-            "restoreFromIncArchiver: true",
             "stateConfig:",
             "  backendType: REMOTE",
             "  remote:",
-            "    readOnly: false");
+            "    readOnly: false",
+            "indexStartConfig:",
+            "  mode: PRIMARY",
+            "  dataLocationType: REMOTE");
     return new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
   }
 
@@ -251,9 +252,11 @@ public class StateBackendServerTest {
             "archiveDirectory: " + getReplicaArchiveDir(),
             // don't sync on start to make restore testing easier
             "syncInitialNrtPoint: false",
-            "restoreFromIncArchiver: true",
             "stateConfig:",
-            "  backendType: REMOTE");
+            "  backendType: REMOTE",
+            "indexStartConfig:",
+            "  mode: REPLICA",
+            "  dataLocationType: REMOTE");
     return new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
   }
 
@@ -277,8 +280,8 @@ public class StateBackendServerTest {
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
             getPrimaryArchiverConfig(),
-            null,
             archiverPrimary,
+            null,
             new CollectorRegistry(),
             Collections.emptyList());
 
@@ -311,8 +314,8 @@ public class StateBackendServerTest {
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
             getReplicaArchiverConfig(),
-            null,
             archiverReplica,
+            null,
             new CollectorRegistry(),
             Collections.emptyList());
 

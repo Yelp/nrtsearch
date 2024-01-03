@@ -30,14 +30,12 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.yelp.nrtsearch.clientlib.Node;
 import com.yelp.nrtsearch.server.backup.Archiver;
-import com.yelp.nrtsearch.server.backup.ArchiverImpl;
 import com.yelp.nrtsearch.server.backup.BackupDiffManager;
 import com.yelp.nrtsearch.server.backup.ContentDownloader;
 import com.yelp.nrtsearch.server.backup.ContentDownloaderImpl;
 import com.yelp.nrtsearch.server.backup.FileCompressAndUploader;
 import com.yelp.nrtsearch.server.backup.IndexArchiver;
 import com.yelp.nrtsearch.server.backup.NoTarImpl;
-import com.yelp.nrtsearch.server.backup.Tar;
 import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.backup.VersionManager;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
@@ -50,6 +48,8 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import io.findify.s3mock.S3Mock;
 import io.grpc.Server;
@@ -116,8 +116,8 @@ public class TestServer {
   private Server replicationServer;
   private LuceneServerClient client;
   private LuceneServerImpl serverImpl;
-  private Archiver legacyArchiver;
   private Archiver indexArchiver;
+  private RemoteBackend remoteBackend;
 
   public static void initS3(TemporaryFolder folder) throws IOException {
     if (api == null) {
@@ -128,7 +128,7 @@ public class TestServer {
   }
 
   public static void cleanupAll() {
-    createdServers.forEach(TestServer::cleanup);
+    createdServers.forEach(TestServer::stop);
     createdServers.clear();
     if (api != null) {
       api.shutdown();
@@ -178,14 +178,11 @@ public class TestServer {
         archiverDir);
   }
 
-  private Archiver createLegacyArchiver(Path archiverDir) throws IOException {
-    Files.createDirectories(archiverDir);
-
+  private RemoteBackend createRemoteBackend() {
     AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
     s3.setEndpoint(S3_ENDPOINT);
     s3.createBucket(TEST_BUCKET);
-    return new ArchiverImpl(
-        s3, TEST_BUCKET, archiverDir, new TarImpl(Tar.CompressionMode.LZ4), true);
+    return new S3Backend(configuration, s3);
   }
 
   public void restart() throws IOException {
@@ -193,14 +190,14 @@ public class TestServer {
   }
 
   public void restart(boolean clearData) throws IOException {
-    cleanup(clearData);
-    legacyArchiver = createLegacyArchiver(Paths.get(configuration.getArchiveDirectory()));
+    stop(clearData);
     indexArchiver = createIndexArchiver(Paths.get(configuration.getArchiveDirectory()));
+    remoteBackend = createRemoteBackend();
     serverImpl =
         new LuceneServerImpl(
             configuration,
-            legacyArchiver,
             indexArchiver,
+            remoteBackend,
             new CollectorRegistry(),
             Collections.emptyList());
 
@@ -255,19 +252,19 @@ public class TestServer {
     return client;
   }
 
-  public Archiver getLegacyArchiver() {
-    return legacyArchiver;
-  }
-
   public Archiver getIndexArchiver() {
     return indexArchiver;
   }
 
-  public void cleanup() {
-    cleanup(false);
+  public RemoteBackend getRemoteBackend() {
+    return remoteBackend;
   }
 
-  public void cleanup(boolean clearData) {
+  public void stop() {
+    stop(false);
+  }
+
+  public void stop(boolean clearData) {
     if (serverImpl != null) {
       GlobalState globalState = serverImpl.getGlobalState();
       for (String indexName : globalState.getIndexNames()) {
@@ -476,17 +473,18 @@ public class TestServer {
   public void addSimpleDocs(String indexName, int... ids) {
     List<AddDocumentRequest> requests = new ArrayList<>();
     for (int id : ids) {
-      requests.add(
-          AddDocumentRequest.newBuilder()
-              .setIndexName(indexName)
-              .putFields("id", MultiValuedField.newBuilder().addValue(String.valueOf(id)).build())
-              .putFields(
-                  "field1", MultiValuedField.newBuilder().addValue(String.valueOf(id * 3)).build())
-              .putFields(
-                  "field2", MultiValuedField.newBuilder().addValue(String.valueOf(id * 5)).build())
-              .build());
+      requests.add(getSimpleDocRequest(indexName, id));
     }
     addDocs(requests.stream());
+  }
+
+  public AddDocumentRequest getSimpleDocRequest(String indexName, int id) {
+    return AddDocumentRequest.newBuilder()
+        .setIndexName(indexName)
+        .putFields("id", MultiValuedField.newBuilder().addValue(String.valueOf(id)).build())
+        .putFields("field1", MultiValuedField.newBuilder().addValue(String.valueOf(id * 3)).build())
+        .putFields("field2", MultiValuedField.newBuilder().addValue(String.valueOf(id * 5)).build())
+        .build();
   }
 
   public void verifyFieldName(String indexName, String fieldName) {
@@ -648,8 +646,6 @@ public class TestServer {
     private StateBackendType stateBackendType = StateBackendType.LOCAL;
     private boolean backendReadOnly = true;
 
-    private boolean incArchiver = true;
-
     private boolean syncInitialNrtPoint = true;
 
     private int maxWarmingQueries = 0;
@@ -695,11 +691,6 @@ public class TestServer {
       return this;
     }
 
-    public Builder withIncArchiver(boolean enabled) {
-      this.incArchiver = enabled;
-      return this;
-    }
-
     public Builder withDecInitialCommit(boolean enabled) {
       this.decInitialCommit = enabled;
       return this;
@@ -731,7 +722,6 @@ public class TestServer {
               baseConfig(),
               backendConfig(),
               autoStartConfig(),
-              archiverConfig(),
               warmingConfig(),
               "syncInitialNrtPoint: " + syncInitialNrtPoint,
               additionalConfig);
@@ -739,11 +729,6 @@ public class TestServer {
           new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes())),
           writeDiscoveryFile,
           Paths.get(folder.getRoot().toString(), DISCOVERY_FILE));
-    }
-
-    private String archiverConfig() {
-      return String.join(
-          "\n", "backupWithIncArchiver: " + incArchiver, "restoreFromIncArchiver: " + incArchiver);
     }
 
     private String backendConfig() {
@@ -790,6 +775,7 @@ public class TestServer {
           "\n",
           "nodeName: test_node-" + uuid,
           "serviceName: " + serviceName,
+          "bucketName: " + TEST_BUCKET,
           "stateDir: " + Paths.get(folder.getRoot().toString(), "state_dir"),
           "indexDir: " + Paths.get(folder.getRoot().toString(), "index_dir-" + uuid),
           "archiveDirectory: " + Paths.get(folder.getRoot().toString(), "archive_dir-" + uuid),

@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.index;
 
-import static com.yelp.nrtsearch.server.luceneserver.BackupIndexRequestHandler.getSegmentFilesInSnapshot;
-import static com.yelp.nrtsearch.server.luceneserver.BackupIndexRequestHandler.releaseSnapshot;
+import static com.yelp.nrtsearch.server.luceneserver.CreateSnapshotHandler.getSegmentFilesInSnapshot;
+import static com.yelp.nrtsearch.server.luceneserver.ReleaseSnapshotHandler.releaseSnapshot;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonElement;
@@ -32,6 +32,7 @@ import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.FieldMaskUtil;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.backup.Archiver;
+import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.CreateSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
@@ -53,6 +54,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -579,7 +581,7 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
-  public long commit(boolean backupFromIncArchiver) throws IOException {
+  public long commit() throws IOException {
     // the shards map is created once and passed to all subsequent instance
     synchronized (shards) {
       long gen = -1;
@@ -589,9 +591,11 @@ public class ImmutableIndexState extends IndexState {
 
       SnapshotId snapshotId = null;
       try {
+        IndexDataLocationType locationType =
+            getGlobalState().getConfiguration().getIndexStartConfig().getDataLocationType();
         if (this.getShard(0).isPrimary()
             && getGlobalState().getIncArchiver().isPresent()
-            && backupFromIncArchiver) {
+            && locationType.equals(IndexDataLocationType.REMOTE)) {
           CreateSnapshotRequest createSnapshotRequest =
               CreateSnapshotRequest.newBuilder().setIndexName(getName()).build();
 
@@ -831,8 +835,8 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
-  public void initWarmer(Archiver archiver) {
-    initWarmer(archiver, uniqueName);
+  public void initWarmer(RemoteBackend remoteBackend) {
+    initWarmer(remoteBackend, uniqueName);
   }
 
   @Override

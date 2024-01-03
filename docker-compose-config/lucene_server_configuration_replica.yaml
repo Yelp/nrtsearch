@@ -12,6 +12,4 @@ bucketName: "nrtsearch-bucket"
 archiveDirectory: "/user/app/replica_index_archiver"
 serviceName: "nrtsearch-service-test"
 restoreState: False
-restoreFromIncArchiver: "true"
-backupWithIncArchiver: "true"
 downloadAsStream: "true"

@@ -28,13 +28,13 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.google.api.HttpBody;
 import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
-import com.yelp.nrtsearch.server.backup.Archiver;
-import com.yelp.nrtsearch.server.backup.ArchiverImpl;
-import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.luceneserver.search.cache.NrtQueryCache;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
@@ -116,7 +116,7 @@ public class LuceneServerTest {
   private GrpcServer grpcServer;
   private GrpcServer replicaGrpcServer;
   private CollectorRegistry collectorRegistry;
-  private Archiver archiver;
+  private RemoteBackend remoteBackend;
   private AmazonS3 s3;
   private final String TEST_SERVICE_NAME = "TEST_SERVICE_NAME";
 
@@ -140,26 +140,27 @@ public class LuceneServerTest {
 
   @Before
   public void setUp() throws IOException {
+    LuceneServerConfiguration luceneServerConfiguration =
+        LuceneServerTestConfigurationFactory.getConfig(
+            Mode.STANDALONE, folder.getRoot(), "bucketName: " + bucketName);
+
     collectorRegistry = new CollectorRegistry();
-    archiver = setUpArchiver();
-    grpcServer = setUpGrpcServer(collectorRegistry);
+    remoteBackend = setUpRemoteBackend(luceneServerConfiguration);
+    grpcServer = setUpGrpcServer(luceneServerConfiguration, collectorRegistry);
     replicaGrpcServer = setUpReplicaGrpcServer(collectorRegistry);
     setUpWarmer();
   }
 
-  private Archiver setUpArchiver() throws IOException {
-    Path archiverDirectory = folder.newFolder("archiver").toPath();
-
+  private RemoteBackend setUpRemoteBackend(LuceneServerConfiguration configuration)
+      throws IOException {
     s3 = s3Provider.getAmazonS3();
-
-    return new ArchiverImpl(
-        s3, bucketName, archiverDirectory, new TarImpl(TarImpl.CompressionMode.LZ4));
+    return new S3Backend(configuration, s3);
   }
 
   private void setUpWarmer() throws IOException {
     Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
-    try (BufferedWriter writer =
-        Files.newBufferedWriter(warmingQueriesDir.resolve("warming_queries.txt"))) {
+    Path warmingQueriesPath = warmingQueriesDir.resolve("warming_queries.txt");
+    try (BufferedWriter writer = Files.newBufferedWriter(warmingQueriesPath)) {
       List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
       for (String line : testSearchRequestsJson) {
         writer.write(line);
@@ -167,11 +168,8 @@ public class LuceneServerTest {
       }
       writer.flush();
     }
-    String resourceName = "test_index_warming_queries";
-    String versionHash =
-        archiver.upload(
-            TEST_SERVICE_NAME, resourceName, warmingQueriesDir, List.of(), List.of(), false);
-    archiver.blessVersion(TEST_SERVICE_NAME, resourceName, versionHash);
+    remoteBackend.uploadFile(
+        TEST_SERVICE_NAME, "test_index", IndexResourceType.WARMING_QUERIES, warmingQueriesPath);
   }
 
   private List<String> getTestSearchRequestsAsJsonStrings() {
@@ -180,10 +178,11 @@ public class LuceneServerTest {
         "{\"indexName\":\"test_index\",\"query\":{\"termQuery\":{\"field\":\"field1\"}}}");
   }
 
-  private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
+  private GrpcServer setUpGrpcServer(
+      LuceneServerConfiguration luceneServerConfiguration, CollectorRegistry collectorRegistry)
+      throws IOException {
     String testIndex = "test_index";
-    LuceneServerConfiguration luceneServerConfiguration =
-        LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
+
     return new GrpcServer(
         collectorRegistry,
         grpcCleanup,
@@ -193,7 +192,7 @@ public class LuceneServerTest {
         luceneServerConfiguration.getIndexDir(),
         testIndex,
         luceneServerConfiguration.getPort(),
-        archiver,
+        remoteBackend,
         Collections.emptyList());
   }
 
@@ -212,7 +211,7 @@ public class LuceneServerTest {
         luceneServerReplicaConfiguration.getIndexDir(),
         testIndex,
         luceneServerReplicaConfiguration.getPort(),
-        archiver);
+        remoteBackend);
   }
 
   private String getExtraConfig() {
@@ -948,7 +947,7 @@ public class LuceneServerTest {
     replicaGrpcServer
         .getGlobalState()
         .getIndex(replicaGrpcServer.getTestIndex())
-        .initWarmer(archiver);
+        .initWarmer(remoteBackend);
     assertNotNull(
         replicaGrpcServer.getGlobalState().getIndex(replicaGrpcServer.getTestIndex()).getWarmer());
     // Average case should pass

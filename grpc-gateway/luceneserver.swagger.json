@@ -68,39 +68,6 @@
         ]
       }
     },
-    "/v1/backup_index": {
-      "post": {
-        "summary": "backs up a resource (index) and it associated metadata e.g. settings, schema to s3",
-        "operationId": "LuceneServer_backupIndex",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/luceneserverBackupIndexResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/luceneserverBackupIndexRequest"
-            }
-          }
-        ],
-        "tags": [
-          "LuceneServer"
-        ]
-      }
-    },
     "/v1/backup_warming_queries": {
       "post": {
         "summary": "Backup warming queries to S3",
@@ -402,38 +369,6 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/luceneserverDeleteIndexRequest"
-            }
-          }
-        ],
-        "tags": [
-          "LuceneServer"
-        ]
-      }
-    },
-    "/v1/delete_index_backup": {
-      "post": {
-        "operationId": "LuceneServer_deleteIndexBackup",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/luceneserverDeleteIndexBackupResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/runtimeError"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/luceneserverDeleteIndexBackupRequest"
             }
           }
         ],
@@ -2313,37 +2248,6 @@
       },
       "title": "Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester"
     },
-    "luceneserverBackupIndexRequest": {
-      "type": "object",
-      "properties": {
-        "indexName": {
-          "type": "string"
-        },
-        "serviceName": {
-          "type": "string"
-        },
-        "resourceName": {
-          "type": "string"
-        },
-        "completeDirectory": {
-          "type": "boolean"
-        },
-        "stream": {
-          "type": "boolean"
-        }
-      }
-    },
-    "luceneserverBackupIndexResponse": {
-      "type": "object",
-      "properties": {
-        "dataVersionHash": {
-          "type": "string"
-        },
-        "metadataVersionHash": {
-          "type": "string"
-        }
-      }
-    },
     "luceneserverBackupWarmingQueriesRequest": {
       "type": "object",
       "properties": {
@@ -2839,53 +2743,6 @@
           "type": "array",
           "items": {
             "$ref": "#/definitions/luceneserverQuery"
-          }
-        }
-      }
-    },
-    "luceneserverDeleteIndexBackupRequest": {
-      "type": "object",
-      "properties": {
-        "indexName": {
-          "type": "string"
-        },
-        "serviceName": {
-          "type": "string"
-        },
-        "resourceName": {
-          "type": "string"
-        },
-        "nDays": {
-          "type": "integer",
-          "format": "int32"
-        }
-      }
-    },
-    "luceneserverDeleteIndexBackupResponse": {
-      "type": "object",
-      "properties": {
-        "deletedResourceDataHashes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "deletedResourceMetadataHashes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "deletedDataVersions": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "deletedMetadataVersions": {
-          "type": "array",
-          "items": {
-            "type": "string"
           }
         }
       }
