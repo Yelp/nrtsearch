@@ -142,7 +142,11 @@ public class NRTFastVectorHighlighter implements Highlighter {
           DEFAULT_ENCODER);
     } catch (RuntimeException runtimeException) {
       logger.warn(
-          "FVH failed creating fragments, and the exception is: ", runtimeException.getMessage());
+          String.format(
+              "FVH failed creating fragments for the luceneDocId %d, the highlight query is %s and the exception is: %s",
+              leafDocId + hitLeaf.docBase,
+              settings.getHighlightQuery(),
+              runtimeException.getMessage()));
       return new String[0];
     }
   }
