@@ -145,6 +145,7 @@ public class NRTFastVectorHighlighter implements Highlighter {
           "FVH failed creating fragments for the luceneDocId: {}, highlight query: {}, exception: {}",
           leafDocId + hitLeaf.docBase,
           settings.getHighlightQuery(),
+          runtimeException.getMessage(),
           runtimeException);
       return new String[0];
     }
