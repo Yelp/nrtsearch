@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nrtsearch.replica.service.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "nrtsearch.replica.service.name" . }}
+    helm.sh/chart: {{ include "nrtsearch.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  type: {{ .Values.replica.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ include "nrtsearch.name" . }}-replica
+  ports:
+  {{- if .Values.replica.ports.service }}
+  {{- toYaml .Values.replica.ports.service | trim | nindent 4 }}
+  {{- end }}
