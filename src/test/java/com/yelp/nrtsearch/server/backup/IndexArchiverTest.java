@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.backup;
 
 import static com.yelp.nrtsearch.server.backup.IndexArchiver.getIndexDataDir;
-import static com.yelp.nrtsearch.server.backup.IndexArchiver.getIndexStateDir;
 import static org.junit.Assert.*;
 
 import com.amazonaws.util.IOUtils;
@@ -70,7 +69,7 @@ public class IndexArchiverTest {
 
     Path resourcePath = indexArchiver.download("testservice", "testresource");
     resourcePath = resourcePath.resolve("testresource");
-    for (Path path : List.of(getIndexDataDir(resourcePath), getIndexStateDir(resourcePath))) {
+    for (Path path : List.of(getIndexDataDir(resourcePath))) {
       for (Map.Entry<String, String> entry : filesAndContents.entrySet()) {
         assertEquals(true, Files.exists(Paths.get(path.toString(), entry.getKey())));
         assertEquals(
@@ -97,43 +96,6 @@ public class IndexArchiverTest {
         indexArchiver,
         "testservice",
         "testresource");
-  }
-
-  @Test
-  public void uploadMetadata() throws IOException {
-    IndexArchiver indexArchiver =
-        new IndexArchiver(
-            null,
-            backupTestHelper.getFileCompressAndUploaderWithTar(),
-            null,
-            backupTestHelper.getVersionManager(),
-            backupTestHelper.getArchiverDirectory());
-    backupTestHelper.uploadBlessAndValidateMetadata(
-        Map.of("indices1", "testcontent1", "indices2", "testcontent2"),
-        indexArchiver,
-        "testservice",
-        "testresource_metadata");
-  }
-
-  @Test
-  public void downloadMetadata() throws IOException {
-    IndexArchiver indexArchiver =
-        new IndexArchiver(
-            null,
-            backupTestHelper.getFileCompressAndUploaderWithTar(),
-            backupTestHelper.getContentDownloaderTar(),
-            backupTestHelper.getVersionManager(),
-            backupTestHelper.getArchiverDirectory());
-    Map<String, String> filesAndContents =
-        Map.of("indices1", "testcontent1", "indices2", "testcontent2");
-    backupTestHelper.uploadBlessAndValidateMetadata(
-        filesAndContents, indexArchiver, "testservice", "testresource_metadata");
-    Path resourcePath = indexArchiver.download("testservice", "testresource_metadata");
-    Path path = IndexArchiver.getIndexStateDir(resourcePath);
-    for (Map.Entry<String, String> entry : filesAndContents.entrySet()) {
-      assertEquals(true, Files.exists(Paths.get(path.toString(), entry.getKey())));
-      assertEquals(entry.getValue(), Files.readString(Paths.get(path.toString(), entry.getKey())));
-    }
   }
 
   @Test
@@ -214,14 +176,6 @@ public class IndexArchiverTest {
             .getArchiverDirectory()
             .resolve(IndexArchiver.SHARD_0)
             .resolve(IndexArchiver.INDEX));
-    assertEquals(false, indexArchiver.validIndexDir(backupTestHelper.getArchiverDirectory()));
-  }
-
-  @Test
-  public void invalidIndexDirNoState() throws IOException {
-    IndexArchiver indexArchiver = new IndexArchiver();
-    createValidIndexDir();
-    Files.delete(backupTestHelper.getArchiverDirectory().resolve(IndexArchiver.STATE));
     assertEquals(false, indexArchiver.validIndexDir(backupTestHelper.getArchiverDirectory()));
   }
 

@@ -16,8 +16,10 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
@@ -53,6 +55,7 @@ import org.junit.Test;
 public class MultiIndexAddDocumentsTest extends ServerTestCase {
   private static final String INDEX_1 = "test_index_1";
   private static final String INDEX_2 = "test_index_2";
+  private static final String INDEX_3 = "test_index_3";
 
   private static final Map<String, String> INDEX_TO_FIELD_DEF =
       Map.of(
@@ -140,6 +143,28 @@ public class MultiIndexAddDocumentsTest extends ServerTestCase {
 
     searchResponse = getGrpcServer().getBlockingStub().search(getMatchAllDocsQuery(INDEX_2));
     assertIdsInResponse(searchResponse, "7", "8", "9");
+  }
+
+  @Test
+  public void testIndexDoesNotExist() throws Exception {
+    List<AddDocumentRequest> allRequests =
+        getAddDocumentRequestStream(INDEX_1).collect(Collectors.toList());
+    allRequests.add(
+        AddDocumentRequest.newBuilder()
+            .setIndexName(INDEX_3)
+            .putFields("id", MultiValuedField.newBuilder().addValue("1").build())
+            .build());
+    Collections.shuffle(allRequests);
+
+    try {
+      addDocuments(allRequests.stream());
+      fail("Exception not thrown when adding documents");
+    } catch (RuntimeException e) {
+      assertThat(e.getCause().getMessage())
+          .isEqualTo(
+              String.format(
+                  "INVALID_ARGUMENT: Index %s does not exist, unable to add documents", INDEX_3));
+    }
   }
 
   private SearchRequest getMatchAllDocsQuery(String index) {

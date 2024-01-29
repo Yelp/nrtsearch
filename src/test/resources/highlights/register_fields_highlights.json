@@ -41,6 +41,34 @@
           "termVectors": "TERMS_POSITIONS"
         }
       ]
+    },
+    {
+      "name": "comment2",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "storeDocValues": true,
+      "termVectors": "TERMS_POSITIONS_OFFSETS"
+    },
+    {
+      "name": "comment_multivalue",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "storeDocValues": true,
+      "multiValued": true,
+      "termVectors": "TERMS_POSITIONS_OFFSETS"
+    },
+    {
+      "name": "boundary_scanner_field",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "storeDocValues": true,
+      "termVectors": "TERMS_POSITIONS_OFFSETS"
     }
   ]
 }

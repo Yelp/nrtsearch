@@ -15,7 +15,11 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
+import static com.yelp.nrtsearch.server.collectors.BucketOrder.COUNT;
+
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.BucketOrder;
+import com.yelp.nrtsearch.server.grpc.BucketOrder.OrderType;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
@@ -37,6 +41,8 @@ public class StringTermsCollectorManagerTest extends TermsCollectorManagerTestsB
 
   @Override
   protected AddDocumentRequest getIndexRequest(String index, int id) {
+    int valueOrder = id / 10 + id % 10;
+    valueOrder = valueOrder < 10 ? valueOrder : -1;
     return AddDocumentRequest.newBuilder()
         .setIndexName(index)
         .putFields(
@@ -49,6 +55,11 @@ public class StringTermsCollectorManagerTest extends TermsCollectorManagerTestsB
             "value",
             AddDocumentRequest.MultiValuedField.newBuilder()
                 .addValue(String.valueOf(id % 3))
+                .build())
+        .putFields(
+            "value_order",
+            AddDocumentRequest.MultiValuedField.newBuilder()
+                .addValue(String.valueOf(valueOrder))
                 .build())
         .build();
   }
@@ -67,11 +78,21 @@ public class StringTermsCollectorManagerTest extends TermsCollectorManagerTestsB
   }
 
   @Test
+  public void testTermsCollection_order() {
+    testTermsCollectionOrder();
+  }
+
+  @Test
   public void testTermsCollectionSubset() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(1).build();
     SearchResponse response = doQuery(terms);
     assertResponse(
         response, 3, 1, 66, new ExpectedValues(new HashSet<>(Collections.singletonList("0")), 34));
+  }
+
+  @Test
+  public void testTermsCollectionSubset_order() {
+    testTermsCollectionSubsetOrder();
   }
 
   @Test
@@ -88,6 +109,11 @@ public class StringTermsCollectorManagerTest extends TermsCollectorManagerTestsB
   }
 
   @Test
+  public void testTermsCollectionGreaterSize_order() {
+    testTermsCollectionGreaterSizeOrder();
+  }
+
+  @Test
   public void testTermsRange() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(3).build();
     SearchResponse response = doRangeQuery(terms);
@@ -101,6 +127,11 @@ public class StringTermsCollectorManagerTest extends TermsCollectorManagerTestsB
   }
 
   @Test
+  public void testTermsRange_order() {
+    testTermsRangeOrder();
+  }
+
+  @Test
   public void testTermsRangeSubset() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(1).build();
     SearchResponse response = doRangeQuery(terms);
@@ -109,9 +140,31 @@ public class StringTermsCollectorManagerTest extends TermsCollectorManagerTestsB
   }
 
   @Test
+  public void testTermsRangeSubset_order() {
+    testTermsRangeSubsetOrder();
+  }
+
+  @Test
   public void testNestedCollector() {
     TermsCollector terms = TermsCollector.newBuilder().setField(VALUE_FIELD).setSize(3).build();
     SearchResponse response = doNestedQuery(terms);
     assertNestedResult(response);
+  }
+
+  @Test
+  public void testNestedCollector_asc() {
+    TermsCollector terms =
+        TermsCollector.newBuilder()
+            .setField(VALUE_FIELD)
+            .setOrder(BucketOrder.newBuilder().setKey(COUNT).setOrder(OrderType.ASC).build())
+            .setSize(3)
+            .build();
+    SearchResponse response = doNestedQuery(terms);
+    assertNestedResult(response);
+  }
+
+  @Test
+  public void testOrderByNestedCollector() {
+    super.testOrderByNestedCollector();
   }
 }

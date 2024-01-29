@@ -1,0 +1,142 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "ATOM",
+      "storeDocValues": true
+    },
+    {
+      "name": "vendor_name",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "analyzer": {
+        "custom": {
+          "tokenizer": {
+            "name": "standard"
+          },
+          "tokenFilters": [
+            {
+              "name": "lowercase"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "vendor_name_atom",
+      "type": "ATOM",
+      "search": true,
+      "store": true,
+      "multiValued": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "license_no",
+      "type": "INT",
+      "multiValued": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "count",
+      "type": "INT",
+      "search": true,
+      "storeDocValues": true,
+      "sort": true
+    },
+    {
+      "name": "long_field",
+      "type": "LONG",
+      "search": true,
+      "storeDocValues": true,
+      "sort": true
+    },
+    {
+      "name": "long_field_multi",
+      "type": "LONG",
+      "search": true,
+      "storeDocValues": true,
+      "multiValued": true,
+      "sort": true
+    },
+    {
+      "name": "double_field_multi",
+      "type": "DOUBLE",
+      "storeDocValues": true,
+      "multiValued": true,
+      "sort": true
+    },
+    {
+      "name": "double_field",
+      "type": "DOUBLE",
+      "search": true,
+      "storeDocValues": true,
+      "sort": true
+    },
+    {
+      "name": "float_field_multi",
+      "type": "FLOAT",
+      "storeDocValues": true,
+      "multiValued": true,
+      "sort": true
+    },
+    {
+      "name": "float_field",
+      "type": "FLOAT",
+      "search": true,
+      "storeDocValues": true,
+      "sort": true
+    },
+    {
+      "name": "boolean_field_multi",
+      "type": "BOOLEAN",
+      "storeDocValues": true,
+      "multiValued": true,
+      "sort": true
+    },
+    {
+      "name": "boolean_field",
+      "type": "BOOLEAN",
+      "search": true,
+      "storeDocValues": true,
+      "sort": true
+    },
+    {
+      "name": "description",
+      "type": "TEXT",
+      "search": true,
+      "store": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "date",
+      "type": "DATE_TIME",
+      "search": true,
+      "storeDocValues": true,
+      "dateTimeFormat": "yyyy-MM-dd HH:mm:ss"
+    },
+    {
+      "name": "date_multi",
+      "type": "DATE_TIME",
+      "search": true,
+      "storeDocValues": true,
+      "multiValued": true,
+      "dateTimeFormat": "yyyy-MM-dd HH:mm:ss"
+    },
+    {
+      "name": "text_not_stored",
+      "type": "TEXT",
+      "search": true,
+      "store": false,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": false
+    }
+  ]
+}

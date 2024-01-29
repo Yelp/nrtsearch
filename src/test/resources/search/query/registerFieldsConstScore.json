@@ -1,0 +1,19 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "_ID",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "text_field",
+      "type": "TEXT",
+      "search": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true
+    }
+  ]
+}

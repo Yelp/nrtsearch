@@ -21,22 +21,31 @@ import com.yelp.nrtsearch.server.grpc.ExistsQuery;
 import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
 import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
 import com.yelp.nrtsearch.server.grpc.GeoPointQuery;
+import com.yelp.nrtsearch.server.grpc.GeoPolygonQuery;
 import com.yelp.nrtsearch.server.grpc.GeoRadiusQuery;
 import com.yelp.nrtsearch.server.grpc.MatchOperator;
 import com.yelp.nrtsearch.server.grpc.MatchPhraseQuery;
 import com.yelp.nrtsearch.server.grpc.MatchQuery;
 import com.yelp.nrtsearch.server.grpc.MultiMatchQuery;
+import com.yelp.nrtsearch.server.grpc.MultiMatchQuery.MatchType;
+import com.yelp.nrtsearch.server.grpc.PrefixQuery;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
+import com.yelp.nrtsearch.server.grpc.RewriteMethod;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.PolygonQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
+import com.yelp.nrtsearch.server.luceneserver.search.query.MatchCrossFieldsQuery;
+import com.yelp.nrtsearch.server.luceneserver.search.query.MatchPhrasePrefixQuery;
+import com.yelp.nrtsearch.server.luceneserver.search.query.multifunction.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
@@ -45,6 +54,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.function.FunctionMatchQuery;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
@@ -56,6 +66,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -63,8 +74,8 @@ import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
-import org.apache.lucene.search.suggest.document.ContextQuery;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
+import org.apache.lucene.search.suggest.document.MyContextQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.util.QueryBuilder;
 
@@ -98,14 +109,21 @@ public class QueryNodeMapper {
     return queryNode;
   }
 
-  public Query applyQueryNestedPath(Query query, String path) {
-    if (path == null || path.length() == 0) {
-      path = IndexState.ROOT;
+  public Query applyQueryNestedPath(Query query, IndexState indexState, String path) {
+    if (path == null || path.isEmpty()) {
+      return query;
     }
     BooleanQuery.Builder builder = new BooleanQuery.Builder();
-    builder.add(new TermQuery(new Term(IndexState.NESTED_PATH, path)), BooleanClause.Occur.FILTER);
+    builder.add(getNestedPathQuery(indexState, path), BooleanClause.Occur.FILTER);
     builder.add(query, BooleanClause.Occur.MUST);
     return builder.build();
+  }
+
+  /*
+   * create the query to filter the parent/child document based on the path
+   * */
+  public Query getNestedPathQuery(IndexState indexState, String path) {
+    return new TermQuery(new Term(IndexState.NESTED_PATH, indexState.resolveQueryNestedPath(path)));
   }
 
   private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
@@ -144,6 +162,16 @@ public class QueryNodeMapper {
         return getFunctionFilterQuery(query.getFunctionFilterQuery(), state);
       case COMPLETIONQUERY:
         return getCompletionQuery(query.getCompletionQuery(), state);
+      case MULTIFUNCTIONSCOREQUERY:
+        return MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), state);
+      case MATCHPHRASEPREFIXQUERY:
+        return MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), state);
+      case PREFIXQUERY:
+        return getPrefixQuery(query.getPrefixQuery(), state);
+      case CONSTANTSCOREQUERY:
+        return getConstantScoreQuery(query.getConstantScoreQuery(), state);
+      case GEOPOLYGONQUERY:
+        return getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
       case QUERYNODE_NOT_SET:
         return new MatchAllDocsQuery();
       default:
@@ -172,8 +200,8 @@ public class QueryNodeMapper {
         throw new UnsupportedOperationException(
             "Unsupported suggest query type received: " + completionQueryDef.getQueryType());
     }
-    ContextQuery contextQuery = new ContextQuery(completionQuery);
-    completionQueryDef.getContextsList().forEach(contextQuery::addContext);
+    MyContextQuery contextQuery = new MyContextQuery(completionQuery);
+    contextQuery.addContexts(completionQueryDef.getContextsList());
     return contextQuery;
   }
 
@@ -182,12 +210,10 @@ public class QueryNodeMapper {
     Query childRawQuery = getQuery(nestedQuery.getQuery(), state);
     Query childQuery =
         new BooleanQuery.Builder()
-            .add(
-                new TermQuery(new Term(IndexState.NESTED_PATH, nestedQuery.getPath())),
-                BooleanClause.Occur.FILTER)
+            .add(getNestedPathQuery(state, nestedQuery.getPath()), BooleanClause.Occur.FILTER)
             .add(childRawQuery, BooleanClause.Occur.MUST)
             .build();
-    Query parentQuery = new TermQuery(new Term(IndexState.NESTED_PATH, IndexState.ROOT));
+    Query parentQuery = getNestedPathQuery(state, IndexState.ROOT);
     return new ToParentBlockJoinQuery(
         childQuery, new QueryBitSetProducer(parentQuery), getScoreMode(nestedQuery));
   }
@@ -215,6 +241,10 @@ public class QueryNodeMapper {
     BooleanQuery.Builder builder =
         new BooleanQuery.Builder()
             .setMinimumNumberShouldMatch(booleanQuery.getMinimumNumberShouldMatch());
+
+    if (booleanQuery.getClausesCount() == 0) {
+      return builder.add(new MatchAllDocsQuery(), BooleanClause.Occur.MUST).build();
+    }
 
     AtomicBoolean allMustNot = new AtomicBoolean(true);
     booleanQuery
@@ -379,24 +409,49 @@ public class QueryNodeMapper {
       fields = multiMatchQuery.getFieldsList();
     }
 
+    if (multiMatchQuery.getType() == MatchType.CROSS_FIELDS) {
+      return getMultiMatchCrossFieldsQuery(fields, multiMatchQuery, state);
+    }
+
     List<Query> matchQueries =
         fields.stream()
             .map(
                 field -> {
-                  MatchQuery matchQuery =
-                      MatchQuery.newBuilder()
-                          .setField(field)
-                          .setQuery(multiMatchQuery.getQuery())
-                          .setOperator(multiMatchQuery.getOperator())
-                          .setMinimumNumberShouldMatch(
-                              multiMatchQuery.getMinimumNumberShouldMatch())
-                          .setAnalyzer(
-                              multiMatchQuery
-                                  .getAnalyzer()) // TODO: making the analyzer once and using it for
-                          // all match queries would be more efficient
-                          .setFuzzyParams(multiMatchQuery.getFuzzyParams())
-                          .build();
-                  Query query = getMatchQuery(matchQuery, state);
+                  Query query;
+                  switch (multiMatchQuery.getType()) {
+                    case BEST_FIELDS:
+                      MatchQuery matchQuery =
+                          MatchQuery.newBuilder()
+                              .setField(field)
+                              .setQuery(multiMatchQuery.getQuery())
+                              .setOperator(multiMatchQuery.getOperator())
+                              .setMinimumNumberShouldMatch(
+                                  multiMatchQuery.getMinimumNumberShouldMatch())
+                              .setAnalyzer(
+                                  multiMatchQuery
+                                      .getAnalyzer()) // TODO: making the analyzer once and using it
+                              // for
+                              // all match queries would be more efficient
+                              .setFuzzyParams(multiMatchQuery.getFuzzyParams())
+                              .build();
+                      query = getMatchQuery(matchQuery, state);
+                      break;
+                    case PHRASE_PREFIX:
+                      query =
+                          MatchPhrasePrefixQuery.build(
+                              com.yelp.nrtsearch.server.grpc.MatchPhrasePrefixQuery.newBuilder()
+                                  .setField(field)
+                                  .setQuery(multiMatchQuery.getQuery())
+                                  .setAnalyzer(multiMatchQuery.getAnalyzer())
+                                  .setSlop(multiMatchQuery.getSlop())
+                                  .setMaxExpansions(multiMatchQuery.getMaxExpansions())
+                                  .build(),
+                              state);
+                      break;
+                    default:
+                      throw new IllegalArgumentException(
+                          "Unknown multi match type: " + multiMatchQuery.getType());
+                  }
                   Float boost = fieldBoosts.get(field);
                   if (boost != null) {
                     if (boost < 0) {
@@ -412,6 +467,38 @@ public class QueryNodeMapper {
                 })
             .collect(Collectors.toList());
     return new DisjunctionMaxQuery(matchQueries, 0);
+  }
+
+  private Query getMultiMatchCrossFieldsQuery(
+      Collection<String> fields, MultiMatchQuery multiMatchQuery, IndexState state) {
+    Analyzer analyzer = null;
+    for (String field : fields) {
+      FieldDef fieldDef = state.getField(field);
+      if (!(fieldDef instanceof TextBaseFieldDef)) {
+        throw new IllegalArgumentException("Field must be analyzable: " + field);
+      }
+      TextBaseFieldDef textBaseFieldDef = (TextBaseFieldDef) fieldDef;
+      if (!textBaseFieldDef.isSearchable()) {
+        throw new IllegalArgumentException("Field must be searchable: " + field);
+      }
+      if (analyzer == null) {
+        analyzer =
+            multiMatchQuery.hasAnalyzer()
+                ? AnalyzerCreator.getInstance().getAnalyzer(multiMatchQuery.getAnalyzer())
+                : textBaseFieldDef.getSearchAnalyzer().orElse(null);
+      }
+    }
+    if (analyzer == null) {
+      throw new IllegalArgumentException("Could not determine analyzer for query");
+    }
+    return MatchCrossFieldsQuery.build(
+        multiMatchQuery.getQuery(),
+        new ArrayList<>(fields),
+        multiMatchQuery.getFieldBoostsMap(),
+        multiMatchQuery.getOperator(),
+        multiMatchQuery.getMinimumNumberShouldMatch(),
+        multiMatchQuery.getTieBreakerMultiplier(),
+        analyzer);
   }
 
   private Query getRangeQuery(RangeQuery rangeQuery, IndexState state) {
@@ -457,6 +544,17 @@ public class QueryNodeMapper {
     return ((PolygonQueryable) field).getGeoPointQuery(geoPolygonQuery);
   }
 
+  private Query getGeoPolygonQuery(GeoPolygonQuery geoPolygonQuery, IndexState state) {
+    String fieldName = geoPolygonQuery.getField();
+    FieldDef field = state.getField(fieldName);
+
+    if (!(field instanceof GeoQueryable)) {
+      throw new IllegalArgumentException(
+          "Field " + fieldName + " does not support GeoPolygonQuery");
+    }
+    return ((GeoQueryable) field).getGeoPolygonQuery(geoPolygonQuery);
+  }
+
   private Map<com.yelp.nrtsearch.server.grpc.BooleanClause.Occur, BooleanClause.Occur>
       initializeOccurMapping() {
     return Arrays.stream(com.yelp.nrtsearch.server.grpc.BooleanClause.Occur.values())
@@ -470,5 +568,52 @@ public class QueryNodeMapper {
   private Query getExistsQuery(ExistsQuery existsQuery, IndexState state) {
     String fieldName = existsQuery.getField();
     return new ConstantScoreQuery(new TermQuery(new Term(IndexState.FIELD_NAMES, fieldName)));
+  }
+
+  private static Query getPrefixQuery(PrefixQuery prefixQuery, IndexState state) {
+    FieldDef fieldDef = state.getField(prefixQuery.getField());
+    if (!(fieldDef instanceof IndexableFieldDef)) {
+      throw new IllegalArgumentException(
+          "Field \"" + prefixQuery.getPrefix() + "\" is not indexable");
+    }
+    IndexOptions indexOptions = ((IndexableFieldDef) fieldDef).getFieldType().indexOptions();
+    if (indexOptions == IndexOptions.NONE) {
+      throw new IllegalArgumentException(
+          "Field \"" + prefixQuery.getField() + "\" is not indexed with terms");
+    }
+
+    org.apache.lucene.search.PrefixQuery query =
+        new org.apache.lucene.search.PrefixQuery(
+            new Term(prefixQuery.getField(), prefixQuery.getPrefix()));
+    query.setRewriteMethod(
+        getRewriteMethod(prefixQuery.getRewrite(), prefixQuery.getRewriteTopTermsSize()));
+    return query;
+  }
+
+  private static MultiTermQuery.RewriteMethod getRewriteMethod(
+      RewriteMethod rewriteMethodGrpc, int topTermsSize) {
+    switch (rewriteMethodGrpc) {
+      case CONSTANT_SCORE:
+        return MultiTermQuery.CONSTANT_SCORE_REWRITE;
+      case CONSTANT_SCORE_BOOLEAN:
+        return MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE;
+      case SCORING_BOOLEAN:
+        return MultiTermQuery.SCORING_BOOLEAN_REWRITE;
+      case TOP_TERMS_BLENDED_FREQS:
+        return new MultiTermQuery.TopTermsBlendedFreqScoringRewrite(topTermsSize);
+      case TOP_TERMS_BOOST:
+        return new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(topTermsSize);
+      case TOP_TERMS:
+        return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(topTermsSize);
+      default:
+        throw new IllegalArgumentException("Unknown rewrite method: " + rewriteMethodGrpc);
+    }
+  }
+
+  private Query getConstantScoreQuery(
+      com.yelp.nrtsearch.server.grpc.ConstantScoreQuery constantScoreQueryGrpc,
+      IndexState indexState) {
+    Query filterQuery = getQuery(constantScoreQueryGrpc.getFilter(), indexState);
+    return new ConstantScoreQuery(filterQuery);
   }
 }

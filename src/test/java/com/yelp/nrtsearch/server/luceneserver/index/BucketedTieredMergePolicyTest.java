@@ -20,13 +20,14 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
+import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import io.grpc.testing.GrpcCleanupRule;
@@ -183,12 +184,15 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
   }
 
   private void setLiveSettings(int virtualShards, int maxDocs, int maxSegments) throws IOException {
-    IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
-    assertTrue(indexState instanceof LegacyIndexState);
-    LegacyIndexState legacyIndexState = (LegacyIndexState) indexState;
-    legacyIndexState.setVirtualShards(virtualShards);
-    legacyIndexState.setSliceMaxDocs(maxDocs);
-    legacyIndexState.setSliceMaxSegments(maxSegments);
+    getGlobalState()
+        .getIndexStateManager(DEFAULT_TEST_INDEX)
+        .updateLiveSettings(
+            IndexLiveSettings.newBuilder()
+                .setVirtualShards(Int32Value.newBuilder().setValue(virtualShards).build())
+                .setSliceMaxDocs(Int32Value.newBuilder().setValue(maxDocs).build())
+                .setSliceMaxSegments(Int32Value.newBuilder().setValue(maxSegments).build())
+                .build(),
+            false);
   }
 
   private void addData(int count) throws Exception {

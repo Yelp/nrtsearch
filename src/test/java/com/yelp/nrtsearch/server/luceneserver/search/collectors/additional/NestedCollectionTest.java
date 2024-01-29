@@ -191,6 +191,110 @@ public class NestedCollectionTest extends ServerTestCase {
   }
 
   @Test
+  public void testNestedCollectorsWithNestedExplain() {
+    SearchRequest request =
+        SearchRequest.newBuilder()
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .setQuery(
+                Query.newBuilder()
+                    .setFunctionScoreQuery(
+                        FunctionScoreQuery.newBuilder()
+                            .setScript(
+                                Script.newBuilder()
+                                    .setLang(JsScriptEngine.LANG)
+                                    .setSource("value*3")
+                                    .build())
+                            .build())
+                    .build())
+            .putCollectors(
+                "test_collector",
+                Collector.newBuilder()
+                    .setTerms(
+                        TermsCollector.newBuilder().setField("int_field_2").setSize(2).build())
+                    .putNestedCollectors(
+                        "nested",
+                        Collector.newBuilder()
+                            .setTopHitsCollector(
+                                TopHitsCollector.newBuilder()
+                                    .setStartHit(0)
+                                    .setTopHits(5)
+                                    .addAllRetrieveFields(ALL_FIELDS)
+                                    .setExplain(true)
+                                    .build())
+                            .build())
+                    .build())
+            .build();
+    SearchResponse response = getGrpcServer().getBlockingStub().search(request);
+
+    assertEquals(100, response.getTotalHits().getValue());
+    assertEquals(Relation.EQUAL_TO, response.getTotalHits().getRelation());
+    assertEquals(0, response.getHitsCount());
+
+    assertEquals(1, response.getCollectorResultsCount());
+    CollectorResult collectorResult = response.getCollectorResultsOrThrow("test_collector");
+    assertEquals(CollectorResultsCase.BUCKETRESULT, collectorResult.getCollectorResultsCase());
+    BucketResult bucketResult = collectorResult.getBucketResult();
+    assertEquals(2, bucketResult.getBucketsCount());
+    Map<String, Bucket> bucketMap =
+        bucketResult.getBucketsList().stream().collect(Collectors.toMap(Bucket::getKey, b -> b));
+    assertEquals(Set.of("0", "1"), bucketMap.keySet());
+
+    Bucket bucket = bucketMap.get("0");
+    assertEquals(50, bucket.getCount());
+    assertEquals(1, bucket.getNestedCollectorResultsCount());
+    HitsResult hitsResult = bucket.getNestedCollectorResultsOrThrow("nested").getHitsResult();
+    assertEquals(50, hitsResult.getTotalHits().getValue());
+    assertEquals(Relation.EQUAL_TO, hitsResult.getTotalHits().getRelation());
+    assertEquals(5, hitsResult.getHitsCount());
+    assertHits(hitsResult, 98, 96, 94, 92, 90);
+    assertScores(hitsResult, 300, 294, 288, 282, 276);
+    assertExplain(
+        hitsResult,
+        "300.0 = weight(FunctionScoreQuery(*:*, scored by expr(value*3))), result of:\n"
+            + "  300.0 = value*3, computed from:\n"
+            + "    100.0 = double(value)\n",
+        "294.0 = weight(FunctionScoreQuery(*:*, scored by expr(value*3))), result of:\n"
+            + "  294.0 = value*3, computed from:\n"
+            + "    98.0 = double(value)\n",
+        "288.0 = weight(FunctionScoreQuery(*:*, scored by expr(value*3))), result of:\n"
+            + "  288.0 = value*3, computed from:\n"
+            + "    96.0 = double(value)\n",
+        "282.0 = weight(FunctionScoreQuery(*:*, scored by expr(value*3))), result of:\n"
+            + "  282.0 = value*3, computed from:\n"
+            + "    94.0 = double(value)\n",
+        "276.0 = weight(FunctionScoreQuery(*:*, scored by expr(value*3))), result of:\n"
+            + "  276.0 = value*3, computed from:\n"
+            + "    92.0 = double(value)\n");
+
+    bucket = bucketMap.get("1");
+    assertEquals(50, bucket.getCount());
+    assertEquals(1, bucket.getNestedCollectorResultsCount());
+    hitsResult = bucket.getNestedCollectorResultsOrThrow("nested").getHitsResult();
+    assertEquals(50, hitsResult.getTotalHits().getValue());
+    assertEquals(Relation.EQUAL_TO, hitsResult.getTotalHits().getRelation());
+    assertEquals(5, hitsResult.getHitsCount());
+    assertHits(hitsResult, 99, 97, 95, 93, 91);
+    assertScores(hitsResult, 303, 297, 291, 285, 279);
+    assertExplain(
+        hitsResult,
+        "303.0 = weight(FunctionScoreQuery(*:*, scored by expr(value*3))), result of:\n"
+            + "  303.0 = value*3, computed from:\n"
+            + "    101.0 = double(value)\n",
+        "297.0 = weight(FunctionScoreQuery(*:*, scored by expr(value*3))), result of:\n"
+            + "  297.0 = value*3, computed from:\n"
+            + "    99.0 = double(value)\n",
+        "291.0 = weight(FunctionScoreQuery(*:*, scored by expr(value*3))), result of:\n"
+            + "  291.0 = value*3, computed from:\n"
+            + "    97.0 = double(value)\n",
+        "285.0 = weight(FunctionScoreQuery(*:*, scored by expr(value*3))), result of:\n"
+            + "  285.0 = value*3, computed from:\n"
+            + "    95.0 = double(value)\n",
+        "279.0 = weight(FunctionScoreQuery(*:*, scored by expr(value*3))), result of:\n"
+            + "  279.0 = value*3, computed from:\n"
+            + "    93.0 = double(value)\n");
+  }
+
+  @Test
   public void testMultiLevelNestedCollectors() {
     SearchRequest request =
         SearchRequest.newBuilder()
@@ -572,6 +676,13 @@ public class NestedCollectionTest extends ServerTestCase {
     for (int i = 0; i < scores.length; ++i) {
       Hit hit = hitsResult.getHits(i);
       assertEquals(scores[i], hit.getScore(), 0);
+    }
+  }
+
+  private void assertExplain(HitsResult hitsResult, String... explains) {
+    assertEquals(hitsResult.getHitsCount(), explains.length);
+    for (int i = 0; i < explains.length; ++i) {
+      assertEquals(hitsResult.getHits(i).getExplain(), explains[i]);
     }
   }
 }

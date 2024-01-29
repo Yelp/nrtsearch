@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
+import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.BINARY_MAGIC;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -23,9 +24,11 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
+import com.yelp.nrtsearch.clientlib.Node;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.backup.ArchiverImpl;
 import com.yelp.nrtsearch.server.backup.BackupDiffManager;
@@ -46,6 +49,7 @@ import com.yelp.nrtsearch.server.grpc.LuceneServer.ReplicationServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import io.findify.s3mock.S3Mock;
 import io.grpc.Server;
@@ -54,12 +58,14 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.CollectorRegistry;
 import java.io.ByteArrayInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -72,10 +78,14 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestServer {
   private static final List<TestServer> createdServers = new ArrayList<>();
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private final Gson gson = new GsonBuilder().serializeNulls().create();
   public static final String SERVICE_NAME = "test_server";
   public static final String TEST_BUCKET = "test-server-data-bucket";
   public static final String S3_ENDPOINT = "http://127.0.0.1:8011";
+  public static final String DISCOVERY_FILE = "primary_node.json";
+  public static final long DEFAULT_REPLICATION_WAIT_TIMEOUT_MS = 30000;
+  public static final long DEFAULT_PRIMARY_REGISTER_TIMEOUT_MS = 30000;
   public static final List<String> simpleFieldNames = List.of("id", "field1", "field2");
   public static final List<Field> simpleFields =
       List.of(
@@ -100,6 +110,8 @@ public class TestServer {
   private static S3Mock api;
 
   private final LuceneServerConfiguration configuration;
+  private final boolean writeDiscoveryFile;
+  private final Path discoveryFilePath;
   private Server server;
   private Server replicationServer;
   private LuceneServerClient client;
@@ -124,8 +136,12 @@ public class TestServer {
     }
   }
 
-  public TestServer(LuceneServerConfiguration configuration) throws IOException {
+  public TestServer(
+      LuceneServerConfiguration configuration, boolean writeDiscoveryFile, Path discoveryFilePath)
+      throws IOException {
     this.configuration = configuration;
+    this.writeDiscoveryFile = writeDiscoveryFile;
+    this.discoveryFilePath = discoveryFilePath;
     createdServers.add(this);
     restart();
   }
@@ -159,8 +175,7 @@ public class TestServer {
         fileCompressAndUploader,
         contentDownloader,
         versionManager,
-        archiverDir,
-        false);
+        archiverDir);
   }
 
   private Archiver createLegacyArchiver(Path archiverDir) throws IOException {
@@ -194,8 +209,30 @@ public class TestServer {
             .addService(new ReplicationServerImpl(serverImpl.getGlobalState()))
             .build()
             .start();
+    serverImpl.getGlobalState().replicationStarted(replicationServer.getPort());
+
+    if (writeDiscoveryFile) {
+      writeDiscoveryFile(replicationServer.getPort());
+    }
+
     server = ServerBuilder.forPort(0).addService(serverImpl).build().start();
     client = new LuceneServerClient("localhost", server.getPort());
+  }
+
+  private void writeDiscoveryFile(int replicationPort) throws IOException {
+    Node serverNode = new Node("localhost", replicationPort);
+    writeNodeFile(Collections.singletonList(serverNode));
+  }
+
+  private void writeNodeFile(List<Node> nodes) throws IOException {
+    writeFile(OBJECT_MAPPER.writeValueAsString(nodes));
+  }
+
+  private void writeFile(String contents) throws IOException {
+    String filePathStr = discoveryFilePath.toString();
+    try (FileOutputStream outputStream = new FileOutputStream(filePathStr)) {
+      outputStream.write(contents.getBytes());
+    }
   }
 
   public int getPort() {
@@ -372,6 +409,10 @@ public class TestServer {
     startIndex(builder.build());
   }
 
+  public StartIndexResponse startIndexV2(StartIndexV2Request startIndexRequest) {
+    return client.getBlockingStub().startIndexV2(startIndexRequest);
+  }
+
   public DummyResponse stopIndex(StopIndexRequest stopIndexRequest) {
     return client.getBlockingStub().stopIndex(stopIndexRequest);
   }
@@ -468,6 +509,7 @@ public class TestServer {
                     .setTopHits(expectedCount + 1)
                     .setStartHit(0)
                     .build());
+
     assertEquals(expectedCount, response.getHitsCount());
     for (Hit hit : response.getHitsList()) {
       int id = Integer.parseInt(hit.getFieldsOrThrow("id").getFieldValue(0).getTextValue());
@@ -478,6 +520,34 @@ public class TestServer {
     }
   }
 
+  public void verifySimpleDocIds(String indexName, int... ids) {
+    Set<Integer> uniqueIds = new HashSet<>();
+    for (int id : ids) {
+      uniqueIds.add(id);
+    }
+    SearchResponse response =
+        client
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(indexName)
+                    .addAllRetrieveFields(simpleFieldNames)
+                    .setTopHits(uniqueIds.size() + 1)
+                    .setStartHit(0)
+                    .build());
+    assertEquals(uniqueIds.size(), response.getHitsCount());
+    Set<Integer> uniqueHitIds = new HashSet<>();
+    for (Hit hit : response.getHitsList()) {
+      int id = Integer.parseInt(hit.getFieldsOrThrow("id").getFieldValue(0).getTextValue());
+      int f1 = hit.getFieldsOrThrow("field1").getFieldValue(0).getIntValue();
+      int f2 = Integer.parseInt(hit.getFieldsOrThrow("field2").getFieldValue(0).getTextValue());
+      assertEquals(id * 3, f1);
+      assertEquals(id * 5, f2);
+      uniqueHitIds.add(id);
+    }
+    assertEquals(uniqueIds, uniqueHitIds);
+  }
+
   public void refresh(String indexName) {
     client.refresh(indexName);
   }
@@ -486,8 +556,77 @@ public class TestServer {
     client.commit(indexName);
   }
 
+  public void deleteAllDocuments(String indexName) {
+    client.deleteAllDocuments(indexName);
+  }
+
   public void deleteIndex(String indexName) {
     client.deleteIndex(indexName);
+  }
+
+  public void waitForReplication(String indexName) throws IOException {
+    waitForReplication(indexName, DEFAULT_REPLICATION_WAIT_TIMEOUT_MS);
+  }
+
+  public void waitForReplication(String indexName, long timeoutMs) throws IOException {
+    ShardState shardState = getGlobalState().getIndex(indexName).getShard(0);
+    if (!shardState.isReplica()) {
+      throw new IllegalStateException("Must be called on replica index");
+    }
+    long start = System.currentTimeMillis();
+    while (shardState.nrtReplicaNode.isCopying()
+        && (System.currentTimeMillis() - start) < timeoutMs) {
+      try {
+        Thread.sleep(20);
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+    }
+    if (shardState.nrtReplicaNode.isCopying()) {
+      throw new RuntimeException("Timed out waiting for replication");
+    }
+  }
+
+  public void registerWithPrimary(String indexName) throws IOException {
+    registerWithPrimary(indexName, DEFAULT_PRIMARY_REGISTER_TIMEOUT_MS);
+  }
+
+  public void registerWithPrimary(String indexName, long timeoutMs) throws IOException {
+    ShardState shardState = getGlobalState().getIndex(indexName).getShard(0);
+    if (!shardState.isReplica()) {
+      throw new IllegalStateException("Must be called on replica index");
+    }
+
+    AddReplicaRequest addReplicaRequest =
+        AddReplicaRequest.newBuilder()
+            .setMagicNumber(BINARY_MAGIC)
+            .setIndexName(indexName)
+            .setReplicaId(ShardState.REPLICA_ID)
+            .setHostName("localhost")
+            .setPort(getGlobalState().getReplicationPort())
+            .build();
+
+    long start = System.currentTimeMillis();
+    while ((System.currentTimeMillis() - start) < timeoutMs) {
+      try {
+        AddReplicaResponse response =
+            shardState
+                .nrtReplicaNode
+                .getPrimaryAddress()
+                .getBlockingStub()
+                .addReplicas(addReplicaRequest);
+        if (response.getOk().equals("ok")) {
+          return;
+        }
+      } catch (StatusRuntimeException ignored) {
+      }
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+    }
+    throw new RuntimeException("Timed out trying to register with primary");
   }
 
   public static Builder builder(TemporaryFolder folder) {
@@ -500,9 +639,11 @@ public class TestServer {
     private String serviceName = SERVICE_NAME;
 
     private boolean autoStart = false;
+    private boolean decInitialCommit = false;
     private Mode mode = Mode.STANDALONE;
     private int port = 0;
     private IndexDataLocationType locationType = IndexDataLocationType.LOCAL;
+    private boolean fileDiscovery = false;
 
     private StateBackendType stateBackendType = StateBackendType.LOCAL;
     private boolean backendReadOnly = true;
@@ -514,6 +655,7 @@ public class TestServer {
     private int maxWarmingQueries = 0;
     private int warmingParallelism = 1;
     private boolean warmOnStartup = false;
+    private boolean writeDiscoveryFile = false;
 
     private String additionalConfig = "";
 
@@ -532,6 +674,7 @@ public class TestServer {
       this.mode = mode;
       this.port = port;
       this.locationType = locationType;
+      this.fileDiscovery = mode == Mode.REPLICA && port <= 0;
       return this;
     }
 
@@ -557,6 +700,11 @@ public class TestServer {
       return this;
     }
 
+    public Builder withDecInitialCommit(boolean enabled) {
+      this.decInitialCommit = enabled;
+      return this;
+    }
+
     public Builder withSyncInitialNrtPoint(boolean enable) {
       this.syncInitialNrtPoint = enable;
       return this;
@@ -567,6 +715,11 @@ public class TestServer {
       this.maxWarmingQueries = maxWarmingQueries;
       this.warmingParallelism = warmingParallelism;
       this.warmOnStartup = warmOnStartup;
+      return this;
+    }
+
+    public Builder withWriteDiscoveryFile(boolean writeDiscoveryFile) {
+      this.writeDiscoveryFile = writeDiscoveryFile;
       return this;
     }
 
@@ -583,7 +736,9 @@ public class TestServer {
               "syncInitialNrtPoint: " + syncInitialNrtPoint,
               additionalConfig);
       return new TestServer(
-          new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes())));
+          new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes())),
+          writeDiscoveryFile,
+          Paths.get(folder.getRoot().toString(), DISCOVERY_FILE));
     }
 
     private String archiverConfig() {
@@ -605,15 +760,20 @@ public class TestServer {
     }
 
     private String autoStartConfig() {
-      return String.join(
-          "\n",
-          "indexStartConfig:",
-          "  autoStart: " + autoStart,
-          "  dataLocationType: " + locationType,
-          "  mode: " + mode,
-          "  primaryDiscovery:",
-          "    host: localhost",
-          "    port: " + port);
+      String config =
+          String.join(
+              "\n",
+              "indexStartConfig:",
+              "  autoStart: " + autoStart,
+              "  dataLocationType: " + locationType,
+              "  mode: " + mode,
+              "  primaryDiscovery:");
+      if (fileDiscovery) {
+        return String.join(
+            "\n", config, "    file: " + Paths.get(folder.getRoot().toString(), DISCOVERY_FILE));
+      } else {
+        return String.join("\n", config, "    host: localhost", "    port: " + port);
+      }
     }
 
     private String warmingConfig() {
@@ -633,6 +793,7 @@ public class TestServer {
           "stateDir: " + Paths.get(folder.getRoot().toString(), "state_dir"),
           "indexDir: " + Paths.get(folder.getRoot().toString(), "index_dir-" + uuid),
           "archiveDirectory: " + Paths.get(folder.getRoot().toString(), "archive_dir-" + uuid),
+          "decInitialCommit: " + decInitialCommit,
           "syncInitialNrtPoint: true");
     }
   }

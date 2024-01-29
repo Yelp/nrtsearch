@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.field;
 
+import static com.yelp.nrtsearch.server.luceneserver.search.collectors.MyTopSuggestDocsCollector.SUGGEST_KEY_FIELD_NAME;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -41,7 +41,8 @@ import org.junit.Test;
 
 public class ContextSuggestFieldDefTest extends ServerTestCase {
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
-  private static final String FIELD_NAME = "context_suggest_name";
+  private static final String SINGLE_VALUED_FIELD_NAME = "context_suggest_name";
+  private static final String MULTI_VALUED_FIELD_NAME = "context_suggest_name_multi_valued";
   private static final String FIELD_TYPE = "CONTEXT_SUGGEST";
 
   public FieldDef getFieldDef(String testIndex, String fieldName) throws IOException {
@@ -99,41 +100,78 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
 
   @Test
   public void validContextSuggestFieldDefTest() throws IOException {
-    FieldDef contextSuggestFieldDef = getFieldDef(DEFAULT_TEST_INDEX, FIELD_NAME);
+    FieldDef contextSuggestFieldDef = getFieldDef(DEFAULT_TEST_INDEX, SINGLE_VALUED_FIELD_NAME);
     assertEquals(FIELD_TYPE, contextSuggestFieldDef.getType());
-    assertEquals(FIELD_NAME, contextSuggestFieldDef.getName());
+    assertEquals(SINGLE_VALUED_FIELD_NAME, contextSuggestFieldDef.getName());
   }
 
   @Test
-  public void validCompletionQuerySuggestions_FilterByText() {
+  public void validCompletionQuerySuggestionsSingleValued_FilterByText() {
     Query query =
         Query.newBuilder()
             .setCompletionQuery(
-                CompletionQuery.newBuilder().setField(FIELD_NAME).setText("test").build())
+                CompletionQuery.newBuilder()
+                    .setField(SINGLE_VALUED_FIELD_NAME)
+                    .setText("Tasty")
+                    .build())
             .build();
 
     SearchResponse searchResponse =
         getGrpcServer().getBlockingStub().search(getRequestWithQuery(query));
 
-    assertEquals(4, searchResponse.getHitsCount());
+    assertEquals(1, searchResponse.getHitsCount());
 
     Set<String> hitsIds = getHitsIds(searchResponse);
-    assertTrue(hitsIds.contains("1"));
-    assertTrue(hitsIds.contains("2"));
     assertTrue(hitsIds.contains("3"));
-    assertTrue(hitsIds.contains("4"));
-    assertFalse(hitsIds.contains("5"));
+    String suggestKeyValueFromHit =
+        searchResponse
+            .getHitsList()
+            .get(0)
+            .getFieldsMap()
+            .get(SUGGEST_KEY_FIELD_NAME)
+            .getFieldValue(0)
+            .getTextValue();
+    assertEquals("Tasty Burger", suggestKeyValueFromHit);
   }
 
   @Test
-  public void validCompletionQuerySuggestions_FilterByTextAndContext() {
+  public void validCompletionQuerySuggestionsSingleValued_FilterByTextAndContext() {
     Query query =
         Query.newBuilder()
             .setCompletionQuery(
                 CompletionQuery.newBuilder()
-                    .setField(FIELD_NAME)
-                    .setText("test")
+                    .setField(SINGLE_VALUED_FIELD_NAME)
+                    .setText("Fantastic")
                     .addContexts("a")
+                    .build())
+            .build();
+
+    SearchResponse searchResponse =
+        getGrpcServer().getBlockingStub().search(getRequestWithQuery(query));
+
+    assertEquals(1, searchResponse.getHitsCount());
+
+    Set<String> hitsIds = getHitsIds(searchResponse);
+    assertTrue(hitsIds.contains("5"));
+    String suggestKeyValueFromHit =
+        searchResponse
+            .getHitsList()
+            .get(0)
+            .getFieldsMap()
+            .get(SUGGEST_KEY_FIELD_NAME)
+            .getFieldValue(0)
+            .getTextValue();
+    assertEquals("Fantastic Fries", suggestKeyValueFromHit);
+  }
+
+  @Test
+  public void validCompletionQuerySuggestionsMultiValued_FilterByText() {
+    Query query =
+        Query.newBuilder()
+            .setCompletionQuery(
+                CompletionQuery.newBuilder()
+                    .setField(MULTI_VALUED_FIELD_NAME)
+                    .setText("Fries")
                     .build())
             .build();
 
@@ -143,11 +181,38 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
     assertEquals(2, searchResponse.getHitsCount());
 
     Set<String> hitsIds = getHitsIds(searchResponse);
-    assertTrue(hitsIds.contains("1"));
-    assertFalse(hitsIds.contains("2"));
-    assertTrue(hitsIds.contains("3"));
-    assertFalse(hitsIds.contains("4"));
-    assertFalse(hitsIds.contains("5"));
+    assertTrue(hitsIds.contains("4"));
+    assertTrue(hitsIds.contains("5"));
+  }
+
+  @Test
+  public void validCompletionQuerySuggestionsMultiValued_FilterByTextAndContext() {
+    Query query =
+        Query.newBuilder()
+            .setCompletionQuery(
+                CompletionQuery.newBuilder()
+                    .setField(MULTI_VALUED_FIELD_NAME)
+                    .setText("Burger")
+                    .addContexts("b")
+                    .build())
+            .build();
+
+    SearchResponse searchResponse =
+        getGrpcServer().getBlockingStub().search(getRequestWithQuery(query));
+
+    assertEquals(1, searchResponse.getHitsCount());
+    String suggestKeyValueFromHit =
+        searchResponse
+            .getHitsList()
+            .get(0)
+            .getFieldsMap()
+            .get(SUGGEST_KEY_FIELD_NAME)
+            .getFieldValue(0)
+            .getTextValue();
+    assertEquals("Burger Fries", suggestKeyValueFromHit);
+
+    Set<String> hitsIds = getHitsIds(searchResponse);
+    assertTrue(hitsIds.contains("4"));
   }
 
   private Set<String> getHitsIds(SearchResponse searchResponse) {
@@ -159,7 +224,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
   private SearchRequest getRequestWithQuery(Query query) {
     return SearchRequest.newBuilder()
         .setIndexName(DEFAULT_TEST_INDEX)
-        .addAllRetrieveFields(Set.of("id", "context_suggest_name"))
+        .addAllRetrieveFields(Set.of("id", SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME))
         .setStartHit(0)
         .setTopHits(5)
         .setQuery(query)

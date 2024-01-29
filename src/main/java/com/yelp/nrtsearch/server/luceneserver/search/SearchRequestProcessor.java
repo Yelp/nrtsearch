@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.search;
 
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.Highlight;
+import com.yelp.nrtsearch.server.grpc.InnerHit;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
@@ -29,9 +30,12 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
+import com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService;
+import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitContext;
+import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitContext.InnerHitContextBuilder;
+import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
@@ -54,10 +58,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
+import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
@@ -76,6 +82,8 @@ public class SearchRequestProcessor {
    * on computing hit counts
    */
   public static final int TOTAL_HITS_THRESHOLD = 1000;
+
+  public static final String WILDCARD = "*";
 
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
 
@@ -111,7 +119,8 @@ public class SearchRequestProcessor {
         .setResponseBuilder(responseBuilder)
         .setTimestampSec(System.currentTimeMillis() / 1000)
         .setStartHit(searchRequest.getStartHit())
-        .setTopHits(searchRequest.getTopHits());
+        .setTopHits(searchRequest.getTopHits())
+        .setExplain(searchRequest.getExplain());
 
     Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
 
@@ -119,10 +128,19 @@ public class SearchRequestProcessor {
     addIndexFields(indexState, queryFields);
     contextBuilder.setQueryFields(Collections.unmodifiableMap(queryFields));
 
-    Map<String, FieldDef> retrieveFields = getRetrieveFields(searchRequest, queryFields);
+    Map<String, FieldDef> retrieveFields =
+        getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
-    Query query = extractQuery(indexState, searchRequest);
+    String rootQueryNestedPath =
+        indexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath());
+    contextBuilder.setQueryNestedPath(rootQueryNestedPath);
+    Query query =
+        extractQuery(
+            indexState,
+            searchRequest.getQueryText(),
+            searchRequest.getQuery(),
+            rootQueryNestedPath);
     if (profileResult != null) {
       profileResult.setParsedQuery(query.toString());
     }
@@ -139,7 +157,33 @@ public class SearchRequestProcessor {
       }
     }
 
-    contextBuilder.setFetchTasks(new FetchTasks(searchRequest.getFetchTasksList()));
+    Highlight highlight = searchRequest.getHighlight();
+    HighlightFetchTask highlightFetchTask = null;
+    if (!highlight.getFieldsList().isEmpty()) {
+      highlightFetchTask =
+          new HighlightFetchTask(indexState, query, HighlighterService.getInstance(), highlight);
+    }
+
+    List<InnerHitFetchTask> innerHitFetchTasks = null;
+    if (searchRequest.getInnerHitsCount() > 0) {
+      innerHitFetchTasks = new ArrayList<>(searchRequest.getInnerHitsCount());
+      for (Entry<String, InnerHit> entry : searchRequest.getInnerHitsMap().entrySet()) {
+        innerHitFetchTasks.add(
+            new InnerHitFetchTask(
+                buildInnerHitContext(
+                    indexState,
+                    shardState,
+                    queryFields,
+                    searcherAndTaxonomy,
+                    rootQueryNestedPath,
+                    entry.getKey(),
+                    entry.getValue(),
+                    searchRequest.getExplain())));
+      }
+    }
+
+    contextBuilder.setFetchTasks(
+        new FetchTasks(searchRequest.getFetchTasksList(), highlightFetchTask, innerHitFetchTasks));
 
     contextBuilder.setQuery(query);
 
@@ -153,15 +197,9 @@ public class SearchRequestProcessor {
         getRescorers(indexState, searcherAndTaxonomy.searcher, searchRequest));
     contextBuilder.setSharedDocContext(new DefaultSharedDocContext());
 
-    Highlight highlight = searchRequest.getHighlight();
-    if (!highlight.getFieldsList().isEmpty()) {
-      verifyHighlights(indexState, highlight);
-      HighlightFetchTask highlightFetchTask =
-          new HighlightFetchTask(indexState, searcherAndTaxonomy, query, highlight);
-      contextBuilder.setHighlightFetchTask(highlightFetchTask);
-    }
-
+    contextBuilder.setExtraContext(new ConcurrentHashMap<>());
     SearchContext searchContext = contextBuilder.build(true);
+
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);
     return searchContext;
@@ -197,15 +235,23 @@ public class SearchRequestProcessor {
   /**
    * Get map of fields that need to be retrieved for the given request.
    *
-   * @param request search requests
+   * @param fieldList fields to retrieve
    * @param queryFields all valid fields for this query
    * @return map of all fields to retrieve
    * @throws IllegalArgumentException if a field does not exist, or is not retrievable
    */
   private static Map<String, FieldDef> getRetrieveFields(
-      SearchRequest request, Map<String, FieldDef> queryFields) {
+      List<String> fieldList, Map<String, FieldDef> queryFields) {
     Map<String, FieldDef> retrieveFields = new HashMap<>();
-    for (String field : request.getRetrieveFieldsList()) {
+    if (fieldList.size() == 1 && fieldList.get(0).equals(WILDCARD)) {
+      for (Entry<String, FieldDef> entry : queryFields.entrySet()) {
+        if (isRetrievable(entry.getValue())) {
+          retrieveFields.put(entry.getKey(), entry.getValue());
+        }
+      }
+      return retrieveFields;
+    }
+    for (String field : fieldList) {
       FieldDef fieldDef = queryFields.get(field);
       if (fieldDef == null) {
         throw new IllegalArgumentException("RetrieveFields: " + field + " does not exist");
@@ -255,15 +301,19 @@ public class SearchRequestProcessor {
    * Get the lucene {@link Query} represented by this request.
    *
    * @param state index state
-   * @param searchRequest request
+   * @param queryText query in text
+   * @param query query in query objects
+   * @param queryNestedPath queryNestedPath to query nested fields directly
    * @return lucene query
    */
-  private static Query extractQuery(IndexState state, SearchRequest searchRequest) {
+  private static Query extractQuery(
+      IndexState state,
+      String queryText,
+      com.yelp.nrtsearch.server.grpc.Query query,
+      String queryNestedPath) {
     Query q;
-    if (!searchRequest.getQueryText().isEmpty()) {
+    if (!queryText.isEmpty()) {
       QueryBuilder queryParser = createQueryParser(state, null);
-
-      String queryText = searchRequest.getQueryText();
 
       try {
         q = parseQuery(queryParser, queryText);
@@ -272,11 +322,11 @@ public class SearchRequestProcessor {
             String.format("could not parse queryText: %s", queryText));
       }
     } else {
-      q = QUERY_NODE_MAPPER.getQuery(searchRequest.getQuery(), state);
+      q = QUERY_NODE_MAPPER.getQuery(query, state);
     }
 
     if (state.hasNestedChildFields()) {
-      return QUERY_NODE_MAPPER.applyQueryNestedPath(q, searchRequest.getQueryNestedPath());
+      return QUERY_NODE_MAPPER.applyQueryNestedPath(q, state, queryNestedPath);
     }
     return q;
   }
@@ -398,31 +448,40 @@ public class SearchRequestProcessor {
     return rescorers;
   }
 
-  private static void verifyHighlights(IndexState indexState, Highlight highlight) {
-    for (String fieldName : highlight.getFieldsList()) {
-      FieldDef field = indexState.getField(fieldName);
-      if (!(field instanceof TextBaseFieldDef)) {
-        throw new IllegalArgumentException(
-            String.format(
-                "Field %s is not a text field and does not support highlights", fieldName));
-      }
-      if (!((TextBaseFieldDef) field).isSearchable()) {
-        throw new IllegalArgumentException(
-            String.format("Field %s is not searchable and cannot support highlights", fieldName));
-      }
-      if (!((TextBaseFieldDef) field).isStored()) {
-        throw new IllegalArgumentException(
-            String.format("Field %s is not stored and cannot support highlights", fieldName));
-      }
-      FieldType fieldType = ((TextBaseFieldDef) field).getFieldType();
-      if (!fieldType.storeTermVectors()
-          || !fieldType.storeTermVectorPositions()
-          || !fieldType.storeTermVectorOffsets()) {
-        throw new IllegalArgumentException(
-            String.format(
-                "Field %s does not have term vectors with positions and offsets and cannot support highlights",
-                fieldName));
-      }
-    }
+  /** build the {@link InnerHitContext}. */
+  private static InnerHitContext buildInnerHitContext(
+      IndexState indexState,
+      ShardState shardState,
+      Map<String, FieldDef> queryFields,
+      SearcherAndTaxonomy searcherAndTaxonomy,
+      String parentQueryNestedPath,
+      String innerHitName,
+      InnerHit innerHit,
+      boolean explain) {
+    // Do not apply nestedPath here. This is query is used to create a shared weight.
+    Query childQuery = extractQuery(indexState, "", innerHit.getInnerQuery(), null);
+    return InnerHitContextBuilder.Builder()
+        .withInnerHitName(innerHitName)
+        .withQuery(childQuery)
+        .withParentQueryNestedPath(parentQueryNestedPath)
+        .withQueryNestedPath(innerHit.getQueryNestedPath())
+        .withStartHit(innerHit.getStartHit())
+        .withTopHits(innerHit.getTopHits())
+        .withIndexState(indexState)
+        .withShardState(shardState)
+        .withSearcherAndTaxonomy(searcherAndTaxonomy)
+        .withRetrieveFields(getRetrieveFields(innerHit.getRetrieveFieldsList(), queryFields))
+        .withQueryFields(queryFields)
+        .withQuerySort(innerHit.hasQuerySort() ? innerHit.getQuerySort() : null)
+        .withHighlightFetchTask(
+            innerHit.hasHighlight()
+                ? new HighlightFetchTask(
+                    indexState,
+                    childQuery,
+                    HighlighterService.getInstance(),
+                    innerHit.getHighlight())
+                : null)
+        .withExplain(explain)
+        .build(true);
   }
 }

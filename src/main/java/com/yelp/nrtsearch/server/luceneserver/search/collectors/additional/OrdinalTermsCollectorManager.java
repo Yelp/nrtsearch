@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
+import com.yelp.nrtsearch.server.collectors.BucketOrder;
 import com.yelp.nrtsearch.server.grpc.BucketResult;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
@@ -62,6 +63,7 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
    * @param indexableFieldDef field def
    * @param globalOrdinalable provider of global ordinal lookup
    * @param nestedCollectorSuppliers suppliers to create nested collector managers
+   * @param bucketOrder ordering for results buckets
    */
   public OrdinalTermsCollectorManager(
       String name,
@@ -70,8 +72,9 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
       IndexableFieldDef indexableFieldDef,
       GlobalOrdinalable globalOrdinalable,
       Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
-          nestedCollectorSuppliers) {
-    super(name, grpcTermsCollector.getSize(), nestedCollectorSuppliers);
+          nestedCollectorSuppliers,
+      BucketOrder bucketOrder) {
+    super(name, grpcTermsCollector.getSize(), nestedCollectorSuppliers, bucketOrder);
     fieldDef = indexableFieldDef;
     try {
       globalOrdinalLookup =

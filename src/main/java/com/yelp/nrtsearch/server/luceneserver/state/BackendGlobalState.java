@@ -24,10 +24,12 @@ import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DummyResponse;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
@@ -59,6 +61,7 @@ import org.slf4j.LoggerFactory;
 public class BackendGlobalState extends GlobalState {
   private static final Logger logger = LoggerFactory.getLogger(BackendGlobalState.class);
 
+  private int resolvedReplicationPort;
   /**
    * State class containing immutable persistent and ephemeral global state, stored together so that
    * they can be updated atomically.
@@ -127,14 +130,16 @@ public class BackendGlobalState extends GlobalState {
     Map<String, IndexStateManager> managerMap = new HashMap<>();
     for (Map.Entry<String, IndexGlobalState> entry : globalStateInfo.getIndicesMap().entrySet()) {
       IndexStateManager stateManager =
-          createIndexStateManager(entry.getKey(), entry.getValue().getId(), stateBackend);
+          createIndexStateManager(
+              entry.getKey(),
+              entry.getValue().getId(),
+              luceneServerConfiguration.getLiveSettingsOverride(entry.getKey()),
+              stateBackend);
       stateManager.load();
       managerMap.put(entry.getKey(), stateManager);
     }
     immutableState = new ImmutableState(globalStateInfo, managerMap);
-    if (luceneServerConfiguration.getIndexStartConfig().getAutoStart()) {
-      updateStartedIndices(immutableState);
-    }
+    // If any indices should be started, it will be done in the replicationStarted hook
   }
 
   /**
@@ -163,8 +168,11 @@ public class BackendGlobalState extends GlobalState {
    * @return index state manager
    */
   protected IndexStateManager createIndexStateManager(
-      String indexName, String indexId, StateBackend stateBackend) {
-    return new BackendStateManager(indexName, indexId, stateBackend, this);
+      String indexName,
+      String indexId,
+      IndexLiveSettings liveSettingsOverrides,
+      StateBackend stateBackend) {
+    return new BackendStateManager(indexName, indexId, liveSettingsOverrides, stateBackend, this);
   }
 
   /**
@@ -188,7 +196,12 @@ public class BackendGlobalState extends GlobalState {
       String indexName = entry.getKey();
       IndexStateManager stateManager = immutableState.indexStateManagerMap.get(indexName);
       if (stateManager == null || !entry.getValue().getId().equals(stateManager.getIndexId())) {
-        stateManager = createIndexStateManager(indexName, entry.getValue().getId(), stateBackend);
+        stateManager =
+            createIndexStateManager(
+                indexName,
+                entry.getValue().getId(),
+                getConfiguration().getLiveSettingsOverride(indexName),
+                stateBackend);
       }
       stateManager.load();
       newManagerMap.put(indexName, stateManager);
@@ -201,11 +214,24 @@ public class BackendGlobalState extends GlobalState {
   }
 
   @Override
+  public int getReplicationPort() {
+    return resolvedReplicationPort;
+  }
+
+  @Override
   public Path getIndexDir(String indexName) {
     try {
       return getIndex(indexName).getRootDir();
     } catch (IOException e) {
       throw new RuntimeException(e);
+    }
+  }
+
+  @Override
+  public void replicationStarted(int replicationPort) throws IOException {
+    this.resolvedReplicationPort = replicationPort;
+    if (getConfiguration().getIndexStartConfig().getAutoStart()) {
+      updateStartedIndices(immutableState);
     }
   }
 
@@ -217,12 +243,6 @@ public class BackendGlobalState extends GlobalState {
       throw new IllegalArgumentException("index \"" + indexName + "\" was not saved or committed");
     }
     return getUniqueIndexName(indexName, indexGlobalState.getId());
-  }
-
-  @Override
-  public void setStateDir(Path source) throws IOException {
-    // only called by legacy restore
-    throw new UnsupportedOperationException();
   }
 
   @Override
@@ -255,16 +275,43 @@ public class BackendGlobalState extends GlobalState {
     IndexStateManager stateManager;
     if (createIndexRequest.getExistsWithId().isEmpty()) {
       indexId = getIndexId();
-      stateManager = createIndexStateManager(indexName, indexId, stateBackend);
+      stateManager =
+          createIndexStateManager(
+              indexName,
+              indexId,
+              getConfiguration().getLiveSettingsOverride(indexName),
+              stateBackend);
       stateManager.create();
     } else {
       indexId = createIndexRequest.getExistsWithId();
-      stateManager = createIndexStateManager(indexName, indexId, stateBackend);
+      stateManager =
+          createIndexStateManager(
+              indexName,
+              indexId,
+              getConfiguration().getLiveSettingsOverride(indexName),
+              stateBackend);
       stateManager.load();
     }
 
+    if (createIndexRequest.hasSettings()) {
+      stateManager.updateSettings(createIndexRequest.getSettings());
+    }
+    if (createIndexRequest.hasLiveSettings()) {
+      stateManager.updateLiveSettings(createIndexRequest.getLiveSettings(), false);
+    }
+    if (!createIndexRequest.getFieldsList().isEmpty()) {
+      stateManager.updateFields(createIndexRequest.getFieldsList());
+    }
+
     IndexGlobalState newIndexState =
-        IndexGlobalState.newBuilder().setId(indexId).setStarted(false).build();
+        IndexGlobalState.newBuilder()
+            .setId(indexId)
+            .setStarted(createIndexRequest.getStart())
+            .build();
+    if (createIndexRequest.getStart()) {
+      startIndexFromConfig(indexName, stateManager, newIndexState);
+    }
+
     GlobalStateInfo updatedState =
         immutableState
             .globalStateInfo
@@ -381,6 +428,34 @@ public class BackendGlobalState extends GlobalState {
     return response;
   }
 
+  @Override
+  public synchronized StartIndexResponse startIndexV2(StartIndexV2Request startIndexRequest)
+      throws IOException {
+    IndexStateManager stateManager = getIndexStateManager(startIndexRequest.getIndexName());
+    IndexGlobalState indexGlobalState =
+        immutableState.globalStateInfo.getIndicesOrThrow(startIndexRequest.getIndexName());
+    IndexGlobalState updatedIndexGlobalState =
+        indexGlobalState.toBuilder().setStarted(true).build();
+    StartIndexResponse response =
+        startIndexFromConfig(
+            startIndexRequest.getIndexName(), stateManager, updatedIndexGlobalState);
+
+    if (getConfiguration().getIndexStartConfig().getMode() != Mode.REPLICA) {
+      GlobalStateInfo updatedGlobalState =
+          immutableState
+              .globalStateInfo
+              .toBuilder()
+              .putIndices(startIndexRequest.getIndexName(), updatedIndexGlobalState)
+              .setGen(immutableState.globalStateInfo.getGen() + 1)
+              .build();
+
+      stateBackend.commitGlobalState(updatedGlobalState);
+      immutableState = new ImmutableState(updatedGlobalState, immutableState.indexStateManagerMap);
+    }
+
+    return response;
+  }
+
   private StartIndexResponse startIndex(
       IndexStateManager indexStateManager, StartIndexRequest startIndexRequest) throws IOException {
     StartIndexHandler startIndexHandler =
@@ -390,8 +465,8 @@ public class BackendGlobalState extends GlobalState {
             getConfiguration().getArchiveDirectory(),
             getConfiguration().getBackupWithInArchiver(),
             getConfiguration().getRestoreFromIncArchiver(),
-            getConfiguration().getStateConfig().useLegacyStateManagement(),
-            indexStateManager);
+            indexStateManager,
+            getConfiguration().getDiscoveryFileUpdateIntervalMs());
     try {
       return startIndexHandler.handle(indexStateManager.getCurrent(), startIndexRequest);
     } catch (StartIndexHandlerException e) {
@@ -434,11 +509,6 @@ public class BackendGlobalState extends GlobalState {
   }
 
   @Override
-  public synchronized void indexClosed(String name) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public void close() throws IOException {
     synchronized (this) {
       logger.info("GlobalState.close: indices=" + getIndexNames());
@@ -459,44 +529,60 @@ public class BackendGlobalState extends GlobalState {
         newState.globalStateInfo.getIndicesMap().entrySet()) {
       IndexStateManager indexStateManager = newState.indexStateManagerMap.get(entry.getKey());
       if (entry.getValue().getStarted() && !indexStateManager.getCurrent().isStarted()) {
-        IndexStartConfig indexStartConfig = getConfiguration().getIndexStartConfig();
-        StartIndexRequest.Builder requestBuilder =
-            StartIndexRequest.newBuilder()
-                .setIndexName(entry.getKey())
-                .setPrimaryGen(-1)
-                .setMode(indexStartConfig.getMode());
-
-        // set primary discovery config
-        if (indexStartConfig.getMode().equals(Mode.REPLICA)) {
-          requestBuilder
-              .setPrimaryAddress(indexStartConfig.getDiscoveryHost())
-              .setPort(indexStartConfig.getDiscoveryPort())
-              .setPrimaryDiscoveryFile(indexStartConfig.getDiscoveryFile());
-        }
-
-        switch (indexStartConfig.getDataLocationType()) {
-          case LOCAL:
-            // data is present on local disk, no restore required
-            break;
-          case REMOTE:
-            // restore previous remote backup
-            requestBuilder.setRestore(
-                RestoreIndex.newBuilder()
-                    .setServiceName(getConfiguration().getServiceName())
-                    .setResourceName(getUniqueIndexName(entry.getKey(), entry.getValue().getId()))
-                    .setDeleteExistingData(true)
-                    .build());
-            break;
-          default:
-            throw new IllegalArgumentException(
-                "Unknown index data location type: " + indexStartConfig.getDataLocationType());
-        }
-
-        StartIndexRequest startIndexRequest = requestBuilder.build();
-        logger.info("Starting index: " + startIndexRequest);
-        StartIndexResponse response = startIndex(indexStateManager, requestBuilder.build());
-        logger.info("Index started: " + response);
+        startIndexFromConfig(entry.getKey(), indexStateManager, entry.getValue());
       }
     }
+  }
+
+  /**
+   * Start an index based on the {@link IndexStartConfig}.
+   *
+   * @param indexName index name
+   * @param indexStateManager index state manager
+   * @param indexGlobalState index global state
+   * @return start response
+   * @throws IOException
+   */
+  private StartIndexResponse startIndexFromConfig(
+      String indexName, IndexStateManager indexStateManager, IndexGlobalState indexGlobalState)
+      throws IOException {
+    IndexStartConfig indexStartConfig = getConfiguration().getIndexStartConfig();
+    StartIndexRequest.Builder requestBuilder =
+        StartIndexRequest.newBuilder()
+            .setIndexName(indexName)
+            .setPrimaryGen(-1)
+            .setMode(indexStartConfig.getMode());
+
+    // set primary discovery config
+    if (indexStartConfig.getMode().equals(Mode.REPLICA)) {
+      requestBuilder
+          .setPrimaryAddress(indexStartConfig.getDiscoveryHost())
+          .setPort(indexStartConfig.getDiscoveryPort())
+          .setPrimaryDiscoveryFile(indexStartConfig.getDiscoveryFile());
+    }
+
+    switch (indexStartConfig.getDataLocationType()) {
+      case LOCAL:
+        // data is present on local disk, no restore required
+        break;
+      case REMOTE:
+        // restore previous remote backup
+        requestBuilder.setRestore(
+            RestoreIndex.newBuilder()
+                .setServiceName(getConfiguration().getServiceName())
+                .setResourceName(getUniqueIndexName(indexName, indexGlobalState.getId()))
+                .setDeleteExistingData(true)
+                .build());
+        break;
+      default:
+        throw new IllegalArgumentException(
+            "Unknown index data location type: " + indexStartConfig.getDataLocationType());
+    }
+
+    StartIndexRequest startIndexRequest = requestBuilder.build();
+    logger.info("Starting index: " + startIndexRequest);
+    StartIndexResponse response = startIndex(indexStateManager, requestBuilder.build());
+    logger.info("Index started: " + response);
+    return response;
   }
 }

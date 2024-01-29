@@ -19,13 +19,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
-import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -115,12 +116,12 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
   public void testDefaultTerminateAfter() throws IOException {
     IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
     try {
-      setDefaultTerminateAfter(indexState, 15);
+      setDefaultTerminateAfter(15);
       SearchResponse response = doQuery(0, 0.0, false);
       assertEquals(15, response.getHitsCount());
       assertTrue(response.getTerminatedEarly());
     } finally {
-      setDefaultTerminateAfter(indexState, 0);
+      setDefaultTerminateAfter(0);
     }
   }
 
@@ -128,12 +129,12 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
   public void testOverrideDefaultTerminateAfter() throws IOException {
     IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
     try {
-      setDefaultTerminateAfter(indexState, 15);
+      setDefaultTerminateAfter(15);
       SearchResponse response = doQuery(5, 0.0, false);
       assertEquals(5, response.getHitsCount());
       assertTrue(response.getTerminatedEarly());
     } finally {
-      setDefaultTerminateAfter(indexState, 0);
+      setDefaultTerminateAfter(0);
     }
   }
 
@@ -144,10 +145,15 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
     assertTrue(response.getTerminatedEarly());
   }
 
-  private void setDefaultTerminateAfter(IndexState indexState, int defaultTerminateAfter) {
-    assertTrue(indexState instanceof LegacyIndexState);
-    LegacyIndexState legacyIndexState = (LegacyIndexState) indexState;
-    legacyIndexState.setDefaultTerminateAfter(defaultTerminateAfter);
+  private void setDefaultTerminateAfter(int defaultTerminateAfter) throws IOException {
+    getGlobalState()
+        .getIndexStateManager(DEFAULT_TEST_INDEX)
+        .updateLiveSettings(
+            IndexLiveSettings.newBuilder()
+                .setDefaultTerminateAfter(
+                    Int32Value.newBuilder().setValue(defaultTerminateAfter).build())
+                .build(),
+            false);
   }
 
   private SearchResponse doQuery(int terminateAfter, double timeout, boolean profile) {

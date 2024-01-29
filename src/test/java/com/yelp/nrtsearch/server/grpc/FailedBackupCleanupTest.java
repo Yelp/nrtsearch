@@ -32,7 +32,6 @@ import com.yelp.nrtsearch.server.backup.ArchiverImpl;
 import com.yelp.nrtsearch.server.backup.Tar;
 import com.yelp.nrtsearch.server.backup.TarImpl;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
@@ -83,16 +82,14 @@ public class FailedBackupCleanupTest {
   }
 
   private GrpcServer setUpGrpcServer() throws IOException {
-    GlobalState globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         grpcCleanup,
         luceneServerConfiguration,
         folder,
-        false,
-        globalState,
+        null,
         luceneServerConfiguration.getIndexDir(),
         "test_index",
-        globalState.getPort(),
+        luceneServerConfiguration.getPort(),
         archiver);
   }
 
@@ -155,7 +152,7 @@ public class FailedBackupCleanupTest {
 
     // Verify that snapshot was created during backup
     allSnapshotIndexGen = getSnapshotIndexGensList();
-    assertEquals(List.of(1L), allSnapshotIndexGen);
+    assertEquals(List.of(2L), allSnapshotIndexGen);
 
     forceShutdownServer();
 
@@ -168,7 +165,7 @@ public class FailedBackupCleanupTest {
 
     // Hacky way to assert exact file contents instead of asserting parsed json
     TestBackupIndicatorDetails expectedBackupDetails =
-        new TestBackupIndicatorDetails(grpcServer.getTestIndex(), 1, 0, 0);
+        new TestBackupIndicatorDetails(grpcServer.getTestIndex(), 2, -1, 0);
     TestBackupIndicatorDetails actualBackupDetails =
         new Gson().fromJson(backupIndicatorFileContents, TestBackupIndicatorDetails.class);
     assertEquals(expectedBackupDetails, actualBackupDetails);

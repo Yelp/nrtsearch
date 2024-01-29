@@ -50,6 +50,7 @@ public class BackendStateManager implements IndexStateManager {
   private final String id;
   private final StateBackend stateBackend;
   private final GlobalState globalState;
+  private IndexLiveSettings liveSettingsOverrides;
 
   // volatile for atomic replacement
   private volatile ImmutableIndexState currentState;
@@ -59,14 +60,20 @@ public class BackendStateManager implements IndexStateManager {
    *
    * @param indexName index name
    * @param id index instance id
+   * @param initialLiveSettingsOverrides initial local overrides for index live settings
    * @param stateBackend state backend
    * @param globalState global state
    */
   public BackendStateManager(
-      String indexName, String id, StateBackend stateBackend, GlobalState globalState) {
+      String indexName,
+      String id,
+      IndexLiveSettings initialLiveSettingsOverrides,
+      StateBackend stateBackend,
+      GlobalState globalState) {
     this.indexName = indexName;
     this.id = id;
     this.indexUniqueName = BackendGlobalState.getUniqueIndexName(indexName, id);
+    this.liveSettingsOverrides = initialLiveSettingsOverrides;
     this.stateBackend = stateBackend;
     this.globalState = globalState;
   }
@@ -84,7 +91,8 @@ public class BackendStateManager implements IndexStateManager {
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateHandler.updateFields(
             new FieldAndFacetState(), Collections.emptyMap(), stateInfo.getFieldsMap().values());
-    currentState = createIndexState(stateInfo, updatedFieldInfo.fieldAndFacetState);
+    currentState =
+        createIndexState(stateInfo, updatedFieldInfo.fieldAndFacetState, liveSettingsOverrides);
   }
 
   /**
@@ -115,7 +123,8 @@ public class BackendStateManager implements IndexStateManager {
       throw new IllegalStateException("Creating index, but state already exists for: " + indexName);
     }
     stateInfo = getDefaultStateInfo();
-    ImmutableIndexState indexState = createIndexState(stateInfo, new FieldAndFacetState());
+    ImmutableIndexState indexState =
+        createIndexState(stateInfo, new FieldAndFacetState(), liveSettingsOverrides);
     stateBackend.commitIndexState(indexUniqueName, stateInfo);
     currentState = indexState;
   }
@@ -140,38 +149,52 @@ public class BackendStateManager implements IndexStateManager {
     }
     IndexStateInfo updatedStateInfo = mergeSettings(currentState.getCurrentStateInfo(), settings);
     ImmutableIndexState updatedIndexState =
-        createIndexState(updatedStateInfo, currentState.getFieldAndFacetState());
+        createIndexState(
+            updatedStateInfo, currentState.getFieldAndFacetState(), liveSettingsOverrides);
     stateBackend.commitIndexState(indexUniqueName, updatedStateInfo);
     currentState = updatedIndexState;
     return updatedIndexState.getMergedSettings();
   }
 
   @Override
-  public IndexLiveSettings getLiveSettings() {
+  public IndexLiveSettings getLiveSettings(boolean withLocal) {
     ImmutableIndexState indexState = currentState;
     if (indexState == null) {
       throw new IllegalStateException("No state for index: " + indexName);
     }
-    return indexState.getMergedLiveSettings();
+    return indexState.getMergedLiveSettings(withLocal);
   }
 
   @Override
-  public synchronized IndexLiveSettings updateLiveSettings(IndexLiveSettings liveSettings)
-      throws IOException {
+  public synchronized IndexLiveSettings updateLiveSettings(
+      IndexLiveSettings liveSettings, boolean local) throws IOException {
     logger.info("Updating live settings for index: " + indexName + " : " + liveSettings);
     if (currentState == null) {
       throw new IllegalStateException("No state for index: " + indexName);
     }
-    IndexStateInfo updatedStateInfo =
-        mergeLiveSettings(currentState.getCurrentStateInfo(), liveSettings);
-    ImmutableIndexState updatedIndexState =
-        createIndexState(updatedStateInfo, currentState.getFieldAndFacetState());
-    stateBackend.commitIndexState(indexUniqueName, updatedStateInfo);
+    ImmutableIndexState updatedIndexState;
+    if (local) {
+      IndexLiveSettings updatedLiveSettingsOverrides =
+          ImmutableIndexState.mergeLiveSettings(liveSettingsOverrides, liveSettings);
+      updatedIndexState =
+          createIndexState(
+              currentState.getCurrentStateInfo(),
+              currentState.getFieldAndFacetState(),
+              updatedLiveSettingsOverrides);
+      liveSettingsOverrides = updatedLiveSettingsOverrides;
+    } else {
+      IndexStateInfo updatedStateInfo =
+          mergeLiveSettings(currentState.getCurrentStateInfo(), liveSettings);
+      updatedIndexState =
+          createIndexState(
+              updatedStateInfo, currentState.getFieldAndFacetState(), liveSettingsOverrides);
+      stateBackend.commitIndexState(indexUniqueName, updatedStateInfo);
+    }
     currentState = updatedIndexState;
     for (Map.Entry<Integer, ShardState> entry : currentState.getShards().entrySet()) {
       entry.getValue().updatedLiveSettings(liveSettings);
     }
-    return updatedIndexState.getMergedLiveSettings();
+    return updatedIndexState.getMergedLiveSettings(local);
   }
 
   @Override
@@ -187,7 +210,8 @@ public class BackendStateManager implements IndexStateManager {
     IndexStateInfo updatedStateInfo =
         replaceFields(currentState.getCurrentStateInfo(), updatedFieldInfo.fields);
     ImmutableIndexState updatedIndexState =
-        createIndexState(updatedStateInfo, updatedFieldInfo.fieldAndFacetState);
+        createIndexState(
+            updatedStateInfo, updatedFieldInfo.fieldAndFacetState, liveSettingsOverrides);
     stateBackend.commitIndexState(indexUniqueName, updatedStateInfo);
     currentState = updatedIndexState;
     return updatedIndexState.getAllFieldsJSON();
@@ -215,7 +239,8 @@ public class BackendStateManager implements IndexStateManager {
               .setGen(currentState.getCurrentStateInfo().getGen() + 1)
               .build();
       ImmutableIndexState updatedIndexState =
-          createIndexState(updatedStateInfo, currentState.getFieldAndFacetState());
+          createIndexState(
+              updatedStateInfo, currentState.getFieldAndFacetState(), liveSettingsOverrides);
       stateBackend.commitIndexState(indexUniqueName, updatedStateInfo);
       currentState = updatedIndexState;
     }
@@ -232,7 +257,10 @@ public class BackendStateManager implements IndexStateManager {
 
   // Declared protected for use during testing
   protected ImmutableIndexState createIndexState(
-      IndexStateInfo indexStateInfo, FieldAndFacetState fieldAndFacetState) throws IOException {
+      IndexStateInfo indexStateInfo,
+      FieldAndFacetState fieldAndFacetState,
+      IndexLiveSettings liveSettingsOverrides)
+      throws IOException {
     Map<Integer, ShardState> previousShardState =
         currentState == null ? null : currentState.getShards();
     return new ImmutableIndexState(
@@ -242,6 +270,7 @@ public class BackendStateManager implements IndexStateManager {
         indexUniqueName,
         indexStateInfo,
         fieldAndFacetState,
+        liveSettingsOverrides,
         previousShardState);
   }
 

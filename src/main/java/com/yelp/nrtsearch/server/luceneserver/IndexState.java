@@ -26,22 +26,15 @@ import com.yelp.nrtsearch.server.luceneserver.field.ContextSuggestFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
-import com.yelp.nrtsearch.server.luceneserver.index.LegacyIndexState;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexSimilarity;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CharsetEncoder;
-import java.nio.charset.CodingErrorAction;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -53,7 +46,6 @@ import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.suggest.Lookup;
@@ -85,9 +77,6 @@ public abstract class IndexState implements Closeable {
   public static final String ROOT = "_root";
   public static final String FIELD_NAMES = "_field_names";
 
-  public static final int DEFAULT_SLICE_MAX_DOCS = 250_000;
-  public static final int DEFAULT_SLICE_MAX_SEGMENTS = 5;
-
   private static final Logger logger = LoggerFactory.getLogger(IndexState.class);
   private final GlobalState globalState;
 
@@ -107,36 +96,6 @@ public abstract class IndexState implements Closeable {
    * com.yelp.nrtsearch.server.luceneserver.doc.SegmentDocLookup} for a given lucene segment.
    */
   public final DocLookup docLookup = new DocLookup(this);
-
-  /** Index-time analyzer. */
-  public final Analyzer indexAnalyzer =
-      new AnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
-        @Override
-        public Analyzer getWrappedAnalyzer(String name) {
-          FieldDef fd = getField(name);
-          if (fd instanceof TextBaseFieldDef || fd instanceof ContextSuggestFieldDef) {
-            Optional<Analyzer> maybeAnalyzer = Optional.empty();
-            if (fd instanceof TextBaseFieldDef) {
-              maybeAnalyzer = ((TextBaseFieldDef) fd).getIndexAnalyzer();
-            } else {
-              maybeAnalyzer = ((ContextSuggestFieldDef) fd).getIndexAnalyzer();
-            }
-
-            if (maybeAnalyzer.isEmpty()) {
-              throw new IllegalArgumentException(
-                  "field \"" + name + "\" did not specify analyzer or indexAnalyzer");
-            }
-            return maybeAnalyzer.get();
-          }
-          throw new IllegalArgumentException("field \"" + name + "\" does not support analysis");
-        }
-
-        @Override
-        protected TokenStreamComponents wrapComponents(
-            String fieldName, TokenStreamComponents components) {
-          return components;
-        }
-      };
 
   /** Search-time analyzer. */
   public final Analyzer searchAnalyzer =
@@ -169,24 +128,12 @@ public abstract class IndexState implements Closeable {
         }
       };
 
-  /** Per-field wrapper that provides the similarity configured in the FieldDef */
-  public final Similarity sim =
+  /** Per-field wrapper that provides the similarity for searcher */
+  public final Similarity searchSimilarity =
       new PerFieldSimilarityWrapper() {
-        final Similarity defaultSim = new BM25Similarity();
-
         @Override
         public Similarity get(String name) {
-          try {
-            FieldDef fd = getField(name);
-            if (fd instanceof IndexableFieldDef) {
-              return ((IndexableFieldDef) fd).getSimilarity();
-            }
-          } catch (IllegalArgumentException ignored) {
-            // ReplicaNode tries to do a Term query for a field called 'marker'
-            // in finishNRTCopy. Since the field is not in the index, we want
-            // to ignore the exception.
-          }
-          return defaultSim;
+          return IndexSimilarity.getFromState(name, IndexState.this);
         }
       };
 
@@ -257,58 +204,6 @@ public abstract class IndexState implements Closeable {
   /** Verifies this name doesn't use any "exotic" characters. */
   public static boolean isSimpleName(String name) {
     return reSimpleName.matcher(name).matches();
-  }
-
-  /** Checks if this name is consistent with a child field (contains a dot) */
-  public static boolean isChildName(String name) {
-    return name.contains(CHILD_FIELD_SEPARATOR);
-  }
-
-  /** String -&gt; UTF8 byte[]. */
-  public static byte[] toUTF8(String s) {
-    CharsetEncoder encoder = Charset.forName("UTF-8").newEncoder();
-    // Make sure we catch any invalid UTF16:
-    encoder.onMalformedInput(CodingErrorAction.REPORT);
-    encoder.onUnmappableCharacter(CodingErrorAction.REPORT);
-    try {
-      ByteBuffer bb = encoder.encode(CharBuffer.wrap(s));
-      byte[] bytes = new byte[bb.limit()];
-      bb.position(0);
-      bb.get(bytes, 0, bytes.length);
-      return bytes;
-    } catch (CharacterCodingException cce) {
-      throw new IllegalArgumentException(cce);
-    }
-  }
-
-  /** UTF8 byte[] -&gt; String. */
-  public static String fromUTF8(byte[] bytes) {
-    CharsetDecoder decoder = Charset.forName("UTF-8").newDecoder();
-    // Make sure we catch any invalid UTF8:
-    decoder.onMalformedInput(CodingErrorAction.REPORT);
-    decoder.onUnmappableCharacter(CodingErrorAction.REPORT);
-    try {
-      return decoder.decode(ByteBuffer.wrap(bytes)).toString();
-    } catch (CharacterCodingException cce) {
-      throw new IllegalArgumentException(cce);
-    }
-  }
-
-  /**
-   * Create an {@link IndexState} instance.
-   *
-   * @param globalState global state
-   * @param name index name
-   * @param rootDir index data root directory
-   * @param doCreate if this is a create operation
-   * @param hasRestore if data is being restored from remote source
-   * @return index state
-   * @throws IOException on filesystem error
-   */
-  public static IndexState createState(
-      GlobalState globalState, String name, Path rootDir, boolean doCreate, boolean hasRestore)
-      throws IOException {
-    return new LegacyIndexState(globalState, name, rootDir, doCreate, hasRestore);
   }
 
   /**
@@ -413,6 +308,24 @@ public abstract class IndexState implements Closeable {
     }
   }
 
+  /**
+   * resolve the nested object path, and do validation if it is not _root.
+   *
+   * @param path path of the nested object
+   * @return resolved path
+   * @throws IllegalArgumentException if the non-root path is invalid
+   */
+  public String resolveQueryNestedPath(String path) {
+    if (path == null || path.length() == 0 || path.equals(IndexState.ROOT)) {
+      return IndexState.ROOT;
+    }
+    FieldDef fieldDef = getField(path);
+    if ((fieldDef instanceof ObjectFieldDef) && ((ObjectFieldDef) fieldDef).isNestedDoc()) {
+      return path;
+    }
+    throw new IllegalArgumentException("Nested path is not a nested object field: " + path);
+  }
+
   /** Get if the index is started. */
   public abstract boolean isStarted();
 
@@ -428,9 +341,6 @@ public abstract class IndexState implements Closeable {
   public abstract void start(
       Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
       throws IOException;
-
-  /** Records a new field in the internal {@code fields} state. */
-  public abstract void addField(FieldDef fd, JsonObject jsonObject);
 
   /**
    * Retrieve the field's type.
@@ -468,15 +378,6 @@ public abstract class IndexState implements Closeable {
   public abstract Set<String> getInternalFacetFieldNames();
 
   public abstract FacetsConfig getFacetsConfig();
-
-  /**
-   * Add new shard with the given ordinal.
-   *
-   * @param shardOrd shard ordinal
-   * @param doCreate is this index being created
-   * @return shard state
-   */
-  public abstract ShardState addShard(int shardOrd, boolean doCreate);
 
   /**
    * Get shard state.
@@ -575,14 +476,18 @@ public abstract class IndexState implements Closeable {
   /** Get the default search timeout check every. */
   public abstract int getDefaultSearchTimeoutCheckEvery();
 
+  /** Get the max merge precopy duration (in seconds). */
+  public abstract long getMaxMergePreCopyDurationSec();
+
   public abstract void addSuggest(String name, JsonObject o);
 
   public abstract Map<String, Lookup> getSuggesters();
 
+  /** Get if additional index metrics should be collected and published. */
+  public abstract boolean getVerboseMetrics();
+
   @Override
-  public void close() throws IOException {
-    globalState.indexClosed(name);
-  }
+  public void close() throws IOException {}
 
   // Get all predifined meta fields
   private static Map<String, FieldDef> getPredefinedMetaFields() {

@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
@@ -59,6 +60,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
@@ -80,10 +82,9 @@ import org.slf4j.LoggerFactory;
 
 public class ShardState implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(ShardState.class);
-  private static final long INITIAL_SYNC_PRIMARY_WAIT_MS = 30000;
-  private static final long INITIAL_SYNC_MAX_TIME_MS = 600000; // 10m
   public static final int REPLICA_ID = 0;
   public static final String INDEX_DATA_DIR_NAME = "index";
+  public static final String TAXONOMY_DATA_DIR_NAME = "taxonomy";
   final ThreadPoolExecutor searchExecutor;
 
   /** {@link IndexStateManager} for the index this shard belongs to */
@@ -275,6 +276,15 @@ public class ShardState implements Closeable {
     } else {
       reopenThread.waitForGeneration(gen);
     }
+  }
+
+  /**
+   * Get shard index writer.
+   *
+   * @return Index writer, or null if replica
+   */
+  public IndexWriter getWriter() {
+    return writer;
   }
 
   /**
@@ -492,7 +502,7 @@ public class ShardState implements Closeable {
                   indexState.getSliceMaxDocs(),
                   indexState.getSliceMaxSegments(),
                   indexState.getVirtualShards()));
-      searcher.setSimilarity(indexState.sim);
+      searcher.setSimilarity(indexState.searchSimilarity);
       if (loadEagerOrdinals) {
         loadEagerGlobalOrdinals(reader, indexState);
       }
@@ -582,7 +592,7 @@ public class ShardState implements Closeable {
       if (rootDir == null) {
         taxoDirFile = null;
       } else {
-        taxoDirFile = rootDir.resolve("taxonomy");
+        taxoDirFile = rootDir.resolve(TAXONOMY_DATA_DIR_NAME);
       }
       taxoDir =
           indexState
@@ -596,7 +606,7 @@ public class ShardState implements Closeable {
               IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
 
       taxoWriter =
-          new DirectoryTaxonomyWriter(taxoDir, openMode) {
+          new DirectoryTaxonomyWriter(taxoDir, OpenMode.CREATE_OR_APPEND) {
             @Override
             protected IndexWriterConfig createIndexWriterConfig(
                 IndexWriterConfig.OpenMode openMode) {
@@ -746,7 +756,7 @@ public class ShardState implements Closeable {
               indexState.getGlobalState().getReplicationPort());
       nrtPrimaryNode =
           new NRTPrimaryNode(
-              indexState.getName(),
+              indexStateManager,
               hostPort,
               writer,
               0,
@@ -772,7 +782,7 @@ public class ShardState implements Closeable {
                               indexState.getSliceMaxDocs(),
                               indexState.getSliceMaxSegments(),
                               indexState.getVirtualShards()));
-                  searcher.setSimilarity(indexState.sim);
+                  searcher.setSimilarity(indexState.searchSimilarity);
                   return searcher;
                 }
               });
@@ -900,6 +910,7 @@ public class ShardState implements Closeable {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
     IndexState indexState = indexStateManager.getCurrent();
+    LuceneServerConfiguration configuration = indexState.getGlobalState().getConfiguration();
 
     // nocommit share code better w/ start and startPrimary!
     try {
@@ -910,10 +921,7 @@ public class ShardState implements Closeable {
         indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
       }
       origIndexDir =
-          indexState
-              .getDirectoryFactory()
-              .open(
-                  indexDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
+          indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
       if ((origIndexDir instanceof MMapDirectory) == false) {
@@ -931,7 +939,7 @@ public class ShardState implements Closeable {
       manager = null;
       nrtPrimaryNode = null;
 
-      boolean verbose = indexState.getGlobalState().getConfiguration().getIndexVerbose();
+      boolean verbose = configuration.getIndexVerbose();
 
       HostPort hostPort =
           new HostPort(
@@ -946,16 +954,18 @@ public class ShardState implements Closeable {
               indexDir,
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
-              indexState.getGlobalState().getConfiguration().getFileCopyConfig().getAckedCopy());
+              configuration.getFileCopyConfig().getAckedCopy(),
+              configuration.getDecInitialCommit(),
+              configuration.getFilterIncompatibleSegmentReaders());
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {
         nrtReplicaNode.startWithLastPrimaryGen();
       }
 
-      if (indexState.getGlobalState().getConfiguration().getSyncInitialNrtPoint()) {
+      if (configuration.getSyncInitialNrtPoint()) {
         nrtReplicaNode.syncFromCurrentPrimary(
-            INITIAL_SYNC_PRIMARY_WAIT_MS, INITIAL_SYNC_MAX_TIME_MS);
+            configuration.getInitialSyncPrimaryWaitMs(), configuration.getInitialSyncMaxTimeMs());
       }
 
       startSearcherPruningThread(indexState.getGlobalState().getShutdownLatch());
@@ -980,7 +990,7 @@ public class ShardState implements Closeable {
       keepAlive = new KeepAlive(this);
       new Thread(keepAlive, "KeepAlive").start();
 
-      WarmerConfig warmerConfig = indexState.getGlobalState().getConfiguration().getWarmerConfig();
+      WarmerConfig warmerConfig = configuration.getWarmerConfig();
       if (warmerConfig.isWarmOnStartup() && indexState.getWarmer() != null) {
         try {
           indexState.getWarmer().warmFromS3(indexState, warmerConfig.getWarmingParallelism());

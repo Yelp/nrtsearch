@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
+import com.yelp.nrtsearch.server.collectors.BucketOrder;
 import com.yelp.nrtsearch.server.grpc.BucketResult;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
@@ -53,6 +54,7 @@ public class VirtualTermsCollectorManager extends TermsCollectorManager {
    * @param context context info for collector building
    * @param virtualFieldDef field def
    * @param nestedCollectorSuppliers suppliers to create nested collector managers
+   * @param bucketOrder ordering for results buckets
    */
   public VirtualTermsCollectorManager(
       String name,
@@ -60,8 +62,9 @@ public class VirtualTermsCollectorManager extends TermsCollectorManager {
       CollectorCreatorContext context,
       VirtualFieldDef virtualFieldDef,
       Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
-          nestedCollectorSuppliers) {
-    super(name, grpcTermsCollector.getSize(), nestedCollectorSuppliers);
+          nestedCollectorSuppliers,
+      BucketOrder bucketOrder) {
+    super(name, grpcTermsCollector.getSize(), nestedCollectorSuppliers, bucketOrder);
     valuesSource = virtualFieldDef.getValuesSource();
   }
 

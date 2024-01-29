@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
+import com.yelp.nrtsearch.server.collectors.BucketOrder;
 import com.yelp.nrtsearch.server.grpc.BucketResult;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
@@ -51,6 +52,7 @@ public class LongTermsCollectorManager extends TermsCollectorManager {
    * @param context context info for collector building
    * @param indexableFieldDef field def
    * @param nestedCollectorSuppliers suppliers to create nested collector managers
+   * @param bucketOrder ordering for results buckets
    */
   public LongTermsCollectorManager(
       String name,
@@ -58,8 +60,9 @@ public class LongTermsCollectorManager extends TermsCollectorManager {
       CollectorCreatorContext context,
       IndexableFieldDef indexableFieldDef,
       Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
-          nestedCollectorSuppliers) {
-    super(name, grpcTermsCollector.getSize(), nestedCollectorSuppliers);
+          nestedCollectorSuppliers,
+      BucketOrder bucketOrder) {
+    super(name, grpcTermsCollector.getSize(), nestedCollectorSuppliers, bucketOrder);
     fieldDef = indexableFieldDef;
   }
 

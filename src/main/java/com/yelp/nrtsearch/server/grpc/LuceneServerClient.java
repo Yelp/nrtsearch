@@ -23,16 +23,19 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** A simple client that requests a greeting from the {@link LuceneServer}. */
-public class LuceneServerClient {
+public class LuceneServerClient implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(LuceneServerClient.class.getName());
 
   private final ManagedChannel channel;
@@ -76,7 +79,18 @@ public class LuceneServerClient {
     channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
   }
 
-  public void createIndex(String indexName, String existsWithId) {
+  @Override
+  public void close() {
+    this.channel.shutdownNow();
+  }
+
+  public void createIndex(
+      String indexName,
+      String existsWithId,
+      IndexSettings settings,
+      IndexLiveSettings liveSettings,
+      FieldDefRequest fields,
+      boolean start) {
     logger.info("Will try to create index: " + indexName);
     CreateIndexRequest.Builder requestBuilder =
         CreateIndexRequest.newBuilder().setIndexName(indexName);
@@ -84,6 +98,16 @@ public class LuceneServerClient {
       logger.info("Using existing id: " + existsWithId);
       requestBuilder.setExistsWithId(existsWithId);
     }
+    if (settings != null) {
+      requestBuilder.setSettings(settings);
+    }
+    if (liveSettings != null) {
+      requestBuilder.setLiveSettings(liveSettings);
+    }
+    if (fields != null) {
+      requestBuilder.addAllFields(fields.getFieldList());
+    }
+    requestBuilder.setStart(start);
     CreateIndexResponse response;
     try {
       response = blockingStub.createIndex(requestBuilder.build());
@@ -235,6 +259,19 @@ public class LuceneServerClient {
     StartIndexResponse response;
     try {
       response = blockingStub.startIndex(startIndexRequest);
+    } catch (StatusRuntimeException e) {
+      logger.warn("RPC failed: {}", e.getStatus());
+      return;
+    }
+    logger.info("Server returned : " + response.toString());
+  }
+
+  public void startIndexV2(String indexName) {
+    StartIndexV2Request startIndexRequest =
+        StartIndexV2Request.newBuilder().setIndexName(indexName).build();
+    StartIndexResponse response;
+    try {
+      response = blockingStub.startIndexV2(startIndexRequest);
     } catch (StatusRuntimeException e) {
       logger.warn("RPC failed: {}", e.getStatus());
       return;
@@ -450,6 +487,13 @@ public class LuceneServerClient {
             .build();
     DeleteIndexBackupResponse deleteIndexBackupResponse = blockingStub.deleteIndexBackup(request);
     logger.info("Response: {}", deleteIndexBackupResponse);
+  }
+
+  public List<String> getIndices() {
+    return blockingStub.indices(IndicesRequest.newBuilder().build()).getIndicesResponseList()
+        .stream()
+        .map(IndexStatsResponse::getIndexName)
+        .collect(Collectors.toList());
   }
 
   private FieldDefRequest getFieldDefRequest(String jsonStr) {

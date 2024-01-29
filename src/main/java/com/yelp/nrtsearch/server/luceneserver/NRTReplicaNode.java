@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.FileMetadata;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
@@ -34,7 +35,9 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
+import org.apache.lucene.replicator.nrt.FilteringSegmentInfosSearcherManager;
 import org.apache.lucene.replicator.nrt.NodeCommunicationException;
+import org.apache.lucene.replicator.nrt.ReplicaDeleterManager;
 import org.apache.lucene.replicator.nrt.ReplicaNode;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.store.Directory;
@@ -46,14 +49,16 @@ public class NRTReplicaNode extends ReplicaNode {
   private static final long NRT_CONNECT_WAIT_MS = 500;
 
   private final ReplicationServerClient primaryAddress;
+  private final ReplicaDeleterManager replicaDeleterManager;
   private final String indexName;
   private final boolean ackedCopy;
+  private final boolean filterIncompatibleSegmentReaders;
   final Jobs jobs;
 
   /* Just a wrapper class to hold our <hostName, port> pair so that we can send them to the Primary
    * on sendReplicas and it can build its channel over this pair */
   private final HostPort hostPort;
-  Logger logger = LoggerFactory.getLogger(NRTPrimaryNode.class);
+  private static final Logger logger = LoggerFactory.getLogger(NRTReplicaNode.class);
 
   public NRTReplicaNode(
       String indexName,
@@ -63,13 +68,17 @@ public class NRTReplicaNode extends ReplicaNode {
       Directory indexDir,
       SearcherFactory searcherFactory,
       PrintStream printStream,
-      boolean ackedCopy)
+      boolean ackedCopy,
+      boolean decInitialCommit,
+      boolean filterIncompatibleSegmentReaders)
       throws IOException {
     super(replicaId, indexDir, searcherFactory, printStream);
     this.primaryAddress = primaryAddress;
     this.indexName = indexName;
     this.ackedCopy = ackedCopy;
     this.hostPort = hostPort;
+    replicaDeleterManager = decInitialCommit ? new ReplicaDeleterManager(this) : null;
+    this.filterIncompatibleSegmentReaders = filterIncompatibleSegmentReaders;
     // Handles fetching files from primary, on a new thread which receives files from primary
     jobs = new Jobs(this);
     jobs.setName("R" + id + ".copyJobs");
@@ -103,8 +112,17 @@ public class NRTReplicaNode extends ReplicaNode {
   }
 
   @Override
-  public void start(long primaryGen) throws IOException {
+  public synchronized void start(long primaryGen) throws IOException {
     super.start(primaryGen);
+    if (replicaDeleterManager != null) {
+      replicaDeleterManager.decReplicaInitialCommitFiles();
+    }
+    if (filterIncompatibleSegmentReaders) {
+      // Swap in a SearcherManager that filters incompatible segment readers during refresh.
+      // Updating the reference is not thread safe, but since this happens under the object lock
+      // and before the shard has stared, nothing should access the manager before the swap.
+      mgr = new FilteringSegmentInfosSearcherManager(getDirectory(), this, mgr, searcherFactory);
+    }
   }
 
   @Override
@@ -237,6 +255,11 @@ public class NRTReplicaNode extends ReplicaNode {
     }
     primaryAddress.close();
     super.close();
+  }
+
+  @VisibleForTesting
+  public ReplicaDeleterManager getReplicaDeleterManager() {
+    return replicaDeleterManager;
   }
 
   public ReplicationServerClient getPrimaryAddress() {

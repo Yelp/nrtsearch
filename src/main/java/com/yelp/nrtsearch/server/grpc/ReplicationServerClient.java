@@ -17,9 +17,12 @@ package com.yelp.nrtsearch.server.grpc;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.GeneratedMessageV3;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerGrpc.ReplicationServerBlockingStub;
 import com.yelp.nrtsearch.server.grpc.discovery.PrimaryFileNameResolverProvider;
 import com.yelp.nrtsearch.server.luceneserver.SimpleCopyJob.FileChunkStreamingIterator;
+import io.grpc.Deadline;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
@@ -35,15 +38,16 @@ import org.slf4j.LoggerFactory;
 public class ReplicationServerClient implements Closeable {
   public static final int BINARY_MAGIC = 0x3414f5c;
   public static final int MAX_MESSAGE_BYTES_SIZE = 1 * 1024 * 1024 * 1024;
+  public static final int FILE_UPDATE_INTERVAL_MS = 10 * 1000; // 10 seconds
 
   private static final ObjectMapper OBJECT_MAPPER =
       new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);;
-  private static final int FILE_UPDATE_INTERVAL_MS = 10 * 1000; // 10 seconds
   private static final Logger logger = LoggerFactory.getLogger(ReplicationServerClient.class);
 
   private final String host;
   private final int port;
   private final String discoveryFile;
+  private int discoveryFileUpdateIntervalMs;
   private final ManagedChannel channel;
 
   public ReplicationServerGrpc.ReplicationServerBlockingStub getBlockingStub() {
@@ -120,6 +124,7 @@ public class ReplicationServerClient implements Closeable {
         "",
         discoveryFileAndPort.port,
         discoveryFileAndPort.discoveryFile);
+    this.discoveryFileUpdateIntervalMs = updateIntervalMs;
   }
 
   /** Construct client for accessing ReplicationServer server using the existing channel. */
@@ -136,6 +141,11 @@ public class ReplicationServerClient implements Closeable {
     this.host = host;
     this.port = port;
     this.discoveryFile = discoveryFile;
+  }
+
+  @VisibleForTesting
+  int getDiscoveryFileUpdateIntervalMs() {
+    return discoveryFileUpdateIntervalMs;
   }
 
   public String getHost() {
@@ -169,7 +179,7 @@ public class ReplicationServerClient implements Closeable {
   }
 
   public void addReplicas(String indexName, int replicaId, String hostName, int port) {
-    AddReplicaRequest addDocumentRequest =
+    AddReplicaRequest addReplicaRequest =
         AddReplicaRequest.newBuilder()
             .setMagicNumber(BINARY_MAGIC)
             .setIndexName(indexName)
@@ -178,7 +188,7 @@ public class ReplicationServerClient implements Closeable {
             .setPort(port)
             .build();
     try {
-      this.blockingStub.addReplicas(addDocumentRequest);
+      this.blockingStub.addReplicas(addReplicaRequest);
     } catch (Exception e) {
       /* Note this should allow the replica to start, but it means it will not be able to get new index updates
        * from Primary: https://github.com/Yelp/nrtsearch/issues/86 */
@@ -221,7 +231,7 @@ public class ReplicationServerClient implements Closeable {
   }
 
   public Iterator<TransferStatus> copyFiles(
-      String indexName, long primaryGen, FilesMetadata filesMetadata) {
+      String indexName, long primaryGen, FilesMetadata filesMetadata, Deadline deadline) {
     CopyFiles.Builder copyFilesBuilder = CopyFiles.newBuilder();
     CopyFiles copyFiles =
         copyFilesBuilder
@@ -230,7 +240,11 @@ public class ReplicationServerClient implements Closeable {
             .setPrimaryGen(primaryGen)
             .setFilesMetadata(filesMetadata)
             .build();
-    return this.blockingStub.copyFiles(copyFiles);
+    ReplicationServerBlockingStub blockingStub = this.blockingStub;
+    if (deadline != null) {
+      blockingStub = blockingStub.withDeadline(deadline);
+    }
+    return blockingStub.copyFiles(copyFiles);
   }
 
   public TransferStatus newNRTPoint(String indexName, long primaryGen, long version) {

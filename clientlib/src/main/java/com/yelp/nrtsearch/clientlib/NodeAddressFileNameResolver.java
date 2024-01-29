@@ -27,6 +27,7 @@ import java.net.SocketAddress;
 import java.net.URI;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.stream.Collectors;
@@ -76,10 +77,8 @@ public class NodeAddressFileNameResolver extends NameResolver {
 
   private void loadNodes() {
     List<Node> nodes = readNodesFromFile();
-    if (nodes == null || nodes.size() == 0) {
-      return;
-    }
     updateNodes(nodes);
+    currentNodes = nodes;
   }
 
   private void updateNodes(List<Node> nodes) {
@@ -94,7 +93,9 @@ public class NodeAddressFileNameResolver extends NameResolver {
 
   private List<Node> readNodesFromFile() {
     try {
-      return objectMapper.readValue(nodeAddressesFile, new TypeReference<List<Node>>() {});
+      List<Node> nodes =
+          objectMapper.readValue(nodeAddressesFile, new TypeReference<List<Node>>() {});
+      return nodes == null ? Collections.emptyList() : nodes;
     } catch (IOException e) {
       logger.warn("Unable to read file: {}", nodeAddressesFile, e);
       return Collections.emptyList();
@@ -110,7 +111,7 @@ public class NodeAddressFileNameResolver extends NameResolver {
     @Override
     public void run() {
       List<Node> nodes = readNodesFromFile();
-      if (!nodes.isEmpty() && nodes != currentNodes) {
+      if (!nodes.isEmpty() && !Objects.equals(nodes, currentNodes)) {
         updateNodes(nodes);
         currentNodes = nodes;
       }

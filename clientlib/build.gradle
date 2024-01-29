@@ -28,7 +28,7 @@ startScripts.enabled = false
 def _artifactId = 'clientlib'
 
 // Dependency versions
-def protobufVersion = '3.20.1'
+def protobufVersion = '3.24.3'
 def protocVersion = protobufVersion
 
 dependencies {
@@ -49,8 +49,7 @@ dependencies {
     runtimeOnly "io.grpc:grpc-netty-shaded:${rootProject.grpcVersion}"
 
     //test deps
-    api "io.grpc:grpc-testing:${rootProject.grpcVersion}"
-
+    testImplementation "junit:junit:${rootProject.junitVersion}"
     testImplementation "org.mockito:mockito-core:${rootProject.mockitoVersion}"
 }
 

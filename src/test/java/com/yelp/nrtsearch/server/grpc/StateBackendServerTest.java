@@ -20,9 +20,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,6 +31,7 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
+import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.clientlib.Node;
 import com.yelp.nrtsearch.server.backup.BackupDiffManager;
@@ -49,7 +48,7 @@ import com.yelp.nrtsearch.server.grpc.LuceneServer.ReplicationServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.luceneserver.index.ImmutableIndexState;
 import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
-import io.findify.s3mock.S3Mock;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
@@ -81,6 +80,7 @@ import org.junit.rules.TemporaryFolder;
 public class StateBackendServerTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
   private Server primaryServer;
   private Server primaryReplicationServer;
@@ -92,7 +92,6 @@ public class StateBackendServerTest {
 
   private static final String TEST_BUCKET = "state-backend-server-test";
   private static final String TEST_SERVICE_NAME = "state-backend-test-service";
-  private S3Mock api;
   private IndexArchiver archiverPrimary;
   private IndexArchiver archiverReplica;
 
@@ -100,12 +99,8 @@ public class StateBackendServerTest {
   public void cleanup() throws InterruptedException {
     cleanupPrimary();
     cleanupReplica();
-    if (api != null) {
-      api.shutdown();
-      api = null;
-      archiverPrimary = null;
-      archiverReplica = null;
-    }
+    archiverPrimary = null;
+    archiverReplica = null;
   }
 
   private void cleanupPrimary() {
@@ -161,15 +156,10 @@ public class StateBackendServerTest {
   }
 
   private void initArchiver() throws IOException {
-    Path s3Directory = folder.newFolder("s3").toPath();
     Files.createDirectories(getPrimaryArchiveDir());
     Files.createDirectories(getReplicaIndexDir());
 
-    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-    api.start();
-    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
-    s3.createBucket(TEST_BUCKET);
+    AmazonS3 s3 = s3Provider.getAmazonS3();
     TransferManager transferManager =
         TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
 
@@ -189,8 +179,7 @@ public class StateBackendServerTest {
             fileCompressAndUploader,
             contentDownloader,
             versionManager,
-            getPrimaryArchiveDir(),
-            false);
+            getPrimaryArchiveDir());
 
     BackupDiffManager backupDiffManagerReplica =
         new BackupDiffManager(
@@ -201,8 +190,7 @@ public class StateBackendServerTest {
             fileCompressAndUploader,
             contentDownloader,
             versionManager,
-            getReplicaArchiveDir(),
-            false);
+            getReplicaArchiveDir());
   }
 
   private LuceneServerConfiguration getPrimaryConfig() {
@@ -894,6 +882,269 @@ public class StateBackendServerTest {
   }
 
   @Test
+  public void testSetLocalIndexLiveSettings() throws IOException {
+    initPrimary();
+    createIndex();
+    LiveSettingsV2Response response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(
+                LiveSettingsV2Request.newBuilder()
+                    .setIndexName("test_index")
+                    .setLiveSettings(
+                        IndexLiveSettings.newBuilder()
+                            .setDefaultTerminateAfter(
+                                Int32Value.newBuilder().setValue(1000).build())
+                            .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
+                            .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
+                            .setDefaultSearchTimeoutSec(
+                                DoubleValue.newBuilder().setValue(5.1).build())
+                            .build())
+                    .setLocal(true)
+                    .build());
+    // live settings with local
+    IndexLiveSettings expectedSettings =
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
+            .toBuilder()
+            .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
+            .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
+            .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(5.1).build())
+            .build();
+    assertEquals(expectedSettings, response.getLiveSettings());
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(
+                LiveSettingsV2Request.newBuilder()
+                    .setIndexName("test_index")
+                    .setLocal(true)
+                    .build());
+    assertEquals(expectedSettings, response.getLiveSettings());
+
+    // live settings without local
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+  }
+
+  @Test
+  public void testUpdateLocalIndexLiveSettings() throws IOException {
+    initPrimary();
+    createIndex();
+    LiveSettingsV2Response response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(
+                LiveSettingsV2Request.newBuilder()
+                    .setIndexName("test_index")
+                    .setLiveSettings(
+                        IndexLiveSettings.newBuilder()
+                            .setDefaultTerminateAfter(
+                                Int32Value.newBuilder().setValue(1000).build())
+                            .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
+                            .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
+                            .setDefaultSearchTimeoutSec(
+                                DoubleValue.newBuilder().setValue(5.1).build())
+                            .build())
+                    .setLocal(true)
+                    .build());
+    // live settings with local
+    IndexLiveSettings expectedSettings =
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
+            .toBuilder()
+            .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
+            .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
+            .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(5.1).build())
+            .build();
+    assertEquals(expectedSettings, response.getLiveSettings());
+
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(
+                LiveSettingsV2Request.newBuilder()
+                    .setIndexName("test_index")
+                    .setLiveSettings(
+                        IndexLiveSettings.newBuilder()
+                            .setDefaultTerminateAfter(
+                                Int32Value.newBuilder().setValue(2000).build())
+                            .setSliceMaxDocs(Int32Value.newBuilder().setValue(500).build())
+                            .build())
+                    .setLocal(true)
+                    .build());
+    // live settings with local
+    expectedSettings =
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
+            .toBuilder()
+            .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(2000).build())
+            .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
+            .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(5.1).build())
+            .setSliceMaxDocs(Int32Value.newBuilder().setValue(500).build())
+            .build();
+    assertEquals(expectedSettings, response.getLiveSettings());
+
+    // live settings without local
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+  }
+
+  @Test
+  public void testSetLocalIndexLiveSettingsEphemeral() throws IOException {
+    initPrimary();
+    createIndex();
+    LiveSettingsV2Response response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(
+                LiveSettingsV2Request.newBuilder()
+                    .setIndexName("test_index")
+                    .setLiveSettings(
+                        IndexLiveSettings.newBuilder()
+                            .setDefaultTerminateAfter(
+                                Int32Value.newBuilder().setValue(1000).build())
+                            .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
+                            .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
+                            .setDefaultSearchTimeoutSec(
+                                DoubleValue.newBuilder().setValue(5.1).build())
+                            .build())
+                    .setLocal(true)
+                    .build());
+    // live settings with local
+    IndexLiveSettings expectedSettings =
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
+            .toBuilder()
+            .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
+            .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
+            .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(5.1).build())
+            .build();
+    assertEquals(expectedSettings, response.getLiveSettings());
+
+    // live settings without local
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+
+    restartPrimary();
+
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(
+                LiveSettingsV2Request.newBuilder()
+                    .setIndexName("test_index")
+                    .setLocal(true)
+                    .build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+  }
+
+  @Test
+  public void testSetLocalIndexLiveSettingsReplica() throws IOException {
+    initPrimary();
+    createIndexWithFields();
+    startIndex(primaryClient, Mode.PRIMARY);
+
+    restartReplica();
+    startIndex(replicaClient, Mode.REPLICA);
+
+    LiveSettingsV2Response response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+
+    response =
+        replicaClient
+            .getBlockingStub()
+            .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+
+    response =
+        replicaClient
+            .getBlockingStub()
+            .liveSettingsV2(
+                LiveSettingsV2Request.newBuilder()
+                    .setIndexName("test_index")
+                    .setLiveSettings(
+                        IndexLiveSettings.newBuilder()
+                            .setDefaultTerminateAfter(
+                                Int32Value.newBuilder().setValue(1000).build())
+                            .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
+                            .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
+                            .setDefaultSearchTimeoutSec(
+                                DoubleValue.newBuilder().setValue(5.1).build())
+                            .build())
+                    .setLocal(true)
+                    .build());
+    // live settings with local
+    IndexLiveSettings expectedSettings =
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
+            .toBuilder()
+            .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
+            .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
+            .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(5.1).build())
+            .build();
+    assertEquals(expectedSettings, response.getLiveSettings());
+
+    // live settings without local
+    response =
+        replicaClient
+            .getBlockingStub()
+            .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+
+    // primary unaffected
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(LiveSettingsV2Request.newBuilder().setIndexName("test_index").build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+    response =
+        primaryClient
+            .getBlockingStub()
+            .liveSettingsV2(
+                LiveSettingsV2Request.newBuilder()
+                    .setIndexName("test_index")
+                    .setLocal(true)
+                    .build());
+    assertEquals(ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS, response.getLiveSettings());
+  }
+
+  @Test
   public void testSetIndexFields() throws IOException {
     initPrimary();
     createIndex();
@@ -1474,6 +1725,8 @@ public class StateBackendServerTest {
             .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(13.0).build())
             .setDefaultSearchTimeoutCheckEvery(Int32Value.newBuilder().setValue(500).build())
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(5000).build())
+            .setMaxMergePreCopyDurationSec(UInt64Value.newBuilder().setValue(0))
+            .setVerboseMetrics(BoolValue.newBuilder().setValue(false).build())
             .build();
 
     IndexLiveSettings.Builder builder = IndexLiveSettings.newBuilder();

@@ -22,10 +22,10 @@ import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DummyResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
-import com.yelp.nrtsearch.server.luceneserver.state.LegacyGlobalState;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.io.Closeable;
 import java.io.IOException;
@@ -34,13 +34,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.lucene.search.TimeLimitingCollector;
-import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,7 +46,6 @@ public abstract class GlobalState implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(GlobalState.class);
   private final String hostName;
   private final int port;
-  private final int replicationPort;
   private final ThreadPoolConfiguration threadPoolConfiguration;
   private final Archiver incArchiver;
   private int replicaReplicationPortPingInterval;
@@ -56,8 +53,6 @@ public abstract class GlobalState implements Closeable {
   private final long generation = System.currentTimeMillis();
 
   private final String nodeName;
-
-  private final List<RemoteNodeConnection> remoteNodes = new CopyOnWriteArrayList<>();
 
   private final LuceneServerConfiguration configuration;
 
@@ -87,11 +82,7 @@ public abstract class GlobalState implements Closeable {
       Archiver incArchiver,
       Archiver legacyArchiver)
       throws IOException {
-    if (luceneServerConfiguration.getStateConfig().useLegacyStateManagement()) {
-      return new LegacyGlobalState(luceneServerConfiguration, incArchiver);
-    } else {
-      return new BackendGlobalState(luceneServerConfiguration, incArchiver, legacyArchiver);
-    }
+    return new BackendGlobalState(luceneServerConfiguration, incArchiver, legacyArchiver);
   }
 
   public Optional<Archiver> getIncArchiver() {
@@ -106,7 +97,6 @@ public abstract class GlobalState implements Closeable {
     this.indexDirBase = Paths.get(luceneServerConfiguration.getIndexDir());
     this.hostName = luceneServerConfiguration.getHostName();
     this.port = luceneServerConfiguration.getPort();
-    this.replicationPort = luceneServerConfiguration.getReplicationPort();
     this.replicaReplicationPortPingInterval =
         luceneServerConfiguration.getReplicaReplicationPortPingInterval();
     this.threadPoolConfiguration = luceneServerConfiguration.getThreadPoolConfiguration();
@@ -162,8 +152,6 @@ public abstract class GlobalState implements Closeable {
 
   @Override
   public void close() throws IOException {
-    // searchThread.interrupt();
-    IOUtils.close(remoteNodes);
     indexService.shutdown();
     TimeLimitingCollector.getGlobalTimerThread().stopTimer();
     try {
@@ -183,10 +171,25 @@ public abstract class GlobalState implements Closeable {
     return Paths.get(indexDirBase.toString(), indexName);
   }
 
+  /**
+   * Get port the replication grpc server is listening on. This may be different from the value
+   * specified in the config file when using port 0 (auto select). In this case, the true port will
+   * be passed to the {@link #replicationStarted(int)} hook.
+   */
+  public abstract int getReplicationPort();
+
+  /**
+   * Hook that is invoked during startup after the replication grpc server starts, but before the
+   * client grpc server. Operations such as starting indices can be done here.
+   *
+   * @param replicationPort resolved port replication grpc server is listening on, may be different
+   *     from config port if using 0 (auto select).
+   * @throws IOException
+   */
+  public abstract void replicationStarted(int replicationPort) throws IOException;
+
   /** Get the data resource name for a given index. Used with incremental archiver functionality. */
   public abstract String getDataResourceForIndex(String indexName);
-
-  public abstract void setStateDir(Path source) throws IOException;
 
   public abstract Set<String> getIndexNames();
 
@@ -235,6 +238,16 @@ public abstract class GlobalState implements Closeable {
       throws IOException;
 
   /**
+   * Start a created index using the given {@link StartIndexV2Request}.
+   *
+   * @param startIndexRequest start request
+   * @return start response
+   * @throws IOException
+   */
+  public abstract StartIndexResponse startIndexV2(StartIndexV2Request startIndexRequest)
+      throws IOException;
+
+  /**
    * Stop a created index using the given {@link StopIndexRequest}.
    *
    * @param stopIndexRequest stop request
@@ -243,14 +256,8 @@ public abstract class GlobalState implements Closeable {
    */
   public abstract DummyResponse stopIndex(StopIndexRequest stopIndexRequest) throws IOException;
 
-  public abstract void indexClosed(String name);
-
   public Future<Long> submitIndexingTask(Callable<Long> job) {
     return indexService.submit(job);
-  }
-
-  public int getReplicationPort() {
-    return replicationPort;
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {

@@ -100,15 +100,6 @@ public class BackupRestoreCommand implements Callable<Integer> {
   }
 
   @CommandLine.Option(
-      names = {"--legacyStateManagement"},
-      description = "Use legacy Global/Index state management")
-  private boolean legacyStateManagement;
-
-  public boolean useLegacyStateManagement() {
-    return legacyStateManagement;
-  }
-
-  @CommandLine.Option(
       names = {"-V", "--version"},
       description = "Print version information and exit")
   private boolean printVersion;
@@ -157,8 +148,7 @@ public class BackupRestoreCommand implements Callable<Integer> {
         fileCompressAndUploaderTar,
         contentDownloaderTar,
         versionManager,
-        Path.of(this.getArchiveDir()),
-        this.useLegacyStateManagement());
+        Path.of(this.getArchiveDir()));
   }
 
   public AmazonS3 getAmazonS3() {

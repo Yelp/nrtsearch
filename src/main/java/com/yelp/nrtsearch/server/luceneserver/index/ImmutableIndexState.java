@@ -28,6 +28,7 @@ import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.StringValue;
+import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.FieldMaskUtil;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.backup.Archiver;
@@ -50,7 +51,7 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
-import com.yelp.nrtsearch.server.luceneserver.search.SortParser;
+import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import java.io.File;
 import java.io.IOException;
@@ -162,6 +163,8 @@ public class ImmutableIndexState extends IndexState {
           .setDefaultSearchTimeoutSec(DoubleValue.newBuilder().setValue(0).build())
           .setDefaultSearchTimeoutCheckEvery(Int32Value.newBuilder().setValue(0).build())
           .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(0).build())
+          .setMaxMergePreCopyDurationSec(UInt64Value.newBuilder().setValue(0))
+          .setVerboseMetrics(BoolValue.newBuilder().setValue(false).build())
           .build();
 
   // Live Settings
@@ -178,12 +181,15 @@ public class ImmutableIndexState extends IndexState {
   private final double defaultSearchTimeoutSec;
   private final int defaultSearchTimeoutCheckEvery;
   private final int defaultTerminateAfter;
+  private final long maxMergePreCopyDurationSec;
+  private final boolean verboseMetrics;
 
   private final IndexStateManager indexStateManager;
   private final String uniqueName;
   private final IndexStateInfo currentStateInfo;
   private final IndexSettings mergedSettings;
   private final IndexLiveSettings mergedLiveSettings;
+  private final IndexLiveSettings mergedLiveSettingsWithLocal;
   private final FieldAndFacetState fieldAndFacetState;
   private final Map<Integer, ShardState> shards;
 
@@ -196,6 +202,7 @@ public class ImmutableIndexState extends IndexState {
    * @param uniqueName index name with instance identifier
    * @param stateInfo current settings state
    * @param fieldAndFacetState current field state
+   * @param liveSettingsOverrides local overrides for index live settings
    * @param previousShardState shard state from previous index state, or null
    * @throws IOException on file system error
    */
@@ -206,6 +213,7 @@ public class ImmutableIndexState extends IndexState {
       String uniqueName,
       IndexStateInfo stateInfo,
       FieldAndFacetState fieldAndFacetState,
+      IndexLiveSettings liveSettingsOverrides,
       Map<Integer, ShardState> previousShardState)
       throws IOException {
     super(globalState, name, globalState.getIndexDirBase().resolve(uniqueName));
@@ -232,7 +240,6 @@ public class ImmutableIndexState extends IndexState {
         indexSort =
             SortParser.parseSort(
                 mergedSettings.getIndexSort().getSortedFieldsList(),
-                null,
                 fieldAndFacetState.getFields());
         validateIndexSort(indexSort);
       } catch (SearchHandlerException e) {
@@ -248,22 +255,27 @@ public class ImmutableIndexState extends IndexState {
     // live settings
     mergedLiveSettings =
         mergeLiveSettings(DEFAULT_INDEX_LIVE_SETTINGS, stateInfo.getLiveSettings());
-    validateLiveSettings(mergedLiveSettings);
+    mergedLiveSettingsWithLocal = mergeLiveSettings(mergedLiveSettings, liveSettingsOverrides);
 
-    maxRefreshSec = mergedLiveSettings.getMaxRefreshSec().getValue();
-    minRefreshSec = mergedLiveSettings.getMinRefreshSec().getValue();
-    maxSearcherAgeSec = mergedLiveSettings.getMaxSearcherAgeSec().getValue();
-    indexRamBufferSizeMB = mergedLiveSettings.getIndexRamBufferSizeMB().getValue();
-    addDocumentsMaxBufferLen = mergedLiveSettings.getAddDocumentsMaxBufferLen().getValue();
-    sliceMaxDocs = mergedLiveSettings.getSliceMaxDocs().getValue();
-    sliceMaxSegments = mergedLiveSettings.getSliceMaxSegments().getValue();
-    virtualShards = mergedLiveSettings.getVirtualShards().getValue();
-    maxMergedSegmentMB = mergedLiveSettings.getMaxMergedSegmentMB().getValue();
-    segmentsPerTier = mergedLiveSettings.getSegmentsPerTier().getValue();
-    defaultSearchTimeoutSec = mergedLiveSettings.getDefaultSearchTimeoutSec().getValue();
+    validateLiveSettings(mergedLiveSettingsWithLocal);
+
+    maxRefreshSec = mergedLiveSettingsWithLocal.getMaxRefreshSec().getValue();
+    minRefreshSec = mergedLiveSettingsWithLocal.getMinRefreshSec().getValue();
+    maxSearcherAgeSec = mergedLiveSettingsWithLocal.getMaxSearcherAgeSec().getValue();
+    indexRamBufferSizeMB = mergedLiveSettingsWithLocal.getIndexRamBufferSizeMB().getValue();
+    addDocumentsMaxBufferLen = mergedLiveSettingsWithLocal.getAddDocumentsMaxBufferLen().getValue();
+    sliceMaxDocs = mergedLiveSettingsWithLocal.getSliceMaxDocs().getValue();
+    sliceMaxSegments = mergedLiveSettingsWithLocal.getSliceMaxSegments().getValue();
+    virtualShards = mergedLiveSettingsWithLocal.getVirtualShards().getValue();
+    maxMergedSegmentMB = mergedLiveSettingsWithLocal.getMaxMergedSegmentMB().getValue();
+    segmentsPerTier = mergedLiveSettingsWithLocal.getSegmentsPerTier().getValue();
+    defaultSearchTimeoutSec = mergedLiveSettingsWithLocal.getDefaultSearchTimeoutSec().getValue();
     defaultSearchTimeoutCheckEvery =
-        mergedLiveSettings.getDefaultSearchTimeoutCheckEvery().getValue();
-    defaultTerminateAfter = mergedLiveSettings.getDefaultTerminateAfter().getValue();
+        mergedLiveSettingsWithLocal.getDefaultSearchTimeoutCheckEvery().getValue();
+    defaultTerminateAfter = mergedLiveSettingsWithLocal.getDefaultTerminateAfter().getValue();
+    maxMergePreCopyDurationSec =
+        mergedLiveSettingsWithLocal.getMaxMergePreCopyDurationSec().getValue();
+    verboseMetrics = mergedLiveSettingsWithLocal.getVerboseMetrics().getValue();
 
     // If there is previous shard state, use it. Otherwise, initialize the shard.
     if (previousShardState != null) {
@@ -354,9 +366,13 @@ public class ImmutableIndexState extends IndexState {
     return mergedSettings;
   }
 
-  /** Get the fully merged (with defaults) index live settings. */
-  public IndexLiveSettings getMergedLiveSettings() {
-    return mergedLiveSettings;
+  /**
+   * Get the fully merged (with defaults) index live settings.
+   *
+   * @param withLocal If local overrides should be included in the live settings
+   */
+  public IndexLiveSettings getMergedLiveSettings(boolean withLocal) {
+    return withLocal ? mergedLiveSettingsWithLocal : mergedLiveSettings;
   }
 
   /** Get field and facet state for index. */
@@ -389,7 +405,7 @@ public class ImmutableIndexState extends IndexState {
 
     // only create if the index has not been committed
     for (ShardState shard : shards.values()) {
-      shard.setDoCreate(!currentStateInfo.getCommitted());
+      shard.setDoCreate(!currentStateInfo.getCommitted() && dataPath == null);
     }
 
     // start all local shards
@@ -480,11 +496,6 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
-  public void addField(FieldDef fd, JsonObject jsonObject) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public FieldDef getField(String fieldName) {
     FieldDef fd = getMetaFields().get(fieldName);
     if (fd != null) {
@@ -566,11 +577,6 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
-  public ShardState addShard(int shardOrd, boolean doCreate) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public ShardState getShard(int shardOrd) {
     ShardState shardState = shards.get(shardOrd);
     if (shardState == null) {
@@ -649,7 +655,7 @@ public class ImmutableIndexState extends IndexState {
   @Override
   public IndexWriterConfig getIndexWriterConfig(
       OpenMode openMode, Directory origIndexDir, int shardOrd) throws IOException {
-    IndexWriterConfig iwc = new IndexWriterConfig(indexAnalyzer);
+    IndexWriterConfig iwc = new IndexWriterConfig(new IndexAnalyzer(indexStateManager));
     iwc.setOpenMode(openMode);
     if (getGlobalState().getConfiguration().getIndexVerbose()) {
       logger.info("Enabling verbose logging for Lucene NRT");
@@ -660,7 +666,7 @@ public class ImmutableIndexState extends IndexState {
       iwc.setIndexSort(indexSort);
     }
 
-    iwc.setSimilarity(sim);
+    iwc.setSimilarity(new IndexSimilarity(indexStateManager));
     iwc.setRAMBufferSizeMB(indexRamBufferSizeMB);
 
     iwc.setMergedSegmentWarmer(new SimpleMergedSegmentWarmer(iwc.getInfoStream()));
@@ -727,7 +733,12 @@ public class ImmutableIndexState extends IndexState {
   public JsonObject getSaveState() {
     String stateString;
     try {
-      stateString = JsonFormat.printer().print(currentStateInfo);
+      // Ensure the 'fields' map is always present in the output, even when empty
+      stateString =
+          JsonFormat.printer()
+              .includingDefaultValueFields(
+                  Set.of(IndexStateInfo.getDescriptor().findFieldByName("fields")))
+              .print(currentStateInfo);
     } catch (InvalidProtocolBufferException e) {
       throw new RuntimeException(e);
     }
@@ -818,13 +829,23 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
+  public long getMaxMergePreCopyDurationSec() {
+    return maxMergePreCopyDurationSec;
+  }
+
+  @Override
   public void addSuggest(String name, JsonObject o) {
-    throw new UnsupportedOperationException("Suggesters only supported by LEGACY state backend");
+    throw new UnsupportedOperationException();
   }
 
   @Override
   public Map<String, Lookup> getSuggesters() {
-    throw new UnsupportedOperationException("Suggesters only supported by LEGACY state backend");
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public boolean getVerboseMetrics() {
+    return verboseMetrics;
   }
 
   @Override
@@ -902,6 +923,9 @@ public class ImmutableIndexState extends IndexState {
     }
     if (liveSettings.getDefaultTerminateAfter().getValue() < 0) {
       throw new IllegalArgumentException("defaultTerminateAfter must be >= 0");
+    }
+    if (liveSettings.getMaxMergePreCopyDurationSec().getValue() < 0) {
+      throw new IllegalArgumentException("maxMergePreCopyDurationSec must be >= 0");
     }
   }
 

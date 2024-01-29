@@ -328,14 +328,6 @@ public class BackupIndexRequestHandler implements Handler<BackupIndexRequest, Ba
       incrementalArchiver.blessVersion(serviceName, resourceData, versionHash);
     }
     backupIndexResponseBuilder.setDataVersionHash(versionHash);
-
-    if (indexState
-        .getGlobalState()
-        .getConfiguration()
-        .getStateConfig()
-        .useLegacyStateManagement()) {
-      uploadMetadata(serviceName, resourceName, indexState, backupIndexResponseBuilder, stream);
-    }
   }
 
   public void uploadMetadata(

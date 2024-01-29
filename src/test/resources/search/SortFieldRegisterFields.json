@@ -34,6 +34,30 @@
         "lang": "js",
         "source": "float_field*2.0+long_field*3.0"
       }
+    },
+    {
+      "name": "lat_lon_field",
+      "type": "LAT_LON",
+      "multiValued": true,
+      "storeDocValues": true,
+      "sort": true,
+      "search": true
+    },
+    {
+      "name": "nested_object_field",
+      "type": "OBJECT",
+      "nestedDoc": true,
+      "multiValued": true,
+      "childFields": [
+        {
+          "name": "nested_lat_lon_field",
+          "type": "LAT_LON",
+          "multiValued": true,
+          "storeDocValues": true,
+          "sort": true,
+          "search": true
+        }
+      ]
     }
   ]
 }

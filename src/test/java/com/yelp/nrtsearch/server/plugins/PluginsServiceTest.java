@@ -52,7 +52,7 @@ public class PluginsServiceTest {
   @Test
   public void testGetSinglePluginSearchPath() {
     LuceneServerConfiguration config = getConfigWithSearchPath("some/plugin/path");
-    PluginsService pluginsService = new PluginsService(config, getCollectorRegistry());
+    PluginsService pluginsService = new PluginsService(config, null, getCollectorRegistry());
     List<File> expectedPaths = new ArrayList<>();
     expectedPaths.add(new File("some/plugin/path"));
     assertEquals(expectedPaths, pluginsService.getPluginSearchPath());
@@ -68,7 +68,7 @@ public class PluginsServiceTest {
             + "some3/plugin3/path3"
             + File.pathSeparator;
     LuceneServerConfiguration config = getConfigWithSearchPath(searchPath);
-    PluginsService pluginsService = new PluginsService(config, getCollectorRegistry());
+    PluginsService pluginsService = new PluginsService(config, null, getCollectorRegistry());
     List<File> expectedPaths = new ArrayList<>();
     expectedPaths.add(new File("some1/plugin1/path1"));
     expectedPaths.add(new File("some2/plugin2/path2"));
@@ -81,7 +81,8 @@ public class PluginsServiceTest {
     File plugin1 = folder.newFolder("plugin1");
     File plugin2 = folder.newFolder("plugin2");
     File plugin3 = folder.newFolder("plugin3");
-    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
+    PluginsService pluginsService =
+        new PluginsService(getEmptyConfig(), null, getCollectorRegistry());
     assertEquals(
         plugin1,
         pluginsService.findPluginInstallDir(
@@ -99,7 +100,8 @@ public class PluginsServiceTest {
   @Test(expected = IllegalArgumentException.class)
   public void testFindPluginInstallDirNotFound() throws IOException {
     folder.newFolder("plugin1");
-    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
+    PluginsService pluginsService =
+        new PluginsService(getEmptyConfig(), null, getCollectorRegistry());
     pluginsService.findPluginInstallDir("invalid", Collections.singletonList(folder.getRoot()));
   }
 
@@ -114,7 +116,8 @@ public class PluginsServiceTest {
     File installDir = folder.newFolder("dir2", "plugin3");
     folder.newFolder("dir3", "plugin3");
     folder.newFolder("dir3", "plugin4");
-    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
+    PluginsService pluginsService =
+        new PluginsService(getEmptyConfig(), null, getCollectorRegistry());
     assertEquals(installDir, pluginsService.findPluginInstallDir("plugin3", searchPath));
   }
 
@@ -127,7 +130,8 @@ public class PluginsServiceTest {
     folder.newFile("not_jar");
     folder.newFile("some_file.txt");
     folder.newFolder("some_folder.jar");
-    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
+    PluginsService pluginsService =
+        new PluginsService(getEmptyConfig(), null, getCollectorRegistry());
     assertEquals(
         new HashSet<>(jars), new HashSet<>(pluginsService.getPluginJars(folder.getRoot())));
   }
@@ -166,7 +170,8 @@ public class PluginsServiceTest {
 
   @Test
   public void testGetPluginClass() {
-    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
+    PluginsService pluginsService =
+        new PluginsService(getEmptyConfig(), null, getCollectorRegistry());
     Class<? extends Plugin> clazz =
         pluginsService.getPluginClass(
             Collections.emptyList(),
@@ -176,14 +181,16 @@ public class PluginsServiceTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testGetPluginClassNotFound() {
-    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
+    PluginsService pluginsService =
+        new PluginsService(getEmptyConfig(), null, getCollectorRegistry());
     pluginsService.getPluginClass(
         Collections.emptyList(), "com.yelp.nrtsearch.server.plugins.NotClass");
   }
 
   @Test(expected = IllegalArgumentException.class)
   public void testGetPluginClassNotPlugin() {
-    PluginsService pluginsService = new PluginsService(getEmptyConfig(), getCollectorRegistry());
+    PluginsService pluginsService =
+        new PluginsService(getEmptyConfig(), null, getCollectorRegistry());
     pluginsService.getPluginClass(
         Collections.emptyList(), "com.yelp.nrtsearch.server.plugins.PluginServiceTest");
   }
@@ -191,7 +198,7 @@ public class PluginsServiceTest {
   @Test
   public void testGetPluginInstance() {
     CollectorRegistry collectorRegistry = getCollectorRegistry();
-    PluginsService pluginsService = new PluginsService(getEmptyConfig(), collectorRegistry);
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), null, collectorRegistry);
     Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPlugin.class);
     assertEquals(null, ((LoadTestPlugin) loadedPlugin).collectorRegistry);
   }
@@ -199,7 +206,7 @@ public class PluginsServiceTest {
   @Test
   public void testGetPluginInstanceWithMetrics() {
     CollectorRegistry collectorRegistry = getCollectorRegistry();
-    PluginsService pluginsService = new PluginsService(getEmptyConfig(), collectorRegistry);
+    PluginsService pluginsService = new PluginsService(getEmptyConfig(), null, collectorRegistry);
     Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPluginWithMetrics.class);
     assertEquals(collectorRegistry, ((LoadTestPluginWithMetrics) loadedPlugin).collectorRegistry);
   }
@@ -207,7 +214,7 @@ public class PluginsServiceTest {
   @Test
   public void testGetPluginInstanceHasConfig() {
     LuceneServerConfiguration config = getEmptyConfig();
-    PluginsService pluginsService = new PluginsService(config, getCollectorRegistry());
+    PluginsService pluginsService = new PluginsService(config, null, getCollectorRegistry());
     Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPlugin.class);
     LoadTestPlugin loadTestPlugin = (LoadTestPlugin) loadedPlugin;
     assertSame(config, loadTestPlugin.config);

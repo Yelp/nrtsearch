@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.facet;
 
 import static org.junit.Assert.assertEquals;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
@@ -256,7 +257,8 @@ public class FacetScriptFacetsTest extends ServerTestCase {
     }
   }
 
-  protected List<Plugin> getPlugins() {
+  @Override
+  protected List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
     return Collections.singletonList(new TestFacetScriptPlugin());
   }
 

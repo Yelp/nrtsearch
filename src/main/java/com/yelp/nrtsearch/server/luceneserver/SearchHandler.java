@@ -38,12 +38,14 @@ import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.PolygonfieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
+import com.yelp.nrtsearch.server.monitoring.VerboseIndexCollector;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -58,6 +60,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.DrillSideways;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -231,10 +234,21 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         searchState.setLastDocId(lastHit.doc);
         searchContext.getCollector().fillLastHit(searchState, lastHit);
       }
+      searchContext.getResponseBuilder().setSearchState(searchState);
 
       diagnostics.setGetFieldsTimeMs(((System.nanoTime() - t0) / 1000000.0));
-      if (searchContext.getHighlightFetchTask() != null) {
-        diagnostics.setHighlightTimeMs(searchContext.getHighlightFetchTask().getTimeTakenMs());
+
+      if (searchContext.getFetchTasks().getHighlightFetchTask() != null) {
+        diagnostics.setHighlightTimeMs(
+            searchContext.getFetchTasks().getHighlightFetchTask().getTimeTakenMs());
+      }
+      if (searchContext.getFetchTasks().getInnerHitFetchTaskList() != null) {
+        diagnostics.putAllInnerHitsDiagnostics(
+            searchContext.getFetchTasks().getInnerHitFetchTaskList().stream()
+                .collect(
+                    Collectors.toMap(
+                        task -> task.getInnerHitContext().getInnerHitName(),
+                        InnerHitFetchTask::getDiagnostic)));
       }
       searchContext.getResponseBuilder().setDiagnostics(diagnostics);
 
@@ -274,7 +288,12 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
     // if we are out of time, don't bother with serialization
     DeadlineUtils.checkDeadline("SearchHandler: end", "SEARCH");
-    return searchContext.getResponseBuilder().build();
+    SearchResponse searchResponse = searchContext.getResponseBuilder().build();
+    if (!warming && searchContext.getIndexState().getVerboseMetrics()) {
+      VerboseIndexCollector.updateSearchResponseMetrics(
+          searchResponse, searchContext.getIndexState().getName());
+    }
+    return searchResponse;
   }
 
   /**
@@ -362,11 +381,15 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       for (int hitIndex = 0; hitIndex < hitBuilders.size(); ++hitIndex) {
         var hitResponse = hitBuilders.get(hitIndex);
         LeafReaderContext leaf = hitIdToLeaves.get(hitIndex);
-        searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
-        // TODO: combine with custom fetch tasks
-        if (searchContext.getHighlightFetchTask() != null) {
-          searchContext.getHighlightFetchTask().processHit(searchContext, leaf, hitResponse);
+        if (searchContext.isExplain()) {
+          hitResponse.setExplain(
+              searchContext
+                  .getSearcherAndTaxonomy()
+                  .searcher
+                  .explain(searchContext.getQuery(), hitResponse.getLuceneDocId())
+                  .toString());
         }
+        searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
       }
     } else if (!parallelFetchByField
         && fetch_thread_pool_size > 1
@@ -465,7 +488,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       SearchResponse.Diagnostics.Builder diagnostics,
       ThreadPoolExecutor threadPoolExecutor)
       throws InterruptedException, IOException {
-    Logger logger = LoggerFactory.getLogger(SearcherTaxonomyManager.SearcherAndTaxonomy.class);
     // TODO: Figure out which searcher to use:
     // final long searcherVersion; e.g. searcher.getLong("version")
     // final IndexState.Gens searcherSnapshot; e.g. searcher.getLong("indexGen")
@@ -889,14 +911,15 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       // execute any per hit fetch tasks
       for (Hit.Builder hit : sliceHits) {
-        context.getFetchTasks().processHit(context.getSearchContext(), sliceSegment, hit);
-        // TODO: combine with custom fetch tasks
-        if (context.getSearchContext().getHighlightFetchTask() != null) {
-          context
-              .getSearchContext()
-              .getHighlightFetchTask()
-              .processHit(context.getSearchContext(), sliceSegment, hit);
+        if (context.isExplain()) {
+          hit.setExplain(
+              context
+                  .getSearcherAndTaxonomy()
+                  .searcher
+                  .explain(context.getSearchContext().getQuery(), hit.getLuceneDocId())
+                  .toString());
         }
+        context.getFetchTasks().processHit(context.getSearchContext(), sliceSegment, hit);
       }
     }
 

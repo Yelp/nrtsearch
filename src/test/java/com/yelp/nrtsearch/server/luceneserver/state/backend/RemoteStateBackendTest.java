@@ -25,9 +25,7 @@ import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.google.protobuf.BoolValue;
@@ -55,7 +53,7 @@ import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
-import io.findify.s3mock.S3Mock;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -69,7 +67,6 @@ import java.util.UUID;
 import net.jpountz.lz4.LZ4FrameInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -77,23 +74,18 @@ import org.junit.rules.TemporaryFolder;
 
 public class RemoteStateBackendTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
   private static final String TEST_BUCKET = "remote-state-test";
   private static final String TEST_SERVICE_NAME = "test-service-name";
-  private S3Mock api;
   private VersionManager versionManager;
   private Archiver archiver;
 
   @Before
   public void setup() throws IOException {
-    Path s3Directory = folder.newFolder("s3").toPath();
     Path archiverDirectory = folder.newFolder("archiver").toPath();
 
-    api = S3Mock.create(8011, s3Directory.toAbsolutePath().toString());
-    api.start();
-    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint("http://127.0.0.1:8011");
-    s3.createBucket(TEST_BUCKET);
+    AmazonS3 s3 = s3Provider.getAmazonS3();
     TransferManager transferManager =
         TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
 
@@ -111,11 +103,6 @@ public class RemoteStateBackendTest {
             contentDownloader,
             versionManager,
             archiverDirectory);
-  }
-
-  @After
-  public void teardown() {
-    api.shutdown();
   }
 
   private LuceneServerConfiguration getConfig(boolean readOnly) throws IOException {
@@ -154,8 +141,7 @@ public class RemoteStateBackendTest {
 
   private Path getS3FilePath(String versionHash) {
     return Paths.get(
-        folder.getRoot().getAbsolutePath(),
-        "s3",
+        s3Provider.getS3DirectoryPath(),
         TEST_BUCKET,
         TEST_SERVICE_NAME,
         RemoteStateBackend.GLOBAL_STATE_RESOURCE,
@@ -164,8 +150,7 @@ public class RemoteStateBackendTest {
 
   private Path getS3IndexFilePath(String indexIdentifier, String versionHash) {
     return Paths.get(
-        folder.getRoot().getAbsolutePath(),
-        "s3",
+        s3Provider.getS3DirectoryPath(),
         TEST_BUCKET,
         TEST_SERVICE_NAME,
         indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX,

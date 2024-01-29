@@ -16,17 +16,25 @@
 package com.yelp.nrtsearch.server.config;
 
 import com.google.inject.Inject;
+import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
+import com.yelp.nrtsearch.server.utils.JsonUtils;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.lucene.search.suggest.document.CompletionPostingsFormat.FSTLoadMode;
 
 public class LuceneServerConfiguration {
   private static final Pattern ENV_VAR_PATTERN = Pattern.compile("\\$\\{([A-Za-z0-9_]+)}");
@@ -43,6 +51,7 @@ public class LuceneServerConfiguration {
   public static final Path DEFAULT_INDEX_DIR =
       Paths.get(DEFAULT_USER_DIR.toString(), "default_index");
   private static final String DEFAULT_BUCKET_NAME = "DEFAULT_ARCHIVE_BUCKET";
+  static final int DEFAULT_MAX_S3_CLIENT_RETRIES = 20;
   private static final String DEFAULT_HOSTNAME = "localhost";
   private static final int DEFAULT_PORT = 50051;
   private static final int DEFAULT_REPLICATION_PORT = 50052;
@@ -56,6 +65,8 @@ public class LuceneServerConfiguration {
   private static final Path DEFAULT_PLUGIN_SEARCH_PATH =
       Paths.get(DEFAULT_USER_DIR.toString(), "plugins");
   private static final String DEFAULT_SERVICE_NAME = "nrtsearch-generic";
+  static final long DEFAULT_INITIAL_SYNC_PRIMARY_WAIT_MS = 30000;
+  static final long DEFAULT_INITIAL_SYNC_MAX_TIME_MS = 600000; // 10m
   private final int port;
   private final int replicationPort;
   private final int replicaReplicationPortPingInterval;
@@ -67,6 +78,7 @@ public class LuceneServerConfiguration {
   private final String archiveDirectory;
   private final String botoCfgPath;
   private final String bucketName;
+  private final int maxS3ClientRetries;
   private final double[] metricsBuckets;
   private final boolean publishJvmMetrics;
   private final String[] plugins;
@@ -82,17 +94,27 @@ public class LuceneServerConfiguration {
   private final boolean downloadAsStream;
   private final boolean fileSendDelay;
   private final boolean virtualSharding;
+  private final boolean decInitialCommit;
   private final boolean syncInitialNrtPoint;
+  private final long initialSyncPrimaryWaitMs;
+  private final long initialSyncMaxTimeMs;
   private final boolean indexVerbose;
   private final FileCopyConfig fileCopyConfig;
   private final ScriptCacheConfig scriptCacheConfig;
   private final boolean deadlineCancellation;
   private final StateConfig stateConfig;
   private final IndexStartConfig indexStartConfig;
+  private final int discoveryFileUpdateIntervalMs;
+  private final FSTLoadMode completionCodecLoadMode;
+  private final boolean filterIncompatibleSegmentReaders;
+  private final Map<String, IndexLiveSettings> indexLiveSettingsOverrides;
 
   private final YamlConfigReader configReader;
   private final long maxConnectionAgeForReplication;
   private final long maxConnectionAgeGraceForReplication;
+  private final boolean savePluginBeforeUnzip;
+
+  private final boolean enableGlobalBucketAccess;
 
   @Inject
   public LuceneServerConfiguration(InputStream yamlStream) {
@@ -117,6 +139,8 @@ public class LuceneServerConfiguration {
     archiveDirectory = configReader.getString("archiveDirectory", DEFAULT_ARCHIVER_DIR.toString());
     botoCfgPath = configReader.getString("botoCfgPath", DEFAULT_BOTO_CFG_PATH.toString());
     bucketName = configReader.getString("bucketName", DEFAULT_BUCKET_NAME);
+    maxS3ClientRetries =
+        configReader.getInteger("maxS3ClientRetries", DEFAULT_MAX_S3_CLIENT_RETRIES);
     double[] metricsBuckets;
     try {
       List<Double> bucketList = configReader.getDoubleList("metricsBuckets");
@@ -142,7 +166,12 @@ public class LuceneServerConfiguration {
     downloadAsStream = configReader.getBoolean("downloadAsStream", true);
     fileSendDelay = configReader.getBoolean("fileSendDelay", false);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
+    decInitialCommit = configReader.getBoolean("decInitialCommit", true);
     syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", true);
+    initialSyncPrimaryWaitMs =
+        configReader.getLong("initialSyncPrimaryWaitMs", DEFAULT_INITIAL_SYNC_PRIMARY_WAIT_MS);
+    initialSyncMaxTimeMs =
+        configReader.getLong("initialSyncMaxTimeMs", DEFAULT_INITIAL_SYNC_MAX_TIME_MS);
     indexVerbose = configReader.getBoolean("indexVerbose", false);
     fileCopyConfig = FileCopyConfig.fromConfig(configReader);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
@@ -150,6 +179,36 @@ public class LuceneServerConfiguration {
     deadlineCancellation = configReader.getBoolean("deadlineCancellation", false);
     stateConfig = StateConfig.fromConfig(configReader);
     indexStartConfig = IndexStartConfig.fromConfig(configReader);
+    discoveryFileUpdateIntervalMs =
+        configReader.getInteger(
+            "discoveryFileUpdateIntervalMs", ReplicationServerClient.FILE_UPDATE_INTERVAL_MS);
+    completionCodecLoadMode =
+        FSTLoadMode.valueOf(configReader.getString("completionCodecLoadMode", "ON_HEAP"));
+    filterIncompatibleSegmentReaders =
+        configReader.getBoolean("filterIncompatibleSegmentReaders", false);
+    savePluginBeforeUnzip = configReader.getBoolean("savePluginBeforeUnzip", false);
+    enableGlobalBucketAccess = configReader.getBoolean("enableGlobalBucketAccess", false);
+
+    List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
+    Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();
+    for (String index : indicesWithOverrides) {
+      IndexLiveSettings liveSettings =
+          configReader.get(
+              "indexLiveSettingsOverrides." + index,
+              obj -> {
+                try {
+                  String jsonStr = JsonUtils.objectToJsonStr(obj);
+                  IndexLiveSettings.Builder liveSettingsBuilder = IndexLiveSettings.newBuilder();
+                  JsonFormat.parser().ignoringUnknownFields().merge(jsonStr, liveSettingsBuilder);
+                  return liveSettingsBuilder.build();
+                } catch (IOException e) {
+                  throw new RuntimeException(e);
+                }
+              },
+              IndexLiveSettings.newBuilder().build());
+      liveSettingsMap.put(index, liveSettings);
+    }
+    indexLiveSettingsOverrides = Collections.unmodifiableMap(liveSettingsMap);
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
@@ -194,6 +253,11 @@ public class LuceneServerConfiguration {
 
   public String getBucketName() {
     return bucketName;
+  }
+
+  /** Get max number of retries to configure for s3 client. If <= 0, use client default. */
+  public int getMaxS3ClientRetries() {
+    return maxS3ClientRetries;
   }
 
   public String getArchiveDirectory() {
@@ -256,8 +320,20 @@ public class LuceneServerConfiguration {
     return virtualSharding;
   }
 
+  public boolean getDecInitialCommit() {
+    return decInitialCommit;
+  }
+
   public boolean getSyncInitialNrtPoint() {
     return syncInitialNrtPoint;
+  }
+
+  public long getInitialSyncPrimaryWaitMs() {
+    return initialSyncPrimaryWaitMs;
+  }
+
+  public long getInitialSyncMaxTimeMs() {
+    return initialSyncMaxTimeMs;
   }
 
   public boolean getIndexVerbose() {
@@ -286,6 +362,31 @@ public class LuceneServerConfiguration {
 
   public IndexStartConfig getIndexStartConfig() {
     return indexStartConfig;
+  }
+
+  public int getDiscoveryFileUpdateIntervalMs() {
+    return discoveryFileUpdateIntervalMs;
+  }
+
+  public FSTLoadMode getCompletionCodecLoadMode() {
+    return completionCodecLoadMode;
+  }
+
+  public boolean getFilterIncompatibleSegmentReaders() {
+    return filterIncompatibleSegmentReaders;
+  }
+
+  public boolean getSavePluginBeforeUnzip() {
+    return savePluginBeforeUnzip;
+  }
+
+  public boolean getEnableGlobalBucketAccess() {
+    return enableGlobalBucketAccess;
+  }
+
+  public IndexLiveSettings getLiveSettingsOverride(String indexName) {
+    return indexLiveSettingsOverrides.getOrDefault(
+        indexName, IndexLiveSettings.newBuilder().build());
   }
 
   /**

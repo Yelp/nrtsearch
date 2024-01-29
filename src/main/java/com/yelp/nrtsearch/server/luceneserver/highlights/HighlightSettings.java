@@ -15,28 +15,84 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.highlights;
 
-import org.apache.lucene.search.vectorhighlight.FieldQuery;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Map;
+import org.apache.lucene.search.Query;
 
 /** Holds the context from the search request required to build highlights. */
 public class HighlightSettings {
 
+  private final Highlighter highlighter;
   private final String[] preTags;
   private final String[] postTags;
   private final int fragmentSize;
   private final int maxNumFragments;
-  private final FieldQuery fieldQuery;
+  private final Query highlightQuery;
+  private final boolean fieldMatch;
+  private final boolean scoreOrdered;
+  private final String fragmenter;
+  private final boolean discreteMultivalue;
+  private final Map<String, Object> customHighlighterParams;
+  private final String boundaryScanner;
+  private final Character[] boundaryChars;
+  private final int boundaryMaxScan;
+  private final Locale boundaryScannerLocale;
 
   public HighlightSettings(
+      Highlighter highlighter,
       String[] preTags,
       String[] postTags,
       int fragmentSize,
       int maxNumFragments,
-      FieldQuery fieldQuery) {
+      Query highlightQuery,
+      boolean fieldMatch,
+      boolean scoreOrdered,
+      String fragmenter,
+      boolean discreteMultivalue,
+      String boundaryScanner,
+      Character[] boundaryChars,
+      int boundaryMaxScan,
+      Locale boundaryScannerLocale,
+      Map<String, Object> customHighlighterParams) {
+    this.highlighter = highlighter;
     this.preTags = preTags;
     this.postTags = postTags;
     this.fragmentSize = fragmentSize;
     this.maxNumFragments = maxNumFragments;
-    this.fieldQuery = fieldQuery;
+    this.highlightQuery = highlightQuery;
+    this.fieldMatch = fieldMatch;
+    this.scoreOrdered = scoreOrdered;
+    this.fragmenter = fragmenter;
+    this.discreteMultivalue = discreteMultivalue;
+    this.boundaryScanner = boundaryScanner;
+    this.boundaryChars = boundaryChars;
+    this.boundaryMaxScan = boundaryMaxScan;
+    this.boundaryScannerLocale = boundaryScannerLocale;
+    this.customHighlighterParams = customHighlighterParams;
+  }
+
+  public Builder toBuilder() {
+    return new Builder()
+        .withHighlighter(this.highlighter)
+        .withPreTags(this.preTags)
+        .withPostTags(this.postTags)
+        .withFragmentSize(this.fragmentSize)
+        .withMaxNumFragments(this.maxNumFragments)
+        .withHighlightQuery(this.highlightQuery)
+        .withFieldMatch(this.fieldMatch)
+        .withScoreOrdered(this.scoreOrdered)
+        .withFragmenter(this.fragmenter)
+        .withDiscreteMultivalue(this.discreteMultivalue)
+        .withBoundaryScanner(this.boundaryScanner)
+        .withBoundaryChars(this.boundaryChars)
+        .withBoundaryMaxScan(this.boundaryMaxScan)
+        .withBoundaryScannerLocale(this.boundaryScannerLocale)
+        .withCustomHighlighterParams(this.customHighlighterParams);
+  }
+
+  public Highlighter getHighlighter() {
+    return highlighter;
   }
 
   public String[] getPreTags() {
@@ -55,19 +111,108 @@ public class HighlightSettings {
     return maxNumFragments;
   }
 
-  public FieldQuery getFieldQuery() {
-    return fieldQuery;
+  public Query getHighlightQuery() {
+    return highlightQuery;
+  }
+
+  public boolean getFieldMatch() {
+    return fieldMatch;
+  }
+
+  public boolean isScoreOrdered() {
+    return scoreOrdered;
+  }
+
+  public String getFragmenter() {
+    return fragmenter;
+  }
+
+  public boolean getDiscreteMultivalue() {
+    return discreteMultivalue;
+  }
+
+  public String getBoundaryScanner() {
+    return boundaryScanner;
+  }
+
+  public Character[] getBoundaryChars() {
+    return boundaryChars;
+  }
+
+  public int getBoundaryMaxScan() {
+    return boundaryMaxScan;
+  }
+
+  public Locale getBoundaryScannerLocale() {
+    return boundaryScannerLocale;
+  }
+
+  public Map<String, Object> getCustomHighlighterParams() {
+    return customHighlighterParams;
+  }
+
+  @Override
+  public String toString() {
+    return "HighlightSettings{"
+        + "highlighter="
+        + highlighter
+        + ", preTags="
+        + Arrays.toString(preTags)
+        + ", postTags="
+        + Arrays.toString(postTags)
+        + ", fragmentSize="
+        + fragmentSize
+        + ", maxNumFragments="
+        + maxNumFragments
+        + ", highlightQuery="
+        + highlightQuery
+        + ", fieldMatch="
+        + fieldMatch
+        + ", scoreOrdered="
+        + scoreOrdered
+        + ", fragmenter='"
+        + fragmenter
+        + '\''
+        + ", discreteMultivalue="
+        + discreteMultivalue
+        + ", customHighlighterParams="
+        + customHighlighterParams
+        + ", boundaryScanner='"
+        + boundaryScanner
+        + '\''
+        + ", boundaryChars="
+        + Arrays.toString(boundaryChars)
+        + ", boundaryCharsMaxScan="
+        + boundaryMaxScan
+        + ", boundaryScannerLocale="
+        + boundaryScannerLocale.toLanguageTag()
+        + '}';
   }
 
   public static final class Builder {
 
+    private Highlighter highlighter;
     private String[] preTags;
     private String[] postTags;
     private int fragmentSize;
     private int maxNumFragments;
-    private FieldQuery fieldQuery;
+    private Query highlightQuery;
+    private boolean fieldMatch;
+    private boolean scoreOrdered;
+    private String fragmenter;
+    private boolean discreteMultivalue;
+    private String boundaryScanner;
+    private Character[] boundaryChars;
+    private int boundaryMaxScan;
+    private Locale boundaryScannerLocale;
+    private Map<String, Object> customHighlighterParams;
 
     public Builder() {}
+
+    public Builder withHighlighter(Highlighter highlighter) {
+      this.highlighter = highlighter;
+      return this;
+    }
 
     public Builder withPreTags(String[] preTags) {
       this.preTags = preTags;
@@ -89,13 +234,73 @@ public class HighlightSettings {
       return this;
     }
 
-    public Builder withFieldQuery(FieldQuery fieldQuery) {
-      this.fieldQuery = fieldQuery;
+    public Builder withHighlightQuery(Query highlightQuery) {
+      this.highlightQuery = highlightQuery;
+      return this;
+    }
+
+    public Builder withFieldMatch(boolean fieldMatch) {
+      this.fieldMatch = fieldMatch;
+      return this;
+    }
+
+    public Builder withScoreOrdered(boolean scoreOrdered) {
+      this.scoreOrdered = scoreOrdered;
+      return this;
+    }
+
+    public Builder withFragmenter(String fragmenter) {
+      this.fragmenter = fragmenter;
+      return this;
+    }
+
+    public Builder withDiscreteMultivalue(boolean discreteMultivalue) {
+      this.discreteMultivalue = discreteMultivalue;
+      return this;
+    }
+
+    public Builder withBoundaryScanner(String boundaryScanner) {
+      this.boundaryScanner = boundaryScanner;
+      return this;
+    }
+
+    public Builder withBoundaryChars(Character[] boundaryChars) {
+      this.boundaryChars = boundaryChars;
+      return this;
+    }
+
+    public Builder withBoundaryMaxScan(int boundaryMaxScan) {
+      this.boundaryMaxScan = boundaryMaxScan;
+      return this;
+    }
+
+    public Builder withBoundaryScannerLocale(Locale boundaryScannerLocale) {
+      this.boundaryScannerLocale = boundaryScannerLocale;
+      return this;
+    }
+
+    public Builder withCustomHighlighterParams(Map<String, Object> customHighlighterParams) {
+      this.customHighlighterParams = customHighlighterParams;
       return this;
     }
 
     public HighlightSettings build() {
-      return new HighlightSettings(preTags, postTags, fragmentSize, maxNumFragments, fieldQuery);
+      return new HighlightSettings(
+          highlighter,
+          preTags,
+          postTags,
+          fragmentSize,
+          maxNumFragments,
+          highlightQuery,
+          fieldMatch,
+          scoreOrdered,
+          fragmenter,
+          discreteMultivalue,
+          boundaryScanner,
+          boundaryChars,
+          boundaryMaxScan,
+          boundaryScannerLocale,
+          customHighlighterParams);
     }
   }
 }

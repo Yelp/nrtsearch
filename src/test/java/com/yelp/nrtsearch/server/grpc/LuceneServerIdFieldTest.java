@@ -22,7 +22,6 @@ import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
@@ -77,17 +76,15 @@ public class LuceneServerIdFieldTest {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
-    GlobalState globalState = GlobalState.createState(luceneServerConfiguration);
     return new GrpcServer(
         collectorRegistry,
         grpcCleanup,
         luceneServerConfiguration,
         folder,
-        false,
-        globalState,
+        null,
         luceneServerConfiguration.getIndexDir(),
         testIndex,
-        globalState.getPort(),
+        luceneServerConfiguration.getPort(),
         null,
         Collections.emptyList());
   }
@@ -267,7 +264,7 @@ public class LuceneServerIdFieldTest {
     } catch (RuntimeException e) {
       String message =
           "INVALID_ARGUMENT: error while trying to UpdateFieldsHandler for index: test_index\n"
-              + "cannot register another _id field \"new_text_field\" as an _id field \"doc_id\" already exists";
+              + "Index can only register one id field, found: doc_id and new_text_field";
       assertEquals(message, e.getMessage());
       throw e;
     }
@@ -332,7 +329,7 @@ public class LuceneServerIdFieldTest {
     } catch (RuntimeException e) {
       String message =
           "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index\n"
-              + "cannot register another _id field \"doc_id_2\" as an _id field \"doc_id\" already exists";
+              + "Index can only register one id field, found: doc_id and doc_id_2";
       assertEquals(message, e.getMessage());
       throw e;
     }

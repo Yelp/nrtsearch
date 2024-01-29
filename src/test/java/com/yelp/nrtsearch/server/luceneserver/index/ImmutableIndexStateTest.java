@@ -29,10 +29,13 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
+import com.google.protobuf.UInt64Value;
 import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Field;
@@ -144,6 +147,7 @@ public class ImmutableIndexStateTest {
         BackendGlobalState.getUniqueIndexName("test_index", "test_id"),
         stateInfo,
         fieldState,
+        IndexLiveSettings.newBuilder().build(),
         shards);
   }
 
@@ -182,6 +186,16 @@ public class ImmutableIndexStateTest {
         expected, getFunc.apply(getIndexState(getStateWithLiveSettings(builder.build()))), 0.0);
   }
 
+  private void verifyBoolLiveSetting(
+      boolean expected,
+      Function<ImmutableIndexState, Boolean> getFunc,
+      Consumer<IndexLiveSettings.Builder> setMessage)
+      throws IOException {
+    IndexLiveSettings.Builder builder = IndexLiveSettings.newBuilder();
+    setMessage.accept(builder);
+    assertEquals(expected, getFunc.apply(getIndexState(getStateWithLiveSettings(builder.build()))));
+  }
+
   private void verifyIntLiveSetting(
       int expected,
       Function<ImmutableIndexState, Integer> getFunc,
@@ -191,6 +205,18 @@ public class ImmutableIndexStateTest {
     setMessage.accept(builder);
     assertEquals(
         Integer.valueOf(expected),
+        getFunc.apply(getIndexState(getStateWithLiveSettings(builder.build()))));
+  }
+
+  private void verifyLongLiveSetting(
+      long expected,
+      Function<ImmutableIndexState, Long> getFunc,
+      Consumer<IndexLiveSettings.Builder> setMessage)
+      throws IOException {
+    IndexLiveSettings.Builder builder = IndexLiveSettings.newBuilder();
+    setMessage.accept(builder);
+    assertEquals(
+        Long.valueOf(expected),
         getFunc.apply(getIndexState(getStateWithLiveSettings(builder.build()))));
   }
 
@@ -222,8 +248,16 @@ public class ImmutableIndexStateTest {
     return DoubleValue.newBuilder().setValue(value).build();
   }
 
+  private BoolValue wrap(boolean value) {
+    return BoolValue.newBuilder().setValue(value).build();
+  }
+
   private Int32Value wrap(int value) {
     return Int32Value.newBuilder().setValue(value).build();
+  }
+
+  private UInt64Value wrap(long value) {
+    return UInt64Value.newBuilder().setValue(value).build();
   }
 
   private StringValue wrap(String value) {
@@ -603,6 +637,7 @@ public class ImmutableIndexStateTest {
         BackendGlobalState.getUniqueIndexName("test_index", "test_id"),
         getStateWithLiveSettings(settings),
         new FieldAndFacetState(),
+        IndexLiveSettings.newBuilder().build(),
         new HashMap<>());
   }
 
@@ -743,6 +778,40 @@ public class ImmutableIndexStateTest {
   }
 
   @Test
+  public void testMaxMergePreCopyDurationSec_default() throws IOException {
+    assertEquals(0, getIndexState(getEmptyState()).getMaxMergePreCopyDurationSec());
+  }
+
+  @Test
+  public void testMaxMergePreCopyDurationSec_set() throws IOException {
+    verifyLongLiveSetting(
+        0,
+        ImmutableIndexState::getMaxMergePreCopyDurationSec,
+        b -> b.setMaxMergePreCopyDurationSec(wrap(0L)));
+    verifyLongLiveSetting(
+        100,
+        ImmutableIndexState::getMaxMergePreCopyDurationSec,
+        b -> b.setMaxMergePreCopyDurationSec(wrap(100L)));
+  }
+
+  @Test
+  public void testMaxMergePreCopyDurationSec_invalid() throws IOException {
+    String expectedMsg = "maxMergePreCopyDurationSec must be >= 0";
+    assertLiveSettingException(expectedMsg, b -> b.setMaxMergePreCopyDurationSec(wrap(-1L)));
+  }
+
+  @Test
+  public void testVerboseMetrics_default() throws IOException {
+    assertFalse(getIndexState(getEmptyState()).getVerboseMetrics());
+  }
+
+  @Test
+  public void testVerboseMetrics_set() throws IOException {
+    verifyBoolLiveSetting(
+        true, ImmutableIndexState::getVerboseMetrics, b -> b.setVerboseMetrics(wrap(true)));
+  }
+
+  @Test
   public void testGetCurrentStateInfo() throws IOException {
     IndexStateInfo indexStateInfo = getEmptyState();
     ImmutableIndexState indexState = getIndexState(indexStateInfo);
@@ -784,7 +853,68 @@ public class ImmutableIndexStateTest {
             .setMaxRefreshSec(wrap(10.0))
             .setSegmentsPerTier(wrap(5))
             .build();
-    assertEquals(expectedMergedSettings, indexState.getMergedLiveSettings());
+    assertEquals(expectedMergedSettings, indexState.getMergedLiveSettings(false));
+    assertEquals(expectedMergedSettings, indexState.getMergedLiveSettings(true));
+  }
+
+  private ImmutableIndexState getIndexStateForLiveSettingsOverrides(
+      IndexLiveSettings settings, IndexLiveSettings overrides) throws IOException {
+    IndexStateManager mockManager = mock(IndexStateManager.class);
+    GlobalState mockGlobalState = mock(GlobalState.class);
+
+    String configFile = "nodeName: \"lucene_server_foo\"";
+    LuceneServerConfiguration dummyConfig =
+        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+
+    when(mockGlobalState.getIndexDirBase()).thenReturn(folder.getRoot().toPath());
+    when(mockGlobalState.getConfiguration()).thenReturn(dummyConfig);
+    return new ImmutableIndexState(
+        mockManager,
+        mockGlobalState,
+        "test_index",
+        BackendGlobalState.getUniqueIndexName("test_index", "test_id"),
+        getStateWithLiveSettings(settings),
+        new FieldAndFacetState(),
+        overrides,
+        new HashMap<>());
+  }
+
+  @Test
+  public void testLiveSettingsOverrides() throws IOException {
+    IndexLiveSettings liveSettings =
+        IndexLiveSettings.newBuilder()
+            .setDefaultTerminateAfter(wrap(100))
+            .setMaxRefreshSec(wrap(10.0))
+            .setSegmentsPerTier(wrap(5))
+            .build();
+    IndexLiveSettings liveSettingsOverrides =
+        IndexLiveSettings.newBuilder()
+            .setSliceMaxDocs(Int32Value.newBuilder().setValue(1).build())
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(1).build())
+            .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(10).build())
+            .build();
+    ImmutableIndexState indexState =
+        getIndexStateForLiveSettingsOverrides(liveSettings, liveSettingsOverrides);
+    IndexLiveSettings expectedMergedSettings =
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
+            .toBuilder()
+            .setDefaultTerminateAfter(wrap(100))
+            .setMaxRefreshSec(wrap(10.0))
+            .setSegmentsPerTier(wrap(5))
+            .build();
+    IndexLiveSettings expectedMergedSettingsWithLocal =
+        expectedMergedSettings
+            .toBuilder()
+            .setSliceMaxDocs(Int32Value.newBuilder().setValue(1).build())
+            .setSliceMaxSegments(Int32Value.newBuilder().setValue(1).build())
+            .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(10).build())
+            .build();
+    assertEquals(expectedMergedSettings, indexState.getMergedLiveSettings(false));
+    assertEquals(expectedMergedSettingsWithLocal, indexState.getMergedLiveSettings(true));
+
+    assertEquals(1, indexState.getSliceMaxDocs());
+    assertEquals(1, indexState.getSliceMaxSegments());
+    assertEquals(10, indexState.getDefaultTerminateAfter());
   }
 
   @Test
@@ -792,11 +922,6 @@ public class ImmutableIndexStateTest {
     FieldAndFacetState fieldAndFacetState = new FieldAndFacetState();
     ImmutableIndexState indexState = getIndexState(getEmptyState(), fieldAndFacetState);
     assertSame(fieldAndFacetState, indexState.getFieldAndFacetState());
-  }
-
-  @Test(expected = UnsupportedOperationException.class)
-  public void testAddField() throws IOException {
-    getIndexState(getEmptyState()).addField(null, null);
   }
 
   @Test
@@ -962,11 +1087,6 @@ public class ImmutableIndexStateTest {
     assertSame(mockConfig, indexState.getFacetsConfig());
     verify(mockFieldState, times(1)).getFacetsConfig();
     verifyNoMoreInteractions(mockFieldState);
-  }
-
-  @Test(expected = UnsupportedOperationException.class)
-  public void testAddShard() throws IOException {
-    getIndexState(getEmptyState()).addShard(0, true);
   }
 
   @Test
@@ -1311,5 +1431,165 @@ public class ImmutableIndexStateTest {
     Set<String> expectedFiles = new HashSet<>(restoreFiles);
     expectedFiles.add(IndexWriter.WRITE_LOCK_NAME);
     assertEquals(expectedFiles, indexFiles);
+  }
+
+  @Test
+  public void testGetSaveState_empty() throws IOException {
+    ImmutableIndexState indexState = getIndexState(getEmptyState());
+    JsonObject saveStateJson = indexState.getSaveState();
+    assertEquals(6, saveStateJson.size());
+    JsonElement element = saveStateJson.get("indexName");
+    assertNotNull(element);
+    assertEquals("test_index", element.getAsString());
+
+    element = saveStateJson.get("gen");
+    assertNotNull(element);
+    assertEquals(1L, element.getAsLong());
+
+    element = saveStateJson.get("committed");
+    assertNotNull(element);
+    assertTrue(element.getAsBoolean());
+
+    element = saveStateJson.get("settings");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+    assertEquals(0, element.getAsJsonObject().size());
+
+    element = saveStateJson.get("liveSettings");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+    assertEquals(0, element.getAsJsonObject().size());
+
+    element = saveStateJson.get("fields");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+    assertEquals(0, element.getAsJsonObject().size());
+  }
+
+  @Test
+  public void testGetSaveState_settings() throws IOException {
+    IndexSettings settings =
+        IndexSettings.newBuilder()
+            .setConcurrentMergeSchedulerMaxMergeCount(wrap(5))
+            .setConcurrentMergeSchedulerMaxThreadCount(wrap(2))
+            .setNrtCachingDirectoryMaxSizeMB(wrap(100.0))
+            .build();
+    ImmutableIndexState indexState = getIndexState(getStateWithSettings(settings));
+    JsonObject saveStateJson = indexState.getSaveState();
+    assertEquals(6, saveStateJson.size());
+    JsonElement element = saveStateJson.get("settings");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+
+    JsonObject jsonObject = element.getAsJsonObject();
+    assertEquals(3, jsonObject.size());
+
+    element = jsonObject.get("nrtCachingDirectoryMaxSizeMB");
+    assertNotNull(element);
+    assertEquals(100.0, element.getAsDouble(), 0.0);
+
+    element = jsonObject.get("concurrentMergeSchedulerMaxThreadCount");
+    assertNotNull(element);
+    assertEquals(2, element.getAsInt());
+
+    element = jsonObject.get("concurrentMergeSchedulerMaxMergeCount");
+    assertNotNull(element);
+    assertEquals(5, element.getAsInt());
+  }
+
+  @Test
+  public void testGetSaveState_liveSettings() throws IOException {
+    IndexLiveSettings liveSettings =
+        IndexLiveSettings.newBuilder()
+            .setDefaultTerminateAfter(wrap(100))
+            .setMaxRefreshSec(wrap(10.0))
+            .setSegmentsPerTier(wrap(5))
+            .build();
+    ImmutableIndexState indexState = getIndexState(getStateWithLiveSettings(liveSettings));
+    JsonObject saveStateJson = indexState.getSaveState();
+    assertEquals(6, saveStateJson.size());
+    JsonElement element = saveStateJson.get("liveSettings");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+
+    JsonObject jsonObject = element.getAsJsonObject();
+    assertEquals(3, jsonObject.size());
+
+    element = jsonObject.get("maxRefreshSec");
+    assertNotNull(element);
+    assertEquals(10.0, element.getAsDouble(), 0.0);
+
+    element = jsonObject.get("segmentsPerTier");
+    assertNotNull(element);
+    assertEquals(5, element.getAsInt());
+
+    element = jsonObject.get("defaultTerminateAfter");
+    assertNotNull(element);
+    assertEquals(100, element.getAsInt());
+  }
+
+  @Test
+  public void testGetSaveState_fields() throws IOException {
+    IndexStateInfo stateInfo =
+        getEmptyState()
+            .toBuilder()
+            .putFields(
+                "field1",
+                Field.newBuilder()
+                    .setName("field1")
+                    .setType(FieldType.ATOM)
+                    .setSearch(true)
+                    .setStore(false)
+                    .setStoreDocValues(false)
+                    .build())
+            .putFields(
+                "field2",
+                Field.newBuilder()
+                    .setName("field2")
+                    .setType(FieldType.INT)
+                    .setStoreDocValues(true)
+                    .build())
+            .build();
+    ImmutableIndexState indexState = getIndexState(stateInfo);
+    JsonObject saveStateJson = indexState.getSaveState();
+    assertEquals(6, saveStateJson.size());
+    JsonElement element = saveStateJson.get("fields");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+
+    JsonObject jsonObject = element.getAsJsonObject();
+    assertEquals(2, jsonObject.size());
+
+    element = jsonObject.get("field1");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+    JsonObject fieldObject = element.getAsJsonObject();
+    assertEquals(2, fieldObject.size());
+
+    element = fieldObject.get("name");
+    assertNotNull(element);
+    assertEquals("field1", element.getAsString());
+
+    element = fieldObject.get("search");
+    assertNotNull(element);
+    assertTrue(element.getAsBoolean());
+
+    element = jsonObject.get("field2");
+    assertNotNull(element);
+    assertTrue(element.isJsonObject());
+    fieldObject = element.getAsJsonObject();
+    assertEquals(3, fieldObject.size());
+
+    element = fieldObject.get("name");
+    assertNotNull(element);
+    assertEquals("field2", element.getAsString());
+
+    element = fieldObject.get("type");
+    assertNotNull(element);
+    assertEquals("INT", element.getAsString());
+
+    element = fieldObject.get("storeDocValues");
+    assertNotNull(element);
+    assertTrue(element.getAsBoolean());
   }
 }

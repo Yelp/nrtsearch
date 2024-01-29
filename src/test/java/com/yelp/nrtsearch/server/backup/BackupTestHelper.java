@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.backup;
 
 import static com.yelp.nrtsearch.server.backup.IndexArchiver.getIndexDataResourceName;
-import static com.yelp.nrtsearch.server.backup.IndexArchiver.getIndexStateResourceName;
 import static org.junit.Assert.assertEquals;
 
 import com.amazonaws.auth.AnonymousAWSCredentials;
@@ -173,32 +172,14 @@ public class BackupTestHelper {
     return s3;
   }
 
-  public Path createStateDir(Map<String, String> fileAndContents) throws IOException {
-    Path stateDir = IndexArchiver.getIndexStateDir(archiverDirectory);
-    if (!Files.exists(stateDir)) {
-      Files.createDirectories(stateDir);
-    }
-    for (Map.Entry<String, String> entry : fileAndContents.entrySet()) {
-      Path file = Paths.get(stateDir.toString(), entry.getKey());
-      if (!Files.exists(file)) {
-        Files.writeString(Files.createFile(file), entry.getValue(), StandardCharsets.UTF_8);
-      }
-    }
-    return stateDir;
-  }
-
   public Path createIndexDir(Map<String, String> fileAndContents, Archiver archiver)
       throws IOException {
     Path indexDir = IndexArchiver.getIndexDataDir(archiverDirectory);
-    Path stateDir = IndexArchiver.getIndexStateDir(archiverDirectory);
     if (!Files.exists(indexDir)) {
       Files.createDirectories(indexDir);
     }
-    if (!Files.exists(stateDir)) {
-      Files.createDirectories(stateDir);
-    }
     for (Map.Entry<String, String> entry : fileAndContents.entrySet()) {
-      for (Path path : List.of(indexDir, stateDir)) {
+      for (Path path : List.of(indexDir)) {
         Path file = Paths.get(path.toString(), entry.getKey());
         if (!Files.exists(file)) {
           Files.writeString(Files.createFile(file), entry.getValue(), StandardCharsets.UTF_8);
@@ -210,28 +191,6 @@ public class BackupTestHelper {
     } else {
       return indexDir;
     }
-  }
-
-  public void uploadBlessAndValidateMetadata(
-      Map<String, String> fileAndContents, Archiver archiver, String service, String resource)
-      throws IOException {
-    Path stateDir = createStateDir(fileAndContents);
-    String versionHash =
-        archiver.upload(
-            service, resource, stateDir, fileAndContents.keySet(), Collections.emptyList(), true);
-    // versionHash is uploaded
-    assertEquals(
-        true,
-        getS3()
-            .doesObjectExist(
-                bucketName, String.format("%s/%s/%s", service, resource, versionHash)));
-    assertEquals(true, archiver.blessVersion(service, resource, versionHash));
-    // latest versionHash exists
-    assertEquals(
-        true,
-        getS3()
-            .doesObjectExist(
-                bucketName, String.format("%s/_version/%s/_latest_version", service, resource)));
   }
 
   public String uploadBlessAndValidate(
@@ -269,16 +228,7 @@ public class BackupTestHelper {
                     archiver,
                     archiver != null && archiver instanceof IndexArchiver)));
 
-    // Extra check for IndexArchiver only - check state files uploaded under versionHash
     if (archiver != null && archiver instanceof IndexArchiver) {
-      assertEquals(
-          true,
-          getS3()
-              .doesObjectExist(
-                  bucketName,
-                  String.format(
-                      "%s/%s/%s",
-                      service, IndexArchiver.getIndexStateResourceName(resource), versionHash)));
       resource = IndexArchiver.getIndexDataResourceName(resource);
     }
     // latest versionHash exists
@@ -334,11 +284,7 @@ public class BackupTestHelper {
     List<String> actualResources = archiver.getResources(service);
     String[] actual = actualResources.toArray(new String[0]);
     if (archiver != null && archiver instanceof IndexArchiver) {
-      Assert.assertArrayEquals(
-          new String[] {
-            getIndexDataResourceName(resources[0]), getIndexStateResourceName(resources[0])
-          },
-          actual);
+      Assert.assertArrayEquals(new String[] {getIndexDataResourceName(resources[0])}, actual);
     } else {
       Assert.assertArrayEquals(resources, actual);
     }

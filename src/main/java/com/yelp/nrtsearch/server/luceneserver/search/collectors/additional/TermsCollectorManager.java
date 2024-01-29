@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
+import com.yelp.nrtsearch.server.collectors.BucketOrder;
+import com.yelp.nrtsearch.server.grpc.BucketOrder.OrderType;
 import com.yelp.nrtsearch.server.grpc.BucketResult;
 import com.yelp.nrtsearch.server.grpc.BucketResult.Bucket;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
@@ -43,6 +45,8 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ScoreMode;
@@ -50,10 +54,32 @@ import org.apache.lucene.search.ScoreMode;
 /** Base class for all collector managers that aggregates terms into buckets. */
 public abstract class TermsCollectorManager
     implements AdditionalCollectorManager<TermsCollectorManager.TermsCollector, CollectorResult> {
+  private static final QueueAddDecider GREATER_THAN_DECIDER =
+      ((newValue, queueTop) -> newValue > queueTop);
+  private static final QueueAddDecider LESS_THAN_DECIDER =
+      ((newValue, queueTop) -> newValue < queueTop);
 
   private final String name;
   private final int size;
   private final NestedCollectorManagers nestedCollectorManagers;
+  private final BucketOrder bucketOrder;
+
+  /**
+   * Interface to determine if an item should be added to the priority queue by comparing its count
+   * to that of the queue head.
+   */
+  @FunctionalInterface
+  interface QueueAddDecider {
+
+    /**
+     * Get if the item should be added to the priority queue.
+     *
+     * @param newValue item count
+     * @param queueTop head item count
+     * @return if new item should be added
+     */
+    boolean shouldAdd(int newValue, int queueTop);
+  }
 
   /**
    * Produce a collector implementation for term aggregation based on the provided {@link
@@ -63,17 +89,19 @@ public abstract class TermsCollectorManager
    * @param grpcTermsCollector term collection definition from query
    * @param context context info for collector building
    * @param nestedCollectorSuppliers suppliers to create nested collector managers
+   * @param bucketOrder ordering for results buckets
    */
   public static TermsCollectorManager buildManager(
       String name,
       com.yelp.nrtsearch.server.grpc.TermsCollector grpcTermsCollector,
       CollectorCreatorContext context,
       Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
-          nestedCollectorSuppliers) {
+          nestedCollectorSuppliers,
+      BucketOrder bucketOrder) {
     switch (grpcTermsCollector.getTermsSourceCase()) {
       case SCRIPT:
         return new ScriptTermsCollectorManager(
-            name, grpcTermsCollector, context, nestedCollectorSuppliers);
+            name, grpcTermsCollector, context, nestedCollectorSuppliers, bucketOrder);
       case FIELD:
         FieldDef field = context.getQueryFields().get(grpcTermsCollector.getField());
         if (field == null) {
@@ -88,16 +116,36 @@ public abstract class TermsCollectorManager
           // Pick implementation based on field type
           if (indexableFieldDef instanceof IntFieldDef) {
             return new IntTermsCollectorManager(
-                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
+                name,
+                grpcTermsCollector,
+                context,
+                indexableFieldDef,
+                nestedCollectorSuppliers,
+                bucketOrder);
           } else if (indexableFieldDef instanceof LongFieldDef) {
             return new LongTermsCollectorManager(
-                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
+                name,
+                grpcTermsCollector,
+                context,
+                indexableFieldDef,
+                nestedCollectorSuppliers,
+                bucketOrder);
           } else if (indexableFieldDef instanceof FloatFieldDef) {
             return new FloatTermsCollectorManager(
-                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
+                name,
+                grpcTermsCollector,
+                context,
+                indexableFieldDef,
+                nestedCollectorSuppliers,
+                bucketOrder);
           } else if (indexableFieldDef instanceof DoubleFieldDef) {
             return new DoubleTermsCollectorManager(
-                name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
+                name,
+                grpcTermsCollector,
+                context,
+                indexableFieldDef,
+                nestedCollectorSuppliers,
+                bucketOrder);
           } else if (indexableFieldDef instanceof TextBaseFieldDef) {
             if (indexableFieldDef instanceof GlobalOrdinalable
                 && ((GlobalOrdinalable) indexableFieldDef).usesOrdinals()) {
@@ -107,15 +155,26 @@ public abstract class TermsCollectorManager
                   context,
                   indexableFieldDef,
                   (GlobalOrdinalable) indexableFieldDef,
-                  nestedCollectorSuppliers);
+                  nestedCollectorSuppliers,
+                  bucketOrder);
             } else {
               return new StringTermsCollectorManager(
-                  name, grpcTermsCollector, context, indexableFieldDef, nestedCollectorSuppliers);
+                  name,
+                  grpcTermsCollector,
+                  context,
+                  indexableFieldDef,
+                  nestedCollectorSuppliers,
+                  bucketOrder);
             }
           }
         } else if (field instanceof VirtualFieldDef) {
           return new VirtualTermsCollectorManager(
-              name, grpcTermsCollector, context, (VirtualFieldDef) field, nestedCollectorSuppliers);
+              name,
+              grpcTermsCollector,
+              context,
+              (VirtualFieldDef) field,
+              nestedCollectorSuppliers,
+              bucketOrder);
         }
         throw new IllegalArgumentException(
             "Terms collection does not support field: "
@@ -134,18 +193,21 @@ public abstract class TermsCollectorManager
    * @param name collection name
    * @param size max number of buckets
    * @param nestedCollectorSuppliers suppliers to create nested collector managers
+   * @param bucketOrder ordering for results buckets
    */
   protected TermsCollectorManager(
       String name,
       int size,
       Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
-          nestedCollectorSuppliers) {
+          nestedCollectorSuppliers,
+      BucketOrder bucketOrder) {
     this.name = name;
     this.size = size;
     this.nestedCollectorManagers =
         nestedCollectorSuppliers.isEmpty()
             ? null
             : new NestedCollectorManagers(nestedCollectorSuppliers);
+    this.bucketOrder = bucketOrder;
   }
 
   /** Get collection name */
@@ -221,7 +283,7 @@ public abstract class TermsCollectorManager
   }
 
   /**
-   * Populate a {@link BucketResult.Builder} based on a count map using an Object key.
+   * Populate a {@link BucketResult.Builder} based on the {@link BucketOrder} using an Object key.
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
@@ -232,24 +294,57 @@ public abstract class TermsCollectorManager
       Object2IntMap<Object> counts,
       Collection<NestedCollectors> nestedCollectors)
       throws IOException {
+    switch (bucketOrder.getValueType()) {
+      case COUNT:
+        fillBucketResultByCount(bucketBuilder, counts, nestedCollectors);
+        return;
+      case NESTED_COLLECTOR:
+        fillBucketResultByNestedOrder(bucketBuilder, counts, String::valueOf, nestedCollectors);
+        return;
+      default:
+        throw new IllegalArgumentException(
+            "Unknown order value type: " + bucketOrder.getValueType());
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} based on a count map using an Object key.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResultByCount(
+      BucketResult.Builder bucketBuilder,
+      Object2IntMap<Object> counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
+      Comparator<ObjectBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
+      QueueAddDecider queueAddDecider;
+      if (bucketOrder.getOrderType() == OrderType.DESC) {
+        queueAddDecider = GREATER_THAN_DECIDER;
+      } else {
+        entryComparator = entryComparator.reversed();
+        queueAddDecider = LESS_THAN_DECIDER;
+      }
       // add all map entries into a priority queue, keeping only the top N
       PriorityQueue<ObjectBucketEntry> priorityQueue =
-          new PriorityQueue<>(Math.min(counts.size(), size), Comparator.comparingInt(b -> b.count));
+          new PriorityQueue<>(Math.min(counts.size(), size), entryComparator);
 
       int otherCounts = 0;
-      int minimumCount = -1;
+      int headCount = -1;
       for (Object2IntMap.Entry<Object> entry : counts.object2IntEntrySet()) {
         if (priorityQueue.size() < size) {
           priorityQueue.offer(new ObjectBucketEntry(entry.getKey(), entry.getIntValue()));
-          minimumCount = priorityQueue.peek().count;
-        } else if (entry.getIntValue() > minimumCount) {
+          headCount = priorityQueue.peek().count;
+        } else if (queueAddDecider.shouldAdd(entry.getIntValue(), headCount)) {
           ObjectBucketEntry reuse = priorityQueue.poll();
           otherCounts += reuse.count;
           reuse.update(entry.getKey(), entry.getIntValue());
           priorityQueue.offer(reuse);
-          minimumCount = priorityQueue.peek().count;
+          headCount = priorityQueue.peek().count;
         } else {
           otherCounts += entry.getIntValue();
         }
@@ -291,7 +386,7 @@ public abstract class TermsCollectorManager
   }
 
   /**
-   * Populate a {@link BucketResult.Builder} based on a count map using an int key.
+   * Populate a {@link BucketResult.Builder} based on the {@link BucketOrder} using an int key.
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
@@ -302,24 +397,57 @@ public abstract class TermsCollectorManager
       Int2IntMap counts,
       Collection<NestedCollectors> nestedCollectors)
       throws IOException {
+    switch (bucketOrder.getValueType()) {
+      case COUNT:
+        fillBucketResultByCount(bucketBuilder, counts, nestedCollectors);
+        return;
+      case NESTED_COLLECTOR:
+        fillBucketResultByNestedOrder(bucketBuilder, counts, String::valueOf, nestedCollectors);
+        return;
+      default:
+        throw new IllegalArgumentException(
+            "Unknown order value type: " + bucketOrder.getValueType());
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} based on a count map using an int key.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResultByCount(
+      BucketResult.Builder bucketBuilder,
+      Int2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
+      Comparator<IntBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
+      QueueAddDecider queueAddDecider;
+      if (bucketOrder.getOrderType() == OrderType.DESC) {
+        queueAddDecider = GREATER_THAN_DECIDER;
+      } else {
+        entryComparator = entryComparator.reversed();
+        queueAddDecider = LESS_THAN_DECIDER;
+      }
       // add all map entries into a priority queue, keeping only the top N
       PriorityQueue<IntBucketEntry> priorityQueue =
-          new PriorityQueue<>(Math.min(counts.size(), size), Comparator.comparingInt(b -> b.count));
+          new PriorityQueue<>(Math.min(counts.size(), size), entryComparator);
 
       int otherCounts = 0;
-      int minimumCount = -1;
+      int headCount = -1;
       for (Int2IntMap.Entry entry : counts.int2IntEntrySet()) {
         if (priorityQueue.size() < size) {
           priorityQueue.offer(new IntBucketEntry(entry.getIntKey(), entry.getIntValue()));
-          minimumCount = priorityQueue.peek().count;
-        } else if (entry.getIntValue() > minimumCount) {
+          headCount = priorityQueue.peek().count;
+        } else if (queueAddDecider.shouldAdd(entry.getIntValue(), headCount)) {
           IntBucketEntry reuse = priorityQueue.poll();
           otherCounts += reuse.count;
           reuse.update(entry.getIntKey(), entry.getIntValue());
           priorityQueue.offer(reuse);
-          minimumCount = priorityQueue.peek().count;
+          headCount = priorityQueue.peek().count;
         } else {
           otherCounts += entry.getIntValue();
         }
@@ -361,7 +489,7 @@ public abstract class TermsCollectorManager
   }
 
   /**
-   * Populate a {@link BucketResult.Builder} based on a count map using a long key.
+   * Populate a {@link BucketResult.Builder} based on the {@link BucketOrder} using a long key.
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
@@ -372,24 +500,57 @@ public abstract class TermsCollectorManager
       Long2IntMap counts,
       Collection<NestedCollectors> nestedCollectors)
       throws IOException {
+    switch (bucketOrder.getValueType()) {
+      case COUNT:
+        fillBucketResultByCount(bucketBuilder, counts, nestedCollectors);
+        return;
+      case NESTED_COLLECTOR:
+        fillBucketResultByNestedOrder(bucketBuilder, counts, String::valueOf, nestedCollectors);
+        return;
+      default:
+        throw new IllegalArgumentException(
+            "Unknown order value type: " + bucketOrder.getValueType());
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} based on a count map using a long key.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResultByCount(
+      BucketResult.Builder bucketBuilder,
+      Long2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
+      Comparator<LongBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
+      QueueAddDecider queueAddDecider;
+      if (bucketOrder.getOrderType() == OrderType.DESC) {
+        queueAddDecider = GREATER_THAN_DECIDER;
+      } else {
+        entryComparator = entryComparator.reversed();
+        queueAddDecider = LESS_THAN_DECIDER;
+      }
       // add all map entries into a priority queue, keeping only the top N
       PriorityQueue<LongBucketEntry> priorityQueue =
-          new PriorityQueue<>(Math.min(counts.size(), size), Comparator.comparingInt(b -> b.count));
+          new PriorityQueue<>(Math.min(counts.size(), size), entryComparator);
 
       int otherCounts = 0;
-      int minimumCount = -1;
+      int headCount = -1;
       for (Long2IntMap.Entry entry : counts.long2IntEntrySet()) {
         if (priorityQueue.size() < size) {
           priorityQueue.offer(new LongBucketEntry(entry.getLongKey(), entry.getIntValue()));
-          minimumCount = priorityQueue.peek().count;
-        } else if (entry.getIntValue() > minimumCount) {
+          headCount = priorityQueue.peek().count;
+        } else if (queueAddDecider.shouldAdd(entry.getIntValue(), headCount)) {
           LongBucketEntry reuse = priorityQueue.poll();
           otherCounts += reuse.count;
           reuse.update(entry.getLongKey(), entry.getIntValue());
           priorityQueue.offer(reuse);
-          minimumCount = priorityQueue.peek().count;
+          headCount = priorityQueue.peek().count;
         } else {
           otherCounts += entry.getIntValue();
         }
@@ -431,7 +592,7 @@ public abstract class TermsCollectorManager
   }
 
   /**
-   * Populate a {@link BucketResult.Builder} based on a count map using a float key.
+   * Populate a {@link BucketResult.Builder} based on the {@link BucketOrder} using a float key.
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
@@ -442,24 +603,57 @@ public abstract class TermsCollectorManager
       Float2IntMap counts,
       Collection<NestedCollectors> nestedCollectors)
       throws IOException {
+    switch (bucketOrder.getValueType()) {
+      case COUNT:
+        fillBucketResultByCount(bucketBuilder, counts, nestedCollectors);
+        return;
+      case NESTED_COLLECTOR:
+        fillBucketResultByNestedOrder(bucketBuilder, counts, String::valueOf, nestedCollectors);
+        return;
+      default:
+        throw new IllegalArgumentException(
+            "Unknown order value type: " + bucketOrder.getValueType());
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} based on a count map using a float key.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResultByCount(
+      BucketResult.Builder bucketBuilder,
+      Float2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
+      Comparator<FloatBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
+      QueueAddDecider queueAddDecider;
+      if (bucketOrder.getOrderType() == OrderType.DESC) {
+        queueAddDecider = GREATER_THAN_DECIDER;
+      } else {
+        entryComparator = entryComparator.reversed();
+        queueAddDecider = LESS_THAN_DECIDER;
+      }
       // add all map entries into a priority queue, keeping only the top N
       PriorityQueue<FloatBucketEntry> priorityQueue =
-          new PriorityQueue<>(Math.min(counts.size(), size), Comparator.comparingInt(b -> b.count));
+          new PriorityQueue<>(Math.min(counts.size(), size), entryComparator);
 
       int otherCounts = 0;
-      int minimumCount = -1;
+      int headCount = -1;
       for (Float2IntMap.Entry entry : counts.float2IntEntrySet()) {
         if (priorityQueue.size() < size) {
           priorityQueue.offer(new FloatBucketEntry(entry.getFloatKey(), entry.getIntValue()));
-          minimumCount = priorityQueue.peek().count;
-        } else if (entry.getIntValue() > minimumCount) {
+          headCount = priorityQueue.peek().count;
+        } else if (queueAddDecider.shouldAdd(entry.getIntValue(), headCount)) {
           FloatBucketEntry reuse = priorityQueue.poll();
           otherCounts += reuse.count;
           reuse.update(entry.getFloatKey(), entry.getIntValue());
           priorityQueue.offer(reuse);
-          minimumCount = priorityQueue.peek().count;
+          headCount = priorityQueue.peek().count;
         } else {
           otherCounts += entry.getIntValue();
         }
@@ -501,7 +695,7 @@ public abstract class TermsCollectorManager
   }
 
   /**
-   * Populate a {@link BucketResult.Builder} based on a count map using a double key.
+   * Populate a {@link BucketResult.Builder} based on the {@link BucketOrder} using a double key.
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
@@ -512,24 +706,57 @@ public abstract class TermsCollectorManager
       Double2IntMap counts,
       Collection<NestedCollectors> nestedCollectors)
       throws IOException {
+    switch (bucketOrder.getValueType()) {
+      case COUNT:
+        fillBucketResultByCount(bucketBuilder, counts, nestedCollectors);
+        return;
+      case NESTED_COLLECTOR:
+        fillBucketResultByNestedOrder(bucketBuilder, counts, String::valueOf, nestedCollectors);
+        return;
+      default:
+        throw new IllegalArgumentException(
+            "Unknown order value type: " + bucketOrder.getValueType());
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} based on a count map using a double key.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResultByCount(
+      BucketResult.Builder bucketBuilder,
+      Double2IntMap counts,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
+      Comparator<DoubleBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
+      QueueAddDecider queueAddDecider;
+      if (bucketOrder.getOrderType() == OrderType.DESC) {
+        queueAddDecider = GREATER_THAN_DECIDER;
+      } else {
+        entryComparator = entryComparator.reversed();
+        queueAddDecider = LESS_THAN_DECIDER;
+      }
       // add all map entries into a priority queue, keeping only the top N
       PriorityQueue<DoubleBucketEntry> priorityQueue =
-          new PriorityQueue<>(Math.min(counts.size(), size), Comparator.comparingInt(b -> b.count));
+          new PriorityQueue<>(Math.min(counts.size(), size), entryComparator);
 
       int otherCounts = 0;
-      int minimumCount = -1;
+      int headCount = -1;
       for (Double2IntMap.Entry entry : counts.double2IntEntrySet()) {
         if (priorityQueue.size() < size) {
           priorityQueue.offer(new DoubleBucketEntry(entry.getDoubleKey(), entry.getIntValue()));
-          minimumCount = priorityQueue.peek().count;
-        } else if (entry.getIntValue() > minimumCount) {
+          headCount = priorityQueue.peek().count;
+        } else if (queueAddDecider.shouldAdd(entry.getIntValue(), headCount)) {
           DoubleBucketEntry reuse = priorityQueue.poll();
           otherCounts += reuse.count;
           reuse.update(entry.getDoubleKey(), entry.getIntValue());
           priorityQueue.offer(reuse);
-          minimumCount = priorityQueue.peek().count;
+          headCount = priorityQueue.peek().count;
         } else {
           otherCounts += entry.getIntValue();
         }
@@ -555,7 +782,7 @@ public abstract class TermsCollectorManager
   }
 
   /**
-   * Populate a {@link BucketResult.Builder} based on a counts of global ordinals.
+   * Populate a {@link BucketResult.Builder} based on the {@link BucketOrder} with global ordinals.
    *
    * @param bucketBuilder bucket result builder
    * @param counts map containing doc counts for keys
@@ -568,24 +795,68 @@ public abstract class TermsCollectorManager
       GlobalOrdinalLookup ordinalLookup,
       Collection<NestedCollectors> nestedCollectors)
       throws IOException {
+    switch (bucketOrder.getValueType()) {
+      case COUNT:
+        fillBucketResultByCount(bucketBuilder, counts, ordinalLookup, nestedCollectors);
+        return;
+      case NESTED_COLLECTOR:
+        fillBucketResultByNestedOrder(
+            bucketBuilder,
+            counts,
+            o -> {
+              try {
+                return ordinalLookup.lookupGlobalOrdinal(o);
+              } catch (IOException e) {
+                throw new RuntimeException(e);
+              }
+            },
+            nestedCollectors);
+        return;
+      default:
+        throw new IllegalArgumentException(
+            "Unknown order value type: " + bucketOrder.getValueType());
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} based on a counts of global ordinals.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param ordinalLookup global ordinal lookup object
+   * @param nestedCollectors collectors for nested aggregations
+   */
+  void fillBucketResultByCount(
+      BucketResult.Builder bucketBuilder,
+      Long2IntMap counts,
+      GlobalOrdinalLookup ordinalLookup,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
     int size = getSize();
     if (counts.size() > 0 && size > 0) {
+      Comparator<LongBucketEntry> entryComparator = Comparator.comparingInt(b -> b.count);
+      QueueAddDecider queueAddDecider;
+      if (bucketOrder.getOrderType() == OrderType.DESC) {
+        queueAddDecider = GREATER_THAN_DECIDER;
+      } else {
+        entryComparator = entryComparator.reversed();
+        queueAddDecider = LESS_THAN_DECIDER;
+      }
       // add all map entries into a priority queue, keeping only the top N
-      PriorityQueue<LongBucketEntry> priorityQueue =
-          new PriorityQueue<>(size, Comparator.comparingInt(b -> b.count));
+      PriorityQueue<LongBucketEntry> priorityQueue = new PriorityQueue<>(size, entryComparator);
 
       int otherCounts = 0;
-      int minimumCount = -1;
+      int headCount = -1;
       for (Long2IntMap.Entry entry : counts.long2IntEntrySet()) {
         if (priorityQueue.size() < size) {
           priorityQueue.offer(new LongBucketEntry(entry.getLongKey(), entry.getIntValue()));
-          minimumCount = priorityQueue.peek().count;
-        } else if (entry.getIntValue() > minimumCount) {
+          headCount = priorityQueue.peek().count;
+        } else if (queueAddDecider.shouldAdd(entry.getIntValue(), headCount)) {
           LongBucketEntry reuse = priorityQueue.poll();
           otherCounts += reuse.count;
           reuse.update(entry.getLongKey(), entry.getIntValue());
           priorityQueue.offer(reuse);
-          minimumCount = priorityQueue.peek().count;
+          headCount = priorityQueue.peek().count;
         } else {
           otherCounts += entry.getIntValue();
         }
@@ -603,6 +874,106 @@ public abstract class TermsCollectorManager
           builder.putAllNestedCollectorResults(
               nestedCollectorManagers.reduce(entry.key, nestedCollectors));
         }
+        buckets.addFirst(builder.build());
+      }
+      bucketBuilder
+          .addAllBuckets(buckets)
+          .setTotalBuckets(counts.size())
+          .setTotalOtherCounts(otherCounts);
+    }
+  }
+
+  /**
+   * Bucket entry for sorting by the result of a nested collector.
+   *
+   * @param <T> key value type
+   */
+  static class OrderBucketEntry<T> {
+    T key;
+    CollectorResult sortingResult;
+    int count;
+
+    OrderBucketEntry(T key, CollectorResult sortingResult, int count) {
+      this.key = key;
+      this.sortingResult = sortingResult;
+      this.count = count;
+    }
+
+    public void update(T key, CollectorResult sortingResult, int count) {
+      this.key = key;
+      this.sortingResult = sortingResult;
+      this.count = count;
+    }
+  }
+
+  /**
+   * Populate a {@link BucketResult.Builder} with buckets sorted by the result of a nested
+   * collector.
+   *
+   * @param bucketBuilder bucket result builder
+   * @param counts map containing doc counts for keys
+   * @param keyTransform function to turn key into bucket key string
+   * @param nestedCollectors nested collectors for this bucket
+   * @param <T> key type
+   * @throws IOException
+   */
+  private <T> void fillBucketResultByNestedOrder(
+      BucketResult.Builder bucketBuilder,
+      Map<T, Integer> counts,
+      Function<T, String> keyTransform,
+      Collection<NestedCollectors> nestedCollectors)
+      throws IOException {
+    if (nestedCollectorManagers == null) {
+      throw new IllegalStateException("Collector ordering requires nested collectors");
+    }
+    int size = getSize();
+    if (counts.size() > 0 && size > 0) {
+      Comparator<CollectorResult> orderComparator = bucketOrder.getCollectorResultComparator();
+      if (bucketOrder.getOrderType() == OrderType.ASC) {
+        orderComparator = orderComparator.reversed();
+      }
+      // add all map entries into a priority queue, keeping only the top N
+      PriorityQueue<OrderBucketEntry<T>> priorityQueue =
+          new PriorityQueue<>(
+              Math.min(counts.size(), size),
+              Comparator.comparing(b -> b.sortingResult, orderComparator));
+
+      String orderCollectorName = bucketOrder.getOrderCollectorName();
+
+      int otherCounts = 0;
+      CollectorResult headValue = null;
+      for (Map.Entry<T, Integer> entry : counts.entrySet()) {
+        // reduce only collector used for ordering
+        CollectorResult sortingResult =
+            nestedCollectorManagers.reduceSingle(
+                entry.getKey(), orderCollectorName, nestedCollectors);
+        if (priorityQueue.size() < size) {
+          priorityQueue.offer(
+              new OrderBucketEntry<>(entry.getKey(), sortingResult, entry.getValue()));
+          headValue = priorityQueue.peek().sortingResult;
+        } else if (orderComparator.compare(sortingResult, headValue) > 0) {
+          OrderBucketEntry<T> reuse = priorityQueue.poll();
+          otherCounts += reuse.count;
+          reuse.update(entry.getKey(), sortingResult, entry.getValue());
+          priorityQueue.offer(reuse);
+          headValue = priorityQueue.peek().sortingResult;
+        } else {
+          otherCounts += entry.getValue();
+        }
+      }
+
+      Set<String> excludeOrderCollector = Set.of(orderCollectorName);
+      // the priority queue is a min heap, use a linked list to reverse the order
+      LinkedList<Bucket> buckets = new LinkedList<>();
+      while (!priorityQueue.isEmpty()) {
+        OrderBucketEntry<T> entry = priorityQueue.poll();
+        Bucket.Builder builder =
+            Bucket.newBuilder().setKey(keyTransform.apply(entry.key)).setCount(entry.count);
+        // reduce and add all nested collectors, except the one used for sorting
+        builder.putAllNestedCollectorResults(
+            nestedCollectorManagers.reduce(entry.key, nestedCollectors, excludeOrderCollector));
+        // add result used for sorting
+        builder.putNestedCollectorResults(orderCollectorName, entry.sortingResult);
         buckets.addFirst(builder.build());
       }
       bucketBuilder

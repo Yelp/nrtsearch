@@ -1374,6 +1374,28 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "liveSettings.maxMergePreCopyDurationSec",
+            "description": "Merge precopy would be stopped after this time, or 0 for no checks, default: 0.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "uint64"
+          },
+          {
+            "name": "liveSettings.verboseMetrics",
+            "description": "Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "local",
+            "description": "When set to true, live settings changes are only applied to the local node. These changes are ephemeral, so will not persist through a restart. Also, the live settings returned in the response will contain the local overrides only when this flag is true.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -1524,6 +1546,39 @@
           "LuceneServer"
         ]
       }
+    },
+    "/v2/start_index": {
+      "post": {
+        "summary": "Starts an index using configuration in IndexStartConfig",
+        "operationId": "LuceneServer_startIndexV2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverStartIndexResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverStartIndexV2Request"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
     }
   },
   "definitions": {
@@ -1556,6 +1611,15 @@
       ],
       "default": "SHOULD",
       "description": "Defines how clauses may occur in matching documents. This will always be SHOULD by default."
+    },
+    "BucketOrderOrderType": {
+      "type": "string",
+      "enum": [
+        "DESC",
+        "ASC"
+      ],
+      "default": "DESC",
+      "title": "Sorting order type"
     },
     "BucketResultBucket": {
       "type": "object",
@@ -1600,19 +1664,19 @@
           "items": {
             "type": "string"
           },
-          "title": "Used along with post_tags to specify how to wrap the highlighted text"
+          "description": "Used along with post_tags to specify how to wrap the highlighted text."
         },
         "post_tags": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "title": "Used along with pre_tags to specify how to wrap the highlighted text"
+          "description": "Used along with pre_tags to specify how to wrap the highlighted text."
         },
         "fragment_size": {
           "type": "integer",
           "format": "int64",
-          "title": "Number of characters in highlighted fragment, 100 by default"
+          "description": "Number of characters in highlighted fragment, 100 by default. Set it to be 0 to fetch the entire field."
         },
         "max_number_of_fragments": {
           "type": "integer",
@@ -1621,7 +1685,48 @@
         },
         "highlight_query": {
           "$ref": "#/definitions/luceneserverQuery",
-          "title": "Specify a query here if highlighting is desired against a different query than the search query"
+          "description": "Specify a query here if highlighting is desired against a different query than the search query."
+        },
+        "field_match": {
+          "type": "boolean",
+          "description": "Set to true to highlight fields only if specified in the search query."
+        },
+        "score_ordered": {
+          "type": "boolean",
+          "title": "Sorts highlighted fragments by score when set to true. By default, fragments will be output in the order they appear in the field. (Default is true)"
+        },
+        "fragmenter": {
+          "type": "string",
+          "description": "Select Fragmenter between span (default) and simple. This is only applicable for plain highlighters."
+        },
+        "discrete_multivalue": {
+          "type": "boolean",
+          "title": "Let the fragment builder respect the multivalue fields. Each fragment won't cross multiple value fields if set true. (Default is false)"
+        },
+        "custom_highlighter_name": {
+          "type": "string",
+          "description": "When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for any other highlighter_types."
+        },
+        "custom_highlighter_params": {
+          "type": "object",
+          "description": "Optional Custom parameters for custom highlighters. If a field overriding is present, the global setting will be omitted for this field, and no merge will happen."
+        },
+        "boundary_scanner": {
+          "type": "string",
+          "description": "Define the boundary decision when creating fragments. Options are \"simple\" (default in fast vector highlighter), \"word\" or \"sentence\"."
+        },
+        "boundary_chars": {
+          "type": "string",
+          "description": "Terminating chars when using \"simple\" boundary_scanner. The default is \".,!? \\t\\n\"."
+        },
+        "boundary_max_scan": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Number of chars to scan before finding the boundary_chars if using \"simple\" boundary scanner; If \"boundary_chars\" is not found after max scan, fragments will start/end at the original place. Default is 20."
+        },
+        "boundary_scanner_locale": {
+          "type": "string",
+          "description": "Locale used in boundary scanner when using \"word\" or \"sentence\" boundary_scanner. Examples: \"en-US\", \"ch-ZH\"."
         }
       }
     },
@@ -1684,6 +1789,56 @@
           "title": "Highlighted text fragments"
         }
       }
+    },
+    "MultiFunctionScoreQueryBoostMode": {
+      "type": "string",
+      "enum": [
+        "BOOST_MODE_MULTIPLY",
+        "BOOST_MODE_SUM",
+        "BOOST_MODE_REPLACE"
+      ],
+      "default": "BOOST_MODE_MULTIPLY",
+      "description": "- BOOST_MODE_MULTIPLY: Multiply scores together\n - BOOST_MODE_SUM: Add scores together\n - BOOST_MODE_REPLACE: Ignore the query score, and use the function score only",
+      "title": "How to combine final function score with query score"
+    },
+    "MultiFunctionScoreQueryFilterFunction": {
+      "type": "object",
+      "properties": {
+        "filter": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Apply function only to docs that pass this filter, match all if not specified"
+        },
+        "weight": {
+          "type": "number",
+          "format": "float",
+          "title": "Weight to multiply with function score, 1.0 if not specified"
+        },
+        "script": {
+          "$ref": "#/definitions/luceneserverScript",
+          "title": "Produce score with score script definition"
+        }
+      },
+      "title": "Function to produce a weighted value"
+    },
+    "MultiFunctionScoreQueryFunctionScoreMode": {
+      "type": "string",
+      "enum": [
+        "SCORE_MODE_MULTIPLY",
+        "SCORE_MODE_SUM"
+      ],
+      "default": "SCORE_MODE_MULTIPLY",
+      "description": "- SCORE_MODE_MULTIPLY: Multiply weighted function scores together\n - SCORE_MODE_SUM: Add weighted function scores together",
+      "title": "How to combine multiple function scores to produce a final function score"
+    },
+    "MultiMatchQueryMatchType": {
+      "type": "string",
+      "enum": [
+        "BEST_FIELDS",
+        "PHRASE_PREFIX",
+        "CROSS_FIELDS"
+      ],
+      "default": "BEST_FIELDS",
+      "description": "Type defining the execution behavior of the match.\n\n - BEST_FIELDS: Finds documents which match any field, but uses the _score from the best field.\n - PHRASE_PREFIX: Runs a MatchPhrasePrefixQuery query on each field and uses the _score from the best field.\n - CROSS_FIELDS: Finds documents that match across multiple fields, as if they were a single field."
     },
     "NestedQueryScoreMode": {
       "type": "string",
@@ -1908,6 +2063,12 @@
             "type": "number",
             "format": "double"
           }
+        },
+        "innerHitsDiagnostics": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/SearchResponseDiagnostics"
+          }
         }
       }
     },
@@ -1940,6 +2101,17 @@
             "$ref": "#/definitions/HitHighlights"
           },
           "title": "Field name to highlighted text fragments"
+        },
+        "explain": {
+          "type": "string",
+          "title": "Lucene explanation of the hit"
+        },
+        "innerHits": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverHitsResult"
+          },
+          "title": "InnerHits for each hit"
         }
       }
     },
@@ -2215,6 +2387,20 @@
       },
       "description": "A query that matches documents using boolean combinations of other queries."
     },
+    "luceneserverBucketOrder": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "What to use for sorting. This can be _count for Bucket count, or the name of a nested collector that supports ordering."
+        },
+        "order": {
+          "$ref": "#/definitions/BucketOrderOrderType",
+          "title": "Sorting order"
+        }
+      },
+      "description": "Defines how Buckets should be ordered in BucketResult."
+    },
     "luceneserverBucketResult": {
       "type": "object",
       "properties": {
@@ -2300,6 +2486,14 @@
           "$ref": "#/definitions/luceneserverTopHitsCollector",
           "description": "Collector for getting top hits based on score or sorting."
         },
+        "filter": {
+          "$ref": "#/definitions/luceneserverFilterCollector",
+          "title": "Collector that filters documents to nested collectors"
+        },
+        "max": {
+          "$ref": "#/definitions/luceneserverMaxCollector",
+          "description": "Collector for finding a max double value from collected documents."
+        },
         "nestedCollectors": {
           "type": "object",
           "additionalProperties": {
@@ -2324,6 +2518,15 @@
         "hitsResult": {
           "$ref": "#/definitions/luceneserverHitsResult",
           "description": "Result of collector that returns document hits."
+        },
+        "filterResult": {
+          "$ref": "#/definitions/luceneserverFilterResult",
+          "description": "Result of collector that filters documents."
+        },
+        "doubleResult": {
+          "type": "number",
+          "format": "double",
+          "description": "Result of collector that produces a single double value."
         }
       }
     },
@@ -2412,6 +2615,16 @@
         }
       }
     },
+    "luceneserverConstantScoreQuery": {
+      "type": "object",
+      "properties": {
+        "filter": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Query to determine matching documents"
+        }
+      },
+      "description": "Query that produces a score of 1.0 (modifiable by query boost value) for documents that match the filter query."
+    },
     "luceneserverCopyState": {
       "type": "object",
       "properties": {
@@ -2460,6 +2673,25 @@
         "existsWithId": {
           "type": "string",
           "description": "Set if state/data already exists in the data backend. Provides the UUID to identify and load the index."
+        },
+        "settings": {
+          "$ref": "#/definitions/luceneserverIndexSettings",
+          "title": "Optional initial index settings"
+        },
+        "liveSettings": {
+          "$ref": "#/definitions/luceneserverIndexLiveSettings",
+          "title": "Optional initial index live settings"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverField"
+          },
+          "title": "Optional initial index fields"
+        },
+        "start": {
+          "type": "boolean",
+          "title": "If this index should also be started, using IndexStartConfig configuration"
         }
       },
       "title": "Input to createIndex"
@@ -3006,6 +3238,37 @@
         }
       }
     },
+    "luceneserverFilterCollector": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "description": "Only propagate documents that match the given query."
+        },
+        "setQuery": {
+          "$ref": "#/definitions/luceneserverTermInSetQuery",
+          "description": "Specialized implementation for set queries, checks if field doc values are in the provided set. This can be useful for large set sizes with lower recall, where building the scorer would be expensive."
+        }
+      },
+      "description": "Definition of filtering collector, there must be at least one nested collector specified in the Collector message."
+    },
+    "luceneserverFilterResult": {
+      "type": "object",
+      "properties": {
+        "docCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of documents that passed the filter."
+        },
+        "nestedCollectorResults": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverCollectorResult"
+          },
+          "description": "Results from nested collectors."
+        }
+      }
+    },
     "luceneserverForceMergeDeletesRequest": {
       "type": "object",
       "properties": {
@@ -3212,6 +3475,23 @@
       },
       "description": "A query that matches documents with polygon that contains the geo point."
     },
+    "luceneserverGeoPolygonQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "title": "Field in the document to query"
+        },
+        "polygons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverPolygon"
+          },
+          "title": "Geo polygons to search for containing points"
+        }
+      },
+      "title": "A query that matches documents with geo points within polygons"
+    },
     "luceneserverGeoRadiusQuery": {
       "type": "object",
       "properties": {
@@ -3286,9 +3566,12 @@
       "type": "string",
       "enum": [
         "DEFAULT",
-        "FAST_VECTOR"
+        "FAST_VECTOR",
+        "PLAIN",
+        "CUSTOM"
       ],
-      "default": "DEFAULT"
+      "default": "DEFAULT",
+      "title": "- DEFAULT: When DEFAULT is set in global setting, use fast vector highlighter; when set for field setting, use the type from the global setting.\n - PLAIN: not supported yet"
     },
     "luceneserverHitsResult": {
       "type": "object",
@@ -3373,6 +3656,15 @@
           "type": "integer",
           "format": "int32",
           "title": "Terminate after value to use when not specified in the search request, or 0 for none, default: 0"
+        },
+        "maxMergePreCopyDurationSec": {
+          "type": "string",
+          "format": "uint64",
+          "title": "Merge precopy would be stopped after this time, or 0 for no checks, default: 0"
+        },
+        "verboseMetrics": {
+          "type": "boolean",
+          "title": "Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false"
         }
       }
     },
@@ -3460,6 +3752,45 @@
         }
       },
       "title": "A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)"
+    },
+    "luceneserverInnerHit": {
+      "type": "object",
+      "properties": {
+        "query_nested_path": {
+          "type": "string",
+          "description": "Nested path to search against assuming same index as the parent Query."
+        },
+        "start_hit": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Which hit to start from (for pagination); default: 0"
+        },
+        "top_hits": {
+          "type": "integer",
+          "format": "int32",
+          "description": "How many top hits to retrieve; default: 3. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size."
+        },
+        "inner_query": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "description": "InnerHit query to query against the nested documents specified by queryNestedPath."
+        },
+        "retrieve_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fields to retrieve; Parent's fields except its id field are unavailable in the innerHit."
+        },
+        "query_sort": {
+          "$ref": "#/definitions/luceneserverQuerySortField",
+          "description": "Sort hits by field (default is by relevance)."
+        },
+        "highlight": {
+          "$ref": "#/definitions/luceneserverHighlight",
+          "description": "Highlight the children documents."
+        }
+      },
+      "title": "Inner Hit search request"
     },
     "luceneserverIntObject": {
       "type": "object",
@@ -3576,6 +3907,10 @@
         "liveSettings": {
           "$ref": "#/definitions/luceneserverIndexLiveSettings",
           "title": "Live settings to merge into existing live settings, or unset to get current live settings"
+        },
+        "local": {
+          "type": "boolean",
+          "description": "When set to true, live settings changes are only applied to the local node. These changes are ephemeral, so will not persist through a restart. Also, the live settings returned in the response will contain the local overrides only when this flag is true."
         }
       }
     },
@@ -3595,6 +3930,34 @@
         "MUST"
       ],
       "default": "SHOULD"
+    },
+    "luceneserverMatchPhrasePrefixQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "Field in the document to query."
+        },
+        "query": {
+          "type": "string",
+          "description": "The text to query with."
+        },
+        "slop": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Edit distance between respective positions of tokens generated by analyzing this query and the positions of terms in a document."
+        },
+        "analyzer": {
+          "$ref": "#/definitions/luceneserverAnalyzer",
+          "description": "Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead."
+        },
+        "max_expansions": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of terms to which the last provided term of the query value will expand. Defaults to 50."
+        }
+      },
+      "title": "A query that matches documents containing terms in the same order as those in the analyzed query string. The final analyzed token is treated as a prefix"
     },
     "luceneserverMatchPhraseQuery": {
       "type": "object",
@@ -3640,6 +4003,16 @@
       },
       "description": "A query that analyzes the text before finding matching documents. The tokens resulting from the analysis are combined using term queries in boolean clauses."
     },
+    "luceneserverMaxCollector": {
+      "type": "object",
+      "properties": {
+        "script": {
+          "$ref": "#/definitions/luceneserverScript",
+          "title": "Script to produce a double value"
+        }
+      },
+      "description": "Definition of collector to find a max double value over documents. Currently only allows for script based value production."
+    },
     "luceneserverMode": {
       "type": "string",
       "enum": [
@@ -3648,6 +4021,40 @@
         "REPLICA"
       ],
       "default": "STANDALONE"
+    },
+    "luceneserverMultiFunctionScoreQuery": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Main query to produce recalled docs and scores, which will be modified by the final function score"
+        },
+        "functions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MultiFunctionScoreQueryFilterFunction"
+          },
+          "title": "Functions to produce final function score"
+        },
+        "score_mode": {
+          "$ref": "#/definitions/MultiFunctionScoreQueryFunctionScoreMode",
+          "title": "Method to combine functions scores"
+        },
+        "boost_mode": {
+          "$ref": "#/definitions/MultiFunctionScoreQueryBoostMode",
+          "title": "Method to modify query document scores with final function score"
+        },
+        "min_score": {
+          "type": "number",
+          "format": "float",
+          "description": "Optional minimal score to match a document. By default, it's 0."
+        },
+        "min_excluded": {
+          "type": "boolean",
+          "title": "Determine minimal score is excluded or not. By default, it's false;"
+        }
+      },
+      "title": "A query to modify the score of documents with a given set of functions"
     },
     "luceneserverMultiMatchQuery": {
       "type": "object",
@@ -3684,6 +4091,20 @@
         "tieBreakerMultiplier": {
           "type": "number",
           "format": "float"
+        },
+        "type": {
+          "$ref": "#/definitions/MultiMatchQueryMatchType",
+          "description": "Type defining match behavior of query."
+        },
+        "slop": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Edit distance between respective positions of tokens generated by analyzing this query and the positions of terms in a document, applies to PHRASE_PREFIX type matching."
+        },
+        "maxExpansions": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of terms to which the prefix token will expand when using PHRASE_PREFIX matching. Defaults to 50."
         }
       },
       "description": "A query that creates a match query for each field provided and wraps all the match queries in a disjunction max query."
@@ -3839,6 +4260,49 @@
       },
       "title": "Point representation"
     },
+    "luceneserverPolygon": {
+      "type": "object",
+      "properties": {
+        "points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/typeLatLng"
+          },
+          "description": "Points defining the polygon, conforming to the https://geojson.org/ standard. The polygon must not be self-crossing, otherwise may result in unexpected behavior. Polygons cannot cross the 180th meridian. Instead, use two polygons: one on each side."
+        },
+        "holes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverPolygon"
+          },
+          "description": "Specify holes in the polygon. Hole polygons cannot themselves contain holes."
+        }
+      },
+      "title": "Polygon defined by a list of geo points"
+    },
+    "luceneserverPrefixQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "description": "Document field name."
+        },
+        "prefix": {
+          "type": "string",
+          "description": "Prefix to search for."
+        },
+        "rewrite": {
+          "$ref": "#/definitions/luceneserverRewriteMethod",
+          "description": "Method used to rewrite the query."
+        },
+        "rewriteTopTermsSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Specifies the size to use for the TOP_TERMS* rewrite methods."
+        }
+      },
+      "description": "A query that matches documents that contain a specific prefix in a provided field."
+    },
     "luceneserverProfileResult": {
       "type": "object",
       "properties": {
@@ -3917,6 +4381,21 @@
         },
         "completionQuery": {
           "$ref": "#/definitions/luceneserverCompletionQuery"
+        },
+        "multiFunctionScoreQuery": {
+          "$ref": "#/definitions/luceneserverMultiFunctionScoreQuery"
+        },
+        "matchPhrasePrefixQuery": {
+          "$ref": "#/definitions/luceneserverMatchPhrasePrefixQuery"
+        },
+        "prefixQuery": {
+          "$ref": "#/definitions/luceneserverPrefixQuery"
+        },
+        "constantScoreQuery": {
+          "$ref": "#/definitions/luceneserverConstantScoreQuery"
+        },
+        "geoPolygonQuery": {
+          "$ref": "#/definitions/luceneserverGeoPolygonQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -3971,7 +4450,12 @@
         "NESTED",
         "EXISTS",
         "GEO_RADIUS",
-        "COMPLETION"
+        "COMPLETION",
+        "MULTI_FUNCTION_SCORE_QUERY",
+        "MATCH_PHRASE_PREFIX",
+        "PREFIX",
+        "CONSTANT_SCORE_QUERY",
+        "GEO_POLYGON"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."
@@ -4090,6 +4574,20 @@
           "type": "boolean"
         }
       }
+    },
+    "luceneserverRewriteMethod": {
+      "type": "string",
+      "enum": [
+        "CONSTANT_SCORE",
+        "CONSTANT_SCORE_BOOLEAN",
+        "SCORING_BOOLEAN",
+        "TOP_TERMS_BLENDED_FREQS",
+        "TOP_TERMS_BOOST",
+        "TOP_TERMS"
+      ],
+      "default": "CONSTANT_SCORE",
+      "description": "- CONSTANT_SCORE: Uses the CONSTANT_SCORE_BOOLEAN method for fewer matching terms. Otherwise, this method finds all matching terms in sequence and returns matching documents using a bit set.\n - CONSTANT_SCORE_BOOLEAN: This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term.\n - SCORING_BOOLEAN: This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates the relevance score for each matching document.\n - TOP_TERMS_BLENDED_FREQS: This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates a relevance score for each matching document as if all terms had the same frequency, the maximum frequency of all matching terms. The final BooleanQuery query only includes Term queries for the top N (specified separately) scoring terms.\n - TOP_TERMS_BOOST: This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Assigns each matching document a relevance score equal to the boost parameter. The final BooleanQuery query only includes Term queries for the top N (specified separately) terms.\n - TOP_TERMS: This method changes the original query to a BooleanQuery, containing a SHOULD clause and TermQuery for each matching term. Calculates a relevance score for each matching document. The final BooleanQuery query only includes Term queries for the top N (specified separately) scoring terms.",
+      "title": "Method used to rewrite a MultiTermQuery"
     },
     "luceneserverScript": {
       "type": "object",
@@ -4215,6 +4713,17 @@
         "highlight": {
           "$ref": "#/definitions/luceneserverHighlight",
           "title": "Specify how to highlight matched text"
+        },
+        "explain": {
+          "type": "boolean",
+          "title": "If Lucene explanation should be included in the response"
+        },
+        "inner_hits": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverInnerHit"
+          },
+          "title": "Search nested object fields for each hit"
         }
       }
     },
@@ -4434,6 +4943,10 @@
         "reverse": {
           "type": "boolean",
           "title": "Sort in reverse of the field's natural order"
+        },
+        "unit": {
+          "type": "string",
+          "title": "The unit used for the distance sort. Supported options are m, km and mi, default is m"
         }
       },
       "description": "\"The field to sort on. Pass \u003ccode\u003edocid\u003c/code\u003e for index order and \u003ccode\u003escore\u003c/code\u003e for relevance sort."
@@ -4487,6 +5000,16 @@
           "format": "double"
         }
       }
+    },
+    "luceneserverStartIndexV2Request": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string",
+          "title": "index name"
+        }
+      },
+      "title": "Start the index using IndexStartConfig configuration"
     },
     "luceneserverStateRequest": {
       "type": "object",
@@ -4769,6 +5292,10 @@
           "type": "integer",
           "format": "int32",
           "description": "Maximum number of top terms to return."
+        },
+        "order": {
+          "$ref": "#/definitions/luceneserverBucketOrder",
+          "description": "How results Buckets should be ordered, defaults to descending Bucket _count."
         }
       },
       "description": "Definition of term aggregating collector."
@@ -4796,6 +5323,10 @@
             "type": "string"
           },
           "description": "Which fields to retrieve."
+        },
+        "explain": {
+          "type": "boolean",
+          "title": "If Lucene explanation should be included in the collector response"
         }
       },
       "description": "Definition of top hits based collector."
@@ -4851,7 +5382,7 @@
       "properties": {
         "type_url": {
           "type": "string",
-          "description": "A URL/resource name that uniquely identifies the type of the serialized\nprotocol buffer message. This string must contain at least\none \"/\" character. The last segment of the URL's path must represent\nthe fully qualified name of the type (as in\n`path/google.protobuf.Duration`). The name should be in a canonical form\n(e.g., leading \".\" is not accepted).\n\nIn practice, teams usually precompile into the binary all types that they\nexpect it to use in the context of Any. However, for URLs which use the\nscheme `http`, `https`, or no scheme, one can optionally set up a type\nserver that maps type URLs to message definitions as follows:\n\n* If no scheme is provided, `https` is assumed.\n* An HTTP GET on the URL must yield a [google.protobuf.Type][]\n  value in binary format, or produce an error.\n* Applications are allowed to cache lookup results based on the\n  URL, or have them precompiled into a binary to avoid any\n  lookup. Therefore, binary compatibility needs to be preserved\n  on changes to types. (Use versioned type names to manage\n  breaking changes.)\n\nNote: this functionality is not currently available in the official\nprotobuf release, and it is not used for type URLs beginning with\ntype.googleapis.com.\n\nSchemes other than `http`, `https` (or the empty scheme) might be\nused with implementation specific semantics."
+          "description": "A URL/resource name that uniquely identifies the type of the serialized\nprotocol buffer message. This string must contain at least\none \"/\" character. The last segment of the URL's path must represent\nthe fully qualified name of the type (as in\n`path/google.protobuf.Duration`). The name should be in a canonical form\n(e.g., leading \".\" is not accepted).\n\nIn practice, teams usually precompile into the binary all types that they\nexpect it to use in the context of Any. However, for URLs which use the\nscheme `http`, `https`, or no scheme, one can optionally set up a type\nserver that maps type URLs to message definitions as follows:\n\n* If no scheme is provided, `https` is assumed.\n* An HTTP GET on the URL must yield a [google.protobuf.Type][]\n  value in binary format, or produce an error.\n* Applications are allowed to cache lookup results based on the\n  URL, or have them precompiled into a binary to avoid any\n  lookup. Therefore, binary compatibility needs to be preserved\n  on changes to types. (Use versioned type names to manage\n  breaking changes.)\n\nNote: this functionality is not currently available in the official\nprotobuf release, and it is not used for type URLs beginning with\ntype.googleapis.com. As of May 2023, there are no widely used type server\nimplementations and no plans to implement one.\n\nSchemes other than `http`, `https` (or the empty scheme) might be\nused with implementation specific semantics."
         },
         "value": {
           "type": "string",
@@ -4859,7 +5390,7 @@
           "description": "Must be a valid serialized protocol buffer of the above specified type."
         }
       },
-      "description": "`Any` contains an arbitrary serialized protocol buffer message along with a\nURL that describes the type of the serialized message.\n\nProtobuf library provides support to pack/unpack Any values in the form\nof utility functions or additional generated methods of the Any type.\n\nExample 1: Pack and unpack a message in C++.\n\n    Foo foo = ...;\n    Any any;\n    any.PackFrom(foo);\n    ...\n    if (any.UnpackTo(\u0026foo)) {\n      ...\n    }\n\nExample 2: Pack and unpack a message in Java.\n\n    Foo foo = ...;\n    Any any = Any.pack(foo);\n    ...\n    if (any.is(Foo.class)) {\n      foo = any.unpack(Foo.class);\n    }\n\nExample 3: Pack and unpack a message in Python.\n\n    foo = Foo(...)\n    any = Any()\n    any.Pack(foo)\n    ...\n    if any.Is(Foo.DESCRIPTOR):\n      any.Unpack(foo)\n      ...\n\nExample 4: Pack and unpack a message in Go\n\n     foo := \u0026pb.Foo{...}\n     any, err := anypb.New(foo)\n     if err != nil {\n       ...\n     }\n     ...\n     foo := \u0026pb.Foo{}\n     if err := any.UnmarshalTo(foo); err != nil {\n       ...\n     }\n\nThe pack methods provided by protobuf library will by default use\n'type.googleapis.com/full.type.name' as the type URL and the unpack\nmethods only use the fully qualified type name after the last '/'\nin the type URL, for example \"foo.bar.com/x/y.z\" will yield type\nname \"y.z\".\n\n\nJSON\n\nThe JSON representation of an `Any` value uses the regular\nrepresentation of the deserialized, embedded message, with an\nadditional field `@type` which contains the type URL. Example:\n\n    package google.profile;\n    message Person {\n      string first_name = 1;\n      string last_name = 2;\n    }\n\n    {\n      \"@type\": \"type.googleapis.com/google.profile.Person\",\n      \"firstName\": \u003cstring\u003e,\n      \"lastName\": \u003cstring\u003e\n    }\n\nIf the embedded message type is well-known and has a custom JSON\nrepresentation, that representation will be embedded adding a field\n`value` which holds the custom JSON in addition to the `@type`\nfield. Example (for message [google.protobuf.Duration][]):\n\n    {\n      \"@type\": \"type.googleapis.com/google.protobuf.Duration\",\n      \"value\": \"1.212s\"\n    }"
+      "description": "`Any` contains an arbitrary serialized protocol buffer message along with a\nURL that describes the type of the serialized message.\n\nProtobuf library provides support to pack/unpack Any values in the form\nof utility functions or additional generated methods of the Any type.\n\nExample 1: Pack and unpack a message in C++.\n\n    Foo foo = ...;\n    Any any;\n    any.PackFrom(foo);\n    ...\n    if (any.UnpackTo(\u0026foo)) {\n      ...\n    }\n\nExample 2: Pack and unpack a message in Java.\n\n    Foo foo = ...;\n    Any any = Any.pack(foo);\n    ...\n    if (any.is(Foo.class)) {\n      foo = any.unpack(Foo.class);\n    }\n    // or ...\n    if (any.isSameTypeAs(Foo.getDefaultInstance())) {\n      foo = any.unpack(Foo.getDefaultInstance());\n    }\n\n Example 3: Pack and unpack a message in Python.\n\n    foo = Foo(...)\n    any = Any()\n    any.Pack(foo)\n    ...\n    if any.Is(Foo.DESCRIPTOR):\n      any.Unpack(foo)\n      ...\n\n Example 4: Pack and unpack a message in Go\n\n     foo := \u0026pb.Foo{...}\n     any, err := anypb.New(foo)\n     if err != nil {\n       ...\n     }\n     ...\n     foo := \u0026pb.Foo{}\n     if err := any.UnmarshalTo(foo); err != nil {\n       ...\n     }\n\nThe pack methods provided by protobuf library will by default use\n'type.googleapis.com/full.type.name' as the type URL and the unpack\nmethods only use the fully qualified type name after the last '/'\nin the type URL, for example \"foo.bar.com/x/y.z\" will yield type\nname \"y.z\".\n\nJSON\n====\nThe JSON representation of an `Any` value uses the regular\nrepresentation of the deserialized, embedded message, with an\nadditional field `@type` which contains the type URL. Example:\n\n    package google.profile;\n    message Person {\n      string first_name = 1;\n      string last_name = 2;\n    }\n\n    {\n      \"@type\": \"type.googleapis.com/google.profile.Person\",\n      \"firstName\": \u003cstring\u003e,\n      \"lastName\": \u003cstring\u003e\n    }\n\nIf the embedded message type is well-known and has a custom JSON\nrepresentation, that representation will be embedded adding a field\n`value` which holds the custom JSON in addition to the `@type`\nfield. Example (for message [google.protobuf.Duration][]):\n\n    {\n      \"@type\": \"type.googleapis.com/google.protobuf.Duration\",\n      \"value\": \"1.212s\"\n    }"
     },
     "protobufNullValue": {
       "type": "string",
@@ -4867,7 +5398,7 @@
         "NULL_VALUE"
       ],
       "default": "NULL_VALUE",
-      "description": "`NullValue` is a singleton enumeration to represent the null value for the\n`Value` type union.\n\n The JSON representation for `NullValue` is JSON `null`.\n\n - NULL_VALUE: Null value."
+      "description": "`NullValue` is a singleton enumeration to represent the null value for the\n`Value` type union.\n\nThe JSON representation for `NullValue` is JSON `null`.\n\n - NULL_VALUE: Null value."
     },
     "runtimeError": {
       "type": "object",

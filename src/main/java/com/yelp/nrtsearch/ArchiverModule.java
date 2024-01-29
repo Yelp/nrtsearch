@@ -15,14 +15,7 @@
  */
 package com.yelp.nrtsearch;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.auth.profile.ProfilesConfigFile;
-import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.google.inject.*;
 import com.google.inject.name.Named;
@@ -32,11 +25,8 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class ArchiverModule extends AbstractModule {
-  private static final Logger logger = LoggerFactory.getLogger(ArchiverModule.class);
 
   @Override
   protected void configure() {
@@ -72,42 +62,6 @@ public class ArchiverModule extends AbstractModule {
   @Provides
   public Tar providesTar() {
     return new TarImpl(Tar.CompressionMode.LZ4);
-  }
-
-  @Inject
-  @Singleton
-  @Provides
-  protected AmazonS3 providesAmazonS3(LuceneServerConfiguration luceneServerConfiguration) {
-    if (luceneServerConfiguration
-        .getBotoCfgPath()
-        .equals(LuceneServerConfiguration.DEFAULT_BOTO_CFG_PATH.toString())) {
-      return AmazonS3ClientBuilder.standard()
-          .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
-          .withEndpointConfiguration(
-              new AwsClientBuilder.EndpointConfiguration("dummyService", "dummyRegion"))
-          .build();
-    } else {
-      Path botoCfgPath = Paths.get(luceneServerConfiguration.getBotoCfgPath());
-      final ProfilesConfigFile profilesConfigFile = new ProfilesConfigFile(botoCfgPath.toFile());
-      final AWSCredentialsProvider awsCredentialsProvider =
-          new ProfileCredentialsProvider(profilesConfigFile, "default");
-      AmazonS3 s3ClientInterim =
-          AmazonS3ClientBuilder.standard().withCredentials(awsCredentialsProvider).build();
-      String region = s3ClientInterim.getBucketLocation(luceneServerConfiguration.getBucketName());
-      // In useast-1, the region is returned as "US" which is an equivalent to "us-east-1"
-      // https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/model/Region.html#US_Standard
-      // However, this causes an UnknownHostException so we override it to the full region name
-      if (region.equals("US")) {
-        region = "us-east-1";
-      }
-      String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
-      logger.info(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
-      return AmazonS3ClientBuilder.standard()
-          .withCredentials(awsCredentialsProvider)
-          .withEndpointConfiguration(
-              new AwsClientBuilder.EndpointConfiguration(serviceEndpoint, region))
-          .build();
-    }
   }
 
   private static class ContentDownloaderNoTar implements Provider<ContentDownloader> {
@@ -244,8 +198,7 @@ public class ArchiverModule extends AbstractModule {
           fileCompressAndUploader,
           contentDownloader,
           new VersionManager(s3, luceneServerConfiguration.getBucketName()),
-          Paths.get(luceneServerConfiguration.getArchiveDirectory()),
-          luceneServerConfiguration.getStateConfig().useLegacyStateManagement());
+          Paths.get(luceneServerConfiguration.getArchiveDirectory()));
     }
   }
 }

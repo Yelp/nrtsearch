@@ -4,7 +4,14 @@
     {
       "name": "doc_id",
       "type": "ATOM",
-      "storeDocValues": true
+      "storeDocValues": true,
+      "childFields": [
+        {
+          "name": "int",
+          "type": "INT",
+          "storeDocValues": true
+        }
+      ]
     },
     {
       "name": "int_field",
@@ -18,8 +25,19 @@
       "storeDocValues": true
     },
     {
+      "name": "value_order",
+      "type": "INT",
+      "storeDocValues": true
+    },
+    {
       "name": "value_multi",
       "type": "FLOAT",
+      "storeDocValues": true,
+      "multiValued": true
+    },
+    {
+      "name": "value_multi_order",
+      "type": "INT",
       "storeDocValues": true,
       "multiValued": true
     }

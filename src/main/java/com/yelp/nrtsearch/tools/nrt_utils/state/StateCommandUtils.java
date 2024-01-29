@@ -15,10 +15,13 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils.state;
 
+import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.auth.profile.ProfilesConfigFile;
 import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.retry.PredefinedRetryPolicies;
+import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -63,7 +66,7 @@ public class StateCommandUtils {
    * @return s3 client
    */
   public static AmazonS3 createS3Client(
-      String bucketName, String region, String credsFile, String credsProfile) {
+      String bucketName, String region, String credsFile, String credsProfile, int maxRetry) {
     ProfilesConfigFile profilesConfigFile = null;
     if (credsFile != null) {
       Path botoCfgPath = Paths.get(credsFile);
@@ -88,8 +91,17 @@ public class StateCommandUtils {
     }
     String serviceEndpoint = String.format("s3.%s.amazonaws.com", clientRegion);
     System.out.printf("S3 ServiceEndpoint: %s%n", serviceEndpoint);
+    RetryPolicy retryPolicy =
+        new RetryPolicy(
+            PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION,
+            PredefinedRetryPolicies.DEFAULT_BACKOFF_STRATEGY,
+            maxRetry,
+            true);
+    ClientConfiguration clientConfiguration =
+        new ClientConfiguration().withRetryPolicy(retryPolicy);
     return AmazonS3ClientBuilder.standard()
         .withCredentials(awsCredentialsProvider)
+        .withClientConfiguration(clientConfiguration)
         .withEndpointConfiguration(
             new AwsClientBuilder.EndpointConfiguration(serviceEndpoint, clientRegion))
         .build();

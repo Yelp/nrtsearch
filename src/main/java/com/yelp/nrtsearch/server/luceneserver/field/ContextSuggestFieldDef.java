@@ -50,10 +50,6 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
     if (requestField.getSearch()) {
       throw new IllegalArgumentException("Context Suggest fields cannot be searched");
     }
-
-    if (requestField.getMultiValued()) {
-      throw new IllegalArgumentException("Cannot index multiple values into context suggest field");
-    }
   }
 
   @Override
@@ -64,20 +60,28 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
   @Override
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
-    if (fieldValues.size() == 1) {
-      ContextSuggestFieldData csfData =
-          GSON.fromJson(fieldValues.get(0), ContextSuggestFieldData.class);
-      CharSequence[] contexts =
-          csfData.getContexts().toArray(new CharSequence[csfData.getContexts().size()]);
-      ContextSuggestField csf =
-          new ContextSuggestField(getName(), csfData.getValue(), csfData.getWeight(), contexts);
-      document.add(csf);
-      if (isStored()) {
-        document.add(new FieldWithData(getName(), fieldType, fieldValues.get(0)));
-      }
-    } else {
-      throw new IllegalArgumentException("Context Suggest Field can only index exactly one value");
+    if (!isMultiValue() && fieldValues.size() > 1) {
+      throw new IllegalArgumentException(
+          "Cannot index multiple values into single value field: " + getName());
     }
+    for (String fieldValue : fieldValues) {
+      parseFieldValueToDocumentField(document, fieldValue);
+    }
+  }
+
+  /**
+   * Processes a single fieldValue and adds appropriate fields to the document.
+   *
+   * @param document document to add parsed values to
+   * @param fieldValue string representation of the field value
+   */
+  private void parseFieldValueToDocumentField(Document document, String fieldValue) {
+    ContextSuggestFieldData csfData = GSON.fromJson(fieldValue, ContextSuggestFieldData.class);
+    CharSequence[] contexts =
+        csfData.getContexts().toArray(new CharSequence[csfData.getContexts().size()]);
+    ContextSuggestField csf =
+        new ContextSuggestField(getName(), csfData.getValue(), csfData.getWeight(), contexts);
+    document.add(csf);
   }
 
   protected Analyzer parseIndexAnalyzer(Field requestField) {
