@@ -73,6 +73,7 @@ dependencies {
     implementation "org.apache.commons:commons-compress:${commonsCompressVersion}"
     implementation "com.amazonaws:aws-java-sdk-core:${awsJavaSdkVersion}"
     implementation "com.amazonaws:aws-java-sdk-s3:${awsJavaSdkVersion}"
+    implementation "com.amazonaws:aws-java-sdk-sts:${awsJavaSdkVersion}"
     implementation "javax.xml.bind:jaxb-api:2.3.1"
     implementation "com.guicedee.services:guice:${guicedeeVersion}"
     implementation "org.lz4:lz4-java:${project.ext.lz4Version}"
