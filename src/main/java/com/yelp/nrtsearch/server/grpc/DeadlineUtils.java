@@ -61,10 +61,12 @@ public class DeadlineUtils {
       Deadline deadline = Context.current().getDeadline();
       if (deadline != null && deadline.isExpired()) {
         DeadlineMetrics.nrtDeadlineCancelCount.labels(operation).inc();
-        System.out.println(diagnostics);
         throw Status.CANCELLED
             .withDescription(
-                "Request deadline exceeded: " + message + ", Search Diagnostics: " + diagnostics)
+                "Request deadline exceeded: "
+                    + message
+                    + ", Search Diagnostics: "
+                    + diagnostics.toString())
             .asRuntimeException();
       }
     }
