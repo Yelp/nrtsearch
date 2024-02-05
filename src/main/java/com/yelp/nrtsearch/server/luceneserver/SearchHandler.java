@@ -191,8 +191,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 
-      DeadlineUtils.checkDeadline(
-          "SearchHandler: post recall, Search Diagnostics: " + diagnostics, "SEARCH");
+      DeadlineUtils.checkDeadline("SearchHandler: post recall", diagnostics.build(), "SEARCH");
 
       // add detailed timing metrics for query execution
       if (profileResultBuilder != null) {
@@ -208,8 +207,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           long endNS = System.nanoTime();
           diagnostics.putRescorersTimeMs(rescorer.getName(), (endNS - startNS) / 1000000.0);
           DeadlineUtils.checkDeadline(
-              "SearchHandler: post " + rescorer.getName() + ", Search Diagnostics: " + diagnostics,
-              "SEARCH");
+              "SearchHandler: post " + rescorer.getName(), diagnostics.build(), "SEARCH");
         }
         diagnostics.setRescoreTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
       }
@@ -290,7 +288,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     }
 
     // if we are out of time, don't bother with serialization
-    DeadlineUtils.checkDeadline("SearchHandler: end, Search Diagnostics: " + diagnostics, "SEARCH");
+    DeadlineUtils.checkDeadline("SearchHandler: end", diagnostics.build(), "SEARCH");
     SearchResponse searchResponse = searchContext.getResponseBuilder().build();
     if (!warming && searchContext.getIndexState().getVerboseMetrics()) {
       VerboseIndexCollector.updateSearchResponseMetrics(
