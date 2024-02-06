@@ -137,7 +137,6 @@ public class DeadlineUtilsTest {
       fail();
     } catch (StatusRuntimeException e) {
       assertEquals(Status.CANCELLED.getCode(), e.getStatus().getCode());
-      System.out.println(e.getStatus().getDescription());
       assertEquals(
           "Request deadline exceeded: test, Search Diagnostics: firstPassSearchTimeMs: 100.0\n",
           e.getStatus().getDescription());
