@@ -56,7 +56,8 @@ public class DeadlineUtils {
     }
   }
 
-  public static void checkDeadline(String message, Diagnostics diagnostics, String operation) {
+  public static void checkDeadline(
+      String message, Diagnostics.Builder diagnostics, String operation) {
     if (cancellationEnabled) {
       Deadline deadline = Context.current().getDeadline();
       if (deadline != null && deadline.isExpired()) {
