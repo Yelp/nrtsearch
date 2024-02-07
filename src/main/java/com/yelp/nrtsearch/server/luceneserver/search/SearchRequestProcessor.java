@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.InnerHit;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
+import com.yelp.nrtsearch.server.grpc.RuntimeField;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
@@ -30,6 +31,7 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService;
@@ -40,6 +42,7 @@ import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
+import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
@@ -123,8 +126,12 @@ public class SearchRequestProcessor {
         .setExplain(searchRequest.getExplain());
 
     Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
+    Map<String, FieldDef> queryRuntimeFields = getRuntimeFields(indexState, searchRequest);
 
     Map<String, FieldDef> queryFields = new HashMap<>(queryVirtualFields);
+    for (String key : queryRuntimeFields.keySet()) {
+      queryFields.put(key, queryRuntimeFields.get(key));
+    }
     addIndexFields(indexState, queryFields);
     contextBuilder.setQueryFields(Collections.unmodifiableMap(queryFields));
 
@@ -233,6 +240,33 @@ public class SearchRequestProcessor {
   }
 
   /**
+   * Parses any runtimeFields, which define dynamic (expression) fields for this one request.
+   *
+   * @throws IllegalArgumentException if there are multiple runtime fields with the same name
+   */
+  private static Map<String, FieldDef> getRuntimeFields(
+      IndexState indexState, SearchRequest searchRequest) {
+    if (searchRequest.getRuntimeFieldsList().isEmpty()) {
+      return new HashMap<>();
+    }
+
+    Map<String, FieldDef> runtimeFields = new HashMap<>();
+    for (RuntimeField vf : searchRequest.getRuntimeFieldsList()) {
+      if (runtimeFields.containsKey(vf.getName())) {
+        throw new IllegalArgumentException(
+            "Multiple definitions of runtime field: " + vf.getName());
+      }
+      RuntimeScript.Factory factory =
+          ScriptService.getInstance().compile(vf.getScript(), RuntimeScript.CONTEXT);
+      Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
+      FieldDef runtimeField =
+          new RuntimeFieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
+      runtimeFields.put(vf.getName(), runtimeField);
+    }
+    return runtimeFields;
+  }
+
+  /**
    * Get map of fields that need to be retrieved for the given request.
    *
    * @param fieldList fields to retrieve
@@ -287,7 +321,7 @@ public class SearchRequestProcessor {
 
   /** If a field's value can be retrieved */
   private static boolean isRetrievable(FieldDef fieldDef) {
-    if (fieldDef instanceof VirtualFieldDef) {
+    if (fieldDef instanceof VirtualFieldDef || fieldDef instanceof RuntimeFieldDef) {
       return true;
     }
     if (fieldDef instanceof IndexableFieldDef) {

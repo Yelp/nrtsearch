@@ -516,6 +516,8 @@ enum FieldType {
     // List of float values
     VECTOR = 15;
     CONTEXT_SUGGEST = 16; //Field used for contextual suggest fields
+    // Runtime fields
+    RUNTIME = 17;
 }
 
 //How the tokens should be indexed.

@@ -23,9 +23,11 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.index.FieldAndFacetState;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
@@ -35,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,11 +94,14 @@ public class FieldUpdateHandler {
     FieldAndFacetState.Builder fieldStateBuilder = currentState.toBuilder();
     List<Field> nonVirtualFields = new ArrayList<>();
     List<Field> virtualFields = new ArrayList<>();
+    List<Field> runtimeFields = new ArrayList<>();
 
     for (Field field : updateFields) {
       checkFieldName(field.getName());
       if (FieldType.VIRTUAL.equals(field.getType())) {
         virtualFields.add(field);
+      } else if (FieldType.RUNTIME.equals(field.getType())) {
+        runtimeFields.add(field);
       } else {
         nonVirtualFields.add(field);
       }
@@ -117,6 +123,14 @@ public class FieldUpdateHandler {
         throw new IllegalArgumentException("Duplicate field registration: " + field.getName());
       }
       parseVirtualField(field, fieldStateBuilder);
+      newFields.put(field.getName(), field);
+    }
+
+    for (Field field : runtimeFields) {
+      if (newFields.containsKey(field.getName())) {
+        throw new IllegalArgumentException("Duplicate field registration: " + field.getName());
+      }
+      parseRuntimeField(field, fieldStateBuilder);
       newFields.put(field.getName(), field);
     }
     return new UpdatedFieldInfo(newFields, fieldStateBuilder.build());
@@ -197,5 +211,37 @@ public class FieldUpdateHandler {
     FieldDef virtualFieldDef = new VirtualFieldDef(field.getName(), values);
     fieldStateBuilder.addField(virtualFieldDef, field);
     logger.info("REGISTER: " + virtualFieldDef.getName() + " -> " + virtualFieldDef);
+  }
+
+  /**
+   * Parse a runtime {@link Field} message and apply changes to the {@link
+   * FieldAndFacetState.Builder}.
+   *
+   * @param field runtime field specification
+   * @param fieldStateBuilder builder for new field state
+   */
+  public static void parseRuntimeField(Field field, FieldAndFacetState.Builder fieldStateBuilder) {
+    RuntimeScript.Factory factory =
+        ScriptService.getInstance().compile(field.getScript(), RuntimeScript.CONTEXT);
+    Map<String, Object> params = ScriptParamsUtils.decodeParams(field.getScript().getParamsMap());
+    // Workaround for the fact that the javascript expression may need bindings to other fields in
+    // this request.
+    // Build the complete bindings and pass it as a script parameter. We might want to think about a
+    // better way of
+    // doing this (or maybe updating index state in general).
+    if (field.getScript().getLang().equals(JsScriptEngine.LANG)) {
+      params = new HashMap<>(params);
+      params.put("bindings", fieldStateBuilder.getBindings());
+    } else {
+      // TODO fix this, by removing DocLookup dependency on IndexState. Should be possible to just
+      // use the fields from the field state builder
+      throw new IllegalArgumentException("Only js lang supported for index runtime fields");
+    }
+    // js scripts use Bindings instead of DocLookup
+    ValueSource values = factory.newFactory(params, null);
+
+    FieldDef runtimeFieldDef = new RuntimeFieldDef(field.getName(), values);
+    fieldStateBuilder.addField(runtimeFieldDef, field);
+    logger.info("REGISTER: " + runtimeFieldDef.getName() + " -> " + runtimeFieldDef);
   }
 }
