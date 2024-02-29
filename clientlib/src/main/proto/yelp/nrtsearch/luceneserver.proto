@@ -470,6 +470,8 @@ message LiveSettingsV2Request {
     string indexName = 1;
     // Live settings to merge into existing live settings, or unset to get current live settings
     IndexLiveSettings liveSettings = 2;
+    // When set to true, live settings changes are only applied to the local node. These changes are ephemeral, so will not persist through a restart. Also, the live settings returned in the response will contain the local overrides only when this flag is true.
+    bool local = 3;
 }
 
 message LiveSettingsV2Response {
@@ -1062,6 +1064,8 @@ message IndexLiveSettings {
     google.protobuf.Int32Value defaultTerminateAfter = 13;
     // Merge precopy would be stopped after this time, or 0 for no checks, default: 0
     google.protobuf.UInt64Value maxMergePreCopyDurationSec = 14;
+    // Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false
+    google.protobuf.BoolValue verboseMetrics = 15;
 }
 
 message IndexStateInfo {

@@ -233,6 +233,8 @@ public class LuceneServer {
     // register directory size metrics
     new DirSizeCollector(globalState).register(collectorRegistry);
     new ProcStatCollector().register(collectorRegistry);
+    new MergeSchedulerCollector(globalState).register(collectorRegistry);
+    new VerboseIndexCollector(globalState).register(collectorRegistry);
   }
 
   /** Main launches the server from the command line. */
@@ -783,10 +785,13 @@ public class LuceneServer {
                     "indexing addDocumentRequestQueue size: %s, total: %s",
                     addDocumentRequestQueue.size(), getCount(indexName)));
             try {
+              DeadlineUtils.checkDeadline("addDocuments: onNext", "INDEXING");
+
               List<AddDocumentRequest> addDocRequestList = new ArrayList<>(addDocumentRequestQueue);
               Future<Long> future =
                   globalState.submitIndexingTask(
-                      new DocumentIndexer(globalState, addDocRequestList, indexName));
+                      Context.current()
+                          .wrap(new DocumentIndexer(globalState, addDocRequestList, indexName)));
               futures.put(indexName, future);
             } catch (Exception e) {
               responseObserver.onError(e);
@@ -810,6 +815,8 @@ public class LuceneServer {
                   "onCompleted, addDocumentRequestQueue: %s", addDocumentRequestQueue.size()));
           long highestGen = -1;
           try {
+            DeadlineUtils.checkDeadline("addDocuments: onCompletedForIndex", "INDEXING");
+
             // index the left over docs
             if (!addDocumentRequestQueue.isEmpty()) {
               logger.debug(
@@ -863,24 +870,26 @@ public class LuceneServer {
         public void onCompleted() {
           try {
             globalState.submitIndexingTask(
-                () -> {
-                  try {
-                    // TODO: this should return a map on index to genId in the response
-                    String genId = "-1";
-                    for (String indexName : addDocumentRequestQueueMap.keySet()) {
-                      genId = onCompletedForIndex(indexName);
-                    }
-                    responseObserver.onNext(
-                        AddDocumentResponse.newBuilder()
-                            .setGenId(genId)
-                            .setPrimaryId(globalState.getEphemeralId())
-                            .build());
-                    responseObserver.onCompleted();
-                  } catch (Throwable t) {
-                    responseObserver.onError(t);
-                  }
-                  return null;
-                });
+                Context.current()
+                    .wrap(
+                        () -> {
+                          try {
+                            // TODO: this should return a map on index to genId in the response
+                            String genId = "-1";
+                            for (String indexName : addDocumentRequestQueueMap.keySet()) {
+                              genId = onCompletedForIndex(indexName);
+                            }
+                            responseObserver.onNext(
+                                AddDocumentResponse.newBuilder()
+                                    .setGenId(genId)
+                                    .setPrimaryId(globalState.getEphemeralId())
+                                    .build());
+                            responseObserver.onCompleted();
+                          } catch (Throwable t) {
+                            responseObserver.onError(t);
+                          }
+                          return null;
+                        }));
           } catch (RejectedExecutionException e) {
             logger.error("Threadpool is full, unable to submit indexing completion job");
             responseObserver.onError(

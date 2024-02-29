@@ -47,6 +47,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchContext.VectorScoring
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
+import com.yelp.nrtsearch.server.monitoring.VerboseIndexCollector;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -259,7 +260,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       diagnostics.setFirstPassSearchTimeMs(((System.nanoTime() - searchStartTime) / 1000000.0));
 
-      DeadlineUtils.checkDeadline("SearchHandler: post recall", "SEARCH");
+      DeadlineUtils.checkDeadline("SearchHandler: post recall", diagnostics, "SEARCH");
 
       // add detailed timing metrics for query execution
       if (profileResultBuilder != null) {
@@ -274,7 +275,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           hits = rescorer.rescore(hits, searchContext);
           long endNS = System.nanoTime();
           diagnostics.putRescorersTimeMs(rescorer.getName(), (endNS - startNS) / 1000000.0);
-          DeadlineUtils.checkDeadline("SearchHandler: post " + rescorer.getName(), "SEARCH");
+          DeadlineUtils.checkDeadline(
+              "SearchHandler: post " + rescorer.getName(), diagnostics, "SEARCH");
         }
         diagnostics.setRescoreTimeMs(((System.nanoTime() - rescoreStartTime) / 1000000.0));
       }
@@ -355,8 +357,13 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     }
 
     // if we are out of time, don't bother with serialization
-    DeadlineUtils.checkDeadline("SearchHandler: end", "SEARCH");
-    return searchContext.getResponseBuilder().build();
+    DeadlineUtils.checkDeadline("SearchHandler: end", diagnostics, "SEARCH");
+    SearchResponse searchResponse = searchContext.getResponseBuilder().build();
+    if (!warming && searchContext.getIndexState().getVerboseMetrics()) {
+      VerboseIndexCollector.updateSearchResponseMetrics(
+          searchResponse, searchContext.getIndexState().getName());
+    }
+    return searchResponse;
   }
 
   /**

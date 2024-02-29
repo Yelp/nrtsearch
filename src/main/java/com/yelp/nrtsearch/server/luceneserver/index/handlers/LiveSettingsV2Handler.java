@@ -41,9 +41,10 @@ public class LiveSettingsV2Handler {
     // if there is no settings message in the request, just return the current settings
     if (liveSettingsRequest.hasLiveSettings()) {
       responseSettings =
-          indexStateManager.updateLiveSettings(liveSettingsRequest.getLiveSettings());
+          indexStateManager.updateLiveSettings(
+              liveSettingsRequest.getLiveSettings(), liveSettingsRequest.getLocal());
     } else {
-      responseSettings = indexStateManager.getLiveSettings();
+      responseSettings = indexStateManager.getLiveSettings(liveSettingsRequest.getLocal());
     }
     return LiveSettingsV2Response.newBuilder().setLiveSettings(responseSettings).build();
   }

@@ -98,6 +98,20 @@ public class NrtMetrics {
           .labelNames("index")
           .create();
 
+  public static final Counter nrtMergeCopyStartCount =
+      Counter.build()
+          .name("nrt_merge_copy_start_count")
+          .help("Number of merge copies started")
+          .labelNames("index")
+          .create();
+
+  public static final Counter nrtMergeCopyEndCount =
+      Counter.build()
+          .name("nrt_merge_copy_end_count")
+          .help("Number of merge copies ended")
+          .labelNames("index")
+          .create();
+
   /**
    * Add all nrt metrics to the collector registry.
    *
@@ -113,5 +127,7 @@ public class NrtMetrics {
     registry.register(nrtMergeFailure);
     registry.register(nrtMergeSize);
     registry.register(nrtMergeTime);
+    registry.register(nrtMergeCopyStartCount);
+    registry.register(nrtMergeCopyEndCount);
   }
 }

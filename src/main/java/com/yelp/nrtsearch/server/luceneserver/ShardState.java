@@ -279,6 +279,15 @@ public class ShardState implements Closeable {
   }
 
   /**
+   * Get shard index writer.
+   *
+   * @return Index writer, or null if replica
+   */
+  public IndexWriter getWriter() {
+    return writer;
+  }
+
+  /**
    * Constructor.
    *
    * @param indexStateManager state manager for index
