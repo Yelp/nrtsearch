@@ -909,8 +909,7 @@ public class StateBackendServerTest {
                     .build());
     // live settings with local
     IndexLiveSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
@@ -964,8 +963,7 @@ public class StateBackendServerTest {
                     .build());
     // live settings with local
     IndexLiveSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
@@ -989,8 +987,7 @@ public class StateBackendServerTest {
                     .build());
     // live settings with local
     expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(2000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
@@ -1036,8 +1033,7 @@ public class StateBackendServerTest {
                     .build());
     // live settings with local
     IndexLiveSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
@@ -1110,8 +1106,7 @@ public class StateBackendServerTest {
                     .build());
     // live settings with local
     IndexLiveSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())

@@ -894,15 +894,13 @@ public class ImmutableIndexStateTest {
     ImmutableIndexState indexState =
         getIndexStateForLiveSettingsOverrides(liveSettings, liveSettingsOverrides);
     IndexLiveSettings expectedMergedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(wrap(100))
             .setMaxRefreshSec(wrap(10.0))
             .setSegmentsPerTier(wrap(5))
             .build();
     IndexLiveSettings expectedMergedSettingsWithLocal =
-        expectedMergedSettings
-            .toBuilder()
+        expectedMergedSettings.toBuilder()
             .setSliceMaxDocs(Int32Value.newBuilder().setValue(1).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(1).build())
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(10).build())
