@@ -35,7 +35,7 @@ def _artifactId = 'server'
 //This is for https://github.com/gradle/gradle/issues/11308
 System.setProperty("org.gradle.internal.publish.checksums.insecure", "True")
 
-def luceneVersion = '9.7.0'
+def luceneVersion = '9.8.0'
 project.ext.slf4jVersion = '2.0.0-alpha1'
 project.ext.grpcVersion = '1.46.0'
 project.ext.lz4Version = '1.7.0'
