@@ -28,7 +28,7 @@ import java.util.List;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.junit.Test;
 
-public class KnnCollectorTest extends ServerTestCase {
+public class NrtsearchKnnCollectorTest extends ServerTestCase {
 
   @Override
   protected List<String> getIndices() {
@@ -46,7 +46,8 @@ public class KnnCollectorTest extends ServerTestCase {
     SearcherAndTaxonomy s = null;
     try {
       s = indexState.getShard(0).acquire();
-      new KnnCollector(KnnQuery.newBuilder().setField("unknown").build(), indexState, s.searcher);
+      new NrtsearchKnnCollector(
+          KnnQuery.newBuilder().setField("unknown").build(), indexState, s.searcher);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(
@@ -64,7 +65,8 @@ public class KnnCollectorTest extends ServerTestCase {
     SearcherAndTaxonomy s = null;
     try {
       s = indexState.getShard(0).acquire();
-      new KnnCollector(KnnQuery.newBuilder().setField("filter").build(), indexState, s.searcher);
+      new NrtsearchKnnCollector(
+          KnnQuery.newBuilder().setField("filter").build(), indexState, s.searcher);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals("Field is not a vector: filter", e.getMessage());
@@ -81,7 +83,7 @@ public class KnnCollectorTest extends ServerTestCase {
     SearcherAndTaxonomy s = null;
     try {
       s = indexState.getShard(0).acquire();
-      new KnnCollector(
+      new NrtsearchKnnCollector(
           KnnQuery.newBuilder().setField("vector_not_search").build(), indexState, s.searcher);
       fail();
     } catch (IllegalArgumentException e) {
@@ -99,7 +101,7 @@ public class KnnCollectorTest extends ServerTestCase {
     SearcherAndTaxonomy s = null;
     try {
       s = indexState.getShard(0).acquire();
-      new KnnCollector(
+      new NrtsearchKnnCollector(
           KnnQuery.newBuilder()
               .setField("vector_cosine")
               .setK(5)
@@ -124,7 +126,7 @@ public class KnnCollectorTest extends ServerTestCase {
     SearcherAndTaxonomy s = null;
     try {
       s = indexState.getShard(0).acquire();
-      new KnnCollector(
+      new NrtsearchKnnCollector(
           KnnQuery.newBuilder()
               .setField("vector_cosine")
               .setNumCandidates(10)
@@ -148,7 +150,7 @@ public class KnnCollectorTest extends ServerTestCase {
     SearcherAndTaxonomy s = null;
     try {
       s = indexState.getShard(0).acquire();
-      new KnnCollector(
+      new NrtsearchKnnCollector(
           KnnQuery.newBuilder()
               .setField("vector_cosine")
               .setK(15)
@@ -173,7 +175,7 @@ public class KnnCollectorTest extends ServerTestCase {
     SearcherAndTaxonomy s = null;
     try {
       s = indexState.getShard(0).acquire();
-      new KnnCollector(
+      new NrtsearchKnnCollector(
           KnnQuery.newBuilder()
               .setField("vector_cosine")
               .setK(15)

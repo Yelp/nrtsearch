@@ -34,7 +34,6 @@ import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.BytesRef;
@@ -135,9 +134,11 @@ public class VectorFieldDef extends IndexableFieldDef {
     }
 
     if (requestField.getSearch()) {
-      if (requestField.getVectorDimensions() > FloatVectorValues.MAX_DIMENSIONS) {
+      if (requestField.getVectorDimensions() > Lucene95HnswVectorsFormat.DEFAULT_MAX_DIMENSIONS) {
         throw new IllegalArgumentException(
-            "Vector dimension must be <= " + FloatVectorValues.MAX_DIMENSIONS + " for search");
+            "Vector dimension must be <= "
+                + Lucene95HnswVectorsFormat.DEFAULT_MAX_DIMENSIONS
+                + " for search");
       }
     }
   }

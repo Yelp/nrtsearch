@@ -70,7 +70,7 @@ import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.NrtsearchKnnCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
 
@@ -194,9 +194,10 @@ public class SearchRequestProcessor {
 
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());
 
-    List<KnnCollector> knnCollectors = new ArrayList<>();
+    List<NrtsearchKnnCollector> knnCollectors = new ArrayList<>();
     for (KnnQuery knnQuery : searchRequest.getKnnList()) {
-      knnCollectors.add(new KnnCollector(knnQuery, indexState, searcherAndTaxonomy.searcher));
+      knnCollectors.add(
+          new NrtsearchKnnCollector(knnQuery, indexState, searcherAndTaxonomy.searcher));
     }
     contextBuilder.setKnnCollectors(knnCollectors);
     // determine how vector search results should combine with standard query
