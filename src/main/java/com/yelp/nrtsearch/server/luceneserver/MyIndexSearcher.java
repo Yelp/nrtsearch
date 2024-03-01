@@ -282,6 +282,9 @@ public class MyIndexSearcher extends IndexSearcher {
           }
         }
       }
+      // Note: this is called if collection ran successfully, including the above special case of
+      // CollectionTerminatedException, but no other exception.
+      leafCollector.finish();
     }
   }
 }
