@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.*;
@@ -143,6 +144,342 @@ public class LatLonFieldDefTest extends ServerTestCase {
     geoRadiusQueryAndVerifyIds(fremontGeoRadiusQuery, "1");
   }
 
+  @Test
+  public void testGeoPolygonQueryNotSearchable() {
+    GeoPolygonQuery sfGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_not_searchable")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(37.8).setLongitude(-122.414).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-122.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-123.0).build())
+                    .build())
+            .build();
+    try {
+      geoPolygonQueryAndVerifyIds(sfGeoPolygonQuery);
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("field lat_lon_not_searchable is not searchable"));
+    }
+  }
+
+  @Test
+  public void testGeoPolygonQueryNotPoint() {
+    GeoPolygonQuery sfGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("doc_id")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(37.8).setLongitude(-122.414).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-122.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-123.0).build())
+                    .build())
+            .build();
+    try {
+      geoPolygonQueryAndVerifyIds(sfGeoPolygonQuery);
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Field doc_id does not support GeoPolygonQuery"));
+    }
+  }
+
+  @Test
+  public void testGeoPolygonQueryNoPolygon() {
+    GeoPolygonQuery sfGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder().setField("lat_lon_multi").build();
+    try {
+      geoPolygonQueryAndVerifyIds(sfGeoPolygonQuery);
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("GeoPolygonQuery must contain at least one polygon"));
+    }
+  }
+
+  @Test
+  public void testGeoPolygonQueryNoPoints() {
+    GeoPolygonQuery sfGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(Polygon.newBuilder().build())
+            .build();
+    try {
+      geoPolygonQueryAndVerifyIds(sfGeoPolygonQuery);
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Polygon must have at least three points"));
+    }
+  }
+
+  @Test
+  public void testGeoPolygonQueryFewPoints() {
+    GeoPolygonQuery sfGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(37.8).setLongitude(-122.414).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-122.0).build())
+                    .build())
+            .build();
+    try {
+      geoPolygonQueryAndVerifyIds(sfGeoPolygonQuery);
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Polygon must have at least three points"));
+    }
+  }
+
+  @Test
+  public void testGeoPolygonQueryFewPointsClosed() {
+    GeoPolygonQuery sfGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(37.8).setLongitude(-122.414).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-122.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.8).setLongitude(-122.414).build())
+                    .build())
+            .build();
+    try {
+      geoPolygonQueryAndVerifyIds(sfGeoPolygonQuery);
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Closed Polygon must have at least four points"));
+    }
+  }
+
+  @Test
+  public void testGeoPolygonQuery() {
+    GeoPolygonQuery sfGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(37.8).setLongitude(-122.414).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-122.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-123.0).build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(sfGeoPolygonQuery, "2");
+
+    GeoPolygonQuery fremontGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(
+                        LatLng.newBuilder().setLatitude(37.51).setLongitude(-121.9331).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.49).setLongitude(-121.92).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.49).setLongitude(-121.94).build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(fremontGeoPolygonQuery, "1");
+  }
+
+  @Test
+  public void testGeoPolygonQuery_closed() {
+    GeoPolygonQuery sfGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(37.8).setLongitude(-122.414).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-122.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-123.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.8).setLongitude(-122.414).build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(sfGeoPolygonQuery, "2");
+
+    GeoPolygonQuery fremontGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(
+                        LatLng.newBuilder().setLatitude(37.51).setLongitude(-121.9331).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.49).setLongitude(-121.92).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.49).setLongitude(-121.94).build())
+                    .addPoints(
+                        LatLng.newBuilder().setLatitude(37.51).setLongitude(-121.9331).build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(fremontGeoPolygonQuery, "1");
+  }
+
+  @Test
+  public void testGeoPolygonQuery_reverseWinding() {
+    GeoPolygonQuery sfGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-123.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-122.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.8).setLongitude(-122.414).build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(sfGeoPolygonQuery, "2");
+
+    GeoPolygonQuery fremontGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(37.49).setLongitude(-121.94).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.49).setLongitude(-121.92).build())
+                    .addPoints(
+                        LatLng.newBuilder().setLatitude(37.51).setLongitude(-121.9331).build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(fremontGeoPolygonQuery, "1");
+  }
+
+  @Test
+  public void testMultiGeoPolygonQuery() {
+    GeoPolygonQuery multiGeoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(37.8).setLongitude(-122.414).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-122.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.6).setLongitude(-123.0).build())
+                    .build())
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(
+                        LatLng.newBuilder().setLatitude(37.51).setLongitude(-121.9331).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.49).setLongitude(-121.92).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.49).setLongitude(-121.94).build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(multiGeoPolygonQuery, "1", "2");
+  }
+
+  @Test
+  public void testGeoPolygonQueryHoles() {
+    GeoPolygonQuery geoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(38.0).setLongitude(-122.414).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-120.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-123.0).build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(geoPolygonQuery, "1", "2");
+
+    GeoPolygonQuery geoPolygonQueryHoles =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(38.0).setLongitude(-122.414).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-120.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-123.0).build())
+                    .addHoles(
+                        Polygon.newBuilder()
+                            .addPoints(
+                                LatLng.newBuilder().setLatitude(37.6).setLongitude(-123.0).build())
+                            .addPoints(
+                                LatLng.newBuilder().setLatitude(37.6).setLongitude(-122.0).build())
+                            .addPoints(
+                                LatLng.newBuilder()
+                                    .setLatitude(37.8)
+                                    .setLongitude(-122.414)
+                                    .build())
+                            .build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(geoPolygonQueryHoles, "1");
+  }
+
+  @Test
+  public void testGeoPolygonQueryHoles_closed() {
+    GeoPolygonQuery geoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(38.0).setLongitude(-122.414).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-120.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-123.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(38.0).setLongitude(-122.414).build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(geoPolygonQuery, "1", "2");
+
+    GeoPolygonQuery geoPolygonQueryHoles =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(38.0).setLongitude(-122.414).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-120.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-123.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(38.0).setLongitude(-122.414).build())
+                    .addHoles(
+                        Polygon.newBuilder()
+                            .addPoints(
+                                LatLng.newBuilder().setLatitude(37.6).setLongitude(-123.0).build())
+                            .addPoints(
+                                LatLng.newBuilder().setLatitude(37.6).setLongitude(-122.0).build())
+                            .addPoints(
+                                LatLng.newBuilder()
+                                    .setLatitude(37.8)
+                                    .setLongitude(-122.414)
+                                    .build())
+                            .addPoints(
+                                LatLng.newBuilder().setLatitude(37.6).setLongitude(-123.0).build())
+                            .build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(geoPolygonQueryHoles, "1");
+  }
+
+  @Test
+  public void testGeoPolygonQueryHoles_reverseWinding() {
+    GeoPolygonQuery geoPolygonQuery =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-123.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-120.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(38.0).setLongitude(-122.414).build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(geoPolygonQuery, "1", "2");
+
+    GeoPolygonQuery geoPolygonQueryHoles =
+        GeoPolygonQuery.newBuilder()
+            .setField("lat_lon_multi")
+            .addPolygons(
+                Polygon.newBuilder()
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-123.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(37.0).setLongitude(-120.0).build())
+                    .addPoints(LatLng.newBuilder().setLatitude(38.0).setLongitude(-122.414).build())
+                    .addHoles(
+                        Polygon.newBuilder()
+                            .addPoints(
+                                LatLng.newBuilder()
+                                    .setLatitude(37.8)
+                                    .setLongitude(-122.414)
+                                    .build())
+                            .addPoints(
+                                LatLng.newBuilder().setLatitude(37.6).setLongitude(-122.0).build())
+                            .addPoints(
+                                LatLng.newBuilder().setLatitude(37.6).setLongitude(-123.0).build())
+                            .build())
+                    .build())
+            .build();
+    geoPolygonQueryAndVerifyIds(geoPolygonQueryHoles, "1");
+  }
+
   private void geoBoundingBoxQueryAndVerifyIds(
       GeoBoundingBoxQuery geoBoundingBoxQuery, String... expectedIds) {
     Query query = Query.newBuilder().setGeoBoundingBoxQuery(geoBoundingBoxQuery).build();
@@ -151,6 +488,11 @@ public class LatLonFieldDefTest extends ServerTestCase {
 
   private void geoRadiusQueryAndVerifyIds(GeoRadiusQuery geoRadiusQuery, String... expectedIds) {
     Query query = Query.newBuilder().setGeoRadiusQuery(geoRadiusQuery).build();
+    queryAndVerifyIds(query, expectedIds);
+  }
+
+  private void geoPolygonQueryAndVerifyIds(GeoPolygonQuery geoPolygonQuery, String... expectedIds) {
+    Query query = Query.newBuilder().setGeoPolygonQuery(geoPolygonQuery).build();
     queryAndVerifyIds(query, expectedIds);
   }
 

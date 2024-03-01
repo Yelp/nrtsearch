@@ -830,7 +830,7 @@ public class IndexStartTest {
         server
             .getGlobalState()
             .getIndexStateManager("test_index")
-            .getLiveSettings()
+            .getLiveSettings(false)
             .getAddDocumentsMaxBufferLen()
             .getValue());
     assertEquals(

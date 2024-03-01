@@ -19,6 +19,7 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.ha
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
+import com.yelp.nrtsearch.server.grpc.GeoPolygonQuery;
 import com.yelp.nrtsearch.server.grpc.GeoRadiusQuery;
 import com.yelp.nrtsearch.server.grpc.Point;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
@@ -35,6 +36,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
@@ -158,6 +160,60 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQu
         geoRadiusQuery.getCenter().getLatitude(),
         geoRadiusQuery.getCenter().getLongitude(),
         radius);
+  }
+
+  @Override
+  public Query getGeoPolygonQuery(GeoPolygonQuery geoPolygonQuery) {
+    if (!this.isSearchable()) {
+      throw new IllegalArgumentException(
+          String.format("field %s is not searchable", this.getName()));
+    }
+    if (geoPolygonQuery.getPolygonsCount() == 0) {
+      throw new IllegalArgumentException("GeoPolygonQuery must contain at least one polygon");
+    }
+    Polygon[] polygons = new Polygon[geoPolygonQuery.getPolygonsCount()];
+    for (int i = 0; i < geoPolygonQuery.getPolygonsCount(); ++i) {
+      polygons[i] = toLucenePolygon(geoPolygonQuery.getPolygons(i));
+    }
+    return LatLonPoint.newPolygonQuery(geoPolygonQuery.getField(), polygons);
+  }
+
+  private static Polygon toLucenePolygon(com.yelp.nrtsearch.server.grpc.Polygon grpcPolygon) {
+    int pointsCount = grpcPolygon.getPointsCount();
+    if (pointsCount < 3) {
+      throw new IllegalArgumentException("Polygon must have at least three points");
+    }
+
+    boolean closedShape =
+        grpcPolygon.getPoints(0).equals(grpcPolygon.getPoints(grpcPolygon.getPointsCount() - 1));
+    int pointsArraySize;
+    if (closedShape) {
+      if (pointsCount < 4) {
+        throw new IllegalArgumentException("Closed Polygon must have at least four points");
+      }
+      pointsArraySize = pointsCount;
+    } else {
+      pointsArraySize = pointsCount + 1;
+    }
+
+    double[] latValues = new double[pointsArraySize];
+    double[] lonValues = new double[pointsArraySize];
+    for (int i = 0; i < grpcPolygon.getPointsCount(); ++i) {
+      latValues[i] = grpcPolygon.getPoints(i).getLatitude();
+      lonValues[i] = grpcPolygon.getPoints(i).getLongitude();
+    }
+
+    // The first point is also used as the last point to create a closed shape
+    if (!closedShape) {
+      latValues[pointsCount] = grpcPolygon.getPoints(0).getLatitude();
+      lonValues[pointsCount] = grpcPolygon.getPoints(0).getLongitude();
+    }
+
+    Polygon[] holes = new Polygon[grpcPolygon.getHolesCount()];
+    for (int i = 0; i < grpcPolygon.getHolesCount(); ++i) {
+      holes[i] = toLucenePolygon(grpcPolygon.getHoles(i));
+    }
+    return new Polygon(latValues, lonValues, holes);
   }
 
   @Override

@@ -99,7 +99,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     getGlobalState()
         .getIndexStateManager(DEFAULT_TEST_INDEX)
         .updateLiveSettings(
-            IndexLiveSettings.newBuilder().setSliceMaxSegments(Int32Value.of(1)).build());
+            IndexLiveSettings.newBuilder().setSliceMaxSegments(Int32Value.of(1)).build(), false);
 
     // make testing deterministic
     Random random = new Random(123456);

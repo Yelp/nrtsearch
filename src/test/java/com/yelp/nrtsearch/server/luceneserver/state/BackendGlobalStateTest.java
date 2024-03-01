@@ -27,10 +27,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
@@ -67,6 +69,12 @@ public class BackendGlobalStateTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
+  private static final IndexLiveSettings LIVE_SETTINGS_OVERRIDES =
+      IndexLiveSettings.newBuilder()
+          .setSliceMaxDocs(Int32Value.newBuilder().setValue(1).build())
+          .setVirtualShards(Int32Value.newBuilder().setValue(100).build())
+          .build();
+
   @BeforeClass
   public static void setup() {
     String configFile = "nodeName: \"lucene_server_foo\"";
@@ -81,12 +89,14 @@ public class BackendGlobalStateTest {
   @Before
   public void setupTest() {
     MockBackendGlobalState.idCounter = 0;
+    MockBackendGlobalState.expectedLiveSettingsOverrides = IndexLiveSettings.newBuilder().build();
   }
 
   static class MockBackendGlobalState extends BackendGlobalState {
     public static StateBackend stateBackend;
     public static Map<String, IndexStateManager> stateManagers;
     public static int idCounter = 0;
+    public static IndexLiveSettings expectedLiveSettingsOverrides;
 
     /**
      * Constructor.
@@ -108,7 +118,11 @@ public class BackendGlobalStateTest {
 
     @Override
     public IndexStateManager createIndexStateManager(
-        String indexName, String indexId, StateBackend stateBackend) {
+        String indexName,
+        String indexId,
+        IndexLiveSettings liveSettingsOverrides,
+        StateBackend stateBackend) {
+      assertEquals(expectedLiveSettingsOverrides, liveSettingsOverrides);
       return stateManagers.get(BackendGlobalState.getUniqueIndexName(indexName, indexId));
     }
 
@@ -130,6 +144,21 @@ public class BackendGlobalStateTest {
     return new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
   }
 
+  private LuceneServerConfiguration getConfigWithLiveSettingsOverrides() throws IOException {
+    String configFile =
+        String.join(
+            "\n",
+            "stateConfig:",
+            "  backendType: LOCAL",
+            "stateDir: " + folder.newFolder("state").getAbsolutePath(),
+            "indexDir: " + folder.newFolder("index").getAbsolutePath(),
+            "indexLiveSettingsOverrides:",
+            "  test_index:",
+            "    sliceMaxDocs: 1",
+            "    virtualShards: 100");
+    return new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+  }
+
   @Test
   public void testCreateNewIndex() throws IOException {
     StateBackend mockBackend = mock(StateBackend.class);
@@ -145,6 +174,47 @@ public class BackendGlobalStateTest {
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
     BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    backendGlobalState.createIndex("test_index");
+
+    assertEquals(1, backendGlobalState.getIndexNames().size());
+    assertTrue(backendGlobalState.getIndexNames().contains("test_index"));
+    assertSame(mockState, backendGlobalState.getIndex("test_index"));
+
+    verify(mockBackend, times(1)).loadOrCreateGlobalState();
+
+    ArgumentCaptor<GlobalStateInfo> stateArgumentCaptor =
+        ArgumentCaptor.forClass(GlobalStateInfo.class);
+    verify(mockBackend, times(1)).commitGlobalState(stateArgumentCaptor.capture());
+    GlobalStateInfo committedState = stateArgumentCaptor.getValue();
+    assertEquals(1, committedState.getGen());
+    assertEquals(1, committedState.getIndicesMap().size());
+    assertEquals(
+        IndexGlobalState.newBuilder().setId("0").setStarted(false).build(),
+        committedState.getIndicesMap().get("test_index"));
+
+    verify(mockManager, times(2)).getCurrent();
+    verify(mockManager, times(1)).create();
+
+    verifyNoMoreInteractions(mockBackend, mockManager, mockState);
+  }
+
+  @Test
+  public void testCreateNewIndex_liveSettingsOverride() throws IOException {
+    StateBackend mockBackend = mock(StateBackend.class);
+    GlobalStateInfo initialState = GlobalStateInfo.newBuilder().build();
+    when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
+
+    Map<String, IndexStateManager> mockManagers = new HashMap<>();
+    IndexStateManager mockManager = mock(IndexStateManager.class);
+    IndexState mockState = mock(IndexState.class);
+    when(mockManager.getCurrent()).thenReturn(mockState);
+    mockManagers.put(BackendGlobalState.getUniqueIndexName("test_index", "0"), mockManager);
+
+    MockBackendGlobalState.stateBackend = mockBackend;
+    MockBackendGlobalState.stateManagers = mockManagers;
+    MockBackendGlobalState.expectedLiveSettingsOverrides = LIVE_SETTINGS_OVERRIDES;
+    BackendGlobalState backendGlobalState =
+        new MockBackendGlobalState(getConfigWithLiveSettingsOverrides(), null);
     backendGlobalState.createIndex("test_index");
 
     assertEquals(1, backendGlobalState.getIndexNames().size());
@@ -397,6 +467,39 @@ public class BackendGlobalStateTest {
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
     BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    assertSame(mockState, backendGlobalState.getIndex("test_index"));
+
+    verify(mockBackend, times(1)).loadOrCreateGlobalState();
+
+    verify(mockManager, times(1)).load();
+    verify(mockManager, times(1)).getCurrent();
+
+    verifyNoMoreInteractions(mockBackend, mockManager, mockState);
+  }
+
+  @Test
+  public void testGetRestoredStateIndex_liveSettingsOverride() throws IOException {
+    StateBackend mockBackend = mock(StateBackend.class);
+    GlobalStateInfo initialState =
+        GlobalStateInfo.newBuilder()
+            .setGen(11)
+            .putIndices(
+                "test_index",
+                IndexGlobalState.newBuilder().setId("test_id_1").setStarted(false).build())
+            .build();
+    when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
+
+    Map<String, IndexStateManager> mockManagers = new HashMap<>();
+    IndexStateManager mockManager = mock(IndexStateManager.class);
+    IndexState mockState = mock(IndexState.class);
+    when(mockManager.getCurrent()).thenReturn(mockState);
+    mockManagers.put(BackendGlobalState.getUniqueIndexName("test_index", "test_id_1"), mockManager);
+
+    MockBackendGlobalState.stateBackend = mockBackend;
+    MockBackendGlobalState.stateManagers = mockManagers;
+    MockBackendGlobalState.expectedLiveSettingsOverrides = LIVE_SETTINGS_OVERRIDES;
+    BackendGlobalState backendGlobalState =
+        new MockBackendGlobalState(getConfigWithLiveSettingsOverrides(), null);
     assertSame(mockState, backendGlobalState.getIndex("test_index"));
 
     verify(mockBackend, times(1)).loadOrCreateGlobalState();

@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DummyResponse;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
+import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
@@ -116,7 +117,11 @@ public class BackendGlobalState extends GlobalState {
     Map<String, IndexStateManager> managerMap = new HashMap<>();
     for (Map.Entry<String, IndexGlobalState> entry : globalStateInfo.getIndicesMap().entrySet()) {
       IndexStateManager stateManager =
-          createIndexStateManager(entry.getKey(), entry.getValue().getId(), stateBackend);
+          createIndexStateManager(
+              entry.getKey(),
+              entry.getValue().getId(),
+              luceneServerConfiguration.getLiveSettingsOverride(entry.getKey()),
+              stateBackend);
       stateManager.load();
       managerMap.put(entry.getKey(), stateManager);
     }
@@ -150,8 +155,11 @@ public class BackendGlobalState extends GlobalState {
    * @return index state manager
    */
   protected IndexStateManager createIndexStateManager(
-      String indexName, String indexId, StateBackend stateBackend) {
-    return new BackendStateManager(indexName, indexId, stateBackend, this);
+      String indexName,
+      String indexId,
+      IndexLiveSettings liveSettingsOverrides,
+      StateBackend stateBackend) {
+    return new BackendStateManager(indexName, indexId, liveSettingsOverrides, stateBackend, this);
   }
 
   /**
@@ -175,7 +183,12 @@ public class BackendGlobalState extends GlobalState {
       String indexName = entry.getKey();
       IndexStateManager stateManager = immutableState.indexStateManagerMap.get(indexName);
       if (stateManager == null || !entry.getValue().getId().equals(stateManager.getIndexId())) {
-        stateManager = createIndexStateManager(indexName, entry.getValue().getId(), stateBackend);
+        stateManager =
+            createIndexStateManager(
+                indexName,
+                entry.getValue().getId(),
+                getConfiguration().getLiveSettingsOverride(indexName),
+                stateBackend);
       }
       stateManager.load();
       newManagerMap.put(indexName, stateManager);
@@ -249,11 +262,21 @@ public class BackendGlobalState extends GlobalState {
     IndexStateManager stateManager;
     if (createIndexRequest.getExistsWithId().isEmpty()) {
       indexId = getIndexId();
-      stateManager = createIndexStateManager(indexName, indexId, stateBackend);
+      stateManager =
+          createIndexStateManager(
+              indexName,
+              indexId,
+              getConfiguration().getLiveSettingsOverride(indexName),
+              stateBackend);
       stateManager.create();
     } else {
       indexId = createIndexRequest.getExistsWithId();
-      stateManager = createIndexStateManager(indexName, indexId, stateBackend);
+      stateManager =
+          createIndexStateManager(
+              indexName,
+              indexId,
+              getConfiguration().getLiveSettingsOverride(indexName),
+              stateBackend);
       stateManager.load();
     }
 
@@ -261,7 +284,7 @@ public class BackendGlobalState extends GlobalState {
       stateManager.updateSettings(createIndexRequest.getSettings());
     }
     if (createIndexRequest.hasLiveSettings()) {
-      stateManager.updateLiveSettings(createIndexRequest.getLiveSettings());
+      stateManager.updateLiveSettings(createIndexRequest.getLiveSettings(), false);
     }
     if (!createIndexRequest.getFieldsList().isEmpty()) {
       stateManager.updateFields(createIndexRequest.getFieldsList());

@@ -134,7 +134,8 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
                 .setVirtualShards(Int32Value.newBuilder().setValue(virtualShards).build())
                 .setSliceMaxDocs(Int32Value.newBuilder().setValue(maxDocs).build())
                 .setSliceMaxSegments(Int32Value.newBuilder().setValue(maxSegments).build())
-                .build());
+                .build(),
+            false);
   }
 
   private void addSegments(Iterable<Integer> sizes) throws Exception {

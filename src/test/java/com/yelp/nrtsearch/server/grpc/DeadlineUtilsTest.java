@@ -105,6 +105,51 @@ public class DeadlineUtilsTest {
   }
 
   @Test
+  public void testWithDeadlineReachedWithDiagnostics() {
+    var diagnostics = SearchResponse.Diagnostics.newBuilder();
+    diagnostics
+        .setFirstPassSearchTimeMs(100)
+        .setGetFieldsTimeMs(50)
+        .setRescoreTimeMs(20)
+        .setHighlightTimeMs(10);
+    DeadlineUtils.setCancellationEnabled(false);
+    CancellableContext context =
+        Context.current().withDeadlineAfter(1, TimeUnit.MILLISECONDS, executorService);
+    try {
+      context.run(
+          () -> {
+            try {
+              Thread.sleep(5);
+            } catch (InterruptedException ignored) {
+            }
+            DeadlineUtils.checkDeadline("test", diagnostics, "TEST");
+          });
+    } finally {
+      context.cancel(null);
+    }
+    DeadlineUtils.setCancellationEnabled(true);
+    context = Context.current().withDeadlineAfter(1, TimeUnit.MILLISECONDS, executorService);
+    try {
+      context.run(
+          () -> {
+            try {
+              Thread.sleep(5);
+            } catch (InterruptedException ignored) {
+            }
+            DeadlineUtils.checkDeadline("test", diagnostics, "TEST");
+          });
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertEquals(Status.CANCELLED.getCode(), e.getStatus().getCode());
+      assertEquals(
+          "Request deadline exceeded: test, Search Diagnostics: firstPassSearchTimeMs: 100.0\nhighlightTimeMs: 10.0\ngetFieldsTimeMs: 50.0\nrescoreTimeMs: 20.0\n",
+          e.getStatus().getDescription());
+    } finally {
+      context.cancel(null);
+    }
+  }
+
+  @Test
   public void testMetricsCounter() {
     int initialCount = getCancelMetricCount();
     DeadlineUtils.setCancellationEnabled(true);
