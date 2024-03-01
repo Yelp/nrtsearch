@@ -44,7 +44,7 @@ import org.apache.lucene.util.Bits;
  * to do parallel collection by index slice. A numCandidates value may be provided that is greater
  * than k. This is the per segment documents considered for approximate vector search.
  */
-public class KnnCollector {
+public class NrtsearchKnnCollector {
   private static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
   static final int NUM_CANDIDATES_LIMIT = 10000;
   private final String field;
@@ -62,7 +62,7 @@ public class KnnCollector {
    * @param indexState index state
    * @param searcher index searcher
    */
-  public KnnCollector(KnnQuery grpcQuery, IndexState indexState, IndexSearcher searcher) {
+  public NrtsearchKnnCollector(KnnQuery grpcQuery, IndexState indexState, IndexSearcher searcher) {
     this.field = grpcQuery.getField();
     FieldDef fieldDef = indexState.getField(field);
     if (!(fieldDef instanceof VectorFieldDef)) {

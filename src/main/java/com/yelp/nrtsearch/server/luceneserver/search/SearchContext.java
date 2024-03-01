@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
-import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.NrtsearchKnnCollector;
 import org.apache.lucene.search.Query;
 
 /** Search context class to provide all the information to perform a search. */
@@ -49,7 +49,7 @@ public class SearchContext implements FieldFetchContext {
   private final SharedDocContext sharedDocContext;
   private final Map<String, Object> extraContext;
   private final String queryNestedPath;
-  private final List<KnnCollector> knnCollectors;
+  private final List<NrtsearchKnnCollector> knnCollectors;
   private final VectorScoringMode vectorScoringMode;
 
   public enum VectorScoringMode {
@@ -176,7 +176,7 @@ public class SearchContext implements FieldFetchContext {
   }
 
   /** Get collector to perform kNN vector search queries */
-  public List<KnnCollector> getKnnCollectors() {
+  public List<NrtsearchKnnCollector> getKnnCollectors() {
     return knnCollectors;
   }
 
@@ -247,7 +247,7 @@ public class SearchContext implements FieldFetchContext {
     private SharedDocContext sharedDocContext;
     private Map<String, Object> extraContext;
     private String queryNestedPath;
-    private List<KnnCollector> knnCollectors;
+    private List<NrtsearchKnnCollector> knnCollectors;
     private VectorScoringMode vectorScoringMode;
     private boolean explain;
 
@@ -360,7 +360,7 @@ public class SearchContext implements FieldFetchContext {
      *
      * @param knnCollectors vector search collectors
      */
-    public Builder setKnnCollectors(List<KnnCollector> knnCollectors) {
+    public Builder setKnnCollectors(List<NrtsearchKnnCollector> knnCollectors) {
       this.knnCollectors = knnCollectors;
       return this;
     }

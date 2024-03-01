@@ -74,7 +74,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.NrtsearchKnnCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreDoc;
@@ -139,7 +139,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       // produce the top k documents with their similarity scores.
       if (searchContext.getVectorScoringMode() != VectorScoringMode.NONE) {
         vectorQueries = new ArrayList<>();
-        for (KnnCollector knnCollector : searchContext.getKnnCollectors()) {
+        for (NrtsearchKnnCollector knnCollector : searchContext.getKnnCollectors()) {
           VectorDiagnostics.Builder vectorDiagnosticsBuilder = VectorDiagnostics.newBuilder();
           long vectorSearchStart = System.nanoTime();
           vectorQueries.add(
