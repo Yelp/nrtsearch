@@ -24,7 +24,7 @@ import java.util.Set;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene95.Lucene95Codec;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
@@ -249,7 +249,7 @@ public class CompletionInfixSuggester extends AnalyzingInfixSuggester {
       Analyzer indexAnalyzer, IndexWriterConfig.OpenMode mode) {
     IndexWriterConfig iwc = super.getIndexWriterConfig(indexAnalyzer, mode);
     Codec filterCodec =
-        new Lucene95Codec() {
+        new Lucene99Codec() {
           final PostingsFormat fstPostingsFormat = new Completion90PostingsFormat();
 
           @Override
