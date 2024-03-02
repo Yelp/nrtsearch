@@ -37,7 +37,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingInfixSuggester;
-import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion99PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.ContextQuery;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
@@ -250,7 +250,7 @@ public class CompletionInfixSuggester extends AnalyzingInfixSuggester {
     IndexWriterConfig iwc = super.getIndexWriterConfig(indexAnalyzer, mode);
     Codec filterCodec =
         new Lucene99Codec() {
-          final PostingsFormat fstPostingsFormat = new Completion90PostingsFormat();
+          final PostingsFormat fstPostingsFormat = new Completion99PostingsFormat();
 
           @Override
           public PostingsFormat getPostingsFormatForField(String field) {
