@@ -27,6 +27,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 
 /**
@@ -133,31 +134,30 @@ public abstract class FilterFunction {
 
   /**
    * Method to rewrite queries with the given {@link IndexReader}. Final to force use of {@link
-   * #doRewrite(IndexReader, boolean, Query)}.
+   * #doRewrite(boolean, Query)}.
    *
-   * @param reader index reader
+   * @param indexSearcher index searcher
    * @return function object with any query rewriting done
    * @throws IOException
    */
-  public final FilterFunction rewrite(IndexReader reader) throws IOException {
+  public final FilterFunction rewrite(IndexSearcher indexSearcher) throws IOException {
     Query rewrittenFilterQuery = null;
     if (filterQuery != null) {
-      rewrittenFilterQuery = filterQuery.rewrite(reader);
+      rewrittenFilterQuery = filterQuery.rewrite(indexSearcher);
     }
-    return doRewrite(reader, rewrittenFilterQuery != filterQuery, rewrittenFilterQuery);
+    return doRewrite(rewrittenFilterQuery != filterQuery, rewrittenFilterQuery);
   }
 
   /**
    * Rewrite method for all child classes.
    *
-   * @param reader index reader
    * @param filterQueryRewritten if the filter query was modified by rewrite
    * @param rewrittenFilterQuery final value of rewritten query, may be null if no filter
    * @return fully rewritten filter function
    * @throws IOException
    */
   protected abstract FilterFunction doRewrite(
-      IndexReader reader, boolean filterQueryRewritten, Query rewrittenFilterQuery)
+      boolean filterQueryRewritten, Query rewrittenFilterQuery)
       throws IOException;
 
   @Override

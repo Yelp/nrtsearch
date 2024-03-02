@@ -33,6 +33,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
@@ -78,21 +79,20 @@ public abstract class BlendedTermQuery extends Query {
   }
 
   @Override
-  public Query rewrite(IndexReader reader) throws IOException {
-    Query rewritten = super.rewrite(reader);
+  public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+    Query rewritten = super.rewrite(indexSearcher);
     if (rewritten != this) {
       return rewritten;
     }
-    IndexReaderContext context = reader.getContext();
     TermStates[] ctx = new TermStates[terms.length];
     int[] docFreqs = new int[ctx.length];
     for (int i = 0; i < terms.length; i++) {
-      ctx[i] = TermStates.build(context, terms[i], true);
+      ctx[i] = TermStates.build(indexSearcher, terms[i], true);
       docFreqs[i] = ctx[i].docFreq();
     }
 
-    final int maxDoc = reader.maxDoc();
-    blend(ctx, maxDoc, reader);
+    final int maxDoc = indexSearcher.getIndexReader().maxDoc();
+    blend(ctx, maxDoc, indexSearcher.getIndexReader());
     return topLevelQuery(terms, ctx, docFreqs, maxDoc);
   }
 
