@@ -157,8 +157,7 @@ public abstract class FilterFunction {
    * @throws IOException
    */
   protected abstract FilterFunction doRewrite(
-      boolean filterQueryRewritten, Query rewrittenFilterQuery)
-      throws IOException;
+      boolean filterQueryRewritten, Query rewrittenFilterQuery) throws IOException;
 
   @Override
   public String toString() {
