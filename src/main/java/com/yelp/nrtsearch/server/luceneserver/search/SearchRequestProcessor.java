@@ -387,7 +387,11 @@ public class SearchRequestProcessor {
                 .collect(Collectors.toList());
 
     DocCollector docCollector;
-    if (searchRequest.getQuery().hasCompletionQuery()) {
+    int numHitsToCollect = DocCollector.computeNumHitsToCollect(searchRequest);
+    // If we don't need hits, just count recalled docs
+    if (numHitsToCollect == 0) {
+      docCollector = new HitCountCollector(collectorCreatorContext, additionalCollectors);
+    } else if (searchRequest.getQuery().hasCompletionQuery()) {
       docCollector = new MyTopSuggestDocsCollector(collectorCreatorContext, additionalCollectors);
     } else if (searchRequest.getQuerySort().getFields().getSortedFieldsList().isEmpty()) {
       if (hasLargeNumHits(searchRequest)) {
@@ -397,10 +401,6 @@ public class SearchRequestProcessor {
       }
     } else {
       docCollector = new SortFieldCollector(collectorCreatorContext, additionalCollectors);
-    }
-    // If we don't need hits, just count recalled docs
-    if (docCollector.getNumHitsToCollect() == 0) {
-      docCollector = new HitCountCollector(collectorCreatorContext, additionalCollectors);
     }
     return docCollector;
   }

@@ -62,6 +62,10 @@ public abstract class DocCollector {
     this.indexState = context.getIndexState();
     this.additionalCollectors = additionalCollectors;
 
+    numHitsToCollect = computeNumHitsToCollect(request);
+  }
+
+  public static int computeNumHitsToCollect(SearchRequest request) {
     // determine how many hits to collect based on request, facets and rescore window
     int collectHits = request.getTopHits();
     for (Facet facet : request.getFacetsList()) {
@@ -76,7 +80,7 @@ public abstract class DocCollector {
         collectHits = windowSize;
       }
     }
-    numHitsToCollect = collectHits;
+    return collectHits;
   }
 
   /**
