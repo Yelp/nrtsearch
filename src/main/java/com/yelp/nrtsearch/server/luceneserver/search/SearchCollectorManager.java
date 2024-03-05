@@ -45,7 +45,7 @@ public class SearchCollectorManager
     implements CollectorManager<SearchCollectorManager.SearchCollector, SearcherResult> {
 
   private final DocCollector docCollector;
-  private final CollectorManager<? extends Collector, ?> docCollectorManger;
+  private final CollectorManager<? extends Collector, ? extends TopDocs> docCollectorManger;
   private final List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
       collectorManagers;
 
@@ -114,7 +114,7 @@ public class SearchCollectorManager
   }
 
   /** Get collector manager implementation used to rank docs */
-  public CollectorManager<? extends Collector, ?> getDocCollectorManger() {
+  public CollectorManager<? extends Collector, ? extends TopDocs> getDocCollectorManger() {
     return docCollectorManger;
   }
 

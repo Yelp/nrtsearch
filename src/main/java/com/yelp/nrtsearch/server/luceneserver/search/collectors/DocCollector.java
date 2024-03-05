@@ -34,6 +34,7 @@ import java.util.List;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 
 /** Abstract base for classes that manage the collection of documents when executing queries. */
 public abstract class DocCollector {
@@ -125,7 +126,7 @@ public abstract class DocCollector {
   }
 
   /** Get a lucene level {@link CollectorManager} to rank document for search. */
-  public abstract CollectorManager<? extends Collector, ?> getManager();
+  public abstract CollectorManager<? extends Collector, ? extends TopDocs> getManager();
 
   /**
    * Fill the response hit for the given {@link ScoreDoc}. This method is expected to fill the
