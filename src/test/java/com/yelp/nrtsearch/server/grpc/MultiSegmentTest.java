@@ -214,7 +214,9 @@ public class MultiSegmentTest extends ServerTestCase {
       var explain = hit.getExplain();
       var expectedExplain =
           String.format(
-              "%d.0 = weight(FunctionScoreQuery(int_field:[0 TO 100], scored by expr(int_score))), result of:\n"
+              "%d.0 = weight(FunctionScoreQuery(IndexOrDocValuesQuery("
+                  + "indexQuery=int_field:[0 TO 100], dvQuery=int_field:[0 TO 100]), "
+                  + "scored by expr(int_score))), result of:\n"
                   + "  %<d.0 = int_score, computed from:\n"
                   + "    %<d.0 = double(int_score)",
               NUM_DOCS - i);

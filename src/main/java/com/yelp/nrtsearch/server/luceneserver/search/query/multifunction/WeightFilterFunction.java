@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.luceneserver.search.query.multifunction;
 
 import java.io.IOException;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
@@ -37,9 +36,7 @@ public class WeightFilterFunction extends FilterFunction {
   }
 
   @Override
-  protected FilterFunction doRewrite(
-      IndexReader reader, boolean filterQueryRewritten, Query rewrittenFilterQuery)
-      throws IOException {
+  protected FilterFunction doRewrite(boolean filterQueryRewritten, Query rewrittenFilterQuery) {
     if (filterQueryRewritten) {
       return new WeightFilterFunction(rewrittenFilterQuery, getWeight());
     } else {

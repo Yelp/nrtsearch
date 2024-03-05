@@ -42,6 +42,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -193,8 +194,8 @@ public class MatchPhrasePrefixQuery extends Query {
   }
 
   @Override
-  public Query rewrite(IndexReader reader) throws IOException {
-    Query rewritten = super.rewrite(reader);
+  public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+    Query rewritten = super.rewrite(indexSearcher);
     if (rewritten != this) {
       return rewritten;
     }
@@ -211,7 +212,7 @@ public class MatchPhrasePrefixQuery extends Query {
     int position = positions.get(sizeMinus1);
     Set<Term> terms = new HashSet<>();
     for (Term term : suffixTerms) {
-      getPrefixTerms(terms, term, reader);
+      getPrefixTerms(terms, term, indexSearcher.getIndexReader());
       if (terms.size() > maxExpansions) {
         break;
       }

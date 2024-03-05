@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -124,16 +123,16 @@ public class MultiFunctionScoreQuery extends Query {
   }
 
   @Override
-  public Query rewrite(IndexReader reader) throws IOException {
-    Query rewritten = super.rewrite(reader);
+  public Query rewrite(IndexSearcher indexSearcher) throws IOException {
+    Query rewritten = super.rewrite(indexSearcher);
     if (rewritten != this) {
       return rewritten;
     }
-    Query rewrittenInner = innerQuery.rewrite(reader);
+    Query rewrittenInner = innerQuery.rewrite(indexSearcher);
     boolean needsRewrite = rewrittenInner != innerQuery;
     FilterFunction[] rewrittenFunctions = new FilterFunction[functions.length];
     for (int i = 0; i < functions.length; ++i) {
-      rewrittenFunctions[i] = functions[i].rewrite(reader);
+      rewrittenFunctions[i] = functions[i].rewrite(indexSearcher);
       needsRewrite |= (rewrittenFunctions[i] != functions[i]);
     }
     if (needsRewrite) {

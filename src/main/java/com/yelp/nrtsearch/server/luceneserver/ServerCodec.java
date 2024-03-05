@@ -23,12 +23,12 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene95.Lucene95Codec;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 
 /** Implements per-index {@link Codec}. */
-public class ServerCodec extends Lucene95Codec {
+public class ServerCodec extends Lucene99Codec {
 
-  public static final String DEFAULT_POSTINGS_FORMAT = "Lucene90";
+  public static final String DEFAULT_POSTINGS_FORMAT = "Lucene99";
   public static final String DEFAULT_DOC_VALUES_FORMAT = "Lucene90";
 
   private final IndexStateManager stateManager;

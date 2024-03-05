@@ -27,7 +27,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -77,12 +77,12 @@ public class VectorFieldDef extends IndexableFieldDef {
     int m =
         vectorIndexingOptions.getHnswM() > 0
             ? vectorIndexingOptions.getHnswM()
-            : Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN;
+            : Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
     int efConstruction =
         vectorIndexingOptions.getHnswEfConstruction() > 0
             ? vectorIndexingOptions.getHnswEfConstruction()
-            : Lucene95HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-    return new Lucene95HnswVectorsFormat(m, efConstruction);
+            : Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+    return new Lucene99HnswVectorsFormat(m, efConstruction);
   }
 
   /**
@@ -134,10 +134,10 @@ public class VectorFieldDef extends IndexableFieldDef {
     }
 
     if (requestField.getSearch()) {
-      if (requestField.getVectorDimensions() > Lucene95HnswVectorsFormat.DEFAULT_MAX_DIMENSIONS) {
+      if (requestField.getVectorDimensions() > Lucene99HnswVectorsFormat.DEFAULT_MAX_DIMENSIONS) {
         throw new IllegalArgumentException(
             "Vector dimension must be <= "
-                + Lucene95HnswVectorsFormat.DEFAULT_MAX_DIMENSIONS
+                + Lucene99HnswVectorsFormat.DEFAULT_MAX_DIMENSIONS
                 + " for search");
       }
     }

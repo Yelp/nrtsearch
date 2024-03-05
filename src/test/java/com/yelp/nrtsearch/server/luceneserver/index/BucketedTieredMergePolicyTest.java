@@ -465,6 +465,7 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
               String.valueOf(id),
               sizes.get(i),
               false,
+              false,
               null,
               Collections.emptyMap(),
               new byte[StringHelper.ID_LENGTH],

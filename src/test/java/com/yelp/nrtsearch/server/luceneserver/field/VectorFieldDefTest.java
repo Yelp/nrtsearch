@@ -695,7 +695,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
-        "Lucene95HnswVectorsFormat(name=Lucene95HnswVectorsFormat, maxConn=5, beamWidth=100)",
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=5, beamWidth=100, flatVectorFormat=Lucene99FlatVectorsFormat())",
         format.toString());
   }
 
@@ -718,7 +718,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
-        "Lucene95HnswVectorsFormat(name=Lucene95HnswVectorsFormat, maxConn=16, beamWidth=50)",
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=50, flatVectorFormat=Lucene99FlatVectorsFormat())",
         format.toString());
   }
 

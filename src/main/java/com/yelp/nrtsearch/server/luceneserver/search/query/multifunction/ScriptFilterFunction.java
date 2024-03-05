@@ -21,7 +21,6 @@ import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.luceneserver.search.query.QueryUtils.SettableDoubleValues;
 import java.io.IOException;
 import java.util.Objects;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
@@ -54,9 +53,7 @@ public class ScriptFilterFunction extends FilterFunction {
   }
 
   @Override
-  protected FilterFunction doRewrite(
-      IndexReader reader, boolean filterQueryRewritten, Query rewrittenFilterQuery)
-      throws IOException {
+  protected FilterFunction doRewrite(boolean filterQueryRewritten, Query rewrittenFilterQuery) {
     if (filterQueryRewritten) {
       return new ScriptFilterFunction(rewrittenFilterQuery, getWeight(), script, scriptSource);
     } else {
