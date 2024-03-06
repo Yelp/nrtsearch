@@ -83,8 +83,8 @@ Example server configuration
 
    * - botoCfgPath
      - str
-     - Path to AWS credentials (if using S3 for remote storage)
-     - `<DEFAULT_USER_DIR> <https://github.com/Yelp/nrtsearch/blob/f612f5d3e14e468ab8c9b45dd4be0ab84231b9de/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java#L35>`_/boto.cfg
+     - Path to AWS credentials (if using S3 for remote storage); Will use the DefaultAWSCredentialsProviderChain if omitted.
+     - null
 
    * - archiveDirectory
      - str
