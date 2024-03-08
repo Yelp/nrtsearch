@@ -39,6 +39,8 @@ import org.apache.lucene.replicator.nrt.FilteringSegmentInfosSearcherManager;
 import org.apache.lucene.replicator.nrt.NodeCommunicationException;
 import org.apache.lucene.replicator.nrt.ReplicaDeleterManager;
 import org.apache.lucene.replicator.nrt.ReplicaNode;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.store.Directory;
 import org.slf4j.Logger;
@@ -121,7 +123,9 @@ public class NRTReplicaNode extends ReplicaNode {
       // Swap in a SearcherManager that filters incompatible segment readers during refresh.
       // Updating the reference is not thread safe, but since this happens under the object lock
       // and before the shard has stared, nothing should access the manager before the swap.
+      ReferenceManager<IndexSearcher> oldMgr = mgr;
       mgr = new FilteringSegmentInfosSearcherManager(getDirectory(), this, mgr, searcherFactory);
+      oldMgr.close();
     }
   }
 
