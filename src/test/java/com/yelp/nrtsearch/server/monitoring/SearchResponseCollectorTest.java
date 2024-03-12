@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.monitoring;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -32,34 +31,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class VerboseIndexCollectorTest {
+public class SearchResponseCollectorTest {
 
-  @Test
-  public void testNoIndex() {
-    GlobalState mockGlobalState = mock(GlobalState.class);
-    when(mockGlobalState.getIndexNames()).thenReturn(Collections.emptySet());
-
-    VerboseIndexCollector collector = new VerboseIndexCollector(mockGlobalState);
-    assertTrue(collector.collect().isEmpty());
-  }
-
-  @Test
-  public void testVerboseMetricsDisabled() throws IOException {
-    GlobalState mockGlobalState = mock(GlobalState.class);
-    IndexState mockIndexState = mock(IndexState.class);
-
-    when(mockIndexState.getVerboseMetrics()).thenReturn(false);
-    when(mockGlobalState.getIndexNames()).thenReturn(Collections.singleton("test_index"));
-    when(mockGlobalState.getIndex("test_index")).thenReturn(mockIndexState);
-
-    VerboseIndexCollector collector = new VerboseIndexCollector(mockGlobalState);
-    assertTrue(collector.collect().isEmpty());
-  }
-
-  @Test
-  public void testVerboseMetricsEnabled() throws IOException {
+  @BeforeClass
+  public static void init() {
     SearchResponse testResponse =
         SearchResponse.newBuilder()
             .setTotalHits(TotalHits.newBuilder().setValue(10).build())
@@ -72,8 +50,33 @@ public class VerboseIndexCollectorTest {
                     .putRescorersTimeMs("rescorer", 5.0)
                     .build())
             .build();
-    VerboseIndexCollector.updateSearchResponseMetrics(testResponse, "test_index");
+    SearchResponseCollector.updateSearchResponseMetrics(testResponse, "test_index", true);
+  }
 
+  @Test
+  public void testVerboseMetricsDisabled() throws IOException {
+    GlobalState mockGlobalState = mock(GlobalState.class);
+    IndexState mockIndexState = mock(IndexState.class);
+
+    when(mockIndexState.getVerboseMetrics()).thenReturn(false);
+    when(mockGlobalState.getIndexNames()).thenReturn(Collections.singleton("test_index"));
+    when(mockGlobalState.getIndex("test_index")).thenReturn(mockIndexState);
+
+    SearchResponseCollector collector = new SearchResponseCollector(mockGlobalState);
+    List<MetricFamilySamples> metrics = collector.collect();
+    assertEquals(2, metrics.size());
+
+    Map<String, MetricFamilySamples> metricsMap = new HashMap<>();
+    for (MetricFamilySamples samples : metrics) {
+      metricsMap.put(samples.name, samples);
+    }
+    assertEquals(
+        Set.of("nrt_search_timeout_count", "nrt_search_terminated_early_count"),
+        metricsMap.keySet());
+  }
+
+  @Test
+  public void testVerboseMetricsEnabled() throws IOException {
     GlobalState mockGlobalState = mock(GlobalState.class);
     IndexState mockIndexState = mock(IndexState.class);
 
@@ -81,7 +84,7 @@ public class VerboseIndexCollectorTest {
     when(mockGlobalState.getIndexNames()).thenReturn(Collections.singleton("test_index"));
     when(mockGlobalState.getIndex("test_index")).thenReturn(mockIndexState);
 
-    VerboseIndexCollector collector = new VerboseIndexCollector(mockGlobalState);
+    SearchResponseCollector collector = new SearchResponseCollector(mockGlobalState);
     List<MetricFamilySamples> metrics = collector.collect();
     assertEquals(5, metrics.size());
 
