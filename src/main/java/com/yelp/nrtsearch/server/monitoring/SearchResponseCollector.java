@@ -29,11 +29,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Collector for detailed index metrics that may be expensive to produce or publish. Collection can
- * be toggled with the verbose metrics index live setting.
+ * Collector for metrics related to the {@link SearchResponse}. Has the option to collect verbose
+ * metrics, which may be expensive to produce or publish
  */
-public class VerboseIndexCollector extends Collector {
-  private static final Logger logger = LoggerFactory.getLogger(VerboseIndexCollector.class);
+public class SearchResponseCollector extends Collector {
+  private static final Logger logger = LoggerFactory.getLogger(SearchResponseCollector.class);
   private final GlobalState globalState;
 
   private static final Summary searchResponseSizeBytes =
@@ -86,9 +86,8 @@ public class VerboseIndexCollector extends Collector {
           .labelNames("index")
           .create();
 
-  public static void updateSearchResponseMetrics(SearchResponse searchResponse, String index) {
-    searchResponseSizeBytes.labels(index).observe(searchResponse.getSerializedSize());
-    searchResponseTotalHits.labels(index).observe(searchResponse.getTotalHits().getValue());
+  public static void updateSearchResponseMetrics(
+      SearchResponse searchResponse, String index, boolean verbose) {
     if (searchResponse.getHitTimeout()) {
       searchTimeoutCount.labels(index).inc();
     }
@@ -96,19 +95,24 @@ public class VerboseIndexCollector extends Collector {
       searchTerminatedEarlyCount.labels(index).inc();
     }
 
-    Diagnostics diagnostics = searchResponse.getDiagnostics();
-    searchStageLatencyMs.labels(index, "recall").observe(diagnostics.getFirstPassSearchTimeMs());
-    searchStageLatencyMs.labels(index, "highlight").observe(diagnostics.getHighlightTimeMs());
-    searchStageLatencyMs.labels(index, "fetch").observe(diagnostics.getGetFieldsTimeMs());
-    for (Map.Entry<String, Double> entry : diagnostics.getFacetTimeMsMap().entrySet()) {
-      searchStageLatencyMs.labels(index, "facet:" + entry.getKey()).observe(entry.getValue());
-    }
-    for (Map.Entry<String, Double> entry : diagnostics.getRescorersTimeMsMap().entrySet()) {
-      searchStageLatencyMs.labels(index, "rescorer:" + entry.getKey()).observe(entry.getValue());
+    if (verbose) {
+      searchResponseSizeBytes.labels(index).observe(searchResponse.getSerializedSize());
+      searchResponseTotalHits.labels(index).observe(searchResponse.getTotalHits().getValue());
+
+      Diagnostics diagnostics = searchResponse.getDiagnostics();
+      searchStageLatencyMs.labels(index, "recall").observe(diagnostics.getFirstPassSearchTimeMs());
+      searchStageLatencyMs.labels(index, "highlight").observe(diagnostics.getHighlightTimeMs());
+      searchStageLatencyMs.labels(index, "fetch").observe(diagnostics.getGetFieldsTimeMs());
+      for (Map.Entry<String, Double> entry : diagnostics.getFacetTimeMsMap().entrySet()) {
+        searchStageLatencyMs.labels(index, "facet:" + entry.getKey()).observe(entry.getValue());
+      }
+      for (Map.Entry<String, Double> entry : diagnostics.getRescorersTimeMsMap().entrySet()) {
+        searchStageLatencyMs.labels(index, "rescorer:" + entry.getKey()).observe(entry.getValue());
+      }
     }
   }
 
-  public VerboseIndexCollector(GlobalState globalState) {
+  public SearchResponseCollector(GlobalState globalState) {
     this.globalState = globalState;
   }
 
@@ -117,23 +121,24 @@ public class VerboseIndexCollector extends Collector {
     List<MetricFamilySamples> mfs = new ArrayList<>();
 
     try {
-      boolean publishMetrics = false;
+      mfs.addAll(searchTimeoutCount.collect());
+      mfs.addAll(searchTerminatedEarlyCount.collect());
+
+      boolean publishVerboseMetrics = false;
       Set<String> indexNames = globalState.getIndexNames();
       for (String indexName : indexNames) {
         if (globalState.getIndex(indexName).getVerboseMetrics()) {
-          publishMetrics = true;
+          publishVerboseMetrics = true;
           break;
         }
       }
-      if (publishMetrics) {
+      if (publishVerboseMetrics) {
         mfs.addAll(searchResponseSizeBytes.collect());
         mfs.addAll(searchResponseTotalHits.collect());
         mfs.addAll(searchStageLatencyMs.collect());
-        mfs.addAll(searchTimeoutCount.collect());
-        mfs.addAll(searchTerminatedEarlyCount.collect());
       }
     } catch (Exception e) {
-      logger.warn("Error getting verbose index metrics: ", e);
+      logger.warn("Error getting search response metrics: ", e);
     }
 
     return mfs;
