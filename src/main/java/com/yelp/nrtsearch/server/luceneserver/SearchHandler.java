@@ -41,6 +41,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
+import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
@@ -49,7 +50,6 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
@@ -70,8 +70,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.queries.function.FunctionValues;
-import org.apache.lucene.queries.function.ValueSource;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
@@ -789,13 +787,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         doubleValues.advanceExact(docID);
         compositeFieldValue.addFieldValue(
             FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
-      } else if (fd instanceof RuntimeFieldDef) {
-        RuntimeFieldDef runtimeFieldDef = (RuntimeFieldDef) fd;
-
-        assert !Double.isNaN(hit.getScore()) || runtimeFieldDef.getValuesSource() != null;
-
-        Object obj = runtimeFieldDef.getValuesSource();
-        compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue((Struct) obj));
       } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
         int docID = hit.getLuceneDocId() - leaf.docBase;
         // it may be possible to cache this if there are multiple hits in the same segment
@@ -908,7 +899,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
               fieldDefEntry.getKey(),
               (VirtualFieldDef) fieldDefEntry.getValue());
         } else if (fieldDefEntry.getValue() instanceof RuntimeFieldDef) {
-          fetchRuntimeFromValueSource(
+          fetchRuntimeFromSegmentFactory(
               sliceHits,
               sliceSegment,
               fieldDefEntry.getKey(),
@@ -969,21 +960,20 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     }
 
     /** Fetch field value from runtime field's Object. */
-    private static void fetchRuntimeFromValueSource(
+    private static void fetchRuntimeFromSegmentFactory(
         List<SearchResponse.Hit.Builder> sliceHits,
         LeafReaderContext sliceSegment,
         String name,
         RuntimeFieldDef runtimeFieldDef)
         throws IOException {
-      ValueSource valueSource = runtimeFieldDef.getValuesSource();
-      Map context = Collections.emptyMap();
-      FunctionValues values = valueSource.getValues(context, sliceSegment);
+      RuntimeScript.SegmentFactory segmentFactory = runtimeFieldDef.getSegmentFactory();
+      RuntimeScript values = segmentFactory.newInstance(sliceSegment);
 
       for (SearchResponse.Hit.Builder hit : sliceHits) {
         int docID = hit.getLuceneDocId() - sliceSegment.docBase;
         // Check if the value is available for the current document
         if (values != null) {
-          Object obj = values.objectVal(docID);
+          Object obj = values.execute();
           SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
               SearchResponse.Hit.CompositeFieldValue.newBuilder();
           if (obj instanceof Float) {
@@ -992,11 +982,17 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           } else if (obj instanceof String) {
             compositeFieldValue.addFieldValue(
                 SearchResponse.Hit.FieldValue.newBuilder().setTextValue(String.valueOf(obj)));
-          }
-          if (obj instanceof Long) {
+          } else if (obj instanceof Double) {
+            compositeFieldValue.addFieldValue(
+                SearchResponse.Hit.FieldValue.newBuilder().setDoubleValue((Double) obj));
+          } else if (obj instanceof Long) {
             compositeFieldValue.addFieldValue(
                 SearchResponse.Hit.FieldValue.newBuilder().setLongValue((Long) obj));
+          } else if (obj instanceof Integer) {
+            compositeFieldValue.addFieldValue(
+                SearchResponse.Hit.FieldValue.newBuilder().setIntValue((Integer) obj));
           }
+          // TODO: Add support for list and map.
           hit.putFields(name, compositeFieldValue.build());
         }
       }

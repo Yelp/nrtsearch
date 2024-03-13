@@ -452,7 +452,8 @@ message SearchRequest {
     bool explain = 25;
     // Search nested object fields for each hit
     map<string, InnerHit> inner_hits = 26;
-    repeated RuntimeField runtimeFields = 27; //Defines runtime fields for this query.
+    // Defines runtime fields for this query
+    repeated RuntimeField runtimeFields = 27;
 }
 
 /* Inner Hit search request */
@@ -481,8 +482,10 @@ message VirtualField {
 
 /* Runtime field used during search */
 message RuntimeField {
-    Script script = 1; // Script defining this field's values.
-    string name = 2; // Runtime field's name. Must be different from registered fields and any other runtime fields.
+    // Script defining this field's values.
+    Script script = 1;
+    // Runtime field's name. Must be different from registered fields and any other runtime fields.
+    string name = 2;
 }
 
 message Script {

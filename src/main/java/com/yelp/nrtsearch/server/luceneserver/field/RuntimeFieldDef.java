@@ -16,35 +16,35 @@
 package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValueType;
-import org.apache.lucene.queries.function.ValueSource;
+import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript;
 
 /**
  * Field definition for a runtime field. Runtime fields are able to produce a value for each given
  * index document.
  */
 public class RuntimeFieldDef extends FieldDef {
-  private final ValueSource valuesSource;
+  private final RuntimeScript.SegmentFactory segmentFactory;
   private final IndexableFieldDef.FacetValueType facetValueType;
 
   /**
    * Field constructor.
    *
    * @param name name of field
-   * @param valuesSource lucene value source used to produce field value from documents
+   * @param segmentFactory lucene value source used to produce field value from documents
    */
-  public RuntimeFieldDef(String name, ValueSource valuesSource) {
+  public RuntimeFieldDef(String name, RuntimeScript.SegmentFactory segmentFactory) {
     super(name);
-    this.valuesSource = valuesSource;
+    this.segmentFactory = segmentFactory;
     this.facetValueType = FacetValueType.NO_FACETS;
   }
 
   /**
    * Get value source for this field.
    *
-   * @return lucene value source used to produce field value from documents
+   * @return Segment factory to create the expression.
    */
-  public ValueSource getValuesSource() {
-    return valuesSource;
+  public RuntimeScript.SegmentFactory getSegmentFactory() {
+    return segmentFactory;
   }
 
   @Override

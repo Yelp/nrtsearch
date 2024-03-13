@@ -238,9 +238,9 @@ public class FieldUpdateHandler {
       throw new IllegalArgumentException("Only js lang supported for index runtime fields");
     }
     // js scripts use Bindings instead of DocLookup
-    ValueSource values = factory.newFactory(params, null);
+    RuntimeScript.SegmentFactory segmentFactory = factory.newFactory(params, null);
 
-    FieldDef runtimeFieldDef = new RuntimeFieldDef(field.getName(), values);
+    FieldDef runtimeFieldDef = new RuntimeFieldDef(field.getName(), segmentFactory);
     fieldStateBuilder.addField(runtimeFieldDef, field);
     logger.info("REGISTER: " + runtimeFieldDef.getName() + " -> " + runtimeFieldDef);
   }

@@ -129,9 +129,8 @@ public class SearchRequestProcessor {
     Map<String, FieldDef> queryRuntimeFields = getRuntimeFields(indexState, searchRequest);
 
     Map<String, FieldDef> queryFields = new HashMap<>(queryVirtualFields);
-    for (String key : queryRuntimeFields.keySet()) {
-      queryFields.put(key, queryRuntimeFields.get(key));
-    }
+
+    addToQueryFields(queryFields, queryRuntimeFields);
     addIndexFields(indexState, queryFields);
     contextBuilder.setQueryFields(Collections.unmodifiableMap(queryFields));
 
@@ -259,8 +258,9 @@ public class SearchRequestProcessor {
       RuntimeScript.Factory factory =
           ScriptService.getInstance().compile(vf.getScript(), RuntimeScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
+      RuntimeScript.SegmentFactory segmentFactory = factory.newFactory(params, indexState.docLookup);
       FieldDef runtimeField =
-          new RuntimeFieldDef(vf.getName(), factory.newFactory(params, indexState.docLookup));
+          new RuntimeFieldDef(vf.getName(), segmentFactory);
       runtimeFields.put(vf.getName(), runtimeField);
     }
     return runtimeFields;
@@ -300,6 +300,23 @@ public class SearchRequestProcessor {
       retrieveFields.put(field, fieldDef);
     }
     return retrieveFields;
+  }
+
+  /**
+   * Add index fields to given query fields map.
+   *
+   * @param indexState state for query index
+   * @param queryFields mutable current map of query fields
+   * @throws IllegalArgumentException if any index field already exists
+   */
+  private static void addToQueryFields(Map<String, FieldDef> queryFields, Map<String, FieldDef> otherFields) {
+    for (String key : otherFields.keySet()) {
+      FieldDef current = queryFields.put(key, otherFields.get(key));
+      if (current != null) {
+        throw new IllegalArgumentException(
+            "QueryFields: " + key + " specified multiple times");
+      }
+    }
   }
 
   /**

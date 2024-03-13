@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.script.js;
 
-import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptContext;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptEngine;
@@ -25,7 +24,6 @@ import java.util.Map;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
-import org.apache.lucene.queries.function.ValueSource;
 
 /**
  * Script engine that provides a language based on javascript expressions. Expressions are compiled
@@ -60,7 +58,7 @@ public class JsScriptEngine implements ScriptEngine {
    */
   @Override
   public <T> T compile(String source, ScriptContext<T> context) {
-    if (!(context.equals(ScoreScript.CONTEXT) || context.equals(RuntimeScript.CONTEXT))) {
+    if (!context.equals(ScoreScript.CONTEXT)) {
       throw new IllegalArgumentException("Unsupported script context: " + context.name);
     }
     Expression expr;
@@ -71,54 +69,25 @@ public class JsScriptEngine implements ScriptEngine {
       throw new IllegalArgumentException(
           String.format("could not parse expression: %s", source), pe);
     }
-    if (context.equals(ScoreScript.CONTEXT)) {
-      ScoreScript.Factory factory =
-          ((params, docLookup) -> {
-            Map<String, Object> scriptParams;
-            Bindings fieldBindings;
-            Object bindingsParam = params.get("bindings");
-            if (bindingsParam instanceof Bindings) {
-              fieldBindings = (Bindings) bindingsParam;
+    ScoreScript.Factory factory =
+        ((params, docLookup) -> {
+          Map<String, Object> scriptParams;
+          Bindings fieldBindings;
+          Object bindingsParam = params.get("bindings");
+          if (bindingsParam instanceof Bindings) {
+            fieldBindings = (Bindings) bindingsParam;
 
-              // we do not want the bindings to be used as an expression parameter, so remove it.
-              // the extra copy may not be absolutely needed, but this only happens when a new
-              // virtual field is added to the index, and this keeps the code thread safe.
-              scriptParams = new HashMap<>(params);
-              scriptParams.remove("bindings");
-            } else {
-              fieldBindings = docLookup.getIndexState().getExpressionBindings();
-              scriptParams = params;
-            }
-            return expr.getDoubleValuesSource(new JsScriptBindings(fieldBindings, scriptParams));
-          });
-
-      return context.factoryClazz.cast(factory);
-    }
-
-    if (context.equals(RuntimeScript.CONTEXT)) {
-      RuntimeScript.Factory runtimeFactory =
-          ((params, docLookup) -> {
-            Map<String, Object> scriptParams;
-            Bindings fieldBindings;
-            Object bindingsParam = params.get("bindings");
-            if (bindingsParam instanceof Bindings) {
-              fieldBindings = (Bindings) bindingsParam;
-
-              // we do not want the bindings to be used as an expression parameter, so remove it.
-              // the extra copy may not be absolutely needed, but this only happens when a new
-              // virtual field is added to the index, and this keeps the code thread safe.
-              scriptParams = new HashMap<>(params);
-              scriptParams.remove("bindings");
-            } else {
-              fieldBindings = docLookup.getIndexState().getExpressionBindings();
-              scriptParams = params;
-            }
-            // TODO: Support returning other typees.
-            return ValueSource.fromDoubleValuesSource(
-                expr.getDoubleValuesSource(new JsScriptBindings(fieldBindings, scriptParams)));
-          });
-      return context.factoryClazz.cast(runtimeFactory);
-    }
-    return null;
+            // we do not want the bindings to be used as an expression parameter, so remove it.
+            // the extra copy may not be absolutely needed, but this only happens when a new
+            // virtual field is added to the index, and this keeps the code thread safe.
+            scriptParams = new HashMap<>(params);
+            scriptParams.remove("bindings");
+          } else {
+            fieldBindings = docLookup.getIndexState().getExpressionBindings();
+            scriptParams = params;
+          }
+          return expr.getDoubleValuesSource(new JsScriptBindings(fieldBindings, scriptParams));
+        });
+    return context.factoryClazz.cast(factory);
   }
 }
