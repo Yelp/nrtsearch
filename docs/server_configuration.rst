@@ -165,6 +165,35 @@ Example server configuration
      - Size of ReplicationServer threadpool executor
      - numCPUs + 1
 
+.. list-table:: `Alternative Max Threads Config <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.max*Threads.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - min
+     - int
+     - Minimum number of threads
+     - 1
+
+   * - max
+     - int
+     - Maximum number of threads
+     - INT_MAX
+
+   * - multiplier
+     - float
+     - Multiplier in threads formula: (numCPUs * multiplier) + offset
+     - 1.0
+
+   * - offset
+     - int
+     - Offset in threads formula: (numCPUs * multiplier) + offset
+     - 0
+
 .. list-table:: `Warmer Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/luceneserver/warming/WarmerConfig.java>`_ (``warmer.*``)
    :widths: 25 10 50 25
    :header-rows: 1
