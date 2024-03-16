@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.config;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yelp.nrtsearch.server.utils.JsonUtils;
 import java.util.Map;
 
 /** Configuration for various ThreadPool Settings used in nrtsearch */
@@ -42,8 +42,6 @@ public class ThreadPoolConfiguration {
       DEFAULT_MAX_INDEXING_THREADS;
   private static final int DEFAULT_MAX_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS =
       DEFAULT_MAX_INDEXING_BUFFERED_ITEMS;
-
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   public static final int DEFAULT_MIN_PARALLEL_FETCH_NUM_FIELDS = 20;
   public static final int DEFAULT_MIN_PARALLEL_FETCH_NUM_HITS = 50;
@@ -164,7 +162,7 @@ public class ThreadPoolConfiguration {
           if (obj instanceof Number) {
             return ((Number) obj).intValue();
           } else if (obj instanceof Map) {
-            return OBJECT_MAPPER.convertValue(obj, ThreadsConfig.class).computeNumThreads();
+            return JsonUtils.convertValue(obj, ThreadsConfig.class).computeNumThreads();
           } else {
             throw new IllegalArgumentException(
                 "Invalid thread pool config type: " + obj.getClass() + ", key: " + key);
