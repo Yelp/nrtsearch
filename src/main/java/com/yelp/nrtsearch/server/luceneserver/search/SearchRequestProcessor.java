@@ -258,9 +258,9 @@ public class SearchRequestProcessor {
       RuntimeScript.Factory factory =
           ScriptService.getInstance().compile(vf.getScript(), RuntimeScript.CONTEXT);
       Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
-      RuntimeScript.SegmentFactory segmentFactory = factory.newFactory(params, indexState.docLookup);
-      FieldDef runtimeField =
-          new RuntimeFieldDef(vf.getName(), segmentFactory);
+      RuntimeScript.SegmentFactory segmentFactory =
+          factory.newFactory(params, indexState.docLookup);
+      FieldDef runtimeField = new RuntimeFieldDef(vf.getName(), segmentFactory);
       runtimeFields.put(vf.getName(), runtimeField);
     }
     return runtimeFields;
@@ -309,12 +309,12 @@ public class SearchRequestProcessor {
    * @param queryFields mutable current map of query fields
    * @throws IllegalArgumentException if any index field already exists
    */
-  private static void addToQueryFields(Map<String, FieldDef> queryFields, Map<String, FieldDef> otherFields) {
+  private static void addToQueryFields(
+      Map<String, FieldDef> queryFields, Map<String, FieldDef> otherFields) {
     for (String key : otherFields.keySet()) {
       FieldDef current = queryFields.put(key, otherFields.get(key));
       if (current != null) {
-        throw new IllegalArgumentException(
-            "QueryFields: " + key + " specified multiple times");
+        throw new IllegalArgumentException("QueryFields: " + key + " specified multiple times");
       }
     }
   }

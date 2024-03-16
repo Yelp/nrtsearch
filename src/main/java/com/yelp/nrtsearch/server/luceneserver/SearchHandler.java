@@ -15,8 +15,11 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.protobuf.Struct;
+import com.google.protobuf.Struct.Builder;
+import com.google.protobuf.Value;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
@@ -991,11 +994,97 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           } else if (obj instanceof Integer) {
             compositeFieldValue.addFieldValue(
                 SearchResponse.Hit.FieldValue.newBuilder().setIntValue((Integer) obj));
+          } else if (obj instanceof Map) {
+            compositeFieldValue.addFieldValue(
+                SearchResponse.Hit.FieldValue.newBuilder()
+                    .setStructValue(createStruct((Map<String, Object>) obj)));
+          } else if (obj instanceof Boolean) {
+            compositeFieldValue.addFieldValue(
+                SearchResponse.Hit.FieldValue.newBuilder().setBooleanValue((Boolean) obj));
+          } else if (obj instanceof ArrayList) {
+            SearchResponse.Hit.FieldValue.Builder fieldValueBuilder =
+                SearchResponse.Hit.FieldValue.newBuilder();
+            SearchResponse.Hit.FieldValue.RepeatedFieldValues.Builder repeatedFieldValuesBuilder =
+                SearchResponse.Hit.FieldValue.RepeatedFieldValues.newBuilder();
+            generateRepeatedFields(repeatedFieldValuesBuilder, obj);
+            fieldValueBuilder.setRepeatedFieldValues(repeatedFieldValuesBuilder);
+            compositeFieldValue.addFieldValue(fieldValueBuilder);
           }
-          // TODO: Add support for list and map.
           hit.putFields(name, compositeFieldValue.build());
         }
       }
+    }
+
+    /**
+     * Generates list fields for all types except for lists.
+     *
+     * <p>TODO: Support list of lists.
+     *
+     * @param repeatedFieldValuesBuilder The builder for repeated field value in the search
+     *     response.
+     * @param objs Runtime field objects that are supposed to be list.
+     */
+    private static void generateRepeatedFields(
+        SearchResponse.Hit.FieldValue.RepeatedFieldValues.Builder repeatedFieldValuesBuilder,
+        Object objs) {
+      List<Struct> structObjs = new ArrayList<>();
+      for (Object obj : (Iterable<? extends Object>) objs) {
+        if (obj instanceof String) {
+          repeatedFieldValuesBuilder.addAllTextValues((Iterable<String>) objs);
+          return;
+        } else if (obj instanceof Integer) {
+          repeatedFieldValuesBuilder.addAllIntValues((Iterable<Integer>) objs);
+          return;
+        } else if (obj instanceof Double) {
+          repeatedFieldValuesBuilder.addAllDoubleValues((Iterable<Double>) objs);
+          return;
+        } else if (obj instanceof Float) {
+          repeatedFieldValuesBuilder.addAllFloatValues((Iterable<Float>) objs);
+          return;
+        } else if (obj instanceof Long) {
+          repeatedFieldValuesBuilder.addAllLongValues((Iterable<Long>) objs);
+          return;
+        } else if (obj instanceof Boolean) {
+          repeatedFieldValuesBuilder.addAllBooleanValues((Iterable<Boolean>) objs);
+          return;
+        } else if (obj instanceof Map) {
+          structObjs.add(createStruct((Map<String, Object>) obj));
+        } else {
+          return;
+        }
+      }
+
+      // Construct repeated structs.
+      if (Iterables.size(structObjs) > 0) {
+        repeatedFieldValuesBuilder.addAllStructValues(structObjs);
+      }
+    }
+
+    /**
+     * Create a struct for the given map based on object value type
+     *
+     * @param map The given map
+     * @return Struct The protobuf representation of the map using a struct object.
+     */
+    private static Struct createStruct(Map<String, Object> map) {
+      Builder struct = Struct.newBuilder();
+      for (Map.Entry<String, Object> entry : map.entrySet()) {
+        if (entry.getValue() instanceof Number) {
+          struct.putFields(
+              entry.getKey(),
+              Value.newBuilder().setNumberValue(((Number) entry.getValue()).doubleValue()).build());
+        } else if (entry.getValue() instanceof String) {
+          struct.putFields(
+              entry.getKey(), Value.newBuilder().setStringValue((String) entry.getValue()).build());
+        } else if (entry.getValue() instanceof Map) {
+          struct.putFields(
+              entry.getKey(),
+              Value.newBuilder()
+                  .setStructValue(createStruct((Map<String, Object>) entry.getValue()))
+                  .build());
+        }
+      }
+      return struct.build();
     }
 
     /** Fetch field value from its doc value */

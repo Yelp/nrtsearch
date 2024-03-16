@@ -21,10 +21,7 @@ import com.yelp.nrtsearch.server.luceneserver.doc.SegmentDocLookup;
 import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript.SegmentFactory;
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.function.FunctionValues;
-import org.apache.lucene.queries.function.ValueSource;
 
 /**
  * Script to produce a value for a given document. Implementations must have an execute function.
@@ -101,9 +98,7 @@ public abstract class RuntimeScript {
     SegmentFactory newFactory(Map<String, Object> params, DocLookup docLookup);
   }
 
-
   // compile context for the RuntimeScript, contains script type info
   public static final ScriptContext<Factory> CONTEXT =
-      new ScriptContext<>(
-          "runtime", Factory.class, SegmentFactory.class, RuntimeScript.class);
+      new ScriptContext<>("runtime", Factory.class, SegmentFactory.class, RuntimeScript.class);
 }
