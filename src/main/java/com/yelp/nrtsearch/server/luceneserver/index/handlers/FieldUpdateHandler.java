@@ -23,11 +23,9 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.index.FieldAndFacetState;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
-import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
@@ -125,7 +123,6 @@ public class FieldUpdateHandler {
       newFields.put(field.getName(), field);
     }
 
-
     return new UpdatedFieldInfo(newFields, fieldStateBuilder.build());
   }
 
@@ -205,5 +202,4 @@ public class FieldUpdateHandler {
     fieldStateBuilder.addField(virtualFieldDef, field);
     logger.info("REGISTER: " + virtualFieldDef.getName() + " -> " + virtualFieldDef);
   }
-
 }
