@@ -43,11 +43,13 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class ReplicationServerTest {
   private static final String BUCKET_NAME = "archiver-unittest";
+
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
    * end of test.
    */
   @Rule public final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
   /**
    * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
    */

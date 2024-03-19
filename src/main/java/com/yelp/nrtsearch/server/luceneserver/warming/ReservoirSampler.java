@@ -29,7 +29,9 @@ public class ReservoirSampler {
   private final long maxQueries;
   private final AtomicLong numQueries;
 
-  /** @param maxQueries Maximum number of warming queries. */
+  /**
+   * @param maxQueries Maximum number of warming queries.
+   */
   public ReservoirSampler(long maxQueries) {
     this.maxQueries = maxQueries;
     this.numQueries = new AtomicLong(0);

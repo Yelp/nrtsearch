@@ -41,7 +41,8 @@ public class ReplicationServerClient implements Closeable {
   public static final int FILE_UPDATE_INTERVAL_MS = 10 * 1000; // 10 seconds
 
   private static final ObjectMapper OBJECT_MAPPER =
-      new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);;
+      new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+  ;
   private static final Logger logger = LoggerFactory.getLogger(ReplicationServerClient.class);
 
   private final String host;

@@ -490,7 +490,9 @@ public class LuceneServerClient implements Closeable {
   }
 
   public List<String> getIndices() {
-    return blockingStub.indices(IndicesRequest.newBuilder().build()).getIndicesResponseList()
+    return blockingStub
+        .indices(IndicesRequest.newBuilder().build())
+        .getIndicesResponseList()
         .stream()
         .map(IndexStatsResponse::getIndexName)
         .collect(Collectors.toList());

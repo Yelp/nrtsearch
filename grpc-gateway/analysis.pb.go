@@ -281,6 +281,7 @@ type Analyzer struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to AnalyzerType:
+	//
 	//	*Analyzer_Predefined
 	//	*Analyzer_Custom
 	AnalyzerType isAnalyzer_AnalyzerType `protobuf_oneof:"AnalyzerType"`

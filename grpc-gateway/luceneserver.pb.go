@@ -32,7 +32,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-//Type of the field
+// Type of the field
 type FieldType int32
 
 const (
@@ -127,7 +127,7 @@ func (FieldType) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{0}
 }
 
-//How the tokens should be indexed.
+// How the tokens should be indexed.
 type IndexOptions int32
 
 const (
@@ -180,7 +180,7 @@ func (IndexOptions) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{1}
 }
 
-//Whether/how term vectors should be indexed.
+// Whether/how term vectors should be indexed.
 type TermVectors int32
 
 const (
@@ -236,7 +236,7 @@ func (TermVectors) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{2}
 }
 
-//Whether/How this field should index facets, and how.
+// Whether/How this field should index facets, and how.
 type FacetType int32
 
 const (
@@ -633,31 +633,31 @@ type LiveSettingsRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	IndexName string `protobuf:"bytes,1,opt,name=indexName,proto3" json:"indexName,omitempty"` // name of index whose liveSettings are to be updated.
-	//Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen).
+	// Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen).
 	MaxRefreshSec float64 `protobuf:"fixed64,2,opt,name=maxRefreshSec,proto3" json:"maxRefreshSec,omitempty"`
-	//Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen).
+	// Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen).
 	MinRefreshSec float64 `protobuf:"fixed64,3,opt,name=minRefreshSec,proto3" json:"minRefreshSec,omitempty"`
-	//Non-current searchers older than this are pruned.
+	// Non-current searchers older than this are pruned.
 	MaxSearcherAgeSec float64 `protobuf:"fixed64,4,opt,name=maxSearcherAgeSec,proto3" json:"maxSearcherAgeSec,omitempty"`
-	//Size (in MB) of IndexWriter's RAM buffer.
+	// Size (in MB) of IndexWriter's RAM buffer.
 	IndexRamBufferSizeMB float64 `protobuf:"fixed64,5,opt,name=indexRamBufferSizeMB,proto3" json:"indexRamBufferSizeMB,omitempty"`
-	//Max number of documents to add at a time.
+	// Max number of documents to add at a time.
 	AddDocumentsMaxBufferLen int32 `protobuf:"varint,6,opt,name=addDocumentsMaxBufferLen,proto3" json:"addDocumentsMaxBufferLen,omitempty"`
-	//Maximum number of documents allowed in a parallel search slice.
+	// Maximum number of documents allowed in a parallel search slice.
 	SliceMaxDocs int32 `protobuf:"varint,7,opt,name=sliceMaxDocs,proto3" json:"sliceMaxDocs,omitempty"`
-	//Maximum number of segments allowed in a parallel search slice.
+	// Maximum number of segments allowed in a parallel search slice.
 	SliceMaxSegments int32 `protobuf:"varint,8,opt,name=sliceMaxSegments,proto3" json:"sliceMaxSegments,omitempty"`
-	//Number of virtual shards to use for this index.
+	// Number of virtual shards to use for this index.
 	VirtualShards int32 `protobuf:"varint,9,opt,name=virtualShards,proto3" json:"virtualShards,omitempty"`
-	//Maximum sized segment to produce during normal merging
+	// Maximum sized segment to produce during normal merging
 	MaxMergedSegmentMB int32 `protobuf:"varint,10,opt,name=maxMergedSegmentMB,proto3" json:"maxMergedSegmentMB,omitempty"`
-	//Number of segments per tier used by TieredMergePolicy
+	// Number of segments per tier used by TieredMergePolicy
 	SegmentsPerTier int32 `protobuf:"varint,11,opt,name=segmentsPerTier,proto3" json:"segmentsPerTier,omitempty"`
-	//Timeout value to used when not specified in the search request.
+	// Timeout value to used when not specified in the search request.
 	DefaultSearchTimeoutSec float64 `protobuf:"fixed64,12,opt,name=defaultSearchTimeoutSec,proto3" json:"defaultSearchTimeoutSec,omitempty"`
-	//Timeout check every value to use when not specified in the search request.
+	// Timeout check every value to use when not specified in the search request.
 	DefaultSearchTimeoutCheckEvery int32 `protobuf:"varint,13,opt,name=defaultSearchTimeoutCheckEvery,proto3" json:"defaultSearchTimeoutCheckEvery,omitempty"`
-	//Terminate after value to use when not specified in the search request.
+	// Terminate after value to use when not specified in the search request.
 	DefaultTerminateAfter int32 `protobuf:"varint,14,opt,name=defaultTerminateAfter,proto3" json:"defaultTerminateAfter,omitempty"`
 }
 
@@ -975,12 +975,12 @@ type Field struct {
 	DocValuesFormat string       `protobuf:"bytes,14,opt,name=docValuesFormat,proto3" json:"docValuesFormat,omitempty"`                           // Which DocValuesFormat should be used to index this field.
 	IndexOptions    IndexOptions `protobuf:"varint,15,opt,name=indexOptions,proto3,enum=luceneserver.IndexOptions" json:"indexOptions,omitempty"` //How the tokens should be indexed.
 	Script          *Script      `protobuf:"bytes,16,opt,name=script,proto3" json:"script,omitempty"`                                             // The script definition defining a virtual field's value (only used with type=virtual).
-	//TODO make analyzers message types i.e. StandardAnalyzer, EnglishAnalyzer, CustomAnalyzer etc
+	// TODO make analyzers message types i.e. StandardAnalyzer, EnglishAnalyzer, CustomAnalyzer etc
 	Analyzer       *Analyzer   `protobuf:"bytes,17,opt,name=analyzer,proto3" json:"analyzer,omitempty"`                                      // Analyzer to use for this field during indexing and searching.
 	IndexAnalyzer  *Analyzer   `protobuf:"bytes,18,opt,name=indexAnalyzer,proto3" json:"indexAnalyzer,omitempty"`                            // Analyzer to use for this field during indexing.
 	SearchAnalyzer *Analyzer   `protobuf:"bytes,19,opt,name=searchAnalyzer,proto3" json:"searchAnalyzer,omitempty"`                          //Analyzer to use for this field during searching.
 	TermVectors    TermVectors `protobuf:"varint,20,opt,name=termVectors,proto3,enum=luceneserver.TermVectors" json:"termVectors,omitempty"` // Whether/how term vectors should be indexed.
-	//TODO make similarity message types i.d. DefaultSimilarity, CustomSimilarity, BM25Similarity;
+	// TODO make similarity message types i.d. DefaultSimilarity, CustomSimilarity, BM25Similarity;
 	Similarity           string           `protobuf:"bytes,21,opt,name=similarity,proto3" json:"similarity,omitempty"`                     // Which Similarity implementation to use for this field.
 	Facet                FacetType        `protobuf:"varint,22,opt,name=facet,proto3,enum=luceneserver.FacetType" json:"facet,omitempty"`  // Whether this field should index facets, and how.
 	FacetIndexFieldName  string           `protobuf:"bytes,23,opt,name=facetIndexFieldName,proto3" json:"facetIndexFieldName,omitempty"`   // "Which underlying Lucene index field is used to hold any indexed taxonomy or sorted set doc values facets
@@ -2146,8 +2146,9 @@ type CommitResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	//  sequence number of the last operation in the commit.  All sequence numbers less than this value
-	//will be reflected in the commit, and all others will not.
+	//	sequence number of the last operation in the commit.  All sequence numbers less than this value
+	//
+	// will be reflected in the commit, and all others will not.
 	Gen int64 `protobuf:"varint,1,opt,name=gen,proto3" json:"gen,omitempty"`
 	// Unique identifier for the primary instance that processed the request
 	PrimaryId string `protobuf:"bytes,2,opt,name=primaryId,proto3" json:"primaryId,omitempty"`
@@ -2253,9 +2254,9 @@ type StatsResponse struct {
 
 	Ord int32 `protobuf:"varint,1,opt,name=ord,proto3" json:"ord,omitempty"` //shard ordinal
 	// The total number of docs in this index, including docs not yet flushed (still in the RAM buffer),
-	//not counting deletions.
+	// not counting deletions.
 	MaxDoc int32 `protobuf:"varint,2,opt,name=maxDoc,proto3" json:"maxDoc,omitempty"`
-	//*
+	// *
 	// The total number of docs in this index, including
 	// docs not yet flushed (still in the RAM buffer), and
 	// including deletions. NOTE: buffered deletions
@@ -2418,7 +2419,7 @@ type Searcher struct {
 	unknownFields protoimpl.UnknownFields
 
 	// the version recorded in the commit that the reader opened.
-	//This version is advanced every time a change is made with IndexWriter.
+	// This version is advanced every time a change is made with IndexWriter.
 	Version         int64   `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 	NumDocs         int32   `protobuf:"varint,2,opt,name=numDocs,proto3" json:"numDocs,omitempty"`                  //total number of docs in this index
 	Segments        string  `protobuf:"bytes,3,opt,name=segments,proto3" json:"segments,omitempty"`                 //string representation of segments
@@ -2851,21 +2852,20 @@ func (*ReloadStateResponse) Descriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_luceneserver_proto_rawDescGZIP(), []int{34}
 }
 
-//
-//Creates a snapshot in the index, which is saved point-in-time view of the last commit in the
-//index such that no files referenced by that snapshot will be deleted by ongoing indexing until
-//the snapshot is released with @releaseSnapshot.  Note that this will reference the last commit,
-//so be sure to call commit first if you have pending changes that you'd like to be included in
-//the snapshot.<p>This can be used for backup purposes, i.e. after creating the snapshot you can
-//copy all referenced files to backup storage, and then release the snapshot once complete.
-//To restore the backup, just copy all the files back and restart the server.  It can also
-//be used for transactional purposes, i.e. if you sometimes need to search a specific snapshot
-//instead of the current live index.<p>Creating a snapshot is very fast (does not require any
-//file copying), but over time it will consume extra disk space as old segments are merged in
-//the index.  Be sure to release the snapshot once you're done.  Snapshots survive shutdown
-//and restart of the server.  Returns all protected filenames referenced by this snapshot:
-//these files will not change and will not be deleted until the snapshot is released.
-//This returns the directories and files referenced by the snapshot.
+// Creates a snapshot in the index, which is saved point-in-time view of the last commit in the
+// index such that no files referenced by that snapshot will be deleted by ongoing indexing until
+// the snapshot is released with @releaseSnapshot.  Note that this will reference the last commit,
+// so be sure to call commit first if you have pending changes that you'd like to be included in
+// the snapshot.<p>This can be used for backup purposes, i.e. after creating the snapshot you can
+// copy all referenced files to backup storage, and then release the snapshot once complete.
+// To restore the backup, just copy all the files back and restart the server.  It can also
+// be used for transactional purposes, i.e. if you sometimes need to search a specific snapshot
+// instead of the current live index.<p>Creating a snapshot is very fast (does not require any
+// file copying), but over time it will consume extra disk space as old segments are merged in
+// the index.  Be sure to release the snapshot once you're done.  Snapshots survive shutdown
+// and restart of the server.  Returns all protected filenames referenced by this snapshot:
+// these files will not change and will not be deleted until the snapshot is released.
+// This returns the directories and files referenced by the snapshot.
 type CreateSnapshotRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -4313,7 +4313,7 @@ func (x *FileMetadata) GetFooter() []byte {
 	return nil
 }
 
-//* Primary invokes this on a replica to ask it to copy files
+// * Primary invokes this on a replica to ask it to copy files
 type CopyFiles struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -4385,7 +4385,7 @@ func (x *CopyFiles) GetFilesMetadata() *FilesMetadata {
 	return nil
 }
 
-//* Replica invokes this on a primary to let primary know it needs the CopyState
+// * Replica invokes this on a primary to let primary know it needs the CopyState
 type CopyStateRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -6043,14 +6043,14 @@ func (x *CustomResponse) GetResponse() map[string]string {
 	return nil
 }
 
-//we use this wrapper object to represent each field as a multivalued field.
+// we use this wrapper object to represent each field as a multivalued field.
 type AddDocumentRequest_MultiValuedField struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	Value []string `protobuf:"bytes,1,rep,name=value,proto3" json:"value,omitempty"` //list of values for this field
-	//Facet paths/hierarchy to bucket these values by, if indexed field is of type Facet.HIERARCHY
+	// Facet paths/hierarchy to bucket these values by, if indexed field is of type Facet.HIERARCHY
 	FaceHierarchyPaths []*FacetHierarchyPath `protobuf:"bytes,2,rep,name=faceHierarchyPaths,proto3" json:"faceHierarchyPaths,omitempty"`
 }
 
@@ -8748,20 +8748,20 @@ type LuceneServerClient interface {
 	// Change global offline or online settings for this index.
 	LiveSettingsV2(ctx context.Context, in *LiveSettingsV2Request, opts ...grpc.CallOption) (*LiveSettingsV2Response, error)
 	// Registers one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).
-	//Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
-	//and once a field is registered it cannot be changed (write-once).
-	//This returns the full set of fields currently registered.
+	// Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
+	// and once a field is registered it cannot be changed (write-once).
+	// This returns the full set of fields currently registered.
 	RegisterFields(ctx context.Context, in *FieldDefRequest, opts ...grpc.CallOption) (*FieldDefResponse, error)
 	// Adds one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).
-	//Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
-	//and once a field is registered it cannot be changed (write-once).
-	//This returns the full set of fields currently registered.
+	// Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
+	// and once a field is registered it cannot be changed (write-once).
+	// This returns the full set of fields currently registered.
 	UpdateFields(ctx context.Context, in *FieldDefRequest, opts ...grpc.CallOption) (*FieldDefResponse, error)
 	// Change global offline settings for this index.
-	//This returns the currently set settings; pass no settings changes to retrieve current settings.
+	// This returns the currently set settings; pass no settings changes to retrieve current settings.
 	Settings(ctx context.Context, in *SettingsRequest, opts ...grpc.CallOption) (*SettingsResponse, error)
 	// Change global offline settings for this index.
-	//This returns the currently set settings; pass no settings to retrieve current settings.
+	// This returns the currently set settings; pass no settings to retrieve current settings.
 	SettingsV2(ctx context.Context, in *SettingsV2Request, opts ...grpc.CallOption) (*SettingsV2Response, error)
 	// Starts an index
 	StartIndex(ctx context.Context, in *StartIndexRequest, opts ...grpc.CallOption) (*StartIndexResponse, error)
@@ -8797,22 +8797,21 @@ type LuceneServerClient interface {
 	SuggestLookup(ctx context.Context, in *SuggestLookupRequest, opts ...grpc.CallOption) (*SuggestLookupResponse, error)
 	// Updates existing suggestions, if the suggester supports near-real-time changes.
 	UpdateSuggest(ctx context.Context, in *BuildSuggestRequest, opts ...grpc.CallOption) (*BuildSuggestResponse, error)
-	//
-	//Creates a snapshot in the index, which is saved point-in-time view of the last commit
-	//in the index such that no files referenced by that snapshot will be deleted by ongoing
-	//indexing until the snapshot is released with @releaseSnapshot.  Note that this will
-	//reference the last commit, so be sure to call commit first if you have pending changes
-	//that you'd like to be included in the snapshot.
-	//This can be used for backup purposes, i.e. after creating the snapshot you can copy
-	//all referenced files to backup storage, and then release the snapshot once complete.
-	//To restore the backup, just copy all the files back and restart the server.
-	//It can also be used for transactional purposes, i.e. if you sometimes need to search a
-	//specific snapshot instead of the current live index. Creating a snapshot is very fast
-	//(does not require any file copying), but over time it will consume extra disk space as
-	//old segments are merged in the index.  Be sure to release the snapshot once you're done.
-	//Snapshots survive shutdown and restart of the server.  Returns all protected filenames
-	//referenced by this snapshot: these files will not change and will not be deleted until
-	//the snapshot is released.  This returns the directories and files referenced by the snapshot.
+	// Creates a snapshot in the index, which is saved point-in-time view of the last commit
+	// in the index such that no files referenced by that snapshot will be deleted by ongoing
+	// indexing until the snapshot is released with @releaseSnapshot.  Note that this will
+	// reference the last commit, so be sure to call commit first if you have pending changes
+	// that you'd like to be included in the snapshot.
+	// This can be used for backup purposes, i.e. after creating the snapshot you can copy
+	// all referenced files to backup storage, and then release the snapshot once complete.
+	// To restore the backup, just copy all the files back and restart the server.
+	// It can also be used for transactional purposes, i.e. if you sometimes need to search a
+	// specific snapshot instead of the current live index. Creating a snapshot is very fast
+	// (does not require any file copying), but over time it will consume extra disk space as
+	// old segments are merged in the index.  Be sure to release the snapshot once you're done.
+	// Snapshots survive shutdown and restart of the server.  Returns all protected filenames
+	// referenced by this snapshot: these files will not change and will not be deleted until
+	// the snapshot is released.  This returns the directories and files referenced by the snapshot.
 	CreateSnapshot(ctx context.Context, in *CreateSnapshotRequest, opts ...grpc.CallOption) (*CreateSnapshotResponse, error)
 	// releases a snapshot previously created with @createSnapshot.
 	ReleaseSnapshot(ctx context.Context, in *ReleaseSnapshotRequest, opts ...grpc.CallOption) (*ReleaseSnapshotResponse, error)
@@ -8827,30 +8826,26 @@ type LuceneServerClient interface {
 	State(ctx context.Context, in *StateRequest, opts ...grpc.CallOption) (*StateResponse, error)
 	// healthcheck
 	Status(ctx context.Context, in *HealthCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
-	//
-	//Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)
-	//are started. Can specify comma-separated list of index name to only check specific indices if needed.
+	// Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)
+	// are started. Can specify comma-separated list of index name to only check specific indices if needed.
 	Ready(ctx context.Context, in *ReadyCheckRequest, opts ...grpc.CallOption) (*HealthCheckResponse, error)
 	// metrics
 	Metrics(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*httpbody.HttpBody, error)
 	// indices
 	Indices(ctx context.Context, in *IndicesRequest, opts ...grpc.CallOption) (*IndicesResponse, error)
-	//
-	//Forces merge policy to merge segments until there are <= maxNumSegments. The actual
-	//merges to be executed are determined by the MergePolicy. This call will merge those
-	//segments present in the index when the call started. If other threads are still
-	//adding documents and flushing segments, those newly created segments will not be
-	//merged unless you call forceMerge again.
+	// Forces merge policy to merge segments until there are <= maxNumSegments. The actual
+	// merges to be executed are determined by the MergePolicy. This call will merge those
+	// segments present in the index when the call started. If other threads are still
+	// adding documents and flushing segments, those newly created segments will not be
+	// merged unless you call forceMerge again.
 	ForceMerge(ctx context.Context, in *ForceMergeRequest, opts ...grpc.CallOption) (*ForceMergeResponse, error)
-	//
-	//Forces merging of all segments that have deleted documents. The actual merges to be
-	//executed are determined by the MergePolicy. For example, the default TieredMergePolicy
-	//will only pick a segment if the percentage of deleted docs is over 10%.
-	//This method first flushes a new segment (if there are indexed documents), and applies
-	//all buffered deletes.
+	// Forces merging of all segments that have deleted documents. The actual merges to be
+	// executed are determined by the MergePolicy. For example, the default TieredMergePolicy
+	// will only pick a segment if the percentage of deleted docs is over 10%.
+	// This method first flushes a new segment (if there are indexed documents), and applies
+	// all buffered deletes.
 	ForceMergeDeletes(ctx context.Context, in *ForceMergeDeletesRequest, opts ...grpc.CallOption) (*ForceMergeDeletesResponse, error)
-	//
-	//Process request in a plugin which implements CustomRequestPlugin interface.
+	// Process request in a plugin which implements CustomRequestPlugin interface.
 	Custom(ctx context.Context, in *CustomRequest, opts ...grpc.CallOption) (*CustomResponse, error)
 }
 
@@ -9238,20 +9233,20 @@ type LuceneServerServer interface {
 	// Change global offline or online settings for this index.
 	LiveSettingsV2(context.Context, *LiveSettingsV2Request) (*LiveSettingsV2Response, error)
 	// Registers one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).
-	//Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
-	//and once a field is registered it cannot be changed (write-once).
-	//This returns the full set of fields currently registered.
+	// Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
+	// and once a field is registered it cannot be changed (write-once).
+	// This returns the full set of fields currently registered.
 	RegisterFields(context.Context, *FieldDefRequest) (*FieldDefResponse, error)
 	// Adds one or more fields.  Fields must be registered before they can be added in a document (via @addDocument).
-	//Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
-	//and once a field is registered it cannot be changed (write-once).
-	//This returns the full set of fields currently registered.
+	// Pass a list of Fields and an indexName. Any number of fields may be registered in a single request,
+	// and once a field is registered it cannot be changed (write-once).
+	// This returns the full set of fields currently registered.
 	UpdateFields(context.Context, *FieldDefRequest) (*FieldDefResponse, error)
 	// Change global offline settings for this index.
-	//This returns the currently set settings; pass no settings changes to retrieve current settings.
+	// This returns the currently set settings; pass no settings changes to retrieve current settings.
 	Settings(context.Context, *SettingsRequest) (*SettingsResponse, error)
 	// Change global offline settings for this index.
-	//This returns the currently set settings; pass no settings to retrieve current settings.
+	// This returns the currently set settings; pass no settings to retrieve current settings.
 	SettingsV2(context.Context, *SettingsV2Request) (*SettingsV2Response, error)
 	// Starts an index
 	StartIndex(context.Context, *StartIndexRequest) (*StartIndexResponse, error)
@@ -9287,22 +9282,21 @@ type LuceneServerServer interface {
 	SuggestLookup(context.Context, *SuggestLookupRequest) (*SuggestLookupResponse, error)
 	// Updates existing suggestions, if the suggester supports near-real-time changes.
 	UpdateSuggest(context.Context, *BuildSuggestRequest) (*BuildSuggestResponse, error)
-	//
-	//Creates a snapshot in the index, which is saved point-in-time view of the last commit
-	//in the index such that no files referenced by that snapshot will be deleted by ongoing
-	//indexing until the snapshot is released with @releaseSnapshot.  Note that this will
-	//reference the last commit, so be sure to call commit first if you have pending changes
-	//that you'd like to be included in the snapshot.
-	//This can be used for backup purposes, i.e. after creating the snapshot you can copy
-	//all referenced files to backup storage, and then release the snapshot once complete.
-	//To restore the backup, just copy all the files back and restart the server.
-	//It can also be used for transactional purposes, i.e. if you sometimes need to search a
-	//specific snapshot instead of the current live index. Creating a snapshot is very fast
-	//(does not require any file copying), but over time it will consume extra disk space as
-	//old segments are merged in the index.  Be sure to release the snapshot once you're done.
-	//Snapshots survive shutdown and restart of the server.  Returns all protected filenames
-	//referenced by this snapshot: these files will not change and will not be deleted until
-	//the snapshot is released.  This returns the directories and files referenced by the snapshot.
+	// Creates a snapshot in the index, which is saved point-in-time view of the last commit
+	// in the index such that no files referenced by that snapshot will be deleted by ongoing
+	// indexing until the snapshot is released with @releaseSnapshot.  Note that this will
+	// reference the last commit, so be sure to call commit first if you have pending changes
+	// that you'd like to be included in the snapshot.
+	// This can be used for backup purposes, i.e. after creating the snapshot you can copy
+	// all referenced files to backup storage, and then release the snapshot once complete.
+	// To restore the backup, just copy all the files back and restart the server.
+	// It can also be used for transactional purposes, i.e. if you sometimes need to search a
+	// specific snapshot instead of the current live index. Creating a snapshot is very fast
+	// (does not require any file copying), but over time it will consume extra disk space as
+	// old segments are merged in the index.  Be sure to release the snapshot once you're done.
+	// Snapshots survive shutdown and restart of the server.  Returns all protected filenames
+	// referenced by this snapshot: these files will not change and will not be deleted until
+	// the snapshot is released.  This returns the directories and files referenced by the snapshot.
 	CreateSnapshot(context.Context, *CreateSnapshotRequest) (*CreateSnapshotResponse, error)
 	// releases a snapshot previously created with @createSnapshot.
 	ReleaseSnapshot(context.Context, *ReleaseSnapshotRequest) (*ReleaseSnapshotResponse, error)
@@ -9317,30 +9311,26 @@ type LuceneServerServer interface {
 	State(context.Context, *StateRequest) (*StateResponse, error)
 	// healthcheck
 	Status(context.Context, *HealthCheckRequest) (*HealthCheckResponse, error)
-	//
-	//Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)
-	//are started. Can specify comma-separated list of index name to only check specific indices if needed.
+	// Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)
+	// are started. Can specify comma-separated list of index name to only check specific indices if needed.
 	Ready(context.Context, *ReadyCheckRequest) (*HealthCheckResponse, error)
 	// metrics
 	Metrics(context.Context, *emptypb.Empty) (*httpbody.HttpBody, error)
 	// indices
 	Indices(context.Context, *IndicesRequest) (*IndicesResponse, error)
-	//
-	//Forces merge policy to merge segments until there are <= maxNumSegments. The actual
-	//merges to be executed are determined by the MergePolicy. This call will merge those
-	//segments present in the index when the call started. If other threads are still
-	//adding documents and flushing segments, those newly created segments will not be
-	//merged unless you call forceMerge again.
+	// Forces merge policy to merge segments until there are <= maxNumSegments. The actual
+	// merges to be executed are determined by the MergePolicy. This call will merge those
+	// segments present in the index when the call started. If other threads are still
+	// adding documents and flushing segments, those newly created segments will not be
+	// merged unless you call forceMerge again.
 	ForceMerge(context.Context, *ForceMergeRequest) (*ForceMergeResponse, error)
-	//
-	//Forces merging of all segments that have deleted documents. The actual merges to be
-	//executed are determined by the MergePolicy. For example, the default TieredMergePolicy
-	//will only pick a segment if the percentage of deleted docs is over 10%.
-	//This method first flushes a new segment (if there are indexed documents), and applies
-	//all buffered deletes.
+	// Forces merging of all segments that have deleted documents. The actual merges to be
+	// executed are determined by the MergePolicy. For example, the default TieredMergePolicy
+	// will only pick a segment if the percentage of deleted docs is over 10%.
+	// This method first flushes a new segment (if there are indexed documents), and applies
+	// all buffered deletes.
 	ForceMergeDeletes(context.Context, *ForceMergeDeletesRequest) (*ForceMergeDeletesResponse, error)
-	//
-	//Process request in a plugin which implements CustomRequestPlugin interface.
+	// Process request in a plugin which implements CustomRequestPlugin interface.
 	Custom(context.Context, *CustomRequest) (*CustomResponse, error)
 }
 
@@ -10339,11 +10329,11 @@ type ReplicationServerClient interface {
 	CopyFiles(ctx context.Context, in *CopyFiles, opts ...grpc.CallOption) (ReplicationServer_CopyFilesClient, error)
 	// Invoked externally to replica, to notify it that a new NRT point was just created on the primary
 	NewNRTPoint(ctx context.Context, in *NewNRTPoint, opts ...grpc.CallOption) (*TransferStatus, error)
-	//* Invoked externally to primary, to make all recent index operations searchable on the primary and, once copying is done, on the replicas
+	// * Invoked externally to primary, to make all recent index operations searchable on the primary and, once copying is done, on the replicas
 	WriteNRTPoint(ctx context.Context, in *IndexName, opts ...grpc.CallOption) (*SearcherVersion, error)
-	//* Invoked externally to replica, to get the current Searcher version on replica.
+	// * Invoked externally to replica, to get the current Searcher version on replica.
 	GetCurrentSearcherVersion(ctx context.Context, in *IndexName, opts ...grpc.CallOption) (*SearcherVersion, error)
-	//* Invoked externally on primary to find the list of replica nodes this node is connected to for binary replication per index
+	// * Invoked externally on primary to find the list of replica nodes this node is connected to for binary replication per index
 	GetConnectedNodes(ctx context.Context, in *GetNodesRequest, opts ...grpc.CallOption) (*GetNodesResponse, error)
 }
 
@@ -10553,11 +10543,11 @@ type ReplicationServerServer interface {
 	CopyFiles(*CopyFiles, ReplicationServer_CopyFilesServer) error
 	// Invoked externally to replica, to notify it that a new NRT point was just created on the primary
 	NewNRTPoint(context.Context, *NewNRTPoint) (*TransferStatus, error)
-	//* Invoked externally to primary, to make all recent index operations searchable on the primary and, once copying is done, on the replicas
+	// * Invoked externally to primary, to make all recent index operations searchable on the primary and, once copying is done, on the replicas
 	WriteNRTPoint(context.Context, *IndexName) (*SearcherVersion, error)
-	//* Invoked externally to replica, to get the current Searcher version on replica.
+	// * Invoked externally to replica, to get the current Searcher version on replica.
 	GetCurrentSearcherVersion(context.Context, *IndexName) (*SearcherVersion, error)
-	//* Invoked externally on primary to find the list of replica nodes this node is connected to for binary replication per index
+	// * Invoked externally on primary to find the list of replica nodes this node is connected to for binary replication per index
 	GetConnectedNodes(context.Context, *GetNodesRequest) (*GetNodesResponse, error)
 }
 

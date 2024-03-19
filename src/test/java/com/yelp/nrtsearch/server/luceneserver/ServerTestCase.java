@@ -67,11 +67,13 @@ import org.junit.rules.TemporaryFolder;
  */
 public class ServerTestCase {
   public static final String DEFAULT_TEST_INDEX = "test_index";
+
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
    * end of test.
    */
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
   /**
    * This rule ensure the temporary folder which maintains indexes are cleaned up after each test
    */

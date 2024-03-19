@@ -50,6 +50,7 @@ public class MyContextQuery extends ContextQuery {
   private IntsRefBuilder scratch = new IntsRefBuilder();
   private Map<IntsRef, ContextMetaData> contexts;
   private boolean matchAllContexts = false;
+
   /** Inner completion query */
   protected CompletionQuery innerQuery;
 

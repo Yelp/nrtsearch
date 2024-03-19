@@ -5,11 +5,11 @@ plugins {
     id 'idea'
     id 'maven-publish'
     id 'signing'
-    id "com.diffplug.gradle.spotless" version "4.3.0"
+    id "com.diffplug.spotless" version "6.22.0"
     id 'java-library'
     id 'jacoco'
     // Build docs locally by running "site" command
-    id 'kr.motd.sphinx' version '2.10.0'
+    id 'kr.motd.sphinx' version '2.10.1'
 }
 
 repositories {
@@ -20,8 +20,10 @@ repositories {
     mavenCentral()
 }
 
-sourceCompatibility = 1.14
-targetCompatibility = 1.14
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
 
 allprojects {
     version = '0.30.0'
@@ -48,7 +50,7 @@ def spatial4jVersion = '0.7'
 def s3mockVersion = '0.2.6'
 def commonsCompressVersion = '1.21'
 def awsJavaSdkVersion = '1.12.457'
-def guicedeeVersion = '1.1.1.3-jre14'
+def guicedeeVersion = '1.2.2.1-jre17'
 def prometheusClientVersion = '0.8.0'
 def fastutilVersion = '8.5.6'
 
@@ -121,32 +123,32 @@ dependencies {
 startScripts.enabled = false
 
 task luceneServer(type: CreateStartScripts) {
-    mainClassName = 'com.yelp.nrtsearch.server.grpc.LuceneServer'
+    mainClass = 'com.yelp.nrtsearch.server.grpc.LuceneServer'
     applicationName = 'lucene-server'
-    outputDir = new File(project.buildDir, 'tmp')
+    outputDir = new File(project.buildDir, 'tmp-app')
     classpath = startScripts.classpath
     // Add additional dependencies, e.g. custom loggers
     classpath += files('$APP_HOME/additional_libs')
 }
 
 task luceneServerClient(type: CreateStartScripts) {
-    mainClassName = 'com.yelp.nrtsearch.server.cli.LuceneClientCommand'
+    mainClass = 'com.yelp.nrtsearch.server.cli.LuceneClientCommand'
     applicationName = 'lucene-client'
-    outputDir = new File(project.buildDir, 'tmp')
+    outputDir = new File(project.buildDir, 'tmp-app')
     classpath = startScripts.classpath
 }
 
 task backupRestoreTool(type: CreateStartScripts) {
-    mainClassName = 'com.yelp.nrtsearch.server.cli.BackupRestoreCommand'
+    mainClass = 'com.yelp.nrtsearch.server.cli.BackupRestoreCommand'
     applicationName = 'backup-restore'
-    outputDir = new File(project.buildDir, 'tmp')
+    outputDir = new File(project.buildDir, 'tmp-app')
     classpath = startScripts.classpath
 }
 
 task nrtUtils(type: CreateStartScripts) {
-    mainClassName = 'com.yelp.nrtsearch.tools.nrt_utils.NrtUtilsCommand'
+    mainClass = 'com.yelp.nrtsearch.tools.nrt_utils.NrtUtilsCommand'
     applicationName = 'nrt_utils'
-    outputDir = new File(project.buildDir, 'tmp')
+    outputDir = new File(project.buildDir, 'tmp-app')
     classpath = startScripts.classpath
 }
 
@@ -169,6 +171,8 @@ task buildGrpcGateway(dependsOn: installDist, type: Exec) {
 //e.g. default is to exclude perfTests: ./gradlew test
 test {
     finalizedBy 'spotlessJavaCheck'
+    // Used by LuceneServerConfigurationTest
+    environment(Map.of('CUSTOM_HOST', 'my_custom_host', 'VAR1', 'v1', 'VAR2', 'v2', 'VAR3', 'v3'))
     if (project.hasProperty('longRunningTestsOnly')) {
         include '**/IncrementalDataCleanupCommandTest.class'
     } else {
@@ -193,7 +197,7 @@ test {
 
 jacocoTestReport {
     reports {
-        csv.enabled true
+        csv.required = true
     }
 }
 
@@ -202,17 +206,17 @@ task javadocs(type: Javadoc) {
 }
 
 task javadocsJar(type: Jar) {
-    classifier('javadoc')
+    archiveClassifier = 'javadoc'
     from javadocs.destinationDir
 }
 
 task sourcesJar(type: Jar) {
-    classifier('sources')
+    archiveClassifier = 'sources'
     from sourceSets.main.java.srcDirs
 }
 
 task testsJar(type: Jar) {
-    classifier('tests')
+    archiveClassifier = 'tests'
     from sourceSets.test.output
 }
 
