@@ -77,6 +77,9 @@ public class VirtualFieldDef extends FieldDef implements Bindable, Sortable {
 
   @Override
   public SortField getSortField(SortType type) {
-    return getValuesSource().getSortField(type.getReverse());
+    SortField sortField = getValuesSource().getSortField(type.getReverse());
+    boolean missingLast = type.getMissingLat();
+    sortField.setMissingValue(missingLast ? Long.MAX_VALUE : Long.MIN_VALUE);
+    return sortField;
   }
 }
