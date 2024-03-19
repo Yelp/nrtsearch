@@ -27,12 +27,14 @@ import org.apache.lucene.util.CharsRefBuilder;
 
 class NrtsearchSynonymParser extends SynonymMap.Parser {
   private final boolean expand;
-  private static final String SYNONYMS_SEPARATOR = "\\|";
+  private final String synonymsSeparator;
   private static final String SYNONYM_MAPPING_SEPARATOR = ",";
 
-  public NrtsearchSynonymParser(boolean dedup, boolean expand, Analyzer analyzer) {
+  public NrtsearchSynonymParser(
+      String synonymsSeparator, boolean dedup, boolean expand, Analyzer analyzer) {
     super(dedup, analyzer);
     this.expand = expand;
+    this.synonymsSeparator = synonymsSeparator;
   }
 
   @Override
@@ -40,8 +42,7 @@ class NrtsearchSynonymParser extends SynonymMap.Parser {
     BufferedReader bufferedReader = new BufferedReader(mappings);
     String line;
     while ((line = bufferedReader.readLine()) != null) {
-      // Splitting the mappings based on "|"
-      String[] synonyms = line.split(SYNONYMS_SEPARATOR);
+      String[] synonyms = line.split(synonymsSeparator);
       this.addInternal(synonyms);
     }
   }

@@ -32,43 +32,65 @@ import org.junit.runner.RunWith;
 
 @RunWith(RandomizedRunner.class)
 public class NrtsearchSynonymParserTest extends LuceneTestCase {
+  public final String DEFAULT_SEPARATOR_PATTERN = "\\s*\\|\\s*";
 
   public void testParse() throws IOException, ParseException {
     Analyzer analyzer = new MockAnalyzer(random());
     NrtsearchSynonymParser parser =
-        new NrtsearchSynonymParser(Boolean.TRUE, Boolean.TRUE, analyzer);
+        new NrtsearchSynonymParser(DEFAULT_SEPARATOR_PATTERN, Boolean.TRUE, Boolean.TRUE, analyzer);
     String synonyms =
-        "a, b|ix, pie-ix|plaza, pla\\xE7a|plaza, plz|str, strada|str, strasse|str, stra\\xDFe|village, vlg";
+        "a         , b|ix,pie-ix|plaza, pla|plaza, plz|str,         strada      |str, strasse|str, straße|village ,vlg";
     parser.parse(new StringReader(synonyms));
     final SynonymMap map = parser.build();
     analyzer.close();
-
-    analyzer =
-        new Analyzer() {
-          @Override
-          protected TokenStreamComponents createComponents(String fieldName) {
-            Tokenizer tokenizer = new MockTokenizer(MockTokenizer.WHITESPACE, true);
-            return new TokenStreamComponents(
-                tokenizer, new SynonymGraphFilter(tokenizer, map, true));
-          }
-        };
+    analyzer = getAnalyzer(map);
 
     assertAnalyzesTo(analyzer, "a", new String[] {"b", "a"}, new int[] {1, 0});
-    assertAnalyzesTo(
-        analyzer, "plaza", new String[] {"plaxe7a", "plz", "plaza"}, new int[] {1, 0, 0});
+    assertAnalyzesTo(analyzer, "pie-ix", new String[] {"ix", "pie-ix"}, new int[] {1, 0, 1});
+    assertAnalyzesTo(analyzer, "plaza", new String[] {"pla", "plz", "plaza"}, new int[] {1, 0, 0});
     assertAnalyzesTo(
         analyzer,
         "str",
-        new String[] {"strada", "strasse", "straxdfe", "str"},
+        new String[] {"strada", "strasse", "straße", "str"},
         new int[] {1, 0, 0, 0});
 
+    assertAnalyzesTo(analyzer, "vlg", new String[] {"village", "vlg"}, new int[] {1, 0});
+    analyzer.close();
+  }
+
+  public void testParseDedupFalse() throws IOException, ParseException {
+    Analyzer analyzer = new MockAnalyzer(random());
+    NrtsearchSynonymParser parser =
+        new NrtsearchSynonymParser(
+            DEFAULT_SEPARATOR_PATTERN, Boolean.FALSE, Boolean.TRUE, analyzer);
+    String synonyms = "a         , b|a,b";
+    parser.parse(new StringReader(synonyms));
+    final SynonymMap map = parser.build();
+    analyzer.close();
+    analyzer = getAnalyzer(map);
+    assertAnalyzesTo(analyzer, "a", new String[] {"b", "b", "a"}, new int[] {1, 0, 0});
+    analyzer.close();
+  }
+
+  public void testParseExpandFalse() throws IOException, ParseException {
+    Analyzer analyzer = new MockAnalyzer(random());
+    NrtsearchSynonymParser parser =
+        new NrtsearchSynonymParser(
+            DEFAULT_SEPARATOR_PATTERN, Boolean.TRUE, Boolean.FALSE, analyzer);
+    String synonyms = "a         , b";
+    parser.parse(new StringReader(synonyms));
+    final SynonymMap map = parser.build();
+    analyzer.close();
+    analyzer = getAnalyzer(map);
+    assertAnalyzesTo(analyzer, "a", new String[] {"a"}, new int[] {1});
+    assertAnalyzesTo(analyzer, "b", new String[] {"a"}, new int[] {1});
     analyzer.close();
   }
 
   public void testInvalidMappings() {
     Analyzer analyzer = new MockAnalyzer(random());
     NrtsearchSynonymParser parser =
-        new NrtsearchSynonymParser(Boolean.TRUE, Boolean.TRUE, analyzer);
+        new NrtsearchSynonymParser(DEFAULT_SEPARATOR_PATTERN, Boolean.TRUE, Boolean.TRUE, analyzer);
     String synonyms = "a, b, c, d, e";
     expectThrows(
         IllegalArgumentException.class,
@@ -76,5 +98,46 @@ public class NrtsearchSynonymParserTest extends LuceneTestCase {
           parser.parse(new StringReader(synonyms));
         });
     analyzer.close();
+  }
+
+  public void testParseCustomSeparator() throws IOException, ParseException {
+    Analyzer analyzer = new MockAnalyzer(random());
+    NrtsearchSynonymParser parser =
+        new NrtsearchSynonymParser("\\s*\\$\\s*", Boolean.TRUE, Boolean.TRUE, analyzer);
+    String synonyms = "a         , b$ix,pie-ix";
+    parser.parse(new StringReader(synonyms));
+    final SynonymMap map = parser.build();
+    analyzer.close();
+    analyzer = getAnalyzer(map);
+
+    assertAnalyzesTo(analyzer, "a", new String[] {"b", "a"}, new int[] {1, 0});
+    assertAnalyzesTo(analyzer, "pie-ix", new String[] {"ix", "pie-ix"}, new int[] {1, 0, 1});
+    analyzer.close();
+  }
+
+  public void testParseUnescape() throws IOException, ParseException {
+    Analyzer analyzer = new MockAnalyzer(random());
+    NrtsearchSynonymParser parser =
+        new NrtsearchSynonymParser(DEFAULT_SEPARATOR_PATTERN, Boolean.TRUE, Boolean.TRUE, analyzer);
+    String synonyms = "a         , \\b";
+    parser.parse(new StringReader(synonyms));
+    final SynonymMap map = parser.build();
+    analyzer.close();
+    analyzer = getAnalyzer(map);
+    assertAnalyzesTo(analyzer, "a", new String[] {"b", "a"}, new int[] {1, 0});
+    analyzer.close();
+  }
+
+  private Analyzer getAnalyzer(SynonymMap map) {
+    Analyzer analyzer =
+        new Analyzer() {
+          @Override
+          protected TokenStreamComponents createComponents(String fieldName) {
+            Tokenizer tokenizer = new MockTokenizer();
+            return new TokenStreamComponents(
+                tokenizer, new SynonymGraphFilter(tokenizer, map, true));
+          }
+        };
+    return analyzer;
   }
 }
