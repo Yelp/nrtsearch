@@ -438,8 +438,7 @@ public class BackendStateManagerTest {
             .setNrtCachingDirectoryMaxSizeMB(DoubleValue.newBuilder().setValue(75.0).build())
             .build();
     IndexSettings expectedMergedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_SETTINGS.toBuilder()
             .setDirectory(StringValue.newBuilder().setValue("MMapDirectory").build())
             .setIndexMergeSchedulerAutoThrottle(BoolValue.newBuilder().setValue(true).build())
             .setNrtCachingDirectoryMaxSizeMB(DoubleValue.newBuilder().setValue(75.0).build())
@@ -517,8 +516,7 @@ public class BackendStateManagerTest {
             .setConcurrentMergeSchedulerMaxMergeCount(Int32Value.newBuilder().setValue(5).build())
             .build();
     IndexSettings expectedMergedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_SETTINGS.toBuilder()
             .setDirectory(StringValue.newBuilder().setValue("MMapDirectory").build())
             .setIndexMergeSchedulerAutoThrottle(BoolValue.newBuilder().setValue(true).build())
             .setNrtCachingDirectoryMaxSizeMB(DoubleValue.newBuilder().setValue(75.0).build())
@@ -600,8 +598,7 @@ public class BackendStateManagerTest {
             .setConcurrentMergeSchedulerMaxMergeCount(Int32Value.newBuilder().setValue(5).build())
             .build();
     IndexSettings expectedMergedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_SETTINGS.toBuilder()
             .setDirectory(StringValue.newBuilder().setValue("MMapDirectory").build())
             .setIndexMergeSchedulerAutoThrottle(BoolValue.newBuilder().setValue(true).build())
             .setNrtCachingDirectoryMaxSizeMB(DoubleValue.newBuilder().setValue(75.0).build())
@@ -735,8 +732,7 @@ public class BackendStateManagerTest {
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(20).build())
             .build();
     IndexLiveSettings settingsWithLocal =
-        indexLiveSettings
-            .toBuilder()
+        indexLiveSettings.toBuilder()
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(1).build())
             .setSliceMaxDocs(Int32Value.newBuilder().setValue(1).build())
             .build();
@@ -875,8 +871,7 @@ public class BackendStateManagerTest {
             .setAddDocumentsMaxBufferLen(Int32Value.newBuilder().setValue(250).build())
             .build();
     IndexLiveSettings expectedMergedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setMaxRefreshSec(DoubleValue.newBuilder().setValue(15.0).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(10).build())
             .setAddDocumentsMaxBufferLen(Int32Value.newBuilder().setValue(250).build())
@@ -955,8 +950,7 @@ public class BackendStateManagerTest {
             .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(512.0).build())
             .build();
     IndexLiveSettings expectedMergedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setMaxRefreshSec(DoubleValue.newBuilder().setValue(15.0).build())
             .setAddDocumentsMaxBufferLen(Int32Value.newBuilder().setValue(250).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(3).build())
@@ -1039,8 +1033,7 @@ public class BackendStateManagerTest {
             .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(512.0).build())
             .build();
     IndexLiveSettings expectedMergedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setMaxRefreshSec(DoubleValue.newBuilder().setValue(15.0).build())
             .setAddDocumentsMaxBufferLen(Int32Value.newBuilder().setValue(250).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(3).build())
@@ -1132,8 +1125,7 @@ public class BackendStateManagerTest {
             .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(512.0).build())
             .build();
     IndexLiveSettings expectedMergedSettingsWithLocal =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setMaxRefreshSec(DoubleValue.newBuilder().setValue(15.0).build())
             .setAddDocumentsMaxBufferLen(Int32Value.newBuilder().setValue(250).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(3).build())
@@ -1204,14 +1196,12 @@ public class BackendStateManagerTest {
             .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(512.0).build())
             .build();
     IndexLiveSettings expectedMergedLocalSettings =
-        LIVE_SETTINGS_OVERRIDES
-            .toBuilder()
+        LIVE_SETTINGS_OVERRIDES.toBuilder()
             .setSliceMaxDocs(Int32Value.newBuilder().setValue(10000).build())
             .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(512.0).build())
             .build();
     IndexLiveSettings expectedMergedSettingsWithLocal =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setMaxRefreshSec(DoubleValue.newBuilder().setValue(15.0).build())
             .setAddDocumentsMaxBufferLen(Int32Value.newBuilder().setValue(250).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(1).build())
@@ -1284,8 +1274,7 @@ public class BackendStateManagerTest {
             .build());
 
     IndexStateInfo expectedState =
-        initialState
-            .toBuilder()
+        initialState.toBuilder()
             .setGen(1)
             .putFields("field1", addFields.get(0))
             .putFields("field2", addFields.get(1))
@@ -1358,8 +1347,7 @@ public class BackendStateManagerTest {
             .build());
 
     IndexStateInfo expectedState =
-        initialState
-            .toBuilder()
+        initialState.toBuilder()
             .setGen(1)
             .putFields("field1", addFields.get(0))
             .putFields("field2", addFields.get(1))
@@ -1457,8 +1445,7 @@ public class BackendStateManagerTest {
             .build());
 
     IndexStateInfo expectedState =
-        initialState
-            .toBuilder()
+        initialState.toBuilder()
             .setGen(1)
             .putFields("field3", addFields.get(0))
             .putFields("field4", addFields.get(1))

@@ -50,6 +50,7 @@ public class HighlighterService {
     NRTFastVectorHighlighter nrtFastVectorHighlighter = NRTFastVectorHighlighter.getInstance();
     instance.register(nrtFastVectorHighlighter.getName(), nrtFastVectorHighlighter);
   }
+
   /**
    * Initialize singleton instance of {@link HighlighterService}. Registers all builtin highlighter
    * and any additional highlighter provided by {@link HighlighterPlugin}s.

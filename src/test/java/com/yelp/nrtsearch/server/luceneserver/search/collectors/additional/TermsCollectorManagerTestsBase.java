@@ -494,16 +494,14 @@ public abstract class TermsCollectorManagerTestsBase extends ServerTestCase {
 
   void testOrderByNestedCollector(TermsCollector terms) {
     terms =
-        terms
-            .toBuilder()
+        terms.toBuilder()
             .setOrder(BucketOrder.newBuilder().setKey("nested").setOrder(OrderType.DESC).build())
             .build();
     SearchResponse response = doNestedOrderQuery(terms);
     assertNestedOrderResult(response, 8, 8, 0, EXPECTED_WITH_NESTED_DESC);
 
     terms =
-        terms
-            .toBuilder()
+        terms.toBuilder()
             .setOrder(BucketOrder.newBuilder().setKey("nested").setOrder(OrderType.ASC).build())
             .build();
     response = doNestedOrderQuery(terms);

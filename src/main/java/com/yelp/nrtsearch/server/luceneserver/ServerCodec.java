@@ -30,6 +30,7 @@ public class ServerCodec extends Lucene84Codec {
   public static final String DEFAULT_DOC_VALUES_FORMAT = "Lucene80";
 
   private final IndexStateManager stateManager;
+
   // nocommit expose compression control
 
   /** Sole constructor. */

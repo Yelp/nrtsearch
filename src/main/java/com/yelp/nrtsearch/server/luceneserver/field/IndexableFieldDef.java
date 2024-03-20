@@ -290,6 +290,7 @@ public abstract class IndexableFieldDef extends FieldDef {
       List<List<String>> facetHierarchyPaths) {
     parseFieldWithChildren(documentsContext.getRootDocument(), fieldValues, facetHierarchyPaths);
   }
+
   /**
    * Parse a list of field values for this field and its children. The values will be those present
    * in a {@link com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField}.

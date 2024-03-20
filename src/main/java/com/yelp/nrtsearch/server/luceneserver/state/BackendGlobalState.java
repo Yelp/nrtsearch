@@ -62,6 +62,7 @@ public class BackendGlobalState extends GlobalState {
   private static final Logger logger = LoggerFactory.getLogger(BackendGlobalState.class);
 
   private int resolvedReplicationPort;
+
   /**
    * State class containing immutable persistent and ephemeral global state, stored together so that
    * they can be updated atomically.
@@ -313,9 +314,7 @@ public class BackendGlobalState extends GlobalState {
     }
 
     GlobalStateInfo updatedState =
-        immutableState
-            .globalStateInfo
-            .toBuilder()
+        immutableState.globalStateInfo.toBuilder()
             .putIndices(indexName, newIndexState)
             .setGen(immutableState.globalStateInfo.getGen() + 1)
             .build();
@@ -351,9 +350,7 @@ public class BackendGlobalState extends GlobalState {
   @Override
   public synchronized void deleteIndex(String name) throws IOException {
     GlobalStateInfo updatedState =
-        immutableState
-            .globalStateInfo
-            .toBuilder()
+        immutableState.globalStateInfo.toBuilder()
             .removeIndices(name)
             .setGen(immutableState.globalStateInfo.getGen() + 1)
             .build();
@@ -395,12 +392,9 @@ public class BackendGlobalState extends GlobalState {
             .getResourceName()
             .equals(startIndexRequest.getIndexName())) {
       request =
-          startIndexRequest
-              .toBuilder()
+          startIndexRequest.toBuilder()
               .setRestore(
-                  startIndexRequest
-                      .getRestore()
-                      .toBuilder()
+                  startIndexRequest.getRestore().toBuilder()
                       .setResourceName(
                           getUniqueIndexName(
                               startIndexRequest.getIndexName(), indexGlobalState.getId()))
@@ -415,9 +409,7 @@ public class BackendGlobalState extends GlobalState {
     if (startIndexRequest.getMode() != Mode.REPLICA && !indexGlobalState.getStarted()) {
       IndexGlobalState updatedIndexState = indexGlobalState.toBuilder().setStarted(true).build();
       GlobalStateInfo updatedGlobalState =
-          immutableState
-              .globalStateInfo
-              .toBuilder()
+          immutableState.globalStateInfo.toBuilder()
               .putIndices(startIndexRequest.getIndexName(), updatedIndexState)
               .setGen(immutableState.globalStateInfo.getGen() + 1)
               .build();
@@ -442,9 +434,7 @@ public class BackendGlobalState extends GlobalState {
 
     if (getConfiguration().getIndexStartConfig().getMode() != Mode.REPLICA) {
       GlobalStateInfo updatedGlobalState =
-          immutableState
-              .globalStateInfo
-              .toBuilder()
+          immutableState.globalStateInfo.toBuilder()
               .putIndices(startIndexRequest.getIndexName(), updatedIndexGlobalState)
               .setGen(immutableState.globalStateInfo.getGen() + 1)
               .build();
@@ -494,9 +484,7 @@ public class BackendGlobalState extends GlobalState {
               .build();
 
       GlobalStateInfo updatedState =
-          immutableState
-              .globalStateInfo
-              .toBuilder()
+          immutableState.globalStateInfo.toBuilder()
               .putIndices(stopIndexRequest.getIndexName(), updatedIndexState)
               .setGen(immutableState.globalStateInfo.getGen() + 1)
               .build();
