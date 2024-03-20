@@ -55,7 +55,7 @@ public class ListIncrementalSnapshotsCommand implements Callable<Integer> {
   @CommandLine.Option(
       names = {"-c", "--credsFile"},
       description =
-          "File holding AWS credentials, uses default locations if not set; Will use DefaultCredentialProvider if this is unset.")
+          "File holding AWS credentials; Will use DefaultCredentialProvider if this is unset.")
   private String credsFile;
 
   @CommandLine.Option(
