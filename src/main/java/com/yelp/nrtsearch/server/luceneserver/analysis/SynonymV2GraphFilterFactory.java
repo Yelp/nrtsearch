@@ -17,8 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.analysis;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.lang.reflect.InvocationTargetException;
-import java.text.MessageFormat;
 import java.text.ParseException;
 import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
@@ -30,13 +28,26 @@ import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 
+/**
+ * Implementation of a {@link TokenFilterFactory} that allows for loading synonym mappings. Unlike
+ * the lucene provided {@link org.apache.lucene.analysis.synonym.SynonymGraphFilterFactory}, this
+ * one lets you specify the synonyms inline as a parameter (instead of within a file).
+ *
+ * <p>Synonyms must be specified in the 'synonyms' parameter string. This value is separated into
+ * multiple synonym mappings that are comma separated by splitting on a pattern, which defaults to
+ * '|'. This pattern may be changed by giving a 'separator_pattern' param.
+ *
+ * <p>Synonyms must be of the form synonym_from,synonym_to for example:
+ *
+ * <p>a,b
+ *
+ * <p>a,b|c,d
+ */
 public class SynonymV2GraphFilterFactory extends TokenFilterFactory {
   /** SPI name */
   public static final String NAME = "synonymV2";
 
-  public static final String MAPPINGS = "mappings";
-  private static final String LUCENE_ANALYZER_PATH =
-      "org.apache.lucene.analysis.standard.{0}Analyzer";
+  public static final String SYNONYMS = "synonyms";
   public static final String SYNONYM_SEPARATOR_PATTERN = "separator_pattern";
   public static final String DEFAULT_SYNONYM_SEPARATOR_PATTERN = "\\s*\\|\\s*";
   public final boolean ignoreCase;
@@ -44,17 +55,23 @@ public class SynonymV2GraphFilterFactory extends TokenFilterFactory {
 
   public SynonymV2GraphFilterFactory(Map<String, String> args) throws IOException, ParseException {
     super(args);
-    String synonymMappings = args.get(MAPPINGS);
+    String synonymMappings = args.get(SYNONYMS);
     String separatorPattern =
         args.getOrDefault(SYNONYM_SEPARATOR_PATTERN, DEFAULT_SYNONYM_SEPARATOR_PATTERN);
 
     this.ignoreCase = getBoolean(args, "ignoreCase", false);
     boolean expand = getBoolean(args, "expand", true);
+    boolean dedup = getBoolean(args, "dedup", true);
     String parserFormat = args.getOrDefault("parserFormat", "nrtsearch");
     String analyzerName = args.get("analyzerName");
 
     if (synonymMappings == null) {
       throw new IllegalArgumentException("Synonym mappings must be specified");
+    }
+
+    if (!parserFormat.equals("nrtsearch")) {
+      throw new IllegalArgumentException(
+          "The parser format: " + parserFormat + " is not valid. It should be nrtsearch");
     }
 
     Analyzer analyzer;
@@ -69,54 +86,23 @@ public class SynonymV2GraphFilterFactory extends TokenFilterFactory {
             }
           };
     } else {
-      analyzer = loadAnalyzer(analyzerName);
+      analyzer = AnalyzerCreator.getInstance().getAnalyzer(getPredefinedAnalyzer(analyzerName));
     }
-    synonymMap =
-        loadSynonymsFromString(separatorPattern, synonymMappings, parserFormat, expand, analyzer);
+
+    SynonymMap.Parser parser =
+        new NrtsearchSynonymParser(separatorPattern, dedup, expand, analyzer);
+    parser.parse(new StringReader(synonymMappings));
+    synonymMap = parser.build();
   }
 
   @Override
   public TokenStream create(TokenStream input) {
-    return new SynonymGraphFilter(input, synonymMap, ignoreCase);
+    return (this.synonymMap.fst == null
+        ? input
+        : new SynonymGraphFilter(input, synonymMap, ignoreCase));
   }
 
-  public SynonymMap loadSynonymsFromString(
-      String separatorPattern,
-      String synonymMappings,
-      String parserFormat,
-      boolean expand,
-      Analyzer analyzer)
-      throws IOException, ParseException {
-    SynonymMap.Parser parser;
-
-    if (parserFormat.equals("nrtsearch")) {
-      parser = new NrtsearchSynonymParser(separatorPattern, true, expand, analyzer);
-    } else {
-      throw new IllegalArgumentException(
-          "The parser format: " + parserFormat + " is not valid. It should be nrtsearch");
-    }
-    parser.parse(new StringReader(synonymMappings));
-    return parser.build();
-  }
-
-  private Analyzer loadAnalyzer(String analyzerName) {
-    Analyzer analyzer;
-    String analyzerClassName = MessageFormat.format(LUCENE_ANALYZER_PATH, analyzerName);
-    try {
-      analyzer =
-          (Analyzer)
-              Analyzer.class
-                  .getClassLoader()
-                  .loadClass(analyzerClassName)
-                  .getDeclaredConstructor()
-                  .newInstance();
-    } catch (InstantiationException
-        | IllegalAccessException
-        | NoSuchMethodException
-        | ClassNotFoundException
-        | InvocationTargetException e) {
-      throw new RuntimeException(e);
-    }
-    return analyzer;
+  private com.yelp.nrtsearch.server.grpc.Analyzer getPredefinedAnalyzer(String analyzerName) {
+    return com.yelp.nrtsearch.server.grpc.Analyzer.newBuilder().setPredefined(analyzerName).build();
   }
 }

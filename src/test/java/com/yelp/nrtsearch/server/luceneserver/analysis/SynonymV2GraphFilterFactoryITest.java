@@ -17,19 +17,37 @@ package com.yelp.nrtsearch.server.luceneserver.analysis;
 
 import static org.junit.Assert.assertEquals;
 
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import com.yelp.nrtsearch.server.plugins.Plugin;
 import io.grpc.testing.GrpcCleanupRule;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 
 public class SynonymV2GraphFilterFactoryITest extends ServerTestCase {
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+
+  @Before
+  public void init() {
+    init(Collections.emptyList());
+  }
+
+  private void init(List<Plugin> plugins) {
+    AnalyzerCreator.initialize(getEmptyConfig(), plugins);
+  }
+
+  private LuceneServerConfiguration getEmptyConfig() {
+    String config = "nodeName: \"lucene_server_foo\"";
+    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+  }
 
   protected List<String> getIndices() {
     return Collections.singletonList(DEFAULT_TEST_INDEX);

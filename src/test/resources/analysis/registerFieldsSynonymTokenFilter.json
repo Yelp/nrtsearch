@@ -26,8 +26,9 @@
             {
               "name": "synonymV2",
               "params": {
-                "mappings": "#,ste|a,b|blvd, boulevard|u.s,us|plaza, plaça|ix,pie-ix|str, straße|v, väg",
-                "parserFormat": "nrtsearch"
+                "synonyms": "blvd, boulevard|u.s,us|plaza, plaça|ix,pie-ix|str, straße|v, väg",
+                "parserFormat": "nrtsearch",
+                "analyzerName": "standard"
               }
             }
           ]

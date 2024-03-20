@@ -30,6 +30,15 @@ class NrtsearchSynonymParser extends SynonymMap.Parser {
   private final String synonymsSeparator;
   private static final String SYNONYM_MAPPING_SEPARATOR = ",";
 
+  /**
+   * This is a nrtsearch parser that extends SynonymMap.Parser to parse synonyms provided inline in
+   * a string instead of a file
+   *
+   * @param synonymsSeparator pattern used to split the synonym mappings
+   * @param dedup set to true to dedup duplicate synonym mappings
+   * @param expand set to true to map synonyms both ways
+   * @param analyzer analyzer for the synonyms
+   */
   public NrtsearchSynonymParser(
       String synonymsSeparator, boolean dedup, boolean expand, Analyzer analyzer) {
     super(dedup, analyzer);
