@@ -976,6 +976,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         int docID = hit.getLuceneDocId() - sliceSegment.docBase;
         // Check if the value is available for the current document
         if (values != null) {
+          values.setDocId(docID);
           Object obj = values.execute();
           SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
               SearchResponse.Hit.CompositeFieldValue.newBuilder();

@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
+import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript;
 import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript.SegmentFactory;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptContext;
@@ -95,6 +96,8 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
               return new MapScript(params, docLookup, context);
             case "list":
               return new ListScript(params, docLookup, context);
+            case "docValue":
+              return new DocValueScript(params, docLookup, context);
           }
           throw new IllegalStateException("Unsupported script source: " + source);
         }
@@ -151,6 +154,20 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
             nums.add("1");
             nums.add("2");
             return nums;
+          }
+        }
+
+        public static class DocValueScript extends RuntimeScript {
+
+          public DocValueScript(
+              Map<String, Object> params, DocLookup docLookup, LeafReaderContext leafContext) {
+            super(params, docLookup, leafContext);
+          }
+
+          @Override
+          public Object execute() {
+            Map<String, LoadedDocValues<?>> doc = getDoc();
+            return doc.get("atom_1").get(0) + "_" + doc.get("atom_2").get(0);
           }
         }
       }
@@ -317,6 +334,28 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
     }
   }
 
+  @Test
+  public void RuntimeScriptForDocValue() {
+
+    RuntimeField runtimeField =
+        RuntimeField.newBuilder()
+            .setScript(Script.newBuilder().setLang("painless").setSource("docValue").build())
+            .setName("runtime_field")
+            .build();
+
+    List expectedValues = new ArrayList<>();
+    for (int id = 0; id < SEGMENT_CHUNK; ++id) {
+      expectedValues.add(String.valueOf(id % 3) + "_" + String.valueOf(id % 2));
+    }
+    SearchResponse response = doQuery(runtimeField);
+    assertEquals(SEGMENT_CHUNK, response.getHitsCount());
+    for (int id = 0; id < SEGMENT_CHUNK; id++) {
+      assertEquals(
+          response.getHits(id).getFieldsMap().get("runtime_field").getFieldValue(0).getTextValue(),
+          expectedValues.get(id));
+    }
+  }
+
   private SearchResponse doQuery(RuntimeField runtimeField) {
     return getGrpcServer()
         .getBlockingStub()
@@ -326,6 +365,8 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
                 .setStartHit(0)
                 .setTopHits(10)
                 .addRetrieveFields("doc_id")
+                .addRetrieveFields("atom_1")
+                .addRetrieveFields("atom_2")
                 .addRetrieveFields("runtime_field")
                 .addRuntimeFields(runtimeField)
                 .build());
