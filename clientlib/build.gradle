@@ -95,6 +95,7 @@ task javadocsJar(type: Jar) {
 }
 
 task sourcesJar(type: Jar) {
+    dependsOn "generateProto"
     archiveClassifier = 'sources'
     from sourceSets.main.java.srcDirs
 }
