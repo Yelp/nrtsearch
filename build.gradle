@@ -50,7 +50,7 @@ def spatial4jVersion = '0.7'
 def s3mockVersion = '0.2.6'
 def commonsCompressVersion = '1.21'
 def awsJavaSdkVersion = '1.12.457'
-def guicedeeVersion = '1.2.2.1-jre17'
+def guiceVersion = '7.0.0'
 def prometheusClientVersion = '0.8.0'
 def fastutilVersion = '8.5.6'
 
@@ -77,7 +77,7 @@ dependencies {
     implementation "com.amazonaws:aws-java-sdk-s3:${awsJavaSdkVersion}"
     runtimeOnly "com.amazonaws:aws-java-sdk-sts:${awsJavaSdkVersion}"
     implementation "javax.xml.bind:jaxb-api:2.3.1"
-    implementation "com.guicedee.services:guice:${guicedeeVersion}"
+    implementation "com.google.inject:guice:${guiceVersion}"
     implementation "org.lz4:lz4-java:${project.ext.lz4Version}"
     implementation "com.fasterxml.jackson.core:jackson-databind:${project.ext.jacksonYamlVersion}"
     implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${project.ext.jacksonYamlVersion}"
