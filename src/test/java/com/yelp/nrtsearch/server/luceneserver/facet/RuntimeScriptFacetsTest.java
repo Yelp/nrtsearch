@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.facet;
 
 import static org.junit.Assert.assertEquals;
 
+import com.google.protobuf.Value;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
@@ -179,7 +180,7 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
   }
 
   protected FieldDefRequest getIndexDef(String name) throws IOException {
-    return getFieldsFromResourceFile("/facet/runtime_field_script.json");
+    return getFieldsFromResourceFile("/script/runtime_field_script.json");
   }
 
   protected void initIndex(String name) throws Exception {
@@ -311,26 +312,41 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
             .setName("runtime_field")
             .build();
 
-    List<List<String>> expectedValues = new ArrayList<>();
+    List<List<Value.Builder>> expectedValues = new ArrayList<>();
     for (int id = 0; id < TOP_HITS; ++id) {
-      List nums = new ArrayList();
-      nums.add("1");
-      nums.add("2");
-      expectedValues.add(nums);
+      List<Value.Builder> nums = new ArrayList();
+      nums.add(Value.newBuilder().setStringValue("1"));
+      nums.add(Value.newBuilder().setStringValue("2"));
+      List<Value.Builder> values = Collections.unmodifiableList(nums);
+      expectedValues.add(values);
     }
     SearchResponse response = doQuery(runtimeField);
     assertEquals(TOP_HITS, response.getHitsCount());
     for (int id = 0; id < TOP_HITS; ++id) {
-      assertEquals(
+      String respOne =
           response
               .getHits(id)
               .getFieldsMap()
               .get("runtime_field")
               .getFieldValueList()
               .get(0)
-              .getRepeatedFieldValues()
-              .getTextValuesList(),
-          expectedValues.get(id));
+              .getListValue()
+              .getValuesList()
+              .get(0)
+              .getStringValue();
+      String respTwo =
+          response
+              .getHits(id)
+              .getFieldsMap()
+              .get("runtime_field")
+              .getFieldValueList()
+              .get(0)
+              .getListValue()
+              .getValuesList()
+              .get(1)
+              .getStringValue();
+      assertEquals(respOne, expectedValues.get(id).get(0).getStringValue());
+      assertEquals(respTwo, expectedValues.get(id).get(1).getStringValue());
     }
   }
 
