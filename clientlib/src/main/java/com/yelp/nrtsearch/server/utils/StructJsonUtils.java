@@ -72,6 +72,22 @@ public class StructJsonUtils {
   }
 
   /**
+   * Convert an Iterable of native java types into a protobuf ListValue. This iterable may contain null,
+   * Boolean, String, Number, Iterable, or Map (String key).
+   *
+   * @param iterable iterable of java native types
+   * @param longAsString if Long values should be encoded as String
+   * @return protobuf list value for iterable
+   */
+  public static ListValue convertIterableToListValue(Iterable<?> iterable, boolean longAsString) {
+    List<Value> valueList = new ArrayList<>();
+    for (Object e : iterable) {
+      valueList.add(convertObjectToValue(e, longAsString));
+    }
+    return ListValue.newBuilder().addAllValues(valueList).build();
+  }
+
+  /**
    * Convert an Iterable of native java types into a protobuf Value. This iterable may contain null,
    * Boolean, String, Number, Iterable, or Map (String key).
    *

@@ -91,14 +91,11 @@ public class FieldUpdateHandler {
     FieldAndFacetState.Builder fieldStateBuilder = currentState.toBuilder();
     List<Field> nonVirtualFields = new ArrayList<>();
     List<Field> virtualFields = new ArrayList<>();
-    List<Field> runtimeFields = new ArrayList<>();
 
     for (Field field : updateFields) {
       checkFieldName(field.getName());
       if (FieldType.VIRTUAL.equals(field.getType())) {
         virtualFields.add(field);
-      } else if (FieldType.RUNTIME.equals(field.getType())) {
-        runtimeFields.add(field);
       } else {
         nonVirtualFields.add(field);
       }

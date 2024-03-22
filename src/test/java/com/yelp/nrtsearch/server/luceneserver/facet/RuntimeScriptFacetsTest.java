@@ -39,7 +39,7 @@ import org.junit.Test;
 
 public class RuntimeScriptFacetsTest extends ServerTestCase {
   private static final int NUM_DOCS = 100;
-  private static final int SEGMENT_CHUNK = 10;
+  private static final int TOP_HITS = 10;
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
@@ -53,7 +53,7 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
 
       @Override
       public String getLang() {
-        return "painless";
+        return "test_p";
       }
 
       @Override
@@ -179,7 +179,7 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
   }
 
   protected FieldDefRequest getIndexDef(String name) throws IOException {
-    return getFieldsFromResourceFile("/facet/facet_script_facets.json");
+    return getFieldsFromResourceFile("/facet/runtime_field_script.json");
   }
 
   protected void initIndex(String name) throws Exception {
@@ -215,7 +215,7 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
                       .build())
               .build());
 
-      if (requestChunk.size() == SEGMENT_CHUNK) {
+      if (requestChunk.size() == TOP_HITS) {
         addDocuments(requestChunk.stream());
         requestChunk.clear();
         writer.commit();
@@ -233,17 +233,17 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
 
     RuntimeField runtimeField =
         RuntimeField.newBuilder()
-            .setScript(Script.newBuilder().setLang("painless").setSource("int").build())
+            .setScript(Script.newBuilder().setLang("test_p").setSource("int").build())
             .setName("runtime_field")
             .build();
 
     List expectedValues = new ArrayList<>();
-    for (int id = 0; id < SEGMENT_CHUNK; ++id) {
+    for (int id = 0; id < TOP_HITS; ++id) {
       expectedValues.add(2);
     }
     SearchResponse response = doQuery(runtimeField);
-    assertEquals(SEGMENT_CHUNK, response.getHitsCount());
-    for (int id = 0; id < SEGMENT_CHUNK; ++id) {
+    assertEquals(TOP_HITS, response.getHitsCount());
+    for (int id = 0; id < TOP_HITS; ++id) {
       assertEquals(
           response.getHits(id).getFieldsMap().get("runtime_field").getFieldValue(0).getIntValue(),
           expectedValues.get(id));
@@ -255,17 +255,17 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
 
     RuntimeField runtimeField =
         RuntimeField.newBuilder()
-            .setScript(Script.newBuilder().setLang("painless").setSource("string").build())
+            .setScript(Script.newBuilder().setLang("test_p").setSource("string").build())
             .setName("runtime_field")
             .build();
 
     List expectedValues = new ArrayList<>();
-    for (int id = 0; id < SEGMENT_CHUNK; ++id) {
+    for (int id = 0; id < TOP_HITS; ++id) {
       expectedValues.add("2");
     }
     SearchResponse response = doQuery(runtimeField);
-    assertEquals(SEGMENT_CHUNK, response.getHitsCount());
-    for (int id = 0; id < SEGMENT_CHUNK; ++id) {
+    assertEquals(TOP_HITS, response.getHitsCount());
+    for (int id = 0; id < TOP_HITS; ++id) {
       assertEquals(
           response.getHits(id).getFieldsMap().get("runtime_field").getFieldValue(0).getTextValue(),
           expectedValues.get(id));
@@ -277,17 +277,17 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
 
     RuntimeField runtimeField =
         RuntimeField.newBuilder()
-            .setScript(Script.newBuilder().setLang("painless").setSource("map").build())
+            .setScript(Script.newBuilder().setLang("test_p").setSource("map").build())
             .setName("runtime_field")
             .build();
 
     List expectedValues = new ArrayList<>();
-    for (int id = 0; id < SEGMENT_CHUNK; ++id) {
+    for (int id = 0; id < TOP_HITS; ++id) {
       expectedValues.add(2.0);
     }
     SearchResponse response = doQuery(runtimeField);
-    assertEquals(SEGMENT_CHUNK, response.getHitsCount());
-    for (int id = 0; id < SEGMENT_CHUNK; ++id) {
+    assertEquals(TOP_HITS, response.getHitsCount());
+    for (int id = 0; id < TOP_HITS; ++id) {
       assertEquals(
           response
               .getHits(id)
@@ -307,20 +307,20 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
 
     RuntimeField runtimeField =
         RuntimeField.newBuilder()
-            .setScript(Script.newBuilder().setLang("painless").setSource("list").build())
+            .setScript(Script.newBuilder().setLang("test_p").setSource("list").build())
             .setName("runtime_field")
             .build();
 
     List<List<String>> expectedValues = new ArrayList<>();
-    for (int id = 0; id < SEGMENT_CHUNK; ++id) {
+    for (int id = 0; id < TOP_HITS; ++id) {
       List nums = new ArrayList();
       nums.add("1");
       nums.add("2");
       expectedValues.add(nums);
     }
     SearchResponse response = doQuery(runtimeField);
-    assertEquals(SEGMENT_CHUNK, response.getHitsCount());
-    for (int id = 0; id < SEGMENT_CHUNK; ++id) {
+    assertEquals(TOP_HITS, response.getHitsCount());
+    for (int id = 0; id < TOP_HITS; ++id) {
       assertEquals(
           response
               .getHits(id)
@@ -339,17 +339,17 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
 
     RuntimeField runtimeField =
         RuntimeField.newBuilder()
-            .setScript(Script.newBuilder().setLang("painless").setSource("docValue").build())
+            .setScript(Script.newBuilder().setLang("test_p").setSource("docValue").build())
             .setName("runtime_field")
             .build();
 
     List expectedValues = new ArrayList<>();
-    for (int id = 0; id < SEGMENT_CHUNK; ++id) {
+    for (int id = 0; id < TOP_HITS; ++id) {
       expectedValues.add(String.valueOf(id % 3) + "_" + String.valueOf(id % 2));
     }
     SearchResponse response = doQuery(runtimeField);
-    assertEquals(SEGMENT_CHUNK, response.getHitsCount());
-    for (int id = 0; id < SEGMENT_CHUNK; id++) {
+    assertEquals(TOP_HITS, response.getHitsCount());
+    for (int id = 0; id < TOP_HITS; id++) {
       assertEquals(
           response.getHits(id).getFieldsMap().get("runtime_field").getFieldValue(0).getTextValue(),
           expectedValues.get(id));

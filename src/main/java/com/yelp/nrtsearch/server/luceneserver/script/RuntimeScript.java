@@ -70,11 +70,7 @@ public abstract class RuntimeScript {
     return segmentDocLookup;
   }
 
-  /**
-   * Factory interface for creating a
-   * RuntimeSsrc/main/java/com/yelp/nrtsearch/server/luceneserver/script/RuntimeScript.java cript
-   * bound to a lucene segment.
-   */
+  /** Factory interface for creating a RuntimeScript bound to a lucene segment. */
   public interface SegmentFactory {
 
     /**
