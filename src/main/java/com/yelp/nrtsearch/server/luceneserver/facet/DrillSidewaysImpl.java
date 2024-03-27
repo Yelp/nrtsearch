@@ -28,6 +28,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FloatFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IntFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.LongFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.script.FacetScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
@@ -324,10 +325,11 @@ public class DrillSidewaysImpl extends DrillSideways {
     }
 
     FacetResult facetResult;
-    if (!(fieldDef instanceof IndexableFieldDef) && !(fieldDef instanceof VirtualFieldDef)) {
+    if (!(fieldDef instanceof IndexableFieldDef)
+        && !(fieldDef instanceof VirtualFieldDef || fieldDef instanceof RuntimeFieldDef)) {
       throw new IllegalArgumentException(
           String.format(
-              "field %s is neither a virtual field nor registered as an indexable field. Facets are supported only for these types",
+              "field %s is neither a virtual/runtime field nor registered as an indexable field. Facets are supported only for these types",
               fieldName));
     }
     if (!facet.getNumericRangeList().isEmpty()) {

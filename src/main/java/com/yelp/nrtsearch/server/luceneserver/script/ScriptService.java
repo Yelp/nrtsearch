@@ -47,6 +47,7 @@ public class ScriptService {
       ImmutableList.<ScriptContext<?>>builder()
           .add(FacetScript.CONTEXT)
           .add(ScoreScript.CONTEXT)
+          .add(RuntimeScript.CONTEXT)
           .build();
 
   private final Map<String, ScriptEngine> scriptEngineMap = new HashMap<>();
