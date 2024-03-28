@@ -77,6 +77,12 @@ public abstract class FilterFunction {
             ? QueryNodeMapper.getInstance().getQuery(filterFunctionGrpc.getFilter(), indexState)
             : null;
     float weight = filterFunctionGrpc.getWeight() != 0.0f ? filterFunctionGrpc.getWeight() : 1.0f;
+    if (filterFunctionGrpc.hasDecayFunction()) {
+      MultiFunctionScoreQuery.DecayFunction decayFunction = filterFunctionGrpc.getDecayFunction();
+      if (decayFunction.hasGeoPoint()) {
+        return new GeoPointDecayFilterFunction(filterQuery, weight, decayFunction);
+      }
+    }
     switch (filterFunctionGrpc.getFunctionCase()) {
       case SCRIPT:
         ScoreScript.Factory factory =
