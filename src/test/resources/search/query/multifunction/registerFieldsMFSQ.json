@@ -20,6 +20,12 @@
       "name": "double_field",
       "type": "DOUBLE",
       "storeDocValues": true
+    },
+    {
+      "name": "lat_lon_field",
+      "type": "LAT_LON",
+      "storeDocValues": true,
+      "search": true
     }
   ]
 }

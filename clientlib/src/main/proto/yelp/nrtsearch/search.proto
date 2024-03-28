@@ -316,7 +316,21 @@ message MultiFunctionScoreQuery {
             // Produce score with score script definition
             Script script = 3;
         }
+        DecayFunction decayFunction = 4;
     }
+
+    message DecayFunction {
+        string fieldName = 1;
+        string decayType = 2;
+        oneof Origin {
+            int32 numeric = 3;
+            google.type.LatLng geoPoint = 4;
+        }
+        string scale = 5;
+        string offset = 6;
+        float decay = 7;
+    }
+
 
     // How to combine multiple function scores to produce a final function score
     enum FunctionScoreMode {
