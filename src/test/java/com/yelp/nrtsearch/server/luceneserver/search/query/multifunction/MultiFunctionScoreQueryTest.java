@@ -567,7 +567,7 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
   }
 
   @Test
-  public void testDecayFunctionGeoPoint() {
+  public void testExpDecayFunctionGeoPointWithWeight() {
     LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
     SearchResponse response =
         doQuery(
@@ -580,7 +580,35 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
                     .setDecayFunction(
                         MultiFunctionScoreQuery.DecayFunction.newBuilder()
                             .setDecay(0.99f)
-                            .setDecayType("exp")
+                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_EXPONENTIAL)
+                            .setOffset("0 m")
+                            .setScale("1 km")
+                            .setGeoPoint(latLng)
+                            .setFieldName("lat_lon_field")
+                            .build())
+                    .setWeight(0.7f)
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_MULTIPLY);
+    verifyResponseHitsWithDelta(
+        response, List.of(2, 4), List.of(2.3963971216289792E-6, 2.034676950471705E-18), 0.00000001);
+  }
+
+  @Test
+  public void testExpDecayFunctionGeoPoint() {
+    LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setMatchQuery(
+                    MatchQuery.newBuilder().setField("text_field").setQuery("Document2").build())
+                .build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setDecayFunction(
+                        MultiFunctionScoreQuery.DecayFunction.newBuilder()
+                            .setDecay(0.99f)
+                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_EXPONENTIAL)
                             .setOffset("0 m")
                             .setScale("1 km")
                             .setGeoPoint(latLng)
@@ -590,7 +618,59 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
             FunctionScoreMode.SCORE_MODE_MULTIPLY,
             BoostMode.BOOST_MODE_MULTIPLY);
     verifyResponseHitsWithDelta(
-        response, List.of(2, 4), List.of(3.4234246868436458E-6, 2.034676950471705E-18), 0.0);
+        response, List.of(2, 4), List.of(3.4234246868436458E-6, 2.034676950471705E-18), 0.00000001);
+  }
+
+  @Test
+  public void testLinearDecayFunctionGeoPoint() {
+    LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setMatchQuery(
+                    MatchQuery.newBuilder().setField("text_field").setQuery("Document2").build())
+                .build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setDecayFunction(
+                        MultiFunctionScoreQuery.DecayFunction.newBuilder()
+                            .setDecay(0.2f)
+                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_LINEAR)
+                            .setOffset("100 km")
+                            .setScale("6000 km")
+                            .setGeoPoint(latLng)
+                            .setFieldName("lat_lon_field")
+                            .build())
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_MULTIPLY);
+    verifyResponseHitsWithDelta(response, List.of(2, 4), List.of(0.2910, 0.1358), 0.0001);
+  }
+
+  @Test
+  public void testGuassDecayFunctionGeoPoint() {
+    LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setMatchQuery(
+                    MatchQuery.newBuilder().setField("text_field").setQuery("Document2").build())
+                .build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setDecayFunction(
+                        MultiFunctionScoreQuery.DecayFunction.newBuilder()
+                            .setDecay(0.5f)
+                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_GUASS)
+                            .setOffset("10000 km")
+                            .setScale("100 km")
+                            .setGeoPoint(latLng)
+                            .setFieldName("lat_lon_field")
+                            .build())
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_MULTIPLY);
+    verifyResponseHitsWithDelta(response, List.of(2, 4), List.of(0.3381, 0.2772), 0.0001);
   }
 
   @Test

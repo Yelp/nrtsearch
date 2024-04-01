@@ -315,20 +315,37 @@ message MultiFunctionScoreQuery {
         oneof Function {
             // Produce score with score script definition
             Script script = 3;
+            // Produce score with a decay function
+            DecayFunction decayFunction = 4;
         }
-        DecayFunction decayFunction = 4;
     }
 
+    // Apply decay function to docs
     message DecayFunction {
+        // Document field name to use
         string fieldName = 1;
-        string decayType = 2;
+        // Type of decay function to apply
+        DecayType decayType = 2;
+        // Origin point to calculate the distance
         oneof Origin {
             int32 numeric = 3;
             google.type.LatLng geoPoint = 4;
         }
+        // Distance from origin + offset at which computed score will be equal to decay
         string scale = 5;
+        // Compute decay function for docs with a distance greater than offset, will be 0.0 if none is set
         string offset = 6;
+        // Defines how documents are scored at the distance
         float decay = 7;
+    }
+
+    enum DecayType {
+        // Exponential decay function
+        DECAY_TYPE_EXPONENTIAL = 0;
+        // Linear decay function
+        DECAY_TYPE_LINEAR = 1;
+        // Gaussian decay function
+        DECAY_TYPE_GUASS = 2;
     }
 
 

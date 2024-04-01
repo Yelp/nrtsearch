@@ -19,9 +19,6 @@ import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery;
 import org.apache.lucene.search.Query;
 
 public abstract class DecayFilterFunction extends FilterFunction {
-  private static final String EXP = "exp";
-  private static final String GUASS = "guass";
-  private static final String LINEAR = "linear";
 
   /**
    * Constructor.
@@ -39,17 +36,16 @@ public abstract class DecayFilterFunction extends FilterFunction {
     }
   }
 
-  protected DecayFunction getDecayFunction(String decayType) {
+  protected DecayFunction getDecayType(MultiFunctionScoreQuery.DecayType decayType) {
     switch (decayType) {
-      case GUASS:
+      case DECAY_TYPE_GUASS:
         return new GuassDecayFunction();
-      case EXP:
+      case DECAY_TYPE_EXPONENTIAL:
         return new ExponentialDecayFunction();
-      case LINEAR:
+      case DECAY_TYPE_LINEAR:
         return new LinearDecayFunction();
       default:
-        throw new IllegalArgumentException(
-            decayType + " decay function type is not supported. Needs to be guass, exp or linear");
+        return null;
     }
   }
 }

@@ -19,19 +19,19 @@ import org.apache.lucene.search.Explanation;
 
 public class GuassDecayFunction implements DecayFunction {
   @Override
-  public double computeScore(double distance, double scale) {
-    return Math.exp(0.5 * Math.pow(distance, 2.0) / scale);
+  public double computeScore(double distance, double offset, double scale) {
+    return Math.exp((-1.0 * Math.pow(Math.max(0.0, distance - offset), 2.0)) / 2.0 * scale);
   }
 
   @Override
   public double computeScale(double scale, double decay) {
-    return 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
+    return (-1.0 * Math.pow(scale, 2.0)) / (2.0 * Math.log(decay));
   }
 
   @Override
-  public Explanation explainComputeScore(String distanceString, double distance, double scale) {
+  public Explanation explainComputeScore(double distance, double offset, double scale) {
     return Explanation.match(
-        (float) computeScore(distance, scale),
-        "exp(0.5 * pow(" + distanceString + ", 2.0) / " + scale + ")");
+        (float) computeScore(distance, offset, scale),
+        "exp(- pow(max(0.0, |" + distance + " - " + offset + "), 2.0)/ 2.0 * " + scale);
   }
 }

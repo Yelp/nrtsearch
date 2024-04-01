@@ -80,7 +80,7 @@ public abstract class FilterFunction {
     if (filterFunctionGrpc.hasDecayFunction()) {
       MultiFunctionScoreQuery.DecayFunction decayFunction = filterFunctionGrpc.getDecayFunction();
       if (decayFunction.hasGeoPoint()) {
-        return new GeoPointDecayFilterFunction(filterQuery, weight, decayFunction);
+        return new GeoPointDecayFilterFunction(filterQuery, weight, decayFunction, indexState);
       }
     }
     switch (filterFunctionGrpc.getFunctionCase()) {

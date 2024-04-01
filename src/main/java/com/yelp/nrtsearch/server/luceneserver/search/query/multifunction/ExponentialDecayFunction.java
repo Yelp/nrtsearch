@@ -19,8 +19,8 @@ import org.apache.lucene.search.Explanation;
 
 public class ExponentialDecayFunction implements DecayFunction {
   @Override
-  public double computeScore(double distance, double scale) {
-    return Math.exp(distance * scale);
+  public double computeScore(double distance, double offset, double scale) {
+    return Math.exp(scale * Math.max(0.0, distance - offset));
   }
 
   @Override
@@ -29,8 +29,9 @@ public class ExponentialDecayFunction implements DecayFunction {
   }
 
   @Override
-  public Explanation explainComputeScore(String distanceString, double distance, double scale) {
+  public Explanation explainComputeScore(double distance, double offset, double scale) {
     return Explanation.match(
-        (float) computeScore(distance, scale), "exp(" + distanceString + " * " + scale + ")");
+        (float) computeScore(distance, offset, scale),
+        "exp(" + scale + " * max(0.0, " + distance + " - " + offset);
   }
 }

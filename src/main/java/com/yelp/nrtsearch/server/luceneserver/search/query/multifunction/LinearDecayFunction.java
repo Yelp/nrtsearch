@@ -19,8 +19,8 @@ import org.apache.lucene.search.Explanation;
 
 public class LinearDecayFunction implements DecayFunction {
   @Override
-  public double computeScore(double distance, double scale) {
-    return Math.max(0.0, (scale - distance) / scale);
+  public double computeScore(double distance, double offset, double scale) {
+    return Math.max(0.0, (scale - Math.max(0.0, distance - offset)) / scale);
   }
 
   @Override
@@ -29,9 +29,9 @@ public class LinearDecayFunction implements DecayFunction {
   }
 
   @Override
-  public Explanation explainComputeScore(String distanceString, double distance, double scale) {
+  public Explanation explainComputeScore(double distance, double offset, double scale) {
     return Explanation.match(
-        (float) computeScore(distance, scale),
-        "max(0.0, (" + scale + " - " + distanceString + ") / " + scale + ")");
+        (float) computeScore(distance, offset, scale),
+        "max(0.0, (" + scale + " - max(0.0, " + distance + " - " + offset + ")) / " + scale + ")");
   }
 }

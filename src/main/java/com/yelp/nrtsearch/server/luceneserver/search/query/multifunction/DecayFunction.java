@@ -18,9 +18,9 @@ package com.yelp.nrtsearch.server.luceneserver.search.query.multifunction;
 import org.apache.lucene.search.Explanation;
 
 public interface DecayFunction {
-  double computeScore(double distance, double scale);
+  double computeScore(double distance, double offset, double scale);
 
   double computeScale(double scale, double decay);
 
-  Explanation explainComputeScore(String distanceString, double distance, double scale);
+  Explanation explainComputeScore(double distance, double offset, double scale);
 }
