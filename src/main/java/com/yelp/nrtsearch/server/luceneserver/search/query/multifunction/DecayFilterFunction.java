@@ -32,20 +32,19 @@ public abstract class DecayFilterFunction extends FilterFunction {
       Query filterQuery, float weight, MultiFunctionScoreQuery.DecayFunction decayFunction) {
     super(filterQuery, weight);
     if (decayFunction.getDecay() <= 0 || decayFunction.getDecay() >= 1) {
-      throw new IllegalArgumentException("decay rate should be between (0, 1)");
+      throw new IllegalArgumentException(
+          "decay rate should be between (0, 1) but is " + decayFunction.getDecay());
     }
   }
 
   protected DecayFunction getDecayType(MultiFunctionScoreQuery.DecayType decayType) {
-    switch (decayType) {
-      case DECAY_TYPE_GUASS:
-        return new GuassDecayFunction();
-      case DECAY_TYPE_EXPONENTIAL:
-        return new ExponentialDecayFunction();
-      case DECAY_TYPE_LINEAR:
-        return new LinearDecayFunction();
-      default:
-        return null;
-    }
+    return switch (decayType) {
+      case DECAY_TYPE_GUASSIAN -> new GuassianDecayFunction();
+      case DECAY_TYPE_EXPONENTIAL -> new ExponentialDecayFunction();
+      case DECAY_TYPE_LINEAR -> new LinearDecayFunction();
+      default -> throw new IllegalArgumentException(
+          decayType
+              + " not supported. Only exponential, guassian and linear decay functions are supported");
+    };
   }
 }

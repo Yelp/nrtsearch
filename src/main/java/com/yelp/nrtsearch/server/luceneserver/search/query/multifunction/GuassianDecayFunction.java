@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.search.query.multifunction;
 
 import org.apache.lucene.search.Explanation;
 
-public class GuassDecayFunction implements DecayFunction {
+public class GuassianDecayFunction implements DecayFunction {
   @Override
   public double computeScore(double distance, double offset, double scale) {
     return Math.exp((-1.0 * Math.pow(Math.max(0.0, distance - offset), 2.0)) / 2.0 * scale);

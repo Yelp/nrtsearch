@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.MultiFunctionScoreQuery;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.doc.SegmentDocLookup;
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.LatLonFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoUtils;
@@ -31,6 +32,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 
 public class GeoPointDecayFilterFunction extends DecayFilterFunction {
+  private static final String LAT_LON = "LAT_LON";
 
   private final MultiFunctionScoreQuery.DecayFunction decayFunction;
   private final String fieldName;
@@ -47,7 +49,7 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
    * @param filterQuery filter to use when applying this function, or null if none
    * @param weight weight multiple to scale the function score
    * @param decayFunction to score a document with a function that decays depending on the distance
-   *     between an origin point and a numeric doc field value
+   *     between an origin point and a geoPoint doc field value
    * @param indexState indexState for validation and doc value lookup
    */
   public GeoPointDecayFilterFunction(
@@ -59,24 +61,33 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
     this.decayFunction = decayFunction;
     this.fieldName = decayFunction.getFieldName();
     this.decayType = getDecayType(decayFunction.getDecayType());
+    this.origin = decayFunction.getGeoPoint();
+    this.decay = decayFunction.getDecay();
+    double userGivenScale = GeoUtils.getDistance(decayFunction.getScale());
+    this.scale = decayType.computeScale(userGivenScale, decay);
     this.offset =
         !decayFunction.getOffset().isEmpty()
             ? GeoUtils.getDistance(decayFunction.getOffset())
             : 0.0;
-    this.decay = decayFunction.getDecay();
-    double userGivenScale = GeoUtils.getDistance(decayFunction.getScale());
-    this.scale = decayType.computeScale(userGivenScale, decay);
     this.indexState = indexState;
-    if (!decayFunction.hasGeoPoint()) {
-      throw new IllegalArgumentException("Decay Function should have a geoPoint for Origin field");
-    } else {
-      this.origin = decayFunction.getGeoPoint();
+    validateLatLonField(indexState.getField(fieldName));
+  }
+
+  public void validateLatLonField(FieldDef fieldDef) {
+    if (!LAT_LON.equals(fieldDef.getType())) {
+      throw new IllegalArgumentException(
+          fieldName
+              + " should be a LAT_LON to apply geoPoint decay function but it is: "
+              + fieldDef.getType());
     }
-    LatLonFieldDef latLonFieldDef = (LatLonFieldDef) indexState.getField(fieldName);
+    LatLonFieldDef latLonFieldDef = (LatLonFieldDef) fieldDef;
     // TODO: Add support for multi-value fields
     if (latLonFieldDef.isMultiValue()) {
       throw new IllegalArgumentException(
-          "Multivalue fields are not supported for decay functions yet");
+          "Multivalued fields are not supported for decay functions yet");
+    }
+    if (!latLonFieldDef.hasDocValues()) {
+      throw new IllegalStateException("No doc values present for LAT_LON field: " + fieldName);
     }
   }
 
@@ -88,7 +99,6 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
   public final class GeoPointDecayLeafFunction implements LeafFunction {
 
     SegmentDocLookup segmentDocLookup;
-    LatLng latLng;
 
     public GeoPointDecayLeafFunction(LeafReaderContext context) {
       segmentDocLookup = indexState.docLookup.getSegmentLookup(context);
@@ -97,36 +107,54 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
     @Override
     public double score(int docId, float innerQueryScore) throws IOException {
       segmentDocLookup.setDocId(docId);
-      LoadedDocValues<GeoPoint> latLonValues =
-          (LoadedDocValues<GeoPoint>) segmentDocLookup.get(fieldName);
-      this.latLng = latLonValues.toFieldValue(0).getLatLngValue();
-      double distance =
-          GeoUtils.arcDistance(
-              origin.getLatitude(),
-              origin.getLongitude(),
-              latLng.getLatitude(),
-              latLng.getLongitude());
-      double score = decayType.computeScore(distance, offset, scale);
-      return score * getWeight();
+      if (!validateDocValuesPresent()) {
+        return 0.0;
+      } else {
+        LoadedDocValues<GeoPoint> geoPointLoadedDocValues =
+            (LoadedDocValues<GeoPoint>) segmentDocLookup.get(fieldName);
+        GeoPoint latLng = geoPointLoadedDocValues.get(0);
+        double distance =
+            GeoUtils.arcDistance(
+                origin.getLatitude(), origin.getLongitude(), latLng.getLat(), latLng.getLon());
+        double score = decayType.computeScore(distance, offset, scale);
+        return score * getWeight();
+      }
+    }
+
+    public boolean validateDocValuesPresent() {
+      return segmentDocLookup.containsKey(fieldName) && !segmentDocLookup.get(fieldName).isEmpty();
     }
 
     @Override
     public Explanation explainScore(int docId, Explanation innerQueryScore) {
-      double distance =
-          GeoUtils.arcDistance(
-              origin.getLatitude(),
-              origin.getLongitude(),
-              latLng.getLatitude(),
-              latLng.getLongitude());
-      double score = decayType.computeScore(distance, offset, scale);
-      Explanation distanceExp =
-          Explanation.match(distance, "arc distance calculated between two geoPoints");
-      return Explanation.match(
-          score,
-          "final score with the provided decay function calculated by score * weight with "
-              + getWeight()
-              + " weight value",
-          List.of(distanceExp, decayType.explainComputeScore(distance, offset, scale)));
+      double score;
+      segmentDocLookup.setDocId(docId);
+      if (validateDocValuesPresent()) {
+        LoadedDocValues<GeoPoint> geoPointLoadedDocValues =
+            (LoadedDocValues<GeoPoint>) segmentDocLookup.get(fieldName);
+        GeoPoint latLng = geoPointLoadedDocValues.get(0);
+        double distance =
+            GeoUtils.arcDistance(
+                origin.getLatitude(), origin.getLongitude(), latLng.getLat(), latLng.getLon());
+
+        Explanation distanceExp =
+            Explanation.match(distance, "arc distance calculated between two geoPoints");
+
+        score = decayType.computeScore(distance, offset, scale);
+        double finalScore = score * getWeight();
+        return Explanation.match(
+            finalScore,
+            "final score with the provided decay function calculated by score * weight with "
+                + getWeight()
+                + " weight value and "
+                + score
+                + "score",
+            List.of(distanceExp, decayType.explainComputeScore(distance, offset, scale)));
+      } else {
+        score = 0.0;
+        return Explanation.match(
+            score, "score is 0.0 since no doc values were present for " + fieldName);
+      }
     }
   }
 

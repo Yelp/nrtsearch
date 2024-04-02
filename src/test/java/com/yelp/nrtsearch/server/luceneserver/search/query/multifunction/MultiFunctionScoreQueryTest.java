@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.search.query.multifunction;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
@@ -67,9 +68,6 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
                 MultiValuedField.newBuilder()
                     .addValue("Document1 with none of filter terms")
                     .build())
-            .putFields(
-                "lat_lon_field",
-                MultiValuedField.newBuilder().addValue("34.0522").addValue("-118.2437").build())
             .build();
     docs.add(request);
     request =
@@ -618,7 +616,33 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
             FunctionScoreMode.SCORE_MODE_MULTIPLY,
             BoostMode.BOOST_MODE_MULTIPLY);
     verifyResponseHitsWithDelta(
-        response, List.of(2, 4), List.of(3.4234246868436458E-6, 2.034676950471705E-18), 0.00000001);
+        response, List.of(2, 4), List.of(3.4234246868436458E-6, 2.034676950471705E-18), 0.0);
+  }
+
+  @Test
+  public void testExpDecayFunctionNoDocValue() {
+    LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setMatchQuery(
+                    MatchQuery.newBuilder().setField("text_field").setQuery("none").build())
+                .build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setDecayFunction(
+                        MultiFunctionScoreQuery.DecayFunction.newBuilder()
+                            .setDecay(0.99f)
+                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_EXPONENTIAL)
+                            .setOffset("0 m")
+                            .setScale("1 km")
+                            .setGeoPoint(latLng)
+                            .setFieldName("lat_lon_field")
+                            .build())
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_MULTIPLY);
+    verifyResponseHitsWithDelta(response, List.of(1), List.of(0.0), 0.0);
   }
 
   @Test
@@ -661,7 +685,7 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
                     .setDecayFunction(
                         MultiFunctionScoreQuery.DecayFunction.newBuilder()
                             .setDecay(0.5f)
-                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_GUASS)
+                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_GUASSIAN)
                             .setOffset("10000 km")
                             .setScale("100 km")
                             .setGeoPoint(latLng)
@@ -671,6 +695,39 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
             FunctionScoreMode.SCORE_MODE_MULTIPLY,
             BoostMode.BOOST_MODE_MULTIPLY);
     verifyResponseHitsWithDelta(response, List.of(2, 4), List.of(0.3381, 0.2772), 0.0001);
+  }
+
+  @Test
+  public void testInvalidGeoPointField() {
+    LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
+    assertThrows(
+        Exception.class,
+        () -> {
+          SearchResponse response =
+              doQuery(
+                  Query.newBuilder()
+                      .setMatchQuery(
+                          MatchQuery.newBuilder()
+                              .setField("text_field")
+                              .setQuery("Document2")
+                              .build())
+                      .build(),
+                  List.of(
+                      MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                          .setDecayFunction(
+                              MultiFunctionScoreQuery.DecayFunction.newBuilder()
+                                  .setDecay(0.99f)
+                                  .setDecayType(
+                                      MultiFunctionScoreQuery.DecayType.DECAY_TYPE_EXPONENTIAL)
+                                  .setOffset("0 m")
+                                  .setScale("1 km")
+                                  .setGeoPoint(latLng)
+                                  .setFieldName("text_field")
+                                  .build())
+                          .build()),
+                  FunctionScoreMode.SCORE_MODE_MULTIPLY,
+                  BoostMode.BOOST_MODE_MULTIPLY);
+        });
   }
 
   @Test

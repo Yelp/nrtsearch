@@ -18,9 +18,35 @@ package com.yelp.nrtsearch.server.luceneserver.search.query.multifunction;
 import org.apache.lucene.search.Explanation;
 
 public interface DecayFunction {
+  /**
+   * Computes the decayed score based on the provided distance, offset, and scale.
+   *
+   * @param distance the distance from a given origin point.
+   * @param offset the point after which the decay starts.
+   * @param scale scale factor that influences the rate of decay. This scale value is computed from
+   *     the user given scale using the computeScale() method.
+   * @return the decayed score after applying the decay function
+   */
   double computeScore(double distance, double offset, double scale);
 
+  /**
+   * Computes the adjusted scale based on a user given scale and decay rate.
+   *
+   * @param scale user given scale.
+   * @param decay decay rate that decides how the score decreases.
+   * @return adjusted scale which will be used by the computeScore() method.
+   */
   double computeScale(double scale, double decay);
 
+  /**
+   * Provides an explanation for the computed score based on the given distance, offset, and scale.
+   *
+   * @param distance the distance from a given origin point.
+   * @param offset the point after which the decay starts.
+   * @param scale scale factor that influences the rate of decay. This scale value is computed from
+   *     the user given scale using the computeScale() method.
+   * @return Explanation object that details the calculations involved in computing the decayed
+   *     score.
+   */
   Explanation explainComputeScore(double distance, double offset, double scale);
 }
