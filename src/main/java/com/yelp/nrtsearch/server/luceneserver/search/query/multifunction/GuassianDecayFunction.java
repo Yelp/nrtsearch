@@ -20,7 +20,7 @@ import org.apache.lucene.search.Explanation;
 public class GuassianDecayFunction implements DecayFunction {
   @Override
   public double computeScore(double distance, double offset, double scale) {
-    return Math.exp((-1.0 * Math.pow(Math.max(0.0, distance - offset), 2.0)) / 2.0 * scale);
+    return Math.exp((-1.0 * Math.pow(Math.max(0.0, distance - offset), 2.0)) / (2.0 * scale));
   }
 
   @Override
@@ -32,6 +32,6 @@ public class GuassianDecayFunction implements DecayFunction {
   public Explanation explainComputeScore(double distance, double offset, double scale) {
     return Explanation.match(
         (float) computeScore(distance, offset, scale),
-        "exp(- pow(max(0.0, |" + distance + " - " + offset + "), 2.0)/ 2.0 * " + scale);
+        "exp(- pow(max(0.0, |" + distance + " - " + offset + "), 2.0)/ (2.0 * " + scale + ")");
   }
 }

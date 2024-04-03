@@ -32,7 +32,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 
 public class GeoPointDecayFilterFunction extends DecayFilterFunction {
-  private static final String LAT_LON = "LAT_LON";
 
   private final MultiFunctionScoreQuery.DecayFunction decayFunction;
   private final String fieldName;
@@ -74,7 +73,7 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
   }
 
   public void validateLatLonField(FieldDef fieldDef) {
-    if (!LAT_LON.equals(fieldDef.getType())) {
+    if (!(fieldDef instanceof LatLonFieldDef)) {
       throw new IllegalArgumentException(
           fieldName
               + " should be a LAT_LON to apply geoPoint decay function but it is: "
@@ -107,11 +106,11 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
     @Override
     public double score(int docId, float innerQueryScore) throws IOException {
       segmentDocLookup.setDocId(docId);
-      if (!validateDocValuesPresent()) {
+      LoadedDocValues<GeoPoint> geoPointLoadedDocValues =
+          (LoadedDocValues<GeoPoint>) segmentDocLookup.get(fieldName);
+      if (geoPointLoadedDocValues.isEmpty()) {
         return 0.0;
       } else {
-        LoadedDocValues<GeoPoint> geoPointLoadedDocValues =
-            (LoadedDocValues<GeoPoint>) segmentDocLookup.get(fieldName);
         GeoPoint latLng = geoPointLoadedDocValues.get(0);
         double distance =
             GeoUtils.arcDistance(
@@ -121,17 +120,13 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
       }
     }
 
-    public boolean validateDocValuesPresent() {
-      return segmentDocLookup.containsKey(fieldName) && !segmentDocLookup.get(fieldName).isEmpty();
-    }
-
     @Override
     public Explanation explainScore(int docId, Explanation innerQueryScore) {
       double score;
       segmentDocLookup.setDocId(docId);
-      if (validateDocValuesPresent()) {
-        LoadedDocValues<GeoPoint> geoPointLoadedDocValues =
-            (LoadedDocValues<GeoPoint>) segmentDocLookup.get(fieldName);
+      LoadedDocValues<GeoPoint> geoPointLoadedDocValues =
+          (LoadedDocValues<GeoPoint>) segmentDocLookup.get(fieldName);
+      if (!geoPointLoadedDocValues.isEmpty()) {
         GeoPoint latLng = geoPointLoadedDocValues.get(0);
         double distance =
             GeoUtils.arcDistance(
