@@ -16,7 +16,9 @@
 package com.yelp.nrtsearch.server.luceneserver.search.query.multifunction;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
+import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
@@ -76,6 +78,9 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
             .putFields(
                 "text_field",
                 MultiValuedField.newBuilder().addValue("Document2 with term1 filter term").build())
+            .putFields(
+                "lat_lon_field",
+                MultiValuedField.newBuilder().addValue("41.8781").addValue("-87.6298").build())
             .build();
     docs.add(request);
     request =
@@ -86,6 +91,9 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
             .putFields(
                 "text_field",
                 MultiValuedField.newBuilder().addValue("Document1 with term2 filter term").build())
+            .putFields(
+                "lat_lon_field",
+                MultiValuedField.newBuilder().addValue("51.5074").addValue("-0.1278").build())
             .build();
     docs.add(request);
     request =
@@ -98,6 +106,9 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
                 MultiValuedField.newBuilder()
                     .addValue("Document2 with both term1 and term2 filter terms")
                     .build())
+            .putFields(
+                "lat_lon_field",
+                MultiValuedField.newBuilder().addValue("45.5051").addValue("-122.6750").build())
             .build();
     docs.add(request);
     addDocuments(docs.stream());
@@ -554,6 +565,172 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
   }
 
   @Test
+  public void testExpDecayFunctionGeoPointWithWeight() {
+    LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setMatchQuery(
+                    MatchQuery.newBuilder().setField("text_field").setQuery("Document2").build())
+                .build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setDecayFunction(
+                        MultiFunctionScoreQuery.DecayFunction.newBuilder()
+                            .setDecay(0.99f)
+                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_EXPONENTIAL)
+                            .setOffset("0 m")
+                            .setScale("1 km")
+                            .setGeoPoint(latLng)
+                            .setFieldName("lat_lon_field")
+                            .build())
+                    .setWeight(0.7f)
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_MULTIPLY);
+    verifyResponseHitsWithDelta(
+        response, List.of(2, 4), List.of(2.3963971216289792E-6, 2.034676950471705E-18), 0.00000001);
+  }
+
+  @Test
+  public void testExpDecayFunctionGeoPoint() {
+    LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setMatchQuery(
+                    MatchQuery.newBuilder().setField("text_field").setQuery("Document2").build())
+                .build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setDecayFunction(
+                        MultiFunctionScoreQuery.DecayFunction.newBuilder()
+                            .setDecay(0.99f)
+                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_EXPONENTIAL)
+                            .setOffset("0 m")
+                            .setScale("1 km")
+                            .setGeoPoint(latLng)
+                            .setFieldName("lat_lon_field")
+                            .build())
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_MULTIPLY);
+    verifyResponseHitsWithDelta(
+        response, List.of(2, 4), List.of(3.4234246868436458E-6, 2.034676950471705E-18), 0.0);
+  }
+
+  @Test
+  public void testExpDecayFunctionNoDocValue() {
+    LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setMatchQuery(
+                    MatchQuery.newBuilder().setField("text_field").setQuery("none").build())
+                .build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setDecayFunction(
+                        MultiFunctionScoreQuery.DecayFunction.newBuilder()
+                            .setDecay(0.99f)
+                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_EXPONENTIAL)
+                            .setOffset("0 m")
+                            .setScale("1 km")
+                            .setGeoPoint(latLng)
+                            .setFieldName("lat_lon_field")
+                            .build())
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_MULTIPLY);
+    verifyResponseHitsWithDelta(response, List.of(1), List.of(0.0), 0.0);
+  }
+
+  @Test
+  public void testLinearDecayFunctionGeoPoint() {
+    LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setMatchQuery(
+                    MatchQuery.newBuilder().setField("text_field").setQuery("Document2").build())
+                .build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setDecayFunction(
+                        MultiFunctionScoreQuery.DecayFunction.newBuilder()
+                            .setDecay(0.2f)
+                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_LINEAR)
+                            .setOffset("100 km")
+                            .setScale("6000 km")
+                            .setGeoPoint(latLng)
+                            .setFieldName("lat_lon_field")
+                            .build())
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_MULTIPLY);
+    verifyResponseHitsWithDelta(response, List.of(2, 4), List.of(0.2910, 0.1358), 0.0001);
+  }
+
+  @Test
+  public void testGuassDecayFunctionGeoPoint() {
+    LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setMatchQuery(
+                    MatchQuery.newBuilder().setField("text_field").setQuery("Document2").build())
+                .build(),
+            List.of(
+                MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                    .setDecayFunction(
+                        MultiFunctionScoreQuery.DecayFunction.newBuilder()
+                            .setDecay(0.5f)
+                            .setDecayType(MultiFunctionScoreQuery.DecayType.DECAY_TYPE_GUASSIAN)
+                            .setOffset("10000 km")
+                            .setScale("100 km")
+                            .setGeoPoint(latLng)
+                            .setFieldName("lat_lon_field")
+                            .build())
+                    .build()),
+            FunctionScoreMode.SCORE_MODE_MULTIPLY,
+            BoostMode.BOOST_MODE_MULTIPLY);
+    verifyResponseHitsWithDelta(response, List.of(2, 4), List.of(0.3381, 0.2772), 0.0001);
+  }
+
+  @Test
+  public void testInvalidGeoPointField() {
+    LatLng latLng = LatLng.newBuilder().setLatitude(40.7128).setLongitude(-74.0060).build();
+    assertThrows(
+        Exception.class,
+        () -> {
+          SearchResponse response =
+              doQuery(
+                  Query.newBuilder()
+                      .setMatchQuery(
+                          MatchQuery.newBuilder()
+                              .setField("text_field")
+                              .setQuery("Document2")
+                              .build())
+                      .build(),
+                  List.of(
+                      MultiFunctionScoreQuery.FilterFunction.newBuilder()
+                          .setDecayFunction(
+                              MultiFunctionScoreQuery.DecayFunction.newBuilder()
+                                  .setDecay(0.99f)
+                                  .setDecayType(
+                                      MultiFunctionScoreQuery.DecayType.DECAY_TYPE_EXPONENTIAL)
+                                  .setOffset("0 m")
+                                  .setScale("1 km")
+                                  .setGeoPoint(latLng)
+                                  .setFieldName("text_field")
+                                  .build())
+                          .build()),
+                  FunctionScoreMode.SCORE_MODE_MULTIPLY,
+                  BoostMode.BOOST_MODE_MULTIPLY);
+        });
+  }
+
+  @Test
   public void testMultiMatchAll_multiply_multiply() {
     multiFunctionAndVerify(
         Query.newBuilder().build(),
@@ -890,6 +1067,11 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
 
   private void verifyResponseHits(
       SearchResponse searchResponse, List<Integer> ids, List<Double> scores) {
+    verifyResponseHitsWithDelta(searchResponse, ids, scores, 0.00001);
+  }
+
+  private void verifyResponseHitsWithDelta(
+      SearchResponse searchResponse, List<Integer> ids, List<Double> scores, Double delta) {
     assertEquals(ids.size(), scores.size());
     Map<String, Double> scoresMap = new HashMap<>();
     for (int i = 0; i < ids.size(); ++i) {
@@ -903,7 +1085,7 @@ public class MultiFunctionScoreQueryTest extends ServerTestCase {
           hit.getFieldsOrThrow("doc_id").getFieldValue(0).getTextValue(), hit.getScore());
     }
     for (Map.Entry<String, Double> entry : scoresMap.entrySet()) {
-      assertEquals(entry.getValue(), responseScoresMap.get(entry.getKey()), 0.00001);
+      assertEquals(entry.getValue(), responseScoresMap.get(entry.getKey()), delta);
     }
   }
 

@@ -88,6 +88,14 @@ public abstract class FilterFunction {
                 indexState.docLookup);
         return new ScriptFilterFunction(
             filterQuery, weight, filterFunctionGrpc.getScript(), scriptSource);
+      case DECAYFUNCTION:
+        MultiFunctionScoreQuery.DecayFunction decayFunction = filterFunctionGrpc.getDecayFunction();
+        if (decayFunction.hasGeoPoint()) {
+          return new GeoPointDecayFilterFunction(filterQuery, weight, decayFunction, indexState);
+        } else {
+          throw new IllegalArgumentException(
+              "Decay Function should contain a geoPoint for Origin field");
+        }
       case FUNCTION_NOT_SET:
         return new WeightFilterFunction(filterQuery, weight);
       default:
