@@ -31,12 +31,18 @@ public interface ContentDownloader {
       final String serviceName, final String resource, final String hash, final Path destDirectory)
       throws IOException;
 
-  /** @return amazonS3 Client used by this ContentDownloader */
+  /**
+   * @return amazonS3 Client used by this ContentDownloader
+   */
   AmazonS3 getS3Client();
 
-  /** @return bucketName used by this ContentDownloader */
+  /**
+   * @return bucketName used by this ContentDownloader
+   */
   String getBucketName();
 
-  /** @return boolean to indicate if this ContentDownloader operates in stream mode */
+  /**
+   * @return boolean to indicate if this ContentDownloader operates in stream mode
+   */
   boolean downloadAsStream();
 }

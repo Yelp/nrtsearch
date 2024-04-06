@@ -29,6 +29,7 @@ type BuildSuggestRequest struct {
 
 	IndexName string `protobuf:"bytes,1,opt,name=indexName,proto3" json:"indexName,omitempty"` //index name
 	// Types that are assignable to Suggester:
+	//
 	//	*BuildSuggestRequest_InfixSuggester
 	//	*BuildSuggestRequest_AnalyzingSuggester
 	//	*BuildSuggestRequest_FuzzySuggester
@@ -36,6 +37,7 @@ type BuildSuggestRequest struct {
 	//	*BuildSuggestRequest_FuzzyInfixSuggester
 	Suggester isBuildSuggestRequest_Suggester `protobuf_oneof:"Suggester"`
 	// Types that are assignable to Source:
+	//
 	//	*BuildSuggestRequest_LocalSource
 	//	*BuildSuggestRequest_NonLocalSource
 	Source      isBuildSuggestRequest_Source `protobuf_oneof:"Source"`
@@ -409,6 +411,7 @@ type OneSuggestLookupResponse struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to HighlightKey:
+	//
 	//	*OneSuggestLookupResponse_SuggestLookupHighlight
 	//	*OneSuggestLookupResponse_Key
 	HighlightKey isOneSuggestLookupResponse_HighlightKey `protobuf_oneof:"HighlightKey"`
@@ -609,8 +612,8 @@ type SuggestLocalSource struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Local file (to the server) to read suggestions + weights from; format is weight U+001F suggestion U+001F payload,
-	//one per line, with suggestion UTF-8 encoded. If this option is used then searcher, suggestField,
-	//weightField/Expression, payloadField should not be specified.
+	// one per line, with suggestion UTF-8 encoded. If this option is used then searcher, suggestField,
+	// weightField/Expression, payloadField should not be specified.
 	LocalFile          string `protobuf:"bytes,1,opt,name=localFile,proto3" json:"localFile,omitempty"`
 	HasContexts        bool   `protobuf:"varint,2,opt,name=hasContexts,proto3" json:"hasContexts,omitempty"`               //True if this file provides per-suggestion contexts
 	HasPayload         bool   `protobuf:"varint,3,opt,name=hasPayload,proto3" json:"hasPayload,omitempty"`                 //True if this file provides per-suggestion payload
@@ -684,12 +687,14 @@ type SuggestNonLocalSource struct {
 
 	// Specific searcher version to use for pull suggestions to build.  There are three different ways to specify a searcher version.
 	// Types that are assignable to Searcher:
+	//
 	//	*SuggestNonLocalSource_IndexGen
 	//	*SuggestNonLocalSource_Version
 	//	*SuggestNonLocalSource_Snapshot
 	Searcher     isSuggestNonLocalSource_Searcher `protobuf_oneof:"Searcher"`
 	SuggestField string                           `protobuf:"bytes,4,opt,name=suggestField,proto3" json:"suggestField,omitempty"` //Field (from stored documents) containing the suggestion text
 	// Types that are assignable to Weight:
+	//
 	//	*SuggestNonLocalSource_WeightField
 	//	*SuggestNonLocalSource_WeightExpression
 	Weight          isSuggestNonLocalSource_Weight `protobuf_oneof:"Weight"`

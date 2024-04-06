@@ -652,7 +652,7 @@ func (Script_ParamNullValue) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{29, 0}
 }
 
-//* How the {TotalHits#value} should be interpreted.
+// * How the {TotalHits#value} should be interpreted.
 type TotalHits_Relation int32
 
 const (
@@ -701,7 +701,7 @@ func (TotalHits_Relation) EnumDescriptor() ([]byte, []int) {
 	return file_yelp_nrtsearch_search_proto_rawDescGZIP(), []int{33, 0}
 }
 
-//Sorting order type
+// Sorting order type
 type BucketOrder_OrderType int32
 
 const (
@@ -992,7 +992,7 @@ type PhraseQuery struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Edit distance between respective positions of terms as defined in this PhraseQuery and the positions
-	//of terms in a document.
+	// of terms in a document.
 	Slop  int32    `protobuf:"varint,1,opt,name=slop,proto3" json:"slop,omitempty"`
 	Field string   `protobuf:"bytes,2,opt,name=field,proto3" json:"field,omitempty"` // The field in the index that this query applies to.
 	Terms []string `protobuf:"bytes,3,rep,name=terms,proto3" json:"terms,omitempty"` // Terms to match.
@@ -1231,7 +1231,6 @@ func (x *FunctionFilterQuery) GetScript() *Script {
 	return nil
 }
 
-//
 type NestedQuery struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1304,6 +1303,7 @@ type TermQuery struct {
 	// Field in the document to query.
 	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
 	// Types that are assignable to TermTypes:
+	//
 	//	*TermQuery_TextValue
 	//	*TermQuery_IntValue
 	//	*TermQuery_LongValue
@@ -1456,6 +1456,7 @@ type TermInSetQuery struct {
 	// Field in the document to query.
 	Field string `protobuf:"bytes,1,opt,name=field,proto3" json:"field,omitempty"`
 	// Types that are assignable to TermTypes:
+	//
 	//	*TermInSetQuery_TextTerms_
 	//	*TermInSetQuery_IntTerms_
 	//	*TermInSetQuery_LongTerms_
@@ -2674,6 +2675,7 @@ type Query struct {
 	QueryType QueryType `protobuf:"varint,1,opt,name=queryType,proto3,enum=luceneserver.QueryType" json:"queryType,omitempty"` // no longer needed, type inferred from set QueryNode
 	Boost     float32   `protobuf:"fixed32,2,opt,name=boost,proto3" json:"boost,omitempty"`                                    // Boost values that are less than one will give less importance to this query compared to other ones while values that are greater than one will give more importance to the scores returned by this query. Boost value of zero will do nothing (default). Boost less than 0 is invalid.
 	// Types that are assignable to QueryNode:
+	//
 	//	*Query_BooleanQuery
 	//	*Query_PhraseQuery
 	//	*Query_FunctionScoreQuery
@@ -3060,6 +3062,7 @@ type SearchRequest struct {
 	Query          *Query          `protobuf:"bytes,8,opt,name=query,proto3" json:"query,omitempty"`                   // Full query to execute using QueryNodes
 	QuerySort      *QuerySortField `protobuf:"bytes,9,opt,name=querySort,proto3" json:"querySort,omitempty"`           //Sort hits by field (default is by relevance).
 	// Types that are assignable to Searcher:
+	//
 	//	*SearchRequest_IndexGen
 	//	*SearchRequest_Version
 	//	*SearchRequest_Snapshot
@@ -3070,15 +3073,15 @@ type SearchRequest struct {
 	DisallowPartialResults bool                     `protobuf:"varint,16,opt,name=disallowPartialResults,proto3" json:"disallowPartialResults,omitempty"` //Should partial result be a failure condition. Applies when a search request times out. If false, the top documents ranking at the point of timeout are used and the request continues. Also, hitTimeout is set to true in the response.
 	QueryNestedPath        string                   `protobuf:"bytes,17,opt,name=queryNestedPath,proto3" json:"queryNestedPath,omitempty"`                //nested path we want to query by if we want to query child documents.
 	Rescorers              []*Rescorer              `protobuf:"bytes,18,rep,name=rescorers,proto3" json:"rescorers,omitempty"`                            // Rescorers which are executed in-order after the first pass
-	//If detailed request execution profiling should be included in the response
+	// If detailed request execution profiling should be included in the response
 	Profile bool `protobuf:"varint,19,opt,name=profile,proto3" json:"profile,omitempty"`
-	//Check the search timeout condition after each collection of n documents in a segment. If 0, timeout is only checked on the segment boundary.
+	// Check the search timeout condition after each collection of n documents in a segment. If 0, timeout is only checked on the segment boundary.
 	TimeoutCheckEvery int32 `protobuf:"varint,20,opt,name=timeoutCheckEvery,proto3" json:"timeoutCheckEvery,omitempty"`
-	//Additional document collectors. Provides support for operations such as aggregation.
+	// Additional document collectors. Provides support for operations such as aggregation.
 	Collectors map[string]*Collector `protobuf:"bytes,21,rep,name=collectors,proto3" json:"collectors,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	//Stop document collection in search phase after this many documents, 0 for unlimited.
+	// Stop document collection in search phase after this many documents, 0 for unlimited.
 	TerminateAfter int32 `protobuf:"varint,22,opt,name=terminateAfter,proto3" json:"terminateAfter,omitempty"`
-	//Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to uncompressed. Valid codecs: identity, gzip, lz4
+	// Set gRPC compression codec to use for response message. If value is unset or invalid, falls back to uncompressed. Valid codecs: identity, gzip, lz4
 	ResponseCompression string `protobuf:"bytes,23,opt,name=responseCompression,proto3" json:"responseCompression,omitempty"`
 	// Specify how to highlight matched text
 	Highlight *Highlight `protobuf:"bytes,24,opt,name=highlight,proto3" json:"highlight,omitempty"`
@@ -3674,8 +3677,8 @@ type SortType struct {
 	Selector  Selector `protobuf:"varint,2,opt,name=selector,proto3,enum=luceneserver.Selector" json:"selector,omitempty"` // For multi valued fields, how to select which value is used for sorting
 	Origin    *Point   `protobuf:"bytes,3,opt,name=origin,proto3" json:"origin,omitempty"`                                 // For distance sort, the point that we measure distance from
 	// Whether missing values should sort last instead of first.
-	//Note that this runs \"before\" reverse, so if you sort missing first and reverse=true then missing values will
-	//be at the end.
+	// Note that this runs \"before\" reverse, so if you sort missing first and reverse=true then missing values will
+	// be at the end.
 	MissingLat bool `protobuf:"varint,4,opt,name=missingLat,proto3" json:"missingLat,omitempty"`
 	// Sort in reverse of the field's natural order
 	Reverse bool `protobuf:"varint,5,opt,name=reverse,proto3" json:"reverse,omitempty"`
@@ -3763,7 +3766,7 @@ type TotalHits struct {
 	unknownFields protoimpl.UnknownFields
 
 	Relation TotalHits_Relation `protobuf:"varint,1,opt,name=relation,proto3,enum=luceneserver.TotalHits_Relation" json:"relation,omitempty"`
-	//* The value of the total hit count. Must be interpreted in the context of * {#relation}.
+	// * The value of the total hit count. Must be interpreted in the context of * {#relation}.
 	Value int64 `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`
 }
 
@@ -4498,6 +4501,7 @@ type Rescorer struct {
 
 	WindowSize int32 `protobuf:"varint,1,opt,name=windowSize,proto3" json:"windowSize,omitempty"`
 	// Types that are assignable to Rescorers:
+	//
 	//	*Rescorer_QueryRescorer
 	//	*Rescorer_PluginRescorer
 	Rescorers isRescorer_Rescorers `protobuf_oneof:"Rescorers"`
@@ -4660,20 +4664,21 @@ func (x *ProfileResult) GetDrillDownQuery() string {
 	return ""
 }
 
-//Definition of additional document collector.
+// Definition of additional document collector.
 type Collector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Collectors:
+	//
 	//	*Collector_Terms
 	//	*Collector_PluginCollector
 	//	*Collector_TopHitsCollector
 	//	*Collector_Filter
 	//	*Collector_Max
 	Collectors isCollector_Collectors `protobuf_oneof:"Collectors"`
-	//Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors.
+	// Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors.
 	NestedCollectors map[string]*Collector `protobuf:"bytes,3,rep,name=nestedCollectors,proto3" json:"nestedCollectors,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -4763,7 +4768,7 @@ type isCollector_Collectors interface {
 }
 
 type Collector_Terms struct {
-	//Collector for aggregating based on term values.
+	// Collector for aggregating based on term values.
 	Terms *TermsCollector `protobuf:"bytes,1,opt,name=terms,proto3,oneof"`
 }
 
@@ -4772,17 +4777,17 @@ type Collector_PluginCollector struct {
 }
 
 type Collector_TopHitsCollector struct {
-	//Collector for getting top hits based on score or sorting.
+	// Collector for getting top hits based on score or sorting.
 	TopHitsCollector *TopHitsCollector `protobuf:"bytes,4,opt,name=topHitsCollector,proto3,oneof"`
 }
 
 type Collector_Filter struct {
-	//Collector that filters documents to nested collectors
+	// Collector that filters documents to nested collectors
 	Filter *FilterCollector `protobuf:"bytes,5,opt,name=filter,proto3,oneof"`
 }
 
 type Collector_Max struct {
-	//Collector for finding a max double value from collected documents.
+	// Collector for finding a max double value from collected documents.
 	Max *MaxCollector `protobuf:"bytes,6,opt,name=max,proto3,oneof"`
 }
 
@@ -4852,19 +4857,20 @@ func (x *PluginCollector) GetParams() *structpb.Struct {
 	return nil
 }
 
-//Definition of term aggregating collector.
+// Definition of term aggregating collector.
 type TermsCollector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to TermsSource:
+	//
 	//	*TermsCollector_Field
 	//	*TermsCollector_Script
 	TermsSource isTermsCollector_TermsSource `protobuf_oneof:"TermsSource"`
-	//Maximum number of top terms to return.
+	// Maximum number of top terms to return.
 	Size int32 `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
-	//How results Buckets should be ordered, defaults to descending Bucket _count.
+	// How results Buckets should be ordered, defaults to descending Bucket _count.
 	Order *BucketOrder `protobuf:"bytes,4,opt,name=order,proto3" json:"order,omitempty"`
 }
 
@@ -4940,12 +4946,12 @@ type isTermsCollector_TermsSource interface {
 }
 
 type TermsCollector_Field struct {
-	//Use field values for terms.
+	// Use field values for terms.
 	Field string `protobuf:"bytes,1,opt,name=field,proto3,oneof"`
 }
 
 type TermsCollector_Script struct {
-	//Use FacetScript definition to produce terms.
+	// Use FacetScript definition to produce terms.
 	Script *Script `protobuf:"bytes,2,opt,name=script,proto3,oneof"`
 }
 
@@ -4953,19 +4959,19 @@ func (*TermsCollector_Field) isTermsCollector_TermsSource() {}
 
 func (*TermsCollector_Script) isTermsCollector_TermsSource() {}
 
-//Definition of top hits based collector.
+// Definition of top hits based collector.
 type TopHitsCollector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	//Offset for retrieval of top hits.
+	// Offset for retrieval of top hits.
 	StartHit int32 `protobuf:"varint,1,opt,name=startHit,proto3" json:"startHit,omitempty"`
-	//Total hits to collect, note that the number of hits returned is (topHits - startHit).
+	// Total hits to collect, note that the number of hits returned is (topHits - startHit).
 	TopHits int32 `protobuf:"varint,2,opt,name=topHits,proto3" json:"topHits,omitempty"`
-	//When specified, collector does sort based collection. Otherwise, relevance score is used.
+	// When specified, collector does sort based collection. Otherwise, relevance score is used.
 	QuerySort *QuerySortField `protobuf:"bytes,3,opt,name=querySort,proto3" json:"querySort,omitempty"`
-	//Which fields to retrieve.
+	// Which fields to retrieve.
 	RetrieveFields []string `protobuf:"bytes,4,rep,name=retrieveFields,proto3" json:"retrieveFields,omitempty"`
 	// If Lucene explanation should be included in the collector response
 	Explain bool `protobuf:"varint,5,opt,name=explain,proto3" json:"explain,omitempty"`
@@ -5038,13 +5044,14 @@ func (x *TopHitsCollector) GetExplain() bool {
 	return false
 }
 
-//Definition of filtering collector, there must be at least one nested collector specified in the Collector message.
+// Definition of filtering collector, there must be at least one nested collector specified in the Collector message.
 type FilterCollector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Filter:
+	//
 	//	*FilterCollector_Query
 	//	*FilterCollector_SetQuery
 	Filter isFilterCollector_Filter `protobuf_oneof:"Filter"`
@@ -5121,13 +5128,14 @@ func (*FilterCollector_Query) isFilterCollector_Filter() {}
 
 func (*FilterCollector_SetQuery) isFilterCollector_Filter() {}
 
-//Definition of collector to find a max double value over documents. Currently only allows for script based value production.
+// Definition of collector to find a max double value over documents. Currently only allows for script based value production.
 type MaxCollector struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to ValueSource:
+	//
 	//	*MaxCollector_Script
 	ValueSource isMaxCollector_ValueSource `protobuf_oneof:"ValueSource"`
 }
@@ -5183,7 +5191,7 @@ type isMaxCollector_ValueSource interface {
 }
 
 type MaxCollector_Script struct {
-	//Script to produce a double value
+	// Script to produce a double value
 	Script *Script `protobuf:"bytes,1,opt,name=script,proto3,oneof"`
 }
 
@@ -5195,6 +5203,7 @@ type CollectorResult struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to CollectorResults:
+	//
 	//	*CollectorResult_BucketResult
 	//	*CollectorResult_AnyResult
 	//	*CollectorResult_HitsResult
@@ -5282,27 +5291,27 @@ type isCollectorResult_CollectorResults interface {
 }
 
 type CollectorResult_BucketResult struct {
-	//Result of collector that produces buckets and counts.
+	// Result of collector that produces buckets and counts.
 	BucketResult *BucketResult `protobuf:"bytes,1,opt,name=bucketResult,proto3,oneof"`
 }
 
 type CollectorResult_AnyResult struct {
-	//Flexible collector result for additional document collectors
+	// Flexible collector result for additional document collectors
 	AnyResult *anypb.Any `protobuf:"bytes,2,opt,name=anyResult,proto3,oneof"`
 }
 
 type CollectorResult_HitsResult struct {
-	//Result of collector that returns document hits.
+	// Result of collector that returns document hits.
 	HitsResult *HitsResult `protobuf:"bytes,4,opt,name=hitsResult,proto3,oneof"`
 }
 
 type CollectorResult_FilterResult struct {
-	//Result of collector that filters documents.
+	// Result of collector that filters documents.
 	FilterResult *FilterResult `protobuf:"bytes,5,opt,name=filterResult,proto3,oneof"`
 }
 
 type CollectorResult_DoubleResult struct {
-	//Result of collector that produces a single double value.
+	// Result of collector that produces a single double value.
 	DoubleResult *wrapperspb.DoubleValue `protobuf:"bytes,6,opt,name=doubleResult,proto3,oneof"`
 }
 
@@ -5316,15 +5325,15 @@ func (*CollectorResult_FilterResult) isCollectorResult_CollectorResults() {}
 
 func (*CollectorResult_DoubleResult) isCollectorResult_CollectorResults() {}
 
-//Defines how Buckets should be ordered in BucketResult.
+// Defines how Buckets should be ordered in BucketResult.
 type BucketOrder struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	//What to use for sorting. This can be _count for Bucket count, or the name of a nested collector that supports ordering.
+	// What to use for sorting. This can be _count for Bucket count, or the name of a nested collector that supports ordering.
 	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	//Sorting order
+	// Sorting order
 	Order BucketOrder_OrderType `protobuf:"varint,2,opt,name=order,proto3,enum=luceneserver.BucketOrder_OrderType" json:"order,omitempty"`
 }
 
@@ -5380,9 +5389,9 @@ type BucketResult struct {
 	unknownFields protoimpl.UnknownFields
 
 	Buckets []*BucketResult_Bucket `protobuf:"bytes,1,rep,name=buckets,proto3" json:"buckets,omitempty"`
-	//Number of unique buckets, including those not in the buckets list.
+	// Number of unique buckets, including those not in the buckets list.
 	TotalBuckets int32 `protobuf:"varint,2,opt,name=totalBuckets,proto3" json:"totalBuckets,omitempty"`
-	//Number of other collected counts not represented in the buckets' counts.
+	// Number of other collected counts not represented in the buckets' counts.
 	TotalOtherCounts int32 `protobuf:"varint,3,opt,name=totalOtherCounts,proto3" json:"totalOtherCounts,omitempty"`
 }
 
@@ -5444,9 +5453,9 @@ type HitsResult struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	//Total hit information.
+	// Total hit information.
 	TotalHits *TotalHits `protobuf:"bytes,3,opt,name=totalHits,proto3" json:"totalHits,omitempty"`
-	//Ordered hits with scoring/sorting info and retrieved fields.
+	// Ordered hits with scoring/sorting info and retrieved fields.
 	Hits []*SearchResponse_Hit `protobuf:"bytes,4,rep,name=hits,proto3" json:"hits,omitempty"`
 }
 
@@ -5501,9 +5510,9 @@ type FilterResult struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	//Number of documents that passed the filter.
+	// Number of documents that passed the filter.
 	DocCount int32 `protobuf:"varint,1,opt,name=docCount,proto3" json:"docCount,omitempty"`
-	//Results from nested collectors.
+	// Results from nested collectors.
 	NestedCollectorResults map[string]*CollectorResult `protobuf:"bytes,2,rep,name=nestedCollectorResults,proto3" json:"nestedCollectorResults,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -5868,6 +5877,7 @@ type MultiFunctionScoreQuery_FilterFunction struct {
 	// Function to produce score, will be 1.0 if none are set
 	//
 	// Types that are assignable to Function:
+	//
 	//	*MultiFunctionScoreQuery_FilterFunction_Script
 	Function isMultiFunctionScoreQuery_FilterFunction_Function `protobuf_oneof:"Function"`
 }
@@ -5951,6 +5961,7 @@ type Script_ParamValue struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to ParamValues:
+	//
 	//	*Script_ParamValue_TextValue
 	//	*Script_ParamValue_BooleanValue
 	//	*Script_ParamValue_IntValue
@@ -6545,6 +6556,7 @@ type SearchResponse_Hit_FieldValue struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to FieldValues:
+	//
 	//	*SearchResponse_Hit_FieldValue_TextValue
 	//	*SearchResponse_Hit_FieldValue_BooleanValue
 	//	*SearchResponse_Hit_FieldValue_IntValue
@@ -7147,7 +7159,7 @@ type BucketResult_Bucket struct {
 
 	Key   string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Count int32  `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
-	//Nested collector results for sub-aggregations of this bucket.
+	// Nested collector results for sub-aggregations of this bucket.
 	NestedCollectorResults map[string]*CollectorResult `protobuf:"bytes,8,rep,name=nestedCollectorResults,proto3" json:"nestedCollectorResults,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 

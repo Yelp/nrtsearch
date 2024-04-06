@@ -1,5 +1,5 @@
 plugins {
-    id 'com.diffplug.gradle.spotless' version '4.3.0'
+    id 'com.diffplug.spotless' version '6.22.0'
     id 'distribution'
     // Generate IntelliJ IDEA's .idea & .iml project files
     id 'idea'
@@ -14,8 +14,10 @@ repositories {
     mavenCentral()
 }
 
-sourceCompatibility = 1.17
-targetCompatibility = 1.17
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
 
 group 'com.yelp.nrtsearch.plugins'
 version '0.0.1'
@@ -25,16 +27,21 @@ repositories {
 }
 
 ext {
+    assertjVersion = '3.19.0'
+    grpcVersion = "1.46.0"
+    junitVersion = "4.13.2"
     nrtsearchVersion = "0.+"
+    protobufVersion = "3.24.3"
 }
 
 dependencies {
     compileOnly "com.yelp.nrtsearch:server:${nrtsearchVersion}"
     testImplementation "com.yelp.nrtsearch:server:${nrtsearchVersion}"
     testImplementation("com.yelp.nrtsearch:server:${nrtsearchVersion}:tests")
-    testImplementation "junit:junit:4.13.2"
-    testImplementation "org.assertj:assertj-core:3.19.0"
-    testImplementation "io.grpc:grpc-testing:1.46.0"
+    testImplementation "junit:junit:${junitVersion}"
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+    testImplementation "io.grpc:grpc-testing:${grpcVersion}"
+    testImplementation "com.google.protobuf:protobuf-java:${protobufVersion}"
 }
 
 distributions {

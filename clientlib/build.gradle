@@ -2,13 +2,13 @@ plugins {
     // Provide convenience executables for trying out the examples.
     id 'application'
     // ASSUMES GRADLE 2.12 OR HIGHER. Use plugin version 0.7.5 with earlier gradle versions
-    id 'com.google.protobuf' version '0.8.12'
+    id 'com.google.protobuf' version '0.9.4'
     // Generate IntelliJ IDEA's .idea & .iml project files
     id 'idea'
     // Publish clientlib to maven central
     id 'maven-publish'
     id 'signing'
-    id "com.diffplug.gradle.spotless"
+    id "com.diffplug.spotless"
     id 'java-library'
 }
 
@@ -20,8 +20,10 @@ repositories {
     mavenCentral()
 }
 
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
 startScripts.enabled = false
 
 // groupId, artifactId and version for the generated pom
@@ -39,6 +41,7 @@ dependencies {
     implementation "javax.annotation:javax.annotation-api:1.2"
     implementation "org.slf4j:slf4j-api:${rootProject.slf4jVersion}"
     implementation "com.fasterxml.jackson.core:jackson-databind:${rootProject.jacksonYamlVersion}"
+    implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
 
     // for lz4 message compression
     implementation "org.lz4:lz4-java:${rootProject.lz4Version}"
@@ -87,12 +90,13 @@ task javadocs(type: Javadoc) {
 }
 
 task javadocsJar(type: Jar) {
-    classifier('javadoc')
+    archiveClassifier = 'javadoc'
     from javadocs.destinationDir
 }
 
 task sourcesJar(type: Jar) {
-    classifier('sources')
+    dependsOn "generateProto"
+    archiveClassifier = 'sources'
     from sourceSets.main.java.srcDirs
 }
 
@@ -182,6 +186,7 @@ publishing {
 
 spotless {
     java {
+        targetExclude "build/**/*.java"
         licenseHeaderFile '../license_header'
         removeUnusedImports()
         endWithNewline()

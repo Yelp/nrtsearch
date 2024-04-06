@@ -758,8 +758,7 @@ public class StateBackendServerTest {
                             .build())
                     .build());
     IndexSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_SETTINGS.toBuilder()
             .setNrtCachingDirectoryMaxSizeMB(DoubleValue.newBuilder().setValue(120.0).build())
             .setNrtCachingDirectoryMaxMergeSizeMB(DoubleValue.newBuilder().setValue(60.0).build())
             .setIndexMergeSchedulerAutoThrottle(BoolValue.newBuilder().setValue(true).build())
@@ -789,8 +788,7 @@ public class StateBackendServerTest {
                             .build())
                     .build());
     IndexSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_SETTINGS.toBuilder()
             .setNrtCachingDirectoryMaxSizeMB(DoubleValue.newBuilder().setValue(120.0).build())
             .setNrtCachingDirectoryMaxMergeSizeMB(DoubleValue.newBuilder().setValue(60.0).build())
             .setIndexMergeSchedulerAutoThrottle(BoolValue.newBuilder().setValue(true).build())
@@ -832,8 +830,7 @@ public class StateBackendServerTest {
                             .build())
                     .build());
     IndexLiveSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
@@ -864,8 +861,7 @@ public class StateBackendServerTest {
                             .build())
                     .build());
     IndexLiveSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
@@ -910,8 +906,7 @@ public class StateBackendServerTest {
                     .build());
     // live settings with local
     IndexLiveSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
@@ -965,8 +960,7 @@ public class StateBackendServerTest {
                     .build());
     // live settings with local
     IndexLiveSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
@@ -990,8 +984,7 @@ public class StateBackendServerTest {
                     .build());
     // live settings with local
     expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(2000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
@@ -1037,8 +1030,7 @@ public class StateBackendServerTest {
                     .build());
     // live settings with local
     IndexLiveSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
@@ -1111,8 +1103,7 @@ public class StateBackendServerTest {
                     .build());
     // live settings with local
     IndexLiveSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(1000).build())
             .setSegmentsPerTier(Int32Value.newBuilder().setValue(4).build())
             .setSliceMaxSegments(Int32Value.newBuilder().setValue(50).build())
@@ -1669,8 +1660,7 @@ public class StateBackendServerTest {
 
     SettingsResponse response = primaryClient.getBlockingStub().settings(request);
     IndexSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_SETTINGS.toBuilder()
             .setNrtCachingDirectoryMaxSizeMB(DoubleValue.newBuilder().setValue(101.0).build())
             .setNrtCachingDirectoryMaxMergeSizeMB(DoubleValue.newBuilder().setValue(51.0).build())
             .setIndexSort(
@@ -1754,8 +1744,7 @@ public class StateBackendServerTest {
 
     LiveSettingsResponse response = primaryClient.getBlockingStub().liveSettings(request);
     IndexLiveSettings expectedSettings =
-        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS
-            .toBuilder()
+        ImmutableIndexState.DEFAULT_INDEX_LIVE_SETTINGS.toBuilder()
             .setMaxRefreshSec(DoubleValue.newBuilder().setValue(30.0).build())
             .setMaxSearcherAgeSec(DoubleValue.newBuilder().setValue(120.0).build())
             .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(128.0).build())

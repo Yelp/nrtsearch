@@ -61,7 +61,9 @@ public final class VectorType extends AbstractList<Float> {
     return currentValue;
   }
 
-  /** @return number of elements in the vector */
+  /**
+   * @return number of elements in the vector
+   */
   @Override
   public int size() {
     return vectorData.length;

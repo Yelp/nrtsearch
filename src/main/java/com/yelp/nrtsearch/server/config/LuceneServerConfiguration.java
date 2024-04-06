@@ -44,8 +44,6 @@ public class LuceneServerConfiguration {
       Paths.get(System.getProperty("user.home"), "lucene", "server");
   public static final Path DEFAULT_ARCHIVER_DIR =
       Paths.get(DEFAULT_USER_DIR.toString(), "archiver");
-  public static final Path DEFAULT_BOTO_CFG_PATH =
-      Paths.get(DEFAULT_USER_DIR.toString(), "boto.cfg");
   public static final Path DEFAULT_STATE_DIR =
       Paths.get(DEFAULT_USER_DIR.toString(), "default_state");
   public static final Path DEFAULT_INDEX_DIR =
@@ -137,7 +135,7 @@ public class LuceneServerConfiguration {
     stateDir = configReader.getString("stateDir", DEFAULT_STATE_DIR.toString());
     indexDir = configReader.getString("indexDir", DEFAULT_INDEX_DIR.toString());
     archiveDirectory = configReader.getString("archiveDirectory", DEFAULT_ARCHIVER_DIR.toString());
-    botoCfgPath = configReader.getString("botoCfgPath", DEFAULT_BOTO_CFG_PATH.toString());
+    botoCfgPath = configReader.getString("botoCfgPath", null);
     bucketName = configReader.getString("bucketName", DEFAULT_BUCKET_NAME);
     maxS3ClientRetries =
         configReader.getInteger("maxS3ClientRetries", DEFAULT_MAX_S3_CLIENT_RETRIES);

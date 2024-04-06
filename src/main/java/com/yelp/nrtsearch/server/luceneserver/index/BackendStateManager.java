@@ -232,9 +232,7 @@ public class BackendStateManager implements IndexStateManager {
       logger.info("Doing initial commit for index: " + indexName);
       currentState.commit(globalState.getConfiguration().getBackupWithInArchiver());
       IndexStateInfo updatedStateInfo =
-          currentState
-              .getCurrentStateInfo()
-              .toBuilder()
+          currentState.getCurrentStateInfo().toBuilder()
               .setCommitted(true)
               .setGen(currentState.getCurrentStateInfo().getGen() + 1)
               .build();
@@ -288,8 +286,7 @@ public class BackendStateManager implements IndexStateManager {
       IndexStateInfo currentStateInfo, IndexSettings settings) {
     IndexSettings mergedSettings =
         ImmutableIndexState.mergeSettings(currentStateInfo.getSettings(), settings);
-    return currentStateInfo
-        .toBuilder()
+    return currentStateInfo.toBuilder()
         .setSettings(mergedSettings)
         .setGen(currentStateInfo.getGen() + 1)
         .build();
@@ -299,8 +296,7 @@ public class BackendStateManager implements IndexStateManager {
       IndexStateInfo currentStateInfo, IndexLiveSettings liveSettings) {
     IndexLiveSettings mergedLiveSettings =
         ImmutableIndexState.mergeLiveSettings(currentStateInfo.getLiveSettings(), liveSettings);
-    return currentStateInfo
-        .toBuilder()
+    return currentStateInfo.toBuilder()
         .setLiveSettings(mergedLiveSettings)
         .setGen(currentStateInfo.getGen() + 1)
         .build();

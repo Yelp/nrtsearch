@@ -23,6 +23,7 @@ import org.apache.lucene.search.DoubleValuesSource;
  */
 public interface Bindable {
   String VALUE_PROPERTY = "value";
+
   /**
    * Get {@link DoubleValuesSource} to produce values per document when this field is bound into a
    * lucene {@link org.apache.lucene.expressions.Expression} script.

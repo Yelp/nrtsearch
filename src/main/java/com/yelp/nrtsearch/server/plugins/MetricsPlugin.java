@@ -23,6 +23,8 @@ import io.prometheus.client.CollectorRegistry;
  */
 public interface MetricsPlugin {
 
-  /** @param collectorRegistry Nrtsearch Prometheus collector registry. */
+  /**
+   * @param collectorRegistry Nrtsearch Prometheus collector registry.
+   */
   void registerMetrics(CollectorRegistry collectorRegistry);
 }

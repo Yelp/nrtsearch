@@ -16,9 +16,11 @@
 package com.yelp.nrtsearch.server.module;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.auth.profile.ProfilesConfigFile;
 import com.amazonaws.client.builder.AwsClientBuilder;
@@ -44,21 +46,26 @@ public class S3Module extends AbstractModule {
   @Singleton
   @Provides
   protected AmazonS3 providesAmazonS3(LuceneServerConfiguration luceneServerConfiguration) {
-    if (luceneServerConfiguration
-        .getBotoCfgPath()
-        .equals(LuceneServerConfiguration.DEFAULT_BOTO_CFG_PATH.toString())) {
-      return AmazonS3ClientBuilder.standard()
-          .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
-          .withEndpointConfiguration(
-              new AwsClientBuilder.EndpointConfiguration("dummyService", "dummyRegion"))
-          .build();
+    AWSCredentialsProvider awsCredentialsProvider;
+    if (luceneServerConfiguration.getBotoCfgPath() == null) {
+      awsCredentialsProvider = new DefaultAWSCredentialsProviderChain();
     } else {
       Path botoCfgPath = Paths.get(luceneServerConfiguration.getBotoCfgPath());
       final ProfilesConfigFile profilesConfigFile = new ProfilesConfigFile(botoCfgPath.toFile());
-      final AWSCredentialsProvider awsCredentialsProvider =
-          new ProfileCredentialsProvider(profilesConfigFile, "default");
+      awsCredentialsProvider = new ProfileCredentialsProvider(profilesConfigFile, "default");
+    }
+    final boolean globalBucketAccess = luceneServerConfiguration.getEnableGlobalBucketAccess();
+
+    AmazonS3ClientBuilder clientBuilder =
+        AmazonS3ClientBuilder.standard()
+            .withCredentials(awsCredentialsProvider)
+            .withForceGlobalBucketAccessEnabled(globalBucketAccess);
+    try {
       AmazonS3 s3ClientInterim =
-          AmazonS3ClientBuilder.standard().withCredentials(awsCredentialsProvider).build();
+          AmazonS3ClientBuilder.standard()
+              .withCredentials(awsCredentialsProvider)
+              .withForceGlobalBucketAccessEnabled(globalBucketAccess)
+              .build();
       String region = s3ClientInterim.getBucketLocation(luceneServerConfiguration.getBucketName());
       // In useast-1, the region is returned as "US" which is an equivalent to "us-east-1"
       // https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/model/Region.html#US_Standard
@@ -68,28 +75,34 @@ public class S3Module extends AbstractModule {
       }
       String serviceEndpoint = String.format("s3.%s.amazonaws.com", region);
       logger.info(String.format("S3 ServiceEndpoint: %s", serviceEndpoint));
-      AmazonS3ClientBuilder clientBuilder =
-          AmazonS3ClientBuilder.standard()
-              .withCredentials(awsCredentialsProvider)
-              .withEndpointConfiguration(new EndpointConfiguration(serviceEndpoint, region));
-
-      int maxRetries = luceneServerConfiguration.getMaxS3ClientRetries();
-      if (maxRetries > 0) {
-        RetryPolicy retryPolicy =
-            new RetryPolicy(
-                PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION,
-                PredefinedRetryPolicies.DEFAULT_BACKOFF_STRATEGY,
-                maxRetries,
-                true);
-        ClientConfiguration clientConfiguration =
-            new ClientConfiguration().withRetryPolicy(retryPolicy);
-        clientBuilder.setClientConfiguration(clientConfiguration);
-      }
-
-      if (luceneServerConfiguration.getEnableGlobalBucketAccess()) {
-        clientBuilder.enableForceGlobalBucketAccess();
-      }
-      return clientBuilder.build();
+      clientBuilder.withEndpointConfiguration(new EndpointConfiguration(serviceEndpoint, region));
+    } catch (SdkClientException sdkClientException) {
+      logger.warn(
+          "failed to get the location of S3 bucket: "
+              + luceneServerConfiguration.getBucketName()
+              + ". This could be caused by missing credentials and/or regions, or wrong bucket name.",
+          sdkClientException);
+      logger.info("return a dummy AmazonS3.");
+      return AmazonS3ClientBuilder.standard()
+          .withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
+          .withEndpointConfiguration(
+              new AwsClientBuilder.EndpointConfiguration("dummyService", "dummyRegion"))
+          .build();
     }
+
+    int maxRetries = luceneServerConfiguration.getMaxS3ClientRetries();
+    if (maxRetries > 0) {
+      RetryPolicy retryPolicy =
+          new RetryPolicy(
+              PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION,
+              PredefinedRetryPolicies.DEFAULT_BACKOFF_STRATEGY,
+              maxRetries,
+              true);
+      ClientConfiguration clientConfiguration =
+          new ClientConfiguration().withRetryPolicy(retryPolicy);
+      clientBuilder.setClientConfiguration(clientConfiguration);
+    }
+
+    return clientBuilder.build();
   }
 }
