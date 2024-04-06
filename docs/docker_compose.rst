@@ -68,7 +68,7 @@ When the containers are started, no index is created. The index has to be starte
 2. Primary: Start Index
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Start primary index, and add docs for indexing:
+Create the index and settings, register the fields, and start the index:
 
 .. code-block::
 
@@ -96,7 +96,7 @@ Next go into any one of the replicas (i.e. nrtsearch_replica-node-1 here), and r
 4. Replication
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Search will work on replicas soon after documents are added on the primary.
+Search will work on replicas soon after documents are added on the primary. Add the documents into the index, as shown below.
 
 .. code-block::
 
