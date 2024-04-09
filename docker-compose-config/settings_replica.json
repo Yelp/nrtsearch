@@ -1,5 +1,5 @@
 {
   "indexName": "testIdx",
   "directory": "MMapDirectory",
-  "nrtCachingDirectoryMaxSizeMB": -1.0
+  "nrtCachingDirectoryMaxSizeMB": 1.0
 }

@@ -68,7 +68,7 @@ When the containers are started, no index is created. The index has to be starte
 2. Primary: Start Index
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Start primary index, and add docs for indexing:
+Create the index and settings, register the fields, and start the index:
 
 .. code-block::
 
@@ -96,7 +96,7 @@ Next go into any one of the replicas (i.e. nrtsearch_replica-node-1 here), and r
 4. Replication
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Search will work on replicas soon after documents are added on the primary.
+Search will work on replicas soon after documents are added on the primary. Add the documents into the index, as shown below.
 
 .. code-block::
 
@@ -186,7 +186,7 @@ To demonstrate how one can start nrtSearch and restore the index data from S3, o
     }
   }
 
-If one then restarts the containers and index (do not need to register the fields), then the search in Step 5 above should work, even though no documents were indexed (skipping Step 4). This means that the index was correctly loaded from the S3 bucket on startup.
+If one then restarts the containers and restarts the index (do not need to register the fields), then the search in Step 5 above should work, even though no documents were indexed (skipping Step 4). This means that the index was correctly loaded from the S3 bucket on startup.
 
 .. code-block::
 
