@@ -57,7 +57,7 @@ public class MaxCollectorManager
       case SCRIPT:
         valueProvider =
             new ScriptValueProvider(
-                grpcMaxCollector.getScript(), context.getIndexState().docLookup);
+                grpcMaxCollector.getScript(), context.getIndexState().docLookup, UNSET_VALUE);
         break;
       default:
         throw new IllegalArgumentException(

@@ -29,8 +29,8 @@ import org.apache.lucene.search.Scorable;
 
 /** Value provider that uses a {@link ScoreScript}. */
 class ScriptValueProvider implements ValueProvider {
-  static final double UNSET_VALUE = -Double.MAX_VALUE; // default value
   final DoubleValuesSource valuesSource;
+  final double unsetVal;
 
   /**
    * Constructor.
@@ -38,10 +38,11 @@ class ScriptValueProvider implements ValueProvider {
    * @param script script definition
    * @param lookup doc value lookup
    */
-  ScriptValueProvider(Script script, DocLookup lookup) {
+  ScriptValueProvider(Script script, DocLookup lookup, double unsetValue) {
     ScoreScript.Factory factory = ScriptService.getInstance().compile(script, ScoreScript.CONTEXT);
     valuesSource =
         factory.newFactory(ScriptParamsUtils.decodeParams(script.getParamsMap()), lookup);
+    unsetVal = unsetValue;
   }
 
   @Override
@@ -80,7 +81,7 @@ class ScriptValueProvider implements ValueProvider {
       if (values.advanceExact(doc)) {
         return values.doubleValue();
       } else {
-        return UNSET_VALUE;
+        return unsetVal;
       }
     }
   }

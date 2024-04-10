@@ -56,7 +56,7 @@ public class MinCollectorManager
       case SCRIPT:
         valueProvider =
             new ScriptValueProvider(
-                grpcMinCollector.getScript(), context.getIndexState().docLookup);
+                grpcMinCollector.getScript(), context.getIndexState().docLookup, UNSET_VALUE);
         break;
       default:
         throw new IllegalArgumentException(
