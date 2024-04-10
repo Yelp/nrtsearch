@@ -198,7 +198,7 @@ public abstract class TermsCollectorManager
   protected TermsCollectorManager(
       String name,
       int size,
-      Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
+      Map<String, Supplier<AdditionalCollectorManager<?, CollectorResult>>>
           nestedCollectorSuppliers,
       BucketOrder bucketOrder) {
     this.name = name;

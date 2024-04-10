@@ -801,6 +801,9 @@ message Collector {
         FilterCollector filter = 5;
         //Collector for finding a max double value from collected documents.
         MaxCollector max = 6;
+        //Collector for finding a min double value from collected documents.
+        MinCollector min = 7;
+
     }
     //Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors.
     map<string, Collector> nestedCollectors = 3;
@@ -852,6 +855,14 @@ message FilterCollector {
 
 //Definition of collector to find a max double value over documents. Currently only allows for script based value production.
 message MaxCollector {
+    oneof ValueSource {
+        //Script to produce a double value
+        Script script = 1;
+    }
+}
+
+//Definition of collector to find a min double value over documents. Currently only allows for script based value production.
+message MinCollector {
     oneof ValueSource {
         //Script to produce a double value
         Script script = 1;
