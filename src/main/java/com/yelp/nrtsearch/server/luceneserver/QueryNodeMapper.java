@@ -83,8 +83,6 @@ import org.apache.lucene.util.QueryBuilder;
 public class QueryNodeMapper {
 
   private static final QueryNodeMapper INSTANCE = new QueryNodeMapper();
-  private static final String NONE_ZERO_TERMS = "none";
-  private static final String ALL_ZERO_TERMS = "all";
 
   public static QueryNodeMapper getInstance() {
     return INSTANCE;
@@ -395,14 +393,17 @@ public class QueryNodeMapper {
 
     // This can happen if there are no tokens found after analyzing the query text
     if (phraseQuery == null) {
-      String zeroTermsQuery = matchPhraseQuery.getZeroTermsQuery();
-      if (zeroTermsQuery.isEmpty() || zeroTermsQuery.equals(NONE_ZERO_TERMS)) {
-        return new MatchNoDocsQuery();
-      } else if (zeroTermsQuery.equals(ALL_ZERO_TERMS)) {
-        return new MatchAllDocsQuery();
-      } else {
-        throw new IllegalArgumentException(
-            "zeroTermsQuery should be none or all but is: " + zeroTermsQuery);
+      MatchPhraseQuery.ZeroTerms zeroTermsQuery = matchPhraseQuery.getZeroTermsQuery();
+      switch (zeroTermsQuery) {
+        case NONE_ZERO_TERMS -> {
+          return new MatchNoDocsQuery();
+        }
+        case ALL_ZERO_TERMS -> {
+          return new MatchAllDocsQuery();
+        }
+        default -> throw new IllegalArgumentException(
+            zeroTermsQuery
+                + " not valid. ZeroTermsQuery should be NONE_ZERO_TERMS or ALL_ZERO_TERMS");
       }
     }
     return phraseQuery;

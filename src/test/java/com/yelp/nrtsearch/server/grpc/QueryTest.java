@@ -734,7 +734,7 @@ public class QueryTest {
                     .setField("vendor_name")
                     .setQuery("/?/ ?//?")
                     .setSlop(1)
-                    .setZeroTermsQuery("none"))
+                    .setZeroTermsQuery(MatchPhraseQuery.ZeroTerms.NONE_ZERO_TERMS))
             .build();
 
     Consumer<SearchResponse> responseTester =
@@ -755,7 +755,7 @@ public class QueryTest {
                     .setField("vendor_name")
                     .setQuery("/?/ ?//?")
                     .setSlop(1)
-                    .setZeroTermsQuery("all"))
+                    .setZeroTermsQuery(MatchPhraseQuery.ZeroTerms.ALL_ZERO_TERMS))
             .build();
 
     Consumer<SearchResponse> responseTester =
