@@ -606,6 +606,59 @@ public class QueryTest {
   }
 
   @Test
+  public void testSearchMatchQueryWithFuzzyParamsMaxEdits() {
+    Query query =
+        Query.newBuilder()
+            .setMatchQuery(
+                MatchQuery.newBuilder()
+                    .setField("vendor_name")
+                    .setQuery("SECODD")
+                    .setFuzzyParams(FuzzyParams.newBuilder().setMaxEdits(1).setMaxExpansions(100))
+                    .setOperator(MatchOperator.SHOULD))
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(1, searchResponse.getTotalHits().getValue());
+          assertEquals(1, searchResponse.getHitsList().size());
+          SearchResponse.Hit hit = searchResponse.getHits(0);
+          String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("2", docId);
+          LuceneServerTest.checkHits(hit);
+        };
+
+    testQuery(query, responseTester);
+  }
+
+  @Test
+  public void testSearchMatchQueryWithFuzzyParamsAuto() {
+    Query query =
+        Query.newBuilder()
+            .setMatchQuery(
+                MatchQuery.newBuilder()
+                    .setField("vendor_name")
+                    .setQuery("seccnn") // maxEdits will be 2 for AUTO fuzziness
+                    .setFuzzyParams(
+                        FuzzyParams.newBuilder()
+                            .setAuto(FuzzyParams.AutoFuzziness.newBuilder().build())
+                            .setMaxExpansions(100))
+                    .setOperator(MatchOperator.SHOULD))
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(1, searchResponse.getTotalHits().getValue());
+          assertEquals(1, searchResponse.getHitsList().size());
+          SearchResponse.Hit hit = searchResponse.getHits(0);
+          String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("2", docId);
+          LuceneServerTest.checkHits(hit);
+        };
+
+    testQuery(query, responseTester);
+  }
+
+  @Test
   public void testSearchMatchQueryWithFuzzyParamsAndMinShouldMatch1() {
     Query query =
         Query.newBuilder()

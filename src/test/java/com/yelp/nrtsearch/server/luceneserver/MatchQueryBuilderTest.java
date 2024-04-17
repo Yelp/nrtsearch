@@ -19,6 +19,7 @@ import static org.junit.Assert.assertEquals;
 
 import com.yelp.nrtsearch.server.grpc.FuzzyParams;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -93,6 +94,23 @@ public class MatchQueryBuilderTest {
   }
 
   @Test
+  public void testSingleTermWithFuzzyParamsAuto() {
+
+    FuzzyParams fuzzyParams =
+        FuzzyParams.newBuilder()
+            .setPrefixLength(5)
+            .setMaxExpansions(7)
+            .setTranspositions(true)
+            .setAuto(FuzzyParams.AutoFuzziness.newBuilder().build())
+            .build();
+    MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(getTestAnalyzer(), fuzzyParams);
+    Query query = matchQueryBuilder.createBooleanQuery(FIELD, SINGLE_TERM_TEXT);
+
+    FuzzyQuery expectedQuery = new FuzzyQuery(SINGLE_TERM, 1, 5, 7, true);
+    assertEquals(expectedQuery, query);
+  }
+
+  @Test
   public void testMultipleTermsWithFuzzyParams() {
     MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(getTestAnalyzer(), FUZZY_PARAMS);
     Query query = matchQueryBuilder.createBooleanQuery(FIELD, MULTIPLE_TERMS_TEXT, OCCUR);
@@ -107,6 +125,34 @@ public class MatchQueryBuilderTest {
                   FUZZY_PARAMS.getPrefixLength(),
                   FUZZY_PARAMS.getMaxExpansions(),
                   FUZZY_PARAMS.getTranspositions());
+          builder.add(new BooleanClause(fuzzyQuery, OCCUR));
+        });
+    BooleanQuery expected = builder.build();
+
+    assertEquals(expected, query);
+  }
+
+  @Test
+  public void testMultipleTermsWithFuzzyParamsAuto() {
+    FuzzyParams fuzzyParams =
+        FuzzyParams.newBuilder()
+            .setPrefixLength(5)
+            .setMaxExpansions(7)
+            .setTranspositions(true)
+            .setAuto(FuzzyParams.AutoFuzziness.newBuilder().build())
+            .build();
+    MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(getTestAnalyzer(), fuzzyParams);
+    Query query = matchQueryBuilder.createBooleanQuery(FIELD, MULTIPLE_TERMS_TEXT, OCCUR);
+    HashMap<String, Integer> maxEditsTermsMap = new HashMap<>();
+    maxEditsTermsMap.put("multiple", 2);
+    maxEditsTermsMap.put("terms", 1);
+    maxEditsTermsMap.put("here", 1);
+
+    BooleanQuery.Builder builder = new BooleanQuery.Builder();
+    MULTIPLE_TERMS.forEach(
+        term -> {
+          FuzzyQuery fuzzyQuery =
+              new FuzzyQuery(term, maxEditsTermsMap.get(term.text()), 5, 7, true);
           builder.add(new BooleanClause(fuzzyQuery, OCCUR));
         });
     BooleanQuery expected = builder.build();
