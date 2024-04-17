@@ -111,10 +111,10 @@ public abstract class GlobalState implements Closeable {
         ThreadPoolExecutorFactory.getThreadPoolExecutor(
             ThreadPoolExecutorFactory.ExecutorType.SEARCH,
             luceneServerConfiguration.getThreadPoolConfiguration());
-    this.fetchService =
-        ThreadPoolExecutorFactory.getThreadPoolExecutor(
-            ThreadPoolExecutorFactory.ExecutorType.FETCH,
-            luceneServerConfiguration.getThreadPoolConfiguration());
+    this.fetchService = this.searchThreadPoolExecutor;
+    // ThreadPoolExecutorFactory.getThreadPoolExecutor(
+    //    ThreadPoolExecutorFactory.ExecutorType.FETCH,
+    //    luceneServerConfiguration.getThreadPoolConfiguration());
     this.configuration = luceneServerConfiguration;
   }
 
