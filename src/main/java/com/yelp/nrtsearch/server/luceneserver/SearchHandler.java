@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
@@ -53,10 +54,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -77,6 +75,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
+  private static final ExecutorService DIRECT_EXECUTOR = MoreExecutors.newDirectExecutorService();
 
   private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
   private final ThreadPoolExecutor threadPoolExecutor;
@@ -148,7 +147,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 shardState,
                 searchContext.getQueryFields(),
                 grpcFacetResults,
-                threadPoolExecutor,
+                DIRECT_EXECUTOR,
                 diagnostics);
         DrillSideways.ConcurrentDrillSidewaysResult<SearcherResult> concurrentDrillSidewaysResult;
         try {
