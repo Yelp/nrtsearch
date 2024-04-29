@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
+import static com.yelp.nrtsearch.server.utils.QueryUtils.computeMaxEditsFromTermLength;
+
 import com.yelp.nrtsearch.server.grpc.FuzzyParams;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
@@ -24,10 +26,11 @@ import org.apache.lucene.util.QueryBuilder;
 
 public class MatchQueryBuilder extends QueryBuilder {
 
-  int maxEdits;
   int prefixLength;
   int maxExpansions;
   boolean transpositions;
+  FuzzyParams fuzzyParams;
+  int maxEdits;
 
   public MatchQueryBuilder(Analyzer analyzer, FuzzyParams fuzzyParams) {
     super(analyzer);
@@ -35,10 +38,14 @@ public class MatchQueryBuilder extends QueryBuilder {
     this.prefixLength = fuzzyParams.getPrefixLength();
     this.maxExpansions = fuzzyParams.getMaxExpansions();
     this.transpositions = fuzzyParams.getTranspositions();
+    this.fuzzyParams = fuzzyParams;
   }
 
   @Override
   protected Query newTermQuery(Term term) {
+    if (fuzzyParams.hasAuto()) {
+      maxEdits = computeMaxEditsFromTermLength(term, fuzzyParams.getAuto());
+    }
     if (maxEdits == 0) {
       return super.newTermQuery(term);
     } else {
