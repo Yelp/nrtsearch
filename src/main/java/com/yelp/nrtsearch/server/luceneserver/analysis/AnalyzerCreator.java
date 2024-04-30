@@ -143,6 +143,9 @@ public class AnalyzerCreator {
             .collect(Collectors.toSet());
     instance.registerCharFilter(
         MappingV2CharFilterFactory.NAME, MappingV2CharFilterFactory.class, builtInCharFilters);
+    instance.registerTokenFilter(
+        SynonymV2GraphFilterFactory.NAME, SynonymV2GraphFilterFactory.class, builtInTokenFilters);
+
     for (Plugin plugin : plugins) {
       if (plugin instanceof AnalysisPlugin) {
         AnalysisPlugin analysisPlugin = (AnalysisPlugin) plugin;

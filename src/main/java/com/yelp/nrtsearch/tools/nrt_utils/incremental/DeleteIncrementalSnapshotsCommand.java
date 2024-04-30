@@ -69,12 +69,13 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
 
   @CommandLine.Option(
       names = {"-c", "--credsFile"},
-      description = "File holding AWS credentials, uses default locations if not set")
+      description =
+          "File holding AWS credentials; Will use DefaultCredentialProvider if this is unset.")
   private String credsFile;
 
   @CommandLine.Option(
       names = {"-p", "--credsProfile"},
-      description = "Profile to use from creds file",
+      description = "Profile to use from creds file; Neglected when credsFile is unset.",
       defaultValue = "default")
   private String credsProfile;
 

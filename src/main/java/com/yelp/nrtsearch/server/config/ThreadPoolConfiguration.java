@@ -15,6 +15,10 @@
  */
 package com.yelp.nrtsearch.server.config;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.yelp.nrtsearch.server.utils.JsonUtils;
+import java.util.Map;
+
 /** Configuration for various ThreadPool Settings used in nrtsearch */
 public class ThreadPoolConfiguration {
 
@@ -61,14 +65,18 @@ public class ThreadPoolConfiguration {
 
   public ThreadPoolConfiguration(YamlConfigReader configReader) {
     maxSearchingThreads =
-        configReader.getInteger(
-            "threadPoolConfiguration.maxSearchingThreads", DEFAULT_MAX_SEARCHING_THREADS);
+        getNumThreads(
+            configReader,
+            "threadPoolConfiguration.maxSearchingThreads",
+            DEFAULT_MAX_SEARCHING_THREADS);
     maxSearchBufferedItems =
         configReader.getInteger(
             "threadPoolConfiguration.maxSearchBufferedItems", DEFAULT_MAX_SEARCH_BUFFERED_ITEMS);
     maxFetchThreads =
-        configReader.getInteger(
-            "threadPoolConfiguration.maxFetchThreads", DEFAULT_MAX_FILL_FIELDS_THREADS);
+        getNumThreads(
+            configReader,
+            "threadPoolConfiguration.maxFetchThreads",
+            DEFAULT_MAX_FILL_FIELDS_THREADS);
     minParallelFetchNumFields =
         configReader.getInteger(
             "threadPoolConfiguration.minParallelFetchNumFields",
@@ -80,15 +88,18 @@ public class ThreadPoolConfiguration {
         configReader.getBoolean("threadPoolConfiguration.parallelFetchByField", true);
 
     maxIndexingThreads =
-        configReader.getInteger(
-            "threadPoolConfiguration.maxIndexingThreads", DEFAULT_MAX_INDEXING_THREADS);
+        getNumThreads(
+            configReader,
+            "threadPoolConfiguration.maxIndexingThreads",
+            DEFAULT_MAX_INDEXING_THREADS);
     maxIndexingBufferedItems =
         configReader.getInteger(
             "threadPoolConfiguration.maxIndexingBufferedItems",
             DEFAULT_MAX_INDEXING_BUFFERED_ITEMS);
 
     maxGrpcLuceneserverThreads =
-        configReader.getInteger(
+        getNumThreads(
+            configReader,
             "threadPoolConfiguration.maxGrpcLuceneserverThreads",
             DEFAULT_MAX_GRPC_LUCENESERVER_THREADS);
     maxGrpcLuceneserverBufferedItems =
@@ -97,13 +108,67 @@ public class ThreadPoolConfiguration {
             DEFAULT_MAX_GRPC_LUCENESERVER_BUFFERED_ITEMS);
 
     maxGrpcReplicationserverThreads =
-        configReader.getInteger(
+        getNumThreads(
+            configReader,
             "threadPoolConfiguration.maxGrpcReplicationserverThreads",
             DEFAULT_MAX_GRPC_REPLICATIONSERVER_THREADS);
     maxGrpcReplicationserverBufferedItems =
         configReader.getInteger(
             "threadPoolConfiguration.maxGrpcReplicationserverBufferedItems",
             DEFAULT_MAX_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS);
+  }
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  static class ThreadsConfig {
+    private int min = 1;
+    private int max = Integer.MAX_VALUE;
+    private int offset = 0;
+    private float multiplier = 1.0f;
+
+    public void setMin(int min) {
+      if (min <= 0) {
+        throw new IllegalArgumentException("min must be >= 1");
+      }
+      this.min = min;
+    }
+
+    public void setMax(int max) {
+      if (max <= 0) {
+        throw new IllegalArgumentException("max must be >= 1");
+      }
+      this.max = max;
+    }
+
+    public void setOffset(int offset) {
+      this.offset = offset;
+    }
+
+    public void setMultiplier(float multiplier) {
+      this.multiplier = multiplier;
+    }
+
+    public int computeNumThreads() {
+      int threads = (int) ((Runtime.getRuntime().availableProcessors() * multiplier) + offset);
+      threads = Math.min(threads, max);
+      threads = Math.max(threads, min);
+      return threads;
+    }
+  }
+
+  static int getNumThreads(YamlConfigReader configReader, String key, int defaultValue) {
+    return configReader.get(
+        key,
+        obj -> {
+          if (obj instanceof Number) {
+            return ((Number) obj).intValue();
+          } else if (obj instanceof Map) {
+            return JsonUtils.convertValue(obj, ThreadsConfig.class).computeNumThreads();
+          } else {
+            throw new IllegalArgumentException(
+                "Invalid thread pool config type: " + obj.getClass() + ", key: " + key);
+          }
+        },
+        defaultValue);
   }
 
   public int getMaxSearchingThreads() {

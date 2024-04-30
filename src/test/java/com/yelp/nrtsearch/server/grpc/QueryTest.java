@@ -726,6 +726,48 @@ public class QueryTest {
   }
 
   @Test
+  public void testSearchMatchPhraseQueryZeroTermsIsNone() {
+    Query query =
+        Query.newBuilder()
+            .setMatchPhraseQuery(
+                MatchPhraseQuery.newBuilder()
+                    .setField("vendor_name")
+                    .setQuery("/?/ ?//?")
+                    .setSlop(1)
+                    .setZeroTermsQuery(MatchPhraseQuery.ZeroTerms.NONE_ZERO_TERMS))
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(0, searchResponse.getTotalHits().getValue());
+          assertEquals(0, searchResponse.getHitsList().size());
+        };
+
+    testQuery(query, responseTester);
+  }
+
+  @Test
+  public void testSearchMatchPhraseQueryZeroTermsIsAll() {
+    Query query =
+        Query.newBuilder()
+            .setMatchPhraseQuery(
+                MatchPhraseQuery.newBuilder()
+                    .setField("vendor_name")
+                    .setQuery("/?/ ?//?")
+                    .setSlop(1)
+                    .setZeroTermsQuery(MatchPhraseQuery.ZeroTerms.ALL_ZERO_TERMS))
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(2, searchResponse.getTotalHits().getValue());
+          assertEquals(2, searchResponse.getHitsList().size());
+        };
+
+    testQuery(query, responseTester);
+  }
+
+  @Test
   public void testSearchMatchPhraseQueryCustomAnalyzer() {
     Query query =
         Query.newBuilder()

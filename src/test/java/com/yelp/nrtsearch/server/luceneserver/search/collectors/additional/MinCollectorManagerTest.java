@@ -15,65 +15,48 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
-import com.yelp.nrtsearch.server.grpc.BucketOrder;
-import com.yelp.nrtsearch.server.grpc.BucketOrder.OrderType;
-import com.yelp.nrtsearch.server.grpc.BucketResult.Bucket;
-import com.yelp.nrtsearch.server.grpc.Collector;
-import com.yelp.nrtsearch.server.grpc.MaxCollector;
-import com.yelp.nrtsearch.server.grpc.Query;
-import com.yelp.nrtsearch.server.grpc.Script;
-import com.yelp.nrtsearch.server.grpc.SearchRequest;
-import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
-import com.yelp.nrtsearch.server.grpc.TermsCollector;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.utils.MinMaxUtilTest;
 import io.grpc.StatusRuntimeException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import org.junit.Test;
 
-public class MaxCollectorManagerTest extends MinMaxUtilTest {
+public class MinCollectorManagerTest extends MinMaxUtilTest {
   @Test
-  public void testMaxCollectorAllDocs() {
-    maxCollectorAllDocs(MATCH_ALL_QUERY, FIELD_SCRIPT);
+  public void testMinCollectorAllDocs() {
+    minCollectorAllDocs(MATCH_ALL_QUERY, FIELD_SCRIPT);
   }
 
   @Test
-  public void testMaxCollectorAllDocs_score() {
-    maxCollectorAllDocs(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
+  public void testMinCollectorAllDocs_score() {
+    minCollectorAllDocs(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
   }
 
-  private void maxCollectorAllDocs(Query query, Script script) {
+  private void minCollectorAllDocs(Query query, Script script) {
     SearchResponse response =
         doQuery(
             query,
             Collector.newBuilder()
-                .setMax(MaxCollector.newBuilder().setScript(script).build())
+                .setMin(MinCollector.newBuilder().setScript(script).build())
                 .build());
     assertEquals(100, response.getTotalHits().getValue());
     assertEquals(
-        100.0,
-        response.getCollectorResultsOrThrow("test_collector").getDoubleResult().getValue(),
-        0);
+        1.0, response.getCollectorResultsOrThrow("test_collector").getDoubleResult().getValue(), 0);
   }
 
   @Test
-  public void testMaxCollectorSomeDocs() {
-    maxCollectorSomeDocs(MATCH_SOME_QUERY, FIELD_SCRIPT);
+  public void testMinCollectorSomeDocs() {
+    minCollectorSomeDocs(MATCH_SOME_QUERY, FIELD_SCRIPT);
   }
 
   @Test
-  public void testMaxCollectorSomeDocs_score() {
-    maxCollectorSomeDocs(MATCH_SOME_SCORE_QUERY, SCORE_SCRIPT);
+  public void testMinCollectorSomeDocs_score() {
+    minCollectorSomeDocs(MATCH_SOME_SCORE_QUERY, SCORE_SCRIPT);
   }
 
-  private void maxCollectorSomeDocs(Query query, Script script) {
+  private void minCollectorSomeDocs(Query query, Script script) {
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
@@ -85,27 +68,25 @@ public class MaxCollectorManagerTest extends MinMaxUtilTest {
                     .putCollectors(
                         "test_collector",
                         Collector.newBuilder()
-                            .setMax(MaxCollector.newBuilder().setScript(script).build())
+                            .setMin(MinCollector.newBuilder().setScript(script).build())
                             .build())
                     .build());
     assertEquals(20, response.getTotalHits().getValue());
     assertEquals(
-        60.0,
-        response.getCollectorResultsOrThrow("test_collector").getDoubleResult().getValue(),
-        0);
+        3.0, response.getCollectorResultsOrThrow("test_collector").getDoubleResult().getValue(), 0);
   }
 
   @Test
-  public void testNestedMaxCollector() {
-    nestedMaxCollector(MATCH_ALL_QUERY, FIELD_SCRIPT);
+  public void testNestedMinCollector() {
+    nestedMinCollector(MATCH_ALL_QUERY, FIELD_SCRIPT);
   }
 
   @Test
-  public void testNestedMaxCollector_score() {
-    nestedMaxCollector(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
+  public void testNestedMinCollector_score() {
+    nestedMinCollector(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
   }
 
-  private void nestedMaxCollector(Query query, Script script) {
+  private void nestedMinCollector(Query query, Script script) {
     SearchResponse response =
         getGrpcServer()
             .getBlockingStub()
@@ -125,7 +106,7 @@ public class MaxCollectorManagerTest extends MinMaxUtilTest {
                             .putNestedCollectors(
                                 "nested_collector",
                                 Collector.newBuilder()
-                                    .setMax(MaxCollector.newBuilder().setScript(script).build())
+                                    .setMin(MinCollector.newBuilder().setScript(script).build())
                                     .build())
                             .build())
                     .build());
@@ -135,28 +116,28 @@ public class MaxCollectorManagerTest extends MinMaxUtilTest {
         response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsCount());
 
     Map<String, Double> bucketValues = new HashMap<>();
-    for (Bucket bucket :
+    for (BucketResult.Bucket bucket :
         response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsList()) {
       bucketValues.put(
           bucket.getKey(),
           bucket.getNestedCollectorResultsOrThrow("nested_collector").getDoubleResult().getValue());
       assertEquals(20, bucket.getCount());
     }
-    assertEquals(Map.of("1", 20.0, "2", 40.0, "3", 60.0, "4", 80.0, "5", 100.0), bucketValues);
+    assertEquals(Map.of("1", 1.0, "2", 2.0, "3", 3.0, "4", 4.0, "5", 5.0), bucketValues);
   }
 
   @Test
-  public void testNestedOrderMaxCollector() {
-    nestedOrderMaxCollector(MATCH_ALL_QUERY, FIELD_SCRIPT);
+  public void testNestedOrderMinCollector() {
+    nestedOrderMinCollector(MATCH_ALL_QUERY, FIELD_SCRIPT);
   }
 
   @Test
-  public void testNestedOrderMaxCollector_score() {
-    nestedOrderMaxCollector(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
+  public void testNestedOrderMinCollector_score() {
+    nestedOrderMinCollector(MATCH_ALL_SCORE_QUERY, SCORE_SCRIPT);
   }
 
-  private void nestedOrderMaxCollector(Query query, Script script) {
-    SearchResponse response = doNestedOrderQuery(OrderType.DESC, query, script);
+  private void nestedOrderMinCollector(Query query, Script script) {
+    SearchResponse response = doNestedOrderQuery(BucketOrder.OrderType.DESC, query, script);
     assertEquals(100, response.getTotalHits().getValue());
     assertEquals(
         5,
@@ -164,7 +145,7 @@ public class MaxCollectorManagerTest extends MinMaxUtilTest {
 
     List<String> keyOrder = new ArrayList<>();
     List<Double> sortValues = new ArrayList<>();
-    for (Bucket bucket :
+    for (BucketResult.Bucket bucket :
         response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsList()) {
       keyOrder.add(bucket.getKey());
       sortValues.add(
@@ -172,9 +153,9 @@ public class MaxCollectorManagerTest extends MinMaxUtilTest {
       assertEquals(20, bucket.getCount());
     }
     assertEquals(List.of("5", "4", "3", "2", "1"), keyOrder);
-    assertEquals(List.of(100.0, 80.0, 60.0, 40.0, 20.0), sortValues);
+    assertEquals(List.of(5.0, 4.0, 3.0, 2.0, 1.0), sortValues);
 
-    response = doNestedOrderQuery(OrderType.ASC, query, script);
+    response = doNestedOrderQuery(BucketOrder.OrderType.ASC, query, script);
     assertEquals(100, response.getTotalHits().getValue());
     assertEquals(
         5,
@@ -182,7 +163,7 @@ public class MaxCollectorManagerTest extends MinMaxUtilTest {
 
     keyOrder = new ArrayList<>();
     sortValues = new ArrayList<>();
-    for (Bucket bucket :
+    for (BucketResult.Bucket bucket :
         response.getCollectorResultsOrThrow("test_collector").getBucketResult().getBucketsList()) {
       keyOrder.add(bucket.getKey());
       sortValues.add(
@@ -190,10 +171,11 @@ public class MaxCollectorManagerTest extends MinMaxUtilTest {
       assertEquals(20, bucket.getCount());
     }
     assertEquals(List.of("1", "2", "3", "4", "5"), keyOrder);
-    assertEquals(List.of(20.0, 40.0, 60.0, 80.0, 100.0), sortValues);
+    assertEquals(List.of(1.0, 2.0, 3.0, 4.0, 5.0), sortValues);
   }
 
-  private SearchResponse doNestedOrderQuery(OrderType orderType, Query query, Script script) {
+  private SearchResponse doNestedOrderQuery(
+      BucketOrder.OrderType orderType, Query query, Script script) {
     return getGrpcServer()
         .getBlockingStub()
         .search(
@@ -217,7 +199,7 @@ public class MaxCollectorManagerTest extends MinMaxUtilTest {
                         .putNestedCollectors(
                             "nested_collector",
                             Collector.newBuilder()
-                                .setMax(MaxCollector.newBuilder().setScript(script).build())
+                                .setMin(MinCollector.newBuilder().setScript(script).build())
                                 .build())
                         .build())
                 .build());
@@ -231,11 +213,11 @@ public class MaxCollectorManagerTest extends MinMaxUtilTest {
                 .setTermQuery(TermQuery.newBuilder().setField("int_field").setIntValue(10).build())
                 .build(),
             Collector.newBuilder()
-                .setMax(MaxCollector.newBuilder().setScript(FIELD_SCRIPT).build())
+                .setMin(MinCollector.newBuilder().setScript(FIELD_SCRIPT).build())
                 .build());
     assertEquals(0, response.getTotalHits().getValue());
     assertEquals(
-        MaxCollectorManager.UNSET_VALUE,
+        MinCollectorManager.UNSET_VALUE,
         response.getCollectorResultsOrThrow("test_collector").getDoubleResult().getValue(),
         0);
   }
@@ -245,7 +227,7 @@ public class MaxCollectorManagerTest extends MinMaxUtilTest {
     try {
       doQuery(
           MATCH_ALL_QUERY,
-          Collector.newBuilder().setMax(MaxCollector.newBuilder().build()).build());
+          Collector.newBuilder().setMin(MinCollector.newBuilder().build()).build());
       fail();
     } catch (StatusRuntimeException e) {
       assertTrue(e.getMessage().contains("Unknown value source: VALUESOURCE_NOT_SET"));
@@ -258,16 +240,16 @@ public class MaxCollectorManagerTest extends MinMaxUtilTest {
       doQuery(
           MATCH_ALL_QUERY,
           Collector.newBuilder()
-              .setMax(MaxCollector.newBuilder().setScript(FIELD_SCRIPT).build())
+              .setMin(MinCollector.newBuilder().setScript(FIELD_SCRIPT).build())
               .putNestedCollectors(
                   "nested_collector",
                   Collector.newBuilder()
-                      .setMax(MaxCollector.newBuilder().setScript(FIELD_SCRIPT).build())
+                      .setMin(MinCollector.newBuilder().setScript(FIELD_SCRIPT).build())
                       .build())
               .build());
       fail();
     } catch (StatusRuntimeException e) {
-      assertTrue(e.getMessage().contains("MaxCollector cannot have nested collectors"));
+      assertTrue(e.getMessage().contains("MinCollector cannot have nested collectors"));
     }
   }
 }

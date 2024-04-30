@@ -20,10 +20,7 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.PluginCollector;
-import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.FilterCollectorManager;
-import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.MaxCollectorManager;
-import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.TermsCollectorManager;
-import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.TopHitsCollectorManager;
+import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.*;
 import com.yelp.nrtsearch.server.plugins.CollectorPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
@@ -114,6 +111,11 @@ public class CollectorCreator {
           throw new IllegalArgumentException("MaxCollector cannot have nested collectors");
         }
         return () -> new MaxCollectorManager(name, collector.getMax(), context);
+      case MIN:
+        if (!nestedCollectorSuppliers.isEmpty()) {
+          throw new IllegalArgumentException("MinCollector cannot have nested collectors");
+        }
+        return () -> new MinCollectorManager(name, collector.getMin(), context);
       default:
         throw new IllegalArgumentException(
             "Unknown Collector type: " + collector.getCollectorsCase());

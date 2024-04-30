@@ -388,6 +388,8 @@ Available token filters:
 
   * synonym
 
+  * synonymV2 - Similar to the ``synonymGraph`` filter, except rules are specified directly in the parameters. See `SynonymV2GraphFilterFactory <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/luceneserver/analysis/SynonymV2GraphFilterFactory.java>`_.
+
   * synonymGraph
 
   * flattenGraph

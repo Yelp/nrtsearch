@@ -393,7 +393,18 @@ public class QueryNodeMapper {
 
     // This can happen if there are no tokens found after analyzing the query text
     if (phraseQuery == null) {
-      return new MatchNoDocsQuery();
+      MatchPhraseQuery.ZeroTerms zeroTermsQuery = matchPhraseQuery.getZeroTermsQuery();
+      switch (zeroTermsQuery) {
+        case NONE_ZERO_TERMS -> {
+          return new MatchNoDocsQuery();
+        }
+        case ALL_ZERO_TERMS -> {
+          return new MatchAllDocsQuery();
+        }
+        default -> throw new IllegalArgumentException(
+            zeroTermsQuery
+                + " not valid. ZeroTermsQuery should be NONE_ZERO_TERMS or ALL_ZERO_TERMS");
+      }
     }
     return phraseQuery;
   }

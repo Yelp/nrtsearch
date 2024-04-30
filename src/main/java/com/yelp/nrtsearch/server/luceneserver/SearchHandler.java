@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
@@ -47,7 +48,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchContext.VectorScoring
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
-import com.yelp.nrtsearch.server.monitoring.VerboseIndexCollector;
+import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -55,10 +56,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -83,6 +81,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
+  private static final ExecutorService DIRECT_EXECUTOR = MoreExecutors.newDirectExecutorService();
 
   private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
   private final ThreadPoolExecutor threadPoolExecutor;
@@ -196,6 +195,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         }
 
         List<FacetResult> grpcFacetResults = new ArrayList<>();
+        // Run the drill sideways search on the direct executor to run subtasks in the
+        // current (grpc) thread. If we use the search thread pool for this, it can cause a
+        // deadlock trying to execute the dependent parallel search tasks. Since we do not
+        // currently add additional drill down definitions, there will only be one drill
+        // sideways task per query.
         DrillSideways drillS =
             new DrillSidewaysImpl(
                 s.searcher,
@@ -207,7 +211,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
                 shardState,
                 searchContext.getQueryFields(),
                 grpcFacetResults,
-                threadPoolExecutor,
+                DIRECT_EXECUTOR,
                 diagnostics);
         DrillSideways.ConcurrentDrillSidewaysResult<SearcherResult> concurrentDrillSidewaysResult;
         try {
@@ -359,9 +363,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     // if we are out of time, don't bother with serialization
     DeadlineUtils.checkDeadline("SearchHandler: end", diagnostics, "SEARCH");
     SearchResponse searchResponse = searchContext.getResponseBuilder().build();
-    if (!warming && searchContext.getIndexState().getVerboseMetrics()) {
-      VerboseIndexCollector.updateSearchResponseMetrics(
-          searchResponse, searchContext.getIndexState().getName());
+    if (!warming) {
+      SearchResponseCollector.updateSearchResponseMetrics(
+          searchResponse,
+          searchContext.getIndexState().getName(),
+          searchContext.getIndexState().getVerboseMetrics());
     }
     return searchResponse;
   }

@@ -1,0 +1,39 @@
+{
+  "indexName": "test_index",
+  "field": [
+    {
+      "name": "doc_id",
+      "type": "_ID",
+      "search": true,
+      "storeDocValues": true
+    },
+    {
+      "name": "text_field",
+      "type": "TEXT",
+      "search": true,
+      "tokenize": true,
+      "multiValued": true,
+      "storeDocValues": true,
+      "analyzer": {
+        "custom": {
+          "tokenizer": {
+            "name": "keyword"
+          },
+          "tokenFilters": [
+            {
+              "name": "lowercase"
+            },
+            {
+              "name": "synonymV2",
+              "params": {
+                "synonyms": "blvd, boulevard|u.s,us|plaza, plaça|ix,pie-ix|str, straße|v, väg",
+                "parserFormat": "nrtsearch",
+                "analyzerName": "standard"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
