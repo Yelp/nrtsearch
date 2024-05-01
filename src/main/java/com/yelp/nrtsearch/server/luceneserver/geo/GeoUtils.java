@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.geo;
 
+import org.apache.lucene.util.SloppyMath;
+
 public class GeoUtils {
 
   private static final double KM_TO_M = 1000.0;
@@ -63,5 +65,13 @@ public class GeoUtils {
     } else {
       throw new IllegalArgumentException("Invalid unit " + unit);
     }
+  }
+
+  /**
+   * Return the distance (in meters) between 2 lat,lon geo points using the haversine method
+   * implemented by lucene
+   */
+  public static double arcDistance(double lat1, double lon1, double lat2, double lon2) {
+    return SloppyMath.haversinMeters(lat1, lon1, lat2, lon2);
   }
 }

@@ -17,6 +17,8 @@ The SearchRequest can define a mapping of additional collectors to compute aggre
             FilterCollector filter = 5;
             //Collector for finding a max double value from collected documents.
             MaxCollector max = 6;
+            //Collector for finding a min double value from collected documents.
+            MinCollector min = 7;
         }
         //Nested collectors that define sub-aggregations per bucket, supported by bucket based collectors.
         map<string, Collector> nestedCollectors = 3;
@@ -63,7 +65,7 @@ The ordering to use when sorting aggregated buckets can optionally be defined. T
         OrderType order = 2;
     }
 
-When specifying a nested collector name, the collector type must support ordering. Currently, only the max collector type supports this.
+When specifying a nested collector name, the collector type must support ordering. Currently, only the max and min collector type supports this.
 
 Plugin Collector
 -----------------------------
@@ -123,6 +125,22 @@ Collect a maximum double value across all aggregated documents. This value is pr
 
     //Definition of collector to find a max double value over documents. Currently only allows for script based value production.
     message MaxCollector {
+        oneof ValueSource {
+            //Script to produce a double value
+            Script script = 1;
+        }
+    }
+
+This aggregation is usable for sorting buckets as a nested collector.
+
+Min Collector
+-----------------------------
+Collect a minimum double value across all aggregated documents. This value is produced by execution of a score script per document.
+
+.. code-block::
+
+    //Definition of collector to find a min double value over documents. Currently only allows for script based value production.
+    message MinCollector {
         oneof ValueSource {
             //Script to produce a double value
             Script script = 1;

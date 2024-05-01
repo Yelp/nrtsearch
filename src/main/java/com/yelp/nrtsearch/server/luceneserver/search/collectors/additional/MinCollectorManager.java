@@ -20,7 +20,6 @@ import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
-import com.yelp.nrtsearch.server.luceneserver.search.collectors.additional.MaxCollectorManager.MaxCollector;
 import java.io.IOException;
 import java.util.Collection;
 import org.apache.lucene.index.LeafReaderContext;
@@ -30,12 +29,12 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 
 /**
- * Collector to find a max double value of a collection of documents. Currently, supports values
+ * Collector to find a min double value of a collection of documents. Currently, supports values
  * based on a {@link ScoreScript} definition.
  */
-public class MaxCollectorManager
-    implements AdditionalCollectorManager<MaxCollector, CollectorResult> {
-  static final double UNSET_VALUE = -Double.MAX_VALUE;
+public class MinCollectorManager
+    implements AdditionalCollectorManager<MinCollectorManager.MinCollector, CollectorResult> {
+  static final double UNSET_VALUE = Double.MAX_VALUE;
 
   private final String name;
   private final ValueProvider valueProvider;
@@ -44,24 +43,24 @@ public class MaxCollectorManager
    * Constructor.
    *
    * @param name collector name
-   * @param grpcMaxCollector max collector definition message
+   * @param grpcMinCollector min collector definition message
    * @param context collector creation context
    */
-  public MaxCollectorManager(
+  public MinCollectorManager(
       String name,
-      com.yelp.nrtsearch.server.grpc.MaxCollector grpcMaxCollector,
+      com.yelp.nrtsearch.server.grpc.MinCollector grpcMinCollector,
       CollectorCreatorContext context) {
     this.name = name;
 
-    switch (grpcMaxCollector.getValueSourceCase()) {
+    switch (grpcMinCollector.getValueSourceCase()) {
       case SCRIPT:
         valueProvider =
             new ScriptValueProvider(
-                grpcMaxCollector.getScript(), context.getIndexState().docLookup, UNSET_VALUE);
+                grpcMinCollector.getScript(), context.getIndexState().docLookup, UNSET_VALUE);
         break;
       default:
         throw new IllegalArgumentException(
-            "Unknown value source: " + grpcMaxCollector.getValueSourceCase());
+            "Unknown value source: " + grpcMinCollector.getValueSourceCase());
     }
   }
 
@@ -71,30 +70,30 @@ public class MaxCollectorManager
   }
 
   @Override
-  public MaxCollector newCollector() throws IOException {
-    return new MaxCollector();
+  public MinCollector newCollector() throws IOException {
+    return new MinCollector();
   }
 
   @Override
-  public CollectorResult reduce(Collection<MaxCollector> collectors) throws IOException {
+  public CollectorResult reduce(Collection<MinCollector> collectors) throws IOException {
     CollectorResult.Builder resultBuilder = CollectorResult.newBuilder();
-    double maxValue = UNSET_VALUE;
-    for (MaxCollector collector : collectors) {
-      if (collector.maxValue > maxValue) {
-        maxValue = collector.maxValue;
+    double minValue = UNSET_VALUE;
+    for (MinCollector collector : collectors) {
+      if (collector.minValue < minValue) {
+        minValue = collector.minValue;
       }
     }
-    resultBuilder.setDoubleResult(DoubleValue.newBuilder().setValue(maxValue).build());
+    resultBuilder.setDoubleResult(DoubleValue.newBuilder().setValue(minValue).build());
 
     return resultBuilder.build();
   }
 
-  public class MaxCollector implements Collector {
-    double maxValue = UNSET_VALUE;
+  public class MinCollector implements Collector {
+    double minValue = UNSET_VALUE;
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext leafContext) throws IOException {
-      return new MaxLeafCollector(leafContext);
+      return new MinLeafCollector(leafContext);
     }
 
     @Override
@@ -102,10 +101,10 @@ public class MaxCollectorManager
       return valueProvider.needsScore() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
-    public class MaxLeafCollector implements LeafCollector {
+    public class MinLeafCollector implements LeafCollector {
       final LeafValueProvider leafValueProvider;
 
-      public MaxLeafCollector(LeafReaderContext leafContext) throws IOException {
+      public MinLeafCollector(LeafReaderContext leafContext) throws IOException {
         leafValueProvider = valueProvider.getLeafValueProvider(leafContext);
       }
 
@@ -117,8 +116,8 @@ public class MaxCollectorManager
       @Override
       public void collect(int doc) throws IOException {
         double value = leafValueProvider.getValue(doc);
-        if (value > maxValue) {
-          maxValue = value;
+        if (value < minValue) {
+          minValue = value;
         }
       }
     }

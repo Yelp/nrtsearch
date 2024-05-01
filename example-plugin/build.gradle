@@ -24,19 +24,27 @@ version '0.0.1'
 
 repositories {
     mavenCentral()
+    maven {
+        url = uri("https://oss.sonatype.org/content/repositories/snapshots/")
+    }
 }
 
 ext {
-    nrtsearchVersion = "0.+"
+    assertjVersion = '3.19.0'
+    grpcVersion = "1.46.0"
+    junitVersion = "4.13.2"
+    nrtsearchVersion = "1.+"
+    protobufVersion = "3.24.3"
 }
 
 dependencies {
     compileOnly "com.yelp.nrtsearch:server:${nrtsearchVersion}"
     testImplementation "com.yelp.nrtsearch:server:${nrtsearchVersion}"
     testImplementation("com.yelp.nrtsearch:server:${nrtsearchVersion}:tests")
-    testImplementation "junit:junit:4.13.2"
-    testImplementation "org.assertj:assertj-core:3.19.0"
-    testImplementation "io.grpc:grpc-testing:1.46.0"
+    testImplementation "junit:junit:${junitVersion}"
+    testImplementation "org.assertj:assertj-core:${assertjVersion}"
+    testImplementation "io.grpc:grpc-testing:${grpcVersion}"
+    testImplementation "com.google.protobuf:protobuf-java:${protobufVersion}"
 }
 
 distributions {

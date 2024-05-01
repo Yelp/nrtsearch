@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.tools.nrt_utils.state;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.auth.profile.ProfilesConfigFile;
 import com.amazonaws.client.builder.AwsClientBuilder;
@@ -67,13 +68,14 @@ public class StateCommandUtils {
    */
   public static AmazonS3 createS3Client(
       String bucketName, String region, String credsFile, String credsProfile, int maxRetry) {
-    ProfilesConfigFile profilesConfigFile = null;
+    AWSCredentialsProvider awsCredentialsProvider;
     if (credsFile != null) {
       Path botoCfgPath = Paths.get(credsFile);
-      profilesConfigFile = new ProfilesConfigFile(botoCfgPath.toFile());
+      ProfilesConfigFile profilesConfigFile = new ProfilesConfigFile(botoCfgPath.toFile());
+      awsCredentialsProvider = new ProfileCredentialsProvider(profilesConfigFile, credsProfile);
+    } else {
+      awsCredentialsProvider = new DefaultAWSCredentialsProviderChain();
     }
-    AWSCredentialsProvider awsCredentialsProvider =
-        new ProfileCredentialsProvider(profilesConfigFile, credsProfile);
 
     String clientRegion;
     if (region == null) {

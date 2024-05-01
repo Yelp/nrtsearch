@@ -34,4 +34,16 @@ public class JsonUtils {
   public static String objectToJsonStr(Object obj) throws IOException {
     return OBJECT_MAPPER.writeValueAsString(obj);
   }
+
+  /**
+   * Convert the given java Object into a class instance.
+   *
+   * @param fromValue source object
+   * @param toValueType created class type
+   * @return instance of desired class
+   * @param <T> class type
+   */
+  public static <T> T convertValue(Object fromValue, Class<T> toValueType) {
+    return OBJECT_MAPPER.convertValue(fromValue, toValueType);
+  }
 }

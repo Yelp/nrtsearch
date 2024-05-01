@@ -22,8 +22,39 @@ Proto definition:
             oneof Function {
                 // Produce score with score script definition
                 Script script = 3;
+                // Produce score with a decay function
+                DecayFunction decayFunction = 4;
             }
         }
+
+        // Apply decay function to docs
+        message DecayFunction {
+            // Document field name to use
+            string fieldName = 1;
+            // Type of decay function to apply
+            DecayType decayType = 2;
+            // Origin point to calculate the distance
+            oneof Origin {
+                google.type.LatLng geoPoint = 3;
+            }
+            // Currently only distance based scale and offset units are supported
+            // Distance from origin + offset at which computed score will be equal to decay. Scale should be distance, unit (m, km, mi) with space is optional. Default unit will be meters. Ex: "10", 15 km", "5 m", "7 mi"
+            string scale = 4;
+            // Compute decay function for docs with a distance greater than offset, will be 0.0 if none is set. Offset should be distance, unit (m, km, mi) with space is optional. Default unit will be meters. Ex: "10", 15 km", "5 m", "7 mi"
+            string offset = 5;
+            // Defines decay rate for scoring. Should be between (0, 1)
+            float decay = 6;
+        }
+
+        enum DecayType {
+            // Exponential decay function
+            DECAY_TYPE_EXPONENTIAL = 0;
+            // Linear decay function
+            DECAY_TYPE_LINEAR = 1;
+            // Gaussian decay function
+            DECAY_TYPE_GUASSIAN = 2;
+        }
+
 
         // How to combine multiple function scores to produce a final function score
         enum FunctionScoreMode {
