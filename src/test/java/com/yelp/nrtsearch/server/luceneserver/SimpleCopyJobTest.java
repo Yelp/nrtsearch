@@ -61,7 +61,7 @@ public class SimpleCopyJobTest {
 
     Throwable expectedError = new Throwable();
 
-    FileChunkStreamingIterator fcsi = new FileChunkStreamingIterator();
+    FileChunkStreamingIterator fcsi = new FileChunkStreamingIterator("test_index");
     fcsi.init(mockObserver);
     sendData(fcsi, 10, 5, 1);
     for (int i = 0; i < 5; ++i) {
@@ -94,7 +94,7 @@ public class SimpleCopyJobTest {
     ArgumentCaptor<FileInfo> inputCapture = ArgumentCaptor.forClass(FileInfo.class);
     doNothing().when(mockObserver).onNext(inputCapture.capture());
 
-    FileChunkStreamingIterator fcsi = new FileChunkStreamingIterator();
+    FileChunkStreamingIterator fcsi = new FileChunkStreamingIterator("test_index");
     fcsi.init(mockObserver);
     sendData(fcsi, chunkSize, numChunks, ackEvery);
     verifyData(fcsi, chunkSize, numChunks, ackEvery);
@@ -113,7 +113,7 @@ public class SimpleCopyJobTest {
     ArgumentCaptor<FileInfo> inputCapture = ArgumentCaptor.forClass(FileInfo.class);
     doNothing().when(mockObserver).onNext(inputCapture.capture());
 
-    FileChunkStreamingIterator fcsi = new FileChunkStreamingIterator();
+    FileChunkStreamingIterator fcsi = new FileChunkStreamingIterator("test_index");
     fcsi.init(mockObserver);
     sendData(fcsi, chunkSize, numChunks, ackEvery);
     fcsi.onCompleted();
