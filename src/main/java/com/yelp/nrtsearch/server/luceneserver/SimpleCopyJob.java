@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.FileInfo;
 import com.yelp.nrtsearch.server.grpc.RawFileChunk;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.HashSet;
@@ -225,7 +226,7 @@ public class SimpleCopyJob extends CopyJob {
       Iterator<RawFileChunk> rawFileChunkIterator;
       try {
         if (ackedCopy) {
-          FileChunkStreamingIterator fcsi = new FileChunkStreamingIterator();
+          FileChunkStreamingIterator fcsi = new FileChunkStreamingIterator(indexName);
           primaryAddres.recvRawFileV2(fileName, 0, indexName, fcsi);
           rawFileChunkIterator = fcsi;
         } else {
@@ -272,11 +273,17 @@ public class SimpleCopyJob extends CopyJob {
   public static class FileChunkStreamingIterator
       implements StreamObserver<RawFileChunk>, Iterator<RawFileChunk> {
     private static final RawFileChunk TERMINAL_CHUNK = RawFileChunk.newBuilder().build();
+    private static final double BYTES_TO_MB = 1.0 / (1024 * 1024);
+    private final String indexName;
     private StreamObserver<FileInfo> observer;
     BlockingQueue<RawFileChunk> pendingChunks = new LinkedBlockingQueue<>();
     RawFileChunk next = null;
     volatile Throwable error = null;
     boolean observerDone = false;
+
+    public FileChunkStreamingIterator(String indexName) {
+      this.indexName = indexName;
+    }
 
     /**
      * Set the request observer for this streaming copy.
@@ -291,6 +298,7 @@ public class SimpleCopyJob extends CopyJob {
     public void onNext(RawFileChunk value) {
       // buffer all file chunks, this is bounded by the max in flight config value
       pendingChunks.add(value);
+      NrtMetrics.nrtAckedCopyMB.labels(indexName).inc(value.getSerializedSize() * BYTES_TO_MB);
     }
 
     @Override
