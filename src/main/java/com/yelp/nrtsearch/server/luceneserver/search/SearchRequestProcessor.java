@@ -246,7 +246,7 @@ public class SearchRequestProcessor {
   private static Map<String, FieldDef> getRuntimeFields(
       IndexState indexState, SearchRequest searchRequest) {
     if (searchRequest.getRuntimeFieldsList().isEmpty()) {
-      return new HashMap<>();
+      return Map.of();
     }
 
     Map<String, FieldDef> runtimeFields = new HashMap<>();
@@ -384,7 +384,8 @@ public class SearchRequestProcessor {
 
   /** If field is non-null it overrides any specified defaultField. */
   private static QueryBuilder createQueryParser(IndexState state, String field) {
-    // TODO: Support "queryParser" field provided by user e.g. MultiFieldQueryParser,
+    // TODO: Support "queryParser" field provided by user e.g.
+    // MultiFieldQueryParser,
     // SimpleQueryParser, classic
     List<String> fields;
     if (field != null) {
@@ -509,7 +510,8 @@ public class SearchRequestProcessor {
       String innerHitName,
       InnerHit innerHit,
       boolean explain) {
-    // Do not apply nestedPath here. This is query is used to create a shared weight.
+    // Do not apply nestedPath here. This is query is used to create a shared
+    // weight.
     Query childQuery = extractQuery(indexState, "", innerHit.getInnerQuery(), null);
     return InnerHitContextBuilder.Builder()
         .withInnerHitName(innerHitName)

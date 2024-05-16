@@ -788,6 +788,44 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         doubleValues.advanceExact(docID);
         compositeFieldValue.addFieldValue(
             FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
+      } else if (fd instanceof RuntimeFieldDef) {
+        RuntimeFieldDef runtimeFieldDef = (RuntimeFieldDef) fd;
+        RuntimeScript.SegmentFactory segmentFactory = runtimeFieldDef.getSegmentFactory();
+        RuntimeScript values = segmentFactory.newInstance(leaf);
+        int docID = hit.getLuceneDocId() - leaf.docBase;
+        // Check if the value is available for the current document
+        if (values != null) {
+          values.setDocId(docID);
+          Object obj = values.execute();
+          if (obj instanceof Float) {
+            compositeFieldValue.addFieldValue(
+                Hit.FieldValue.newBuilder().setFloatValue((Float) obj));
+          } else if (obj instanceof String) {
+            compositeFieldValue.addFieldValue(
+                Hit.FieldValue.newBuilder().setTextValue(String.valueOf(obj)));
+          } else if (obj instanceof Double) {
+            compositeFieldValue.addFieldValue(
+                Hit.FieldValue.newBuilder().setDoubleValue((Double) obj));
+          } else if (obj instanceof Long) {
+            compositeFieldValue.addFieldValue(Hit.FieldValue.newBuilder().setLongValue((Long) obj));
+          } else if (obj instanceof Integer) {
+            compositeFieldValue.addFieldValue(
+                Hit.FieldValue.newBuilder().setIntValue((Integer) obj));
+          } else if (obj instanceof Map) {
+            compositeFieldValue.addFieldValue(
+                Hit.FieldValue.newBuilder()
+                    .setStructValue(StructJsonUtils.convertMapToStruct((Map<String, Object>) obj)));
+          } else if (obj instanceof Boolean) {
+            compositeFieldValue.addFieldValue(
+                Hit.FieldValue.newBuilder().setBooleanValue((Boolean) obj));
+          } else if (obj instanceof Iterable<?>) {
+            compositeFieldValue.addFieldValue(
+                Hit.FieldValue.newBuilder()
+                    .setListValue(
+                        StructJsonUtils.convertIterableToListValue((Iterable<?>) obj, false)));
+          }
+        }
+
       } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
         int docID = hit.getLuceneDocId() - leaf.docBase;
         // it may be possible to cache this if there are multiple hits in the same segment

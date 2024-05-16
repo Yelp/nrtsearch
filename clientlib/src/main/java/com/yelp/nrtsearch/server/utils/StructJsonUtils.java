@@ -80,11 +80,11 @@ public class StructJsonUtils {
    * @return protobuf list value for iterable
    */
   public static ListValue convertIterableToListValue(Iterable<?> iterable, boolean longAsString) {
-    List<Value> valueList = new ArrayList<>();
+    ListValue.Builder listValueBuilder = ListValue.newBuilder();
     for (Object e : iterable) {
-      valueList.add(convertObjectToValue(e, longAsString));
+      listValueBuilder.addValues(convertObjectToValue(e, longAsString));
     }
-    return ListValue.newBuilder().addAllValues(valueList).build();
+    return listValueBuilder.build();
   }
 
   /**
