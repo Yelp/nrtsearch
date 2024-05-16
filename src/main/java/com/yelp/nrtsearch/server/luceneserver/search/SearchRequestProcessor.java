@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.InnerHit;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
+import com.yelp.nrtsearch.server.grpc.RuntimeField;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
@@ -30,6 +31,7 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService;
@@ -40,6 +42,7 @@ import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
+import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
@@ -123,8 +126,11 @@ public class SearchRequestProcessor {
         .setExplain(searchRequest.getExplain());
 
     Map<String, FieldDef> queryVirtualFields = getVirtualFields(indexState, searchRequest);
+    Map<String, FieldDef> queryRuntimeFields = getRuntimeFields(indexState, searchRequest);
 
     Map<String, FieldDef> queryFields = new HashMap<>(queryVirtualFields);
+
+    addToQueryFields(queryFields, queryRuntimeFields);
     addIndexFields(indexState, queryFields);
     contextBuilder.setQueryFields(Collections.unmodifiableMap(queryFields));
 
@@ -233,6 +239,34 @@ public class SearchRequestProcessor {
   }
 
   /**
+   * Parses any runtimeFields, which define dynamic (expression) fields for this one request.
+   *
+   * @throws IllegalArgumentException if there are multiple runtime fields with the same name
+   */
+  private static Map<String, FieldDef> getRuntimeFields(
+      IndexState indexState, SearchRequest searchRequest) {
+    if (searchRequest.getRuntimeFieldsList().isEmpty()) {
+      return Map.of();
+    }
+
+    Map<String, FieldDef> runtimeFields = new HashMap<>();
+    for (RuntimeField vf : searchRequest.getRuntimeFieldsList()) {
+      if (runtimeFields.containsKey(vf.getName())) {
+        throw new IllegalArgumentException(
+            "Multiple definitions of runtime field: " + vf.getName());
+      }
+      RuntimeScript.Factory factory =
+          ScriptService.getInstance().compile(vf.getScript(), RuntimeScript.CONTEXT);
+      Map<String, Object> params = ScriptParamsUtils.decodeParams(vf.getScript().getParamsMap());
+      RuntimeScript.SegmentFactory segmentFactory =
+          factory.newFactory(params, indexState.docLookup);
+      FieldDef runtimeField = new RuntimeFieldDef(vf.getName(), segmentFactory);
+      runtimeFields.put(vf.getName(), runtimeField);
+    }
+    return runtimeFields;
+  }
+
+  /**
    * Get map of fields that need to be retrieved for the given request.
    *
    * @param fieldList fields to retrieve
@@ -275,6 +309,23 @@ public class SearchRequestProcessor {
    * @param queryFields mutable current map of query fields
    * @throws IllegalArgumentException if any index field already exists
    */
+  private static void addToQueryFields(
+      Map<String, FieldDef> queryFields, Map<String, FieldDef> otherFields) {
+    for (String key : otherFields.keySet()) {
+      FieldDef current = queryFields.put(key, otherFields.get(key));
+      if (current != null) {
+        throw new IllegalArgumentException("QueryFields: " + key + " specified multiple times");
+      }
+    }
+  }
+
+  /**
+   * Add index fields to given query fields map.
+   *
+   * @param indexState state for query index
+   * @param queryFields mutable current map of query fields
+   * @throws IllegalArgumentException if any index field already exists
+   */
   private static void addIndexFields(IndexState indexState, Map<String, FieldDef> queryFields) {
     for (Map.Entry<String, FieldDef> entry : indexState.getAllFields().entrySet()) {
       FieldDef current = queryFields.put(entry.getKey(), entry.getValue());
@@ -287,7 +338,7 @@ public class SearchRequestProcessor {
 
   /** If a field's value can be retrieved */
   private static boolean isRetrievable(FieldDef fieldDef) {
-    if (fieldDef instanceof VirtualFieldDef) {
+    if (fieldDef instanceof VirtualFieldDef || fieldDef instanceof RuntimeFieldDef) {
       return true;
     }
     if (fieldDef instanceof IndexableFieldDef) {
@@ -333,7 +384,8 @@ public class SearchRequestProcessor {
 
   /** If field is non-null it overrides any specified defaultField. */
   private static QueryBuilder createQueryParser(IndexState state, String field) {
-    // TODO: Support "queryParser" field provided by user e.g. MultiFieldQueryParser,
+    // TODO: Support "queryParser" field provided by user e.g.
+    // MultiFieldQueryParser,
     // SimpleQueryParser, classic
     List<String> fields;
     if (field != null) {
@@ -458,7 +510,8 @@ public class SearchRequestProcessor {
       String innerHitName,
       InnerHit innerHit,
       boolean explain) {
-    // Do not apply nestedPath here. This is query is used to create a shared weight.
+    // Do not apply nestedPath here. This is query is used to create a shared
+    // weight.
     Query childQuery = extractQuery(indexState, "", innerHit.getInnerQuery(), null);
     return InnerHitContextBuilder.Builder()
         .withInnerHitName(innerHitName)

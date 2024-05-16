@@ -498,6 +498,8 @@ message SearchRequest {
     bool explain = 25;
     // Search nested object fields for each hit
     map<string, InnerHit> inner_hits = 26;
+    // Defines runtime fields for this query
+    repeated RuntimeField runtimeFields = 27;
 }
 
 /* Inner Hit search request */
@@ -522,6 +524,14 @@ message InnerHit {
 message VirtualField {
     Script script = 1; // Script defining this field's values.
     string name = 2; // Virtual field's name. Must be different from registered fields and any other virtual fields.
+}
+
+/* Runtime field used during search */
+message RuntimeField {
+    // Script defining this field's values.
+    Script script = 1;
+    // Runtime field's name. Must be different from registered fields and any other runtime fields.
+    string name = 2;
 }
 
 message Script {
@@ -644,12 +654,12 @@ message SearchResponse {
                 google.protobuf.Struct structValue = 8; // Value for structured data
                 // Value for VECTOR FieldType
                 Vector vectorValue = 9;
+                google.protobuf.ListValue listValue = 10;
             }
 
             message Vector {
                 repeated float value = 1;
             }
-
         }
 
         message CompositeFieldValue {
