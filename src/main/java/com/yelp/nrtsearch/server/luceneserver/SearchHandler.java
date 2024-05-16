@@ -48,6 +48,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.Collect
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
+import com.yelp.nrtsearch.server.utils.ObjectToCompositeFieldTransformer;
 import com.yelp.nrtsearch.server.utils.StructJsonUtils;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -797,33 +798,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         if (values != null) {
           values.setDocId(docID);
           Object obj = values.execute();
-          if (obj instanceof Float) {
-            compositeFieldValue.addFieldValue(
-                Hit.FieldValue.newBuilder().setFloatValue((Float) obj));
-          } else if (obj instanceof String) {
-            compositeFieldValue.addFieldValue(
-                Hit.FieldValue.newBuilder().setTextValue(String.valueOf(obj)));
-          } else if (obj instanceof Double) {
-            compositeFieldValue.addFieldValue(
-                Hit.FieldValue.newBuilder().setDoubleValue((Double) obj));
-          } else if (obj instanceof Long) {
-            compositeFieldValue.addFieldValue(Hit.FieldValue.newBuilder().setLongValue((Long) obj));
-          } else if (obj instanceof Integer) {
-            compositeFieldValue.addFieldValue(
-                Hit.FieldValue.newBuilder().setIntValue((Integer) obj));
-          } else if (obj instanceof Map) {
-            compositeFieldValue.addFieldValue(
-                Hit.FieldValue.newBuilder()
-                    .setStructValue(StructJsonUtils.convertMapToStruct((Map<String, Object>) obj)));
-          } else if (obj instanceof Boolean) {
-            compositeFieldValue.addFieldValue(
-                Hit.FieldValue.newBuilder().setBooleanValue((Boolean) obj));
-          } else if (obj instanceof Iterable<?>) {
-            compositeFieldValue.addFieldValue(
-                Hit.FieldValue.newBuilder()
-                    .setListValue(
-                        StructJsonUtils.convertIterableToListValue((Iterable<?>) obj, false)));
-          }
+          ObjectToCompositeFieldTransformer.enrichCompositeField(obj, compositeFieldValue);
         }
 
       } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
@@ -1016,34 +991,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
           Object obj = values.execute();
           SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
               SearchResponse.Hit.CompositeFieldValue.newBuilder();
-          if (obj instanceof Float) {
-            compositeFieldValue.addFieldValue(
-                SearchResponse.Hit.FieldValue.newBuilder().setFloatValue((Float) obj));
-          } else if (obj instanceof String) {
-            compositeFieldValue.addFieldValue(
-                SearchResponse.Hit.FieldValue.newBuilder().setTextValue(String.valueOf(obj)));
-          } else if (obj instanceof Double) {
-            compositeFieldValue.addFieldValue(
-                SearchResponse.Hit.FieldValue.newBuilder().setDoubleValue((Double) obj));
-          } else if (obj instanceof Long) {
-            compositeFieldValue.addFieldValue(
-                SearchResponse.Hit.FieldValue.newBuilder().setLongValue((Long) obj));
-          } else if (obj instanceof Integer) {
-            compositeFieldValue.addFieldValue(
-                SearchResponse.Hit.FieldValue.newBuilder().setIntValue((Integer) obj));
-          } else if (obj instanceof Map) {
-            compositeFieldValue.addFieldValue(
-                SearchResponse.Hit.FieldValue.newBuilder()
-                    .setStructValue(StructJsonUtils.convertMapToStruct((Map<String, Object>) obj)));
-          } else if (obj instanceof Boolean) {
-            compositeFieldValue.addFieldValue(
-                SearchResponse.Hit.FieldValue.newBuilder().setBooleanValue((Boolean) obj));
-          } else if (obj instanceof Iterable<?>) {
-            compositeFieldValue.addFieldValue(
-                SearchResponse.Hit.FieldValue.newBuilder()
-                    .setListValue(
-                        StructJsonUtils.convertIterableToListValue((Iterable<?>) obj, false)));
-          }
+          ObjectToCompositeFieldTransformer.enrichCompositeField(obj, compositeFieldValue);
           hit.putFields(name, compositeFieldValue.build());
         }
       }
