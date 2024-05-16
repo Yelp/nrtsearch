@@ -49,7 +49,6 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.utils.ObjectToCompositeFieldTransformer;
-import com.yelp.nrtsearch.server.utils.StructJsonUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
