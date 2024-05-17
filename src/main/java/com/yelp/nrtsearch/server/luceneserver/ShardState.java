@@ -956,7 +956,8 @@ public class ShardState implements Closeable {
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               configuration.getFileCopyConfig().getAckedCopy(),
               configuration.getDecInitialCommit(),
-              configuration.getFilterIncompatibleSegmentReaders());
+              configuration.getFilterIncompatibleSegmentReaders(),
+              configuration.getLowPriorityCopyPercentage());
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {

@@ -180,4 +180,18 @@ public class LuceneServerConfigurationTest {
         IndexLiveSettings.newBuilder().build(),
         luceneConfig.getLiveSettingsOverride("test_index_3"));
   }
+
+  @Test
+  public void testLowPriorityCopyPercentage_default() {
+    String config = "nodeName: \"lucene_server_foo\"";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(0, luceneConfig.getLowPriorityCopyPercentage());
+  }
+
+  @Test
+  public void testLowPriorityCopyPercentage_set() {
+    String config = "lowPriorityCopyPercentage: 10";
+    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    assertEquals(10, luceneConfig.getLowPriorityCopyPercentage());
+  }
 }

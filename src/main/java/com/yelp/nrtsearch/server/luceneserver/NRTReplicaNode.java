@@ -21,6 +21,9 @@ import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
 import com.yelp.nrtsearch.server.grpc.NodeInfo;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.luceneserver.nrt.DefaultCopyThread;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NrtCopyThread;
+import com.yelp.nrtsearch.server.luceneserver.nrt.ProportionalCopyThread;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import java.io.IOException;
@@ -32,13 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.replicator.nrt.CopyJob;
-import org.apache.lucene.replicator.nrt.CopyState;
-import org.apache.lucene.replicator.nrt.FileMetaData;
-import org.apache.lucene.replicator.nrt.FilteringSegmentInfosSearcherManager;
-import org.apache.lucene.replicator.nrt.NodeCommunicationException;
-import org.apache.lucene.replicator.nrt.ReplicaDeleterManager;
-import org.apache.lucene.replicator.nrt.ReplicaNode;
+import org.apache.lucene.replicator.nrt.*;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
@@ -55,7 +52,7 @@ public class NRTReplicaNode extends ReplicaNode {
   private final String indexName;
   private final boolean ackedCopy;
   private final boolean filterIncompatibleSegmentReaders;
-  final Jobs jobs;
+  final NrtCopyThread nrtCopyThread;
 
   /* Just a wrapper class to hold our <hostName, port> pair so that we can send them to the Primary
    * on sendReplicas and it can build its channel over this pair */
@@ -72,7 +69,8 @@ public class NRTReplicaNode extends ReplicaNode {
       PrintStream printStream,
       boolean ackedCopy,
       boolean decInitialCommit,
-      boolean filterIncompatibleSegmentReaders)
+      boolean filterIncompatibleSegmentReaders,
+      int lowPriorityCopyPercentage)
       throws IOException {
     super(replicaId, indexDir, searcherFactory, printStream);
     this.primaryAddress = primaryAddress;
@@ -82,10 +80,19 @@ public class NRTReplicaNode extends ReplicaNode {
     replicaDeleterManager = decInitialCommit ? new ReplicaDeleterManager(this) : null;
     this.filterIncompatibleSegmentReaders = filterIncompatibleSegmentReaders;
     // Handles fetching files from primary, on a new thread which receives files from primary
-    jobs = new Jobs(this);
-    jobs.setName("R" + id + ".copyJobs");
-    jobs.setDaemon(true);
-    jobs.start();
+    nrtCopyThread = getNrtCopyThread(this, lowPriorityCopyPercentage);
+    nrtCopyThread.setName("R" + id + ".copyJobs");
+    nrtCopyThread.setDaemon(true);
+    nrtCopyThread.start();
+  }
+
+  @VisibleForTesting
+  static NrtCopyThread getNrtCopyThread(Node node, int lowPriorityCopyPercentage) {
+    if (lowPriorityCopyPercentage > 0) {
+      return new ProportionalCopyThread(node, lowPriorityCopyPercentage);
+    } else {
+      return new DefaultCopyThread(node);
+    }
   }
 
   private long getLastPrimaryGen() throws IOException {
@@ -216,7 +223,7 @@ public class NRTReplicaNode extends ReplicaNode {
 
   @Override
   protected void launch(CopyJob job) {
-    jobs.launch(job);
+    nrtCopyThread.launch(job);
   }
 
   /* called once start(primaryGen) is invoked on this object (see constructor) */
@@ -248,7 +255,7 @@ public class NRTReplicaNode extends ReplicaNode {
 
   @Override
   public void close() throws IOException {
-    jobs.close();
+    nrtCopyThread.close();
     logger.info("CLOSE NRT REPLICA");
     message("top: jobs closed");
     synchronized (mergeCopyJobs) {
