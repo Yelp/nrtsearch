@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.doc;
 
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import java.io.IOException;
@@ -24,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import org.apache.lucene.index.LeafReaderContext;
 
 /**
@@ -35,14 +35,14 @@ import org.apache.lucene.index.LeafReaderContext;
  */
 public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
 
-  private final IndexState indexState;
+  private final Function<String, FieldDef> fieldDefLookup;
   private final LeafReaderContext context;
   private final Map<String, LoadedDocValues<?>> loaderCache = new HashMap<>();
 
   private int docId = -1;
 
-  public SegmentDocLookup(IndexState indexState, LeafReaderContext context) {
-    this.indexState = indexState;
+  public SegmentDocLookup(Function<String, FieldDef> fieldDefLookup, LeafReaderContext context) {
+    this.fieldDefLookup = fieldDefLookup;
     this.context = context;
   }
 
@@ -80,7 +80,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     }
     String fieldName = key.toString();
     try {
-      FieldDef field = indexState.getField(fieldName);
+      FieldDef field = fieldDefLookup.apply(fieldName);
       return field instanceof IndexableFieldDef && ((IndexableFieldDef) field).hasDocValues();
     } catch (Exception ignored) {
       return false;
@@ -108,7 +108,7 @@ public class SegmentDocLookup implements Map<String, LoadedDocValues<?>> {
     String fieldName = key.toString();
     LoadedDocValues<?> docValues = loaderCache.get(fieldName);
     if (docValues == null) {
-      FieldDef fieldDef = indexState.getField(fieldName);
+      FieldDef fieldDef = fieldDefLookup.apply(fieldName);
       if (fieldDef == null) {
         throw new IllegalArgumentException("Field does not exist: " + fieldName);
       }

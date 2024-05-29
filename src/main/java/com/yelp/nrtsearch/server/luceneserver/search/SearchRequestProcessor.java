@@ -29,6 +29,7 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
+import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.RuntimeFieldDef;
@@ -63,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -137,6 +139,9 @@ public class SearchRequestProcessor {
     Map<String, FieldDef> retrieveFields =
         getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
+
+    Function<String, FieldDef> fieldDefLookup = (String s) -> queryFields.get(s);
+    contextBuilder.setDocLookup(new DocLookup(indexState, fieldDefLookup));
 
     String rootQueryNestedPath =
         indexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath());
