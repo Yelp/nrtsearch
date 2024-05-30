@@ -10,7 +10,7 @@ RUN add-apt-repository -y 'deb https://apt.corretto.aws stable main'
 # For some reason, needs to be run again for the repo to be usable
 RUN add-apt-repository -y 'deb https://apt.corretto.aws stable main'
 RUN apt-get update && \
-    apt-get install -y java-17-amazon-corretto-jdk
+    apt-get install -y java-21-amazon-corretto-jdk
 
 RUN mkdir /usr/app/
 COPY . /user/app/ 

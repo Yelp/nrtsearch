@@ -11,7 +11,7 @@ RUN add-apt-repository -y 'deb https://apt.corretto.aws stable main'
 # For some reason, needs to be run again for the repo to be usable
 RUN add-apt-repository -y 'deb https://apt.corretto.aws stable main'
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y java-17-amazon-corretto-jdk
+    DEBIAN_FRONTEND=noninteractive apt-get install -y java-21-amazon-corretto-jdk
 
 # Install protoc
 ENV PROTOC_VERSION=3.11.4
