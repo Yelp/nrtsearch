@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nrtsearch.name" . }}-primary-configs
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "nrtsearch.name" . }}
+    helm.sh/chart: {{ include "nrtsearch.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  lucene_server_configuration_primary.yaml: |
+{{ $file := .Files.Get "files/configs/lucene_server_configuration_primary_yaml.tpl" }}
+{{ tpl $file . | nindent 4 }}
+  start_primary.sh: |
+{{ $file := .Files.Get "files/scripts/start_primary_bash.tpl" }}
+{{ tpl $file . | nindent 4 }}
+{{ if (.Values.exploreNrtsearchMode.enabled) }}
+  settings_primary.json: |
+{{ $file := .Files.Get "files/configs/settings_primary_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+  registerFields.json: |
+{{ $file := .Files.Get "files/configs/registerFields_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+  startIndex_primary.json: |
+{{ $file := .Files.Get "files/configs/startIndex_primary_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+{{ end }}

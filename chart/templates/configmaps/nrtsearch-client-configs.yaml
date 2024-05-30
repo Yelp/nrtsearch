@@ -1,0 +1,34 @@
+{{ if (.Values.client.enabled) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nrtsearch.name" . }}-client-configs
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "nrtsearch.name" . }}
+    helm.sh/chart: {{ include "nrtsearch.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  settings_primary.json: |
+{{ $file := .Files.Get "files/configs/settings_primary_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+  settings_replica.json: |
+{{ $file := .Files.Get "files/configs/settings_replica_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+  registerFields.json: |
+{{ $file := .Files.Get "files/configs/registerFields_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+  startIndex_primary.json: |
+{{ $file := .Files.Get "files/configs/startIndex_primary_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+  startIndex_replica.json: |
+{{ $file := .Files.Get "files/configs/startIndex_replica_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+  docs.csv: |
+{{ $file := .Files.Get "files/configs/docs.csv" }}
+{{ tpl $file . | nindent 4 }}
+  search.json: |
+{{ $file := .Files.Get "files/configs/search_json.tpl" }}
+{{ tpl $file . | nindent 4 }}
+{{ end }}

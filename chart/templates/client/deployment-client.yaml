@@ -1,0 +1,43 @@
+{{ if (.Values.client.enabled) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nrtsearch.name" . }}-client
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "nrtsearch.name" . }}-client
+    helm.sh/chart: {{ include "nrtsearch.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.client.count }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "nrtsearch.name" . }}-client
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "nrtsearch.name" . }}-client
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ include "nrtsearch.serviceAccountName" . }}
+      containers:
+        - name: {{ include "nrtsearch.name" . }}-client-main
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.client.command }}
+          command: {{ toJson .Values.client.command }}
+          {{- end }}
+          {{- if .Values.client.args }}
+          args: {{ toJson .Values.client.args }}
+          {{- end }}
+          volumeMounts:
+            - name: configs
+              mountPath: {{ .Values.client.config.path }}
+      volumes:
+        - name: configs
+          configMap:
+            name: {{ include "nrtsearch.name" . }}-client-configs
+            defaultMode: 0755
+{{ end }}
