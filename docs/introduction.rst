@@ -54,7 +54,7 @@ In the home directory, one can build nrtSearch locally like this:
 
 .. code-block::
 
-  ./gradlew clean installDist test
+  ./gradlew clean installDist test buildGrpcGateway
 
 Note: This code has been tested on *Java14*.
 
