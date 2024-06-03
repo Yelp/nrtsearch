@@ -141,7 +141,8 @@ public class SearchRequestProcessor {
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
     Function<String, FieldDef> fieldDefLookup = (String s) -> queryFields.get(s);
-    contextBuilder.setDocLookup(new DocLookup(indexState, fieldDefLookup));
+    DocLookup docLookup = new DocLookup(indexState, fieldDefLookup);
+    contextBuilder.setDocLookup(docLookup);
 
     String rootQueryNestedPath =
         indexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath());
@@ -151,7 +152,8 @@ public class SearchRequestProcessor {
             indexState,
             searchRequest.getQueryText(),
             searchRequest.getQuery(),
-            rootQueryNestedPath);
+            rootQueryNestedPath,
+            docLookup);
     if (profileResult != null) {
       profileResult.setParsedQuery(query.toString());
     }
@@ -189,7 +191,8 @@ public class SearchRequestProcessor {
                     rootQueryNestedPath,
                     entry.getKey(),
                     entry.getValue(),
-                    searchRequest.getExplain())));
+                    searchRequest.getExplain(),
+                    docLookup)));
       }
     }
 
@@ -366,7 +369,8 @@ public class SearchRequestProcessor {
       IndexState state,
       String queryText,
       com.yelp.nrtsearch.server.grpc.Query query,
-      String queryNestedPath) {
+      String queryNestedPath,
+      DocLookup docLookup) {
     Query q;
     if (!queryText.isEmpty()) {
       QueryBuilder queryParser = createQueryParser(state, null);
@@ -378,7 +382,7 @@ public class SearchRequestProcessor {
             String.format("could not parse queryText: %s", queryText));
       }
     } else {
-      q = QUERY_NODE_MAPPER.getQuery(query, state);
+      q = QUERY_NODE_MAPPER.getQuery(query, state, docLookup);
     }
 
     if (state.hasNestedChildFields()) {
@@ -514,10 +518,11 @@ public class SearchRequestProcessor {
       String parentQueryNestedPath,
       String innerHitName,
       InnerHit innerHit,
-      boolean explain) {
+      boolean explain,
+      DocLookup docLookup) {
     // Do not apply nestedPath here. This is query is used to create a shared
     // weight.
-    Query childQuery = extractQuery(indexState, "", innerHit.getInnerQuery(), null);
+    Query childQuery = extractQuery(indexState, "", innerHit.getInnerQuery(), null, docLookup);
     return InnerHitContextBuilder.Builder()
         .withInnerHitName(innerHitName)
         .withQuery(childQuery)

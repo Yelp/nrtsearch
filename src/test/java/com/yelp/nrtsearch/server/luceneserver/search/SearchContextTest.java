@@ -74,7 +74,6 @@ public class SearchContextTest extends ServerTestCase {
   }
 
   private SearchContext.Builder getCompleteBuilder() throws IOException {
-
     return SearchContext.newBuilder()
         .setIndexState(getGlobalState().getIndex(DEFAULT_TEST_INDEX))
         .setShardState(getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0))

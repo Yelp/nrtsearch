@@ -32,6 +32,7 @@ import com.yelp.nrtsearch.server.grpc.PrefixQuery;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
 import com.yelp.nrtsearch.server.grpc.RewriteMethod;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
+import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
@@ -97,7 +98,21 @@ public class QueryNodeMapper {
               MatchOperator.MUST, BooleanClause.Occur.MUST));
 
   public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
-    Query queryNode = getQueryNode(query, state);
+    Query queryNode = getQueryNode(query, state, state.docLookup);
+
+    if (query.getBoost() < 0) {
+      throw new IllegalArgumentException("Boost must be a positive number");
+    }
+
+    if (query.getBoost() > 0) {
+      return new BoostQuery(queryNode, query.getBoost());
+    }
+    return queryNode;
+  }
+
+  public Query getQuery(
+      com.yelp.nrtsearch.server.grpc.Query query, IndexState state, DocLookup docLookup) {
+    Query queryNode = getQueryNode(query, state, docLookup);
 
     if (query.getBoost() < 0) {
       throw new IllegalArgumentException("Boost must be a positive number");
@@ -126,14 +141,15 @@ public class QueryNodeMapper {
     return new TermQuery(new Term(IndexState.NESTED_PATH, indexState.resolveQueryNestedPath(path)));
   }
 
-  private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
+  private Query getQueryNode(
+      com.yelp.nrtsearch.server.grpc.Query query, IndexState state, DocLookup docLookup) {
     switch (query.getQueryNodeCase()) {
       case BOOLEANQUERY:
         return getBooleanQuery(query.getBooleanQuery(), state);
       case PHRASEQUERY:
         return getPhraseQuery(query.getPhraseQuery());
       case FUNCTIONSCOREQUERY:
-        return getFunctionScoreQuery(query.getFunctionScoreQuery(), state);
+        return getFunctionScoreQuery(query.getFunctionScoreQuery(), state, docLookup);
       case TERMQUERY:
         return getTermQuery(query.getTermQuery(), state);
       case TERMINSETQUERY:
@@ -273,7 +289,9 @@ public class QueryNodeMapper {
   }
 
   private FunctionScoreQuery getFunctionScoreQuery(
-      com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery, IndexState state) {
+      com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery,
+      IndexState state,
+      DocLookup docLookup) {
     ScoreScript.Factory scriptFactory =
         ScriptService.getInstance().compile(functionScoreQuery.getScript(), ScoreScript.CONTEXT);
 
@@ -281,7 +299,7 @@ public class QueryNodeMapper {
         ScriptParamsUtils.decodeParams(functionScoreQuery.getScript().getParamsMap());
     return new FunctionScoreQuery(
         getQuery(functionScoreQuery.getQuery(), state),
-        scriptFactory.newFactory(params, state.docLookup));
+        scriptFactory.newFactory(params, docLookup));
   }
 
   private FunctionMatchQuery getFunctionFilterQuery(

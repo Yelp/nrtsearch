@@ -58,7 +58,7 @@ public class DocLookup {
    * @param fieldName field name
    * @return field definition
    */
-  public FieldDef getFieldDefLookup(String fieldName) {
+  public FieldDef getFieldDef(String fieldName) {
     return fieldDefLookup.apply(fieldName);
   }
 }
