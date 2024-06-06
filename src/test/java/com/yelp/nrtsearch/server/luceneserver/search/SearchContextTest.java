@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
+import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import io.grpc.testing.GrpcCleanupRule;
@@ -87,6 +88,7 @@ public class SearchContextTest extends ServerTestCase {
         .setCollector(new DummyCollector())
         .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .setRescorers(Collections.emptyList())
+        .setDocLookup(new DocLookup(getGlobalState().getIndex(DEFAULT_TEST_INDEX), null))
         .setSharedDocContext(new DefaultSharedDocContext());
   }
 
@@ -113,6 +115,11 @@ public class SearchContextTest extends ServerTestCase {
   @Test(expected = NullPointerException.class)
   public void testMissingShardState() throws Exception {
     getCompleteBuilder().setShardState(null).build(true);
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testMissingDocLookup() throws Exception {
+    getCompleteBuilder().setDocLookup(null).build(true);
   }
 
   @Test(expected = NullPointerException.class)

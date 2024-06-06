@@ -29,6 +29,7 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
+import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.RuntimeFieldDef;
@@ -63,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -138,6 +140,10 @@ public class SearchRequestProcessor {
         getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
+    Function<String, FieldDef> fieldDefLookup = (String s) -> queryFields.get(s);
+    DocLookup docLookup = new DocLookup(indexState, fieldDefLookup);
+    contextBuilder.setDocLookup(docLookup);
+
     String rootQueryNestedPath =
         indexState.resolveQueryNestedPath(searchRequest.getQueryNestedPath());
     contextBuilder.setQueryNestedPath(rootQueryNestedPath);
@@ -146,7 +152,8 @@ public class SearchRequestProcessor {
             indexState,
             searchRequest.getQueryText(),
             searchRequest.getQuery(),
-            rootQueryNestedPath);
+            rootQueryNestedPath,
+            docLookup);
     if (profileResult != null) {
       profileResult.setParsedQuery(query.toString());
     }
@@ -184,7 +191,8 @@ public class SearchRequestProcessor {
                     rootQueryNestedPath,
                     entry.getKey(),
                     entry.getValue(),
-                    searchRequest.getExplain())));
+                    searchRequest.getExplain(),
+                    docLookup)));
       }
     }
 
@@ -361,7 +369,8 @@ public class SearchRequestProcessor {
       IndexState state,
       String queryText,
       com.yelp.nrtsearch.server.grpc.Query query,
-      String queryNestedPath) {
+      String queryNestedPath,
+      DocLookup docLookup) {
     Query q;
     if (!queryText.isEmpty()) {
       QueryBuilder queryParser = createQueryParser(state, null);
@@ -373,7 +382,7 @@ public class SearchRequestProcessor {
             String.format("could not parse queryText: %s", queryText));
       }
     } else {
-      q = QUERY_NODE_MAPPER.getQuery(query, state);
+      q = QUERY_NODE_MAPPER.getQuery(query, state, docLookup);
     }
 
     if (state.hasNestedChildFields()) {
@@ -509,10 +518,11 @@ public class SearchRequestProcessor {
       String parentQueryNestedPath,
       String innerHitName,
       InnerHit innerHit,
-      boolean explain) {
+      boolean explain,
+      DocLookup docLookup) {
     // Do not apply nestedPath here. This is query is used to create a shared
     // weight.
-    Query childQuery = extractQuery(indexState, "", innerHit.getInnerQuery(), null);
+    Query childQuery = extractQuery(indexState, "", innerHit.getInnerQuery(), null, docLookup);
     return InnerHitContextBuilder.Builder()
         .withInnerHitName(innerHitName)
         .withQuery(childQuery)

@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.search;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.doc.SharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
@@ -32,6 +33,7 @@ import org.apache.lucene.search.Query;
 /** Search context class to provide all the information to perform a search. */
 public class SearchContext implements FieldFetchContext {
   private final IndexState indexState;
+  private final DocLookup docLookup;
   private final ShardState shardState;
   private final SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy;
   private final SearchResponse.Builder responseBuilder;
@@ -53,6 +55,7 @@ public class SearchContext implements FieldFetchContext {
 
   private SearchContext(Builder builder, boolean validate) {
     this.indexState = builder.indexState;
+    this.docLookup = builder.docLookup;
     this.shardState = builder.shardState;
     this.searcherAndTaxonomy = builder.searcherAndTaxonomy;
     this.responseBuilder = builder.responseBuilder;
@@ -78,6 +81,11 @@ public class SearchContext implements FieldFetchContext {
   /** Get query index state. */
   public IndexState getIndexState() {
     return indexState;
+  }
+
+  /** Get DocLookup. */
+  public DocLookup getDocLookup() {
+    return docLookup;
   }
 
   /** Get query shard state. */
@@ -186,6 +194,7 @@ public class SearchContext implements FieldFetchContext {
     Objects.requireNonNull(fetchTasks);
     Objects.requireNonNull(rescorers);
     Objects.requireNonNull(sharedDocContext);
+    Objects.requireNonNull(docLookup);
 
     if (timestampSec < 0) {
       throw new IllegalStateException("Invalid timestamp value: " + timestampSec);
@@ -208,6 +217,7 @@ public class SearchContext implements FieldFetchContext {
   public static class Builder {
 
     private IndexState indexState;
+    private DocLookup docLookup;
     private ShardState shardState;
     private SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy;
     private SearchResponse.Builder responseBuilder;
@@ -231,6 +241,12 @@ public class SearchContext implements FieldFetchContext {
     /** Set query index state. */
     public Builder setIndexState(IndexState indexState) {
       this.indexState = indexState;
+      return this;
+    }
+
+    /** Set doclookup. */
+    public Builder setDocLookup(DocLookup docLookup) {
+      this.docLookup = docLookup;
       return this;
     }
 
