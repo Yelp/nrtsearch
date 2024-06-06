@@ -181,6 +181,7 @@ public class QueryNodeMapperTest extends ServerTestCase {
             .setIndexName(TEST_INDEX)
             .setTopHits(NUM_DOCS)
             .addAllRetrieveFields(RETRIEVE_LIST)
+            .addAllVirtualFields(getVirtualFields())
             .setQuery(getQuery())
             .build();
     IndexState indexState = getGlobalState().getIndex(TEST_INDEX);
@@ -196,6 +197,7 @@ public class QueryNodeMapperTest extends ServerTestCase {
       assertNotNull(query);
       TestScriptFactory source = (TestScriptFactory) query.getSource();
       assertEquals(source.getDocLookup().getFieldDef("int_field").getName(), "int_field");
+      assertEquals(source.getDocLookup().getFieldDef("v1").getName(), "v1");
 
     } finally {
       if (s != null) {
@@ -221,5 +223,15 @@ public class QueryNodeMapperTest extends ServerTestCase {
                         .build())
                 .build())
         .build();
+  }
+
+  private static List<VirtualField> getVirtualFields() {
+    List<VirtualField> fields = new ArrayList<>();
+    fields.add(
+        VirtualField.newBuilder()
+            .setName("v1")
+            .setScript(Script.newBuilder().setLang("test_lang").setSource("return 2*2;").build())
+            .build());
+    return fields;
   }
 }
