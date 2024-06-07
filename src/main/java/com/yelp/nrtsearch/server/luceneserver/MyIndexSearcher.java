@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.concurrent.Executor;
+
+import com.yelp.nrtsearch.server.luceneserver.search.TerminateAfterWrapper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
@@ -33,6 +35,8 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
@@ -250,6 +254,11 @@ public class MyIndexSearcher extends IndexSearcher {
       final LeafCollector leafCollector;
       try {
         leafCollector = collector.getLeafCollector(ctx);
+        if (collector instanceof TerminateAfterWrapper.TerminateAfterCollectorWrapper && ((TerminateAfterWrapper.TerminateAfterCollectorWrapper) collector).getTerminatedEarly()) {
+          // overwrite the scorer as constant scorer if the search was terminated early
+          Weight dummyWeight = (new MatchAllDocsQuery()).createWeight(this, ScoreMode.COMPLETE_NO_SCORES, 1);
+          leafCollector.setScorer(dummyWeight.scorer(ctx));
+        }
       } catch (CollectionTerminatedException e) {
         // there is no doc of interest in this reader context
         // continue with the following leaf

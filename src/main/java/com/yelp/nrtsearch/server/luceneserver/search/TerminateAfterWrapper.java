@@ -21,7 +21,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.LeafCollector;
@@ -105,15 +104,16 @@ public class TerminateAfterWrapper<C extends Collector>
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-      if (terminatedEarly) {
-        throw new CollectionTerminatedException();
-      }
       return new TerminateAfterLeafCollectorWrapper(collector.getLeafCollector(context));
     }
 
     @Override
     public ScoreMode scoreMode() {
       return collector.scoreMode();
+    }
+
+    public boolean getTerminatedEarly() {
+      return terminatedEarly;
     }
 
     /**
@@ -137,7 +137,6 @@ public class TerminateAfterWrapper<C extends Collector>
       public void collect(int doc) throws IOException {
         if (collectedDocCount.incrementAndGet() > terminateAfter) {
           terminatedEarly = true;
-          throw new CollectionTerminatedException();
         }
         leafCollector.collect(doc);
       }
