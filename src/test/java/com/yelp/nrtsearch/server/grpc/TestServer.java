@@ -115,6 +115,7 @@ public class TestServer {
   private Server server;
   private Server replicationServer;
   private LuceneServerClient client;
+  private ReplicationServerClient replicationClient;
   private LuceneServerImpl serverImpl;
   private Archiver legacyArchiver;
   private Archiver indexArchiver;
@@ -206,7 +207,9 @@ public class TestServer {
 
     replicationServer =
         ServerBuilder.forPort(0)
-            .addService(new ReplicationServerImpl(serverImpl.getGlobalState()))
+            .addService(
+                new ReplicationServerImpl(
+                    serverImpl.getGlobalState(), configuration.getVerifyReplicationIndexId()))
             .build()
             .start();
     serverImpl.getGlobalState().replicationStarted(replicationServer.getPort());
@@ -217,6 +220,7 @@ public class TestServer {
 
     server = ServerBuilder.forPort(0).addService(serverImpl).build().start();
     client = new LuceneServerClient("localhost", server.getPort());
+    replicationClient = new ReplicationServerClient("localhost", replicationServer.getPort());
   }
 
   private void writeDiscoveryFile(int replicationPort) throws IOException {
@@ -253,6 +257,10 @@ public class TestServer {
 
   public LuceneServerClient getClient() {
     return client;
+  }
+
+  public ReplicationServerClient getReplicationClient() {
+    return replicationClient;
   }
 
   public Archiver getLegacyArchiver() {
@@ -303,6 +311,10 @@ public class TestServer {
       } catch (InterruptedException ignore) {
       }
       server = null;
+    }
+    if (replicationClient != null) {
+      replicationClient.close();
+      replicationClient = null;
     }
     if (replicationServer != null) {
       replicationServer.shutdown();

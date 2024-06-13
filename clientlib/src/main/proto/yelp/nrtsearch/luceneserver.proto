@@ -889,6 +889,8 @@ message AddReplicaRequest {
     int32 replicaId = 3; //replica Id
     string hostName = 4; // replica host name
     int32 port = 5; // replica port number
+    // index id
+    string indexId = 6;
 }
 
 message AddReplicaResponse {
@@ -928,6 +930,8 @@ message CopyFiles {
     string indexName = 2; //index name
     int64 primaryGen = 3; //primary, the generation of this primary (should increment each time a new primary starts for this index)
     FilesMetadata filesMetadata = 4; //file metadata to copy
+    // index id
+    string indexId = 5;
 }
 
 /** Replica invokes this on a primary to let primary know it needs the CopyState */
@@ -935,13 +939,8 @@ message CopyStateRequest {
     int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
     string indexName = 2; //index name
     int32 replicaId = 3; //replica Id
-}
-
-message FilesInfo {
-    int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
-    string indexName = 2; //index name
-    int32 replicaId = 3; //replica Id
-    repeated FileInfo fileInfo = 4; //list of file name and offsets from where primary should start sending bytes to replica
+    // index id
+    string indexId = 4;
 }
 
 message FileInfo {
@@ -950,6 +949,8 @@ message FileInfo {
     string indexName = 3; //index name these files belong to
     // sequence number to ack, only used for acked file copy
     int32 ackSeqNum = 4;
+    // index id
+    string indexId = 5;
 }
 
 message RawFileChunk {
@@ -989,6 +990,8 @@ message NewNRTPoint {
     string indexName = 2; //index name
     int64 primaryGen = 3; //primary, the generation of this primary (should increment each time a new primary starts for this index)
     int64 version = 4; //version number when this SegmentInfos was generated
+    // index id
+    string indexId = 5;
 }
 
 message IndexName {

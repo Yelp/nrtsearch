@@ -265,7 +265,7 @@ public class StateBackendServerTest {
 
     primaryReplicationServer =
         ServerBuilder.forPort(0)
-            .addService(new ReplicationServerImpl(serverImpl.getGlobalState()))
+            .addService(new ReplicationServerImpl(serverImpl.getGlobalState(), false))
             .build()
             .start();
     primaryServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
@@ -284,7 +284,7 @@ public class StateBackendServerTest {
 
     primaryReplicationServer =
         ServerBuilder.forPort(0)
-            .addService(new ReplicationServerImpl(serverImpl.getGlobalState()))
+            .addService(new ReplicationServerImpl(serverImpl.getGlobalState(), false))
             .build()
             .start();
     primaryServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
@@ -299,7 +299,7 @@ public class StateBackendServerTest {
 
     replicaReplicationServer =
         ServerBuilder.forPort(0)
-            .addService(new ReplicationServerImpl(serverImpl.getGlobalState()))
+            .addService(new ReplicationServerImpl(serverImpl.getGlobalState(), false))
             .build()
             .start();
     replicaServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
@@ -318,7 +318,7 @@ public class StateBackendServerTest {
 
     replicaReplicationServer =
         ServerBuilder.forPort(0)
-            .addService(new ReplicationServerImpl(serverImpl.getGlobalState()))
+            .addService(new ReplicationServerImpl(serverImpl.getGlobalState(), false))
             .build()
             .start();
     replicaServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
