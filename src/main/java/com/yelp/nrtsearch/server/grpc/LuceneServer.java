@@ -133,7 +133,9 @@ public class LuceneServer {
     if (luceneServerConfiguration.getMaxConcurrentCallsPerConnectionForReplication() != -1) {
       replicationServer =
           NettyServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
-              .addService(new ReplicationServerImpl(globalState))
+              .addService(
+                  new ReplicationServerImpl(
+                      globalState, luceneServerConfiguration.getVerifyReplicationIndexId()))
               .executor(
                   ThreadPoolExecutorFactory.getThreadPoolExecutor(
                       ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
@@ -151,7 +153,9 @@ public class LuceneServer {
     } else {
       replicationServer =
           ServerBuilder.forPort(luceneServerConfiguration.getReplicationPort())
-              .addService(new ReplicationServerImpl(globalState))
+              .addService(
+                  new ReplicationServerImpl(
+                      globalState, luceneServerConfiguration.getVerifyReplicationIndexId()))
               .executor(
                   ThreadPoolExecutorFactory.getThreadPoolExecutor(
                       ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
@@ -1841,9 +1845,24 @@ public class LuceneServer {
 
   static class ReplicationServerImpl extends ReplicationServerGrpc.ReplicationServerImplBase {
     private final GlobalState globalState;
+    private final boolean verifyIndexId;
 
-    public ReplicationServerImpl(GlobalState globalState) {
+    @VisibleForTesting
+    static void checkIndexId(String actual, String expected, boolean throwException) {
+      if (!actual.equals(expected)) {
+        String message =
+            String.format("Index id mismatch, expected: %s, actual: %s", expected, actual);
+        if (throwException) {
+          throw Status.FAILED_PRECONDITION.withDescription(message).asRuntimeException();
+        } else {
+          logger.warn(message);
+        }
+      }
+    }
+
+    public ReplicationServerImpl(GlobalState globalState, boolean verifyIndexId) {
       this.globalState = globalState;
+      this.verifyIndexId = verifyIndexId;
     }
 
     @Override
@@ -1851,11 +1870,18 @@ public class LuceneServer {
         AddReplicaRequest addReplicaRequest,
         StreamObserver<AddReplicaResponse> responseStreamObserver) {
       try {
-        IndexState indexState = globalState.getIndex(addReplicaRequest.getIndexName());
+        IndexStateManager indexStateManager =
+            globalState.getIndexStateManager(addReplicaRequest.getIndexName());
+        checkIndexId(addReplicaRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
+
+        IndexState indexState = indexStateManager.getCurrent();
         AddReplicaResponse reply = new AddReplicaHandler().handle(indexState, addReplicaRequest);
         logger.info("AddReplicaHandler returned " + reply.toString());
         responseStreamObserver.onNext(reply);
         responseStreamObserver.onCompleted();
+      } catch (StatusRuntimeException e) {
+        logger.warn("error while trying addReplicas " + addReplicaRequest.getIndexName(), e);
+        responseStreamObserver.onError(e);
       } catch (Exception e) {
         logger.warn("error while trying addReplicas " + addReplicaRequest.getIndexName(), e);
         responseStreamObserver.onError(
@@ -1953,7 +1979,11 @@ public class LuceneServer {
     public void recvRawFile(
         FileInfo fileInfoRequest, StreamObserver<RawFileChunk> rawFileChunkStreamObserver) {
       try {
-        IndexState indexState = globalState.getIndex(fileInfoRequest.getIndexName());
+        IndexStateManager indexStateManager =
+            globalState.getIndexStateManager(fileInfoRequest.getIndexName());
+        checkIndexId(fileInfoRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
+
+        IndexState indexState = indexStateManager.getCurrent();
         ShardState shardState = indexState.getShard(0);
         try (IndexInput luceneFile =
             shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT)) {
@@ -1979,6 +2009,9 @@ public class LuceneServer {
           // EOF
           rawFileChunkStreamObserver.onCompleted();
         }
+      } catch (StatusRuntimeException e) {
+        logger.warn("error on recvRawFile " + fileInfoRequest.getFileName(), e);
+        rawFileChunkStreamObserver.onError(e);
       } catch (Exception e) {
         logger.warn("error on recvRawFile " + fileInfoRequest.getFileName(), e);
         rawFileChunkStreamObserver.onError(
@@ -2010,7 +2043,12 @@ public class LuceneServer {
           try {
             if (indexState == null) {
               // Start transfer
-              indexState = globalState.getIndex(fileInfoRequest.getIndexName());
+              IndexStateManager indexStateManager =
+                  globalState.getIndexStateManager(fileInfoRequest.getIndexName());
+              checkIndexId(
+                  fileInfoRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
+
+              indexState = indexStateManager.getCurrent();
               ShardState shardState = indexState.getShard(0);
               if (shardState == null) {
                 throw new IllegalStateException(
@@ -2106,13 +2144,20 @@ public class LuceneServer {
     public void recvCopyState(
         CopyStateRequest request, StreamObserver<CopyState> responseObserver) {
       try {
-        IndexState indexState = globalState.getIndex(request.getIndexName());
+        IndexStateManager indexStateManager =
+            globalState.getIndexStateManager(request.getIndexName());
+        checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
+
+        IndexState indexState = indexStateManager.getCurrent();
         CopyState reply = new RecvCopyStateHandler().handle(indexState, request);
         logger.debug(
             "RecvCopyStateHandler returned, completedMergeFiles count: "
                 + reply.getCompletedMergeFilesCount());
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
+      } catch (StatusRuntimeException e) {
+        logger.warn("error while trying recvCopyState " + request.getIndexName(), e);
+        responseObserver.onError(e);
       } catch (Exception e) {
         logger.warn(
             String.format(
@@ -2133,11 +2178,18 @@ public class LuceneServer {
     @Override
     public void copyFiles(CopyFiles request, StreamObserver<TransferStatus> responseObserver) {
       try {
-        IndexState indexState = globalState.getIndex(request.getIndexName());
+        IndexStateManager indexStateManager =
+            globalState.getIndexStateManager(request.getIndexName());
+        checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
+
+        IndexState indexState = indexStateManager.getCurrent();
         CopyFilesHandler copyFilesHandler = new CopyFilesHandler();
         // we need to send multiple responses to client from this method
         copyFilesHandler.handle(indexState, request, responseObserver);
         logger.info("CopyFilesHandler returned successfully");
+      } catch (StatusRuntimeException e) {
+        logger.warn("error while trying copyFiles " + request.getIndexName(), e);
+        responseObserver.onError(e);
       } catch (Exception e) {
         logger.warn(
             String.format(
@@ -2158,7 +2210,11 @@ public class LuceneServer {
     @Override
     public void newNRTPoint(NewNRTPoint request, StreamObserver<TransferStatus> responseObserver) {
       try {
-        IndexState indexState = globalState.getIndex(request.getIndexName());
+        IndexStateManager indexStateManager =
+            globalState.getIndexStateManager(request.getIndexName());
+        checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
+
+        IndexState indexState = indexStateManager.getCurrent();
         NewNRTPointHandler newNRTPointHander = new NewNRTPointHandler();
         TransferStatus reply = newNRTPointHander.handle(indexState, request);
         logger.debug(
@@ -2168,6 +2224,13 @@ public class LuceneServer {
                 + reply.getMessage());
         responseObserver.onNext(reply);
         responseObserver.onCompleted();
+      } catch (StatusRuntimeException e) {
+        logger.warn(
+            String.format(
+                "error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s",
+                request.getIndexName(), request.getVersion(), request.getPrimaryGen()),
+            e);
+        responseObserver.onError(e);
       } catch (Exception e) {
         logger.warn(
             String.format(
@@ -2189,8 +2252,11 @@ public class LuceneServer {
     public void writeNRTPoint(
         IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
       try {
-        IndexState indexState = globalState.getIndex(indexNameRequest.getIndexName());
-        WriteNRTPointHandler writeNRTPointHander = new WriteNRTPointHandler();
+        IndexStateManager indexStateManager =
+            globalState.getIndexStateManager(indexNameRequest.getIndexName());
+        IndexState indexState = indexStateManager.getCurrent();
+        WriteNRTPointHandler writeNRTPointHander =
+            new WriteNRTPointHandler(indexStateManager.getIndexId());
         SearcherVersion reply = writeNRTPointHander.handle(indexState, indexNameRequest);
         logger.debug("WriteNRTPointHandler returned version " + reply.getVersion());
         responseObserver.onNext(reply);

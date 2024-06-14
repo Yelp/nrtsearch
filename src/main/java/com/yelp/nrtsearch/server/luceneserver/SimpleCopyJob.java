@@ -44,6 +44,7 @@ public class SimpleCopyJob extends CopyJob {
   private final CopyState copyState;
   private final ReplicationServerClient primaryAddres;
   private final String indexName;
+  private final String indexId;
   private final boolean ackedCopy;
   private Iterator<Map.Entry<String, FileMetaData>> iter;
 
@@ -56,12 +57,14 @@ public class SimpleCopyJob extends CopyJob {
       boolean highPriority,
       OnceDone onceDone,
       String indexName,
+      String indexId,
       boolean ackedCopy)
       throws IOException {
     super(reason, files, dest, highPriority, onceDone);
     this.copyState = copyState;
     this.primaryAddres = primaryAddress;
     this.indexName = indexName;
+    this.indexId = indexId;
     this.ackedCopy = ackedCopy;
   }
 
@@ -227,10 +230,10 @@ public class SimpleCopyJob extends CopyJob {
       try {
         if (ackedCopy) {
           FileChunkStreamingIterator fcsi = new FileChunkStreamingIterator(indexName);
-          primaryAddres.recvRawFileV2(fileName, 0, indexName, fcsi);
+          primaryAddres.recvRawFileV2(fileName, 0, indexName, indexId, fcsi);
           rawFileChunkIterator = fcsi;
         } else {
-          rawFileChunkIterator = primaryAddres.recvRawFile(fileName, 0, indexName);
+          rawFileChunkIterator = primaryAddres.recvRawFile(fileName, 0, indexName, indexId);
         }
       } catch (Throwable t) {
         cancel("exc during start", t);

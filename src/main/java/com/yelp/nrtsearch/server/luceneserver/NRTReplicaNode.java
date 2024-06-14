@@ -50,6 +50,7 @@ public class NRTReplicaNode extends ReplicaNode {
   private final ReplicationServerClient primaryAddress;
   private final ReplicaDeleterManager replicaDeleterManager;
   private final String indexName;
+  private final String indexId;
   private final boolean ackedCopy;
   private final boolean filterIncompatibleSegmentReaders;
   final NrtCopyThread nrtCopyThread;
@@ -61,6 +62,7 @@ public class NRTReplicaNode extends ReplicaNode {
 
   public NRTReplicaNode(
       String indexName,
+      String indexId,
       ReplicationServerClient primaryAddress,
       HostPort hostPort,
       int replicaId,
@@ -75,6 +77,7 @@ public class NRTReplicaNode extends ReplicaNode {
     super(replicaId, indexDir, searcherFactory, printStream);
     this.primaryAddress = primaryAddress;
     this.indexName = indexName;
+    this.indexId = indexId;
     this.ackedCopy = ackedCopy;
     this.hostPort = hostPort;
     replicaDeleterManager = decInitialCommit ? new ReplicaDeleterManager(this) : null;
@@ -169,12 +172,13 @@ public class NRTReplicaNode extends ReplicaNode {
         highPriority,
         onceDone,
         indexName,
+        indexId,
         ackedCopy);
   }
 
   private CopyState getCopyStateFromPrimary() throws IOException {
     com.yelp.nrtsearch.server.grpc.CopyState copyState =
-        primaryAddress.recvCopyState(indexName, id);
+        primaryAddress.recvCopyState(indexName, indexId, id);
     return readCopyState(copyState);
   }
 
@@ -230,7 +234,8 @@ public class NRTReplicaNode extends ReplicaNode {
   @Override
   protected void sendNewReplica() throws IOException {
     logger.info(String.format("send new_replica to primary: %s", primaryAddress));
-    primaryAddress.addReplicas(indexName, this.id, hostPort.getHostName(), hostPort.getPort());
+    primaryAddress.addReplicas(
+        indexName, this.indexId, this.id, hostPort.getHostName(), hostPort.getPort());
   }
 
   public CopyJob launchPreCopyFiles(
@@ -313,7 +318,7 @@ public class NRTReplicaNode extends ReplicaNode {
     while (System.currentTimeMillis() - startMS < primaryWaitMs) {
       try {
         com.yelp.nrtsearch.server.grpc.CopyState copyState =
-            primaryAddress.recvCopyState(indexName, this.id);
+            primaryAddress.recvCopyState(indexName, indexId, this.id);
         primaryIndexVersion = copyState.getVersion();
         lastPrimaryGen = copyState.getPrimaryGen();
         break;

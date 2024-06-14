@@ -948,6 +948,7 @@ public class ShardState implements Closeable {
       nrtReplicaNode =
           new NRTReplicaNode(
               indexState.getName(),
+              indexStateManager.getIndexId(),
               primaryAddress,
               hostPort,
               REPLICA_ID,
@@ -1084,6 +1085,7 @@ public class ShardState implements Closeable {
                 .getPrimaryAddress()
                 .addReplicas(
                     shardState.indexStateManager.getCurrent().getName(),
+                    shardState.indexStateManager.getIndexId(),
                     REPLICA_ID,
                     nrtReplicaNode.getHostPort().getHostName(),
                     nrtReplicaNode.getHostPort().getPort());

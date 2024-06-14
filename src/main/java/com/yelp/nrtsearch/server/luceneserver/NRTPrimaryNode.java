@@ -141,10 +141,14 @@ public class NRTPrimaryNode extends PrimaryNode {
     }
 
     public synchronized boolean tryAddConnection(
-        ReplicationServerClient c, String indexName, long primaryGen, FilesMetadata filesMetadata) {
+        ReplicationServerClient c,
+        String indexName,
+        String indexId,
+        long primaryGen,
+        FilesMetadata filesMetadata) {
       if (!finished && (deadline == null || !deadline.isExpired())) {
         Iterator<TransferStatus> transferStatusIterator =
-            c.copyFiles(indexName, primaryGen, filesMetadata, deadline);
+            c.copyFiles(indexName, indexId, primaryGen, filesMetadata, deadline);
         clientToTransferStatusIterator.put(c, transferStatusIterator);
         connections.add(c);
         return true;
@@ -191,12 +195,21 @@ public class NRTPrimaryNode extends PrimaryNode {
       int replicaID = replicaDetails.replicaId;
       ReplicationServerClient currentReplicaServerClient = replicaDetails.replicationServerClient;
       try {
-        currentReplicaServerClient.newNRTPoint(indexName, primaryGen, version);
+        currentReplicaServerClient.newNRTPoint(
+            indexName, indexStateManager.getIndexId(), primaryGen, version);
       } catch (StatusRuntimeException e) {
         Status status = e.getStatus();
         if (status.getCode().equals(Status.UNAVAILABLE.getCode())) {
           logger.warn(
               "NRTPRimaryNode: sendNRTPoint, lost connection to replicaId: {} host: {} port: {}",
+              replicaDetails.replicaId,
+              replicaDetails.replicationServerClient.getHost(),
+              replicaDetails.replicationServerClient.getPort());
+          currentReplicaServerClient.close();
+          it.remove();
+        } else if (status.getCode().equals(Status.FAILED_PRECONDITION.getCode())) {
+          logger.warn(
+              "NRTPRimaryNode: sendNRTPoint, replicaId: {} host: {} port: {} cannot process nrt point, closing connection",
               replicaDetails.replicaId,
               replicaDetails.replicationServerClient.getHost(),
               replicaDetails.replicationServerClient.getPort());
@@ -373,7 +386,7 @@ public class NRTPrimaryNode extends PrimaryNode {
         replicaDetails = replicaInfos.next();
         Iterator<TransferStatus> copyStatus =
             replicaDetails.replicationServerClient.copyFiles(
-                indexName, primaryGen, filesMetadata, deadline);
+                indexName, indexStateManager.getIndexId(), primaryGen, filesMetadata, deadline);
         allCopyStatus.put(replicaDetails.replicationServerClient, copyStatus);
         logMessage(
             String.format(
@@ -431,7 +444,11 @@ public class NRTPrimaryNode extends PrimaryNode {
 
         // If the preCopy is still in progress add this transfer to it as well
         if (preCopy.tryAddConnection(
-            replicationServerClient, indexName, primaryGen, filesMetadata)) {
+            replicationServerClient,
+            indexName,
+            indexStateManager.getIndexId(),
+            primaryGen,
+            filesMetadata)) {
           logMessage(
               String.format(
                   "Start precopying merged segments for new replica %s:%d",

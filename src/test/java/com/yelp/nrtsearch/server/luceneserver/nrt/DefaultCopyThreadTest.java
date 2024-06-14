@@ -30,7 +30,7 @@ public class DefaultCopyThreadTest {
   private CopyJob getJob(boolean highPriority) throws IOException {
     ReplicaNode mockNode = mock(ReplicaNode.class);
     when(mockNode.getFilesToCopy(null)).thenReturn(Collections.emptyList());
-    return new SimpleCopyJob("", null, null, mockNode, null, highPriority, null, "", true);
+    return new SimpleCopyJob("", null, null, mockNode, null, highPriority, null, "", "", true);
   }
 
   @Test
