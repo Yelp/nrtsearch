@@ -2702,6 +2702,16 @@
       },
       "description": "Query that produces a score of 1.0 (modifiable by query boost value) for documents that match the filter query."
     },
+    "luceneserverSpanNearQuery": {
+      "type": "object",
+      "properties": {
+        "filter": {
+          "$ref": "#/definitions/luceneserverQuery",
+          "title": "Query to determine matching documents within the span"
+        }
+      },
+      "description": "search for documents where the specified terms are within a certain distance from each other"
+    },
     "luceneserverCopyState": {
       "type": "object",
       "properties": {
@@ -4490,6 +4500,9 @@
         },
         "geoPolygonQuery": {
           "$ref": "#/definitions/luceneserverGeoPolygonQuery"
+        },
+        "spanNearQuery": {
+          "$ref": "#/definitions/luceneserverSpanNearQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
@@ -4549,7 +4562,8 @@
         "MATCH_PHRASE_PREFIX",
         "PREFIX",
         "CONSTANT_SCORE_QUERY",
-        "GEO_POLYGON"
+        "GEO_POLYGON",
+        "SPAN_NEAR_QUERY"
       ],
       "default": "NONE",
       "description": "Defines different types of QueryNodes."
