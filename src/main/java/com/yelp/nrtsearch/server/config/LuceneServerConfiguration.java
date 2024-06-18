@@ -189,7 +189,7 @@ public class LuceneServerConfiguration {
     savePluginBeforeUnzip = configReader.getBoolean("savePluginBeforeUnzip", false);
     enableGlobalBucketAccess = configReader.getBoolean("enableGlobalBucketAccess", false);
     lowPriorityCopyPercentage = configReader.getInteger("lowPriorityCopyPercentage", 0);
-    verifyReplicationIndexId = configReader.getBoolean("verifyReplicationIndexId", false);
+    verifyReplicationIndexId = configReader.getBoolean("verifyReplicationIndexId", true);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
     Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();

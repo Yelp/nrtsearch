@@ -265,9 +265,7 @@ public class GrpcServer {
       // Create a server, add service, start, and register for automatic graceful shutdown.
       Server server =
           ServerBuilder.forPort(port)
-              .addService(
-                  new LuceneServer.ReplicationServerImpl(
-                      globalState, configuration.getVerifyReplicationIndexId()))
+              .addService(new LuceneServer.ReplicationServerImpl(globalState, false))
               .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
               .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
               .build()

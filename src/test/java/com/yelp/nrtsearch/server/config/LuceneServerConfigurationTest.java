@@ -199,13 +199,13 @@ public class LuceneServerConfigurationTest {
   public void testVerifyReplicationIndexId_default() {
     String config = "nodeName: \"lucene_server_foo\"";
     LuceneServerConfiguration luceneConfig = getForConfig(config);
-    assertFalse(luceneConfig.getVerifyReplicationIndexId());
+    assertTrue(luceneConfig.getVerifyReplicationIndexId());
   }
 
   @Test
   public void testVerifyReplicationIndexId_set() {
-    String config = "verifyReplicationIndexId: true";
+    String config = "verifyReplicationIndexId: false";
     LuceneServerConfiguration luceneConfig = getForConfig(config);
-    assertTrue(luceneConfig.getVerifyReplicationIndexId());
+    assertFalse(luceneConfig.getVerifyReplicationIndexId());
   }
 }

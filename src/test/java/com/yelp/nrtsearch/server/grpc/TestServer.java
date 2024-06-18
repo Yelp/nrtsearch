@@ -50,6 +50,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import io.findify.s3mock.S3Mock;
 import io.grpc.Server;
@@ -604,7 +605,8 @@ public class TestServer {
   }
 
   public void registerWithPrimary(String indexName, long timeoutMs) throws IOException {
-    ShardState shardState = getGlobalState().getIndex(indexName).getShard(0);
+    IndexStateManager indexStateManager = getGlobalState().getIndexStateManager(indexName);
+    ShardState shardState = indexStateManager.getCurrent().getShard(0);
     if (!shardState.isReplica()) {
       throw new IllegalStateException("Must be called on replica index");
     }
@@ -613,6 +615,7 @@ public class TestServer {
         AddReplicaRequest.newBuilder()
             .setMagicNumber(BINARY_MAGIC)
             .setIndexName(indexName)
+            .setIndexId(indexStateManager.getIndexId())
             .setReplicaId(ShardState.REPLICA_ID)
             .setHostName("localhost")
             .setPort(getGlobalState().getReplicationPort())
