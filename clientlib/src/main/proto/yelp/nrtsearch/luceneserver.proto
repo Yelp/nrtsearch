@@ -558,7 +558,7 @@ message Field {
     bool multiValued = 9; // True if this field may sometimes have more than one value.
     bool highlight = 10 [deprecated = true]; // This parameter would be ignored
     bool omitNorms = 11; // True if norms are omitted.
-    string dateTimeFormat = 12; // Format string used to parse datetime fields, supported values are: 1) DateTimeFormatter format 2) "epoch_millis" (datetime value is epoch timestamp)
+    string dateTimeFormat = 12; // Format string used to parse datetime fields, supported values are: 1) DateTimeFormatter format 2) "epoch_millis" (datetime value is epoch timestamp) 3) "date_optional_time" (date must be present while time is optional, eg. "yyyy-MM-dd'T'HH:mm:ss" or "yyyy-MM-dd")
     string postingsFormat = 13; // Which PostingsFormat should be used to index this field.
     string docValuesFormat = 14; // Which DocValuesFormat should be used to index this field.
     IndexOptions indexOptions = 15; //How the tokens should be indexed.

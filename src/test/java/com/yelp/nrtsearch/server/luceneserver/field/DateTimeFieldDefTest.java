@@ -53,23 +53,46 @@ public class DateTimeFieldDefTest extends ServerTestCase {
 
   protected void initIndex(String indexName) throws Exception {
     List<AddDocumentRequest> docs = new ArrayList<>();
-    docs.add(buildDocument(indexName, "0", String.valueOf(Long.MIN_VALUE), "1900-01-27 10:06:40"));
-    docs.add(buildDocument(indexName, "1", "1611742000", "2021-01-27 10:06:40"));
-    docs.add(buildDocument(indexName, "2", "1610742000", "2021-01-15 20:20:00"));
-    docs.add(buildDocument(indexName, "3", "1612742000", "2021-02-15 20:20:00"));
-    docs.add(buildDocument(indexName, "4", "1613742000", "2021-03-15 20:20:00"));
-    docs.add(buildDocument(indexName, "5", String.valueOf(Long.MAX_VALUE), "2099-01-15 20:20:00"));
+    docs.add(
+        buildDocument(
+            indexName,
+            "0",
+            String.valueOf(Long.MIN_VALUE),
+            "1900-01-27T10:06:40",
+            "1900-01-27 10:06:40"));
+    docs.add(
+        buildDocument(
+            indexName, "1", "1611742000", "2021-01-27T10:06:40.000", "2021-01-27 10:06:40"));
+    docs.add(buildDocument(indexName, "2", "1610742000", "2021-01-15", "2021-01-15 20:20:00"));
+    docs.add(buildDocument(indexName, "3", "1612742000", "2021-02-15", "2021-02-15 20:20:00"));
+    docs.add(buildDocument(indexName, "4", "1613742000", "2021-03-15", "2021-03-15 20:20:00"));
+    docs.add(
+        buildDocument(
+            indexName,
+            "5",
+            String.valueOf(Long.MAX_VALUE),
+            "2099-01-15T20:20:00",
+            "2099-01-15 20:20:00"));
+    docs.add(
+        buildDocument(indexName, "6", "1683771201", "2023-05-11T02:13:21", "2023-05-11 02:13:21"));
     addDocuments(docs.stream());
   }
 
   private AddDocumentRequest buildDocument(
-      String indexName, String docId, String timestampMillis, String timestampFormatted) {
+      String indexName,
+      String docId,
+      String timestampMillis,
+      String dateOptionalTime,
+      String timestampFormatted) {
     return AddDocumentRequest.newBuilder()
         .setIndexName(indexName)
         .putFields("doc_id", MultiValuedField.newBuilder().addValue(docId).build())
         .putFields(
             "timestamp_epoch_millis",
             MultiValuedField.newBuilder().addValue(timestampMillis).build())
+        .putFields(
+            "timestamp_date_optional_time",
+            MultiValuedField.newBuilder().addValue(dateOptionalTime).build())
         .putFields(
             "timestamp_string_format",
             MultiValuedField.newBuilder().addValue(timestampFormatted).build())
@@ -90,6 +113,22 @@ public class DateTimeFieldDefTest extends ServerTestCase {
                 .build(),
             List.of("doc_id"));
     assertFields(response, "2");
+  }
+
+  @Test
+  public void testDateTimeRangeQueryDateOptionalTime() {
+    SearchResponse response =
+        doQuery(
+            Query.newBuilder()
+                .setRangeQuery(
+                    RangeQuery.newBuilder()
+                        .setField("timestamp_date_optional_time")
+                        .setLower("2023-05-11")
+                        .setUpper("2023-05-11T03:00:01.001")
+                        .build())
+                .build(),
+            List.of("doc_id"));
+    assertFields(response, "6");
   }
 
   @Test
@@ -114,6 +153,31 @@ public class DateTimeFieldDefTest extends ServerTestCase {
     String dateTimeField = "timestamp_epoch_millis";
     String dateTimeValue = "definitely not a long";
     String dateTimeFormat = "epoch_millis";
+
+    List<AddDocumentRequest> docs = new ArrayList<>();
+    AddDocumentRequest docWithTimestamp =
+        AddDocumentRequest.newBuilder()
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
+            .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
+            .build();
+
+    docs.add(docWithTimestamp);
+    try {
+      addDocuments(docs.stream());
+    } catch (Exception e) {
+      assertEquals(
+          formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
+          e.getMessage());
+    }
+  }
+
+  @Test
+  public void testIndexInvalidDateOptionalTime() {
+
+    String dateTimeField = "timestamp_date_optional_time";
+    String dateTimeValue = "2023-05-11T03:00:01.001+02:00"; // offset is not supported
+    String dateTimeFormat = "date_optional_time";
 
     List<AddDocumentRequest> docs = new ArrayList<>();
     AddDocumentRequest docWithTimestamp =
@@ -161,6 +225,33 @@ public class DateTimeFieldDefTest extends ServerTestCase {
   @Test
   public void testRangeQueryEpochMillisInvalidFormat() {
 
+    String dateTimeValueLower = "2023-01-01";
+    String dateTimeValueUpper = "2023-05-11T03:00:01.001+02:00"; // offset is not supported
+
+    try {
+      doQuery(
+          Query.newBuilder()
+              .setRangeQuery(
+                  RangeQuery.newBuilder()
+                      .setField("timestamp_date_optional_time")
+                      .setLower(dateTimeValueLower)
+                      .setUpper(dateTimeValueUpper)
+                      .build())
+              .build(),
+          List.of("doc_id"));
+    } catch (RuntimeException e) {
+      assertEquals(
+          String.format(
+              "UNKNOWN: error while trying to execute search for index test_index. check logs for full searchRequest.\n"
+                  + "Text '2023-05-11T03:00:01.001+02:00' could not be parsed, unparsed text found at index 23",
+              dateTimeValueUpper),
+          e.getMessage());
+    }
+  }
+
+  @Test
+  public void testRangeQueryDateOptionalTime() {
+
     String dateTimeValueLower = "I'm not a long";
     String dateTimeValueUpper = "34234234.4234234";
 
@@ -189,7 +280,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
   public void testRangeQueryStringDateTimeInvalidFormat() {
 
     String dateTimeValueLower = "34234234.4234234";
-    String dateTimeValueUpepr = "I'm not a correct date string";
+    String dateTimeValueUpper = "I'm not a correct date string";
 
     try {
       doQuery(
@@ -198,7 +289,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
                   RangeQuery.newBuilder()
                       .setField("timestamp_string_format")
                       .setLower(dateTimeValueLower)
-                      .setUpper(dateTimeValueUpepr)
+                      .setUpper(dateTimeValueUpper)
                       .build())
               .build(),
           List.of("doc_id"));
@@ -296,7 +387,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
 
     // Both inclusive
     rangeQuery = RangeQuery.newBuilder().setField(dateFieldName).setLower("1611742000").build();
-    assertRangeQuery(rangeQuery, "1", "3", "4", "5");
+    assertRangeQuery(rangeQuery, "1", "3", "4", "5", "6");
 
     // Lower exclusive, upper inclusive
     rangeQuery =
@@ -305,7 +396,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
             .setLower("1611742000")
             .setLowerExclusive(true)
             .build();
-    assertRangeQuery(rangeQuery, "3", "4", "5");
+    assertRangeQuery(rangeQuery, "3", "4", "5", "6");
 
     // Lower inclusive, upper exclusive
     rangeQuery =
@@ -314,7 +405,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
             .setLower("1611742000")
             .setUpperExclusive(true)
             .build();
-    assertRangeQuery(rangeQuery, "1", "3", "4");
+    assertRangeQuery(rangeQuery, "1", "3", "4", "6");
 
     // Both exclusive
     rangeQuery =
@@ -324,7 +415,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
             .setLowerExclusive(true)
             .setUpperExclusive(true)
             .build();
-    assertRangeQuery(rangeQuery, "3", "4");
+    assertRangeQuery(rangeQuery, "3", "4", "6");
   }
 
   private void assertRangeQuery(RangeQuery rangeQuery, String... expectedIds) {
