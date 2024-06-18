@@ -7,3 +7,4 @@ indexDir: "replica_index_base"
 threadPoolConfiguration:
   maxSearchingThreads: 16
   maxIndexingThreads: 4
+verifyReplicationIndexId: false

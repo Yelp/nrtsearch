@@ -8,3 +8,4 @@ threadPoolConfiguration:
   maxSearchingThreads: 4
   maxIndexingThreads: 18
 fileSendDelay: false
+verifyReplicationIndexId: false
