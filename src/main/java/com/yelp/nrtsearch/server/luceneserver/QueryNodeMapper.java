@@ -168,8 +168,8 @@ public class QueryNodeMapper {
         return getPrefixQuery(query.getPrefixQuery(), state);
       case CONSTANTSCOREQUERY:
         return getConstantScoreQuery(query.getConstantScoreQuery(), state, docLookup);
-      case SPANNEARQUERY:
-        return getSpanNearQuery(query.getSpanNearQuery());
+      case SPANQUERY:
+        return getSpanQuery(query.getSpanQuery(), state);
       case GEOPOLYGONQUERY:
         return getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
       case QUERYNODE_NOT_SET:
@@ -637,35 +637,51 @@ public class QueryNodeMapper {
     return new ConstantScoreQuery(filterQuery);
   }
 
-  private SpanNearQuery getSpanNearQuery(
-      com.yelp.nrtsearch.server.grpc.SpanNearQuery protoSpanNearQuery) {
+  private SpanQuery getSpanQuery(
+      com.yelp.nrtsearch.server.grpc.SpanQuery protoSpanQuery, IndexState state) {
     List<SpanQuery> clauses = new ArrayList<>();
 
-    for (com.yelp.nrtsearch.server.grpc.SpanQuery protoClause :
-        protoSpanNearQuery.getClausesList()) {
-      SpanQuery luceneClause = convertToLuceneSpanQuery(protoClause);
-      if (luceneClause != null) {
+    if (protoSpanQuery.hasSpanNearQuery()) {
+      com.yelp.nrtsearch.server.grpc.SpanNearQuery protoSpanNearQuery =
+          protoSpanQuery.getSpanNearQuery();
+      for (com.yelp.nrtsearch.server.grpc.SpanQuery protoClause :
+          protoSpanNearQuery.getClausesList()) {
+        SpanQuery luceneClause = convertToLuceneSpanQuery(protoClause, state);
         clauses.add(luceneClause);
       }
+      SpanQuery[] clausesArray = clauses.toArray(new SpanQuery[0]);
+      int slop = protoSpanNearQuery.getSlop();
+      boolean inOrder = protoSpanNearQuery.getInOrder();
+      return new SpanNearQuery(clausesArray, slop, inOrder);
     }
 
-    SpanQuery[] clausesArray = clauses.toArray(new SpanQuery[0]);
-    int slop = protoSpanNearQuery.getSlop();
-    boolean inOrder = protoSpanNearQuery.getInOrder();
+    if (protoSpanQuery.hasSpanTermQuery()) {
+      com.yelp.nrtsearch.server.grpc.TermQuery protoSpanTermQuery =
+          protoSpanQuery.getSpanTermQuery();
+      return new SpanTermQuery(
+          new Term(protoSpanTermQuery.getField(), protoSpanTermQuery.getTextValue()));
+    }
 
-    return new SpanNearQuery(clausesArray, slop, inOrder);
+    throw new IllegalArgumentException("Unsupported Span Query: " + protoSpanQuery);
   }
 
   private SpanQuery convertToLuceneSpanQuery(
-      com.yelp.nrtsearch.server.grpc.SpanQuery protoSpanQuery) {
-    com.yelp.nrtsearch.server.grpc.TermQuery termQuery = protoSpanQuery.getSpanTermQuery();
-    if (termQuery != null) {
-      return new SpanTermQuery(new Term(termQuery.getField(), termQuery.getTextValue()));
+      com.yelp.nrtsearch.server.grpc.SpanQuery protoSpanQuery, IndexState state) {
+    com.yelp.nrtsearch.server.grpc.SpanQuery.QueryCase queryCase = protoSpanQuery.getQueryCase();
+    switch (queryCase) {
+      case SPANTERMQUERY:
+        com.yelp.nrtsearch.server.grpc.TermQuery termQuery = protoSpanQuery.getSpanTermQuery();
+        return new SpanTermQuery(new Term(termQuery.getField(), termQuery.getTextValue()));
+      case SPANNEARQUERY:
+        com.yelp.nrtsearch.server.grpc.SpanNearQuery protoSpanNearQuery =
+            protoSpanQuery.getSpanNearQuery();
+        com.yelp.nrtsearch.server.grpc.SpanQuery inlineProtoSpanQuery =
+            com.yelp.nrtsearch.server.grpc.SpanQuery.newBuilder()
+                .setSpanNearQuery(protoSpanNearQuery)
+                .build();
+        return getSpanQuery(inlineProtoSpanQuery, state);
+      default:
+        throw new IllegalArgumentException("Unsupported Span Query: " + protoSpanQuery);
     }
-    com.yelp.nrtsearch.server.grpc.SpanNearQuery spanNearQuery = protoSpanQuery.getSpanNearQuery();
-    if (spanNearQuery != null) {
-      return getSpanNearQuery(spanNearQuery);
-    }
-    throw new IllegalArgumentException("Unsupported Span Query: " + protoSpanQuery);
   }
 }

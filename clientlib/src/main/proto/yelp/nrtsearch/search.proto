@@ -404,10 +404,9 @@ message ConstantScoreQuery {
 
 // Wrapper message for different types of SpanQuery
 message SpanQuery {
-  string field = 1;
   oneof query {
-    TermQuery spanTermQuery = 3;
-    SpanNearQuery spanNearQuery = 4;
+    TermQuery spanTermQuery = 1;
+    SpanNearQuery spanNearQuery = 2;
     // Add other SpanQuery types as needed
   }
 }
@@ -446,7 +445,7 @@ enum QueryType {
     PREFIX = 19;
     CONSTANT_SCORE_QUERY = 20;
     GEO_POLYGON = 21;
-    SPAN_NEAR_QUERY = 22;
+    SPAN_QUERY = 22;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -477,7 +476,7 @@ message Query {
         PrefixQuery prefixQuery = 22;
         ConstantScoreQuery constantScoreQuery = 23;
         GeoPolygonQuery geoPolygonQuery = 24;
-        SpanNearQuery spanNearQuery = 25;
+        SpanQuery spanQuery = 25;
     }
 }
 

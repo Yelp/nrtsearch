@@ -71,12 +71,12 @@ public class SpanNearQueryTest extends ServerTestCase {
     addDocuments(docs.stream());
   }
 
-  private SearchRequest getSearchRequest(SpanNearQuery spanNearQuery) {
+  private SearchRequest getSearchRequest(SpanQuery spanQuery) {
     return SearchRequest.newBuilder()
         .setIndexName(DEFAULT_TEST_INDEX)
         .setTopHits(10)
         .addRetrieveFields("doc_id")
-        .setQuery(Query.newBuilder().setSpanNearQuery(spanNearQuery).build())
+        .setQuery(Query.newBuilder().setSpanQuery(spanQuery).build())
         .build();
   }
 
@@ -86,13 +86,11 @@ public class SpanNearQueryTest extends ServerTestCase {
         SpanNearQuery.newBuilder()
             .addClauses(
                 SpanQuery.newBuilder()
-                    .setField("text_field")
                     .setSpanTermQuery(
                         TermQuery.newBuilder().setField("text_field").setTextValue("jumps").build())
                     .build())
             .addClauses(
                 SpanQuery.newBuilder()
-                    .setField("text_field")
                     .setSpanTermQuery(
                         TermQuery.newBuilder().setField("text_field").setTextValue("dog").build())
                     .build())
@@ -100,8 +98,10 @@ public class SpanNearQueryTest extends ServerTestCase {
             .setInOrder(true)
             .build();
 
+    SpanQuery outerSpanQuery = SpanQuery.newBuilder().setSpanNearQuery(spanNearQuery).build();
+
     SearchResponse response =
-        getGrpcServer().getBlockingStub().search(getSearchRequest(spanNearQuery));
+        getGrpcServer().getBlockingStub().search(getSearchRequest(outerSpanQuery));
 
     assertIds(response, 0);
   }
@@ -112,13 +112,11 @@ public class SpanNearQueryTest extends ServerTestCase {
         SpanNearQuery.newBuilder()
             .addClauses(
                 SpanQuery.newBuilder()
-                    .setField("text_field")
                     .setSpanTermQuery(
                         TermQuery.newBuilder().setField("text_field").setTextValue("dog").build())
                     .build())
             .addClauses(
                 SpanQuery.newBuilder()
-                    .setField("text_field")
                     .setSpanTermQuery(
                         TermQuery.newBuilder().setField("text_field").setTextValue("jumps").build())
                     .build())
@@ -126,8 +124,10 @@ public class SpanNearQueryTest extends ServerTestCase {
             .setInOrder(false)
             .build();
 
+    SpanQuery outerSpanQuery = SpanQuery.newBuilder().setSpanNearQuery(spanNearQuery).build();
+
     SearchResponse response =
-        getGrpcServer().getBlockingStub().search(getSearchRequest(spanNearQuery));
+        getGrpcServer().getBlockingStub().search(getSearchRequest(outerSpanQuery));
 
     assertIds(response, 0, 1);
   }
@@ -138,22 +138,21 @@ public class SpanNearQueryTest extends ServerTestCase {
         SpanNearQuery.newBuilder()
             .addClauses(
                 SpanQuery.newBuilder()
-                    .setField("text_field")
                     .setSpanTermQuery(
                         TermQuery.newBuilder().setField("text_field").setTextValue("jumps").build())
                     .build())
             .addClauses(
                 SpanQuery.newBuilder()
-                    .setField("text_field")
                     .setSpanTermQuery(
                         TermQuery.newBuilder().setField("text_field").setTextValue("dog").build())
                     .build())
             .setSlop(2)
             .setInOrder(true)
             .build();
+    SpanQuery outerSpanQuery = SpanQuery.newBuilder().setSpanNearQuery(spanNearQuery).build();
 
     SearchResponse response =
-        getGrpcServer().getBlockingStub().search(getSearchRequest(spanNearQuery));
+        getGrpcServer().getBlockingStub().search(getSearchRequest(outerSpanQuery));
 
     assertEquals(0, response.getHitsCount());
   }
