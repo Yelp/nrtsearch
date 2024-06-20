@@ -641,45 +641,25 @@ public class QueryNodeMapper {
       com.yelp.nrtsearch.server.grpc.SpanQuery protoSpanQuery, IndexState state) {
     List<SpanQuery> clauses = new ArrayList<>();
 
-    if (protoSpanQuery.hasSpanNearQuery()) {
-      com.yelp.nrtsearch.server.grpc.SpanNearQuery protoSpanNearQuery =
-          protoSpanQuery.getSpanNearQuery();
-      for (com.yelp.nrtsearch.server.grpc.SpanQuery protoClause :
-          protoSpanNearQuery.getClausesList()) {
-        SpanQuery luceneClause = convertToLuceneSpanQuery(protoClause, state);
-        clauses.add(luceneClause);
-      }
-      SpanQuery[] clausesArray = clauses.toArray(new SpanQuery[0]);
-      int slop = protoSpanNearQuery.getSlop();
-      boolean inOrder = protoSpanNearQuery.getInOrder();
-      return new SpanNearQuery(clausesArray, slop, inOrder);
-    }
-
-    if (protoSpanQuery.hasSpanTermQuery()) {
-      com.yelp.nrtsearch.server.grpc.TermQuery protoSpanTermQuery =
-          protoSpanQuery.getSpanTermQuery();
-      return new SpanTermQuery(
-          new Term(protoSpanTermQuery.getField(), protoSpanTermQuery.getTextValue()));
-    }
-
-    throw new IllegalArgumentException("Unsupported Span Query: " + protoSpanQuery);
-  }
-
-  private SpanQuery convertToLuceneSpanQuery(
-      com.yelp.nrtsearch.server.grpc.SpanQuery protoSpanQuery, IndexState state) {
     com.yelp.nrtsearch.server.grpc.SpanQuery.QueryCase queryCase = protoSpanQuery.getQueryCase();
     switch (queryCase) {
-      case SPANTERMQUERY:
-        com.yelp.nrtsearch.server.grpc.TermQuery termQuery = protoSpanQuery.getSpanTermQuery();
-        return new SpanTermQuery(new Term(termQuery.getField(), termQuery.getTextValue()));
       case SPANNEARQUERY:
         com.yelp.nrtsearch.server.grpc.SpanNearQuery protoSpanNearQuery =
             protoSpanQuery.getSpanNearQuery();
-        com.yelp.nrtsearch.server.grpc.SpanQuery inlineProtoSpanQuery =
-            com.yelp.nrtsearch.server.grpc.SpanQuery.newBuilder()
-                .setSpanNearQuery(protoSpanNearQuery)
-                .build();
-        return getSpanQuery(inlineProtoSpanQuery, state);
+        for (com.yelp.nrtsearch.server.grpc.SpanQuery protoClause :
+            protoSpanNearQuery.getClausesList()) {
+          SpanQuery luceneClause = getSpanQuery(protoClause, state);
+          clauses.add(luceneClause);
+        }
+        SpanQuery[] clausesArray = clauses.toArray(new SpanQuery[0]);
+        int slop = protoSpanNearQuery.getSlop();
+        boolean inOrder = protoSpanNearQuery.getInOrder();
+        return new SpanNearQuery(clausesArray, slop, inOrder);
+      case SPANTERMQUERY:
+        com.yelp.nrtsearch.server.grpc.TermQuery protoSpanTermQuery =
+            protoSpanQuery.getSpanTermQuery();
+        return new SpanTermQuery(
+            new Term(protoSpanTermQuery.getField(), protoSpanTermQuery.getTextValue()));
       default:
         throw new IllegalArgumentException("Unsupported Span Query: " + protoSpanQuery);
     }
