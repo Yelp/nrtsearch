@@ -402,6 +402,25 @@ message ConstantScoreQuery {
     Query filter = 1;
 }
 
+// Wrapper message for different types of SpanQuery
+message SpanQuery {
+  oneof query {
+    TermQuery spanTermQuery = 1;
+    SpanNearQuery spanNearQuery = 2;
+    // Add other SpanQuery types as needed
+  }
+}
+
+// A query that matches documents containing terms within a specified range.
+message SpanNearQuery {
+    // Clauses for a span near query.
+    repeated SpanQuery clauses = 1;
+    // Maximum number of positions between matching terms.
+    int32 slop = 2;
+    // True if the matching terms must be in the same order as the query.
+    bool inOrder = 3;
+}
+
 // Defines different types of QueryNodes.
 enum QueryType {
     NONE = 0;
@@ -426,6 +445,7 @@ enum QueryType {
     PREFIX = 19;
     CONSTANT_SCORE_QUERY = 20;
     GEO_POLYGON = 21;
+    SPAN_QUERY = 22;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -456,6 +476,7 @@ message Query {
         PrefixQuery prefixQuery = 22;
         ConstantScoreQuery constantScoreQuery = 23;
         GeoPolygonQuery geoPolygonQuery = 24;
+        SpanQuery spanQuery = 25;
     }
 }
 

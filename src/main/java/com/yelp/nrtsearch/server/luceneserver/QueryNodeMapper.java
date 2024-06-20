@@ -17,20 +17,8 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
 
-import com.yelp.nrtsearch.server.grpc.ExistsQuery;
-import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
-import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
-import com.yelp.nrtsearch.server.grpc.GeoPointQuery;
-import com.yelp.nrtsearch.server.grpc.GeoPolygonQuery;
-import com.yelp.nrtsearch.server.grpc.GeoRadiusQuery;
-import com.yelp.nrtsearch.server.grpc.MatchOperator;
-import com.yelp.nrtsearch.server.grpc.MatchPhraseQuery;
-import com.yelp.nrtsearch.server.grpc.MatchQuery;
-import com.yelp.nrtsearch.server.grpc.MultiMatchQuery;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.MultiMatchQuery.MatchType;
-import com.yelp.nrtsearch.server.grpc.PrefixQuery;
-import com.yelp.nrtsearch.server.grpc.RangeQuery;
-import com.yelp.nrtsearch.server.grpc.RewriteMethod;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
@@ -74,6 +62,9 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.search.suggest.document.MyContextQuery;
@@ -177,6 +168,8 @@ public class QueryNodeMapper {
         return getPrefixQuery(query.getPrefixQuery(), state);
       case CONSTANTSCOREQUERY:
         return getConstantScoreQuery(query.getConstantScoreQuery(), state, docLookup);
+      case SPANQUERY:
+        return getSpanQuery(query.getSpanQuery(), state);
       case GEOPOLYGONQUERY:
         return getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
       case QUERYNODE_NOT_SET:
@@ -642,5 +635,33 @@ public class QueryNodeMapper {
       DocLookup docLookup) {
     Query filterQuery = getQuery(constantScoreQueryGrpc.getFilter(), indexState, docLookup);
     return new ConstantScoreQuery(filterQuery);
+  }
+
+  private SpanQuery getSpanQuery(
+      com.yelp.nrtsearch.server.grpc.SpanQuery protoSpanQuery, IndexState state) {
+    List<SpanQuery> clauses = new ArrayList<>();
+
+    com.yelp.nrtsearch.server.grpc.SpanQuery.QueryCase queryCase = protoSpanQuery.getQueryCase();
+    switch (queryCase) {
+      case SPANNEARQUERY:
+        com.yelp.nrtsearch.server.grpc.SpanNearQuery protoSpanNearQuery =
+            protoSpanQuery.getSpanNearQuery();
+        for (com.yelp.nrtsearch.server.grpc.SpanQuery protoClause :
+            protoSpanNearQuery.getClausesList()) {
+          SpanQuery luceneClause = getSpanQuery(protoClause, state);
+          clauses.add(luceneClause);
+        }
+        SpanQuery[] clausesArray = clauses.toArray(new SpanQuery[0]);
+        int slop = protoSpanNearQuery.getSlop();
+        boolean inOrder = protoSpanNearQuery.getInOrder();
+        return new SpanNearQuery(clausesArray, slop, inOrder);
+      case SPANTERMQUERY:
+        com.yelp.nrtsearch.server.grpc.TermQuery protoSpanTermQuery =
+            protoSpanQuery.getSpanTermQuery();
+        return new SpanTermQuery(
+            new Term(protoSpanTermQuery.getField(), protoSpanTermQuery.getTextValue()));
+      default:
+        throw new IllegalArgumentException("Unsupported Span Query: " + protoSpanQuery);
+    }
   }
 }
