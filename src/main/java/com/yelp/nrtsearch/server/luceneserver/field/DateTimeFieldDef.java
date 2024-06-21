@@ -25,17 +25,16 @@ import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.RangeQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import java.io.IOException;
-import java.text.ParsePosition;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.chrono.IsoChronology;
 import java.time.format.DateTimeFormatter;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
+import java.time.temporal.ChronoField;
 import java.util.List;
-import java.util.Locale;
-import java.util.TimeZone;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -49,14 +48,46 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.CloseableThreadLocal;
 
 /** Field class for 'DATE_TIME' field type. */
 public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, RangeQueryable {
   private static final String EPOCH_MILLIS = "epoch_millis";
+  private static final String STRICT_DATE_OPTIONAL_TIME = "strict_date_optional_time";
 
-  private final CloseableThreadLocal<DateTimeParser> dateTimeParsers;
+  private final DateTimeFormatter dateTimeFormatter;
   private final String dateTimeFormat;
+
+  private static DateTimeFormatter createDateTimeFormatter(String dateTimeFormat) {
+    if (dateTimeFormat.equals(EPOCH_MILLIS)) {
+      return null;
+    } else if (dateTimeFormat.equals(STRICT_DATE_OPTIONAL_TIME)) {
+      /**
+       * This is a replication of {@link DateTimeFormatter#ISO_LOCAL_DATE_TIME} with time optional.
+       */
+      return new DateTimeFormatterBuilder()
+          .parseCaseInsensitive()
+          .append(DateTimeFormatter.ISO_LOCAL_DATE)
+          .optionalStart()
+          .appendLiteral('T')
+          .append(DateTimeFormatter.ISO_LOCAL_TIME)
+          .optionalEnd()
+          // Set default time to make sure date-only format is parsed properly as LocalDateTime
+          .parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
+          .parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
+          .parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
+          .toFormatter()
+          .withChronology(IsoChronology.INSTANCE)
+          .withResolverStyle(ResolverStyle.STRICT);
+    } else {
+      return DateTimeFormatter.ofPattern(dateTimeFormat);
+    }
+  }
+
+  public DateTimeFieldDef(String name, Field requestField) {
+    super(name, requestField);
+    dateTimeFormat = requestField.getDateTimeFormat();
+    dateTimeFormatter = createDateTimeFormatter(dateTimeFormat);
+  }
 
   @Override
   public SortField getSortField(SortType type) {
@@ -74,16 +105,14 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
 
   @Override
   public Query getRangeQuery(RangeQuery rangeQuery) {
-    String dateTimeFormat = getDateTimeFormat();
-
     long lower =
         rangeQuery.getLower().isEmpty()
             ? Long.MIN_VALUE
-            : convertDateStringToMillis(rangeQuery.getLower(), dateTimeFormat);
+            : convertDateStringToMillis(rangeQuery.getLower());
     long upper =
         rangeQuery.getUpper().isEmpty()
             ? Long.MAX_VALUE
-            : convertDateStringToMillis(rangeQuery.getUpper(), dateTimeFormat);
+            : convertDateStringToMillis(rangeQuery.getUpper());
 
     if (rangeQuery.getLowerExclusive()) {
       lower = Math.addExact(lower, 1);
@@ -104,15 +133,13 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
     return new IndexOrDocValuesQuery(pointQuery, dvQuery);
   }
 
-  private static long convertDateStringToMillis(String dateString, String dateTimeFormat) {
+  private long convertDateStringToMillis(String dateString) {
     if (dateTimeFormat.equals(EPOCH_MILLIS)) {
       return Long.parseLong(dateString);
-    } else {
-      DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(dateTimeFormat);
-      return LocalDateTime.parse(dateString, dateTimeFormatter)
-          .toInstant(ZoneOffset.UTC)
-          .toEpochMilli();
     }
+    return LocalDateTime.parse(dateString, dateTimeFormatter)
+        .toInstant(ZoneOffset.UTC)
+        .toEpochMilli();
   }
 
   private void ensureUpperIsMoreThanLower(RangeQuery rangeQuery, long lower, long upper) {
@@ -120,24 +147,6 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
       throw new IllegalArgumentException(
           "Lower value is higher than upper value for RangeQuery: " + rangeQuery);
     }
-  }
-
-  public static final class DateTimeParser {
-    public final SimpleDateFormat parser;
-
-    public final ParsePosition position;
-
-    public DateTimeParser(String format) {
-      parser = new SimpleDateFormat(format, Locale.ROOT);
-      parser.setTimeZone(TimeZone.getTimeZone("UTC"));
-      position = new ParsePosition(0);
-    }
-  }
-
-  public DateTimeFieldDef(String name, Field requestField) {
-    super(name, requestField);
-    dateTimeFormat = requestField.getDateTimeFormat();
-    dateTimeParsers = new CloseableThreadLocal<>();
   }
 
   @Override
@@ -162,8 +171,9 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
     // make sure the format is valid:
     try {
       String dateTimeFormat = requestField.getDateTimeFormat();
-      if (!dateTimeFormat.equals(EPOCH_MILLIS)) {
-        new SimpleDateFormat(dateTimeFormat);
+      if (!dateTimeFormat.equals(EPOCH_MILLIS)
+          && !dateTimeFormat.equals(STRICT_DATE_OPTIONAL_TIME)) {
+        DateTimeFormatter.ofPattern(dateTimeFormat);
       }
     } catch (IllegalArgumentException iae) {
       throw new IllegalArgumentException("dateTimeFormat could not parse pattern", iae);
@@ -252,20 +262,17 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
   }
 
   private long getTimeFromDateTimeString(String dateString) {
-    DateTimeParser parser = getDateTimeParser();
-    parser.position.setIndex(0);
-    Date date = parser.parser.parse(dateString, parser.position);
-    String format =
-        String.format(
-            "%s could not parse %s as date_time with format %s",
-            getName(), dateString, dateTimeFormat);
-    if (parser.position.getErrorIndex() != -1) {
-      throw new IllegalArgumentException(format);
+    try {
+      return LocalDateTime.parse(dateString, dateTimeFormatter)
+          .toInstant(ZoneOffset.UTC)
+          .toEpochMilli();
+    } catch (DateTimeParseException e) {
+      throw new IllegalArgumentException(
+          String.format(
+              "%s could not parse %s as date_time with format %s",
+              getName(), dateString, dateTimeFormat),
+          e);
     }
-    if (parser.position.getIndex() != dateString.length()) {
-      throw new IllegalArgumentException(format);
-    }
-    return date.getTime();
   }
 
   private long getTimeFromEpochMillisString(String epochMillisString) {
@@ -300,31 +307,6 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
     return "DATE_TIME";
   }
 
-  @Override
-  public void close() {
-    if (dateTimeParsers != null) {
-      dateTimeParsers.close();
-    }
-  }
-
-  /**
-   * Get a thread local parser for string based date time for this field.
-   *
-   * @return date time parser for strings
-   */
-  public DateTimeParser getDateTimeParser() {
-    Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-    calendar.setLenient(false);
-
-    DateTimeParser parser = dateTimeParsers.get();
-    if (parser == null) {
-      parser = new DateTimeParser(dateTimeFormat);
-      dateTimeParsers.set(parser);
-    }
-
-    return parser;
-  }
-
   /**
    * Get the format used to parse date time string.
    *
@@ -332,5 +314,14 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
    */
   public String getDateTimeFormat() {
     return dateTimeFormat;
+  }
+
+  /**
+   * Format a epoch millisecond into the field's default formatted string.
+   *
+   * @return The formatted string representation of the input
+   */
+  public String formatEpochMillis(long value) {
+    return dateTimeFormatter.format(Instant.ofEpochMilli(value));
   }
 }

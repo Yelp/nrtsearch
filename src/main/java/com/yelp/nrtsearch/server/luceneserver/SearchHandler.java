@@ -53,7 +53,6 @@ import com.yelp.nrtsearch.server.utils.ObjectToCompositeFieldTransformer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1093,7 +1092,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
   private static String msecToDateString(DateTimeFieldDef fd, long value) {
     // nocommit use CTL to reuse these?
-    return fd.getDateTimeParser().parser.format(new Date(value));
+    return fd.formatEpochMillis(value);
   }
 
   public static class SearchHandlerException extends HandlerException {
