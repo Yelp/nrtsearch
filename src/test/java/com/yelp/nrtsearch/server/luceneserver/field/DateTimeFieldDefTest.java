@@ -199,55 +199,55 @@ public class DateTimeFieldDefTest extends ServerTestCase {
     dateTimeValue = "2023-05-11T03:00:01.001+02:00"; // other offset is not supported
     docs = new ArrayList<>();
     docWithTimestamp =
-            AddDocumentRequest.newBuilder()
-                    .setIndexName(DEFAULT_TEST_INDEX)
-                    .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
-                    .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
-                    .build();
+        AddDocumentRequest.newBuilder()
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
+            .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
+            .build();
 
     docs.add(docWithTimestamp);
     try {
       addDocuments(docs.stream());
     } catch (Exception e) {
       assertEquals(
-              formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
-              e.getMessage());
+          formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
+          e.getMessage());
     }
 
-    dateTimeValue = "2023-05-1T03:00:01.001";  // date components without 0 padding are not supported
+    dateTimeValue = "2023-05-1T03:00:01.001"; // date components without 0 padding are not supported
     docs = new ArrayList<>();
     docWithTimestamp =
-            AddDocumentRequest.newBuilder()
-                    .setIndexName(DEFAULT_TEST_INDEX)
-                    .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
-                    .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
-                    .build();
+        AddDocumentRequest.newBuilder()
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
+            .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
+            .build();
 
     docs.add(docWithTimestamp);
     try {
       addDocuments(docs.stream());
     } catch (Exception e) {
       assertEquals(
-              formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
-              e.getMessage());
+          formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
+          e.getMessage());
     }
 
-    dateTimeValue = "2023-05-99T03:00:01.001";  // invalid date value
+    dateTimeValue = "2023-05-99T03:00:01.001"; // invalid date value
     docs = new ArrayList<>();
     docWithTimestamp =
-            AddDocumentRequest.newBuilder()
-                    .setIndexName(DEFAULT_TEST_INDEX)
-                    .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
-                    .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
-                    .build();
+        AddDocumentRequest.newBuilder()
+            .setIndexName(DEFAULT_TEST_INDEX)
+            .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
+            .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
+            .build();
 
     docs.add(docWithTimestamp);
     try {
       addDocuments(docs.stream());
     } catch (Exception e) {
       assertEquals(
-              formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
-              e.getMessage());
+          formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
+          e.getMessage());
     }
   }
 

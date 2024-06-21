@@ -171,7 +171,8 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
     // make sure the format is valid:
     try {
       String dateTimeFormat = requestField.getDateTimeFormat();
-      if (!dateTimeFormat.equals(EPOCH_MILLIS) && !dateTimeFormat.equals(STRICT_DATE_OPTIONAL_TIME)) {
+      if (!dateTimeFormat.equals(EPOCH_MILLIS)
+          && !dateTimeFormat.equals(STRICT_DATE_OPTIONAL_TIME)) {
         DateTimeFormatter.ofPattern(dateTimeFormat);
       }
     } catch (IllegalArgumentException iae) {
