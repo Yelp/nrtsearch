@@ -52,7 +52,7 @@ import org.apache.lucene.search.SortField;
 /** Field class for 'DATE_TIME' field type. */
 public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, RangeQueryable {
   private static final String EPOCH_MILLIS = "epoch_millis";
-  private static final String DATE_OPTIONAL_TIME = "date_optional_time";
+  private static final String STRICT_DATE_OPTIONAL_TIME = "strict_date_optional_time";
 
   private final DateTimeFormatter dateTimeFormatter;
   private final String dateTimeFormat;
@@ -60,7 +60,7 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
   private static DateTimeFormatter createDateTimeFormatter(String dateTimeFormat) {
     if (dateTimeFormat.equals(EPOCH_MILLIS)) {
       return null;
-    } else if (dateTimeFormat.equals(DATE_OPTIONAL_TIME)) {
+    } else if (dateTimeFormat.equals(STRICT_DATE_OPTIONAL_TIME)) {
       /**
        * This is a replication of {@link DateTimeFormatter#ISO_LOCAL_DATE_TIME} with time optional.
        */
@@ -171,7 +171,7 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
     // make sure the format is valid:
     try {
       String dateTimeFormat = requestField.getDateTimeFormat();
-      if (!dateTimeFormat.equals(EPOCH_MILLIS) && !dateTimeFormat.equals(DATE_OPTIONAL_TIME)) {
+      if (!dateTimeFormat.equals(EPOCH_MILLIS) && !dateTimeFormat.equals(STRICT_DATE_OPTIONAL_TIME)) {
         DateTimeFormatter.ofPattern(dateTimeFormat);
       }
     } catch (IllegalArgumentException iae) {

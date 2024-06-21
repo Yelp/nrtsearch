@@ -14,9 +14,9 @@
       "search": true
     },
     {
-      "name": "timestamp_date_optional_time",
+      "name": "timestamp_strict_date_optional_time",
       "type": "DATE_TIME",
-      "dateTimeFormat": "date_optional_time",
+      "dateTimeFormat": "strict_date_optional_time",
       "storeDocValues": true,
       "search": true
     },

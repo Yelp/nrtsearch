@@ -82,7 +82,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
       String indexName,
       String docId,
       String timestampMillis,
-      String dateOptionalTime,
+      String strictDateOptionalTime,
       String timestampFormatted) {
     return AddDocumentRequest.newBuilder()
         .setIndexName(indexName)
@@ -91,8 +91,8 @@ public class DateTimeFieldDefTest extends ServerTestCase {
             "timestamp_epoch_millis",
             MultiValuedField.newBuilder().addValue(timestampMillis).build())
         .putFields(
-            "timestamp_date_optional_time",
-            MultiValuedField.newBuilder().addValue(dateOptionalTime).build())
+            "timestamp_strict_date_optional_time",
+            MultiValuedField.newBuilder().addValue(strictDateOptionalTime).build())
         .putFields(
             "timestamp_string_format",
             MultiValuedField.newBuilder().addValue(timestampFormatted).build())
@@ -122,7 +122,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
             Query.newBuilder()
                 .setRangeQuery(
                     RangeQuery.newBuilder()
-                        .setField("timestamp_date_optional_time")
+                        .setField("timestamp_strict_date_optional_time")
                         .setLower("2023-05-11")
                         .setUpper("2023-05-11T03:00:01.001")
                         .build())
@@ -173,12 +173,12 @@ public class DateTimeFieldDefTest extends ServerTestCase {
   }
 
   @Test
-  public void testIndexInvalidDateOptionalTime() {
+  public void testIndexInvalidStrictDateOptionalTime() {
 
-    String dateTimeField = "timestamp_date_optional_time";
-    String dateTimeValue = "2023-05-11T03:00:01.001+02:00"; // offset is not supported
-    String dateTimeFormat = "date_optional_time";
+    String dateTimeField = "timestamp_strict_date_optional_time";
+    String dateTimeFormat = "strict_date_optional_time";
 
+    String dateTimeValue = "2023-05-11T03:00:01.001+02:00Z"; // the UTC offset is not supported
     List<AddDocumentRequest> docs = new ArrayList<>();
     AddDocumentRequest docWithTimestamp =
         AddDocumentRequest.newBuilder()
@@ -194,6 +194,60 @@ public class DateTimeFieldDefTest extends ServerTestCase {
       assertEquals(
           formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
           e.getMessage());
+    }
+
+    dateTimeValue = "2023-05-11T03:00:01.001+02:00"; // other offset is not supported
+    docs = new ArrayList<>();
+    docWithTimestamp =
+            AddDocumentRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
+                    .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
+                    .build();
+
+    docs.add(docWithTimestamp);
+    try {
+      addDocuments(docs.stream());
+    } catch (Exception e) {
+      assertEquals(
+              formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
+              e.getMessage());
+    }
+
+    dateTimeValue = "2023-05-1T03:00:01.001";  // date components without 0 padding are not supported
+    docs = new ArrayList<>();
+    docWithTimestamp =
+            AddDocumentRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
+                    .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
+                    .build();
+
+    docs.add(docWithTimestamp);
+    try {
+      addDocuments(docs.stream());
+    } catch (Exception e) {
+      assertEquals(
+              formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
+              e.getMessage());
+    }
+
+    dateTimeValue = "2023-05-99T03:00:01.001";  // invalid date value
+    docs = new ArrayList<>();
+    docWithTimestamp =
+            AddDocumentRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
+                    .putFields(dateTimeField, MultiValuedField.newBuilder().addValue(dateTimeValue).build())
+                    .build();
+
+    docs.add(docWithTimestamp);
+    try {
+      addDocuments(docs.stream());
+    } catch (Exception e) {
+      assertEquals(
+              formatAddDocumentsExceptionMessage(dateTimeField, dateTimeValue, dateTimeFormat),
+              e.getMessage());
     }
   }
 
@@ -233,7 +287,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
           Query.newBuilder()
               .setRangeQuery(
                   RangeQuery.newBuilder()
-                      .setField("timestamp_date_optional_time")
+                      .setField("timestamp_strict_date_optional_time")
                       .setLower(dateTimeValueLower)
                       .setUpper(dateTimeValueUpper)
                       .build())
@@ -243,7 +297,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
       assertEquals(
           String.format(
               "UNKNOWN: error while trying to execute search for index test_index. check logs for full searchRequest.\n"
-                  + "Text '2023-05-11T03:00:01.001+02:00' could not be parsed, unparsed text found at index 23",
+                  + "Text \'%s\' could not be parsed, unparsed text found at index 23",
               dateTimeValueUpper),
           e.getMessage());
     }
