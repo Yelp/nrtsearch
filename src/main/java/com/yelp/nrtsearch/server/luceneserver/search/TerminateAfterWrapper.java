@@ -23,9 +23,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
 
 /**
  * Collector manager wrapper that terminates collection after a given number of documents. This doc
@@ -97,6 +103,7 @@ public class TerminateAfterWrapper<C extends Collector>
 
     private final C collector;
     private boolean terminatedEarly = false;
+    private LeafReaderContext currentContext;
 
     public TerminateAfterCollectorWrapper(C collector) {
       this.collector = collector;
@@ -104,16 +111,13 @@ public class TerminateAfterWrapper<C extends Collector>
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+      currentContext = context;
       return new TerminateAfterLeafCollectorWrapper(collector.getLeafCollector(context));
     }
 
     @Override
     public ScoreMode scoreMode() {
       return collector.scoreMode();
-    }
-
-    public boolean getTerminatedEarly() {
-      return terminatedEarly;
     }
 
     /**
@@ -130,7 +134,24 @@ public class TerminateAfterWrapper<C extends Collector>
 
       @Override
       public void setScorer(Scorable scorer) throws IOException {
-        leafCollector.setScorer(scorer);
+        if (terminatedEarly) {
+          // setup constant scorer to avoid spending time on scoring
+          float score = 1;
+          Weight dummyWeight = new ConstantScoreWeight(new MatchAllDocsQuery(), score) {
+            @Override
+            public boolean isCacheable(LeafReaderContext leafReaderContext) {
+              return true;
+            }
+
+            @Override
+            public Scorer scorer(LeafReaderContext context) throws IOException {
+              return new ConstantScoreScorer(this, this.score(), ScoreMode.COMPLETE_NO_SCORES, DocIdSetIterator.all(context.reader().maxDoc()));
+            }
+          };
+          leafCollector.setScorer(dummyWeight.scorer(currentContext));
+        } else {
+          leafCollector.setScorer(scorer);
+        }
       }
 
       @Override
