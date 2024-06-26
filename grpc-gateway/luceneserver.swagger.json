@@ -2710,7 +2710,7 @@
           "title": "Query to determine matching documents within the span"
         }
       },
-      "description": "search for documents where the specified terms are within a certain distance from each other"
+      "description": "Span queries that support SpanNearQuery, SpanTermQuery and SpanMultiTermQueryWrapper."
     },
     "luceneserverCopyState": {
       "type": "object",
