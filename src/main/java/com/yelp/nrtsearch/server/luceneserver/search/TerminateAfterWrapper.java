@@ -132,7 +132,7 @@ public class TerminateAfterWrapper<C extends Collector>
         }
 
         @Override
-        public float score() throws IOException{
+        public float score() throws IOException {
           if (!terminatedEarly) {
             return in.score();
           } else {
