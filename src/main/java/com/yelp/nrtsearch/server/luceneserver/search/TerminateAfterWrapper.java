@@ -124,33 +124,24 @@ public class TerminateAfterWrapper<C extends Collector>
         this.leafCollector = leafCollector;
       }
 
-      class TerminatedEarlyScorer extends Scorable {
-        private final Scorable in;
-
-        public TerminatedEarlyScorer(Scorable in) {
-          this.in = in;
-        }
-
-        @Override
-        public float score() throws IOException {
-          if (!terminatedEarly) {
-            return in.score();
-          } else {
-            // return the min constant scorer
-            return 0;
-          }
-        }
-
-        @Override
-        public int docID() {
-          return in.docID();
-        }
-      }
-
       @Override
       public void setScorer(Scorable scorer) throws IOException {
-        TerminatedEarlyScorer terminatedEarlyScorer = new TerminatedEarlyScorer(scorer);
-        leafCollector.setScorer(terminatedEarlyScorer);
+        leafCollector.setScorer(new Scorable() {
+          @Override
+          public float score() throws IOException {
+            if (!terminatedEarly) {
+              return scorer.score();
+            } else {
+              // return the min constant scorer
+              return 0;
+            }
+          }
+
+          @Override
+          public int docID() {
+            return scorer.docID();
+          }
+        });
       }
 
       @Override
