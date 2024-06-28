@@ -183,6 +183,14 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         searcherResult =
             s.searcher.search(
                 searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
+        if (searchRequest.getTotalHitsThreshold() != 0) {
+          searcherResult.getTopDocs().totalHits =
+              new org.apache.lucene.search.TotalHits(
+                  Math.min(
+                      searchRequest.getTotalHitsThreshold(),
+                      searcherResult.getTopDocs().totalHits.value),
+                  searcherResult.getTopDocs().totalHits.relation);
+        }
         hits = searcherResult.getTopDocs();
       }
 
