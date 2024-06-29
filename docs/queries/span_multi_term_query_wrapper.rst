@@ -1,7 +1,7 @@
-Spean Multi Term Query Wrapper
+Spean Multi Term Query 
 ==========================
 
-public class SpanMultiTermQueryWrapper<Q extends MultiTermQuery>
+public class SpanMultiTermQuery<Q extends MultiTermQuery>
 extends SpanQuery
 Wraps any MultiTermQuery as a SpanQuery, so it can be nested within other SpanQuery classes.
 The query is rewritten by default to a SpanOrQuery containing the expanded terms, but this can be customized.
@@ -9,7 +9,7 @@ The query is rewritten by default to a SpanOrQuery containing the expanded terms
 Example:
 
  WildcardQuery wildcard = new WildcardQuery(new Term("field", "bro?n"));
- SpanQuery spanWildcard = new SpanMultiTermQueryWrapper<WildcardQuery>(wildcard);
+ SpanQuery spanWildcard = new SpanMultiTermQuery<WildcardQuery>(wildcard);
  // do something with spanWildcard, such as use it in a SpanFirstQuery
 
 
@@ -22,7 +22,7 @@ Proto definition:
       oneof query {
         TermQuery spanTermQuery = 1;
         SpanNearQuery spanNearQuery = 2;
-        SpanMultiTermQueryWrapper spanMultiTermQueryWrapper = 3;
+        SpanMultiTermQueryspanMultiTermQuery= 3;
       }
     }
 
@@ -90,8 +90,8 @@ Proto definition:
         int32 maxDeterminizedStates = 3;
     }
 
-    // Message for a SpanMultiTermQueryWrapper
-    message SpanMultiTermQueryWrapper {
+    // Message for a SpanMultiTermQuery
+    message SpanMultiTermQuery{
       // The query to be wrapped
       oneof wrappedQuery {
           WildcardQuery wildcardQuery = 1;

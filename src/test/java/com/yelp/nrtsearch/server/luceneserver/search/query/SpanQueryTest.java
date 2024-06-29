@@ -27,10 +27,9 @@ import com.yelp.nrtsearch.server.grpc.RegexpQuery;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
-import com.yelp.nrtsearch.server.grpc.SpanMultiTermQueryWrapper;
+import com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery;
 import com.yelp.nrtsearch.server.grpc.SpanNearQuery;
 import com.yelp.nrtsearch.server.grpc.SpanQuery;
-import com.yelp.nrtsearch.server.grpc.Term;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.grpc.WildcardQuery;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
@@ -207,19 +206,21 @@ public class SpanQueryTest extends ServerTestCase {
   }
 
   @Test
-  public void testSpanMultiTermQueryWrapperWildcard() {
-
-    // Create a Term object
-    Term term = Term.newBuilder().setField("text_field").setText("do*").build();
+  public void testSpanMultiTermQueryWildcard() {
 
     // Create a WildcardQuery object
-    WildcardQuery wildcardQuery = WildcardQuery.newBuilder().setTerm(term).build();
+    WildcardQuery wildcardQuery =
+        WildcardQuery.newBuilder()
+            .setField("text_field")
+            .setText("do*")
+            .setRewrite(com.yelp.nrtsearch.server.grpc.RewriteMethod.TOP_TERMS)
+            .setRewriteTopTermsSize(7)
+            .build();
 
-    SpanMultiTermQueryWrapper spanMultiTermQueryWrapper =
-        SpanMultiTermQueryWrapper.newBuilder().setWildcardQuery(wildcardQuery).build();
+    SpanMultiTermQuery spanMultiTermQuery =
+        SpanMultiTermQuery.newBuilder().setWildcardQuery(wildcardQuery).build();
 
-    SpanQuery spanQuery =
-        SpanQuery.newBuilder().setSpanMultiTermQueryWrapper(spanMultiTermQueryWrapper).build();
+    SpanQuery spanQuery = SpanQuery.newBuilder().setSpanMultiTermQuery(spanMultiTermQuery).build();
 
     SearchResponse response = getGrpcServer().getBlockingStub().search(getSearchRequest(spanQuery));
 
@@ -227,26 +228,26 @@ public class SpanQueryTest extends ServerTestCase {
   }
 
   @Test
-  public void testSpanMultiTermQueryWrapperFuzzyQuery() {
+  public void testSpanMultiTermQueryFuzzyQuery() {
 
+    // Create a FuzzyQuery object
     // Create a Term object that should match both potato and tomato
-    Term term = Term.newBuilder().setField("text_field").setText("sotato").build();
-
-    // Create a WildcardQuery object
     FuzzyQuery fuzzyQuery =
         FuzzyQuery.newBuilder()
-            .setTerm(term)
+            .setField("text_field")
+            .setText("sotato")
             .setMaxEdits(org.apache.lucene.search.FuzzyQuery.defaultMaxEdits)
             .setPrefixLength(org.apache.lucene.search.FuzzyQuery.defaultPrefixLength)
             .setMaxExpansions(org.apache.lucene.search.FuzzyQuery.defaultMaxExpansions)
-            .setTranspositions(org.apache.lucene.search.FuzzyQuery.defaultTranspositions)
+            .setTranspositions(false)
+            .setRewrite(com.yelp.nrtsearch.server.grpc.RewriteMethod.TOP_TERMS)
+            .setRewriteTopTermsSize(7)
             .build();
 
-    SpanMultiTermQueryWrapper spanMultiTermQueryWrapper =
-        SpanMultiTermQueryWrapper.newBuilder().setFuzzyQuery(fuzzyQuery).build();
+    SpanMultiTermQuery spanMultiTermQuery =
+        SpanMultiTermQuery.newBuilder().setFuzzyQuery(fuzzyQuery).build();
 
-    SpanQuery spanQuery =
-        SpanQuery.newBuilder().setSpanMultiTermQueryWrapper(spanMultiTermQueryWrapper).build();
+    SpanQuery spanQuery = SpanQuery.newBuilder().setSpanMultiTermQuery(spanMultiTermQuery).build();
 
     SearchResponse response = getGrpcServer().getBlockingStub().search(getSearchRequest(spanQuery));
 
@@ -254,19 +255,16 @@ public class SpanQueryTest extends ServerTestCase {
   }
 
   @Test
-  public void testSpanMultiTermQueryWrapperFuzzyQueryMaxEdit() {
+  public void testSpanMultiTermQueryFuzzyQueryMaxEdit() {
 
-    // Create a Term object that should only match tomato
-    Term term = Term.newBuilder().setField("text_field").setText("tomata").build();
+    // Create a WildcardQuery object that should only match tomato
+    FuzzyQuery fuzzyQuery =
+        FuzzyQuery.newBuilder().setField("text_field").setText("tomata").setMaxEdits(1).build();
 
-    // Create a WildcardQuery object
-    FuzzyQuery fuzzyQuery = FuzzyQuery.newBuilder().setTerm(term).setMaxEdits(1).build();
+    SpanMultiTermQuery spanMultiTermQuery =
+        SpanMultiTermQuery.newBuilder().setFuzzyQuery(fuzzyQuery).build();
 
-    SpanMultiTermQueryWrapper spanMultiTermQueryWrapper =
-        SpanMultiTermQueryWrapper.newBuilder().setFuzzyQuery(fuzzyQuery).build();
-
-    SpanQuery spanQuery =
-        SpanQuery.newBuilder().setSpanMultiTermQueryWrapper(spanMultiTermQueryWrapper).build();
+    SpanQuery spanQuery = SpanQuery.newBuilder().setSpanMultiTermQuery(spanMultiTermQuery).build();
 
     SearchResponse response = getGrpcServer().getBlockingStub().search(getSearchRequest(spanQuery));
 
@@ -274,7 +272,30 @@ public class SpanQueryTest extends ServerTestCase {
   }
 
   @Test
-  public void testSpanMultiTermQueryWrapperPrefixQuery() {
+  public void testSpanMultiTermQueryFuzzyQueryAllParamsSet() {
+
+    // Create a WildcardQuery object that should only match tomato
+    FuzzyQuery fuzzyQuery =
+        FuzzyQuery.newBuilder()
+            .setField("text_field")
+            .setText("tomata")
+            .setMaxEdits(1)
+            .setMaxExpansions(2)
+            .setTranspositions(false)
+            .build();
+
+    SpanMultiTermQuery spanMultiTermQuery =
+        SpanMultiTermQuery.newBuilder().setFuzzyQuery(fuzzyQuery).build();
+
+    SpanQuery spanQuery = SpanQuery.newBuilder().setSpanMultiTermQuery(spanMultiTermQuery).build();
+
+    SearchResponse response = getGrpcServer().getBlockingStub().search(getSearchRequest(spanQuery));
+
+    assertIds(response, 4);
+  }
+
+  @Test
+  public void testSpanMultiTermQueryPrefixQuery() {
 
     // Create a Prefix Query object
     PrefixQuery prefixQuery =
@@ -285,11 +306,10 @@ public class SpanQueryTest extends ServerTestCase {
             .setRewriteTopTermsSize(7)
             .build();
 
-    SpanMultiTermQueryWrapper spanMultiTermQueryWrapper =
-        SpanMultiTermQueryWrapper.newBuilder().setPrefixQuery(prefixQuery).build();
+    SpanMultiTermQuery spanMultiTermQuery =
+        SpanMultiTermQuery.newBuilder().setPrefixQuery(prefixQuery).build();
 
-    SpanQuery spanQuery =
-        SpanQuery.newBuilder().setSpanMultiTermQueryWrapper(spanMultiTermQueryWrapper).build();
+    SpanQuery spanQuery = SpanQuery.newBuilder().setSpanMultiTermQuery(spanMultiTermQuery).build();
 
     SearchResponse response = getGrpcServer().getBlockingStub().search(getSearchRequest(spanQuery));
 
@@ -297,17 +317,21 @@ public class SpanQueryTest extends ServerTestCase {
   }
 
   @Test
-  public void testSpanMultiTermQueryWrapperRegexpQuery() {
+  public void testSpanMultiTermQueryRegexpQuery() {
 
-    Term term = Term.newBuilder().setField("text_field").setText("qu[a-z]+").build();
     // Create a RegexpQuery Query object
-    RegexpQuery regexpQuery = RegexpQuery.newBuilder().setTerm(term).build();
+    RegexpQuery regexpQuery =
+        RegexpQuery.newBuilder()
+            .setField("text_field")
+            .setText("qu[a-z]+")
+            .setRewrite(com.yelp.nrtsearch.server.grpc.RewriteMethod.TOP_TERMS)
+            .setRewriteTopTermsSize(7)
+            .build();
 
-    SpanMultiTermQueryWrapper spanMultiTermQueryWrapper =
-        SpanMultiTermQueryWrapper.newBuilder().setRegexpQuery(regexpQuery).build();
+    SpanMultiTermQuery spanMultiTermQuery =
+        SpanMultiTermQuery.newBuilder().setRegexpQuery(regexpQuery).build();
 
-    SpanQuery spanQuery =
-        SpanQuery.newBuilder().setSpanMultiTermQueryWrapper(spanMultiTermQueryWrapper).build();
+    SpanQuery spanQuery = SpanQuery.newBuilder().setSpanMultiTermQuery(spanMultiTermQuery).build();
 
     SearchResponse response = getGrpcServer().getBlockingStub().search(getSearchRequest(spanQuery));
 

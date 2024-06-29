@@ -664,109 +664,111 @@ public class QueryNodeMapper {
             protoSpanQuery.getSpanTermQuery();
         return new SpanTermQuery(
             new Term(protoSpanTermQuery.getField(), protoSpanTermQuery.getTextValue()));
-      case SPANMULTITERMQUERYWRAPPER:
-        com.yelp.nrtsearch.server.grpc.SpanMultiTermQueryWrapper protoSpanMultiTermQueryWrapper =
-            protoSpanQuery.getSpanMultiTermQueryWrapper();
-        return getSpanMultiTermQueryWrapper(protoSpanMultiTermQueryWrapper, state);
+      case SPANMULTITERMQUERY:
+        com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery =
+            protoSpanQuery.getSpanMultiTermQuery();
+        return getSpanMultiTermQueryWrapper(protoSpanMultiTermQuery, state);
       default:
         throw new IllegalArgumentException("Unsupported Span Query: " + protoSpanQuery);
     }
   }
 
   private SpanMultiTermQueryWrapper getSpanMultiTermQueryWrapper(
-      com.yelp.nrtsearch.server.grpc.SpanMultiTermQueryWrapper protoSpanMultiTermQueryWrapper,
-      IndexState state) {
+      com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery, IndexState state) {
 
-    com.yelp.nrtsearch.server.grpc.SpanMultiTermQueryWrapper.WrappedQueryCase wrappedQueryCase =
-        protoSpanMultiTermQueryWrapper.getWrappedQueryCase();
+    com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery.WrappedQueryCase wrappedQueryCase =
+        protoSpanMultiTermQuery.getWrappedQueryCase();
 
     switch (wrappedQueryCase) {
       case WILDCARDQUERY:
         WildcardQuery wildcardQuery =
             new WildcardQuery(
                 new Term(
-                    protoSpanMultiTermQueryWrapper.getWildcardQuery().getTerm().getField(),
-                    protoSpanMultiTermQueryWrapper.getWildcardQuery().getTerm().getText()));
-        return new SpanMultiTermQueryWrapper<>((MultiTermQuery) wildcardQuery);
+                    protoSpanMultiTermQuery.getWildcardQuery().getField(),
+                    protoSpanMultiTermQuery.getWildcardQuery().getText()));
+        wildcardQuery.setRewriteMethod(
+            getRewriteMethod(
+                protoSpanMultiTermQuery.getWildcardQuery().getRewrite(),
+                protoSpanMultiTermQuery.getWildcardQuery().getRewriteTopTermsSize()));
+        return new SpanMultiTermQueryWrapper<>(wildcardQuery);
       case FUZZYQUERY:
-        FuzzyQuery fuzzyQuery = getFuzzyQuery(protoSpanMultiTermQueryWrapper);
-        return new SpanMultiTermQueryWrapper<>((MultiTermQuery) fuzzyQuery);
+        FuzzyQuery fuzzyQuery = getFuzzyQuery(protoSpanMultiTermQuery);
+        return new SpanMultiTermQueryWrapper<>(fuzzyQuery);
       case PREFIXQUERY:
-        Query prefixQuery = getPrefixQuery(protoSpanMultiTermQueryWrapper.getPrefixQuery(), state);
-        if (prefixQuery instanceof MultiTermQuery) {
-          return new SpanMultiTermQueryWrapper<>((MultiTermQuery) prefixQuery);
-        }
+        Query prefixQuery = getPrefixQuery(protoSpanMultiTermQuery.getPrefixQuery(), state);
+        return new SpanMultiTermQueryWrapper<>((MultiTermQuery) prefixQuery);
       case REGEXPQUERY:
-        RegexpQuery regexpQuery = getRegexpQuery(protoSpanMultiTermQueryWrapper);
-        if (regexpQuery instanceof MultiTermQuery) {
-          return new SpanMultiTermQueryWrapper<>((MultiTermQuery) regexpQuery);
-        }
+        RegexpQuery regexpQuery = getRegexpQuery(protoSpanMultiTermQuery);
+        return new SpanMultiTermQueryWrapper<>(regexpQuery);
       default:
         throw new IllegalArgumentException(
-            "Unsupported Span Multi Query Term Wrapper: " + protoSpanMultiTermQueryWrapper);
+            "Unsupported Span Multi Query Term Wrapper: " + protoSpanMultiTermQuery);
     }
   }
 
   private static FuzzyQuery getFuzzyQuery(
-      com.yelp.nrtsearch.server.grpc.SpanMultiTermQueryWrapper protoSpanMultiTermQueryWrapper) {
+      com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery) {
     com.yelp.nrtsearch.server.grpc.FuzzyQuery protoFuzzyQuery =
-        protoSpanMultiTermQueryWrapper.getFuzzyQuery();
-    Term term = new Term(protoFuzzyQuery.getTerm().getField(), protoFuzzyQuery.getTerm().getText());
+        protoSpanMultiTermQuery.getFuzzyQuery();
+    Term term = new Term(protoFuzzyQuery.getField(), protoFuzzyQuery.getText());
 
-    int maxEdits = protoFuzzyQuery.getMaxEdits();
-    int prefixLength = protoFuzzyQuery.getPrefixLength();
-    int maxExpansions = protoFuzzyQuery.getMaxExpansions();
-    boolean transpositions = protoFuzzyQuery.getTranspositions();
+    int maxEdits =
+        protoFuzzyQuery.getMaxEdits() == FuzzyQuery.defaultMaxEdits
+            ? FuzzyQuery.defaultMaxEdits
+            : protoFuzzyQuery.getMaxEdits();
 
-    if (maxEdits != FuzzyQuery.defaultMaxEdits
-        && prefixLength != FuzzyQuery.defaultPrefixLength
-        && maxExpansions != FuzzyQuery.defaultMaxExpansions
-        && !transpositions) {
-      return new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions);
-    } else if (maxEdits != FuzzyQuery.defaultMaxEdits
-        && prefixLength != FuzzyQuery.defaultPrefixLength) {
-      return new FuzzyQuery(term, maxEdits, prefixLength);
-    } else if (maxEdits != FuzzyQuery.defaultMaxEdits) {
-      return new FuzzyQuery(term, maxEdits);
-    }
-    return new FuzzyQuery(term);
+    int prefixLength =
+        protoFuzzyQuery.getPrefixLength() == FuzzyQuery.defaultPrefixLength
+            ? FuzzyQuery.defaultPrefixLength
+            : protoFuzzyQuery.getPrefixLength();
+
+    int maxExpansions =
+        protoFuzzyQuery.getMaxExpansions() == 0
+            ? FuzzyQuery.defaultMaxExpansions
+            : protoFuzzyQuery.getMaxExpansions();
+
+    // Set the default transpositions to true, if it is not provided.
+    boolean transpositions =
+        protoFuzzyQuery.hasTranspositions()
+            ? protoFuzzyQuery.getTranspositions()
+            : FuzzyQuery.defaultTranspositions;
+
+    FuzzyQuery fuzzyQuery =
+        new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions);
+    fuzzyQuery.setRewriteMethod(
+        getRewriteMethod(protoFuzzyQuery.getRewrite(), protoFuzzyQuery.getRewriteTopTermsSize()));
+    return fuzzyQuery;
   }
 
   private static RegexpQuery getRegexpQuery(
-      com.yelp.nrtsearch.server.grpc.SpanMultiTermQueryWrapper protoSpanMultiTermQueryWrapper) {
+      com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery) {
 
     com.yelp.nrtsearch.server.grpc.RegexpQuery protoRegexpQuery =
-        protoSpanMultiTermQueryWrapper.getRegexpQuery();
+        protoSpanMultiTermQuery.getRegexpQuery();
 
-    Term term =
-        new Term(protoRegexpQuery.getTerm().getField(), protoRegexpQuery.getTerm().getText());
+    Term term = new Term(protoRegexpQuery.getField(), protoRegexpQuery.getText());
 
     int maxDeterminesizedStates = protoRegexpQuery.getMaxDeterminizedStates();
-    int flags = 0;
-    switch (protoRegexpQuery.getFlag()) {
-      case REGEXP_ALL:
-        flags = RegExp.ALL;
-      case REGEXP_ANYSTRING:
-        flags = RegExp.ANYSTRING;
-      case REGEXP_AUTOMATON:
-        flags = RegExp.AUTOMATON;
-      case REGEXP_COMPLEMENT:
-        flags = RegExp.COMPLEMENT;
-      case REGEXP_EMPTY:
-        flags = RegExp.EMPTY;
-      case REGEXP_INTERSECTION:
-        flags = RegExp.INTERSECTION;
-      case REGEXP_INTERVAL:
-        flags = RegExp.INTERVAL;
-      case REGEXP_NONE:
-        flags = RegExp.NONE;
-      default:
-        flags = RegExp.ALL;
-    }
+
+    int flags =
+        switch (protoRegexpQuery.getFlag()) {
+          case REGEXP_ALL -> RegExp.ALL;
+          case REGEXP_ANYSTRING -> RegExp.ANYSTRING;
+          case REGEXP_AUTOMATON -> RegExp.AUTOMATON;
+          case REGEXP_COMPLEMENT -> RegExp.COMPLEMENT;
+          case REGEXP_EMPTY -> RegExp.EMPTY;
+          case REGEXP_INTERSECTION -> RegExp.INTERSECTION;
+          case REGEXP_INTERVAL -> RegExp.INTERVAL;
+          case REGEXP_NONE -> RegExp.NONE;
+          default -> RegExp.ALL;
+        };
 
     if (maxDeterminesizedStates != 0) {
       return new RegexpQuery(term, flags, maxDeterminesizedStates);
     }
-    return new RegexpQuery(term, flags);
+    RegexpQuery regexpQuery = new RegexpQuery(term, flags);
+    regexpQuery.setRewriteMethod(
+        getRewriteMethod(protoRegexpQuery.getRewrite(), protoRegexpQuery.getRewriteTopTermsSize()));
+    return regexpQuery;
   }
 }
