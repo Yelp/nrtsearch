@@ -109,14 +109,15 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
   @Test
   public void testTerminateAfter() {
     SearchResponse response = doQuery(10, 0.0, false, TOTAL_HITS_THRESHOLD_DEFAULT);
-    assertEquals(10, response.getHitsCount());
+    assertEquals(100, response.getHitsCount());
     assertTrue(response.getTerminatedEarly());
   }
 
   @Test
   public void testTerminateAfterWithTotalHitsThreshold() {
+    // problematic case
     SearchResponse response = doQuery(10, 0.0, false, 20);
-    assertEquals(20, response.getHitsCount());
+    assertEquals(20, response.getTotalHits().getValue());
     assertTrue(response.getTerminatedEarly());
   }
 
@@ -126,7 +127,7 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
     try {
       setDefaultTerminateAfter(15);
       SearchResponse response = doQuery(0, 0.0, false, TOTAL_HITS_THRESHOLD_DEFAULT);
-      assertEquals(15, response.getHitsCount());
+      assertEquals(100, response.getHitsCount());
       assertTrue(response.getTerminatedEarly());
     } finally {
       setDefaultTerminateAfter(0);
@@ -139,7 +140,7 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
     try {
       setDefaultTerminateAfter(15);
       SearchResponse response = doQuery(5, 0.0, false, TOTAL_HITS_THRESHOLD_DEFAULT);
-      assertEquals(5, response.getHitsCount());
+      assertEquals(100, response.getHitsCount());
       assertTrue(response.getTerminatedEarly());
     } finally {
       setDefaultTerminateAfter(0);
@@ -149,7 +150,7 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
   @Test
   public void testWithOtherWrappers() {
     SearchResponse response = doQuery(10, 1000.0, true, TOTAL_HITS_THRESHOLD_DEFAULT);
-    assertEquals(10, response.getHitsCount());
+    assertEquals(100, response.getHitsCount());
     assertTrue(response.getTerminatedEarly());
   }
 

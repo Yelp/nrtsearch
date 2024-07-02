@@ -126,22 +126,23 @@ public class TerminateAfterWrapper<C extends Collector>
 
       @Override
       public void setScorer(Scorable scorer) throws IOException {
-        leafCollector.setScorer(new Scorable() {
-          @Override
-          public float score() throws IOException {
-            if (!terminatedEarly) {
-              return scorer.score();
-            } else {
-              // return the min constant scorer
-              return 0;
-            }
-          }
+        leafCollector.setScorer(
+            new Scorable() {
+              @Override
+              public float score() throws IOException {
+                if (!terminatedEarly) {
+                  return scorer.score();
+                } else {
+                  // return the min constant scorer
+                  return 0;
+                }
+              }
 
-          @Override
-          public int docID() {
-            return scorer.docID();
-          }
-        });
+              @Override
+              public int docID() {
+                return scorer.docID();
+              }
+            });
       }
 
       @Override
