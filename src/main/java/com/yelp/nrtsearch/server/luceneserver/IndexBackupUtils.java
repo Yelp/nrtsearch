@@ -37,7 +37,7 @@ public class IndexBackupUtils {
   }
 
   public static boolean isMetadata(String resourceName) {
-    return resourceName.contains("_metadata");
+    return resourceName.endsWith("_metadata");
   }
 
   public static boolean isBackendGlobalState(String resourceName) {
