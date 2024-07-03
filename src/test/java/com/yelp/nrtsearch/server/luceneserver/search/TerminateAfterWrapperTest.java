@@ -114,9 +114,17 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
   }
 
   @Test
-  public void testTerminateAfterWithTotalHitsThreshold() {
+  public void testTerminateAfterWithTotalHitsThresholdGreaterThanTerminateAfter() {
     // problematic case
     SearchResponse response = doQuery(10, 0.0, false, 20);
+    assertEquals(20, response.getTotalHits().getValue());
+    assertTrue(response.getTerminatedEarly());
+  }
+
+  @Test
+  public void testTerminateAfterWithTotalHitsThresholdLessThanTerminateAfter() {
+    // problematic case
+    SearchResponse response = doQuery(20, 0.0, false, 10);
     assertEquals(20, response.getTotalHits().getValue());
     assertTrue(response.getTerminatedEarly());
   }
