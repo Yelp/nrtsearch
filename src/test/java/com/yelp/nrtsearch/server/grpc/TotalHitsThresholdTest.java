@@ -85,7 +85,7 @@ public class TotalHitsThresholdTest extends ServerTestCase {
                                     .build())
                             .build())
                     .setTopHits(3)
-                    .setTotalHitsThreshold(3)
+                    .setTotalHitsThreshold(2)
                     .addRetrieveFields("doc_id")
                     .addRetrieveFields("int_field")
                     .addRetrieveFields("text_field")
@@ -93,7 +93,7 @@ public class TotalHitsThresholdTest extends ServerTestCase {
 
     assertEquals(3, response.getHitsCount());
     assertEquals(3, response.getTotalHits().getValue());
-    assertEquals(Relation.EQUAL_TO, response.getTotalHits().getRelation());
+    assertEquals(Relation.GREATER_THAN_OR_EQUAL_TO, response.getTotalHits().getRelation());
     assertScoreHit(5, "term1", response.getHits(0));
     assertScoreHit(4, "term1", response.getHits(1));
     assertScoreHit(3, "term1", response.getHits(2));
@@ -146,7 +146,7 @@ public class TotalHitsThresholdTest extends ServerTestCase {
                                     .build())
                             .build())
                     .setTopHits(3)
-                    .setTotalHitsThreshold(3)
+                    .setTotalHitsThreshold(2)
                     .addRetrieveFields("doc_id")
                     .addRetrieveFields("int_field")
                     .addRetrieveFields("text_field")
@@ -215,7 +215,7 @@ public class TotalHitsThresholdTest extends ServerTestCase {
                     .build());
 
     assertEquals(3, response.getHitsCount());
-    assertEquals(5, response.getTotalHits().getValue());
+    assertEquals(6, response.getTotalHits().getValue());
     assertEquals(Relation.GREATER_THAN_OR_EQUAL_TO, response.getTotalHits().getRelation());
     assertHit(9, response.getHits(0));
     assertHit(8, response.getHits(1));
@@ -249,7 +249,7 @@ public class TotalHitsThresholdTest extends ServerTestCase {
                     .build());
 
     assertEquals(3, response.getHitsCount());
-    assertEquals(5, response.getTotalHits().getValue());
+    assertEquals(10, response.getTotalHits().getValue());
     assertEquals(Relation.EQUAL_TO, response.getTotalHits().getRelation());
     assertHit(0, response.getHits(0));
     assertHit(1, response.getHits(1));
@@ -304,7 +304,7 @@ public class TotalHitsThresholdTest extends ServerTestCase {
                     .build());
 
     assertEquals(3, response.getHitsCount());
-    assertEquals(5, response.getTotalHits().getValue());
+    assertEquals(10, response.getTotalHits().getValue());
     assertEquals(Relation.EQUAL_TO, response.getTotalHits().getRelation());
     assertHit(9, response.getHits(0));
     assertHit(8, response.getHits(1));
@@ -371,7 +371,7 @@ public class TotalHitsThresholdTest extends ServerTestCase {
                     .build());
 
     assertEquals(3, response.getHitsCount());
-    assertEquals(5, response.getTotalHits().getValue());
+    assertEquals(10, response.getTotalHits().getValue());
     assertEquals(Relation.EQUAL_TO, response.getTotalHits().getRelation());
     assertHit(9, response.getHits(0));
     assertHit(8, response.getHits(1));
