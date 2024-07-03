@@ -31,6 +31,7 @@ import com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery;
 import com.yelp.nrtsearch.server.grpc.SpanNearQuery;
 import com.yelp.nrtsearch.server.grpc.SpanQuery;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
+import com.yelp.nrtsearch.server.grpc.TermRangeQuery;
 import com.yelp.nrtsearch.server.grpc.WildcardQuery;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
@@ -61,7 +62,12 @@ public class SpanQueryTest extends ServerTestCase {
             "The quick brown fox jumps over the quick lazy dog",
             "The quick brown fox jumps over the lazy fox",
             "The text to test fuzzy search with potato",
-            "The text to test fuzzy search with tomato ");
+            "The text to test fuzzy search with tomato ",
+            "0000",
+            "1111",
+            "2222",
+            "3333",
+            "4444");
     List<AddDocumentRequest> docs = new ArrayList<>();
     int index = 0;
     for (String textValue : textValues) {
@@ -336,6 +342,52 @@ public class SpanQueryTest extends ServerTestCase {
     SearchResponse response = getGrpcServer().getBlockingStub().search(getSearchRequest(spanQuery));
 
     assertIds(response, 0, 1, 2);
+  }
+
+  @Test
+  public void testSpanMultiTermQueryTermRangeQuery() {
+
+    // Create a Term Range Query object
+    TermRangeQuery termRangeQuery =
+        TermRangeQuery.newBuilder()
+            .setField("text_field")
+            .setLowerTerm("1111")
+            .setUpperTerm("3333")
+            .setIncludeLower(false)
+            .setIncludeUpper(false)
+            .build();
+
+    SpanMultiTermQuery spanMultiTermQuery =
+        SpanMultiTermQuery.newBuilder().setTermRangeQuery(termRangeQuery).build();
+
+    SpanQuery spanQuery = SpanQuery.newBuilder().setSpanMultiTermQuery(spanMultiTermQuery).build();
+
+    SearchResponse response = getGrpcServer().getBlockingStub().search(getSearchRequest(spanQuery));
+
+    assertIds(response, 7);
+  }
+
+  @Test
+  public void testSpanMultiTermQueryTermRangeQueryIncludeLowerAndUpper() {
+
+    // Create a Term Range Query object
+    TermRangeQuery termRangeQuery =
+        TermRangeQuery.newBuilder()
+            .setField("text_field")
+            .setLowerTerm("1111")
+            .setUpperTerm("3333")
+            .setIncludeLower(true)
+            .setIncludeUpper(true)
+            .build();
+
+    SpanMultiTermQuery spanMultiTermQuery =
+        SpanMultiTermQuery.newBuilder().setTermRangeQuery(termRangeQuery).build();
+
+    SpanQuery spanQuery = SpanQuery.newBuilder().setSpanMultiTermQuery(spanMultiTermQuery).build();
+
+    SearchResponse response = getGrpcServer().getBlockingStub().search(getSearchRequest(spanQuery));
+
+    assertIds(response, 6, 7, 8);
   }
 
   private void assertIds(SearchResponse response, int... ids) {

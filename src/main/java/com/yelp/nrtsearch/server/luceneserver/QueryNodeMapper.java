@@ -60,6 +60,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
@@ -72,6 +73,7 @@ import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.search.suggest.document.MyContextQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.automaton.RegExp;
 
@@ -700,6 +702,10 @@ public class QueryNodeMapper {
       case REGEXPQUERY:
         RegexpQuery regexpQuery = getRegexpQuery(protoSpanMultiTermQuery);
         return new SpanMultiTermQueryWrapper<>(regexpQuery);
+      case TERMRANGEQUERY:
+        TermRangeQuery termRangeQuery =
+            getTermRangeQuery(protoSpanMultiTermQuery.getTermRangeQuery());
+        return new SpanMultiTermQueryWrapper<>(termRangeQuery);
       default:
         throw new IllegalArgumentException(
             "Unsupported Span Multi Query Term Wrapper: " + protoSpanMultiTermQuery);
@@ -770,5 +776,21 @@ public class QueryNodeMapper {
     regexpQuery.setRewriteMethod(
         getRewriteMethod(protoRegexpQuery.getRewrite(), protoRegexpQuery.getRewriteTopTermsSize()));
     return regexpQuery;
+  }
+
+  private static TermRangeQuery getTermRangeQuery(
+      com.yelp.nrtsearch.server.grpc.TermRangeQuery protoTermRangeQuery) {
+
+    TermRangeQuery termRangeQuery =
+        new TermRangeQuery(
+            protoTermRangeQuery.getField(),
+            new BytesRef(protoTermRangeQuery.getLowerTerm()),
+            new BytesRef(protoTermRangeQuery.getUpperTerm()),
+            protoTermRangeQuery.getIncludeLower(),
+            protoTermRangeQuery.getIncludeUpper());
+    termRangeQuery.setRewriteMethod(
+        getRewriteMethod(
+            protoTermRangeQuery.getRewrite(), protoTermRangeQuery.getRewriteTopTermsSize()));
+    return termRangeQuery;
   }
 }

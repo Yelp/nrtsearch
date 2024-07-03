@@ -93,6 +93,24 @@ message PrefixQuery {
     int32 rewriteTopTermsSize = 4;
 }
 
+// Define a message for TermRangeQuery
+message TermRangeQuery {
+    // The field to search
+    string field = 1;
+    // The lower bound of the range
+    string lower_term = 2;
+    // The upper bound of the range
+    string upper_term = 3;
+    // Whether to include the lower bound in the range
+    bool include_lower = 4;
+    // Whether to include the upper bound in the range
+    bool include_upper = 5;
+    // Method used to rewrite the query.
+    RewriteMethod rewrite = 6;
+    // Specifies the size to use for the TOP_TERMS* rewrite methods.
+    int32 rewriteTopTermsSize = 7;
+}
+
 // A query that wraps another query and uses custom scoring logic to compute the wrapped query's score.
 message FunctionScoreQuery {
     Query query = 1; // Input query
@@ -411,11 +429,6 @@ message SpanQuery {
   }
 }
 
-message Term {
-    string field = 1;
-    string text = 2;
-}
-
 // A query that matches documents containing terms matching a pattern.
 message WildcardQuery {
     string field = 1;
@@ -452,6 +465,7 @@ message SpanMultiTermQuery{
       FuzzyQuery fuzzyQuery = 2;
       PrefixQuery prefixQuery = 3;
       RegexpQuery regexpQuery = 4;
+      TermRangeQuery termRangeQuery = 5;
   }
 }
 
