@@ -156,15 +156,18 @@ public class TerminateAfterWrapper<C extends Collector>
         if (collectedDocCount.incrementAndGet() > terminateAfter) {
           terminatedEarly = true;
         }
-        // TopScoreDocCollector respects the totalHitsThreshold but DrillSideways doesn't
-        // we need to have fine control over when we want to terminate the collecting
-        if (totalHitsThreshold > terminateAfter && collectedDocCount.get() > totalHitsThreshold) {
-          throw new CollectionTerminatedException();
+        // if defaultTerminaterAfter is 0 we don't want to terminate early
+        if (terminateAfter > 0) {
+          // TopScoreDocCollector respects the totalHitsThreshold but DrillSideways doesn't
+          // we need to have fine control over when we want to terminate the collecting
+          if (totalHitsThreshold > terminateAfter && collectedDocCount.get() > totalHitsThreshold) {
+            throw new CollectionTerminatedException();
+          }
+          if (totalHitsThreshold <= terminateAfter && collectedDocCount.get() > terminateAfter) {
+            throw new CollectionTerminatedException();
+          }
+          leafCollector.collect(doc);
         }
-        if (totalHitsThreshold <= terminateAfter && collectedDocCount.get() > terminateAfter) {
-          throw new CollectionTerminatedException();
-        }
-        leafCollector.collect(doc);
       }
     }
   }

@@ -115,17 +115,18 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
 
   @Test
   public void testTerminateAfterWithTotalHitsThresholdGreaterThanTerminateAfter() {
-    // problematic case
     SearchResponse response = doQuery(10, 0.0, false, 20);
     assertEquals(20, response.getTotalHits().getValue());
+    // scorer resetting is working
+    assertEquals(0.0, response.getHits(10).getScore(), 0.000001);
     assertTrue(response.getTerminatedEarly());
   }
 
   @Test
   public void testTerminateAfterWithTotalHitsThresholdLessThanTerminateAfter() {
-    // problematic case
     SearchResponse response = doQuery(20, 0.0, false, 10);
     assertEquals(20, response.getTotalHits().getValue());
+    assertEquals(1.0, response.getHits(10).getScore(), 0.000001);
     assertTrue(response.getTerminatedEarly());
   }
 
@@ -140,6 +141,13 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
     } finally {
       setDefaultTerminateAfter(0);
     }
+  }
+
+  @Test
+  public void testZeroValuedDefaultTerminateAfter() throws IOException {
+    SearchResponse response = doQuery(0, 0.0, false, 10);
+    assertEquals(100, response.getHitsCount());
+    assertFalse(response.getTerminatedEarly());
   }
 
   @Test
