@@ -75,6 +75,7 @@ import org.apache.lucene.search.suggest.document.MyContextQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 
 /** This class maps our GRPC Query object to a Lucene Query object. */
@@ -719,19 +720,17 @@ public class QueryNodeMapper {
     Term term = new Term(protoFuzzyQuery.getField(), protoFuzzyQuery.getText());
 
     int maxEdits =
-        protoFuzzyQuery.getMaxEdits() == FuzzyQuery.defaultMaxEdits
-            ? FuzzyQuery.defaultMaxEdits
-            : protoFuzzyQuery.getMaxEdits();
+        protoFuzzyQuery.hasMaxEdits() ? protoFuzzyQuery.getMaxEdits() : FuzzyQuery.defaultMaxEdits;
 
     int prefixLength =
-        protoFuzzyQuery.getPrefixLength() == FuzzyQuery.defaultPrefixLength
-            ? FuzzyQuery.defaultPrefixLength
-            : protoFuzzyQuery.getPrefixLength();
+        protoFuzzyQuery.hasPrefixLength()
+            ? protoFuzzyQuery.getPrefixLength()
+            : FuzzyQuery.defaultPrefixLength;
 
     int maxExpansions =
-        protoFuzzyQuery.getMaxExpansions() == 0
-            ? FuzzyQuery.defaultMaxExpansions
-            : protoFuzzyQuery.getMaxExpansions();
+        protoFuzzyQuery.hasMaxExpansions()
+            ? protoFuzzyQuery.getMaxExpansions()
+            : FuzzyQuery.defaultMaxExpansions;
 
     // Set the default transpositions to true, if it is not provided.
     boolean transpositions =
@@ -754,8 +753,6 @@ public class QueryNodeMapper {
 
     Term term = new Term(protoRegexpQuery.getField(), protoRegexpQuery.getText());
 
-    int maxDeterminesizedStates = protoRegexpQuery.getMaxDeterminizedStates();
-
     int flags =
         switch (protoRegexpQuery.getFlag()) {
           case REGEXP_ALL -> RegExp.ALL;
@@ -769,10 +766,12 @@ public class QueryNodeMapper {
           default -> RegExp.ALL;
         };
 
-    if (maxDeterminesizedStates != 0) {
-      return new RegexpQuery(term, flags, maxDeterminesizedStates);
-    }
-    RegexpQuery regexpQuery = new RegexpQuery(term, flags);
+    int maxDeterminizedStates =
+        protoRegexpQuery.hasMaxDeterminizedStates()
+            ? protoRegexpQuery.getMaxDeterminizedStates()
+            : Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+
+    RegexpQuery regexpQuery = new RegexpQuery(term, flags, maxDeterminizedStates);
     regexpQuery.setRewriteMethod(
         getRewriteMethod(protoRegexpQuery.getRewrite(), protoRegexpQuery.getRewriteTopTermsSize()));
     return regexpQuery;
