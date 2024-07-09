@@ -720,23 +720,23 @@ public class QueryNodeMapper {
     Term term = new Term(protoFuzzyQuery.getField(), protoFuzzyQuery.getText());
 
     int maxEdits =
-        protoFuzzyQuery.hasMaxEdits() ? protoFuzzyQuery.getMaxEdits() : FuzzyQuery.defaultMaxEdits;
+        protoFuzzyQuery.getMaxEdits() != 0
+            ? protoFuzzyQuery.getMaxEdits()
+            : FuzzyQuery.defaultMaxEdits;
 
     int prefixLength =
-        protoFuzzyQuery.hasPrefixLength()
+        protoFuzzyQuery.getPrefixLength() != 0
             ? protoFuzzyQuery.getPrefixLength()
             : FuzzyQuery.defaultPrefixLength;
 
     int maxExpansions =
-        protoFuzzyQuery.hasMaxExpansions()
+        protoFuzzyQuery.getMaxExpansions() != 0
             ? protoFuzzyQuery.getMaxExpansions()
             : FuzzyQuery.defaultMaxExpansions;
 
+    // TODO: Use optional field and fix the default value setting.
     // Set the default transpositions to true, if it is not provided.
-    boolean transpositions =
-        protoFuzzyQuery.hasTranspositions()
-            ? protoFuzzyQuery.getTranspositions()
-            : FuzzyQuery.defaultTranspositions;
+    boolean transpositions = protoFuzzyQuery.getTranspositions();
 
     FuzzyQuery fuzzyQuery =
         new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions);
@@ -767,7 +767,7 @@ public class QueryNodeMapper {
         };
 
     int maxDeterminizedStates =
-        protoRegexpQuery.hasMaxDeterminizedStates()
+        protoRegexpQuery.getMaxDeterminizedStates() != 0
             ? protoRegexpQuery.getMaxDeterminizedStates()
             : Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 
