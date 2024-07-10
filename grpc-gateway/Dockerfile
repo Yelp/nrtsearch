@@ -14,8 +14,8 @@ RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y java-21-amazon-corretto-jdk
 
 # Install protoc
-ENV PROTOC_VERSION=24.3
-RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip \
+ENV PROTOC_VERSION=3.11.4
+RUN wget https://github.com/google/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip \
     -O /protoc-${PROTOC_VERSION}-linux-x86_64.zip && \
     unzip /protoc-${PROTOC_VERSION}-linux-x86_64.zip -d /usr/local/ && \
     rm -f /protoc-${PROTOC_VERSION}-linux-x86_64.zip
@@ -40,22 +40,22 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
 
 #use go modules to pin module versions
 ENV GO111MODULE=on
-ENV GRPC_GATEWAY_VERSION=2.10.0
-ENV PROTOC_GEN_GO_VERSION=1.5.2
-ENV GRPC_VERSION=1.46.0
+ENV GRPC_GATEWAY_VERSION=1.15.2
+ENV PROTOC_GEN_GO_VERSION=1.5.1
+ENV GRPC_VERSION=1.38.0
 
 RUN go mod init github.com/Yelp/nrtsearch
 
 #install required go protoc plugins to build grpc-gateway server
 RUN go get \
-    github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
-    github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v${GRPC_GATEWAY_VERSION} \
+    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
+    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION} \
     github.com/golang/protobuf/protoc-gen-go@v${PROTOC_GEN_GO_VERSION} \
     google.golang.org/grpc@v${GRPC_VERSION}
 
 RUN go install \
-    github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway \
-    github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2
+    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v${GRPC_GATEWAY_VERSION} \
+    github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v${GRPC_GATEWAY_VERSION}
 RUN go install github.com/golang/protobuf/protoc-gen-go@v${PROTOC_GEN_GO_VERSION}
 
 ENV PROTO_PATH=/code/clientlib/src/main/proto
@@ -88,8 +88,8 @@ RUN protoc \
 -I $PROTO_PATH \
 -I $PROTO_BUILD_PATH/extracted-protos/main \
 -I $PROTO_BUILD_PATH/extracted-include-protos/main \
---plugin=protoc-gen-openapiv2=$GOPATH/bin/protoc-gen-openapiv2 \
---openapiv2_out=logtostderr=true:$OUTPATH \
+--plugin=protoc-gen-swagger=$GOPATH/bin/protoc-gen-swagger \
+--swagger_out=logtostderr=true:$OUTPATH \
 $PROTO_PATH/yelp/nrtsearch/analysis.proto \
 $PROTO_PATH/yelp/nrtsearch/luceneserver.proto \
 $PROTO_PATH/yelp/nrtsearch/search.proto \
