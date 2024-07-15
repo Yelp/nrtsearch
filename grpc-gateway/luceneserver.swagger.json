@@ -4,6 +4,14 @@
     "title": "yelp/nrtsearch/luceneserver.proto",
     "version": "version not set"
   },
+  "tags": [
+    {
+      "name": "LuceneServer"
+    },
+    {
+      "name": "ReplicationServer"
+    }
+  ],
   "consumes": [
     "application/json"
   ],
@@ -25,7 +33,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -48,7 +56,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -82,7 +90,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -115,7 +123,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -148,7 +156,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -181,7 +189,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -214,7 +222,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -247,7 +255,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -269,7 +277,15 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/luceneserverCustomRequest"
+              "type": "object",
+              "properties": {
+                "params": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
             }
           }
         ],
@@ -292,7 +308,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -325,7 +341,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -358,7 +374,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -391,7 +407,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -423,7 +439,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -456,7 +472,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -489,7 +505,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -522,7 +538,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -553,7 +569,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -576,7 +592,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -609,7 +625,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -640,7 +656,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -671,7 +687,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -704,7 +720,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -737,7 +753,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -770,7 +786,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -803,7 +819,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -836,7 +852,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -869,7 +885,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -902,7 +918,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -935,7 +951,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -966,7 +982,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -999,7 +1015,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1030,7 +1046,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1061,7 +1077,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1094,7 +1110,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1127,7 +1143,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1160,7 +1176,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1193,7 +1209,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1226,7 +1242,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1259,7 +1275,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1273,7 +1289,7 @@
           },
           {
             "name": "liveSettings.maxRefreshSec",
-            "description": "Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen), default: 1.0.",
+            "description": "Longest time to wait before reopening IndexSearcher (i.e., periodic background reopen), default: 1.0",
             "in": "query",
             "required": false,
             "type": "number",
@@ -1281,7 +1297,7 @@
           },
           {
             "name": "liveSettings.minRefreshSec",
-            "description": "Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen), default: 0.05.",
+            "description": "Shortest time to wait before reopening IndexSearcher (i.e., when a search is waiting for a specific indexGen), default: 0.05",
             "in": "query",
             "required": false,
             "type": "number",
@@ -1289,7 +1305,7 @@
           },
           {
             "name": "liveSettings.maxSearcherAgeSec",
-            "description": "Non-current searchers older than this are pruned, default: 60.0.",
+            "description": "Non-current searchers older than this are pruned, default: 60.0",
             "in": "query",
             "required": false,
             "type": "number",
@@ -1297,7 +1313,7 @@
           },
           {
             "name": "liveSettings.indexRamBufferSizeMB",
-            "description": "Size (in MB) of IndexWriter's RAM buffer, default: 16.0.",
+            "description": "Size (in MB) of IndexWriter's RAM buffer, default: 16.0",
             "in": "query",
             "required": false,
             "type": "number",
@@ -1305,7 +1321,7 @@
           },
           {
             "name": "liveSettings.addDocumentsMaxBufferLen",
-            "description": "Max number of documents to add at a time, default: 100.",
+            "description": "Max number of documents to add at a time, default: 100",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1313,7 +1329,7 @@
           },
           {
             "name": "liveSettings.sliceMaxDocs",
-            "description": "Maximum number of documents allowed in a parallel search slice, default: 250,000.",
+            "description": "Maximum number of documents allowed in a parallel search slice, default: 250,000",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1321,7 +1337,7 @@
           },
           {
             "name": "liveSettings.sliceMaxSegments",
-            "description": "Maximum number of segments allowed in a parallel search slice, default: 5.",
+            "description": "Maximum number of segments allowed in a parallel search slice, default: 5",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1329,7 +1345,7 @@
           },
           {
             "name": "liveSettings.virtualShards",
-            "description": "Number of virtual shards to use for this index, default: 1.",
+            "description": "Number of virtual shards to use for this index, default: 1",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1337,7 +1353,7 @@
           },
           {
             "name": "liveSettings.maxMergedSegmentMB",
-            "description": "Maximum sized segment to produce during normal merging, default: 5GB.",
+            "description": "Maximum sized segment to produce during normal merging, default: 5GB",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1345,7 +1361,7 @@
           },
           {
             "name": "liveSettings.segmentsPerTier",
-            "description": "Number of segments per tier used by TieredMergePolicy, default: 10.",
+            "description": "Number of segments per tier used by TieredMergePolicy, default: 10",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1353,7 +1369,7 @@
           },
           {
             "name": "liveSettings.defaultSearchTimeoutSec",
-            "description": "Timeout value to used when not specified in the search request, or 0 for no timeout, default: 0.",
+            "description": "Timeout value to used when not specified in the search request, or 0 for no timeout, default: 0",
             "in": "query",
             "required": false,
             "type": "number",
@@ -1361,7 +1377,7 @@
           },
           {
             "name": "liveSettings.defaultSearchTimeoutCheckEvery",
-            "description": "Timeout check every value to use when not specified in the search request, or 0 for none, default: 0.",
+            "description": "Timeout check every value to use when not specified in the search request, or 0 for none, default: 0",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1369,7 +1385,7 @@
           },
           {
             "name": "liveSettings.defaultTerminateAfter",
-            "description": "Terminate after value to use when not specified in the search request, or 0 for none, default: 0.",
+            "description": "Terminate after value to use when not specified in the search request, or 0 for none, default: 0",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1377,7 +1393,7 @@
           },
           {
             "name": "liveSettings.maxMergePreCopyDurationSec",
-            "description": "Merge precopy would be stopped after this time, or 0 for no checks, default: 0.",
+            "description": "Merge precopy would be stopped after this time, or 0 for no checks, default: 0",
             "in": "query",
             "required": false,
             "type": "string",
@@ -1385,7 +1401,7 @@
           },
           {
             "name": "liveSettings.verboseMetrics",
-            "description": "Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false.",
+            "description": "Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false",
             "in": "query",
             "required": false,
             "type": "boolean"
@@ -1417,7 +1433,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1450,7 +1466,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1483,7 +1499,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1497,7 +1513,7 @@
           },
           {
             "name": "settings.nrtCachingDirectoryMaxMergeSizeMB",
-            "description": "Largest merged segment size to cache in RAMDirectory, default: 5.0MB.",
+            "description": "Largest merged segment size to cache in RAMDirectory, default: 5.0MB",
             "in": "query",
             "required": false,
             "type": "number",
@@ -1505,7 +1521,7 @@
           },
           {
             "name": "settings.nrtCachingDirectoryMaxSizeMB",
-            "description": "Largest overall size for all files cached in NRTCachingDirectory, default: 60.0MB.",
+            "description": "Largest overall size for all files cached in NRTCachingDirectory, default: 60.0MB",
             "in": "query",
             "required": false,
             "type": "number",
@@ -1513,7 +1529,7 @@
           },
           {
             "name": "settings.concurrentMergeSchedulerMaxThreadCount",
-            "description": "How many merge threads to allow at once.",
+            "description": "How many merge threads to allow at once",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1521,7 +1537,7 @@
           },
           {
             "name": "settings.concurrentMergeSchedulerMaxMergeCount",
-            "description": "Maximum backlog of pending merges before indexing threads are stalled.",
+            "description": "Maximum backlog of pending merges before indexing threads are stalled",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -1529,14 +1545,14 @@
           },
           {
             "name": "settings.indexMergeSchedulerAutoThrottle",
-            "description": "Turn on/off the merge scheduler's auto throttling, default: off.",
+            "description": "Turn on/off the merge scheduler's auto throttling, default: off",
             "in": "query",
             "required": false,
             "type": "boolean"
           },
           {
             "name": "settings.directory",
-            "description": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory.",
+            "description": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, SimpleFSDirectory, RAMDirectory (for temporary indices!) or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory",
             "in": "query",
             "required": false,
             "type": "string"
@@ -1561,7 +1577,7 @@
           "default": {
             "description": "An unexpected error response.",
             "schema": {
-              "$ref": "#/definitions/runtimeError"
+              "$ref": "#/definitions/googlerpcStatus"
             }
           }
         },
@@ -1669,43 +1685,43 @@
     "HighlightSettings": {
       "type": "object",
       "properties": {
-        "highlighter_type": {
+        "highlighterType": {
           "$ref": "#/definitions/luceneserverHighlightType",
           "description": "Specify type of highlighter to use. Ignored right now in nrtsearch."
         },
-        "pre_tags": {
+        "preTags": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "description": "Used along with post_tags to specify how to wrap the highlighted text."
         },
-        "post_tags": {
+        "postTags": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "description": "Used along with pre_tags to specify how to wrap the highlighted text."
         },
-        "fragment_size": {
+        "fragmentSize": {
           "type": "integer",
           "format": "int64",
           "description": "Number of characters in highlighted fragment, 100 by default. Set it to be 0 to fetch the entire field."
         },
-        "max_number_of_fragments": {
+        "maxNumberOfFragments": {
           "type": "integer",
           "format": "int64",
           "description": "Maximum number of highlight fragments to return, 5 by default. If set to 0 returns entire text as a single fragment ignoring fragment_size."
         },
-        "highlight_query": {
+        "highlightQuery": {
           "$ref": "#/definitions/luceneserverQuery",
           "description": "Specify a query here if highlighting is desired against a different query than the search query."
         },
-        "field_match": {
+        "fieldMatch": {
           "type": "boolean",
           "description": "Set to true to highlight fields only if specified in the search query."
         },
-        "score_ordered": {
+        "scoreOrdered": {
           "type": "boolean",
           "title": "Sorts highlighted fragments by score when set to true. By default, fragments will be output in the order they appear in the field. (Default is true)"
         },
@@ -1713,32 +1729,32 @@
           "type": "string",
           "description": "Select Fragmenter between span (default) and simple. This is only applicable for plain highlighters."
         },
-        "discrete_multivalue": {
+        "discreteMultivalue": {
           "type": "boolean",
           "title": "Let the fragment builder respect the multivalue fields. Each fragment won't cross multiple value fields if set true. (Default is false)"
         },
-        "custom_highlighter_name": {
+        "customHighlighterName": {
           "type": "string",
           "description": "When highlighter_type is CUSTOM, use this string identifier to specify the highlighter. It is ignored for any other highlighter_types."
         },
-        "custom_highlighter_params": {
+        "customHighlighterParams": {
           "type": "object",
           "description": "Optional Custom parameters for custom highlighters. If a field overriding is present, the global setting will be omitted for this field, and no merge will happen."
         },
-        "boundary_scanner": {
+        "boundaryScanner": {
           "type": "string",
           "description": "Define the boundary decision when creating fragments. Options are \"simple\" (default in fast vector highlighter), \"word\" or \"sentence\"."
         },
-        "boundary_chars": {
+        "boundaryChars": {
           "type": "string",
           "description": "Terminating chars when using \"simple\" boundary_scanner. The default is \".,!? \\t\\n\"."
         },
-        "boundary_max_scan": {
+        "boundaryMaxScan": {
           "type": "integer",
           "format": "int64",
           "description": "Number of chars to scan before finding the boundary_chars if using \"simple\" boundary scanner; If \"boundary_chars\" is not found after max scan, fragments will start/end at the original place. Default is 20."
         },
-        "boundary_scanner_locale": {
+        "boundaryScannerLocale": {
           "type": "string",
           "description": "Locale used in boundary scanner when using \"word\" or \"sentence\" boundary_scanner. Examples: \"en-US\", \"ch-ZH\"."
         }
@@ -2286,7 +2302,7 @@
     "apiHttpBody": {
       "type": "object",
       "properties": {
-        "content_type": {
+        "contentType": {
           "type": "string",
           "description": "The HTTP Content-Type header value specifying the content type of the body."
         },
@@ -2304,6 +2320,24 @@
         }
       },
       "description": "Message that represents an arbitrary HTTP body. It should only be used for\npayload formats that can't be represented as JSON, such as raw binary or\nan HTML page.\n\n\nThis message can be used both in streaming and non-streaming API methods in\nthe request as well as the response.\n\nIt can be used as a top-level request field, which is convenient if one\nwants to extract parameters from either the URL or HTTP template into the\nrequest fields and also want access to the raw HTTP body.\n\nExample:\n\n    message GetResourceRequest {\n      // A unique request id.\n      string request_id = 1;\n\n      // The raw HTTP body is bound to this field.\n      google.api.HttpBody http_body = 2;\n    }\n\n    service ResourceService {\n      rpc GetResource(GetResourceRequest) returns (google.api.HttpBody);\n      rpc UpdateResource(google.api.HttpBody) returns\n      (google.protobuf.Empty);\n    }\n\nExample with streaming methods:\n\n    service CaldavService {\n      rpc GetCalendar(stream google.api.HttpBody)\n        returns (stream google.api.HttpBody);\n      rpc UpdateCalendar(stream google.api.HttpBody)\n        returns (stream google.api.HttpBody);\n    }\n\nUse of this type only changes how the request and response bodies are\nhandled, all other features will continue to work unchanged."
+    },
+    "googlerpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
     },
     "luceneserverAddDocumentRequest": {
       "type": "object",
@@ -2702,16 +2736,6 @@
       },
       "description": "Query that produces a score of 1.0 (modifiable by query boost value) for documents that match the filter query."
     },
-    "luceneserverSpanQuery": {
-      "type": "object",
-      "properties": {
-        "filter": {
-          "$ref": "#/definitions/luceneserverQuery",
-          "title": "Query to determine matching documents within the span"
-        }
-      },
-      "description": "Span queries that support SpanNearQuery, SpanTermQuery and SpanMultiTermQueryWrapper."
-    },
     "luceneserverCopyState": {
       "type": "object",
       "properties": {
@@ -2862,23 +2886,6 @@
         },
         "offsetGap": {
           "$ref": "#/definitions/luceneserverIntObject"
-        }
-      }
-    },
-    "luceneserverCustomRequest": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        },
-        "params": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
         }
       }
     },
@@ -3492,6 +3499,46 @@
         }
       }
     },
+    "luceneserverFuzzyQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "maxEdits": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2. Either set this or auto. Default is 2."
+        },
+        "prefixLength": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Length of common (non-fuzzy) prefix. Default is 0."
+        },
+        "maxExpansions": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The maximum number of terms to match. Default is 50."
+        },
+        "transpositions": {
+          "type": "boolean",
+          "description": "True if transpositions should be treated as a primitive edit operation. If this is false, comparisons will implement the classic Levenshtein algorithm. Default is true."
+        },
+        "rewrite": {
+          "$ref": "#/definitions/luceneserverRewriteMethod",
+          "description": "Method used to rewrite the query."
+        },
+        "rewriteTopTermsSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Specifies the size to use for the TOP_TERMS* rewrite methods."
+        }
+      },
+      "description": "A query that matches documents containing terms similar to the specified term."
+    },
     "luceneserverFuzzySuggester": {
       "type": "object",
       "properties": {
@@ -3643,7 +3690,7 @@
           },
           "title": "Fields to highlight"
         },
-        "field_settings": {
+        "fieldSettings": {
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/HighlightSettings"
@@ -3847,32 +3894,32 @@
     "luceneserverInnerHit": {
       "type": "object",
       "properties": {
-        "query_nested_path": {
+        "queryNestedPath": {
           "type": "string",
           "description": "Nested path to search against assuming same index as the parent Query."
         },
-        "start_hit": {
+        "startHit": {
           "type": "integer",
           "format": "int32",
           "title": "Which hit to start from (for pagination); default: 0"
         },
-        "top_hits": {
+        "topHits": {
           "type": "integer",
           "format": "int32",
           "description": "How many top hits to retrieve; default: 3. It limits the hits returned, starting from index 0. For pagination: set it to startHit + window_size."
         },
-        "inner_query": {
+        "innerQuery": {
           "$ref": "#/definitions/luceneserverQuery",
           "description": "InnerHit query to query against the nested documents specified by queryNestedPath."
         },
-        "retrieve_fields": {
+        "retrieveFields": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "description": "Fields to retrieve; Parent's fields except its id field are unavailable in the innerHit."
         },
-        "query_sort": {
+        "querySort": {
           "$ref": "#/definitions/luceneserverQuerySortField",
           "description": "Sort hits by field (default is by relevance)."
         },
@@ -4042,7 +4089,7 @@
           "$ref": "#/definitions/luceneserverAnalyzer",
           "description": "Analyzer used to analyze the query. If not provided, the default search analyzer for the field would be used instead."
         },
-        "max_expansions": {
+        "maxExpansions": {
           "type": "integer",
           "format": "int32",
           "description": "Maximum number of terms to which the last provided term of the query value will expand. Defaults to 50."
@@ -4140,20 +4187,20 @@
           },
           "title": "Functions to produce final function score"
         },
-        "score_mode": {
+        "scoreMode": {
           "$ref": "#/definitions/MultiFunctionScoreQueryFunctionScoreMode",
           "title": "Method to combine functions scores"
         },
-        "boost_mode": {
+        "boostMode": {
           "$ref": "#/definitions/MultiFunctionScoreQueryBoostMode",
           "title": "Method to modify query document scores with final function score"
         },
-        "min_score": {
+        "minScore": {
           "type": "number",
           "format": "float",
           "description": "Optional minimal score to match a document. By default, it's 0."
         },
-        "min_excluded": {
+        "minExcluded": {
           "type": "boolean",
           "title": "Determine minimal score is excluded or not. By default, it's false;"
         }
@@ -4624,6 +4671,52 @@
         }
       }
     },
+    "luceneserverRegexpFlag": {
+      "type": "string",
+      "enum": [
+        "REGEXP_ALL",
+        "REGEXP_ANYSTRING",
+        "REGEXP_AUTOMATON",
+        "REGEXP_COMPLEMENT",
+        "REGEXP_EMPTY",
+        "REGEXP_INTERSECTION",
+        "REGEXP_INTERVAL",
+        "REGEXP_NONE"
+      ],
+      "default": "REGEXP_ALL",
+      "description": "- REGEXP_ALL: Syntax flag, enables all optional regexp syntax.\n - REGEXP_ANYSTRING: Syntax flag, enables anystring (@).\n - REGEXP_AUTOMATON: Syntax flag, enables named automata (\u003cidentifier\u003e).\n - REGEXP_COMPLEMENT: Syntax flag, enables complement (~).\n - REGEXP_EMPTY: Syntax flag, enables empty language (#).\n - REGEXP_INTERSECTION: Syntax flag, enables intersection (\u0026).\n - REGEXP_INTERVAL: Syntax flag, enables numerical intervals ( \u003cn-m\u003e).\n - REGEXP_NONE: Syntax flag, enables no optional regexp syntax.",
+      "title": "Enum for RegexpQuery flags"
+    },
+    "luceneserverRegexpQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "flag": {
+          "$ref": "#/definitions/luceneserverRegexpFlag",
+          "title": "Optional flags for the regular expression"
+        },
+        "maxDeterminizedStates": {
+          "type": "integer",
+          "format": "int32",
+          "description": "maximum number of states that compiling the automaton for the regexp can result in. Set higher to allow more complex queries and lower to prevent memory exhaustion. Default is 10000."
+        },
+        "rewrite": {
+          "$ref": "#/definitions/luceneserverRewriteMethod",
+          "description": "Method used to rewrite the query."
+        },
+        "rewriteTopTermsSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Specifies the size to use for the TOP_TERMS* rewrite methods."
+        }
+      },
+      "title": "Message for RegexpQuery"
+    },
     "luceneserverReleaseSnapshotRequest": {
       "type": "object",
       "properties": {
@@ -4840,7 +4933,7 @@
           "type": "boolean",
           "title": "If Lucene explanation should be included in the response"
         },
-        "inner_hits": {
+        "innerHits": {
           "type": "object",
           "additionalProperties": {
             "$ref": "#/definitions/luceneserverInnerHit"
@@ -5079,6 +5172,64 @@
         }
       },
       "description": "\"The field to sort on. Pass \u003ccode\u003edocid\u003c/code\u003e for index order and \u003ccode\u003escore\u003c/code\u003e for relevance sort."
+    },
+    "luceneserverSpanMultiTermQuery": {
+      "type": "object",
+      "properties": {
+        "wildcardQuery": {
+          "$ref": "#/definitions/luceneserverWildcardQuery"
+        },
+        "fuzzyQuery": {
+          "$ref": "#/definitions/luceneserverFuzzyQuery"
+        },
+        "prefixQuery": {
+          "$ref": "#/definitions/luceneserverPrefixQuery"
+        },
+        "regexpQuery": {
+          "$ref": "#/definitions/luceneserverRegexpQuery"
+        },
+        "termRangeQuery": {
+          "$ref": "#/definitions/luceneserverTermRangeQuery"
+        }
+      },
+      "title": "Message for a SpanMultiTermQuery"
+    },
+    "luceneserverSpanNearQuery": {
+      "type": "object",
+      "properties": {
+        "clauses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/luceneserverSpanQuery"
+          },
+          "description": "Clauses for a span near query."
+        },
+        "slop": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Maximum number of positions between matching terms."
+        },
+        "inOrder": {
+          "type": "boolean",
+          "description": "True if the matching terms must be in the same order as the query."
+        }
+      },
+      "description": "A query that matches documents containing terms within a specified range."
+    },
+    "luceneserverSpanQuery": {
+      "type": "object",
+      "properties": {
+        "spanTermQuery": {
+          "$ref": "#/definitions/luceneserverTermQuery"
+        },
+        "spanNearQuery": {
+          "$ref": "#/definitions/luceneserverSpanNearQuery"
+        },
+        "spanMultiTermQuery": {
+          "$ref": "#/definitions/luceneserverSpanMultiTermQuery"
+        }
+      },
+      "title": "Wrapper message for different types of SpanQuery"
     },
     "luceneserverStartIndexRequest": {
       "type": "object",
@@ -5394,6 +5545,41 @@
       },
       "description": "A query that matches documents containing a term."
     },
+    "luceneserverTermRangeQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "title": "The field to search"
+        },
+        "lowerTerm": {
+          "type": "string",
+          "title": "The lower bound of the range"
+        },
+        "upperTerm": {
+          "type": "string",
+          "title": "The upper bound of the range"
+        },
+        "includeLower": {
+          "type": "boolean",
+          "title": "Whether to include the lower bound in the range"
+        },
+        "includeUpper": {
+          "type": "boolean",
+          "title": "Whether to include the upper bound in the range"
+        },
+        "rewrite": {
+          "$ref": "#/definitions/luceneserverRewriteMethod",
+          "description": "Method used to rewrite the query."
+        },
+        "rewriteTopTermsSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Specifies the size to use for the TOP_TERMS* rewrite methods."
+        }
+      },
+      "title": "Define a message for TermRangeQuery"
+    },
     "luceneserverTermVectors": {
       "type": "string",
       "enum": [
@@ -5506,19 +5692,36 @@
       },
       "title": "Virtual field used during search"
     },
+    "luceneserverWildcardQuery": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "rewrite": {
+          "$ref": "#/definitions/luceneserverRewriteMethod",
+          "description": "Method used to rewrite the query."
+        },
+        "rewriteTopTermsSize": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Specifies the size to use for the TOP_TERMS* rewrite methods."
+        }
+      },
+      "description": "A query that matches documents containing terms matching a pattern."
+    },
     "protobufAny": {
       "type": "object",
       "properties": {
-        "type_url": {
+        "@type": {
           "type": "string",
           "description": "A URL/resource name that uniquely identifies the type of the serialized\nprotocol buffer message. This string must contain at least\none \"/\" character. The last segment of the URL's path must represent\nthe fully qualified name of the type (as in\n`path/google.protobuf.Duration`). The name should be in a canonical form\n(e.g., leading \".\" is not accepted).\n\nIn practice, teams usually precompile into the binary all types that they\nexpect it to use in the context of Any. However, for URLs which use the\nscheme `http`, `https`, or no scheme, one can optionally set up a type\nserver that maps type URLs to message definitions as follows:\n\n* If no scheme is provided, `https` is assumed.\n* An HTTP GET on the URL must yield a [google.protobuf.Type][]\n  value in binary format, or produce an error.\n* Applications are allowed to cache lookup results based on the\n  URL, or have them precompiled into a binary to avoid any\n  lookup. Therefore, binary compatibility needs to be preserved\n  on changes to types. (Use versioned type names to manage\n  breaking changes.)\n\nNote: this functionality is not currently available in the official\nprotobuf release, and it is not used for type URLs beginning with\ntype.googleapis.com. As of May 2023, there are no widely used type server\nimplementations and no plans to implement one.\n\nSchemes other than `http`, `https` (or the empty scheme) might be\nused with implementation specific semantics."
-        },
-        "value": {
-          "type": "string",
-          "format": "byte",
-          "description": "Must be a valid serialized protocol buffer of the above specified type."
         }
       },
+      "additionalProperties": {},
       "description": "`Any` contains an arbitrary serialized protocol buffer message along with a\nURL that describes the type of the serialized message.\n\nProtobuf library provides support to pack/unpack Any values in the form\nof utility functions or additional generated methods of the Any type.\n\nExample 1: Pack and unpack a message in C++.\n\n    Foo foo = ...;\n    Any any;\n    any.PackFrom(foo);\n    ...\n    if (any.UnpackTo(\u0026foo)) {\n      ...\n    }\n\nExample 2: Pack and unpack a message in Java.\n\n    Foo foo = ...;\n    Any any = Any.pack(foo);\n    ...\n    if (any.is(Foo.class)) {\n      foo = any.unpack(Foo.class);\n    }\n    // or ...\n    if (any.isSameTypeAs(Foo.getDefaultInstance())) {\n      foo = any.unpack(Foo.getDefaultInstance());\n    }\n\n Example 3: Pack and unpack a message in Python.\n\n    foo = Foo(...)\n    any = Any()\n    any.Pack(foo)\n    ...\n    if any.Is(Foo.DESCRIPTOR):\n      any.Unpack(foo)\n      ...\n\n Example 4: Pack and unpack a message in Go\n\n     foo := \u0026pb.Foo{...}\n     any, err := anypb.New(foo)\n     if err != nil {\n       ...\n     }\n     ...\n     foo := \u0026pb.Foo{}\n     if err := any.UnmarshalTo(foo); err != nil {\n       ...\n     }\n\nThe pack methods provided by protobuf library will by default use\n'type.googleapis.com/full.type.name' as the type URL and the unpack\nmethods only use the fully qualified type name after the last '/'\nin the type URL, for example \"foo.bar.com/x/y.z\" will yield type\nname \"y.z\".\n\nJSON\n====\nThe JSON representation of an `Any` value uses the regular\nrepresentation of the deserialized, embedded message, with an\nadditional field `@type` which contains the type URL. Example:\n\n    package google.profile;\n    message Person {\n      string first_name = 1;\n      string last_name = 2;\n    }\n\n    {\n      \"@type\": \"type.googleapis.com/google.profile.Person\",\n      \"firstName\": \u003cstring\u003e,\n      \"lastName\": \u003cstring\u003e\n    }\n\nIf the embedded message type is well-known and has a custom JSON\nrepresentation, that representation will be embedded adding a field\n`value` which holds the custom JSON in addition to the `@type`\nfield. Example (for message [google.protobuf.Duration][]):\n\n    {\n      \"@type\": \"type.googleapis.com/google.protobuf.Duration\",\n      \"value\": \"1.212s\"\n    }"
     },
     "protobufNullValue": {
@@ -5528,52 +5731,6 @@
       ],
       "default": "NULL_VALUE",
       "description": "`NullValue` is a singleton enumeration to represent the null value for the\n`Value` type union.\n\nThe JSON representation for `NullValue` is JSON `null`.\n\n - NULL_VALUE: Null value."
-    },
-    "runtimeError": {
-      "type": "object",
-      "properties": {
-        "error": {
-          "type": "string"
-        },
-        "code": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "message": {
-          "type": "string"
-        },
-        "details": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/protobufAny"
-          }
-        }
-      }
-    },
-    "runtimeStreamError": {
-      "type": "object",
-      "properties": {
-        "grpc_code": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "http_code": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "message": {
-          "type": "string"
-        },
-        "http_status": {
-          "type": "string"
-        },
-        "details": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/protobufAny"
-          }
-        }
-      }
     },
     "typeLatLng": {
       "type": "object",
