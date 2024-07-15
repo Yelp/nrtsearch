@@ -84,13 +84,26 @@ curl -XPOST localhost:<REST_PORT>/v1/create_index -d '{"indexName": "testIdx"}'
 ```
 ./build/install/nrtsearch/bin/lucene-client settings -f settings.json
 cat settings.json
-{             "indexName": "testIdx",
-              "directory": "MMapDirectory",
-              "nrtCachingDirectoryMaxSizeMB": 0.0,
-              "indexMergeSchedulerAutoThrottle": false,
-              "concurrentMergeSchedulerMaxMergeCount": 16,
-              "concurrentMergeSchedulerMaxThreadCount": 8
+{            
+  "indexName": "testIdx",
+  "directory": "MMapDirectory",
+  "nrtCachingDirectoryMaxSizeMB": 0.0,
+  "indexMergeSchedulerAutoThrottle": false,
+  "concurrentMergeSchedulerMaxMergeCount": 16,
+  "concurrentMergeSchedulerMaxThreadCount": 8
 }
+```
+
+```
+curl -XPOST localhost:<REST_PORT>/v1/settings -d '
+{            
+  "indexName": "testIdx",
+  "directory": "MMapDirectory",
+  "nrtCachingDirectoryMaxSizeMB": 0.0,
+  "indexMergeSchedulerAutoThrottle": false,
+  "concurrentMergeSchedulerMaxMergeCount": 16,
+  "concurrentMergeSchedulerMaxThreadCount": 8
+}'
 ```
 
 ## Start Index
@@ -103,19 +116,40 @@ cat startIndex.json
 }
 ```
 
+```
+curl -XPOST localhost:<REST_PORT>/v1/start_index -d '
+{ 
+  "indexName" : "testIdx"
+}'
+```
+
 ## RegisterFields
 
 ```
 ./build/install/nrtsearch/bin/lucene-client registerFields -f registerFields.json
 cat registerFields.json
-{             "indexName": "testIdx",
-              "field":
-              [
-                      { "name": "doc_id", "type": "ATOM", "storeDocValues": true},
-                      { "name": "vendor_name", "type": "TEXT" , "search": true, "store": true, "tokenize": true},
-                      { "name": "license_no",  "type": "INT", "multiValued": true, "storeDocValues": true}
-              ]
+{             
+  "indexName": "testIdx",
+  "field":
+  [
+    { "name": "doc_id", "type": "ATOM", "storeDocValues": true},
+    { "name": "vendor_name", "type": "TEXT" , "search": true, "store": true, "tokenize": true},
+    { "name": "license_no",  "type": "INT", "multiValued": true, "storeDocValues": true}
+  ]
 }
+```
+
+```
+curl -XPOST localhost:<REST_PORT>/v1/register_fields -d '
+{             
+  "indexName": "testIdx",
+  "field":
+  [
+    { "name": "doc_id", "type": "ATOM", "storeDocValues": true},
+    { "name": "vendor_name", "type": "TEXT" , "search": true, "store": true, "tokenize": true},
+    { "name": "license_no",  "type": "INT", "multiValued": true, "storeDocValues": true}
+  ]
+}'
 ```
 
 ## Add Documents
@@ -128,20 +162,47 @@ doc_id,vendor_name,license_no
 1,second vendor,111;222
 ```
 
+```
+curl -XPOST localhost:<REST_PORT>/v1/add_documents -d '
+{             
+  "indexName": "testIdx",
+  "fields":{
+     "doc_id": {"value": ["0"]}, "vendor_name": {"value": ["first vendor"]}, "license_no": {"value": ["100", "200"]}
+  }
+}'
+curl -XPOST localhost:<REST_PORT>/v1/add_documents -d '
+{             
+  "indexName": "testIdx",
+  "fields":{
+     "doc_id": {"value": ["1"]}, "vendor_name": {"value": ["second vendor"]}, "license_no": {"value": ["111", "222"]}
+  }
+}'
+```
+
 ## Search
 
 ```
 ./build/install/nrtsearch/bin/lucene-client search -f search.json
 cat search.json
 {
-        "indexName": "testIdx",
-        "startHit": 0,
-        "topHits": 100,
-        "retrieveFields": ["doc_id", "license_no", "vendor_name"],
-         "queryText": "vendor_name:first vendor"
+  "indexName": "testIdx",
+  "startHit": 0,
+  "topHits": 100,
+  "retrieveFields": ["doc_id", "license_no", "vendor_name"],
+  "queryText": "vendor_name:first"
 }
 ```
 
+```
+curl -XPOST localhost:<REST_PORT>/v1/search -d '
+{             
+  "indexName": "testIdx",
+  "startHit": 0,
+  "topHits": 100,
+  "retrieveFields": ["doc_id", "license_no", "vendor_name"],
+  "queryText": "vendor_name:first"
+}'
+```
 
 # API documentation
 The build uses protoc-gen-doc program to generate the documentation needed in html (or markdown) files from proto files. It is run inside a docker container. The gradle task to generate this documentation is as follows.
