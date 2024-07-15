@@ -8,7 +8,7 @@ import (
   "os"
 
   "github.com/golang/glog"
-  "github.com/grpc-ecosystem/grpc-gateway/runtime"
+  "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
   "google.golang.org/grpc"
 
   gw "github.com/Yelp/nrtsearch/grpc-gateway"
@@ -30,7 +30,6 @@ func run() error {
   // Register gRPC server endpoint
   // Note: Make sure the gRPC server is running properly and accessible
   mux := runtime.NewServeMux()
-  runtime.SetHTTPBodyMarshaler(mux)
 
   opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(104_857_600))}
   err := gw.RegisterLuceneServerHandlerFromEndpoint(ctx, mux,  *grpcServerEndpoint, opts)
