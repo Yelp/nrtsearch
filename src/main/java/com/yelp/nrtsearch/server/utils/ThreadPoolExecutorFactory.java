@@ -135,7 +135,7 @@ public class ThreadPoolExecutorFactory {
               0L,
               TimeUnit.SECONDS,
               new LinkedBlockingQueue<>(DEFAULT_QUEUE_SIZE),
-              new NamedThreadFactory("DefaultGrpcExecutor"));
+              new NamedThreadFactory("GrpcExecutor"));
     } else if (executorType == ExecutorType.METRICS) {
       logger.info(
           "Creating MetricsExecutor of size {}",
