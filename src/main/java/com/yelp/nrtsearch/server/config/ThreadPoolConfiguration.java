@@ -22,13 +22,12 @@ import java.util.Map;
 /** Configuration for various ThreadPool Settings used in nrtsearch */
 public class ThreadPoolConfiguration {
 
-  private static final int DEFAULT_MAX_SEARCHING_THREADS =
-      ((Runtime.getRuntime().availableProcessors() * 3) / 2) + 1;
+  private static final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
+  private static final int DEFAULT_MAX_SEARCHING_THREADS = ((AVAILABLE_PROCESSORS * 3) / 2) + 1;
   private static final int DEFAULT_MAX_SEARCH_BUFFERED_ITEMS =
       Math.max(1000, 2 * DEFAULT_MAX_SEARCHING_THREADS);
 
-  private static final int DEFAULT_MAX_INDEXING_THREADS =
-      Runtime.getRuntime().availableProcessors() + 1;
+  private static final int DEFAULT_MAX_INDEXING_THREADS = AVAILABLE_PROCESSORS + 1;
   private static final int DEFAULT_MAX_FILL_FIELDS_THREADS = 1;
 
   private static final int DEFAULT_MAX_INDEXING_BUFFERED_ITEMS =
@@ -46,6 +45,9 @@ public class ThreadPoolConfiguration {
   public static final int DEFAULT_MIN_PARALLEL_FETCH_NUM_FIELDS = 20;
   public static final int DEFAULT_MIN_PARALLEL_FETCH_NUM_HITS = 50;
 
+  private static final int DEFAULT_GRPC_EXECUTOR_THREADS = AVAILABLE_PROCESSORS * 2;
+  private static final int DEFAULT_METRICS_EXECUTOR_THREADS = AVAILABLE_PROCESSORS;
+
   private final int maxSearchingThreads;
   private final int maxSearchBufferedItems;
 
@@ -62,6 +64,9 @@ public class ThreadPoolConfiguration {
 
   private final int maxGrpcReplicationserverThreads;
   private final int maxGrpcReplicationserverBufferedItems;
+
+  private final int grpcExecutorThreads;
+  private final int metricsExecutorThreads;
 
   public ThreadPoolConfiguration(YamlConfigReader configReader) {
     maxSearchingThreads =
@@ -116,6 +121,15 @@ public class ThreadPoolConfiguration {
         configReader.getInteger(
             "threadPoolConfiguration.maxGrpcReplicationserverBufferedItems",
             DEFAULT_MAX_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS);
+
+    grpcExecutorThreads =
+        getNumThreads(
+            configReader, "threadPoolConfiguration.grpcThreads", DEFAULT_GRPC_EXECUTOR_THREADS);
+    metricsExecutorThreads =
+        getNumThreads(
+            configReader,
+            "threadPoolConfiguration.metricsThreads",
+            DEFAULT_METRICS_EXECUTOR_THREADS);
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -148,7 +162,7 @@ public class ThreadPoolConfiguration {
     }
 
     public int computeNumThreads() {
-      int threads = (int) ((Runtime.getRuntime().availableProcessors() * multiplier) + offset);
+      int threads = (int) ((AVAILABLE_PROCESSORS * multiplier) + offset);
       threads = Math.min(threads, max);
       threads = Math.max(threads, min);
       return threads;
@@ -217,5 +231,13 @@ public class ThreadPoolConfiguration {
 
   public int getMaxGrpcReplicationserverBufferedItems() {
     return maxGrpcReplicationserverBufferedItems;
+  }
+
+  public int getGrpcExecutorThreads() {
+    return grpcExecutorThreads;
+  }
+
+  public int getMetricsExecutorThreads() {
+    return metricsExecutorThreads;
   }
 }
