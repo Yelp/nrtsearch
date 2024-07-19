@@ -175,14 +175,17 @@ public class LuceneServer {
             serviceName,
             nodeName);
     /* The port on which the server should run */
+    GrpcServerExecutorSupplier executorSupplier =
+        new GrpcServerExecutorSupplier(luceneServerConfiguration.getThreadPoolConfiguration());
     server =
         ServerBuilder.forPort(luceneServerConfiguration.getPort())
             .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
             .addService(ProtoReflectionService.newInstance())
-            .executor(
-                ThreadPoolExecutorFactory.getThreadPoolExecutor(
-                    ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
-                    luceneServerConfiguration.getThreadPoolConfiguration()))
+            // Set executor supplier to use different thread pool for metrics method
+            .callExecutor(executorSupplier)
+            // We still need this executor to run tasks before the point when executorSupplier can
+            // be called (https://github.com/grpc/grpc-java/issues/8274)
+            .executor(executorSupplier.getGrpcThreadPoolExecutor())
             .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
             .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
             .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)

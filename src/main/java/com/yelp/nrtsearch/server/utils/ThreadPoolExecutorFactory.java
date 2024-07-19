@@ -34,11 +34,13 @@ public class ThreadPoolExecutorFactory {
     INDEX,
     LUCENESERVER,
     REPLICATIONSERVER,
-    FETCH
+    FETCH,
+    GRPC,
+    METRICS
   }
 
-  private static final Logger logger =
-      LoggerFactory.getLogger(ThreadPoolExecutorFactory.class.getName());
+  private static final Logger logger = LoggerFactory.getLogger(ThreadPoolExecutorFactory.class);
+  private static final int DEFAULT_QUEUE_SIZE = 8;
 
   /**
    * @param executorType {@link ExecutorType}
@@ -122,8 +124,32 @@ public class ThreadPoolExecutorFactory {
               TimeUnit.SECONDS,
               docsToIndex,
               new NamedThreadFactory("LuceneFetchExecutor"));
+    } else if (executorType == ExecutorType.GRPC) {
+      logger.info(
+          "Creating default gRPC executor of size {}",
+          threadPoolConfiguration.getGrpcExecutorThreads());
+      threadPoolExecutor =
+          new ThreadPoolExecutor(
+              threadPoolConfiguration.getGrpcExecutorThreads(),
+              threadPoolConfiguration.getGrpcExecutorThreads(),
+              0L,
+              TimeUnit.SECONDS,
+              new LinkedBlockingQueue<>(DEFAULT_QUEUE_SIZE),
+              new NamedThreadFactory("DefaultGrpcExecutor"));
+    } else if (executorType == ExecutorType.METRICS) {
+      logger.info(
+          "Creating MetricsExecutor of size {}",
+          threadPoolConfiguration.getMetricsExecutorThreads());
+      threadPoolExecutor =
+          new ThreadPoolExecutor(
+              threadPoolConfiguration.getMetricsExecutorThreads(),
+              threadPoolConfiguration.getMetricsExecutorThreads(),
+              0L,
+              TimeUnit.SECONDS,
+              new LinkedBlockingQueue<>(DEFAULT_QUEUE_SIZE),
+              new NamedThreadFactory("MetricsExecutor"));
     } else {
-      throw new RuntimeException("Invalid executor type provided " + executorType.toString());
+      throw new RuntimeException("Invalid executor type provided " + executorType);
     }
     ThreadPoolCollector.addPool(executorType.name(), threadPoolExecutor);
     return threadPoolExecutor;
