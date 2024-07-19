@@ -70,7 +70,7 @@ public class GrpcServerExecutorSupplier implements ServerCallExecutorSupplier {
   @Nullable
   @Override
   public <ReqT, RespT> Executor getExecutor(ServerCall<ReqT, RespT> serverCall, Metadata metadata) {
-    if (serverCall.getMethodDescriptor().getFullMethodName().contains("metrics")) {
+    if ("metrics".equals(serverCall.getMethodDescriptor().getBareMethodName())) {
       return metricsThreadPoolExecutor;
     }
     return luceneServerThreadPoolExecutor;
