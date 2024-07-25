@@ -42,8 +42,7 @@ public class HighlightUtils {
   private static final boolean DEFAULT_SCORE_ORDERED = true;
   private static final boolean DEFAULT_FIELD_MATCH = false;
   private static final boolean DEFAULT_DISCRETE_MULTIVALUE = false;
-  private static final Character[] DEFAULT_BOUNDARY_CHARS =
-      SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS;
+  private static final char[] DEFAULT_BOUNDARY_CHARS = SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS;
   private static final int DEFAULT_BOUNDARY_MAX_SCAN = SimpleBoundaryScanner.DEFAULT_MAX_SCAN;
   private static final Locale DEFAULT_BOUNDARY_SCANNER_LOCALE = Locale.ROOT;
   private static final QueryNodeMapper QUERY_NODE_MAPPER = QueryNodeMapper.getInstance();
@@ -117,12 +116,7 @@ public class HighlightUtils {
                         : globalSettings.getBoundaryScanner())
                 .withBoundaryChars(
                     settings.hasBoundaryChars() && !settings.getBoundaryChars().getValue().isEmpty()
-                        ? settings
-                            .getBoundaryChars()
-                            .getValue()
-                            .chars()
-                            .mapToObj(c -> Character.valueOf((char) c))
-                            .toArray(Character[]::new)
+                        ? settings.getBoundaryChars().getValue().toCharArray()
                         : globalSettings.getBoundaryChars())
                 .withBoundaryMaxScan(
                     settings.hasBoundaryMaxScan()
@@ -197,12 +191,7 @@ public class HighlightUtils {
             settings.hasBoundaryScanner() ? settings.getBoundaryScanner().getValue() : null)
         .withBoundaryChars(
             settings.hasBoundaryChars() && !settings.getBoundaryChars().getValue().isEmpty()
-                ? settings
-                    .getBoundaryChars()
-                    .getValue()
-                    .chars()
-                    .mapToObj(c -> Character.valueOf((char) c))
-                    .toArray(Character[]::new)
+                ? settings.getBoundaryChars().getValue().toCharArray()
                 : DEFAULT_BOUNDARY_CHARS)
         .withBoundaryMaxScan(
             settings.hasBoundaryMaxScan()

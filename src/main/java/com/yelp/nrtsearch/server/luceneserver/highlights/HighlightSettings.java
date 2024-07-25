@@ -35,7 +35,7 @@ public class HighlightSettings {
   private final boolean discreteMultivalue;
   private final Map<String, Object> customHighlighterParams;
   private final String boundaryScanner;
-  private final Character[] boundaryChars;
+  private final char[] boundaryChars;
   private final int boundaryMaxScan;
   private final Locale boundaryScannerLocale;
 
@@ -51,7 +51,7 @@ public class HighlightSettings {
       String fragmenter,
       boolean discreteMultivalue,
       String boundaryScanner,
-      Character[] boundaryChars,
+      char[] boundaryChars,
       int boundaryMaxScan,
       Locale boundaryScannerLocale,
       Map<String, Object> customHighlighterParams) {
@@ -135,7 +135,7 @@ public class HighlightSettings {
     return boundaryScanner;
   }
 
-  public Character[] getBoundaryChars() {
+  public char[] getBoundaryChars() {
     return boundaryChars;
   }
 
@@ -202,7 +202,7 @@ public class HighlightSettings {
     private String fragmenter;
     private boolean discreteMultivalue;
     private String boundaryScanner;
-    private Character[] boundaryChars;
+    private char[] boundaryChars;
     private int boundaryMaxScan;
     private Locale boundaryScannerLocale;
     private Map<String, Object> customHighlighterParams;
@@ -264,7 +264,7 @@ public class HighlightSettings {
       return this;
     }
 
-    public Builder withBoundaryChars(Character[] boundaryChars) {
+    public Builder withBoundaryChars(char[] boundaryChars) {
       this.boundaryChars = boundaryChars;
       return this;
     }

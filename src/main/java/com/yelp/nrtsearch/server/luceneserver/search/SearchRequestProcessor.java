@@ -32,6 +32,7 @@ import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.VectorQueryable;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitContext;
@@ -43,7 +44,6 @@ import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
-import com.yelp.nrtsearch.server.luceneserver.search.SearchContext.VectorScoringMode;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreator;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
@@ -53,6 +53,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.collectors.LargeNumHitsColl
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.MyTopSuggestDocsCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.RelevanceCollector;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.SortFieldCollector;
+import com.yelp.nrtsearch.server.luceneserver.search.query.vector.WithVectorTotalHits;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,15 +64,13 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 import org.apache.lucene.queryparser.classic.MultiFieldQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.apache.lucene.queryparser.simple.SimpleQueryParser;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.NrtsearchKnnCollector;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.QueryBuilder;
 
 /**
@@ -108,6 +107,7 @@ public class SearchRequestProcessor {
       IndexState indexState,
       ShardState shardState,
       SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy,
+      SearchResponse.Diagnostics.Builder diagnostics,
       ProfileResult.Builder profileResult)
       throws IOException {
 
@@ -180,8 +180,6 @@ public class SearchRequestProcessor {
     contextBuilder.setFetchTasks(
         new FetchTasks(searchRequest.getFetchTasksList(), highlightFetchTask, innerHitFetchTasks));
 
-    contextBuilder.setQuery(query);
-
     CollectorCreatorContext collectorCreatorContext =
         new CollectorCreatorContext(
             searchRequest, indexState, shardState, queryFields, searcherAndTaxonomy);
@@ -194,28 +192,111 @@ public class SearchRequestProcessor {
 
     contextBuilder.setExtraContext(new ConcurrentHashMap<>());
 
-    List<NrtsearchKnnCollector> knnCollectors = new ArrayList<>();
-    for (KnnQuery knnQuery : searchRequest.getKnnList()) {
-      knnCollectors.add(
-          new NrtsearchKnnCollector(knnQuery, indexState, searcherAndTaxonomy.searcher));
-    }
-    contextBuilder.setKnnCollectors(knnCollectors);
-    // determine how vector search results should combine with standard query
-    if (!knnCollectors.isEmpty()) {
-      if (searchRequest.getQueryText().isEmpty() && !searchRequest.hasQuery()) {
-        contextBuilder.setVectorScoringMode(VectorScoringMode.VECTORS_ONLY);
-      } else {
-        contextBuilder.setVectorScoringMode(VectorScoringMode.HYBRID);
+    // build and execute vector queries and combine results with main query
+    if (!searchRequest.getKnnList().isEmpty()) {
+      List<Query> knnQueries = new ArrayList<>();
+      List<Float> knnBoosts = new ArrayList<>();
+      for (KnnQuery knnQuery : searchRequest.getKnnList()) {
+        knnQueries.add(buildKnnQuery(knnQuery, indexState));
+        knnBoosts.add(knnQuery.getBoost() > 0 ? knnQuery.getBoost() : 1.0f);
       }
-    } else {
-      contextBuilder.setVectorScoringMode(VectorScoringMode.NONE);
+
+      BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
+      // Add main query if specified, otherwise this is a pure vector search
+      if (!searchRequest.getQueryText().isEmpty() || searchRequest.hasQuery()) {
+        queryBuilder.add(query, BooleanClause.Occur.SHOULD);
+      }
+
+      // Add vector query results
+      for (int i = 0; i < knnQueries.size(); ++i) {
+        Query resolvedKnnQuery =
+            resolveKnnQueryAndBoost(
+                knnQueries.get(i), knnBoosts.get(i), searcherAndTaxonomy.searcher, diagnostics);
+        queryBuilder.add(resolvedKnnQuery, BooleanClause.Occur.SHOULD);
+      }
+      query = queryBuilder.build();
     }
+
+    if (searchRequest.getFacetsCount() > 0) {
+      query = addDrillDowns(indexState, query);
+      if (profileResult != null) {
+        profileResult.setDrillDownQuery(query.toString());
+      }
+    }
+
+    contextBuilder.setQuery(query);
 
     SearchContext searchContext = contextBuilder.build(true);
 
     // Give underlying collectors access to the search context
     docCollector.setSearchContext(searchContext);
     return searchContext;
+  }
+
+  /**
+   * Construct lucene knn query from grpc knn query.
+   *
+   * @param knnQuery knn query definition
+   * @param indexState index state
+   * @return lucene knn query
+   */
+  private static Query buildKnnQuery(KnnQuery knnQuery, IndexState indexState) {
+    String field = knnQuery.getField();
+    FieldDef fieldDef = indexState.getField(field);
+    if (!(fieldDef instanceof VectorQueryable vectorQueryable)) {
+      throw new IllegalArgumentException("Field does not support vector search: " + field);
+    }
+
+    Query filterQuery;
+    if (knnQuery.hasFilter()) {
+      filterQuery = QueryNodeMapper.getInstance().getQuery(knnQuery.getFilter(), indexState);
+    } else {
+      filterQuery = null;
+    }
+    return vectorQueryable.getKnnQuery(knnQuery, filterQuery);
+  }
+
+  /**
+   * Resolve (execute) the knn query and apply the boost. Resolving the query produces a new query
+   * that matches the vector top hits. The boost is applied to this new query.
+   *
+   * @param knnQuery lucene knn query
+   * @param boost boost to apply to the query
+   * @param indexSearcher index searcher
+   * @param diagnostics diagnostics builder to add vector diagnostics
+   * @return vector search results query with boost applied
+   * @throws IOException
+   */
+  private static Query resolveKnnQueryAndBoost(
+      Query knnQuery,
+      float boost,
+      IndexSearcher indexSearcher,
+      SearchResponse.Diagnostics.Builder diagnostics)
+      throws IOException {
+    SearchResponse.Diagnostics.VectorDiagnostics.Builder vectorDiagnosticsBuilder =
+        SearchResponse.Diagnostics.VectorDiagnostics.newBuilder();
+    long vectorSearchStart = System.nanoTime();
+    // Rewriting the query executes the vector search using the executor from the index searcher
+    Query rewrittenQuery = knnQuery.rewrite(indexSearcher);
+
+    // fill diagnostic info
+    vectorDiagnosticsBuilder.setSearchTimeMs(((System.nanoTime() - vectorSearchStart) / 1000000.0));
+    if (knnQuery instanceof WithVectorTotalHits withVectorTotalHits) {
+      TotalHits vectorTotalHits = withVectorTotalHits.getTotalHits();
+      vectorDiagnosticsBuilder.setTotalHits(
+          com.yelp.nrtsearch.server.grpc.TotalHits.newBuilder()
+              .setRelation(
+                  com.yelp.nrtsearch.server.grpc.TotalHits.Relation.valueOf(
+                      vectorTotalHits.relation.name()))
+              .setValue(vectorTotalHits.value)
+              .build());
+    }
+    diagnostics.addVectorDiagnostics(vectorDiagnosticsBuilder.build());
+
+    if (boost != 1.0f) {
+      rewrittenQuery = new BoostQuery(rewrittenQuery, boost);
+    }
+    return rewrittenQuery;
   }
 
   /**
@@ -366,6 +447,11 @@ public class SearchRequestProcessor {
     } else {
       return ((SimpleQueryParser) qp).parse(text);
     }
+  }
+
+  /** Fold in any drillDowns requests into the query. */
+  private static DrillDownQuery addDrillDowns(IndexState state, Query q) {
+    return new DrillDownQuery(state.getFacetsConfig(), q);
   }
 
   /**
