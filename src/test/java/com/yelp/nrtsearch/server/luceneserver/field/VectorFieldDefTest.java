@@ -39,6 +39,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -695,7 +696,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
-        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=5, beamWidth=100, flatVectorFormat=Lucene99FlatVectorsFormat())",
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=5, beamWidth=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
         format.toString());
   }
 
@@ -718,7 +719,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
-        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=50, flatVectorFormat=Lucene99FlatVectorsFormat())",
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=50, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
         format.toString());
   }
 
@@ -862,5 +863,176 @@ public class VectorFieldDefTest extends ServerTestCase {
   private VectorFieldDef getDotField() throws IOException {
     return (VectorFieldDef)
         getGrpcServer().getGlobalState().getIndex(VECTOR_SEARCH_INDEX_NAME).getField("vector_dot");
+  }
+
+  @Test
+  public void testFieldNotExist() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .setStartHit(0)
+                  .setTopHits(10)
+                  .addKnn(
+                      KnnQuery.newBuilder()
+                          .setField("non_existent_field")
+                          .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f))
+                          .setNumCandidates(10)
+                          .setK(5)
+                          .build())
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(
+          e.getMessage()
+              .contains(
+                  "field \"non_existent_field\" is unknown: it was not registered with registerField"));
+    }
+  }
+
+  @Test
+  public void testFieldNotVector() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .setStartHit(0)
+                  .setTopHits(10)
+                  .addKnn(
+                      KnnQuery.newBuilder()
+                          .setField("filter")
+                          .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f))
+                          .setNumCandidates(10)
+                          .setK(5)
+                          .build())
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Field does not support vector search: filter"));
+    }
+  }
+
+  @Test
+  public void testFieldNotSearchable() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .setStartHit(0)
+                  .setTopHits(10)
+                  .addKnn(
+                      KnnQuery.newBuilder()
+                          .setField("vector_not_search")
+                          .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f))
+                          .setNumCandidates(10)
+                          .setK(5)
+                          .build())
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Vector field is not searchable: vector_not_search"));
+    }
+  }
+
+  @Test
+  public void testInvalidVectorSize() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .setStartHit(0)
+                  .setTopHits(10)
+                  .addKnn(
+                      KnnQuery.newBuilder()
+                          .setField("vector_l2_norm")
+                          .addAllQueryVector(List.of(0.25f, 0.5f))
+                          .setNumCandidates(10)
+                          .setK(5)
+                          .build())
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Invalid query vector size, expected: 3, found: 2"));
+    }
+  }
+
+  @Test
+  public void testInvalidK() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .setStartHit(0)
+                  .setTopHits(10)
+                  .addKnn(
+                      KnnQuery.newBuilder()
+                          .setField("vector_l2_norm")
+                          .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f))
+                          .setNumCandidates(10)
+                          .setK(0)
+                          .build())
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Vector search k must be >= 1"));
+    }
+  }
+
+  @Test
+  public void testNumCandidatesLessThanK() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .setStartHit(0)
+                  .setTopHits(10)
+                  .addKnn(
+                      KnnQuery.newBuilder()
+                          .setField("vector_l2_norm")
+                          .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f))
+                          .setNumCandidates(4)
+                          .setK(5)
+                          .build())
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Vector search numCandidates must be >= k"));
+    }
+  }
+
+  @Test
+  public void testNumCandidatesMaxLimit() {
+    try {
+      getGrpcServer()
+          .getBlockingStub()
+          .search(
+              SearchRequest.newBuilder()
+                  .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                  .setStartHit(0)
+                  .setTopHits(10)
+                  .addKnn(
+                      KnnQuery.newBuilder()
+                          .setField("vector_l2_norm")
+                          .addAllQueryVector(List.of(0.25f, 0.5f, 0.75f))
+                          .setNumCandidates(10001)
+                          .setK(5)
+                          .build())
+                  .build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("Vector search numCandidates > 10000"));
+    }
   }
 }

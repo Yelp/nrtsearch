@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
-import org.apache.lucene.search.NrtsearchKnnCollector;
 import org.apache.lucene.search.Query;
 
 /** Search context class to provide all the information to perform a search. */
@@ -49,8 +48,6 @@ public class SearchContext implements FieldFetchContext {
   private final SharedDocContext sharedDocContext;
   private final Map<String, Object> extraContext;
   private final String queryNestedPath;
-  private final List<NrtsearchKnnCollector> knnCollectors;
-  private final VectorScoringMode vectorScoringMode;
 
   public enum VectorScoringMode {
     NONE,
@@ -77,8 +74,6 @@ public class SearchContext implements FieldFetchContext {
     this.sharedDocContext = builder.sharedDocContext;
     this.extraContext = builder.extraContext;
     this.queryNestedPath = builder.queryNestedPath;
-    this.knnCollectors = builder.knnCollectors;
-    this.vectorScoringMode = builder.vectorScoringMode;
     this.explain = builder.explain;
 
     if (validate) {
@@ -175,16 +170,6 @@ public class SearchContext implements FieldFetchContext {
     return queryNestedPath;
   }
 
-  /** Get collector to perform kNN vector search queries */
-  public List<NrtsearchKnnCollector> getKnnCollectors() {
-    return knnCollectors;
-  }
-
-  /** Get how vector queries should be used for search */
-  public VectorScoringMode getVectorScoringMode() {
-    return vectorScoringMode;
-  }
-
   /** Get the boolean flat whether to return the lucene explain */
   @Override
   public boolean isExplain() {
@@ -207,8 +192,6 @@ public class SearchContext implements FieldFetchContext {
     Objects.requireNonNull(fetchTasks);
     Objects.requireNonNull(rescorers);
     Objects.requireNonNull(sharedDocContext);
-    Objects.requireNonNull(knnCollectors);
-    Objects.requireNonNull(vectorScoringMode);
 
     if (timestampSec < 0) {
       throw new IllegalStateException("Invalid timestamp value: " + timestampSec);
@@ -247,8 +230,6 @@ public class SearchContext implements FieldFetchContext {
     private SharedDocContext sharedDocContext;
     private Map<String, Object> extraContext;
     private String queryNestedPath;
-    private List<NrtsearchKnnCollector> knnCollectors;
-    private VectorScoringMode vectorScoringMode;
     private boolean explain;
 
     private Builder() {}
@@ -352,26 +333,6 @@ public class SearchContext implements FieldFetchContext {
 
     public Builder setExplain(boolean explain) {
       this.explain = explain;
-      return this;
-    }
-
-    /**
-     * Set collector to perform kNN vector search queries
-     *
-     * @param knnCollectors vector search collectors
-     */
-    public Builder setKnnCollectors(List<NrtsearchKnnCollector> knnCollectors) {
-      this.knnCollectors = knnCollectors;
-      return this;
-    }
-
-    /**
-     * Set how vector queries should be used for search
-     *
-     * @param vectorScoringMode scoring mode
-     */
-    public Builder setVectorScoringMode(VectorScoringMode vectorScoringMode) {
-      this.vectorScoringMode = vectorScoringMode;
       return this;
     }
 

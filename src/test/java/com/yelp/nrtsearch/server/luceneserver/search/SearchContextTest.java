@@ -22,7 +22,6 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.SearchState;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import com.yelp.nrtsearch.server.luceneserver.doc.DefaultSharedDocContext;
-import com.yelp.nrtsearch.server.luceneserver.search.SearchContext.VectorScoringMode;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorCreatorContext;
 import com.yelp.nrtsearch.server.luceneserver.search.collectors.DocCollector;
 import io.grpc.testing.GrpcCleanupRule;
@@ -88,9 +87,7 @@ public class SearchContextTest extends ServerTestCase {
         .setCollector(new DummyCollector())
         .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .setRescorers(Collections.emptyList())
-        .setSharedDocContext(new DefaultSharedDocContext())
-        .setKnnCollectors(Collections.emptyList())
-        .setVectorScoringMode(VectorScoringMode.NONE);
+        .setSharedDocContext(new DefaultSharedDocContext());
   }
 
   @Test
@@ -171,15 +168,5 @@ public class SearchContextTest extends ServerTestCase {
   @Test(expected = NullPointerException.class)
   public void testMissingSharedDocContext() throws Exception {
     getCompleteBuilder().setSharedDocContext(null).build(true);
-  }
-
-  @Test(expected = NullPointerException.class)
-  public void testMissingKnnCollectors() throws Exception {
-    getCompleteBuilder().setKnnCollectors(null).build(true);
-  }
-
-  @Test(expected = NullPointerException.class)
-  public void testMissingVectorScoringMode() throws Exception {
-    getCompleteBuilder().setVectorScoringMode(null).build(true);
   }
 }

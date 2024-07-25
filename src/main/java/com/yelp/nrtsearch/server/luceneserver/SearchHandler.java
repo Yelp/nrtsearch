@@ -24,7 +24,6 @@ import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics.VectorDiagnostics;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
@@ -44,7 +43,6 @@ import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
-import com.yelp.nrtsearch.server.luceneserver.search.SearchContext.VectorScoringMode;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
@@ -68,15 +66,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DoubleValues;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.NrtsearchKnnCollector;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -129,70 +119,13 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       searchContext =
           SearchRequestProcessor.buildContextForRequest(
-              searchRequest, indexState, shardState, s, profileResultBuilder);
+              searchRequest, indexState, shardState, s, diagnostics, profileResultBuilder);
 
       long searchStartTime = System.nanoTime();
 
-      List<Query> vectorQueries = null;
-      // If vector queries are needed, resolve them into Queries. These Queries
-      // produce the top k documents with their similarity scores.
-      if (searchContext.getVectorScoringMode() != VectorScoringMode.NONE) {
-        vectorQueries = new ArrayList<>();
-        for (NrtsearchKnnCollector knnCollector : searchContext.getKnnCollectors()) {
-          VectorDiagnostics.Builder vectorDiagnosticsBuilder = VectorDiagnostics.newBuilder();
-          long vectorSearchStart = System.nanoTime();
-          vectorQueries.add(
-              knnCollector.getResultQuery(
-                  searchContext.getSearcherAndTaxonomy().searcher, threadPoolExecutor));
-
-          // fill diagnostic info
-          vectorDiagnosticsBuilder.setSearchTimeMs(
-              ((System.nanoTime() - vectorSearchStart) / 1000000.0));
-          // the result will be cached from above
-          org.apache.lucene.search.TotalHits vectorTotalHits =
-              knnCollector.getResult(
-                      searchContext.getSearcherAndTaxonomy().searcher, threadPoolExecutor)
-                  .totalHits;
-          vectorDiagnosticsBuilder.setTotalHits(
-              TotalHits.newBuilder()
-                  .setRelation(TotalHits.Relation.valueOf(vectorTotalHits.relation.name()))
-                  .setValue(vectorTotalHits.value)
-                  .build());
-          diagnostics.addVectorDiagnostics(vectorDiagnosticsBuilder.build());
-        }
-      }
-
-      // Build final query that includes the standard and vector queries as needed with
-      // Boolean SHOULD clauses
-      Query finalQuery;
-      BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
-      switch (searchContext.getVectorScoringMode()) {
-        case HYBRID:
-          queryBuilder.add(searchContext.getQuery(), Occur.SHOULD);
-        case VECTORS_ONLY:
-          for (Query query : vectorQueries) {
-            queryBuilder.add(query, Occur.SHOULD);
-          }
-          finalQuery = queryBuilder.build();
-          break;
-        case NONE:
-          finalQuery = searchContext.getQuery();
-          break;
-        default:
-          throw new IllegalArgumentException(
-              "Unknown vector scoring mode: " + searchContext.getVectorScoringMode());
-      }
-
       SearcherResult searcherResult;
       if (!searchRequest.getFacetsList().isEmpty()) {
-        // Wrap with DrillDownQuery after combining vector and standard Queries, as this
-        // must be the top level Query for DrillSidewaysImpl
-        DrillDownQuery ddq =
-            new DrillDownQuery(searchContext.getIndexState().getFacetsConfig(), finalQuery);
-        finalQuery = ddq;
-        if (profileResultBuilder != null) {
-          profileResultBuilder.setDrillDownQuery(ddq.toString());
-        }
+        DrillDownQuery ddq = (DrillDownQuery) searchContext.getQuery();
 
         List<FacetResult> grpcFacetResults = new ArrayList<>();
         // Run the drill sideways search on the direct executor to run subtasks in the
@@ -241,7 +174,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       } else {
         try {
           searcherResult =
-              s.searcher.search(finalQuery, searchContext.getCollector().getWrappedManager());
+              s.searcher.search(
+                  searchContext.getQuery(), searchContext.getCollector().getWrappedManager());
         } catch (RuntimeException e) {
           CollectionTimeoutException timeoutException = findTimeoutException(e);
           if (timeoutException != null) {
@@ -293,7 +227,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       setResponseHits(searchContext, hits);
 
       // fill Hit.Builder with requested fields
-      fetchFields(searchContext, finalQuery);
+      fetchFields(searchContext);
 
       SearchState.Builder searchState = SearchState.newBuilder();
       searchContext.getResponseBuilder().setSearchState(searchState);
@@ -382,7 +316,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
    * @throws ExecutionException on error when performing parallel fetch
    * @throws InterruptedException if parallel fetch is interrupted
    */
-  private void fetchFields(SearchContext searchContext, Query explainQuery)
+  private void fetchFields(SearchContext searchContext)
       throws IOException, ExecutionException, InterruptedException {
     if (searchContext.getResponseBuilder().getHitsBuilderList().isEmpty()) {
       return;
@@ -462,7 +396,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
               searchContext
                   .getSearcherAndTaxonomy()
                   .searcher
-                  .explain(explainQuery, hitResponse.getLuceneDocId())
+                  .explain(searchContext.getQuery(), hitResponse.getLuceneDocId())
                   .toString());
         }
         searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
@@ -487,7 +421,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         futures.add(
             indexState
                 .getFetchThreadPoolExecutor()
-                .submit(new FillDocsTask(searchContext, docChunk, explainQuery)));
+                .submit(new FillDocsTask(searchContext, docChunk, searchContext.getQuery())));
       }
       for (Future<?> future : futures) {
         future.get();
@@ -495,7 +429,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       // no need to run the per hit fetch tasks here, since they were done in the FillDocsTask
     } else {
       // single threaded fetch
-      FillDocsTask fillDocsTask = new FillDocsTask(searchContext, hitBuilders, explainQuery);
+      FillDocsTask fillDocsTask =
+          new FillDocsTask(searchContext, hitBuilders, searchContext.getQuery());
       fillDocsTask.run();
     }
 

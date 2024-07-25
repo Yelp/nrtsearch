@@ -18,10 +18,13 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleSearchVector;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleVector;
+import com.yelp.nrtsearch.server.luceneserver.field.properties.VectorQueryable;
+import com.yelp.nrtsearch.server.luceneserver.search.query.vector.NrtKnnFloatVectorQuery;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -36,9 +39,11 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 
-public class VectorFieldDef extends IndexableFieldDef {
+public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable {
+  static final int NUM_CANDIDATES_LIMIT = 10000;
   private static final Map<String, VectorSimilarityFunction> SIMILARITY_FUNCTION_MAP =
       Map.of(
           "l2_norm",
@@ -259,5 +264,39 @@ public class VectorFieldDef extends IndexableFieldDef {
     }
     throw new IllegalStateException(
         String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
+  }
+
+  @Override
+  public Query getKnnQuery(KnnQuery knnQuery, Query filterQuery) {
+    if (!isSearchable()) {
+      throw new IllegalArgumentException("Vector field is not searchable: " + getName());
+    }
+
+    if (knnQuery.getQueryVectorCount() != getVectorDimensions()) {
+      throw new IllegalArgumentException(
+          "Invalid query vector size, expected: "
+              + getVectorDimensions()
+              + ", found: "
+              + knnQuery.getQueryVectorCount());
+    }
+    float[] queryVector = new float[knnQuery.getQueryVectorCount()];
+    for (int i = 0; i < knnQuery.getQueryVectorCount(); ++i) {
+      queryVector[i] = knnQuery.getQueryVector(i);
+    }
+    validateVectorForSearch(queryVector);
+
+    int k = knnQuery.getK();
+    int numCandidates = knnQuery.getNumCandidates();
+    if (k < 1) {
+      throw new IllegalArgumentException("Vector search k must be >= 1");
+    }
+    if (numCandidates < k) {
+      throw new IllegalArgumentException("Vector search numCandidates must be >= k");
+    }
+    if (numCandidates > NUM_CANDIDATES_LIMIT) {
+      throw new IllegalArgumentException("Vector search numCandidates > " + NUM_CANDIDATES_LIMIT);
+    }
+
+    return new NrtKnnFloatVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
   }
 }
