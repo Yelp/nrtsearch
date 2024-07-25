@@ -41,6 +41,7 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
   private static final String TEST_INDEX = "test_index";
   private static final int NUM_DOCS = 100;
   private static final int SEGMENT_CHUNK = 10;
+  private static final int TOTAL_HITS_THRESHOLD_DEFAULT = 1000;
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
@@ -100,15 +101,32 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
 
   @Test
   public void testNoTerminateAfter() {
-    SearchResponse response = doQuery(0, 0.0, false);
+    SearchResponse response = doQuery(0, 0.0, false, TOTAL_HITS_THRESHOLD_DEFAULT);
     assertEquals(100, response.getHitsCount());
     assertFalse(response.getTerminatedEarly());
   }
 
   @Test
   public void testTerminateAfter() {
-    SearchResponse response = doQuery(10, 0.0, false);
-    assertEquals(10, response.getHitsCount());
+    SearchResponse response = doQuery(10, 0.0, false, TOTAL_HITS_THRESHOLD_DEFAULT);
+    assertEquals(100, response.getHitsCount());
+    assertTrue(response.getTerminatedEarly());
+  }
+
+  @Test
+  public void testTerminateAfterWithTotalHitsThresholdGreaterThanTerminateAfter() {
+    SearchResponse response = doQuery(10, 0.0, false, 20);
+    assertEquals(20, response.getTotalHits().getValue());
+    // scorer resetting is working
+    assertEquals(0.0, response.getHits(10).getScore(), 0.000001);
+    assertTrue(response.getTerminatedEarly());
+  }
+
+  @Test
+  public void testTerminateAfterWithTotalHitsThresholdLessThanTerminateAfter() {
+    SearchResponse response = doQuery(20, 0.0, false, 10);
+    assertEquals(20, response.getTotalHits().getValue());
+    assertEquals(1.0, response.getHits(10).getScore(), 0.000001);
     assertTrue(response.getTerminatedEarly());
   }
 
@@ -117,8 +135,8 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
     IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
     try {
       setDefaultTerminateAfter(15);
-      SearchResponse response = doQuery(0, 0.0, false);
-      assertEquals(15, response.getHitsCount());
+      SearchResponse response = doQuery(0, 0.0, false, TOTAL_HITS_THRESHOLD_DEFAULT);
+      assertEquals(100, response.getHitsCount());
       assertTrue(response.getTerminatedEarly());
     } finally {
       setDefaultTerminateAfter(0);
@@ -126,12 +144,19 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
   }
 
   @Test
+  public void testZeroValuedDefaultTerminateAfter() throws IOException {
+    SearchResponse response = doQuery(0, 0.0, false, 10);
+    assertEquals(100, response.getHitsCount());
+    assertFalse(response.getTerminatedEarly());
+  }
+
+  @Test
   public void testOverrideDefaultTerminateAfter() throws IOException {
     IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
     try {
       setDefaultTerminateAfter(15);
-      SearchResponse response = doQuery(5, 0.0, false);
-      assertEquals(5, response.getHitsCount());
+      SearchResponse response = doQuery(5, 0.0, false, TOTAL_HITS_THRESHOLD_DEFAULT);
+      assertEquals(100, response.getHitsCount());
       assertTrue(response.getTerminatedEarly());
     } finally {
       setDefaultTerminateAfter(0);
@@ -140,8 +165,8 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
 
   @Test
   public void testWithOtherWrappers() {
-    SearchResponse response = doQuery(10, 1000.0, true);
-    assertEquals(10, response.getHitsCount());
+    SearchResponse response = doQuery(10, 1000.0, true, TOTAL_HITS_THRESHOLD_DEFAULT);
+    assertEquals(100, response.getHitsCount());
     assertTrue(response.getTerminatedEarly());
   }
 
@@ -156,7 +181,8 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
             false);
   }
 
-  private SearchResponse doQuery(int terminateAfter, double timeout, boolean profile) {
+  private SearchResponse doQuery(
+      int terminateAfter, double timeout, boolean profile, int totalHitsThreshold) {
     return getGrpcServer()
         .getBlockingStub()
         .search(
@@ -166,6 +192,7 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
                 .addRetrieveFields("int_score")
                 .addRetrieveFields("int_field")
                 .setTerminateAfter(terminateAfter)
+                .setTotalHitsThreshold(totalHitsThreshold)
                 .setProfile(profile)
                 .setTimeoutSec(timeout)
                 .setStartHit(0)

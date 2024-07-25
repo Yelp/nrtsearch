@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
+import static com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor.TOTAL_HITS_THRESHOLD;
+
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.Facet;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
@@ -186,8 +188,14 @@ public abstract class DocCollector {
         request.getTerminateAfter() > 0
             ? request.getTerminateAfter()
             : indexState.getDefaultTerminateAfter();
+    int totalHitsThreshold =
+        request.getTotalHitsThreshold() > 0
+            ? request.getTotalHitsThreshold()
+            : TOTAL_HITS_THRESHOLD;
     if (terminateAfter > 0) {
-      wrapped = new TerminateAfterWrapper<>(wrapped, terminateAfter, () -> terminatedEarly = true);
+      wrapped =
+          new TerminateAfterWrapper<>(
+              wrapped, terminateAfter, () -> terminatedEarly = true, totalHitsThreshold);
     }
     if (request.getProfile()) {
       statsWrapper = new SearchStatsWrapper<>(wrapped);

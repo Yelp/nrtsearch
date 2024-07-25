@@ -42,6 +42,7 @@ public class TerminateAfterWrapper<C extends Collector>
   private final int terminateAfter;
   private final Runnable onEarlyTerminate;
   private final AtomicInteger collectedDocCount;
+  private final int totalHitsThreshold;
 
   /**
    * Constructor.
@@ -51,11 +52,15 @@ public class TerminateAfterWrapper<C extends Collector>
    * @param onEarlyTerminate action to perform if collection terminated early (done in reduce call)
    */
   public TerminateAfterWrapper(
-      CollectorManager<C, SearcherResult> in, int terminateAfter, Runnable onEarlyTerminate) {
+      CollectorManager<C, SearcherResult> in,
+      int terminateAfter,
+      Runnable onEarlyTerminate,
+      int totalHitsThreshold) {
     this.in = in;
     this.terminateAfter = terminateAfter;
     this.onEarlyTerminate = onEarlyTerminate;
     this.collectedDocCount = new AtomicInteger();
+    this.totalHitsThreshold = totalHitsThreshold;
   }
 
   @Override
@@ -105,9 +110,6 @@ public class TerminateAfterWrapper<C extends Collector>
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-      if (terminatedEarly) {
-        throw new CollectionTerminatedException();
-      }
       return new TerminateAfterLeafCollectorWrapper(collector.getLeafCollector(context));
     }
 
@@ -130,16 +132,42 @@ public class TerminateAfterWrapper<C extends Collector>
 
       @Override
       public void setScorer(Scorable scorer) throws IOException {
-        leafCollector.setScorer(scorer);
+        leafCollector.setScorer(
+            new Scorable() {
+              @Override
+              public float score() throws IOException {
+                if (!terminatedEarly) {
+                  return scorer.score();
+                } else {
+                  // return the min constant scorer
+                  return 0;
+                }
+              }
+
+              @Override
+              public int docID() {
+                return scorer.docID();
+              }
+            });
       }
 
       @Override
       public void collect(int doc) throws IOException {
         if (collectedDocCount.incrementAndGet() > terminateAfter) {
           terminatedEarly = true;
-          throw new CollectionTerminatedException();
         }
-        leafCollector.collect(doc);
+        // if defaultTerminaterAfter is 0 we don't want to terminate early
+        if (terminateAfter > 0) {
+          // TopScoreDocCollector respects the totalHitsThreshold but DrillSideways doesn't
+          // we need to have fine control over when we want to terminate the collecting
+          if (totalHitsThreshold > terminateAfter && collectedDocCount.get() > totalHitsThreshold) {
+            throw new CollectionTerminatedException();
+          }
+          if (totalHitsThreshold <= terminateAfter && collectedDocCount.get() > terminateAfter) {
+            throw new CollectionTerminatedException();
+          }
+          leafCollector.collect(doc);
+        }
       }
     }
   }
