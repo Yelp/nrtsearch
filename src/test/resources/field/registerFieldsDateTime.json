@@ -15,6 +15,13 @@
       "search": true
     },
     {
+      "name": "timestamp_strict_date_optional_time",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "strict_date_optional_time",
+      "storeDocValues": true,
+      "search": true
+    },
+    {
       "name": "timestamp_string_format",
       "type": "DATE_TIME",
       "dateTimeFormat": "yyyy-MM-dd HH:mm:ss",

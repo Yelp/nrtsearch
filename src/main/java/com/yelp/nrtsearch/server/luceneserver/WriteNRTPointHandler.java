@@ -29,7 +29,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class WriteNRTPointHandler implements Handler<IndexName, SearcherVersion> {
-  Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
+  private static final Logger logger = LoggerFactory.getLogger(WriteNRTPointHandler.class);
+  private final String indexId;
+
+  public WriteNRTPointHandler(String indexId) {
+    this.indexId = indexId;
+  }
 
   @Override
   public SearcherVersion handle(IndexState indexState, IndexName protoRequest)
@@ -67,7 +72,7 @@ public class WriteNRTPointHandler implements Handler<IndexName, SearcherVersion>
             // TODO: ... replicas could copy from one another instead of just primary
             // TODO: we could also prioritize one replica at a time?
             currentReplicaServerClient.newNRTPoint(
-                indexState.getName(), shardState.nrtPrimaryNode.getPrimaryGen(), version);
+                indexState.getName(), indexId, shardState.nrtPrimaryNode.getPrimaryGen(), version);
           } catch (StatusRuntimeException e) {
             Status status = e.getStatus();
             if (status.getCode().equals(Status.UNAVAILABLE.getCode())) {

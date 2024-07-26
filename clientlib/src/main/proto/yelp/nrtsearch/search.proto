@@ -52,10 +52,17 @@ enum RewriteMethod {
 }
 
 message FuzzyParams {
-    int32 maxEdits = 1; // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2.
+    int32 maxEdits = 1; // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2. Either set this or auto.
     int32 prefixLength = 2; // Length of common (non-fuzzy) prefix
     int32 maxExpansions = 3; // The maximum number of terms to match.
-    bool transpositions = 4; // True if transpositions should be treated as a primitive edit operation. If this is false (default), comparisons will implement the classic Levenshtein algorithm.
+    bool transpositions = 4; // True if transpositions should be treated as a primitive edit operation. If this is false, comparisons will implement the classic Levenshtein algorithm. Default is true.
+    AutoFuzziness auto = 5; // Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting. Either set this or maxEdits.
+
+    // Optional low and high values for auto fuzziness. Defaults to low: 3 and high: 6 if both are unset. Valid values are low >= 0 and low < high
+    message AutoFuzziness {
+        int32 low = 6; // Optional low distance argument.
+        int32 high = 7; // Optional high distance argument.
+    }
 }
 
 // A query that matches documents using boolean combinations of other queries.
@@ -84,6 +91,24 @@ message PrefixQuery {
     RewriteMethod rewrite = 3;
     // Specifies the size to use for the TOP_TERMS* rewrite methods.
     int32 rewriteTopTermsSize = 4;
+}
+
+// Define a message for TermRangeQuery
+message TermRangeQuery {
+    // The field to search
+    string field = 1;
+    // The lower bound of the range
+    string lower_term = 2;
+    // The upper bound of the range
+    string upper_term = 3;
+    // Whether to include the lower bound in the range
+    bool include_lower = 4;
+    // Whether to include the upper bound in the range
+    bool include_upper = 5;
+    // Method used to rewrite the query.
+    RewriteMethod rewrite = 6;
+    // Specifies the size to use for the TOP_TERMS* rewrite methods.
+    int32 rewriteTopTermsSize = 7;
 }
 
 // A query that wraps another query and uses custom scoring logic to compute the wrapped query's score.
@@ -395,6 +420,99 @@ message ConstantScoreQuery {
     Query filter = 1;
 }
 
+// Wrapper message for different types of SpanQuery
+message SpanQuery {
+  oneof query {
+    TermQuery spanTermQuery = 1;
+    SpanNearQuery spanNearQuery = 2;
+    SpanMultiTermQuery spanMultiTermQuery= 3;
+  }
+}
+
+// A query that matches documents containing terms matching a pattern.
+message WildcardQuery {
+    string field = 1;
+    string text = 2;
+    // Method used to rewrite the query.
+    RewriteMethod rewrite = 3;
+    // Specifies the size to use for the TOP_TERMS* rewrite methods.
+    int32 rewriteTopTermsSize = 4;
+}
+
+// A query that matches documents containing terms similar to the specified term.
+message FuzzyQuery {
+    string field = 1;
+    string text = 2;
+    // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2. Either set this or auto. Default is 2.
+    optional int32 maxEdits = 3;
+    // Length of common (non-fuzzy) prefix. Default is 0.
+    optional int32 prefixLength = 4;
+    // The maximum number of terms to match. Default is 50.
+    optional int32 maxExpansions = 5;
+    // True if transpositions should be treated as a primitive edit operation. If this is false, comparisons will implement the classic Levenshtein algorithm. Default is true.
+    optional bool transpositions = 6;
+    // Method used to rewrite the query.
+    RewriteMethod rewrite = 7;
+    // Specifies the size to use for the TOP_TERMS* rewrite methods.
+    int32 rewriteTopTermsSize = 8;
+}
+
+// Message for a SpanMultiTermQuery
+message SpanMultiTermQuery{
+  // The query to be wrapped
+  oneof wrappedQuery {
+      WildcardQuery wildcardQuery = 1;
+      FuzzyQuery fuzzyQuery = 2;
+      PrefixQuery prefixQuery = 3;
+      RegexpQuery regexpQuery = 4;
+      TermRangeQuery termRangeQuery = 5;
+  }
+}
+
+// Enum for RegexpQuery flags
+enum RegexpFlag {
+    // Syntax flag, enables all optional regexp syntax.
+    REGEXP_ALL = 0;
+    // Syntax flag, enables anystring (@).
+    REGEXP_ANYSTRING = 1;
+    // Syntax flag, enables named automata (<identifier>).
+    REGEXP_AUTOMATON = 2;
+    // Syntax flag, enables complement (~).
+    REGEXP_COMPLEMENT = 3;
+    // Syntax flag, enables empty language (#).
+    REGEXP_EMPTY = 4;
+    // Syntax flag, enables intersection (&).
+    REGEXP_INTERSECTION = 5;
+    // Syntax flag, enables numerical intervals ( <n-m>).
+    REGEXP_INTERVAL = 6;
+    // Syntax flag, enables no optional regexp syntax.
+    REGEXP_NONE = 7;
+}
+
+// Message for RegexpQuery
+message RegexpQuery {
+    string field = 1;
+    string text = 2;
+    // Optional flags for the regular expression
+    RegexpFlag flag = 3;
+    // maximum number of states that compiling the automaton for the regexp can result in. Set higher to allow more complex queries and lower to prevent memory exhaustion. Default is 10000.
+    optional int32 maxDeterminizedStates = 4;
+    // Method used to rewrite the query.
+    RewriteMethod rewrite = 5;
+    // Specifies the size to use for the TOP_TERMS* rewrite methods.
+    int32 rewriteTopTermsSize = 6;
+}
+
+// A query that matches documents containing terms within a specified range.
+message SpanNearQuery {
+    // Clauses for a span near query.
+    repeated SpanQuery clauses = 1;
+    // Maximum number of positions between matching terms.
+    int32 slop = 2;
+    // True if the matching terms must be in the same order as the query.
+    bool inOrder = 3;
+}
+
 // Defines different types of QueryNodes.
 enum QueryType {
     NONE = 0;
@@ -419,6 +537,7 @@ enum QueryType {
     PREFIX = 19;
     CONSTANT_SCORE_QUERY = 20;
     GEO_POLYGON = 21;
+    SPAN_QUERY = 22;
 }
 
 // Defines a full query consisting of a QueryNode which may be one of several types.
@@ -449,6 +568,7 @@ message Query {
         PrefixQuery prefixQuery = 22;
         ConstantScoreQuery constantScoreQuery = 23;
         GeoPolygonQuery geoPolygonQuery = 24;
+        SpanQuery spanQuery = 25;
     }
 }
 
@@ -491,8 +611,10 @@ message SearchRequest {
     bool explain = 25;
     // Search nested object fields for each hit
     map<string, InnerHit> inner_hits = 26;
+    // Defines runtime fields for this query
+    repeated RuntimeField runtimeFields = 27;
     // Request kNN vector search queries, results will be combined with the standard query (if provided) using the boolean query SHOULD logic
-    repeated KnnQuery knn = 27;
+    repeated KnnQuery knn = 28;
 }
 
 /* Inner Hit search request */
@@ -517,6 +639,14 @@ message InnerHit {
 message VirtualField {
     Script script = 1; // Script defining this field's values.
     string name = 2; // Virtual field's name. Must be different from registered fields and any other virtual fields.
+}
+
+/* Runtime field used during search */
+message RuntimeField {
+    // Script defining this field's values.
+    Script script = 1;
+    // Runtime field's name. Must be different from registered fields and any other runtime fields.
+    string name = 2;
 }
 
 message Script {
@@ -647,12 +777,12 @@ message SearchResponse {
                 google.protobuf.Struct structValue = 8; // Value for structured data
                 // Value for VECTOR FieldType
                 Vector vectorValue = 9;
+                google.protobuf.ListValue listValue = 10;
             }
 
             message Vector {
                 repeated float value = 1;
             }
-
         }
 
         message CompositeFieldValue {

@@ -104,6 +104,11 @@ Example server configuration
      - Enables gRPC deadline based cancellation of requests. A request is cancelled early if it exceeds the deadline. Currently only supported by the search endpoint.
      - false
 
+   * - lowPriorityCopyPercentage
+     - int
+     - Percentage of gRPC data copy cycles to give priority to low priority (merge pre copy) tasks. The remaining cycles give priority to high priority (nrt point) tasks, if present.
+     - 0
+
    * - plugins
      - list
      - List of plugins located in the ``pluginSearchPath`` to load

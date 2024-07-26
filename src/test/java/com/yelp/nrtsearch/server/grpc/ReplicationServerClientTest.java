@@ -68,7 +68,7 @@ public class ReplicationServerClientTest {
     when(mockGlobalState.getIndex(any(String.class))).thenThrow(new RuntimeException("Expected"));
 
     return ServerBuilder.forPort(0)
-        .addService(new ReplicationServerImpl(mockGlobalState))
+        .addService(new ReplicationServerImpl(mockGlobalState, false))
         .build()
         .start();
   }

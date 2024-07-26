@@ -17,21 +17,10 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
 
-import com.yelp.nrtsearch.server.grpc.ExistsQuery;
-import com.yelp.nrtsearch.server.grpc.FunctionFilterQuery;
-import com.yelp.nrtsearch.server.grpc.GeoBoundingBoxQuery;
-import com.yelp.nrtsearch.server.grpc.GeoPointQuery;
-import com.yelp.nrtsearch.server.grpc.GeoPolygonQuery;
-import com.yelp.nrtsearch.server.grpc.GeoRadiusQuery;
-import com.yelp.nrtsearch.server.grpc.MatchOperator;
-import com.yelp.nrtsearch.server.grpc.MatchPhraseQuery;
-import com.yelp.nrtsearch.server.grpc.MatchQuery;
-import com.yelp.nrtsearch.server.grpc.MultiMatchQuery;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.MultiMatchQuery.MatchType;
-import com.yelp.nrtsearch.server.grpc.PrefixQuery;
-import com.yelp.nrtsearch.server.grpc.RangeQuery;
-import com.yelp.nrtsearch.server.grpc.RewriteMethod;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
+import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
@@ -69,15 +58,25 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.search.suggest.document.MyContextQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 
 /** This class maps our GRPC Query object to a Lucene Query object. */
 public class QueryNodeMapper {
@@ -97,7 +96,12 @@ public class QueryNodeMapper {
               MatchOperator.MUST, BooleanClause.Occur.MUST));
 
   public Query getQuery(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
-    Query queryNode = getQueryNode(query, state);
+    return getQuery(query, state, state.docLookup);
+  }
+
+  public Query getQuery(
+      com.yelp.nrtsearch.server.grpc.Query query, IndexState state, DocLookup docLookup) {
+    Query queryNode = getQueryNode(query, state, docLookup);
 
     if (query.getBoost() < 0) {
       throw new IllegalArgumentException("Boost must be a positive number");
@@ -126,20 +130,21 @@ public class QueryNodeMapper {
     return new TermQuery(new Term(IndexState.NESTED_PATH, indexState.resolveQueryNestedPath(path)));
   }
 
-  private Query getQueryNode(com.yelp.nrtsearch.server.grpc.Query query, IndexState state) {
+  private Query getQueryNode(
+      com.yelp.nrtsearch.server.grpc.Query query, IndexState state, DocLookup docLookup) {
     switch (query.getQueryNodeCase()) {
       case BOOLEANQUERY:
-        return getBooleanQuery(query.getBooleanQuery(), state);
+        return getBooleanQuery(query.getBooleanQuery(), state, docLookup);
       case PHRASEQUERY:
         return getPhraseQuery(query.getPhraseQuery());
       case FUNCTIONSCOREQUERY:
-        return getFunctionScoreQuery(query.getFunctionScoreQuery(), state);
+        return getFunctionScoreQuery(query.getFunctionScoreQuery(), state, docLookup);
       case TERMQUERY:
         return getTermQuery(query.getTermQuery(), state);
       case TERMINSETQUERY:
         return getTermInSetQuery(query.getTermInSetQuery(), state);
       case DISJUNCTIONMAXQUERY:
-        return getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), state);
+        return getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), state, docLookup);
       case MATCHQUERY:
         return getMatchQuery(query.getMatchQuery(), state);
       case MATCHPHRASEQUERY:
@@ -153,7 +158,7 @@ public class QueryNodeMapper {
       case GEOPOINTQUERY:
         return getGeoPointQuery(query.getGeoPointQuery(), state);
       case NESTEDQUERY:
-        return getNestedQuery(query.getNestedQuery(), state);
+        return getNestedQuery(query.getNestedQuery(), state, docLookup);
       case EXISTSQUERY:
         return getExistsQuery(query.getExistsQuery(), state);
       case GEORADIUSQUERY:
@@ -169,7 +174,9 @@ public class QueryNodeMapper {
       case PREFIXQUERY:
         return getPrefixQuery(query.getPrefixQuery(), state);
       case CONSTANTSCOREQUERY:
-        return getConstantScoreQuery(query.getConstantScoreQuery(), state);
+        return getConstantScoreQuery(query.getConstantScoreQuery(), state, docLookup);
+      case SPANQUERY:
+        return getSpanQuery(query.getSpanQuery(), state);
       case GEOPOLYGONQUERY:
         return getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
       case QUERYNODE_NOT_SET:
@@ -206,8 +213,10 @@ public class QueryNodeMapper {
   }
 
   private Query getNestedQuery(
-      com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery, IndexState state) {
-    Query childRawQuery = getQuery(nestedQuery.getQuery(), state);
+      com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery,
+      IndexState state,
+      DocLookup docLookup) {
+    Query childRawQuery = getQuery(nestedQuery.getQuery(), state, docLookup);
     Query childQuery =
         new BooleanQuery.Builder()
             .add(getNestedPathQuery(state, nestedQuery.getPath()), BooleanClause.Occur.FILTER)
@@ -237,7 +246,9 @@ public class QueryNodeMapper {
   }
 
   private BooleanQuery getBooleanQuery(
-      com.yelp.nrtsearch.server.grpc.BooleanQuery booleanQuery, IndexState state) {
+      com.yelp.nrtsearch.server.grpc.BooleanQuery booleanQuery,
+      IndexState state,
+      DocLookup docLookup) {
     BooleanQuery.Builder builder =
         new BooleanQuery.Builder()
             .setMinimumNumberShouldMatch(booleanQuery.getMinimumNumberShouldMatch());
@@ -252,7 +263,7 @@ public class QueryNodeMapper {
         .forEach(
             clause -> {
               com.yelp.nrtsearch.server.grpc.BooleanClause.Occur occur = clause.getOccur();
-              builder.add(getQuery(clause.getQuery(), state), occurMapping.get(occur));
+              builder.add(getQuery(clause.getQuery(), state, docLookup), occurMapping.get(occur));
               if (occur != com.yelp.nrtsearch.server.grpc.BooleanClause.Occur.MUST_NOT) {
                 allMustNot.set(false);
               }
@@ -273,15 +284,17 @@ public class QueryNodeMapper {
   }
 
   private FunctionScoreQuery getFunctionScoreQuery(
-      com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery, IndexState state) {
+      com.yelp.nrtsearch.server.grpc.FunctionScoreQuery functionScoreQuery,
+      IndexState state,
+      DocLookup docLookup) {
     ScoreScript.Factory scriptFactory =
         ScriptService.getInstance().compile(functionScoreQuery.getScript(), ScoreScript.CONTEXT);
 
     Map<String, Object> params =
         ScriptParamsUtils.decodeParams(functionScoreQuery.getScript().getParamsMap());
     return new FunctionScoreQuery(
-        getQuery(functionScoreQuery.getQuery(), state),
-        scriptFactory.newFactory(params, state.docLookup));
+        getQuery(functionScoreQuery.getQuery(), state, docLookup),
+        scriptFactory.newFactory(params, docLookup));
   }
 
   private FunctionMatchQuery getFunctionFilterQuery(
@@ -333,10 +346,12 @@ public class QueryNodeMapper {
   }
 
   private DisjunctionMaxQuery getDisjunctionMaxQuery(
-      com.yelp.nrtsearch.server.grpc.DisjunctionMaxQuery disjunctionMaxQuery, IndexState state) {
+      com.yelp.nrtsearch.server.grpc.DisjunctionMaxQuery disjunctionMaxQuery,
+      IndexState state,
+      DocLookup docLookup) {
     List<Query> disjuncts =
         disjunctionMaxQuery.getDisjunctsList().stream()
-            .map(query -> getQuery(query, state))
+            .map(query -> getQuery(query, state, docLookup))
             .collect(Collectors.toList());
     return new DisjunctionMaxQuery(disjuncts, disjunctionMaxQuery.getTieBreakerMultiplier());
   }
@@ -623,8 +638,158 @@ public class QueryNodeMapper {
 
   private Query getConstantScoreQuery(
       com.yelp.nrtsearch.server.grpc.ConstantScoreQuery constantScoreQueryGrpc,
-      IndexState indexState) {
-    Query filterQuery = getQuery(constantScoreQueryGrpc.getFilter(), indexState);
+      IndexState indexState,
+      DocLookup docLookup) {
+    Query filterQuery = getQuery(constantScoreQueryGrpc.getFilter(), indexState, docLookup);
     return new ConstantScoreQuery(filterQuery);
+  }
+
+  private SpanQuery getSpanQuery(
+      com.yelp.nrtsearch.server.grpc.SpanQuery protoSpanQuery, IndexState state) {
+    List<SpanQuery> clauses = new ArrayList<>();
+
+    com.yelp.nrtsearch.server.grpc.SpanQuery.QueryCase queryCase = protoSpanQuery.getQueryCase();
+    switch (queryCase) {
+      case SPANNEARQUERY:
+        com.yelp.nrtsearch.server.grpc.SpanNearQuery protoSpanNearQuery =
+            protoSpanQuery.getSpanNearQuery();
+        for (com.yelp.nrtsearch.server.grpc.SpanQuery protoClause :
+            protoSpanNearQuery.getClausesList()) {
+          SpanQuery luceneClause = getSpanQuery(protoClause, state);
+          clauses.add(luceneClause);
+        }
+        SpanQuery[] clausesArray = clauses.toArray(new SpanQuery[0]);
+        int slop = protoSpanNearQuery.getSlop();
+        boolean inOrder = protoSpanNearQuery.getInOrder();
+        return new SpanNearQuery(clausesArray, slop, inOrder);
+      case SPANTERMQUERY:
+        com.yelp.nrtsearch.server.grpc.TermQuery protoSpanTermQuery =
+            protoSpanQuery.getSpanTermQuery();
+        return new SpanTermQuery(
+            new Term(protoSpanTermQuery.getField(), protoSpanTermQuery.getTextValue()));
+      case SPANMULTITERMQUERY:
+        com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery =
+            protoSpanQuery.getSpanMultiTermQuery();
+        return getSpanMultiTermQueryWrapper(protoSpanMultiTermQuery, state);
+      default:
+        throw new IllegalArgumentException("Unsupported Span Query: " + protoSpanQuery);
+    }
+  }
+
+  private SpanMultiTermQueryWrapper getSpanMultiTermQueryWrapper(
+      com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery, IndexState state) {
+
+    com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery.WrappedQueryCase wrappedQueryCase =
+        protoSpanMultiTermQuery.getWrappedQueryCase();
+
+    switch (wrappedQueryCase) {
+      case WILDCARDQUERY:
+        WildcardQuery wildcardQuery =
+            new WildcardQuery(
+                new Term(
+                    protoSpanMultiTermQuery.getWildcardQuery().getField(),
+                    protoSpanMultiTermQuery.getWildcardQuery().getText()));
+        wildcardQuery.setRewriteMethod(
+            getRewriteMethod(
+                protoSpanMultiTermQuery.getWildcardQuery().getRewrite(),
+                protoSpanMultiTermQuery.getWildcardQuery().getRewriteTopTermsSize()));
+        return new SpanMultiTermQueryWrapper<>(wildcardQuery);
+      case FUZZYQUERY:
+        FuzzyQuery fuzzyQuery = getFuzzyQuery(protoSpanMultiTermQuery);
+        return new SpanMultiTermQueryWrapper<>(fuzzyQuery);
+      case PREFIXQUERY:
+        Query prefixQuery = getPrefixQuery(protoSpanMultiTermQuery.getPrefixQuery(), state);
+        return new SpanMultiTermQueryWrapper<>((MultiTermQuery) prefixQuery);
+      case REGEXPQUERY:
+        RegexpQuery regexpQuery = getRegexpQuery(protoSpanMultiTermQuery);
+        return new SpanMultiTermQueryWrapper<>(regexpQuery);
+      case TERMRANGEQUERY:
+        TermRangeQuery termRangeQuery =
+            getTermRangeQuery(protoSpanMultiTermQuery.getTermRangeQuery());
+        return new SpanMultiTermQueryWrapper<>(termRangeQuery);
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported Span Multi Query Term Wrapper: " + protoSpanMultiTermQuery);
+    }
+  }
+
+  private static FuzzyQuery getFuzzyQuery(
+      com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery) {
+    com.yelp.nrtsearch.server.grpc.FuzzyQuery protoFuzzyQuery =
+        protoSpanMultiTermQuery.getFuzzyQuery();
+    Term term = new Term(protoFuzzyQuery.getField(), protoFuzzyQuery.getText());
+
+    int maxEdits =
+        protoFuzzyQuery.hasMaxEdits() ? protoFuzzyQuery.getMaxEdits() : FuzzyQuery.defaultMaxEdits;
+
+    int prefixLength =
+        protoFuzzyQuery.hasPrefixLength()
+            ? protoFuzzyQuery.getPrefixLength()
+            : FuzzyQuery.defaultPrefixLength;
+
+    int maxExpansions =
+        protoFuzzyQuery.hasMaxExpansions()
+            ? protoFuzzyQuery.getMaxExpansions()
+            : FuzzyQuery.defaultMaxExpansions;
+
+    // Set the default transpositions to true, if it is not provided.
+    boolean transpositions =
+        protoFuzzyQuery.hasTranspositions()
+            ? protoFuzzyQuery.getTranspositions()
+            : FuzzyQuery.defaultTranspositions;
+
+    FuzzyQuery fuzzyQuery =
+        new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions);
+    fuzzyQuery.setRewriteMethod(
+        getRewriteMethod(protoFuzzyQuery.getRewrite(), protoFuzzyQuery.getRewriteTopTermsSize()));
+    return fuzzyQuery;
+  }
+
+  private static RegexpQuery getRegexpQuery(
+      com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery) {
+
+    com.yelp.nrtsearch.server.grpc.RegexpQuery protoRegexpQuery =
+        protoSpanMultiTermQuery.getRegexpQuery();
+
+    Term term = new Term(protoRegexpQuery.getField(), protoRegexpQuery.getText());
+
+    int flags =
+        switch (protoRegexpQuery.getFlag()) {
+          case REGEXP_ALL -> RegExp.ALL;
+          case REGEXP_ANYSTRING -> RegExp.ANYSTRING;
+          case REGEXP_AUTOMATON -> RegExp.AUTOMATON;
+          case REGEXP_COMPLEMENT -> RegExp.COMPLEMENT;
+          case REGEXP_EMPTY -> RegExp.EMPTY;
+          case REGEXP_INTERSECTION -> RegExp.INTERSECTION;
+          case REGEXP_INTERVAL -> RegExp.INTERVAL;
+          case REGEXP_NONE -> RegExp.NONE;
+          default -> RegExp.ALL;
+        };
+
+    int maxDeterminizedStates =
+        protoRegexpQuery.hasMaxDeterminizedStates()
+            ? protoRegexpQuery.getMaxDeterminizedStates()
+            : Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+
+    RegexpQuery regexpQuery = new RegexpQuery(term, flags, maxDeterminizedStates);
+    regexpQuery.setRewriteMethod(
+        getRewriteMethod(protoRegexpQuery.getRewrite(), protoRegexpQuery.getRewriteTopTermsSize()));
+    return regexpQuery;
+  }
+
+  private static TermRangeQuery getTermRangeQuery(
+      com.yelp.nrtsearch.server.grpc.TermRangeQuery protoTermRangeQuery) {
+
+    TermRangeQuery termRangeQuery =
+        new TermRangeQuery(
+            protoTermRangeQuery.getField(),
+            new BytesRef(protoTermRangeQuery.getLowerTerm()),
+            new BytesRef(protoTermRangeQuery.getUpperTerm()),
+            protoTermRangeQuery.getIncludeLower(),
+            protoTermRangeQuery.getIncludeUpper());
+    termRangeQuery.setRewriteMethod(
+        getRewriteMethod(
+            protoTermRangeQuery.getRewrite(), protoTermRangeQuery.getRewriteTopTermsSize()));
+    return termRangeQuery;
   }
 }
