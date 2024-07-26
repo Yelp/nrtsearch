@@ -20,6 +20,7 @@ import static org.junit.Assert.assertNotNull;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.*;
+import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptContext;
@@ -191,7 +192,8 @@ public class QueryNodeMapperTest extends ServerTestCase {
     try {
       s = shardState.acquire();
       SearchContext context =
-          SearchRequestProcessor.buildContextForRequest(request, indexState, shardState, s, null);
+          SearchRequestProcessor.buildContextForRequest(
+              request, indexState, shardState, s, Diagnostics.newBuilder(), null);
       org.apache.lucene.queries.function.FunctionScoreQuery query =
           (org.apache.lucene.queries.function.FunctionScoreQuery) context.getQuery();
       assertNotNull(query);

@@ -15,9 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import static org.apache.lucene.search.BoostAttribute.DEFAULT_BOOST;
-
 import static com.yelp.nrtsearch.server.utils.QueryUtils.computeMaxEditsFromTermLength;
+import static org.apache.lucene.search.BoostAttribute.DEFAULT_BOOST;
 
 import com.yelp.nrtsearch.server.grpc.FuzzyParams;
 import org.apache.lucene.analysis.Analyzer;
