@@ -38,19 +38,21 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.PolygonfieldDef;
+import com.yelp.nrtsearch.server.luceneserver.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
+import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript;
 import com.yelp.nrtsearch.server.luceneserver.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchCutoffWrapper.CollectionTimeoutException;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
+import com.yelp.nrtsearch.server.utils.ObjectToCompositeFieldTransformer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -771,7 +773,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       // We detect invalid field above:
       assert fd != null;
-
       if (fd instanceof VirtualFieldDef) {
         VirtualFieldDef virtualFieldDef = (VirtualFieldDef) fd;
 
@@ -794,6 +795,18 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         doubleValues.advanceExact(docID);
         compositeFieldValue.addFieldValue(
             FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
+      } else if (fd instanceof RuntimeFieldDef) {
+        RuntimeFieldDef runtimeFieldDef = (RuntimeFieldDef) fd;
+        RuntimeScript.SegmentFactory segmentFactory = runtimeFieldDef.getSegmentFactory();
+        RuntimeScript values = segmentFactory.newInstance(leaf);
+        int docID = hit.getLuceneDocId() - leaf.docBase;
+        // Check if the value is available for the current document
+        if (values != null) {
+          values.setDocId(docID);
+          Object obj = values.execute();
+          ObjectToCompositeFieldTransformer.enrichCompositeField(obj, compositeFieldValue);
+        }
+
       } else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).hasDocValues()) {
         int docID = hit.getLuceneDocId() - leaf.docBase;
         // it may be possible to cache this if there are multiple hits in the same segment
@@ -802,6 +815,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         for (int i = 0; i < docValues.size(); ++i) {
           compositeFieldValue.addFieldValue(docValues.toFieldValue(i));
         }
+
       }
       // retrieve stored fields
       else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
@@ -912,6 +926,12 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
               sliceSegment,
               fieldDefEntry.getKey(),
               (VirtualFieldDef) fieldDefEntry.getValue());
+        } else if (fieldDefEntry.getValue() instanceof RuntimeFieldDef) {
+          fetchRuntimeFromSegmentFactory(
+              sliceHits,
+              sliceSegment,
+              fieldDefEntry.getKey(),
+              (RuntimeFieldDef) fieldDefEntry.getValue());
         } else if (fieldDefEntry.getValue() instanceof IndexableFieldDef) {
           IndexableFieldDef indexableFieldDef = (IndexableFieldDef) fieldDefEntry.getValue();
           if (indexableFieldDef.hasDocValues()) {
@@ -969,6 +989,30 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         compositeFieldValue.addFieldValue(
             SearchResponse.Hit.FieldValue.newBuilder().setDoubleValue(doubleValues.doubleValue()));
         hit.putFields(name, compositeFieldValue.build());
+      }
+    }
+
+    /** Fetch field value from runtime field's Object. */
+    private static void fetchRuntimeFromSegmentFactory(
+        List<SearchResponse.Hit.Builder> sliceHits,
+        LeafReaderContext sliceSegment,
+        String name,
+        RuntimeFieldDef runtimeFieldDef)
+        throws IOException {
+      RuntimeScript.SegmentFactory segmentFactory = runtimeFieldDef.getSegmentFactory();
+      RuntimeScript values = segmentFactory.newInstance(sliceSegment);
+
+      for (SearchResponse.Hit.Builder hit : sliceHits) {
+        int docID = hit.getLuceneDocId() - sliceSegment.docBase;
+        // Check if the value is available for the current document
+        if (values != null) {
+          values.setDocId(docID);
+          Object obj = values.execute();
+          SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
+              SearchResponse.Hit.CompositeFieldValue.newBuilder();
+          ObjectToCompositeFieldTransformer.enrichCompositeField(obj, compositeFieldValue);
+          hit.putFields(name, compositeFieldValue.build());
+        }
       }
     }
 
@@ -1065,7 +1109,7 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
   private static String msecToDateString(DateTimeFieldDef fd, long value) {
     // nocommit use CTL to reuse these?
-    return fd.getDateTimeParser().parser.format(new Date(value));
+    return fd.formatEpochMillis(value);
   }
 
   public static class SearchHandlerException extends HandlerException {

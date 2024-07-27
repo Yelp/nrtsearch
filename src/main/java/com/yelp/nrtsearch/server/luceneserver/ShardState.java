@@ -948,6 +948,7 @@ public class ShardState implements Closeable {
       nrtReplicaNode =
           new NRTReplicaNode(
               indexState.getName(),
+              indexStateManager.getIndexId(),
               primaryAddress,
               hostPort,
               REPLICA_ID,
@@ -956,7 +957,8 @@ public class ShardState implements Closeable {
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
               configuration.getFileCopyConfig().getAckedCopy(),
               configuration.getDecInitialCommit(),
-              configuration.getFilterIncompatibleSegmentReaders());
+              configuration.getFilterIncompatibleSegmentReaders(),
+              configuration.getLowPriorityCopyPercentage());
       if (primaryGen != -1) {
         nrtReplicaNode.start(primaryGen);
       } else {
@@ -1083,6 +1085,7 @@ public class ShardState implements Closeable {
                 .getPrimaryAddress()
                 .addReplicas(
                     shardState.indexStateManager.getCurrent().getName(),
+                    shardState.indexStateManager.getIndexId(),
                     REPLICA_ID,
                     nrtReplicaNode.getHostPort().getHostName(),
                     nrtReplicaNode.getHostPort().getPort());

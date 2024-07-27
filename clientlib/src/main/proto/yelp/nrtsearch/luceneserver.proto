@@ -501,6 +501,8 @@ enum FieldType {
     // List of float values
     VECTOR = 15;
     CONTEXT_SUGGEST = 16; //Field used for contextual suggest fields
+    // Runtime fields
+    RUNTIME = 17;
 }
 
 //How the tokens should be indexed.
@@ -542,7 +544,7 @@ message Field {
     bool multiValued = 9; // True if this field may sometimes have more than one value.
     bool highlight = 10 [deprecated = true]; // This parameter would be ignored
     bool omitNorms = 11; // True if norms are omitted.
-    string dateTimeFormat = 12; // Format string used to parse datetime fields, supported values are: 1) DateTimeFormatter format 2) "epoch_millis" (datetime value is epoch timestamp)
+    string dateTimeFormat = 12; // Format string used to parse datetime fields, supported values are: 1) DateTimeFormatter format 2) "epoch_millis" (datetime value is epoch timestamp) 3) "strict_date_optional_time" (date with optional time in pattern of "yyyy-MM-dd['T'HH:mm:ss[.SSS]]")
     string postingsFormat = 13; // Which PostingsFormat should be used to index this field.
     string docValuesFormat = 14; // Which DocValuesFormat should be used to index this field.
     IndexOptions indexOptions = 15; //How the tokens should be indexed.
@@ -860,6 +862,8 @@ message AddReplicaRequest {
     int32 replicaId = 3; //replica Id
     string hostName = 4; // replica host name
     int32 port = 5; // replica port number
+    // index id
+    string indexId = 6;
 }
 
 message AddReplicaResponse {
@@ -899,6 +903,8 @@ message CopyFiles {
     string indexName = 2; //index name
     int64 primaryGen = 3; //primary, the generation of this primary (should increment each time a new primary starts for this index)
     FilesMetadata filesMetadata = 4; //file metadata to copy
+    // index id
+    string indexId = 5;
 }
 
 /** Replica invokes this on a primary to let primary know it needs the CopyState */
@@ -906,13 +912,8 @@ message CopyStateRequest {
     int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
     string indexName = 2; //index name
     int32 replicaId = 3; //replica Id
-}
-
-message FilesInfo {
-    int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
-    string indexName = 2; //index name
-    int32 replicaId = 3; //replica Id
-    repeated FileInfo fileInfo = 4; //list of file name and offsets from where primary should start sending bytes to replica
+    // index id
+    string indexId = 4;
 }
 
 message FileInfo {
@@ -921,6 +922,8 @@ message FileInfo {
     string indexName = 3; //index name these files belong to
     // sequence number to ack, only used for acked file copy
     int32 ackSeqNum = 4;
+    // index id
+    string indexId = 5;
 }
 
 message RawFileChunk {
@@ -960,6 +963,8 @@ message NewNRTPoint {
     string indexName = 2; //index name
     int64 primaryGen = 3; //primary, the generation of this primary (should increment each time a new primary starts for this index)
     int64 version = 4; //version number when this SegmentInfos was generated
+    // index id
+    string indexId = 5;
 }
 
 message IndexName {

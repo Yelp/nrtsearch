@@ -48,6 +48,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.utils.FileUtil;
@@ -115,6 +116,7 @@ public class TestServer {
   private Server server;
   private Server replicationServer;
   private LuceneServerClient client;
+  private ReplicationServerClient replicationClient;
   private LuceneServerImpl serverImpl;
   private Archiver indexArchiver;
   private RemoteBackend remoteBackend;
@@ -203,7 +205,9 @@ public class TestServer {
 
     replicationServer =
         ServerBuilder.forPort(0)
-            .addService(new ReplicationServerImpl(serverImpl.getGlobalState()))
+            .addService(
+                new ReplicationServerImpl(
+                    serverImpl.getGlobalState(), configuration.getVerifyReplicationIndexId()))
             .build()
             .start();
     serverImpl.getGlobalState().replicationStarted(replicationServer.getPort());
@@ -214,6 +218,7 @@ public class TestServer {
 
     server = ServerBuilder.forPort(0).addService(serverImpl).build().start();
     client = new LuceneServerClient("localhost", server.getPort());
+    replicationClient = new ReplicationServerClient("localhost", replicationServer.getPort());
   }
 
   private void writeDiscoveryFile(int replicationPort) throws IOException {
@@ -250,6 +255,10 @@ public class TestServer {
 
   public LuceneServerClient getClient() {
     return client;
+  }
+
+  public ReplicationServerClient getReplicationClient() {
+    return replicationClient;
   }
 
   public Archiver getIndexArchiver() {
@@ -300,6 +309,10 @@ public class TestServer {
       } catch (InterruptedException ignore) {
       }
       server = null;
+    }
+    if (replicationClient != null) {
+      replicationClient.close();
+      replicationClient = null;
     }
     if (replicationServer != null) {
       replicationServer.shutdown();
@@ -590,7 +603,8 @@ public class TestServer {
   }
 
   public void registerWithPrimary(String indexName, long timeoutMs) throws IOException {
-    ShardState shardState = getGlobalState().getIndex(indexName).getShard(0);
+    IndexStateManager indexStateManager = getGlobalState().getIndexStateManager(indexName);
+    ShardState shardState = indexStateManager.getCurrent().getShard(0);
     if (!shardState.isReplica()) {
       throw new IllegalStateException("Must be called on replica index");
     }
@@ -599,6 +613,7 @@ public class TestServer {
         AddReplicaRequest.newBuilder()
             .setMagicNumber(BINARY_MAGIC)
             .setIndexName(indexName)
+            .setIndexId(indexStateManager.getIndexId())
             .setReplicaId(ShardState.REPLICA_ID)
             .setHostName("localhost")
             .setPort(getGlobalState().getReplicationPort())

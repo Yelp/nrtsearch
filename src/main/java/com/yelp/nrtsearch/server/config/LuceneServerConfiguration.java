@@ -111,6 +111,8 @@ public class LuceneServerConfiguration {
   private final boolean savePluginBeforeUnzip;
 
   private final boolean enableGlobalBucketAccess;
+  private final int lowPriorityCopyPercentage;
+  private final boolean verifyReplicationIndexId;
 
   @Inject
   public LuceneServerConfiguration(InputStream yamlStream) {
@@ -182,6 +184,8 @@ public class LuceneServerConfiguration {
         configReader.getBoolean("filterIncompatibleSegmentReaders", false);
     savePluginBeforeUnzip = configReader.getBoolean("savePluginBeforeUnzip", false);
     enableGlobalBucketAccess = configReader.getBoolean("enableGlobalBucketAccess", false);
+    lowPriorityCopyPercentage = configReader.getInteger("lowPriorityCopyPercentage", 0);
+    verifyReplicationIndexId = configReader.getBoolean("verifyReplicationIndexId", true);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
     Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();
@@ -368,6 +372,14 @@ public class LuceneServerConfiguration {
 
   public boolean getEnableGlobalBucketAccess() {
     return enableGlobalBucketAccess;
+  }
+
+  public int getLowPriorityCopyPercentage() {
+    return lowPriorityCopyPercentage;
+  }
+
+  public boolean getVerifyReplicationIndexId() {
+    return verifyReplicationIndexId;
   }
 
   public IndexLiveSettings getLiveSettingsOverride(String indexName) {

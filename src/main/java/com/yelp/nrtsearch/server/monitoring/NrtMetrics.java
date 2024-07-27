@@ -112,6 +112,13 @@ public class NrtMetrics {
           .labelNames("index")
           .create();
 
+  public static final Counter nrtAckedCopyMB =
+      Counter.build()
+          .name("nrt_acked_copy_mb")
+          .help("Total acked data copied.")
+          .labelNames("index")
+          .create();
+
   /**
    * Add all nrt metrics to the collector registry.
    *
@@ -129,5 +136,6 @@ public class NrtMetrics {
     registry.register(nrtMergeTime);
     registry.register(nrtMergeCopyStartCount);
     registry.register(nrtMergeCopyEndCount);
+    registry.register(nrtAckedCopyMB);
   }
 }

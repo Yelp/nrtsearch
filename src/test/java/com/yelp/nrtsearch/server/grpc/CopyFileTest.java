@@ -56,7 +56,7 @@ public class CopyFileTest {
     grpcCleanup.register(
         InProcessServerBuilder.forName(serverName)
             .directExecutor()
-            .addService(new LuceneServer.ReplicationServerImpl(null))
+            .addService(new LuceneServer.ReplicationServerImpl(null, false))
             .build()
             .start());
 

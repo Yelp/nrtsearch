@@ -13,12 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver;
+package com.yelp.nrtsearch.server.luceneserver.nrt;
 
+import com.yelp.nrtsearch.server.luceneserver.SimpleCopyJob;
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Locale;
-import java.util.PriorityQueue;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.Node;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -29,18 +28,35 @@ import org.slf4j.LoggerFactory;
  * Runs CopyJob(s) in background thread; each ReplicaNode has an instance of this running. At a
  * given there could be one NRT copy job running, and multiple pre-warm merged segments jobs.
  */
-class Jobs extends Thread implements Closeable {
-  private static final Logger logger = LoggerFactory.getLogger(Jobs.class);
-
-  private final PriorityQueue<CopyJob> queue = new PriorityQueue<>();
-
+public abstract class NrtCopyThread extends Thread implements Closeable {
+  private static final Logger logger = LoggerFactory.getLogger(NrtCopyThread.class);
   private final Node node;
+  private boolean finish;
 
-  public Jobs(Node node) {
+  public NrtCopyThread(Node node) {
     this.node = node;
   }
 
-  private boolean finish;
+  /**
+   * Returns true if there is a job to run. This method will be called under synchronization.
+   *
+   * @return true if there is a job to run
+   */
+  abstract boolean hasJob();
+
+  /**
+   * Returns the next job to run. This method will be called under synchronization.
+   *
+   * @return the next job to run
+   */
+  abstract CopyJob getJob();
+
+  /**
+   * Adds a job to the queue. This method will be called under synchronization.
+   *
+   * @param job the job to add
+   */
+  abstract void addJob(CopyJob job);
 
   /**
    * Returns null if we are closing, else, returns the top job or waits for one to arrive if the
@@ -50,14 +66,14 @@ class Jobs extends Thread implements Closeable {
     while (true) {
       if (finish) {
         return null;
-      } else if (queue.isEmpty()) {
+      } else if (!hasJob()) {
         try {
           wait();
         } catch (InterruptedException ie) {
           throw new RuntimeException(ie);
         }
       } else {
-        return (SimpleCopyJob) queue.poll();
+        return (SimpleCopyJob) getJob();
       }
     }
   }
@@ -104,7 +120,7 @@ class Jobs extends Thread implements Closeable {
       if (result == false) {
         // Job isn't done yet; put it back:
         synchronized (this) {
-          queue.offer(topJob);
+          addJob(topJob);
         }
       } else {
         // Job finished, now notify caller:
@@ -128,8 +144,8 @@ class Jobs extends Thread implements Closeable {
 
     synchronized (this) {
       // Gracefully cancel any jobs we didn't finish:
-      while (queue.isEmpty() == false) {
-        SimpleCopyJob job = (SimpleCopyJob) queue.poll();
+      while (hasJob()) {
+        SimpleCopyJob job = (SimpleCopyJob) getJob();
         node.message("top: Jobs: now cancel job=" + job);
         try {
           job.cancel("jobs closing", null);
@@ -147,21 +163,10 @@ class Jobs extends Thread implements Closeable {
 
   public synchronized void launch(CopyJob job) {
     if (finish == false) {
-      queue.offer(job);
+      addJob(job);
       notify();
     } else {
       throw new AlreadyClosedException("closed");
-    }
-  }
-
-  /** Cancels any existing jobs that are copying the same file names as this one */
-  public synchronized void cancelConflictingJobs(CopyJob newJob) throws IOException {
-    for (CopyJob job : queue) {
-      if (job.conflicts(newJob)) {
-        node.message(
-            "top: now cancel existing conflicting job=" + job + " due to newJob=" + newJob);
-        job.cancel("conflicts with new job", null);
-      }
     }
   }
 

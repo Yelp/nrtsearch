@@ -119,6 +119,7 @@ public class FieldUpdateHandler {
       parseVirtualField(field, fieldStateBuilder);
       newFields.put(field.getName(), field);
     }
+
     return new UpdatedFieldInfo(newFields, fieldStateBuilder.build());
   }
 
