@@ -27,6 +27,7 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TotalHits;
 
 /**
  * Collector manager wrapper that terminates collection after a given number of documents. This doc
@@ -42,6 +43,7 @@ public class TerminateAfterWrapper<C extends Collector>
   private final int terminateAfter;
   private final Runnable onEarlyTerminate;
   private final AtomicInteger collectedDocCount;
+  private final boolean trackTotalHits;
 
   /**
    * Constructor.
@@ -51,11 +53,15 @@ public class TerminateAfterWrapper<C extends Collector>
    * @param onEarlyTerminate action to perform if collection terminated early (done in reduce call)
    */
   public TerminateAfterWrapper(
-      CollectorManager<C, SearcherResult> in, int terminateAfter, Runnable onEarlyTerminate) {
+      CollectorManager<C, SearcherResult> in,
+      int terminateAfter,
+      Runnable onEarlyTerminate,
+      boolean trackTotalHits) {
     this.in = in;
     this.terminateAfter = terminateAfter;
     this.onEarlyTerminate = onEarlyTerminate;
     this.collectedDocCount = new AtomicInteger();
+    this.trackTotalHits = trackTotalHits;
   }
 
   @Override
@@ -77,7 +83,15 @@ public class TerminateAfterWrapper<C extends Collector>
     if (didTerminateEarly) {
       onEarlyTerminate.run();
     }
-    return in.reduce(innerCollectors);
+    SearcherResult searcherResult = in.reduce(innerCollectors);
+    if (trackTotalHits) {
+      int totalHits = 0;
+      for (TerminateAfterCollectorWrapper collector : collectors) {
+        totalHits += collector.localDocCount;
+      }
+      searcherResult.getTopDocs().totalHits = new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO);
+    }
+    return searcherResult;
   }
 
   /** Get the collector manager being wrapped. */
@@ -98,6 +112,7 @@ public class TerminateAfterWrapper<C extends Collector>
 
     private final C collector;
     private boolean terminatedEarly = false;
+    private int localDocCount = 0;
 
     public TerminateAfterCollectorWrapper(C collector) {
       this.collector = collector;
@@ -105,7 +120,7 @@ public class TerminateAfterWrapper<C extends Collector>
 
     @Override
     public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
-      if (terminatedEarly) {
+      if (terminatedEarly && !trackTotalHits) {
         throw new CollectionTerminatedException();
       }
       return new TerminateAfterLeafCollectorWrapper(collector.getLeafCollector(context));
@@ -135,9 +150,17 @@ public class TerminateAfterWrapper<C extends Collector>
 
       @Override
       public void collect(int doc) throws IOException {
+        localDocCount++;
+        if (terminatedEarly && trackTotalHits) {
+          return;
+        }
         if (collectedDocCount.incrementAndGet() > terminateAfter) {
           terminatedEarly = true;
-          throw new CollectionTerminatedException();
+          if (!trackTotalHits) {
+            throw new CollectionTerminatedException();
+          } else {
+            return;
+          }
         }
         leafCollector.collect(doc);
       }

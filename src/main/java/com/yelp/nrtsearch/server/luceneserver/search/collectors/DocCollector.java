@@ -187,7 +187,7 @@ public abstract class DocCollector {
             ? request.getTerminateAfter()
             : indexState.getDefaultTerminateAfter();
     if (terminateAfter > 0) {
-      wrapped = new TerminateAfterWrapper<>(wrapped, terminateAfter, () -> terminatedEarly = true);
+      wrapped = new TerminateAfterWrapper<>(wrapped, terminateAfter, () -> terminatedEarly = true, true);
     }
     if (request.getProfile()) {
       statsWrapper = new SearchStatsWrapper<>(wrapped);
