@@ -9,8 +9,7 @@
     },
     {
       "name": "negWeight",
-      "type": "FLOAT",
-      "sort": true
+      "type": "FLOAT"
     },
     {
       "name": "payload",
