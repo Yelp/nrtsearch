@@ -90,7 +90,7 @@ public abstract class NumberFieldDef extends IndexableFieldDef
   }
 
   protected DocValuesType parseDocValuesType(Field requestField) {
-    if (requestField.getStoreDocValues() || requestField.getSort() || requestField.getGroup()) {
+    if (requestField.getStoreDocValues()) {
       if (requestField.getMultiValued()) {
         return DocValuesType.SORTED_NUMERIC;
       } else {

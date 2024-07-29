@@ -71,7 +71,7 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQu
   }
 
   protected DocValuesType parseDocValuesType(Field requestField) {
-    if (requestField.getSort() || requestField.getStoreDocValues()) {
+    if (requestField.getStoreDocValues()) {
       return DocValuesType.SORTED_NUMERIC;
     }
     return DocValuesType.NONE;
