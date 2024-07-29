@@ -3119,6 +3119,10 @@
         "vectorIndexingOptions": {
           "$ref": "#/definitions/luceneserverVectorIndexingOptions",
           "description": "Indexing options for search enabled VECTOR field type. This is optional, defaulting to HNSW with m=16, ef_construction=100 when not set."
+        },
+        "textDocValuesType": {
+          "$ref": "#/definitions/luceneserverTextDocValuesType",
+          "description": "Specify docvalues type for TEXT/ATOM field types. This is optional, defaulting to SORTED for TEXT and BINARY for ATOM when not set. Multivalued fields will always use SORTED_SET."
         }
       }
     },
@@ -5545,6 +5549,15 @@
         }
       },
       "description": "Definition of term aggregating collector."
+    },
+    "luceneserverTextDocValuesType": {
+      "type": "string",
+      "enum": [
+        "TEXT_DOC_VALUES_TYPE_UNSPECIFIED",
+        "TEXT_DOC_VALUES_TYPE_BINARY",
+        "TEXT_DOC_VALUES_TYPE_SORTED"
+      ],
+      "default": "TEXT_DOC_VALUES_TYPE_UNSPECIFIED"
     },
     "luceneserverTopHitsCollector": {
       "type": "object",
