@@ -532,6 +532,12 @@ enum FacetType {
     SORTED_SET_DOC_VALUES = 4; //Uses SortedSetDocValuesFacetCounts, which must be flat but don't require a taxonomy index
 }
 
+enum TextDocValuesType {
+    TEXT_DOC_VALUES_TYPE_UNSPECIFIED = 0;
+    TEXT_DOC_VALUES_TYPE_BINARY = 1;
+    TEXT_DOC_VALUES_TYPE_SORTED = 2;
+}
+
 message Field {
     string name = 1; // name of the field
     FieldType type = 2;
@@ -571,6 +577,8 @@ message Field {
     string vectorSimilarity = 31;
     // Indexing options for search enabled VECTOR field type. This is optional, defaulting to HNSW with m=16, ef_construction=100 when not set.
     VectorIndexingOptions vectorIndexingOptions = 32;
+    //  Specify docvalues type for TEXT/ATOM field types. This is optional, defaulting to SORTED for TEXT and BINARY for ATOM when not set. Multivalued fields will always use SORTED_SET.
+    TextDocValuesType textDocValuesType = 33;
 }
 
 // Options for indexing a VECTOR field for search
