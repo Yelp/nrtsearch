@@ -192,9 +192,8 @@ public class ScoreScriptTest {
       try {
         LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
-        assertEquals(
-            "doc_id class", LoadedDocValues.SingleBinaryString.class, idDocValues.getClass());
-        String id = ((LoadedDocValues.SingleBinaryString) idDocValues).get(0);
+        assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
+        String id = ((LoadedDocValues.SingleString) idDocValues).get(0);
 
         List<Integer> expectedLicenseNo = null;
         List<Integer> expectedCount = null;
@@ -355,9 +354,8 @@ public class ScoreScriptTest {
       try {
         LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
-        assertEquals(
-            "doc_id class", LoadedDocValues.SingleBinaryString.class, idDocValues.getClass());
-        String id = ((LoadedDocValues.SingleBinaryString) idDocValues).get(0);
+        assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
+        String id = ((LoadedDocValues.SingleString) idDocValues).get(0);
 
         List<Integer> expectedLicenseNo = null;
         List<String> expectedVendorName = null;
@@ -465,9 +463,8 @@ public class ScoreScriptTest {
       try {
         LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
-        assertEquals(
-            "doc_id class", LoadedDocValues.SingleBinaryString.class, idDocValues.getClass());
-        String id = ((LoadedDocValues.SingleBinaryString) idDocValues).get(0);
+        assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
+        String id = ((LoadedDocValues.SingleString) idDocValues).get(0);
 
         if (id.equals("1")) {
           assertEquals(0.516, get_score(), 0.001);
@@ -497,8 +494,7 @@ public class ScoreScriptTest {
       try {
         LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
-        assertEquals(
-            "doc_id class", LoadedDocValues.SingleBinaryString.class, idDocValues.getClass());
+        assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
         assertEquals("doc_id exists", 1, idDocValues.size());
 
         assertEmptyDocValues("license_no", getDoc());
@@ -537,8 +533,7 @@ public class ScoreScriptTest {
       try {
         LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
-        assertEquals(
-            "doc_id class", LoadedDocValues.SingleBinaryString.class, idDocValues.getClass());
+        assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
         assertEquals("doc_id exists", 1, idDocValues.size());
 
         assertEmptyDocValues("license_no", getDoc());
@@ -567,8 +562,7 @@ public class ScoreScriptTest {
       try {
         LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
-        assertEquals(
-            "doc_id class", LoadedDocValues.SingleBinaryString.class, idDocValues.getClass());
+        assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
         assertEquals("doc_id exists", 1, idDocValues.size());
 
         try {
@@ -685,9 +679,8 @@ public class ScoreScriptTest {
 
         LoadedDocValues<?> idDocValues = getDoc().get("doc_id");
         assertEquals("doc_id size", 1, idDocValues.size());
-        assertEquals(
-            "doc_id class", LoadedDocValues.SingleBinaryString.class, idDocValues.getClass());
-        String id = ((LoadedDocValues.SingleBinaryString) idDocValues).get(0);
+        assertEquals("doc_id class", LoadedDocValues.SingleString.class, idDocValues.getClass());
+        String id = ((LoadedDocValues.SingleString) idDocValues).get(0);
 
         LoadedDocValues<?> docValues = getDoc().get(vectorFieldName);
         assertNotNull(vectorFieldName + " is null", docValues);
