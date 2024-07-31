@@ -534,7 +534,9 @@ enum FacetType {
 
 enum TextDocValuesType {
     TEXT_DOC_VALUES_TYPE_UNSPECIFIED = 0;
+    // Binary docvalues support text longer than 32766 bytes and are good when most values are unique or you need to use aggregations on the field.
     TEXT_DOC_VALUES_TYPE_BINARY = 1;
+    // Sorted docvalues only store values shorter than 32766 bytes and are better when most values are not unique.
     TEXT_DOC_VALUES_TYPE_SORTED = 2;
 }
 
@@ -577,7 +579,7 @@ message Field {
     string vectorSimilarity = 31;
     // Indexing options for search enabled VECTOR field type. This is optional, defaulting to HNSW with m=16, ef_construction=100 when not set.
     VectorIndexingOptions vectorIndexingOptions = 32;
-    //  Specify docvalues type for TEXT/ATOM field types. This is optional, defaulting to SORTED for TEXT and BINARY for ATOM when not set. Multivalued fields will always use SORTED_SET.
+    //  Specify docvalues type for TEXT/ATOM field types. This is optional, defaulting to SORTED when not set. Multivalued fields will always use SORTED_SET.
     TextDocValuesType textDocValuesType = 33;
 }
 
