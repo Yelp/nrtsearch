@@ -4,15 +4,13 @@
     {
       "name": "atom_field",
       "type": "ATOM",
-      "storeDocValues": true,
-      "textDocValuesType": "TEXT_DOC_VALUES_TYPE_SORTED"
+      "storeDocValues": true
     },
     {
       "name": "eager_atom_field",
       "type": "ATOM",
       "storeDocValues": true,
-      "eagerFieldGlobalOrdinals": true,
-      "textDocValuesType": "TEXT_DOC_VALUES_TYPE_SORTED"
+      "eagerFieldGlobalOrdinals": true
     },
     {
       "name": "atom_field_multi",
