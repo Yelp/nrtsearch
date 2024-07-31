@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IndexOptions;
 import com.yelp.nrtsearch.server.grpc.TermVectors;
+import com.yelp.nrtsearch.server.grpc.TextDocValuesType;
 import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
@@ -89,8 +90,11 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
   protected void validateRequest(Field requestField) {
     super.validateRequest(requestField);
 
-    if (requestField.getSort()) {
-      throw new IllegalArgumentException("sort: Cannot sort text fields; use atom instead");
+    if (requestField.getMultiValued()
+        && requestField.getTextDocValuesType() == TextDocValuesType.TEXT_DOC_VALUES_TYPE_BINARY) {
+      throw new IllegalArgumentException(
+          "Cannot use binary doc values with multiValued fields, invalid field "
+              + requestField.getName());
     }
 
     if (!requestField.getSearch() && requestField.getTermVectors() != TermVectors.NO_TERMVECTORS) {
@@ -102,19 +106,17 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
 
   @Override
   protected DocValuesType parseDocValuesType(Field requestField) {
-    if (requestField.getGroup()) {
-      return DocValuesType.SORTED;
-    } else if (requestField.getStoreDocValues()) {
-      // needed to support multivalued text fields even though its not grouped
-      // since neither BINARY nor SORTED allows for multiValued fields during indexing
-      if (requestField.getMultiValued()) {
-        return DocValuesType.SORTED_SET;
-      } else {
-        return DocValuesType.SORTED;
-      }
-    } else {
+    if (!requestField.getStoreDocValues()) {
       return DocValuesType.NONE;
     }
+    if (requestField.getMultiValued()) {
+      // Binary doc values are not supported for multivalued fields
+      return DocValuesType.SORTED_SET;
+    }
+    if (requestField.getTextDocValuesType() == TextDocValuesType.TEXT_DOC_VALUES_TYPE_BINARY) {
+      return DocValuesType.BINARY;
+    }
+    return DocValuesType.SORTED;
   }
 
   @Override

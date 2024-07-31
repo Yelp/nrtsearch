@@ -45,65 +45,56 @@
       "name": "int_field",
       "type": "INT",
       "search": true,
-      "storeDocValues": true,
-      "sort": true
+      "storeDocValues": true
     },
     {
       "name": "long_field",
       "type": "LONG",
       "search": true,
-      "storeDocValues": true,
-      "sort": true
+      "storeDocValues": true
     },
     {
       "name": "long_field_multi",
       "type": "LONG",
       "search": true,
       "storeDocValues": true,
-      "multiValued": true,
-      "sort": true
+      "multiValued": true
     },
     {
       "name": "double_field_multi",
       "type": "DOUBLE",
       "storeDocValues": true,
-      "multiValued": true,
-      "sort": true
+      "multiValued": true
     },
     {
       "name": "double_field",
       "type": "DOUBLE",
       "search": true,
-      "storeDocValues": true,
-      "sort": true
+      "storeDocValues": true
     },
     {
       "name": "float_field_multi",
       "type": "FLOAT",
       "storeDocValues": true,
-      "multiValued": true,
-      "sort": true
+      "multiValued": true
     },
     {
       "name": "float_field",
       "type": "FLOAT",
       "search": true,
-      "storeDocValues": true,
-      "sort": true
+      "storeDocValues": true
     },
     {
       "name": "boolean_field_multi",
       "type": "BOOLEAN",
       "storeDocValues": true,
-      "multiValued": true,
-      "sort": true
+      "multiValued": true
     },
     {
       "name": "boolean_field",
       "type": "BOOLEAN",
       "search": true,
-      "storeDocValues": true,
-      "sort": true
+      "storeDocValues": true
     },
     {
       "name": "description",
@@ -138,51 +129,44 @@
       "name": "empty_int",
       "type": "INT",
       "search": true,
-      "storeDocValues": true,
-      "sort": true
+      "storeDocValues": true
     },
     {
       "name": "empty_long",
       "type": "LONG",
       "search": true,
-      "storeDocValues": true,
-      "sort": true
+      "storeDocValues": true
     },
     {
       "name": "empty_long_multi",
       "type": "LONG",
       "search": true,
       "storeDocValues": true,
-      "multiValued": true,
-      "sort": true
+      "multiValued": true
     },
     {
       "name": "empty_double_multi",
       "type": "DOUBLE",
       "storeDocValues": true,
-      "multiValued": true,
-      "sort": true
+      "multiValued": true
     },
     {
       "name": "empty_double",
       "type": "DOUBLE",
       "search": true,
-      "storeDocValues": true,
-      "sort": true
+      "storeDocValues": true
     },
     {
       "name": "empty_float_multi",
       "type": "FLOAT",
       "storeDocValues": true,
-      "multiValued": true,
-      "sort": true
+      "multiValued": true
     },
     {
       "name": "empty_float",
       "type": "FLOAT",
       "search": true,
-      "storeDocValues": true,
-      "sort": true
+      "storeDocValues": true
     },
     {
       "name": "virtual_field",

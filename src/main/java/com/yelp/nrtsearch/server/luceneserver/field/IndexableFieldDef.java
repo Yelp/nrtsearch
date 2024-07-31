@@ -136,14 +136,7 @@ public abstract class IndexableFieldDef extends FieldDef {
    *
    * @param requestField field properties to validate
    */
-  protected void validateRequest(Field requestField) {
-    if (requestField.getMultiValued() && requestField.getGroup()) {
-      throw new IllegalArgumentException(
-          String.format(
-              "field: %s cannot have both group and multivalued set to true. Cannot  group on multiValued fields",
-              requestField.getName()));
-    }
-  }
+  protected void validateRequest(Field requestField) {}
 
   /**
    * Method called by {@link #IndexableFieldDef(String, Field)} to determine the doc value type used

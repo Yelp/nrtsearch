@@ -160,10 +160,6 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
               getName()));
     }
 
-    if (requestField.getGroup()) {
-      throw new IllegalArgumentException("cannot group on datatime field");
-    }
-
     if (hasAnalyzer(requestField)) {
       throw new IllegalArgumentException("no analyzer allowed on datetime field");
     }
@@ -182,7 +178,7 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
 
   @Override
   protected DocValuesType parseDocValuesType(Field requestField) {
-    if (requestField.getStoreDocValues() || requestField.getSort()) {
+    if (requestField.getStoreDocValues()) {
       if (requestField.getMultiValued()) {
         return DocValuesType.SORTED_NUMERIC;
       } else {

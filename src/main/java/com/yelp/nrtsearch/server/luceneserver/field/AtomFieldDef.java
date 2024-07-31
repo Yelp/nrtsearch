@@ -19,6 +19,7 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.ha
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.SortType;
+import com.yelp.nrtsearch.server.grpc.TextDocValuesType;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
@@ -42,13 +43,6 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
       throw new IllegalArgumentException("search must be true when highlight is true");
     }
 
-    if (requestField.getMultiValued() && requestField.getGroup()) {
-      throw new IllegalArgumentException(
-          String.format(
-              "field: %s cannot have both group and multivalued set to true. Cannot group on multiValued fields",
-              requestField.getName()));
-    }
-
     if (requestField.getHighlight() && !requestField.getStore()) {
       throw new IllegalArgumentException("store must be true when highlight is true");
     }
@@ -66,22 +60,17 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
 
   @Override
   protected DocValuesType parseDocValuesType(Field requestField) {
-    if (requestField.getSort() || requestField.getGroup()) {
-      if (requestField.getMultiValued()) {
-        return DocValuesType.SORTED_SET;
-      } else {
-        return DocValuesType.SORTED;
-      }
-    } else if (requestField.getStoreDocValues()) {
-      // needed to support multivalued text fields even though its not grouped
-      // since neither BINARY nor SORTED allows for multiValued fields during indexing
-      if (requestField.getMultiValued()) {
-        return DocValuesType.SORTED_SET;
-      } else {
-        return DocValuesType.BINARY;
-      }
+    if (!requestField.getStoreDocValues()) {
+      return DocValuesType.NONE;
     }
-    return DocValuesType.NONE;
+    if (requestField.getMultiValued()) {
+      // Binary doc values are not supported for multivalued fields
+      return DocValuesType.SORTED_SET;
+    }
+    if (requestField.getTextDocValuesType() == TextDocValuesType.TEXT_DOC_VALUES_TYPE_SORTED) {
+      return DocValuesType.SORTED;
+    }
+    return DocValuesType.BINARY;
   }
 
   @Override

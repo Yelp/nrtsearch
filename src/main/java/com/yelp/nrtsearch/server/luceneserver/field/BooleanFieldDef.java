@@ -61,7 +61,7 @@ public class BooleanFieldDef extends IndexableFieldDef implements TermQueryable 
 
   @Override
   protected DocValuesType parseDocValuesType(Field requestField) {
-    if (requestField.getStoreDocValues() || requestField.getSort() || requestField.getGroup()) {
+    if (requestField.getStoreDocValues()) {
       if (requestField.getMultiValued()) {
         return DocValuesType.SORTED_NUMERIC;
       } else {

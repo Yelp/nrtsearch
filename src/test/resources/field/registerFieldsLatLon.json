@@ -12,7 +12,6 @@
       "type": "LAT_LON",
       "multiValued": true,
       "storeDocValues": true,
-      "sort": true,
       "search": true
     },
     {
@@ -20,7 +19,6 @@
       "type": "LAT_LON",
       "multiValued": true,
       "storeDocValues": true,
-      "sort": true,
       "search": false
     }
   ]

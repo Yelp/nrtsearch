@@ -426,7 +426,6 @@ public class LuceneServerTest {
                             .setType(FieldType.INT)
                             .setStoreDocValues(true)
                             .setMultiValued(false)
-                            .setSort(true)
                             .build())
                     .build());
     assertTrue(reply.getResponse().contains("new_virtual_field"));
