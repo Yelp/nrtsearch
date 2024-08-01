@@ -23,14 +23,12 @@
     {
       "name": "value",
       "type": "ATOM",
-      "storeDocValues": true,
-      "textDocValuesType": "TEXT_DOC_VALUES_TYPE_SORTED"
+      "storeDocValues": true
     },
     {
       "name": "value_order",
       "type": "ATOM",
-      "storeDocValues": true,
-      "textDocValuesType": "TEXT_DOC_VALUES_TYPE_SORTED"
+      "storeDocValues": true
     },
     {
       "name": "value_multi",

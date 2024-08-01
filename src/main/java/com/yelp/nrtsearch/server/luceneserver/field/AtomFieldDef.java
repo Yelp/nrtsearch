@@ -19,12 +19,10 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.ha
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.SortType;
-import com.yelp.nrtsearch.server.grpc.TextDocValuesType;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSortField;
@@ -56,21 +54,6 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
   @Override
   public String getType() {
     return "ATOM";
-  }
-
-  @Override
-  protected DocValuesType parseDocValuesType(Field requestField) {
-    if (!requestField.getStoreDocValues()) {
-      return DocValuesType.NONE;
-    }
-    if (requestField.getMultiValued()) {
-      // Binary doc values are not supported for multivalued fields
-      return DocValuesType.SORTED_SET;
-    }
-    if (requestField.getTextDocValuesType() == TextDocValuesType.TEXT_DOC_VALUES_TYPE_SORTED) {
-      return DocValuesType.SORTED;
-    }
-    return DocValuesType.BINARY;
   }
 
   @Override

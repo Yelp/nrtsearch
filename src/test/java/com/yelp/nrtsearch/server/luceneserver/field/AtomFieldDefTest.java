@@ -19,9 +19,11 @@ import static org.junit.Assert.assertEquals;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.TextDocValuesType;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import java.io.ByteArrayInputStream;
 import java.util.Collections;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -103,5 +105,39 @@ public class AtomFieldDefTest {
     assertEquals(
         IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS,
         fieldDef.getFieldType().indexOptions());
+  }
+
+  @Test
+  public void testDocValueType_none() {
+    AtomFieldDef fieldDef = createFieldDef(Field.newBuilder().setStoreDocValues(false).build());
+    assertEquals(DocValuesType.NONE, fieldDef.getDocValuesType());
+  }
+
+  @Test
+  public void testDocValueType_default() {
+    AtomFieldDef fieldDef = createFieldDef(Field.newBuilder().setStoreDocValues(true).build());
+    assertEquals(DocValuesType.SORTED, fieldDef.getDocValuesType());
+  }
+
+  @Test
+  public void testDocValueType_sorted() {
+    AtomFieldDef fieldDef =
+        createFieldDef(
+            Field.newBuilder()
+                .setStoreDocValues(true)
+                .setTextDocValuesType(TextDocValuesType.TEXT_DOC_VALUES_TYPE_SORTED)
+                .build());
+    assertEquals(DocValuesType.SORTED, fieldDef.getDocValuesType());
+  }
+
+  @Test
+  public void testDocValueType_binary() {
+    AtomFieldDef fieldDef =
+        createFieldDef(
+            Field.newBuilder()
+                .setStoreDocValues(true)
+                .setTextDocValuesType(TextDocValuesType.TEXT_DOC_VALUES_TYPE_BINARY)
+                .build());
+    assertEquals(DocValuesType.BINARY, fieldDef.getDocValuesType());
   }
 }

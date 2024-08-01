@@ -5,8 +5,7 @@
       "name": "value",
       "type": "ATOM",
       "storeDocValues": true,
-      "eagerFieldGlobalOrdinals": true,
-      "textDocValuesType": "TEXT_DOC_VALUES_TYPE_SORTED"
+      "eagerFieldGlobalOrdinals": true
     },
     {
       "name": "value_multi",
