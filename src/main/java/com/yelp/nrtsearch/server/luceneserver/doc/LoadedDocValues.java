@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.doc;
 
 import com.google.gson.Gson;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.ListValue;
 import com.google.protobuf.Struct;
 import com.google.protobuf.util.JsonFormat;
@@ -36,12 +37,7 @@ import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 
@@ -606,6 +602,60 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
   }
 
+  public static final class SingleByteVector extends LoadedDocValues<ByteVectorType> {
+    private final BinaryDocValues docValues;
+    private ByteVectorType value;
+
+    public SingleByteVector(BinaryDocValues docValues) {
+      this.docValues = docValues;
+    }
+
+    /**
+     * Set method to set the lucene level doc id to lookup value from index and initialize the
+     * loaded doc value index by loading vector data
+     */
+    public void setDocId(int docID) throws IOException {
+      if (docValues.advanceExact(docID)) {
+        BytesRef bytesRef = docValues.binaryValue();
+        byte[] bytes = new byte[bytesRef.length];
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, bytes, 0, bytesRef.length);
+        value = new ByteVectorType(bytes);
+      } else {
+        value = null;
+      }
+    }
+
+    /** Provide field value containing the doc value data for a given index */
+    @Override
+    public FieldValue toFieldValue(int index) {
+      ByteVectorType vector = get(index);
+      Builder vectorBuilder = Vector.newBuilder();
+      vectorBuilder.setBytesValue(ByteString.copyFrom(vector.getVectorData()));
+      return SearchResponse.Hit.FieldValue.newBuilder()
+          .setVectorValue(vectorBuilder.build())
+          .build();
+    }
+
+    @Override
+    public ByteVectorType get(int index) {
+      if (value == null) {
+        throw new IllegalStateException("No doc values for document");
+      } else if (index != 0) {
+        throw new IndexOutOfBoundsException("No doc value for index: " + index);
+      }
+      return value;
+    }
+
+    @Override
+    public int size() {
+      return value == null ? 0 : 1;
+    }
+
+    public ByteVectorType getValue() {
+      return get(0);
+    }
+  }
+
   /**
    * Doc value interface for vector data loaded from index vector values indexed for vector search.
    * Calls to {@link #setDocId(int)} must provide ids in increasing order.
@@ -660,6 +710,62 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
 
     public VectorType getValue() {
+      return get(0);
+    }
+  }
+
+  /**
+   * Doc value interface for byte vector data loaded from index vector values indexed for vector
+   * search. Calls to {@link #setDocId(int)} must provide ids in increasing order.
+   */
+  public static final class SingleSearchByteVector extends LoadedDocValues<ByteVectorType> {
+    private final ByteVectorValues vectorValues;
+    private ByteVectorType value = null;
+
+    public SingleSearchByteVector(ByteVectorValues vectorValues) {
+      this.vectorValues = vectorValues;
+    }
+
+    @Override
+    public void setDocId(int docID) throws IOException {
+      if (vectorValues != null) {
+        if (vectorValues.docID() < docID) {
+          vectorValues.advance(docID);
+        }
+        if (vectorValues.docID() == docID) {
+          value = new ByteVectorType(vectorValues.vectorValue());
+        } else {
+          value = null;
+        }
+      }
+    }
+
+    @Override
+    public FieldValue toFieldValue(int index) {
+      ByteVectorType vector = get(index);
+      Builder vectorBuilder = Vector.newBuilder();
+      vectorBuilder.setBytesValue(ByteString.copyFrom(vector.getVectorData()));
+      return SearchResponse.Hit.FieldValue.newBuilder()
+          .setVectorValue(vectorBuilder.build())
+          .build();
+    }
+
+    @Override
+    public ByteVectorType get(int index) {
+      if (value == null) {
+        throw new IllegalStateException("No doc values for document");
+      } else if (index != 0) {
+        throw new IndexOutOfBoundsException("No doc value for index: " + index);
+      }
+      return value;
+    }
+
+    @Override
+    public int size() {
+      return value == null ? 0 : 1;
+    }
+
+    public ByteVectorType getValue() {
       return get(0);
     }
   }

@@ -1614,7 +1614,13 @@
           "items": {
             "type": "number",
             "format": "float"
-          }
+          },
+          "title": "Float vector value"
+        },
+        "bytesValue": {
+          "type": "string",
+          "format": "byte",
+          "title": "Byte vector value"
         }
       }
     },
@@ -3114,7 +3120,7 @@
         },
         "vectorSimilarity": {
           "type": "string",
-          "description": "Similarity type for search enabled VECTOR fields. This is a required option when search=true. Accepts built in types 'l2_norm' (1 / (1 + l2_norm(query, vector)^2)), 'dot_product' ((1 + dot_product(query, vector)) / 2) (all vectors must be unit length), 'cosine' ((1 + cosine(query, vector)) / 2)."
+          "title": "Similarity type for search enabled VECTOR fields. This is a required option when search=true.\nAccepts built in types:\n     'l2_norm'          : (1 / (1 + l2_norm(query, vector)^2))\n     'dot_product'      : Float vector: ((1 + dot_product(query, vector)) / 2) (all vectors must be unit length)\n                          Byte vector : 0.5 + (dot_product(query, vector) / (32768 * dims)) (all vectors must have the same length)\n     'cosine'           : ((1 + cosine(query, vector)) / 2)\n     'max_inner_product': when \u003c 0 : 1 / (1 + -1 * max_inner_product(query, vector))\n                          when \u003e= 0: max_inner_product(query, vector) + 1"
         },
         "vectorIndexingOptions": {
           "$ref": "#/definitions/luceneserverVectorIndexingOptions",
@@ -3122,7 +3128,11 @@
         },
         "textDocValuesType": {
           "$ref": "#/definitions/luceneserverTextDocValuesType",
-          "description": "Specify docvalues type for TEXT/ATOM field types. This is optional, defaulting to SORTED for TEXT and BINARY for ATOM when not set. Multivalued fields will always use SORTED_SET."
+          "description": "Specify docvalues type for TEXT/ATOM field types. This is optional, defaulting to SORTED when not set. Multivalued fields will always use SORTED_SET."
+        },
+        "vectorElementType": {
+          "$ref": "#/definitions/luceneserverVectorElementType",
+          "description": "Element type for vector field, defaulting to FLOAT when not set."
         }
       }
     },
@@ -3858,7 +3868,12 @@
             "type": "number",
             "format": "float"
           },
-          "title": "Vector value to use for query"
+          "title": "Vector value to use for query vector, for fields with float element type"
+        },
+        "queryByteVector": {
+          "type": "string",
+          "format": "byte",
+          "title": "Vector value to use for query vector, for fields with byte element type"
         },
         "boost": {
           "type": "number",
@@ -5557,7 +5572,8 @@
         "TEXT_DOC_VALUES_TYPE_BINARY",
         "TEXT_DOC_VALUES_TYPE_SORTED"
       ],
-      "default": "TEXT_DOC_VALUES_TYPE_UNSPECIFIED"
+      "default": "TEXT_DOC_VALUES_TYPE_UNSPECIFIED",
+      "description": " - TEXT_DOC_VALUES_TYPE_BINARY: Binary docvalues support text longer than 32766 bytes and are good when most values are unique or you need to use aggregations on the field.\n - TEXT_DOC_VALUES_TYPE_SORTED: Sorted docvalues only store values shorter than 32766 bytes and are better when most values are not unique."
     },
     "luceneserverTopHitsCollector": {
       "type": "object",
@@ -5623,6 +5639,16 @@
         "Ongoing"
       ],
       "default": "Unknown"
+    },
+    "luceneserverVectorElementType": {
+      "type": "string",
+      "enum": [
+        "VECTOR_ELEMENT_FLOAT",
+        "VECTOR_ELEMENT_BYTE"
+      ],
+      "default": "VECTOR_ELEMENT_FLOAT",
+      "description": "- VECTOR_ELEMENT_FLOAT: Single precision floating point\n - VECTOR_ELEMENT_BYTE: Signed byte",
+      "title": "Vector field element type"
     },
     "luceneserverVectorIndexingOptions": {
       "type": "object",

@@ -22,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.google.common.primitives.Floats;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
@@ -127,6 +128,31 @@ public class VectorFieldDefTest extends ServerTestCase {
                         .addValue(createVectorString(random, 3, true))
                         .build())
                 .putFields(
+                    "vector_mip",
+                    MultiValuedField.newBuilder()
+                        .addValue(createVectorString(random, 3, true))
+                        .build())
+                .putFields(
+                    "byte_vector_l2_norm",
+                    MultiValuedField.newBuilder()
+                        .addValue(createByteVectorString(random, 3))
+                        .build())
+                .putFields(
+                    "byte_vector_cosine",
+                    MultiValuedField.newBuilder()
+                        .addValue(createByteVectorString(random, 3))
+                        .build())
+                .putFields(
+                    "byte_vector_dot",
+                    MultiValuedField.newBuilder()
+                        .addValue(createByteVectorString(random, 3))
+                        .build())
+                .putFields(
+                    "byte_vector_mip",
+                    MultiValuedField.newBuilder()
+                        .addValue(createByteVectorString(random, 3))
+                        .build())
+                .putFields(
                     "filter", MultiValuedField.newBuilder().addValue("term" + j % 10).build())
                 .build());
       }
@@ -158,6 +184,14 @@ public class VectorFieldDefTest extends ServerTestCase {
       normVec.add(v / magnitude);
     }
     return normVec;
+  }
+
+  private String createByteVectorString(Random random, int size) {
+    byte[] vector = new byte[size];
+    for (int i = 0; i < size; ++i) {
+      vector[i] = (byte) (random.nextInt(256) - 128);
+    }
+    return Arrays.toString(vector);
   }
 
   @Override
@@ -367,9 +401,51 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void testVectorSearch_mip() {
+    singleVectorQueryAndVerify(
+        "vector_mip",
+        List.of(0.25f, 0.5f, 0.75f),
+        VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
+        1.0f);
+  }
+
+  @Test
+  public void testByteVectorSearch_l2_norm() {
+    singleByteVectorQueryAndVerify(
+        "byte_vector_l2_norm", new byte[] {-50, 5, 100}, VectorSimilarityFunction.EUCLIDEAN, 1.0f);
+  }
+
+  @Test
+  public void testByteVectorSearch_cosine() {
+    singleByteVectorQueryAndVerify(
+        "byte_vector_cosine", new byte[] {-50, 5, 100}, VectorSimilarityFunction.COSINE, 1.0f);
+  }
+
+  @Test
+  public void testByteVectorSearch_dot() {
+    singleByteVectorQueryAndVerify(
+        "byte_vector_dot", new byte[] {-50, 5, 100}, VectorSimilarityFunction.DOT_PRODUCT, 1.0f);
+  }
+
+  @Test
+  public void testByteVectorSearch_mip() {
+    singleByteVectorQueryAndVerify(
+        "byte_vector_mip",
+        new byte[] {-50, 5, 100},
+        VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
+        1.0f);
+  }
+
+  @Test
   public void testVectorSearch_boost() {
     singleVectorQueryAndVerify(
         "vector_l2_norm", List.of(0.25f, 0.5f, 0.75f), VectorSimilarityFunction.EUCLIDEAN, 2.0f);
+  }
+
+  @Test
+  public void testByteVectorSearch_boost() {
+    singleByteVectorQueryAndVerify(
+        "byte_vector_l2_norm", new byte[] {-50, 5, 100}, VectorSimilarityFunction.EUCLIDEAN, 2.0f);
   }
 
   @Test
@@ -407,8 +483,35 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void testByteVectorSearch_index_value_loading() {
+    singleByteVectorQueryAndVerify(
+        "byte_vector_l2_norm.no_doc_values",
+        new byte[] {-50, 5, 100},
+        VectorSimilarityFunction.EUCLIDEAN,
+        1.0f);
+  }
+
+  @Test
   public void testVectorSearch_index_value_no_data() {
     String field = "vector_no_data";
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setTopHits(3)
+                    .build());
+    assertEquals(3, searchResponse.getHitsCount());
+    assertEquals(0, searchResponse.getHits(0).getFieldsOrThrow(field).getFieldValueCount());
+    assertEquals(0, searchResponse.getHits(1).getFieldsOrThrow(field).getFieldValueCount());
+    assertEquals(0, searchResponse.getHits(2).getFieldsOrThrow(field).getFieldValueCount());
+  }
+
+  @Test
+  public void testByteVectorSearch_index_value_no_data() {
+    String field = "byte_vector_no_data";
     SearchResponse searchResponse =
         getGrpcServer()
             .getBlockingStub()
@@ -666,6 +769,54 @@ public class VectorFieldDefTest extends ServerTestCase {
     return array;
   }
 
+  private void singleByteVectorQueryAndVerify(
+      String field, byte[] queryVector, VectorSimilarityFunction similarityFunction, float boost) {
+    SearchResponse searchResponse =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+                    .addRetrieveFields(field)
+                    .setStartHit(0)
+                    .setTopHits(10)
+                    .addKnn(
+                        KnnQuery.newBuilder()
+                            .setField(field)
+                            .setQueryByteVector(ByteString.copyFrom(queryVector))
+                            .setNumCandidates(10)
+                            .setK(5)
+                            .setBoost(boost)
+                            .build())
+                    .build());
+    assertEquals(5, searchResponse.getHitsCount());
+    assertEquals(1, searchResponse.getDiagnostics().getVectorDiagnosticsCount());
+    VectorDiagnostics vectorDiagnostics = searchResponse.getDiagnostics().getVectorDiagnostics(0);
+    assertTrue(vectorDiagnostics.getSearchTimeMs() > 0.0);
+    assertTrue(vectorDiagnostics.getTotalHits().getValue() > 0);
+    verifyByteHitsSimilarity(field, queryVector, searchResponse, similarityFunction, boost);
+  }
+
+  private void verifyByteHitsSimilarity(
+      String field,
+      byte[] queryVector,
+      SearchResponse response,
+      VectorSimilarityFunction similarityFunction,
+      float boost) {
+    for (Hit hit : response.getHitsList()) {
+      float similarity =
+          similarityFunction.compare(
+                  queryVector,
+                  hit.getFieldsOrThrow(field)
+                      .getFieldValue(0)
+                      .getVectorValue()
+                      .getBytesValue()
+                      .toByteArray())
+              * boost;
+      assertEquals(similarity, hit.getScore(), 0.0001);
+    }
+  }
+
   @Test
   public void testVectorFormat_none() {
     Field field =
@@ -834,6 +985,20 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void testValidateByteVector_zero_magnitude() throws IOException {
+    VectorFieldDef vectorFieldDef = getL2ByteField();
+    vectorFieldDef.validateVectorForSearch(new byte[] {0, 0, 0});
+
+    vectorFieldDef = getCosineByteField();
+    try {
+      vectorFieldDef.validateVectorForSearch(new byte[] {0, 0, 0});
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("Vector magnitude cannot be 0 when using cosine similarity", e.getMessage());
+    }
+  }
+
+  @Test
   public void testValidateVector_not_normalized() throws IOException {
     VectorFieldDef vectorFieldDef = getDotField();
     try {
@@ -863,6 +1028,22 @@ public class VectorFieldDefTest extends ServerTestCase {
   private VectorFieldDef getDotField() throws IOException {
     return (VectorFieldDef)
         getGrpcServer().getGlobalState().getIndex(VECTOR_SEARCH_INDEX_NAME).getField("vector_dot");
+  }
+
+  private VectorFieldDef getCosineByteField() throws IOException {
+    return (VectorFieldDef)
+        getGrpcServer()
+            .getGlobalState()
+            .getIndex(VECTOR_SEARCH_INDEX_NAME)
+            .getField("byte_vector_cosine");
+  }
+
+  private VectorFieldDef getL2ByteField() throws IOException {
+    return (VectorFieldDef)
+        getGrpcServer()
+            .getGlobalState()
+            .getIndex(VECTOR_SEARCH_INDEX_NAME)
+            .getField("byte_vector_l2_norm");
   }
 
   @Test
@@ -1033,6 +1214,44 @@ public class VectorFieldDefTest extends ServerTestCase {
       fail();
     } catch (StatusRuntimeException e) {
       assertTrue(e.getMessage().contains("Vector search numCandidates > 10000"));
+    }
+  }
+
+  @Test
+  public void testIndexByteOutOfRange() {
+    List<AddDocumentRequest> documents = new ArrayList<>();
+    documents.add(
+        AddDocumentRequest.newBuilder()
+            .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+            .putFields(
+                "byte_vector_l2_norm",
+                AddDocumentRequest.MultiValuedField.newBuilder().addValue("[128, 5, 100]").build())
+            .build());
+    try {
+      addDocuments(documents.stream());
+      fail();
+    } catch (Exception e) {
+      assertTrue(e.getMessage().contains("Byte value out of range: 128 at index: 0"));
+    }
+  }
+
+  @Test
+  public void testIndexFloatAsByte() {
+    List<AddDocumentRequest> documents = new ArrayList<>();
+    documents.add(
+        AddDocumentRequest.newBuilder()
+            .setIndexName(VECTOR_SEARCH_INDEX_NAME)
+            .putFields(
+                "byte_vector_l2_norm",
+                AddDocumentRequest.MultiValuedField.newBuilder()
+                    .addValue("[0, 5.0, 100.1]")
+                    .build())
+            .build());
+    try {
+      addDocuments(documents.stream());
+      fail();
+    } catch (Exception e) {
+      assertTrue(e.getMessage().contains("Byte value is not an integer: 100.1 at index: 2"));
     }
   }
 }

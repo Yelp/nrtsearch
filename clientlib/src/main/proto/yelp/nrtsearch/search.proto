@@ -781,7 +781,10 @@ message SearchResponse {
             }
 
             message Vector {
+                // Float vector value
                 repeated float value = 1;
+                // Byte vector value
+                bytes bytes_value = 2;
             }
         }
 
@@ -1139,8 +1142,10 @@ message KnnQuery {
     int32 k = 3;
     // Number of nearest neighbors to consider per segment. A larger value produces a more accurate top k. Must be <= 10000.
     int32 num_candidates = 4;
-    // Vector value to use for query
+    // Vector value to use for query vector, for fields with float element type
     repeated float query_vector = 5;
+    // Vector value to use for query vector, for fields with byte element type
+    bytes query_byte_vector = 6;
     // Boost multiplier for similarity score
-    float boost = 6;
+    float boost = 7;
 }
