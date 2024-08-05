@@ -768,14 +768,14 @@ public class VectorFieldDefTest extends ServerTestCase {
         Field.newBuilder()
             .setName("vector")
             .setType(FieldType.VECTOR)
-            .setVectorDimensions(2049)
+            .setVectorDimensions(4097)
             .setStoreDocValues(true)
             .build();
     try {
       new VectorFieldDef("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("Vector dimension must be <= 2048 for doc values", e.getMessage());
+      assertEquals("Vector dimension must be <= 4096", e.getMessage());
     }
   }
 
@@ -785,7 +785,7 @@ public class VectorFieldDefTest extends ServerTestCase {
         Field.newBuilder()
             .setName("vector")
             .setType(FieldType.VECTOR)
-            .setVectorDimensions(1025)
+            .setVectorDimensions(4097)
             .setSearch(true)
             .setVectorSimilarity("cosine")
             .build();
@@ -793,7 +793,7 @@ public class VectorFieldDefTest extends ServerTestCase {
       new VectorFieldDef("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("Vector dimension must be <= 1024 for search", e.getMessage());
+      assertEquals("Vector dimension must be <= 4096", e.getMessage());
     }
   }
 
