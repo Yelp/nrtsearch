@@ -30,6 +30,8 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -38,6 +40,8 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -53,7 +57,7 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
           "cosine",
           VectorSimilarityFunction.COSINE);
   private static final String HNSW_FORMAT_TYPE = "hnsw";
-  private static final int MAX_DOC_VALUE_DIMENSIONS = 2048;
+  private static final int MAX_VECTOR_DIMENSIONS = 4096;
   private final int vectorDimensions;
   private final VectorSimilarityFunction similarityFunction;
   private final KnnVectorsFormat vectorsFormat;
@@ -87,7 +91,29 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
         vectorIndexingOptions.getHnswEfConstruction() > 0
             ? vectorIndexingOptions.getHnswEfConstruction()
             : Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
-    return new Lucene99HnswVectorsFormat(m, efConstruction);
+    Lucene99HnswVectorsFormat lucene99HnswVectorsFormat =
+        new Lucene99HnswVectorsFormat(m, efConstruction);
+    return new KnnVectorsFormat(lucene99HnswVectorsFormat.getName()) {
+      @Override
+      public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
+        return lucene99HnswVectorsFormat.fieldsWriter(state);
+      }
+
+      @Override
+      public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        return lucene99HnswVectorsFormat.fieldsReader(state);
+      }
+
+      @Override
+      public int getMaxDimensions(String fieldName) {
+        return MAX_VECTOR_DIMENSIONS;
+      }
+
+      @Override
+      public String toString() {
+        return lucene99HnswVectorsFormat.toString();
+      }
+    };
   }
 
   /**
@@ -132,19 +158,9 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
     if (requestField.getVectorDimensions() <= 0) {
       throw new IllegalArgumentException("Vector dimension should be > 0");
     }
-    if (requestField.getStoreDocValues()
-        && requestField.getVectorDimensions() > MAX_DOC_VALUE_DIMENSIONS) {
-      throw new IllegalArgumentException(
-          "Vector dimension must be <= " + MAX_DOC_VALUE_DIMENSIONS + " for doc values");
-    }
-
-    if (requestField.getSearch()) {
-      if (requestField.getVectorDimensions() > Lucene99HnswVectorsFormat.DEFAULT_MAX_DIMENSIONS) {
-        throw new IllegalArgumentException(
-            "Vector dimension must be <= "
-                + Lucene99HnswVectorsFormat.DEFAULT_MAX_DIMENSIONS
-                + " for search");
-      }
+    if ((requestField.getStoreDocValues() || requestField.getSearch())
+        && requestField.getVectorDimensions() > MAX_VECTOR_DIMENSIONS) {
+      throw new IllegalArgumentException("Vector dimension must be <= " + MAX_VECTOR_DIMENSIONS);
     }
   }
 
