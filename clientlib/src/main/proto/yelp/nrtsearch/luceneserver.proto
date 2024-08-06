@@ -575,12 +575,29 @@ message Field {
     int32 vectorDimensions = 29; // Dimensions for vector field type
     // If field based global ordinals should be built up front, otherwise this is done lazily on first access. Currently only for fields with text doc values (TEXT/ATOM).
     bool eagerFieldGlobalOrdinals = 30;
-    // Similarity type for search enabled VECTOR fields. This is a required option when search=true. Accepts built in types 'l2_norm' (1 / (1 + l2_norm(query, vector)^2)), 'dot_product' ((1 + dot_product(query, vector)) / 2) (all vectors must be unit length), 'cosine' ((1 + cosine(query, vector)) / 2).
+    // Similarity type for search enabled VECTOR fields. This is a required option when search=true.
+    // Accepts built in types:
+    //      'l2_norm'          : (1 / (1 + l2_norm(query, vector)^2))
+    //      'dot_product'      : Float vector: ((1 + dot_product(query, vector)) / 2) (all vectors must be unit length)
+    //                           Byte vector : 0.5 + (dot_product(query, vector) / (32768 * dims)) (all vectors must have the same length)
+    //      'cosine'           : ((1 + cosine(query, vector)) / 2)
+    //      'max_inner_product': when < 0 : 1 / (1 + -1 * max_inner_product(query, vector))
+    //                           when >= 0: max_inner_product(query, vector) + 1
     string vectorSimilarity = 31;
     // Indexing options for search enabled VECTOR field type. This is optional, defaulting to HNSW with m=16, ef_construction=100 when not set.
     VectorIndexingOptions vectorIndexingOptions = 32;
     //  Specify docvalues type for TEXT/ATOM field types. This is optional, defaulting to SORTED when not set. Multivalued fields will always use SORTED_SET.
     TextDocValuesType textDocValuesType = 33;
+    // Element type for vector field, defaulting to FLOAT when not set.
+    VectorElementType vectorElementType = 34;
+}
+
+// Vector field element type
+enum VectorElementType {
+    // Single precision floating point
+    VECTOR_ELEMENT_FLOAT = 0;
+    // Signed byte
+    VECTOR_ELEMENT_BYTE = 1;
 }
 
 // Options for indexing a VECTOR field for search

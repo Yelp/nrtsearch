@@ -35,6 +35,60 @@
       "vectorSimilarity": "dot_product"
     },
     {
+      "name": "vector_mip",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "max_inner_product"
+    },
+    {
+      "name": "byte_vector_l2_norm",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "l2_norm",
+      "vectorElementType": "VECTOR_ELEMENT_BYTE",
+      "childFields": [
+        {
+          "name": "no_doc_values",
+          "type": "VECTOR",
+          "search": true,
+          "vectorDimensions": 3,
+          "vectorSimilarity": "l2_norm",
+          "vectorElementType": "VECTOR_ELEMENT_BYTE"
+        }
+      ]
+    },
+    {
+      "name": "byte_vector_cosine",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "cosine",
+      "vectorElementType": "VECTOR_ELEMENT_BYTE"
+    },
+    {
+      "name": "byte_vector_dot",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "dot_product",
+      "vectorElementType": "VECTOR_ELEMENT_BYTE"
+    },
+    {
+      "name": "byte_vector_mip",
+      "type": "VECTOR",
+      "storeDocValues": true,
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "max_inner_product",
+      "vectorElementType": "VECTOR_ELEMENT_BYTE"
+    },
+    {
       "name": "filter",
       "type": "ATOM",
       "search": true,
@@ -52,6 +106,14 @@
       "search": true,
       "vectorDimensions": 3,
       "vectorSimilarity": "dot_product"
+    },
+    {
+      "name": "byte_vector_no_data",
+      "type": "VECTOR",
+      "search": true,
+      "vectorDimensions": 3,
+      "vectorSimilarity": "dot_product",
+      "vectorElementType": "VECTOR_ELEMENT_BYTE"
     }
   ]
 }

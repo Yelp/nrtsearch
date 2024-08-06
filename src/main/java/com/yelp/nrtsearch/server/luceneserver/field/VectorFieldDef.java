@@ -19,11 +19,13 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
+import com.yelp.nrtsearch.server.grpc.VectorElementType;
 import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleSearchVector;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleVector;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.VectorQueryable;
+import com.yelp.nrtsearch.server.luceneserver.search.query.vector.NrtKnnByteVectorQuery;
 import com.yelp.nrtsearch.server.luceneserver.search.query.vector.NrtKnnFloatVectorQuery;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -35,6 +37,7 @@ import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
@@ -45,6 +48,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 
 public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable {
   static final int NUM_CANDIDATES_LIMIT = 10000;
@@ -55,12 +59,15 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
           "dot_product",
           VectorSimilarityFunction.DOT_PRODUCT,
           "cosine",
-          VectorSimilarityFunction.COSINE);
+          VectorSimilarityFunction.COSINE,
+          "max_inner_product",
+          VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT);
   private static final String HNSW_FORMAT_TYPE = "hnsw";
   private static final int MAX_VECTOR_DIMENSIONS = 4096;
   private final int vectorDimensions;
   private final VectorSimilarityFunction similarityFunction;
   private final KnnVectorsFormat vectorsFormat;
+  private final VectorElementType elementType;
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
 
   private static VectorSimilarityFunction getSimilarityFunction(String vectorSimilarity) {
@@ -123,6 +130,7 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
   protected VectorFieldDef(String name, Field requestField) {
     super(name, requestField);
     this.vectorDimensions = requestField.getVectorDimensions();
+    this.elementType = requestField.getVectorElementType();
     if (isSearchable()) {
       this.similarityFunction = getSimilarityFunction(requestField.getVectorSimilarity());
       this.vectorsFormat =
@@ -188,23 +196,51 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
   @Override
   public void parseDocumentField(
       Document document, List<String> fieldValues, List<List<String>> facetHierarchyPaths) {
-    float[] floatArr = null;
     if (fieldValues.size() > 1 && !isMultiValue()) {
       throw new IllegalArgumentException(
           "Cannot index multiple values into single value field: " + getName());
     } else if (fieldValues.size() == 1) {
-      if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
-        floatArr = parseVectorFieldToFloatArr(fieldValues.get(0));
-        byte[] floatBytes = convertFloatArrToBytes(floatArr);
-        document.add(new BinaryDocValuesField(getName(), new BytesRef(floatBytes)));
+      switch (elementType) {
+        case VECTOR_ELEMENT_FLOAT:
+          parseFloatVectorField(fieldValues.getFirst(), document);
+          break;
+        case VECTOR_ELEMENT_BYTE:
+          parseByteVectorField(fieldValues.getFirst(), document);
+          break;
+        default:
+          throw new IllegalArgumentException("Unexpected vector element type: " + elementType);
       }
-      if (isSearchable()) {
-        if (floatArr == null) {
-          floatArr = parseVectorFieldToFloatArr(fieldValues.get(0));
-        }
-        validateVectorForSearch(floatArr);
-        document.add(new KnnFloatVectorField(getName(), floatArr, similarityFunction));
+    }
+  }
+
+  private void parseByteVectorField(String value, Document document) {
+    byte[] byteArr = null;
+    if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
+      byteArr = parseVectorFieldToByteArr(value);
+      document.add(new BinaryDocValuesField(getName(), new BytesRef(byteArr)));
+    }
+    if (isSearchable()) {
+      if (byteArr == null) {
+        byteArr = parseVectorFieldToByteArr(value);
       }
+      validateVectorForSearch(byteArr);
+      document.add(new KnnByteVectorField(getName(), byteArr, similarityFunction));
+    }
+  }
+
+  private void parseFloatVectorField(String value, Document document) {
+    float[] floatArr = null;
+    if (hasDocValues() && docValuesType == DocValuesType.BINARY) {
+      floatArr = parseVectorFieldToFloatArr(value);
+      byte[] floatBytes = convertFloatArrToBytes(floatArr);
+      document.add(new BinaryDocValuesField(getName(), new BytesRef(floatBytes)));
+    }
+    if (isSearchable()) {
+      if (floatArr == null) {
+        floatArr = parseVectorFieldToFloatArr(value);
+      }
+      validateVectorForSearch(floatArr);
+      document.add(new KnnFloatVectorField(getName(), floatArr, similarityFunction));
     }
   }
 
@@ -224,6 +260,39 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
               + fieldValue.length
               + " should match vectorDimensions field property: "
               + getVectorDimensions());
+    }
+    return fieldValue;
+  }
+
+  /**
+   * Parses a vector type json string and returns to byte[]
+   *
+   * @param fieldValueJson string to convert to byte[]. Ex:"[-10,0.100]"
+   * @return byte[] arr represented by input field json
+   * @throws IllegalArgumentException if size of vector does not match vector dimensions field
+   *     property, or if a value is not an integer or out of byte range
+   */
+  protected byte[] parseVectorFieldToByteArr(String fieldValueJson) {
+    float[] fieldValueFloat = GSON.fromJson(fieldValueJson, float[].class);
+    if (fieldValueFloat.length != getVectorDimensions()) {
+      throw new IllegalArgumentException(
+          "The size of the vector data: "
+              + fieldValueFloat.length
+              + " should match vectorDimensions field property: "
+              + getVectorDimensions());
+    }
+    byte[] fieldValue = new byte[fieldValueFloat.length];
+    for (int i = 0; i < fieldValueFloat.length; i++) {
+      float value = fieldValueFloat[i];
+      if (value % 1 != 0) {
+        throw new IllegalArgumentException(
+            "Byte value is not an integer: " + value + " at index: " + i);
+      }
+      if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+        throw new IllegalArgumentException(
+            "Byte value out of range: " + (int) value + " at index: " + i);
+      }
+      fieldValue[i] = (byte) value;
     }
     return fieldValue;
   }
@@ -270,7 +339,33 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
     }
   }
 
+  /**
+   * Check vector to ensure it is usable for vector search. When using cosine similarity, vector
+   * magnitude cannot be 0.
+   *
+   * @param vector vector to check
+   * @throws IllegalArgumentException if validation fails
+   */
+  public void validateVectorForSearch(byte[] vector) {
+    if (similarityFunction == VectorSimilarityFunction.COSINE) {
+      int magnitude2 = VectorUtil.dotProduct(vector, vector);
+      if (magnitude2 == 0) {
+        throw new IllegalArgumentException(
+            "Vector magnitude cannot be 0 when using cosine similarity");
+      }
+    }
+  }
+
   public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+    return switch (elementType) {
+      case VECTOR_ELEMENT_FLOAT -> getFloatDocValues(context);
+      case VECTOR_ELEMENT_BYTE -> getByteDocValues(context);
+      default -> throw new IllegalArgumentException(
+          "Unexpected vector element type: " + elementType);
+    };
+  }
+
+  private LoadedDocValues<?> getFloatDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.BINARY) {
       BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
       return new SingleVector(binaryDocValues);
@@ -282,24 +377,24 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
         String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
   }
 
+  private LoadedDocValues<?> getByteDocValues(LeafReaderContext context) throws IOException {
+    if (docValuesType == DocValuesType.BINARY) {
+      BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
+      return new LoadedDocValues.SingleByteVector(binaryDocValues);
+    } else if (isSearchable()) {
+      // fallback to search indexed data if no doc values
+      return new LoadedDocValues.SingleSearchByteVector(
+          context.reader().getByteVectorValues(getName()));
+    }
+    throw new IllegalStateException(
+        String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
+  }
+
   @Override
   public Query getKnnQuery(KnnQuery knnQuery, Query filterQuery) {
     if (!isSearchable()) {
       throw new IllegalArgumentException("Vector field is not searchable: " + getName());
     }
-
-    if (knnQuery.getQueryVectorCount() != getVectorDimensions()) {
-      throw new IllegalArgumentException(
-          "Invalid query vector size, expected: "
-              + getVectorDimensions()
-              + ", found: "
-              + knnQuery.getQueryVectorCount());
-    }
-    float[] queryVector = new float[knnQuery.getQueryVectorCount()];
-    for (int i = 0; i < knnQuery.getQueryVectorCount(); ++i) {
-      queryVector[i] = knnQuery.getQueryVector(i);
-    }
-    validateVectorForSearch(queryVector);
 
     int k = knnQuery.getK();
     int numCandidates = knnQuery.getNumCandidates();
@@ -313,6 +408,40 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
       throw new IllegalArgumentException("Vector search numCandidates > " + NUM_CANDIDATES_LIMIT);
     }
 
+    return switch (elementType) {
+      case VECTOR_ELEMENT_FLOAT -> getFloatKnnQuery(knnQuery, k, filterQuery, numCandidates);
+      case VECTOR_ELEMENT_BYTE -> getByteKnnQuery(knnQuery, k, filterQuery, numCandidates);
+      default -> throw new IllegalArgumentException(
+          "Unexpected vector element type: " + elementType);
+    };
+  }
+
+  private Query getFloatKnnQuery(KnnQuery knnQuery, int k, Query filterQuery, int numCandidates) {
+    if (knnQuery.getQueryVectorCount() != getVectorDimensions()) {
+      throw new IllegalArgumentException(
+          "Invalid query vector size, expected: "
+              + getVectorDimensions()
+              + ", found: "
+              + knnQuery.getQueryVectorCount());
+    }
+    float[] queryVector = new float[knnQuery.getQueryVectorCount()];
+    for (int i = 0; i < knnQuery.getQueryVectorCount(); ++i) {
+      queryVector[i] = knnQuery.getQueryVector(i);
+    }
+    validateVectorForSearch(queryVector);
     return new NrtKnnFloatVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
+  }
+
+  private Query getByteKnnQuery(KnnQuery knnQuery, int k, Query filterQuery, int numCandidates) {
+    if (knnQuery.getQueryByteVector().size() != getVectorDimensions()) {
+      throw new IllegalArgumentException(
+          "Invalid query byte vector size, expected: "
+              + getVectorDimensions()
+              + ", found: "
+              + knnQuery.getQueryByteVector().size());
+    }
+    byte[] queryVector = knnQuery.getQueryByteVector().toByteArray();
+    validateVectorForSearch(queryVector);
+    return new NrtKnnByteVectorQuery(getName(), queryVector, k, filterQuery, numCandidates);
   }
 }
