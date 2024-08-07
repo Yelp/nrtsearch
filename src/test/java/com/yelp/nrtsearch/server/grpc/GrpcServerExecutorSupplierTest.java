@@ -21,10 +21,12 @@ import static org.mockito.Mockito.when;
 
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.config.YamlConfigReader;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.ServerCall;
 import java.io.ByteArrayInputStream;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -32,15 +34,20 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class GrpcServerExecutorSupplierTest {
 
-  @Test
-  public void testGetExecutor() {
+  @BeforeClass
+  public static void setUp() {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(
             new YamlConfigReader(
                 new ByteArrayInputStream(
                     "threadPoolConfiguration:\n  maxSearchingThreads: 1".getBytes())));
-    GrpcServerExecutorSupplier grpcServerExecutorSupplier =
-        new GrpcServerExecutorSupplier(threadPoolConfiguration);
+    ThreadPoolExecutorFactory.init(threadPoolConfiguration);
+  }
+
+  @Test
+  public void testGetExecutor() {
+
+    GrpcServerExecutorSupplier grpcServerExecutorSupplier = new GrpcServerExecutorSupplier();
 
     ServerCall metricsServerCall = getMockServerCall("metrics");
     ServerCall searchServerCall = getMockServerCall("search");

@@ -5655,7 +5655,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "title": "The kNN algorithm type, supports 'hnsw' built in type"
+          "title": "The kNN algorithm type, supports 'hnsw' built in type, default: hnsw"
         },
         "hnswM": {
           "type": "integer",
@@ -5666,6 +5666,11 @@
           "type": "integer",
           "format": "int32",
           "title": "The number of candidates to track while assembling the list of nearest neighbors for each new node, default: 100"
+        },
+        "mergeWorkers": {
+          "type": "integer",
+          "format": "int32",
+          "title": "Number of threads to use for merging vector data, default: 1"
         }
       },
       "title": "Options for indexing a VECTOR field for search"

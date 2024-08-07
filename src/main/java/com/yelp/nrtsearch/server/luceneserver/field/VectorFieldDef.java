@@ -27,10 +27,12 @@ import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleVector;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.VectorQueryable;
 import com.yelp.nrtsearch.server.luceneserver.search.query.vector.NrtKnnByteVectorQuery;
 import com.yelp.nrtsearch.server.luceneserver.search.query.vector.NrtKnnFloatVectorQuery;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
@@ -83,7 +85,8 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
   }
 
   private static KnnVectorsFormat createVectorsFormat(VectorIndexingOptions vectorIndexingOptions) {
-    if (!HNSW_FORMAT_TYPE.equals(vectorIndexingOptions.getType())) {
+    if (vectorIndexingOptions.hasType()
+        && !HNSW_FORMAT_TYPE.equals(vectorIndexingOptions.getType())) {
       throw new IllegalArgumentException(
           "Unexpected vector format type \""
               + vectorIndexingOptions.getType()
@@ -91,15 +94,23 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
               + HNSW_FORMAT_TYPE);
     }
     int m =
-        vectorIndexingOptions.getHnswM() > 0
+        vectorIndexingOptions.hasHnswM()
             ? vectorIndexingOptions.getHnswM()
             : Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
     int efConstruction =
-        vectorIndexingOptions.getHnswEfConstruction() > 0
+        vectorIndexingOptions.hasHnswEfConstruction()
             ? vectorIndexingOptions.getHnswEfConstruction()
             : Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+    int mergeWorkers =
+        vectorIndexingOptions.hasMergeWorkers() ? vectorIndexingOptions.getMergeWorkers() : 1;
+    ExecutorService executorService =
+        mergeWorkers > 1
+            ? ThreadPoolExecutorFactory.getInstance()
+                .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.VECTOR_MERGE)
+            : null;
     Lucene99HnswVectorsFormat lucene99HnswVectorsFormat =
-        new Lucene99HnswVectorsFormat(m, efConstruction);
+        new Lucene99HnswVectorsFormat(m, efConstruction, mergeWorkers, executorService);
+
     return new KnnVectorsFormat(lucene99HnswVectorsFormat.getName()) {
       @Override
       public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {

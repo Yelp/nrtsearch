@@ -17,10 +17,8 @@ package com.yelp.nrtsearch.server.utils;
 
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
+import java.util.concurrent.*;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,19 +34,61 @@ public class ThreadPoolExecutorFactory {
     REPLICATIONSERVER,
     FETCH,
     GRPC,
-    METRICS
+    METRICS,
+    VECTOR_MERGE
   }
 
   private static final Logger logger = LoggerFactory.getLogger(ThreadPoolExecutorFactory.class);
   private static final int DEFAULT_QUEUE_SIZE = 8;
 
+  private static ThreadPoolExecutorFactory instance;
+
+  private final ThreadPoolConfiguration threadPoolConfiguration;
+  private final Map<ExecutorType, ThreadPoolExecutor> executorMap = new ConcurrentHashMap<>();
+
   /**
+   * Initialize the factory with the provided {@link ThreadPoolConfiguration}.
+   *
+   * @param threadPoolConfiguration thread pool configuration
+   */
+  public static void init(ThreadPoolConfiguration threadPoolConfiguration) {
+    instance = new ThreadPoolExecutorFactory(threadPoolConfiguration);
+  }
+
+  /**
+   * Get the instance of the factory.
+   *
+   * @return instance of the factory
+   * @throws IllegalStateException if the factory is not initialized
+   */
+  public static ThreadPoolExecutorFactory getInstance() {
+    if (instance == null) {
+      throw new IllegalStateException("ThreadPoolExecutorFactory not initialized");
+    }
+    return instance;
+  }
+
+  /**
+   * Constructor to create the factory with the provided {@link ThreadPoolConfiguration}.
+   *
+   * @param threadPoolConfiguration thread pool configuration
+   */
+  public ThreadPoolExecutorFactory(ThreadPoolConfiguration threadPoolConfiguration) {
+    this.threadPoolConfiguration = threadPoolConfiguration;
+  }
+
+  /**
+   * Get the {@link ThreadPoolExecutor} for the provided {@link ExecutorType}. The executor is
+   * cached, so subsequent calls with the same {@link ExecutorType} will return the same executor.
+   *
    * @param executorType {@link ExecutorType}
-   * @param threadPoolConfiguration {@link ThreadPoolConfiguration}
    * @return {@link ThreadPoolExecutor}
    */
-  public static ThreadPoolExecutor getThreadPoolExecutor(
-      ExecutorType executorType, ThreadPoolConfiguration threadPoolConfiguration) {
+  public ThreadPoolExecutor getThreadPoolExecutor(ExecutorType executorType) {
+    return executorMap.computeIfAbsent(executorType, this::createThreadPoolExecutor);
+  }
+
+  private ThreadPoolExecutor createThreadPoolExecutor(ExecutorType executorType) {
     ThreadPoolExecutor threadPoolExecutor;
     if (executorType.equals(ExecutorType.SEARCH)) {
       logger.info(
@@ -148,6 +188,19 @@ public class ThreadPoolExecutorFactory {
               TimeUnit.SECONDS,
               new LinkedBlockingQueue<>(DEFAULT_QUEUE_SIZE),
               new NamedThreadFactory("MetricsExecutor"));
+    } else if (executorType == ExecutorType.VECTOR_MERGE) {
+      logger.info(
+          "Creating VectorMergeExecutor of size {}",
+          threadPoolConfiguration.getVectorMergeExecutorThreads());
+      threadPoolExecutor =
+          new ThreadPoolExecutor(
+              threadPoolConfiguration.getVectorMergeExecutorThreads(),
+              threadPoolConfiguration.getVectorMergeExecutorThreads(),
+              0L,
+              TimeUnit.SECONDS,
+              new LinkedBlockingQueue<>(
+                  threadPoolConfiguration.getVectorMergeExecutorBufferedItems()),
+              new NamedThreadFactory("VectorMergeExecutor"));
     } else {
       throw new RuntimeException("Invalid executor type provided " + executorType);
     }
