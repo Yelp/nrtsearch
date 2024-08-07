@@ -59,8 +59,12 @@ public class ThreadPoolExecutorFactory {
    * Get the instance of the factory.
    *
    * @return instance of the factory
+   * @throws IllegalStateException if the factory is not initialized
    */
   public static ThreadPoolExecutorFactory getInstance() {
+    if (instance == null) {
+      throw new IllegalStateException("ThreadPoolExecutorFactory not initialized");
+    }
     return instance;
   }
 
