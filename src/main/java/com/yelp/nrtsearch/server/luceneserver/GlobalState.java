@@ -103,17 +103,14 @@ public abstract class GlobalState implements Closeable {
       Files.createDirectories(stateDir);
     }
     this.indexService =
-        ThreadPoolExecutorFactory.getThreadPoolExecutor(
-            ThreadPoolExecutorFactory.ExecutorType.INDEX,
-            luceneServerConfiguration.getThreadPoolConfiguration());
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.INDEX);
     this.searchThreadPoolExecutor =
-        ThreadPoolExecutorFactory.getThreadPoolExecutor(
-            ThreadPoolExecutorFactory.ExecutorType.SEARCH,
-            luceneServerConfiguration.getThreadPoolConfiguration());
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH);
     this.fetchService =
-        ThreadPoolExecutorFactory.getThreadPoolExecutor(
-            ThreadPoolExecutorFactory.ExecutorType.FETCH,
-            luceneServerConfiguration.getThreadPoolConfiguration());
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.FETCH);
     this.configuration = luceneServerConfiguration;
   }
 

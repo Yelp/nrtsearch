@@ -136,9 +136,9 @@ public class LuceneServer {
                   new ReplicationServerImpl(
                       globalState, luceneServerConfiguration.getVerifyReplicationIndexId()))
               .executor(
-                  ThreadPoolExecutorFactory.getThreadPoolExecutor(
-                      ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
-                      luceneServerConfiguration.getThreadPoolConfiguration()))
+                  ThreadPoolExecutorFactory.getInstance()
+                      .getThreadPoolExecutor(
+                          ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER))
               .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
               .maxConcurrentCallsPerConnection(
                   luceneServerConfiguration.getMaxConcurrentCallsPerConnectionForReplication())
@@ -156,9 +156,9 @@ public class LuceneServer {
                   new ReplicationServerImpl(
                       globalState, luceneServerConfiguration.getVerifyReplicationIndexId()))
               .executor(
-                  ThreadPoolExecutorFactory.getThreadPoolExecutor(
-                      ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
-                      luceneServerConfiguration.getThreadPoolConfiguration()))
+                  ThreadPoolExecutorFactory.getInstance()
+                      .getThreadPoolExecutor(
+                          ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER))
               .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
               .build()
               .start();
@@ -179,8 +179,7 @@ public class LuceneServer {
             serviceName,
             nodeName);
     /* The port on which the server should run */
-    GrpcServerExecutorSupplier executorSupplier =
-        new GrpcServerExecutorSupplier(luceneServerConfiguration.getThreadPoolConfiguration());
+    GrpcServerExecutorSupplier executorSupplier = new GrpcServerExecutorSupplier();
     server =
         ServerBuilder.forPort(luceneServerConfiguration.getPort())
             .addService(ServerInterceptors.intercept(serverImpl, monitoringInterceptor))
@@ -323,6 +322,7 @@ public class LuceneServer {
       DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
       CompletionPostingsFormatUtil.setCompletionCodecLoadMode(
           configuration.getCompletionCodecLoadMode());
+      ThreadPoolExecutorFactory.init(configuration.getThreadPoolConfiguration());
 
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);

@@ -48,6 +48,8 @@ public class ThreadPoolConfiguration {
   private static final int DEFAULT_GRPC_EXECUTOR_THREADS = AVAILABLE_PROCESSORS * 2;
   private static final int DEFAULT_METRICS_EXECUTOR_THREADS = AVAILABLE_PROCESSORS;
 
+  public static final int DEFAULT_VECTOR_MERGE_EXECUTOR_THREADS = AVAILABLE_PROCESSORS;
+
   private final int maxSearchingThreads;
   private final int maxSearchBufferedItems;
 
@@ -67,6 +69,9 @@ public class ThreadPoolConfiguration {
 
   private final int grpcExecutorThreads;
   private final int metricsExecutorThreads;
+
+  private final int vectorMergeExecutorThreads;
+  private final int vectorMergeExecutorBufferedItems;
 
   public ThreadPoolConfiguration(YamlConfigReader configReader) {
     maxSearchingThreads =
@@ -130,6 +135,16 @@ public class ThreadPoolConfiguration {
             configReader,
             "threadPoolConfiguration.metricsThreads",
             DEFAULT_METRICS_EXECUTOR_THREADS);
+
+    vectorMergeExecutorThreads =
+        getNumThreads(
+            configReader,
+            "threadPoolConfiguration.vectorMergeThreads",
+            DEFAULT_VECTOR_MERGE_EXECUTOR_THREADS);
+    vectorMergeExecutorBufferedItems =
+        configReader.getInteger(
+            "threadPoolConfiguration.vectorMergeBufferedItems",
+            Math.max(100, 2 * vectorMergeExecutorThreads));
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -239,5 +254,13 @@ public class ThreadPoolConfiguration {
 
   public int getMetricsExecutorThreads() {
     return metricsExecutorThreads;
+  }
+
+  public int getVectorMergeExecutorThreads() {
+    return vectorMergeExecutorThreads;
+  }
+
+  public int getVectorMergeExecutorBufferedItems() {
+    return vectorMergeExecutorBufferedItems;
   }
 }

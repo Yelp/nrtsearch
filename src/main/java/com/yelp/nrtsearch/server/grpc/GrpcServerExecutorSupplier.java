@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
-import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
@@ -43,16 +42,16 @@ public class GrpcServerExecutorSupplier implements ServerCallExecutorSupplier {
   private final ThreadPoolExecutor metricsThreadPoolExecutor;
   private final ThreadPoolExecutor grpcThreadPoolExecutor;
 
-  public GrpcServerExecutorSupplier(ThreadPoolConfiguration threadPoolConfiguration) {
+  public GrpcServerExecutorSupplier() {
     luceneServerThreadPoolExecutor =
-        ThreadPoolExecutorFactory.getThreadPoolExecutor(
-            ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER, threadPoolConfiguration);
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER);
     metricsThreadPoolExecutor =
-        ThreadPoolExecutorFactory.getThreadPoolExecutor(
-            ThreadPoolExecutorFactory.ExecutorType.METRICS, threadPoolConfiguration);
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.METRICS);
     grpcThreadPoolExecutor =
-        ThreadPoolExecutorFactory.getThreadPoolExecutor(
-            ThreadPoolExecutorFactory.ExecutorType.GRPC, threadPoolConfiguration);
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.GRPC);
   }
 
   public ThreadPoolExecutor getLuceneServerThreadPoolExecutor() {

@@ -602,12 +602,14 @@ enum VectorElementType {
 
 // Options for indexing a VECTOR field for search
 message VectorIndexingOptions {
-    // The kNN algorithm type, supports 'hnsw' built in type
-    string type = 1;
+    // The kNN algorithm type, supports 'hnsw' built in type, default: hnsw
+    optional string type = 1;
     // The number of neighbors each node will be connected to in the HNSW graph, default: 16
-    int32 hnsw_m = 2;
+    optional int32 hnsw_m = 2;
     // The number of candidates to track while assembling the list of nearest neighbors for each new node, default: 100
-    int32 hnsw_ef_construction = 3;
+    optional int32 hnsw_ef_construction = 3;
+    // Number of threads to use for merging vector data, default: 1
+    optional int32 merge_workers = 4;
 }
 
 /* Input to registerFields */
