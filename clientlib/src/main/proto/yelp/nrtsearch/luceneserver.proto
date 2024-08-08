@@ -602,7 +602,7 @@ enum VectorElementType {
 
 // Options for indexing a VECTOR field for search
 message VectorIndexingOptions {
-    // The kNN algorithm type, supports 'hnsw' built in type, default: hnsw
+    // The vector indexing type, supports 'hnsw' and 'hnsw_scalar_quantized', default: hnsw
     optional string type = 1;
     // The number of neighbors each node will be connected to in the HNSW graph, default: 16
     optional int32 hnsw_m = 2;
@@ -610,6 +610,18 @@ message VectorIndexingOptions {
     optional int32 hnsw_ef_construction = 3;
     // Number of threads to use for merging vector data, default: 1
     optional int32 merge_workers = 4;
+    // The confidenceInterval for scalar quantizing the vectors. When unset, it is calculated based on the vector dimension.
+    // When `0`, the quantiles are dynamically determined by sampling many confidence intervals and determining the most accurate pair.
+    // Otherwise, the value must be between 0.9 and 1.0 (both inclusive). default: unset
+    optional float quantized_confidence_interval = 5;
+    // The number of bits to use for quantizing the vectors. It can have the following values:
+    //      4 - half byte
+    //      7 - signed byte (default)
+    //      8 - unsigned byte
+    optional int32 quantized_bits = 6;
+    // Whether to compress the vectors, if true, the vectors that are quantized with <= 4 bits will be compressed into
+    // a single byte. If false, the vectors will be stored as is. This provides a trade-off of memory usage and speed. default: false
+    optional bool quantized_compress = 7;
 }
 
 /* Input to registerFields */

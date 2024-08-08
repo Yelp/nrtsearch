@@ -17,28 +17,17 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.google.common.primitives.Floats;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
-import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
-import com.yelp.nrtsearch.server.grpc.Field;
-import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.grpc.FieldType;
-import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
-import com.yelp.nrtsearch.server.grpc.KnnQuery;
-import com.yelp.nrtsearch.server.grpc.Query;
-import com.yelp.nrtsearch.server.grpc.SearchRequest;
-import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics.VectorDiagnostics;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
-import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
@@ -151,6 +140,21 @@ public class VectorFieldDefTest extends ServerTestCase {
                     "byte_vector_mip",
                     MultiValuedField.newBuilder()
                         .addValue(createByteVectorString(random, 3))
+                        .build())
+                .putFields(
+                    "quantized_vector_4",
+                    MultiValuedField.newBuilder()
+                        .addValue(createVectorString(random, 4, false))
+                        .build())
+                .putFields(
+                    "quantized_vector_7",
+                    MultiValuedField.newBuilder()
+                        .addValue(createVectorString(random, 3, false))
+                        .build())
+                .putFields(
+                    "quantized_vector_8",
+                    MultiValuedField.newBuilder()
+                        .addValue(createVectorString(random, 3, false))
                         .build())
                 .putFields(
                     "filter", MultiValuedField.newBuilder().addValue("term" + j % 10).build())
@@ -437,6 +441,36 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
+  public void testQuantizedVectorSearch_4() {
+    singleVectorQueryAndVerify(
+        "quantized_vector_4",
+        List.of(0.25f, 0.5f, 0.75f, 0.1f),
+        VectorSimilarityFunction.COSINE,
+        1.0f,
+        0.001);
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_7() {
+    singleVectorQueryAndVerify(
+        "quantized_vector_7",
+        List.of(0.25f, 0.5f, 0.75f),
+        VectorSimilarityFunction.COSINE,
+        1.0f,
+        0.001);
+  }
+
+  @Test
+  public void testQuantizedVectorSearch_8() {
+    singleVectorQueryAndVerify(
+        "quantized_vector_8",
+        List.of(0.25f, 0.5f, 0.75f),
+        VectorSimilarityFunction.EUCLIDEAN,
+        1.0f,
+        0.001);
+  }
+
+  @Test
   public void testVectorSearch_boost() {
     singleVectorQueryAndVerify(
         "vector_l2_norm", List.of(0.25f, 0.5f, 0.75f), VectorSimilarityFunction.EUCLIDEAN, 2.0f);
@@ -470,7 +504,8 @@ public class VectorFieldDefTest extends ServerTestCase {
                             .build())
                     .build());
     assertEquals(5, searchResponse.getHitsCount());
-    verifyHitsSimilarity(field, queryVector, searchResponse, VectorSimilarityFunction.COSINE, 1.0f);
+    verifyHitsSimilarity(
+        field, queryVector, searchResponse, VectorSimilarityFunction.COSINE, 1.0f, 0.0001);
   }
 
   @Test
@@ -717,6 +752,15 @@ public class VectorFieldDefTest extends ServerTestCase {
       List<Float> queryVector,
       VectorSimilarityFunction similarityFunction,
       float boost) {
+    singleVectorQueryAndVerify(field, queryVector, similarityFunction, boost, 0.0001);
+  }
+
+  private void singleVectorQueryAndVerify(
+      String field,
+      List<Float> queryVector,
+      VectorSimilarityFunction similarityFunction,
+      float boost,
+      double delta) {
     SearchResponse searchResponse =
         getGrpcServer()
             .getBlockingStub()
@@ -740,7 +784,7 @@ public class VectorFieldDefTest extends ServerTestCase {
     VectorDiagnostics vectorDiagnostics = searchResponse.getDiagnostics().getVectorDiagnostics(0);
     assertTrue(vectorDiagnostics.getSearchTimeMs() > 0.0);
     assertTrue(vectorDiagnostics.getTotalHits().getValue() > 0);
-    verifyHitsSimilarity(field, queryVector, searchResponse, similarityFunction, boost);
+    verifyHitsSimilarity(field, queryVector, searchResponse, similarityFunction, boost, delta);
   }
 
   private void verifyHitsSimilarity(
@@ -748,7 +792,8 @@ public class VectorFieldDefTest extends ServerTestCase {
       List<Float> queryVector,
       SearchResponse response,
       VectorSimilarityFunction similarityFunction,
-      float boost) {
+      float boost,
+      double delta) {
     float[] queryVectorArray = floatListToArray(queryVector);
     for (Hit hit : response.getHitsList()) {
       float similarity =
@@ -757,7 +802,7 @@ public class VectorFieldDefTest extends ServerTestCase {
                   floatListToArray(
                       hit.getFieldsOrThrow(field).getFieldValue(0).getVectorValue().getValueList()))
               * boost;
-      assertEquals(similarity, hit.getScore(), 0.0001);
+      assertEquals(similarity, hit.getScore(), delta);
     }
   }
 
@@ -828,7 +873,11 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorSimilarity("l2_norm")
             .build();
     VectorFieldDef vectorFieldDef = new VectorFieldDef("vector", field);
-    assertNull(vectorFieldDef.getVectorsFormat());
+    KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
+    assertNotNull(format);
+    assertEquals(
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
+        format.toString());
   }
 
   @Test
@@ -889,7 +938,9 @@ public class VectorFieldDefTest extends ServerTestCase {
       new VectorFieldDef("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("Unexpected vector format type \"invalid\", expected: hnsw", e.getMessage());
+      assertTrue(
+          e.getMessage()
+              .startsWith("Unexpected vector search type \"invalid\", expected one of: ["));
     }
   }
 
@@ -1044,6 +1095,14 @@ public class VectorFieldDefTest extends ServerTestCase {
             .getGlobalState()
             .getIndex(VECTOR_SEARCH_INDEX_NAME)
             .getField("byte_vector_l2_norm");
+  }
+
+  private VectorFieldDef getQuantizedField() throws IOException {
+    return (VectorFieldDef)
+        getGrpcServer()
+            .getGlobalState()
+            .getIndex(VECTOR_SEARCH_INDEX_NAME)
+            .getField("quantized_vector_7");
   }
 
   @Test
@@ -1252,6 +1311,119 @@ public class VectorFieldDefTest extends ServerTestCase {
       fail();
     } catch (Exception e) {
       assertTrue(e.getMessage().contains("Byte value is not an integer: 100.1 at index: 2"));
+    }
+  }
+
+  @Test
+  public void testGetVectorFormat() throws IOException {
+    VectorFieldDef vectorFieldDef = getCosineField();
+    KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
+    assertEquals(
+        "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
+        format.toString());
+  }
+
+  @Test
+  public void testGetQuantizedVectorFormat() throws IOException {
+    VectorFieldDef vectorFieldDef = getQuantizedField();
+    KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
+    assertEquals(
+        "Lucene99HnswScalarQuantizedVectorsFormat(name=Lucene99HnswScalarQuantizedVectorsFormat, maxConn=16, beamWidth=100, flatVectorFormat=Lucene99ScalarQuantizedVectorsFormat(name=Lucene99ScalarQuantizedVectorsFormat, confidenceInterval=null, bits=7, compress=false, flatVectorScorer=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))",
+        format.toString());
+  }
+
+  @Test
+  public void testInvalidConfidenceInterval() {
+    Field field =
+        Field.newBuilder()
+            .setName("vector")
+            .setType(FieldType.VECTOR)
+            .setSearch(true)
+            .setVectorDimensions(3)
+            .setVectorSimilarity("l2_norm")
+            .setVectorIndexingOptions(
+                VectorIndexingOptions.newBuilder()
+                    .setType("hnsw_scalar_quantized")
+                    .setQuantizedConfidenceInterval(0.5f)
+                    .build())
+            .build();
+    try {
+      new VectorFieldDef("vector", field);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals(
+          "confidenceInterval must be between 0.9 and 1.0 or 0; confidenceInterval=0.5",
+          e.getMessage());
+    }
+  }
+
+  @Test
+  public void testInvalidBits() {
+    Field field =
+        Field.newBuilder()
+            .setName("vector")
+            .setType(FieldType.VECTOR)
+            .setSearch(true)
+            .setVectorDimensions(3)
+            .setVectorSimilarity("l2_norm")
+            .setVectorIndexingOptions(
+                VectorIndexingOptions.newBuilder()
+                    .setType("hnsw_scalar_quantized")
+                    .setQuantizedBits(9)
+                    .build())
+            .build();
+    try {
+      new VectorFieldDef("vector", field);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("bits must be one of: 4, 7, 8; bits=9", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testInvalidQuantizedByteVector() {
+    Field field =
+        Field.newBuilder()
+            .setName("vector")
+            .setType(FieldType.VECTOR)
+            .setSearch(true)
+            .setVectorDimensions(3)
+            .setVectorSimilarity("l2_norm")
+            .setVectorElementType(VectorElementType.VECTOR_ELEMENT_BYTE)
+            .setVectorIndexingOptions(
+                VectorIndexingOptions.newBuilder().setType("hnsw_scalar_quantized").build())
+            .build();
+    try {
+      new VectorFieldDef("vector", field);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals(
+          "HNSW scalar quantized search type is only supported for float vectors", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testInvalid4BitsOddDimensions() {
+    Field field =
+        Field.newBuilder()
+            .setName("vector")
+            .setType(FieldType.VECTOR)
+            .setSearch(true)
+            .setVectorDimensions(3)
+            .setVectorSimilarity("l2_norm")
+            .setVectorIndexingOptions(
+                VectorIndexingOptions.newBuilder()
+                    .setType("hnsw_scalar_quantized")
+                    .setQuantizedBits(4)
+                    .build())
+            .build();
+    try {
+      new VectorFieldDef("vector", field);
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals(
+          "HNSW scalar quantized search type with 4 bits requires vector dimensions to be a multiple of 2",
+          e.getMessage());
     }
   }
 }

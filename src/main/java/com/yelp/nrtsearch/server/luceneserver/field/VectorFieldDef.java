@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswScalarQuantizedVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -64,13 +65,25 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
           VectorSimilarityFunction.COSINE,
           "max_inner_product",
           VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT);
-  private static final String HNSW_FORMAT_TYPE = "hnsw";
+  private static final Map<String, VectorSearchType> VECTOR_SEARCH_TYPE_MAP =
+      Map.of(
+          "hnsw",
+          VectorSearchType.HNSW,
+          "hnsw_scalar_quantized",
+          VectorSearchType.HNSW_SCALAR_QUANTIZED);
+  private static final String DEFAULT_SEARCH_TYPE = "hnsw";
   private static final int MAX_VECTOR_DIMENSIONS = 4096;
+  private static final int DEFAULT_QUANTIZED_BITS = 7;
   private final int vectorDimensions;
   private final VectorSimilarityFunction similarityFunction;
   private final KnnVectorsFormat vectorsFormat;
   private final VectorElementType elementType;
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
+
+  enum VectorSearchType {
+    HNSW,
+    HNSW_SCALAR_QUANTIZED
+  }
 
   private static VectorSimilarityFunction getSimilarityFunction(String vectorSimilarity) {
     VectorSimilarityFunction similarityFunction = SIMILARITY_FUNCTION_MAP.get(vectorSimilarity);
@@ -84,15 +97,8 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
     return similarityFunction;
   }
 
-  private static KnnVectorsFormat createVectorsFormat(VectorIndexingOptions vectorIndexingOptions) {
-    if (vectorIndexingOptions.hasType()
-        && !HNSW_FORMAT_TYPE.equals(vectorIndexingOptions.getType())) {
-      throw new IllegalArgumentException(
-          "Unexpected vector format type \""
-              + vectorIndexingOptions.getType()
-              + "\", expected: "
-              + HNSW_FORMAT_TYPE);
-    }
+  private static KnnVectorsFormat createVectorsFormat(
+      VectorSearchType vectorSearchType, VectorIndexingOptions vectorIndexingOptions) {
     int m =
         vectorIndexingOptions.hasHnswM()
             ? vectorIndexingOptions.getHnswM()
@@ -108,18 +114,22 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
             ? ThreadPoolExecutorFactory.getInstance()
                 .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.VECTOR_MERGE)
             : null;
-    Lucene99HnswVectorsFormat lucene99HnswVectorsFormat =
-        new Lucene99HnswVectorsFormat(m, efConstruction, mergeWorkers, executorService);
+    KnnVectorsFormat vectorsFormat =
+        switch (vectorSearchType) {
+          case HNSW -> getHnswVectorsFormat(m, efConstruction, mergeWorkers, executorService);
+          case HNSW_SCALAR_QUANTIZED -> getHnswScalarQuantizedVectorsFormat(
+              m, efConstruction, mergeWorkers, executorService, vectorIndexingOptions);
+        };
 
-    return new KnnVectorsFormat(lucene99HnswVectorsFormat.getName()) {
+    return new KnnVectorsFormat(vectorsFormat.getName()) {
       @Override
       public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return lucene99HnswVectorsFormat.fieldsWriter(state);
+        return vectorsFormat.fieldsWriter(state);
       }
 
       @Override
       public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return lucene99HnswVectorsFormat.fieldsReader(state);
+        return vectorsFormat.fieldsReader(state);
       }
 
       @Override
@@ -129,9 +139,63 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
 
       @Override
       public String toString() {
-        return lucene99HnswVectorsFormat.toString();
+        return vectorsFormat.toString();
       }
     };
+  }
+
+  private static KnnVectorsFormat getHnswVectorsFormat(
+      int m, int efConstruction, int mergeWorkers, ExecutorService executorService) {
+    return new Lucene99HnswVectorsFormat(m, efConstruction, mergeWorkers, executorService);
+  }
+
+  private static KnnVectorsFormat getHnswScalarQuantizedVectorsFormat(
+      int m,
+      int efConstruction,
+      int mergeWorkers,
+      ExecutorService executorService,
+      VectorIndexingOptions vectorIndexingOptions) {
+    Float confidenceInterval =
+        vectorIndexingOptions.hasQuantizedConfidenceInterval()
+            ? vectorIndexingOptions.getQuantizedConfidenceInterval()
+            : null;
+    int bits =
+        vectorIndexingOptions.hasQuantizedBits()
+            ? vectorIndexingOptions.getQuantizedBits()
+            : DEFAULT_QUANTIZED_BITS;
+    boolean compress =
+        vectorIndexingOptions.hasQuantizedCompress()
+            ? vectorIndexingOptions.getQuantizedCompress()
+            : false;
+
+    return new Lucene99HnswScalarQuantizedVectorsFormat(
+        m, efConstruction, mergeWorkers, bits, compress, confidenceInterval, executorService);
+  }
+
+  private VectorSearchType getSearchType(
+      VectorIndexingOptions vectorIndexingOptions, VectorElementType elementType) {
+    String searchType =
+        vectorIndexingOptions.hasType() ? vectorIndexingOptions.getType() : DEFAULT_SEARCH_TYPE;
+    VectorSearchType vectorSearchType = VECTOR_SEARCH_TYPE_MAP.get(searchType);
+    if (vectorSearchType == null) {
+      throw new IllegalArgumentException(
+          "Unexpected vector search type \""
+              + searchType
+              + "\", expected one of: "
+              + VECTOR_SEARCH_TYPE_MAP.keySet());
+    }
+    if (vectorSearchType == VectorSearchType.HNSW_SCALAR_QUANTIZED
+        && elementType != VectorElementType.VECTOR_ELEMENT_FLOAT) {
+      throw new IllegalArgumentException(
+          "HNSW scalar quantized search type is only supported for float vectors");
+    }
+    if (vectorSearchType == VectorSearchType.HNSW_SCALAR_QUANTIZED
+        && vectorIndexingOptions.getQuantizedBits() == 4
+        && (vectorDimensions % 2) != 0) {
+      throw new IllegalArgumentException(
+          "HNSW scalar quantized search type with 4 bits requires vector dimensions to be a multiple of 2");
+    }
+    return vectorSearchType;
   }
 
   /**
@@ -143,11 +207,11 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
     this.vectorDimensions = requestField.getVectorDimensions();
     this.elementType = requestField.getVectorElementType();
     if (isSearchable()) {
+      VectorSearchType vectorSearchType =
+          getSearchType(requestField.getVectorIndexingOptions(), elementType);
       this.similarityFunction = getSimilarityFunction(requestField.getVectorSimilarity());
       this.vectorsFormat =
-          requestField.hasVectorIndexingOptions()
-              ? createVectorsFormat(requestField.getVectorIndexingOptions())
-              : null;
+          createVectorsFormat(vectorSearchType, requestField.getVectorIndexingOptions());
     } else {
       this.similarityFunction = null;
       this.vectorsFormat = null;
