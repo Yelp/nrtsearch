@@ -17,8 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.google.protobuf.Struct;
-import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
@@ -36,8 +34,6 @@ import com.yelp.nrtsearch.server.luceneserver.field.BooleanFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.DateTimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.PolygonfieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
@@ -64,10 +60,7 @@ import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.DrillSideways;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -818,16 +811,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
       }
       // retrieve stored fields
-      else if (fd instanceof IndexableFieldDef && ((IndexableFieldDef) fd).isStored()) {
-        String[] values = ((IndexableFieldDef) fd).getStored(s.doc(hit.getLuceneDocId()));
-        for (String fieldValue : values) {
-          if (fd instanceof ObjectFieldDef || fd instanceof PolygonfieldDef) {
-            Struct.Builder builder = Struct.newBuilder();
-            JsonFormat.parser().merge(fieldValue, builder);
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(builder));
-          } else {
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setTextValue(fieldValue));
-          }
+      else if (fd instanceof IndexableFieldDef indexableFieldDef && indexableFieldDef.isStored()) {
+        IndexableField[] values = s.doc(hit.getLuceneDocId()).getFields(field);
+        for (IndexableField fieldValue : values) {
+          compositeFieldValue.addFieldValue(
+              indexableFieldDef.getStoredFieldValue(fieldValue.storedValue()));
         }
       } else {
         // TODO: throw exception here after confirming that legitimate requests do not enter this
@@ -1045,22 +1033,13 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         IndexableFieldDef indexableFieldDef)
         throws IOException {
       for (SearchResponse.Hit.Builder hit : sliceHits) {
-        String[] values =
-            indexableFieldDef.getStored(
-                context.getSearcherAndTaxonomy().searcher.doc(hit.getLuceneDocId()));
-
         SearchResponse.Hit.CompositeFieldValue.Builder compositeFieldValue =
             SearchResponse.Hit.CompositeFieldValue.newBuilder();
-        for (String fieldValue : values) {
-          if (indexableFieldDef instanceof ObjectFieldDef
-              || indexableFieldDef instanceof PolygonfieldDef) {
-            Struct.Builder builder = Struct.newBuilder();
-            JsonFormat.parser().merge(fieldValue, builder);
-            compositeFieldValue.addFieldValue(FieldValue.newBuilder().setStructValue(builder));
-          } else {
-            compositeFieldValue.addFieldValue(
-                SearchResponse.Hit.FieldValue.newBuilder().setTextValue(fieldValue));
-          }
+        IndexableField[] values =
+            context.getSearcherAndTaxonomy().searcher.doc(hit.getLuceneDocId()).getFields(name);
+        for (IndexableField fieldValue : values) {
+          compositeFieldValue.addFieldValue(
+              indexableFieldDef.getStoredFieldValue(fieldValue.storedValue()));
         }
         hit.putFields(name, compositeFieldValue.build());
       }

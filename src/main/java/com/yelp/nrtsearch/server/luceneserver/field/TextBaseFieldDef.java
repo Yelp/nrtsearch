@@ -15,11 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.field;
 
-import com.yelp.nrtsearch.server.grpc.FacetType;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.Field;
-import com.yelp.nrtsearch.server.grpc.IndexOptions;
-import com.yelp.nrtsearch.server.grpc.TermVectors;
-import com.yelp.nrtsearch.server.grpc.TextDocValuesType;
 import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
@@ -37,11 +34,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.Document;
+import org.apache.lucene.document.*;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.facet.FacetField;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesFacetField;
 import org.apache.lucene.index.BinaryDocValues;
@@ -220,6 +214,11 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
     } else {
       return DocValuesFactory.getBinaryDocValues(getName(), docValuesType, context);
     }
+  }
+
+  @Override
+  public SearchResponse.Hit.FieldValue getStoredFieldValue(StoredValue value) {
+    return SearchResponse.Hit.FieldValue.newBuilder().setTextValue(value.getStringValue()).build();
   }
 
   @Override

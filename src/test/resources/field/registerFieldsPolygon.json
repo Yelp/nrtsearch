@@ -14,6 +14,18 @@
       "store": false,
       "storeDocValues": true,
       "multiValued": true
+    },
+    {
+      "name": "single_stored",
+      "type": "POLYGON",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "single_none_stored",
+      "type": "POLYGON",
+      "search": true,
+      "store": true
     }
   ]
 }

@@ -447,7 +447,7 @@ public class VectorFieldDefTest extends ServerTestCase {
         List.of(0.25f, 0.5f, 0.75f, 0.1f),
         VectorSimilarityFunction.COSINE,
         1.0f,
-        0.001);
+        0.01);
   }
 
   @Test

@@ -17,19 +17,19 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.hasAnalyzer;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.Struct;
+import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.GeoPointQuery;
+import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.PolygonQueryable;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.List;
-import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.LatLonShape;
-import org.apache.lucene.document.ShapeField;
-import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.*;
 import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
@@ -112,6 +112,17 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
     }
     throw new IllegalStateException(
         String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
+  }
+
+  @Override
+  public SearchResponse.Hit.FieldValue getStoredFieldValue(StoredValue value) {
+    Struct.Builder builder = Struct.newBuilder();
+    try {
+      JsonFormat.parser().merge(value.getStringValue(), builder);
+    } catch (InvalidProtocolBufferException e) {
+      throw new RuntimeException(e);
+    }
+    return SearchResponse.Hit.FieldValue.newBuilder().setStructValue(builder.build()).build();
   }
 
   @Override

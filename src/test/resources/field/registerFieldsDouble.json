@@ -7,6 +7,32 @@
             "storeDocValues": true,
             "multiValued": false,
             "search": true
+        },
+        {
+            "name": "single_stored",
+            "type": "DOUBLE",
+            "search": true,
+            "store": true
+        },
+        {
+            "name": "multi_stored",
+            "type": "DOUBLE",
+            "search": true,
+            "multiValued": true,
+            "store": true
+        },
+        {
+            "name": "single_none_stored",
+            "type": "DOUBLE",
+            "search": true,
+            "store": true
+        },
+        {
+            "name": "multi_none_stored",
+            "type": "DOUBLE",
+            "search": true,
+            "multiValued": true,
+            "store": true
         }
     ]
 }

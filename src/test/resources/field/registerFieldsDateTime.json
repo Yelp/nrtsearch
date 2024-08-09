@@ -27,6 +27,36 @@
       "dateTimeFormat": "yyyy-MM-dd HH:mm:ss",
       "storeDocValues": true,
       "search": true
+    },
+    {
+      "name": "single_stored",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "multi_stored",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "search": true,
+      "multiValued": true,
+      "store": true
+    },
+    {
+      "name": "single_none_stored",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "multi_none_stored",
+      "type": "DATE_TIME",
+      "dateTimeFormat": "epoch_millis",
+      "search": true,
+      "multiValued": true,
+      "store": true
     }
   ]
 }

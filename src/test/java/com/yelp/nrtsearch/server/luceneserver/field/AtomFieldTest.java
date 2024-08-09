@@ -72,6 +72,8 @@ public class AtomFieldTest extends ServerTestCase {
             .putFields("single", t1Value)
             .putFields("multi_one", t2Value)
             .putFields("multi_two", t31Values)
+            .putFields("single_stored", t3Value)
+            .putFields("multi_stored", t12Values)
             .build();
     docs.add(request);
     request =
@@ -81,6 +83,8 @@ public class AtomFieldTest extends ServerTestCase {
             .putFields("single", t2Value)
             .putFields("multi_one", t3Value)
             .putFields("multi_two", t12Values)
+            .putFields("single_stored", t2Value)
+            .putFields("multi_stored", t31Values)
             .build();
     docs.add(request);
     request =
@@ -90,9 +94,55 @@ public class AtomFieldTest extends ServerTestCase {
             .putFields("single", t3Value)
             .putFields("multi_one", t1Value)
             .putFields("multi_two", t23Values)
+            .putFields("single_stored", t1Value)
+            .putFields("multi_stored", t23Values)
             .build();
     docs.add(request);
     addDocuments(docs.stream());
+  }
+
+  @Test
+  public void testStoredFields() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setTopHits(5)
+                    .addRetrieveFields("single_stored")
+                    .addRetrieveFields("multi_stored")
+                    .addRetrieveFields("single_none_stored")
+                    .addRetrieveFields("multi_none_stored")
+                    .setQuery(Query.newBuilder().build())
+                    .build());
+    assertEquals(3, response.getHitsCount());
+    Hit hit = response.getHits(0);
+    assertEquals(1, hit.getFieldsOrThrow("single_stored").getFieldValueCount());
+    assertEquals("term 3", hit.getFieldsOrThrow("single_stored").getFieldValue(0).getTextValue());
+    assertEquals(2, hit.getFieldsOrThrow("multi_stored").getFieldValueCount());
+    assertEquals("term 1", hit.getFieldsOrThrow("multi_stored").getFieldValue(0).getTextValue());
+    assertEquals("term 2", hit.getFieldsOrThrow("multi_stored").getFieldValue(1).getTextValue());
+    assertEquals(0, hit.getFieldsOrThrow("single_none_stored").getFieldValueCount());
+    assertEquals(0, hit.getFieldsOrThrow("multi_none_stored").getFieldValueCount());
+
+    hit = response.getHits(1);
+    assertEquals(1, hit.getFieldsOrThrow("single_stored").getFieldValueCount());
+    assertEquals("term 2", hit.getFieldsOrThrow("single_stored").getFieldValue(0).getTextValue());
+    assertEquals(2, hit.getFieldsOrThrow("multi_stored").getFieldValueCount());
+    assertEquals("term 3", hit.getFieldsOrThrow("multi_stored").getFieldValue(0).getTextValue());
+    assertEquals("term 1", hit.getFieldsOrThrow("multi_stored").getFieldValue(1).getTextValue());
+    assertEquals(0, hit.getFieldsOrThrow("single_none_stored").getFieldValueCount());
+    assertEquals(0, hit.getFieldsOrThrow("multi_none_stored").getFieldValueCount());
+
+    hit = response.getHits(2);
+    assertEquals(1, hit.getFieldsOrThrow("single_stored").getFieldValueCount());
+    assertEquals("term 1", hit.getFieldsOrThrow("single_stored").getFieldValue(0).getTextValue());
+    assertEquals(2, hit.getFieldsOrThrow("multi_stored").getFieldValueCount());
+    assertEquals("term 2", hit.getFieldsOrThrow("multi_stored").getFieldValue(0).getTextValue());
+    assertEquals("term 3", hit.getFieldsOrThrow("multi_stored").getFieldValue(1).getTextValue());
+    assertEquals(0, hit.getFieldsOrThrow("single_none_stored").getFieldValueCount());
+    assertEquals(0, hit.getFieldsOrThrow("multi_none_stored").getFieldValueCount());
   }
 
   @Test

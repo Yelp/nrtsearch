@@ -39,6 +39,32 @@
       "search": true,
       "multiValued": true,
       "storeDocValues": true
+    },
+    {
+      "name": "single_stored",
+      "type": "ATOM",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "multi_stored",
+      "type": "ATOM",
+      "search": true,
+      "multiValued": true,
+      "store": true
+    },
+    {
+      "name": "single_none_stored",
+      "type": "ATOM",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "multi_none_stored",
+      "type": "ATOM",
+      "search": true,
+      "multiValued": true,
+      "store": true
     }
   ]
 }
