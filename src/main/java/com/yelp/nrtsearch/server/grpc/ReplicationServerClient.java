@@ -81,16 +81,26 @@ public class ReplicationServerClient implements Closeable {
 
   /** Construct client connecting to ReplicationServer server at {@code host:port}. */
   public ReplicationServerClient(String host, int port) {
-    this(
+    this(host, port, false);
+  }
+
+  /** Construct client connecting to ReplicationServer server at {@code host:port}. */
+  public ReplicationServerClient(String host, int port, boolean useKeepAlive) {
+    this(createManagedChannel(host, port, useKeepAlive), host, port, "");
+  }
+
+  private static ManagedChannel createManagedChannel(String host, int port, boolean useKeepAlive) {
+    ManagedChannelBuilder<?> managedChannelBuilder =
         ManagedChannelBuilder.forAddress(host, port)
-            // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
-            // needing certificates.
             .usePlaintext()
-            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
-            .build(),
-        host,
-        port,
-        "");
+            .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE);
+    if (useKeepAlive) {
+      managedChannelBuilder
+          .keepAliveTime(1, TimeUnit.MINUTES)
+          .keepAliveTimeout(10, TimeUnit.SECONDS)
+          .keepAliveWithoutCalls(true);
+    }
+    return managedChannelBuilder.build();
   }
 
   /**

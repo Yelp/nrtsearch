@@ -21,6 +21,13 @@ import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import java.io.IOException;
 
 public class AddReplicaHandler implements Handler<AddReplicaRequest, AddReplicaResponse> {
+
+  private final boolean useKeepAlive;
+
+  public AddReplicaHandler(boolean useKeepAlive) {
+    this.useKeepAlive = useKeepAlive;
+  }
+
   @Override
   public AddReplicaResponse handle(IndexState indexState, AddReplicaRequest addReplicaRequest) {
     ShardState shardState = indexState.getShard(0);
@@ -37,7 +44,7 @@ public class AddReplicaHandler implements Handler<AddReplicaRequest, AddReplicaR
           addReplicaRequest.getReplicaId(),
           // channel for primary to talk to replica
           new ReplicationServerClient(
-              addReplicaRequest.getHostName(), addReplicaRequest.getPort()));
+              addReplicaRequest.getHostName(), addReplicaRequest.getPort(), useKeepAlive));
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
