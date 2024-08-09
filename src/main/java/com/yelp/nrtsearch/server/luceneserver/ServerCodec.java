@@ -27,10 +27,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 
 /** Implements per-index {@link Codec}. */
 public class ServerCodec extends Lucene99Codec {
-
-  public static final String DEFAULT_POSTINGS_FORMAT = "Lucene99";
-  public static final String DEFAULT_DOC_VALUES_FORMAT = "Lucene90";
-
   private final IndexStateManager stateManager;
 
   // nocommit expose compression control
@@ -43,45 +39,45 @@ public class ServerCodec extends Lucene99Codec {
   @Override
   public PostingsFormat getPostingsFormatForField(String field) {
     IndexState state = stateManager.getCurrent();
-    String pf;
     try {
       FieldDef fd = state.getField(field);
-      if (fd instanceof IndexableFieldDef) {
-        pf = ((IndexableFieldDef) fd).getPostingsFormat();
+      if (fd instanceof IndexableFieldDef indexableFieldDef) {
+        PostingsFormat postingsFormat = indexableFieldDef.getPostingsFormat();
+        if (postingsFormat != null) {
+          return postingsFormat;
+        }
       } else {
-        throw new IllegalArgumentException("Field " + field + " is not indexable");
+        throw new IllegalArgumentException("Field \"" + field + "\" is not indexable");
       }
     } catch (IllegalArgumentException iae) {
       // The indexed facets field will have drill-downs,
       // which will pull the postings format:
-      if (state.getInternalFacetFieldNames().contains(field)) {
-        return super.getPostingsFormatForField(field);
-      } else {
+      if (!state.getInternalFacetFieldNames().contains(field)) {
         throw iae;
       }
     }
-    return PostingsFormat.forName(pf);
+    return super.getPostingsFormatForField(field);
   }
 
   @Override
   public DocValuesFormat getDocValuesFormatForField(String field) {
     IndexState state = stateManager.getCurrent();
-    String dvf;
     try {
       FieldDef fd = state.getField(field);
-      if (fd instanceof IndexableFieldDef) {
-        dvf = ((IndexableFieldDef) fd).getDocValuesFormat();
+      if (fd instanceof IndexableFieldDef indexableFieldDef) {
+        DocValuesFormat docValuesFormat = indexableFieldDef.getDocValuesFormat();
+        if (docValuesFormat != null) {
+          return docValuesFormat;
+        }
       } else {
-        throw new IllegalArgumentException("Field " + field + " is not indexable");
+        throw new IllegalArgumentException("Field \"" + field + "\" is not indexable");
       }
     } catch (IllegalArgumentException iae) {
-      if (state.getInternalFacetFieldNames().contains(field)) {
-        return super.getDocValuesFormatForField(field);
-      } else {
+      if (!state.getInternalFacetFieldNames().contains(field)) {
         throw iae;
       }
     }
-    return DocValuesFormat.forName(dvf);
+    return super.getDocValuesFormatForField(field);
   }
 
   @Override
@@ -89,8 +85,8 @@ public class ServerCodec extends Lucene99Codec {
     IndexState state = stateManager.getCurrent();
     try {
       FieldDef fd = state.getField(field);
-      if (fd instanceof VectorFieldDef) {
-        KnnVectorsFormat vectorsFormat = ((VectorFieldDef) fd).getVectorsFormat();
+      if (fd instanceof VectorFieldDef vectorFieldDef) {
+        KnnVectorsFormat vectorsFormat = vectorFieldDef.getVectorsFormat();
         if (vectorsFormat != null) {
           return vectorsFormat;
         }
