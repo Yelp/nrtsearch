@@ -19,6 +19,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -170,8 +172,15 @@ public class ReplicationServerClientTest {
 
   @Test
   @SuppressWarnings("rawtypes")
-  public void testKeepAliveEnabled() throws IOException {
+  public void testKeepAliveEnabled() {
     ManagedChannelBuilder managedChannelBuilder = mock(ManagedChannelBuilder.class);
+    when(managedChannelBuilder.keepAliveTime(anyLong(), any(TimeUnit.class)))
+        .thenReturn(managedChannelBuilder);
+    when(managedChannelBuilder.keepAliveTimeout(anyLong(), any(TimeUnit.class)))
+        .thenReturn(managedChannelBuilder);
+    when(managedChannelBuilder.keepAliveWithoutCalls(anyBoolean()))
+        .thenReturn(managedChannelBuilder);
+
     ReplicationServerClient.setKeepAlive(managedChannelBuilder, true);
     verify(managedChannelBuilder).keepAliveTime(1, TimeUnit.MINUTES);
     verify(managedChannelBuilder).keepAliveTimeout(10, TimeUnit.SECONDS);
@@ -180,7 +189,7 @@ public class ReplicationServerClientTest {
 
   @Test
   @SuppressWarnings("rawtypes")
-  public void testKeepAliveDisabled() throws IOException {
+  public void testKeepAliveDisabled() {
     ManagedChannelBuilder managedChannelBuilder = mock(ManagedChannelBuilder.class);
     ReplicationServerClient.setKeepAlive(managedChannelBuilder, false);
     verifyNoMoreInteractions(managedChannelBuilder);
