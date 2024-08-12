@@ -17,7 +17,11 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.Struct;
+import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
@@ -29,6 +33,7 @@ import java.util.stream.Collectors;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
@@ -176,6 +181,17 @@ public class ObjectFieldDef extends IndexableFieldDef {
     }
     throw new IllegalStateException(
         String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
+  }
+
+  @Override
+  public SearchResponse.Hit.FieldValue getStoredFieldValue(StoredValue value) {
+    Struct.Builder builder = Struct.newBuilder();
+    try {
+      JsonFormat.parser().merge(value.getStringValue(), builder);
+    } catch (InvalidProtocolBufferException e) {
+      throw new RuntimeException(e);
+    }
+    return SearchResponse.Hit.FieldValue.newBuilder().setStructValue(builder.build()).build();
   }
 
   /**

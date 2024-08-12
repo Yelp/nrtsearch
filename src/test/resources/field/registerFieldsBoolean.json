@@ -50,6 +50,32 @@
       "type": "BOOLEAN",
       "multiValued": true,
       "storeDocValues": true
+    },
+    {
+      "name": "single_stored",
+      "type": "BOOLEAN",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "multi_stored",
+      "type": "BOOLEAN",
+      "search": true,
+      "multiValued": true,
+      "store": true
+    },
+    {
+      "name": "single_none_stored",
+      "type": "BOOLEAN",
+      "search": true,
+      "store": true
+    },
+    {
+      "name": "multi_none_stored",
+      "type": "BOOLEAN",
+      "search": true,
+      "multiValued": true,
+      "store": true
     }
   ]
 }

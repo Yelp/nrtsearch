@@ -19,7 +19,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.google.gson.Gson;
+import com.google.protobuf.ListValue;
 import com.google.protobuf.Struct;
+import com.google.protobuf.Value;
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
@@ -66,9 +68,198 @@ public class PolygonFieldDefTest extends ServerTestCase {
             .setIndexName(name)
             .putFields("doc_id", MultiValuedField.newBuilder().addValue("1").build())
             .putFields("polygon", MultiValuedField.newBuilder().addValue(gson.toJson(doc)).build())
+            .putFields(
+                "single_stored", MultiValuedField.newBuilder().addValue(gson.toJson(doc)).build())
             .build();
     docs.add(docRequest);
     addDocuments(docs.stream());
+  }
+
+  @Test
+  public void testStoredFields() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setTopHits(3)
+                    .addRetrieveFields("single_stored")
+                    .addRetrieveFields("single_none_stored")
+                    .setQuery(Query.newBuilder().build())
+                    .build());
+    assertEquals(1, response.getHitsCount());
+
+    Struct expectedStruct =
+        Struct.newBuilder()
+            .putFields(
+                "coordinates",
+                Value.newBuilder()
+                    .setListValue(
+                        ListValue.newBuilder()
+                            .addValues(
+                                Value.newBuilder()
+                                    .setListValue(
+                                        ListValue.newBuilder()
+                                            .addValues(
+                                                Value.newBuilder()
+                                                    .setListValue(
+                                                        ListValue.newBuilder()
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(100.0)
+                                                                    .build())
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(0.0)
+                                                                    .build())
+                                                            .build())
+                                                    .build())
+                                            .addValues(
+                                                Value.newBuilder()
+                                                    .setListValue(
+                                                        ListValue.newBuilder()
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(101.0)
+                                                                    .build())
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(0.0)
+                                                                    .build())
+                                                            .build())
+                                                    .build())
+                                            .addValues(
+                                                Value.newBuilder()
+                                                    .setListValue(
+                                                        ListValue.newBuilder()
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(101.0)
+                                                                    .build())
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(1.0)
+                                                                    .build())
+                                                            .build())
+                                                    .build())
+                                            .addValues(
+                                                Value.newBuilder()
+                                                    .setListValue(
+                                                        ListValue.newBuilder()
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(100.0)
+                                                                    .build())
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(1.0)
+                                                                    .build())
+                                                            .build())
+                                                    .build())
+                                            .addValues(
+                                                Value.newBuilder()
+                                                    .setListValue(
+                                                        ListValue.newBuilder()
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(100.0)
+                                                                    .build())
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(0.0)
+                                                                    .build())
+                                                            .build())
+                                                    .build())
+                                            .build())
+                                    .build())
+                            .addValues(
+                                Value.newBuilder()
+                                    .setListValue(
+                                        ListValue.newBuilder()
+                                            .addValues(
+                                                Value.newBuilder()
+                                                    .setListValue(
+                                                        ListValue.newBuilder()
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(100.2)
+                                                                    .build())
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(0.2)
+                                                                    .build())
+                                                            .build())
+                                                    .build())
+                                            .addValues(
+                                                Value.newBuilder()
+                                                    .setListValue(
+                                                        ListValue.newBuilder()
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(100.8)
+                                                                    .build())
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(0.2)
+                                                                    .build())
+                                                            .build())
+                                                    .build())
+                                            .addValues(
+                                                Value.newBuilder()
+                                                    .setListValue(
+                                                        ListValue.newBuilder()
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(100.8)
+                                                                    .build())
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(0.8)
+                                                                    .build())
+                                                            .build())
+                                                    .build())
+                                            .addValues(
+                                                Value.newBuilder()
+                                                    .setListValue(
+                                                        ListValue.newBuilder()
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(100.2)
+                                                                    .build())
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(0.8)
+                                                                    .build())
+                                                            .build())
+                                                    .build())
+                                            .addValues(
+                                                Value.newBuilder()
+                                                    .setListValue(
+                                                        ListValue.newBuilder()
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(100.2)
+                                                                    .build())
+                                                            .addValues(
+                                                                Value.newBuilder()
+                                                                    .setNumberValue(0.2)
+                                                                    .build())
+                                                            .build())
+                                                    .build())
+                                            .build())
+                                    .build())
+                            .build())
+                    .build())
+            .putFields("type", Value.newBuilder().setStringValue("Polygon").build())
+            .build();
+
+    assertEquals(1, response.getHits(0).getFieldsOrThrow("single_stored").getFieldValueCount());
+    assertEquals(
+        expectedStruct,
+        response.getHits(0).getFieldsOrThrow("single_stored").getFieldValue(0).getStructValue());
+    assertEquals(
+        0, response.getHits(0).getFieldsOrThrow("single_none_stored").getFieldValueCount());
   }
 
   @Test

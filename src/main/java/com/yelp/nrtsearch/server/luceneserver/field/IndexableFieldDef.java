@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ServerCodec;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.similarities.Similarity;
@@ -193,8 +195,7 @@ public abstract class IndexableFieldDef extends FieldDef {
   }
 
   /**
-   * Get if this field data is stored in the index. This data must be accessible via {@link
-   * #getStored(Document)}.
+   * Get if this field data is stored in the index.
    *
    * @return if this field is stored in the index
    */
@@ -258,14 +259,14 @@ public abstract class IndexableFieldDef extends FieldDef {
   }
 
   /**
-   * Get the field values stored in the index when the property store=true. Retrieve the String
-   * values from the document and perform any needed post processing.
+   * Transform a value from this fields index stored fields to a {@link
+   * SearchResponse.Hit.FieldValue}. This will be called once for each value that was stored.
    *
-   * @param document lucene document
-   * @return String representations of stored field values
+   * @param value stored field value
+   * @return hit field value for response
    */
-  public String[] getStored(Document document) {
-    return document.getValues(getName());
+  public SearchResponse.Hit.FieldValue getStoredFieldValue(StoredValue value) {
+    throw new UnsupportedOperationException("Stored values not supported for field: " + getName());
   }
 
   /**

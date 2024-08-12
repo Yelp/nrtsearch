@@ -19,15 +19,13 @@ import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.ha
 
 import com.yelp.nrtsearch.server.grpc.FacetType;
 import com.yelp.nrtsearch.server.grpc.Field;
+import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.TermInSetQuery;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
 import java.io.IOException;
 import java.util.List;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.*;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -133,6 +131,12 @@ public class BooleanFieldDef extends IndexableFieldDef implements TermQueryable 
     }
     throw new IllegalStateException(
         String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
+  }
+
+  @Override
+  public SearchResponse.Hit.FieldValue getStoredFieldValue(StoredValue value) {
+    boolean booleanValue = value.getIntValue() == 1;
+    return SearchResponse.Hit.FieldValue.newBuilder().setBooleanValue(booleanValue).build();
   }
 
   @Override

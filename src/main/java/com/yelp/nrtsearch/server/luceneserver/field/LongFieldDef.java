@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.RangeQuery;
+import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,7 @@ import java.util.function.LongToDoubleFunction;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -77,6 +79,11 @@ public class LongFieldDef extends NumberFieldDef {
   @Override
   protected Number getSortMissingValue(boolean missingLast) {
     return missingLast ? Long.MAX_VALUE : Long.MIN_VALUE;
+  }
+
+  @Override
+  public SearchResponse.Hit.FieldValue getStoredFieldValue(StoredValue value) {
+    return SearchResponse.Hit.FieldValue.newBuilder().setLongValue(value.getLongValue()).build();
   }
 
   @Override

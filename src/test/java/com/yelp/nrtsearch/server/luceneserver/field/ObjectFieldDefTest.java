@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.protobuf.ListValue;
 import com.google.protobuf.NullValue;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
@@ -30,7 +31,6 @@ import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -42,15 +42,17 @@ import org.junit.Test;
 public class ObjectFieldDefTest extends ServerTestCase {
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
+  private static final String STORED_TEST_INDEX = "stored_test_index";
 
   protected List<String> getIndices() {
-    return Collections.singletonList(DEFAULT_TEST_INDEX);
+    return List.of(DEFAULT_TEST_INDEX, STORED_TEST_INDEX);
   }
 
   protected Gson gson = new GsonBuilder().serializeNulls().create();
 
   protected FieldDefRequest getIndexDef(String name) throws IOException {
-    return getFieldsFromResourceFile("/field/registerFieldsObject.json");
+    FieldDefRequest request = getFieldsFromResourceFile("/field/registerFieldsObject.json");
+    return request.toBuilder().setIndexName(name).build();
   }
 
   protected void initIndex(String name) throws Exception {
@@ -93,6 +95,9 @@ public class ObjectFieldDefTest extends ServerTestCase {
                     .addValue(gson.toJson(pickup2))
                     .build())
             .putFields(
+                "delivery_areas_stored",
+                AddDocumentRequest.MultiValuedField.newBuilder().addValue(gson.toJson(map)).build())
+            .putFields(
                 "dummy_object",
                 AddDocumentRequest.MultiValuedField.newBuilder()
                     .addValue(gson.toJson(dummy1))
@@ -133,6 +138,11 @@ public class ObjectFieldDefTest extends ServerTestCase {
                 AddDocumentRequest.MultiValuedField.newBuilder()
                     .addValue(gson.toJson(pickup3))
                     .addValue(gson.toJson(pickup4))
+                    .build())
+            .putFields(
+                "delivery_areas_stored",
+                AddDocumentRequest.MultiValuedField.newBuilder()
+                    .addValue(gson.toJson(map2))
                     .build())
             .build();
     docs.add(request2);
@@ -548,6 +558,99 @@ public class ObjectFieldDefTest extends ServerTestCase {
             .getStructValue()
             .getFieldsOrThrow("partner_id")
             .getStringValue());
+  }
+
+  @Test
+  public void testStoredFields() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(STORED_TEST_INDEX)
+                    .setTopHits(10)
+                    .addRetrieveFields("delivery_areas_stored")
+                    .setQuery(Query.newBuilder().build())
+                    .build());
+    assertEquals(4, response.getHitsCount());
+
+    SearchResponse.Hit hit = response.getHits(0);
+    assertEquals(1, hit.getFieldsOrThrow("delivery_areas_stored").getFieldValueCount());
+    Struct expectedStruct =
+        Struct.newBuilder()
+            .putFields(
+                "hours",
+                Value.newBuilder()
+                    .setListValue(
+                        ListValue.newBuilder()
+                            .addValues(Value.newBuilder().setNumberValue(1.0).build())
+                            .build())
+                    .build())
+            .putFields(
+                "zipcode",
+                Value.newBuilder()
+                    .setListValue(
+                        ListValue.newBuilder()
+                            .addValues(Value.newBuilder().setStringValue("94105").build())
+                            .build())
+                    .build())
+            .putFields(
+                "partner",
+                Value.newBuilder()
+                    .setStructValue(
+                        Struct.newBuilder()
+                            .putFields(
+                                "partner_id", Value.newBuilder().setStringValue("abcd").build())
+                            .putFields(
+                                "partner_name", Value.newBuilder().setStringValue("efg").build())
+                            .build())
+                    .build())
+            .build();
+    assertEquals(
+        expectedStruct,
+        hit.getFieldsOrThrow("delivery_areas_stored").getFieldValue(0).getStructValue());
+
+    hit = response.getHits(1);
+    assertEquals(1, hit.getFieldsOrThrow("delivery_areas_stored").getFieldValueCount());
+    expectedStruct =
+        Struct.newBuilder()
+            .putFields(
+                "hours",
+                Value.newBuilder()
+                    .setListValue(
+                        ListValue.newBuilder()
+                            .addValues(Value.newBuilder().setNumberValue(2.0).build())
+                            .build())
+                    .build())
+            .putFields(
+                "zipcode",
+                Value.newBuilder()
+                    .setListValue(
+                        ListValue.newBuilder()
+                            .addValues(Value.newBuilder().setStringValue("ec2y8ne").build())
+                            .build())
+                    .build())
+            .putFields(
+                "partner",
+                Value.newBuilder()
+                    .setStructValue(
+                        Struct.newBuilder()
+                            .putFields(
+                                "partner_id", Value.newBuilder().setStringValue("1234").build())
+                            .putFields(
+                                "partner_name", Value.newBuilder().setStringValue("567").build())
+                            .build())
+                    .build())
+            .build();
+    assertEquals(
+        expectedStruct,
+        hit.getFieldsOrThrow("delivery_areas_stored").getFieldValue(0).getStructValue());
+
+    hit = response.getHits(2);
+    assertEquals(0, hit.getFieldsOrThrow("delivery_areas_stored").getFieldValueCount());
+
+    hit = response.getHits(3);
+    assertEquals(0, hit.getFieldsOrThrow("delivery_areas_stored").getFieldValueCount());
   }
 
   private SearchResponse doQuery(Query query, List<String> fields) {

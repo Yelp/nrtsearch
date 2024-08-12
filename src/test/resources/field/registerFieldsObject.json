@@ -80,6 +80,45 @@
           ]
         }
       ]
+    },
+    {
+      "name": "delivery_areas_stored",
+      "type": "OBJECT",
+      "search": true,
+      "store": true,
+      "childFields": [
+        {
+          "name": "hours",
+          "type": "INT",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "zipcode",
+          "type": "ATOM",
+          "search": true,
+          "storeDocValues": true
+        },
+        {
+          "name": "partner",
+          "type": "OBJECT",
+          "search": true,
+          "childFields": [
+            {
+              "name": "partner_id",
+              "type": "ATOM",
+              "search": true,
+              "storeDocValues": true
+            },
+            {
+              "name": "partner_name",
+              "type": "ATOM",
+              "search": true,
+              "storeDocValues": true
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -15,8 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.field;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
@@ -65,6 +64,8 @@ public class BooleanFieldTest extends ServerTestCase {
             .putFields("multi_one", falseValue)
             .putFields("multi_both", bothValues)
             .putFields("multi_not_search", falseValue)
+            .putFields("single_stored", trueValue)
+            .putFields("multi_stored", bothValues)
             .build();
     docs.add(request);
     request =
@@ -76,9 +77,45 @@ public class BooleanFieldTest extends ServerTestCase {
             .putFields("multi_one", trueValue)
             .putFields("multi_both", bothValues)
             .putFields("multi_not_search", trueValue)
+            .putFields("single_stored", falseValue)
+            .putFields("multi_stored", trueValue)
             .build();
     docs.add(request);
     addDocuments(docs.stream());
+  }
+
+  @Test
+  public void testStoredFields() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setTopHits(5)
+                    .addRetrieveFields("single_stored")
+                    .addRetrieveFields("multi_stored")
+                    .addRetrieveFields("single_none_stored")
+                    .addRetrieveFields("multi_none_stored")
+                    .setQuery(Query.newBuilder().build())
+                    .build());
+    assertEquals(2, response.getHitsCount());
+    Hit hit = response.getHits(0);
+    assertEquals(1, hit.getFieldsOrThrow("single_stored").getFieldValueCount());
+    assertTrue(hit.getFieldsOrThrow("single_stored").getFieldValue(0).getBooleanValue());
+    assertEquals(2, hit.getFieldsOrThrow("multi_stored").getFieldValueCount());
+    assertTrue(hit.getFieldsOrThrow("multi_stored").getFieldValue(0).getBooleanValue());
+    assertFalse(hit.getFieldsOrThrow("multi_stored").getFieldValue(1).getBooleanValue());
+    assertEquals(0, hit.getFieldsOrThrow("single_none_stored").getFieldValueCount());
+    assertEquals(0, hit.getFieldsOrThrow("multi_none_stored").getFieldValueCount());
+
+    hit = response.getHits(1);
+    assertEquals(1, hit.getFieldsOrThrow("single_stored").getFieldValueCount());
+    assertFalse(hit.getFieldsOrThrow("single_stored").getFieldValue(0).getBooleanValue());
+    assertEquals(1, hit.getFieldsOrThrow("multi_stored").getFieldValueCount());
+    assertTrue(hit.getFieldsOrThrow("multi_stored").getFieldValue(0).getBooleanValue());
+    assertEquals(0, hit.getFieldsOrThrow("single_none_stored").getFieldValueCount());
+    assertEquals(0, hit.getFieldsOrThrow("multi_none_stored").getFieldValueCount());
   }
 
   @Test
@@ -92,6 +129,7 @@ public class BooleanFieldTest extends ServerTestCase {
     queryAndVerifyIds(falseBoolQuery, "2");
   }
 
+  @Test
   public void testTermQuerySingleValueBooleanStrings() {
     TermQuery falseQuery = TermQuery.newBuilder().setField("single").setTextValue("false").build();
     TermQuery trueQuery = TermQuery.newBuilder().setField("single").setTextValue("true").build();
@@ -110,6 +148,7 @@ public class BooleanFieldTest extends ServerTestCase {
     queryAndVerifyIds(falseBoolQuery);
   }
 
+  @Test
   public void testTermQuerySingleNoValueBooleanStrings() {
     TermQuery falseQuery =
         TermQuery.newBuilder().setField("single_none").setTextValue("false").build();
@@ -138,6 +177,7 @@ public class BooleanFieldTest extends ServerTestCase {
     queryAndVerifyIds(falseBoolQuery, "1");
   }
 
+  @Test
   public void testTermQueryMultiOneBooleanStrings() {
     TermQuery falseQuery =
         TermQuery.newBuilder().setField("multi_one").setTextValue("false").build();
@@ -158,6 +198,7 @@ public class BooleanFieldTest extends ServerTestCase {
     queryAndVerifyIds(falseBoolQuery, "1", "2");
   }
 
+  @Test
   public void testTermQueryMultiBothBooleanStrings() {
     TermQuery falseQuery =
         TermQuery.newBuilder().setField("multi_both").setTextValue("false").build();
@@ -179,6 +220,7 @@ public class BooleanFieldTest extends ServerTestCase {
     queryAndVerifyIds(falseBoolQuery);
   }
 
+  @Test
   public void testTermQueryMultiNoneBooleanStrings() {
     TermQuery falseQuery =
         TermQuery.newBuilder().setField("multi_none").setTextValue("false").build();
