@@ -94,13 +94,17 @@ public class ReplicationServerClient implements Closeable {
         ManagedChannelBuilder.forAddress(host, port)
             .usePlaintext()
             .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE);
+    setKeepAlive(managedChannelBuilder, useKeepAlive);
+    return managedChannelBuilder.build();
+  }
+
+  static void setKeepAlive(ManagedChannelBuilder<?> managedChannelBuilder, boolean useKeepAlive) {
     if (useKeepAlive) {
       managedChannelBuilder
           .keepAliveTime(1, TimeUnit.MINUTES)
           .keepAliveTimeout(10, TimeUnit.SECONDS)
           .keepAliveWithoutCalls(true);
     }
-    return managedChannelBuilder.build();
   }
 
   /**
