@@ -19,7 +19,6 @@ import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.AddDocumentHandler;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
-import com.yelp.nrtsearch.server.luceneserver.ServerCodec;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
@@ -28,6 +27,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredValue;
@@ -48,8 +49,8 @@ public abstract class IndexableFieldDef extends FieldDef {
   private final boolean isStored;
   private final boolean isMultiValue;
   private final boolean isSearchable;
-  private final String postingsFormat;
-  private final String docValuesFormat;
+  private final PostingsFormat postingsFormat;
+  private final DocValuesFormat docValuesFormat;
   private final Similarity similarity;
 
   private final Map<String, IndexableFieldDef> childFields;
@@ -87,12 +88,12 @@ public abstract class IndexableFieldDef extends FieldDef {
 
     postingsFormat =
         requestField.getPostingsFormat().isEmpty()
-            ? ServerCodec.DEFAULT_POSTINGS_FORMAT
-            : requestField.getPostingsFormat();
+            ? null
+            : PostingsFormat.forName(requestField.getPostingsFormat());
     docValuesFormat =
         requestField.getDocValuesFormat().isEmpty()
-            ? ServerCodec.DEFAULT_DOC_VALUES_FORMAT
-            : requestField.getDocValuesFormat();
+            ? null
+            : DocValuesFormat.forName(requestField.getDocValuesFormat());
 
     String similarityStr = requestField.getSimilarity();
     Map<String, Object> similarityParams =
@@ -325,18 +326,18 @@ public abstract class IndexableFieldDef extends FieldDef {
   /**
    * Get the postings format that should be used for this field.
    *
-   * @return posting format for this field
+   * @return posting format for this field, or null to use codec default
    */
-  public String getPostingsFormat() {
+  public PostingsFormat getPostingsFormat() {
     return postingsFormat;
   }
 
   /**
    * Get the doc values format that should be used for this field.
    *
-   * @return doc values format for this field
+   * @return doc values format for this field, or null to use codec default
    */
-  public String getDocValuesFormat() {
+  public DocValuesFormat getDocValuesFormat() {
     return docValuesFormat;
   }
 

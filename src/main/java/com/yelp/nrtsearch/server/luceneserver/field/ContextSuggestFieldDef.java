@@ -23,7 +23,9 @@ import com.yelp.nrtsearch.server.luceneserver.suggest.protocol.ContextSuggestFie
 import java.util.List;
 import java.util.Optional;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.search.suggest.document.Completion99PostingsFormat;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 
 public class ContextSuggestFieldDef extends IndexableFieldDef {
@@ -113,7 +115,7 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
   }
 
   @Override
-  public String getPostingsFormat() {
-    return "Completion99";
+  public PostingsFormat getPostingsFormat() {
+    return new Completion99PostingsFormat();
   }
 }
