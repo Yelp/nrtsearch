@@ -1875,7 +1875,10 @@ public class LuceneServer {
         checkIndexId(addReplicaRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
 
         IndexState indexState = indexStateManager.getCurrent();
-        AddReplicaResponse reply = new AddReplicaHandler().handle(indexState, addReplicaRequest);
+        boolean useKeepAliveForReplication =
+            globalState.getConfiguration().getUseKeepAliveForReplication();
+        AddReplicaResponse reply =
+            new AddReplicaHandler(useKeepAliveForReplication).handle(indexState, addReplicaRequest);
         logger.info("AddReplicaHandler returned " + reply.toString());
         responseStreamObserver.onNext(reply);
         responseStreamObserver.onCompleted();
