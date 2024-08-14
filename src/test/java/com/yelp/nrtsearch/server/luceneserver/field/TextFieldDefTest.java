@@ -23,6 +23,7 @@ import com.yelp.nrtsearch.server.grpc.TextDocValuesType;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import java.io.ByteArrayInputStream;
 import java.util.Collections;
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.DocValuesType;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -73,5 +74,52 @@ public class TextFieldDefTest {
                 .setTextDocValuesType(TextDocValuesType.TEXT_DOC_VALUES_TYPE_BINARY)
                 .build());
     assertEquals(DocValuesType.BINARY, fieldDef.getDocValuesType());
+  }
+
+  @Test
+  public void testPositionIncrementGap_default() {
+    TextFieldDef fieldDef = createFieldDef(Field.newBuilder().setSearch(true).build());
+    Analyzer searchAnalyzer = fieldDef.getSearchAnalyzer().orElse(null);
+    Analyzer indexAnalyzer = fieldDef.getIndexAnalyzer().orElse(null);
+    assertNotNull(searchAnalyzer);
+    assertNotNull(indexAnalyzer);
+    assertEquals(0, searchAnalyzer.getPositionIncrementGap("test_field"));
+    assertEquals(
+        TextFieldDef.DEFAULT_POSITION_INCREMENT_GAP,
+        indexAnalyzer.getPositionIncrementGap("test_field"));
+  }
+
+  @Test
+  public void testPositionIncrementGap_set() {
+    TextFieldDef fieldDef =
+        createFieldDef(Field.newBuilder().setSearch(true).setPositionIncrementGap(10).build());
+    Analyzer searchAnalyzer = fieldDef.getSearchAnalyzer().orElse(null);
+    Analyzer indexAnalyzer = fieldDef.getIndexAnalyzer().orElse(null);
+    assertNotNull(searchAnalyzer);
+    assertNotNull(indexAnalyzer);
+    assertEquals(0, searchAnalyzer.getPositionIncrementGap("test_field"));
+    assertEquals(10, indexAnalyzer.getPositionIncrementGap("test_field"));
+  }
+
+  @Test
+  public void testPositionIncrementGap_zero() {
+    TextFieldDef fieldDef =
+        createFieldDef(Field.newBuilder().setSearch(true).setPositionIncrementGap(0).build());
+    Analyzer searchAnalyzer = fieldDef.getSearchAnalyzer().orElse(null);
+    Analyzer indexAnalyzer = fieldDef.getIndexAnalyzer().orElse(null);
+    assertNotNull(searchAnalyzer);
+    assertNotNull(indexAnalyzer);
+    assertEquals(0, searchAnalyzer.getPositionIncrementGap("test_field"));
+    assertEquals(0, indexAnalyzer.getPositionIncrementGap("test_field"));
+  }
+
+  @Test
+  public void testPositionIncrementGap_invalid() {
+    try {
+      createFieldDef(Field.newBuilder().setSearch(true).setPositionIncrementGap(-1).build());
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("posIncGap must be >= 0", e.getMessage());
+    }
   }
 }

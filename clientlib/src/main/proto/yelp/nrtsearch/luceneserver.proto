@@ -590,6 +590,8 @@ message Field {
     TextDocValuesType textDocValuesType = 33;
     // Element type for vector field, defaulting to FLOAT when not set.
     VectorElementType vectorElementType = 34;
+    // Position increment gap for indexing multi valued TEXT fields. Must be >= 0, defaulting to 100 when not set.
+    optional int32 positionIncrementGap = 35;
 }
 
 // Vector field element type
