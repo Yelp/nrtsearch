@@ -23,7 +23,7 @@ import com.yelp.nrtsearch.server.luceneserver.logging.HitsLogger;
  * provided from the getHitsLogger() will be responsible for handling the corresponding hits logger
  * task. Therefore, do not alter the instance object for any requests.
  */
-public interface LoggerPlugin {
+public interface HitsLoggerPlugin {
   default HitsLogger getHitsLogger() {
     return null;
   }

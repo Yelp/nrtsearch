@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.logging;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.plugins.LoggerPlugin;
+import com.yelp.nrtsearch.server.plugins.HitsLoggerPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 
 /** Factory class that handles registration and creation of {@link HitsLogger}s. */
@@ -40,7 +40,7 @@ public class HitsLoggerCreator {
 
   /**
    * Initialize singleton instance of {@link HitsLoggerCreator}.
-   * Registers the hits logger provided by {@link LoggerPlugin}s.
+   * Registers the hits logger provided by {@link HitsLoggerPlugin}s.
    *
    * @param configuration service configuration
    * @param plugins list of loaded plugins
@@ -48,9 +48,8 @@ public class HitsLoggerCreator {
   public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
     instance = new HitsLoggerCreator(configuration);
     for (Plugin plugin : plugins) {
-      if (plugin instanceof LoggerPlugin) {
-        LoggerPlugin loggerPlugin = (LoggerPlugin) plugin;
-        instance.register(loggerPlugin.getHitsLogger());
+      if (plugin instanceof HitsLoggerPlugin loggerPlugin) {
+          instance.register(loggerPlugin.getHitsLogger());
       }
     }
   }

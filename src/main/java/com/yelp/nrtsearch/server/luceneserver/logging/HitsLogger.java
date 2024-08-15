@@ -27,7 +27,7 @@ import java.util.Map;
  */
 public interface HitsLogger {
   /**
-   * This will be invoked once at the end of the execution of the search request.
+   * This will be invoked once as the last fetch task of the search request.
    *
    * @param context the {@link SearchContext} to keep the contexts for this search request
    * @param hits query hits

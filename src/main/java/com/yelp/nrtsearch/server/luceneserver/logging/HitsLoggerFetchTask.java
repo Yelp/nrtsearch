@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
+import com.yelp.nrtsearch.server.plugins.HitsLoggerPlugin;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +38,7 @@ public class HitsLoggerFetchTask implements FetchTask {
 
   /**
    * Calls {@link HitsLogger} that logs hits. The logic for logging is implemented via
-   * {@link com.yelp.nrtsearch.server.plugins.LoggerPlugin}
+   * {@link HitsLoggerPlugin}
    *
    * @param searchContext search context
    * @param hits list of hits for query response
