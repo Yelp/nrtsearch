@@ -51,12 +51,6 @@ enum RewriteMethod {
     TOP_TERMS = 5;
 }
 
-// Low and high values for auto fuzziness. Defaults to low: 3 and high: 6 if both are unset. Valid values are low >= 0 and low < high
-message AutoFuzziness {
-    int32 low = 6; // Optional low distance argument.
-    int32 high = 7; // Optional high distance argument.
-}
-
 message FuzzyParams {
     int32 maxEdits = 1; // The maximum allowed Levenshtein Edit Distance (or number of edits). Possible values are 0, 1 and 2. Either set this or auto.
     int32 prefixLength = 2; // Length of common (non-fuzzy) prefix
@@ -64,6 +58,11 @@ message FuzzyParams {
     bool transpositions = 4; // True if transpositions should be treated as a primitive edit operation. If this is false, comparisons will implement the classic Levenshtein algorithm. Default is true.
     AutoFuzziness auto = 5; // Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting. Either set this or maxEdits.
 
+    // Optional low and high values for auto fuzziness. Defaults to low: 3 and high: 6 if both are unset. Valid values are low >= 0 and low < high
+    message AutoFuzziness {
+        int32 low = 6; // Optional low distance argument.
+        int32 high = 7; // Optional high distance argument.
+    }
 }
 
 // A query that matches documents using boolean combinations of other queries.
@@ -456,7 +455,7 @@ message FuzzyQuery {
     RewriteMethod rewrite = 7;
     // Specifies the size to use for the TOP_TERMS* rewrite methods.
     int32 rewriteTopTermsSize = 8;
-    AutoFuzziness auto = 9; // Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting. Either set this or maxEdits.
+    FuzzyParams.AutoFuzziness auto = 9; // Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting. Either set this or maxEdits.
 }
 
 // Message for a SpanMultiTermQuery

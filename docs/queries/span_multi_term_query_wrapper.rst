@@ -50,7 +50,7 @@ Proto definition:
         AutoFuzziness auto = 9; // Auto fuzziness which determines the max edits based on the term length. AUTO is the preferred setting. Either set this or maxEdits.
 
         // Optional low and high values for auto fuzziness. Defaults to low: 3 and high: 6 if both are unset. Valid values are low >= 0 and low < high
-        message AutoFuzziness {
+        message FuzzyParams.AutoFuzziness {
             int32 low = 10; // Optional low distance argument.
             int32 high = 11; // Optional high distance argument.
         }

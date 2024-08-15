@@ -15,14 +15,15 @@
  */
 package com.yelp.nrtsearch.server.utils;
 
-import com.yelp.nrtsearch.server.grpc.AutoFuzziness;
+import com.yelp.nrtsearch.server.grpc.FuzzyParams;
 import org.apache.lucene.index.Term;
 
 public class QueryUtils {
   private static final int DEFAULT_LOW = 3; // default low value for auto fuzziness
   private static final int DEFAULT_HIGH = 6; // default high value for auto fuzziness
 
-  public static int computeMaxEditsFromTermLength(Term term, AutoFuzziness autoFuzziness) {
+  public static int computeMaxEditsFromTermLength(
+      Term term, FuzzyParams.AutoFuzziness autoFuzziness) {
     int maxEdits;
     int low = autoFuzziness.getLow();
     int high = autoFuzziness.getHigh();

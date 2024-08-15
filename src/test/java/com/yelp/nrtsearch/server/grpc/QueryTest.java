@@ -640,7 +640,7 @@ public class QueryTest {
                     .setQuery("seccnn") // maxEdits will be 2 for AUTO fuzziness
                     .setFuzzyParams(
                         FuzzyParams.newBuilder()
-                            .setAuto(AutoFuzziness.newBuilder().build())
+                            .setAuto(FuzzyParams.AutoFuzziness.newBuilder().build())
                             .setMaxExpansions(100))
                     .setOperator(MatchOperator.SHOULD))
             .build();
