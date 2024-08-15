@@ -48,6 +48,7 @@ import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.LiveSettingsV2Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.SettingsV2Handler;
+import com.yelp.nrtsearch.server.luceneserver.logging.HitsLoggerCreator;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
@@ -363,6 +364,7 @@ public class LuceneServer {
       RescorerCreator.initialize(configuration, plugins);
       ScriptService.initialize(configuration, plugins);
       SimilarityCreator.initialize(configuration, plugins);
+      HitsLoggerCreator.initialize(configuration, plugins);
     }
 
     /** Get the global cluster state. */

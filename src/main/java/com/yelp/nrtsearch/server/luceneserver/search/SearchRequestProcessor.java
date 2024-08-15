@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.grpc.RuntimeField;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.VirtualField;
+import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
@@ -39,6 +40,8 @@ import com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitContext;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitContext.InnerHitContextBuilder;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
+import com.yelp.nrtsearch.server.luceneserver.logging.HitsLoggerCreator;
+import com.yelp.nrtsearch.server.luceneserver.logging.HitsLoggerFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
@@ -177,6 +180,12 @@ public class SearchRequestProcessor {
           new HighlightFetchTask(indexState, query, HighlighterService.getInstance(), highlight);
     }
 
+    HitsLoggerFetchTask hitsLoggerFetchTask = null;
+    if (searchRequest.hasLoggingHits()) {
+      LoggingHits loggingHits = searchRequest.getLoggingHits();
+      hitsLoggerFetchTask = new HitsLoggerFetchTask(HitsLoggerCreator.getInstance(), loggingHits);
+    }
+
     List<InnerHitFetchTask> innerHitFetchTasks = null;
     if (searchRequest.getInnerHitsCount() > 0) {
       innerHitFetchTasks = new ArrayList<>(searchRequest.getInnerHitsCount());
@@ -197,7 +206,11 @@ public class SearchRequestProcessor {
     }
 
     contextBuilder.setFetchTasks(
-        new FetchTasks(searchRequest.getFetchTasksList(), highlightFetchTask, innerHitFetchTasks));
+        new FetchTasks(
+            searchRequest.getFetchTasksList(),
+            highlightFetchTask,
+            innerHitFetchTasks,
+            hitsLoggerFetchTask));
 
     contextBuilder.setQuery(query);
 

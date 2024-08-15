@@ -613,6 +613,7 @@ message SearchRequest {
     map<string, InnerHit> inner_hits = 26;
     // Defines runtime fields for this query
     repeated RuntimeField runtimeFields = 27;
+    LoggingHits loggingHits = 28;
 }
 
 /* Inner Hit search request */
@@ -1062,6 +1063,14 @@ message FilterResult {
     int32 docCount = 1;
     //Results from nested collectors.
     map<string, CollectorResult> nestedCollectorResults = 2;
+}
+
+message LoggingHits {
+    // number of hits to log. For example, totalHits = 20 and hitsCount = 50 means that 50 documents will be logged
+    // while 20 documents will be returned in the Search Response
+    int32 hitsCount = 1;
+    //Optional logging parameters
+    google.protobuf.Struct params = 2;
 }
 
 // Specify how to highlight matched text in SearchRequest
