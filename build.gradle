@@ -36,23 +36,23 @@ def _artifactId = 'server'
 System.setProperty("org.gradle.internal.publish.checksums.insecure", "True")
 
 def luceneVersion = '9.11.1'
-project.ext.slf4jVersion = '2.0.0-alpha1'
+project.ext.slf4jVersion = '2.0.16'
 project.ext.grpcVersion = '1.46.0'
-project.ext.lz4Version = '1.7.0'
+project.ext.lz4Version = '1.8.0'
 project.ext.mockitoVersion = '5.12.0'
-project.ext.jacksonYamlVersion = '2.15.0'
+project.ext.jacksonYamlVersion = '2.17.2'
 project.ext.junitVersion = '4.13.2'
-def log4jVersion = '2.18.0'
-def disruptorVersion = '3.2.1'
-def gsonVersion = '2.9.0'
-def snakeYamlVersion = '2.0'
-def spatial4jVersion = '0.7'
+def log4jVersion = '2.23.1'
+def disruptorVersion = '4.0.0'
+def gsonVersion = '2.11.0'
+def snakeYamlVersion = '2.2'
+def spatial4jVersion = '0.8'
 def s3mockVersion = '0.2.6'
-def commonsCompressVersion = '1.21'
-def awsJavaSdkVersion = '1.12.457'
+def commonsCompressVersion = '1.27.0'
+def awsJavaSdkVersion = '1.12.768'
 def guiceVersion = '7.0.0'
-def prometheusClientVersion = '0.8.0'
-def fastutilVersion = '8.5.6'
+def prometheusClientVersion = '0.16.0'
+def fastutilVersion = '8.5.14'
 
 dependencies {
 
@@ -63,20 +63,20 @@ dependencies {
 
     //logging deps
     implementation "org.slf4j:slf4j-api:${project.ext.slf4jVersion}"
-    implementation "org.apache.logging.log4j:log4j-slf4j18-impl:${log4jVersion}"
+    implementation "org.apache.logging.log4j:log4j-slf4j2-impl:${log4jVersion}"
     implementation "org.apache.logging.log4j:log4j-api:${log4jVersion}"
     implementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
     implementation "com.lmax:disruptor:${disruptorVersion}"
 
 
     implementation "com.google.code.gson:gson:${gsonVersion}"
-    implementation 'commons-io:commons-io:2.7'
+    implementation 'commons-io:commons-io:2.16.1'
     implementation "org.yaml:snakeyaml:${snakeYamlVersion}"
     implementation "org.apache.commons:commons-compress:${commonsCompressVersion}"
     implementation "com.amazonaws:aws-java-sdk-core:${awsJavaSdkVersion}"
     implementation "com.amazonaws:aws-java-sdk-s3:${awsJavaSdkVersion}"
     runtimeOnly "com.amazonaws:aws-java-sdk-sts:${awsJavaSdkVersion}"
-    implementation "javax.xml.bind:jaxb-api:2.3.1"
+    implementation "jakarta.xml.bind:jakarta.xml.bind-api:4.0.2"
     implementation "com.google.inject:guice:${guiceVersion}"
     implementation "org.lz4:lz4-java:${project.ext.lz4Version}"
     implementation "com.fasterxml.jackson.core:jackson-databind:${project.ext.jacksonYamlVersion}"
@@ -100,8 +100,8 @@ dependencies {
     implementation "org.apache.lucene:lucene-join:${luceneVersion}"
 
     //cli deps
-    implementation 'info.picocli:picocli:4.0.4'
-    implementation 'org.apache.commons:commons-csv:1.7'
+    implementation 'info.picocli:picocli:4.7.6'
+    implementation 'org.apache.commons:commons-csv:1.11.0'
 
     // gRPC deps
     implementation "io.grpc:grpc-services:${project.ext.grpcVersion}"
@@ -113,9 +113,9 @@ dependencies {
     testImplementation "org.mockito:mockito-core:${project.ext.mockitoVersion}"
     testImplementation "org.apache.lucene:lucene-test-framework:${luceneVersion}"
     testImplementation "org.locationtech.spatial4j:spatial4j:${spatial4jVersion}"
-    testImplementation "io.findify:s3mock_2.12:${s3mockVersion}"
+    testImplementation "io.findify:s3mock_2.13:${s3mockVersion}"
 
-    testImplementation "org.assertj:assertj-core:3.19.0"
+    testImplementation "org.assertj:assertj-core:3.26.3"
 
     api project(':clientlib')
 }

@@ -30,7 +30,7 @@ startScripts.enabled = false
 def _artifactId = 'clientlib'
 
 // Dependency versions
-def protobufVersion = '3.24.3'
+def protobufVersion = '3.25.3'
 def protocVersion = protobufVersion
 
 dependencies {
