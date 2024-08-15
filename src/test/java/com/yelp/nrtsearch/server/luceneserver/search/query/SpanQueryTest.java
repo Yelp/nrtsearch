@@ -17,22 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver.search.query;
 
 import static org.junit.Assert.assertEquals;
 
-import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
+import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
-import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.grpc.FuzzyQuery;
-import com.yelp.nrtsearch.server.grpc.PrefixQuery;
-import com.yelp.nrtsearch.server.grpc.Query;
-import com.yelp.nrtsearch.server.grpc.RegexpQuery;
-import com.yelp.nrtsearch.server.grpc.SearchRequest;
-import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
-import com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery;
-import com.yelp.nrtsearch.server.grpc.SpanNearQuery;
-import com.yelp.nrtsearch.server.grpc.SpanQuery;
-import com.yelp.nrtsearch.server.grpc.TermQuery;
-import com.yelp.nrtsearch.server.grpc.TermRangeQuery;
-import com.yelp.nrtsearch.server.grpc.WildcardQuery;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
@@ -263,9 +250,32 @@ public class SpanQueryTest extends ServerTestCase {
   @Test
   public void testSpanMultiTermQueryFuzzyQueryMaxEdit() {
 
-    // Create a WildcardQuery object that should only match tomato
+    // Create a fuzzy query object that should only match tomato
     FuzzyQuery fuzzyQuery =
         FuzzyQuery.newBuilder().setField("text_field").setText("tomata").setMaxEdits(1).build();
+
+    SpanMultiTermQuery spanMultiTermQuery =
+        SpanMultiTermQuery.newBuilder().setFuzzyQuery(fuzzyQuery).build();
+
+    SpanQuery spanQuery = SpanQuery.newBuilder().setSpanMultiTermQuery(spanMultiTermQuery).build();
+
+    SearchResponse response = getGrpcServer().getBlockingStub().search(getSearchRequest(spanQuery));
+
+    assertIds(response, 4);
+  }
+
+  @Test
+  public void testSpanMultiTermQueryFuzzyQueryAutoFuzziness() {
+
+    // Create a fuzzy query object without max edits that should only match tomato.
+    FuzzyQuery.AutoFuzziness autoFuzziness =
+        FuzzyQuery.AutoFuzziness.newBuilder().setLow(3).setHigh(6).build();
+    FuzzyQuery fuzzyQuery =
+        FuzzyQuery.newBuilder()
+            .setField("text_field")
+            .setText("tomata")
+            .setAuto(autoFuzziness)
+            .build();
 
     SpanMultiTermQuery spanMultiTermQuery =
         SpanMultiTermQuery.newBuilder().setFuzzyQuery(fuzzyQuery).build();

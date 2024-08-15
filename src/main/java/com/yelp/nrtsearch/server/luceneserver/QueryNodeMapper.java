@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.isAnalyzerDefined;
+import static com.yelp.nrtsearch.server.utils.QueryUtils.computeMaxEditsFromTermLength;
 
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.MultiMatchQuery.MatchType;
@@ -719,8 +720,19 @@ public class QueryNodeMapper {
         protoSpanMultiTermQuery.getFuzzyQuery();
     Term term = new Term(protoFuzzyQuery.getField(), protoFuzzyQuery.getText());
 
-    int maxEdits =
-        protoFuzzyQuery.hasMaxEdits() ? protoFuzzyQuery.getMaxEdits() : FuzzyQuery.defaultMaxEdits;
+    int maxEdits = FuzzyQuery.defaultMaxEdits;
+    if (protoFuzzyQuery.hasAuto()) {
+      com.yelp.nrtsearch.server.grpc.FuzzyParams.AutoFuzziness autoFuziness =
+          FuzzyParams.AutoFuzziness.newBuilder()
+              .setLow(protoFuzzyQuery.getAuto().getLow())
+              .setHigh(protoFuzzyQuery.getAuto().getHigh())
+              .build();
+      maxEdits = computeMaxEditsFromTermLength(term, autoFuziness);
+    } else {
+      if (protoFuzzyQuery.hasMaxEdits()) {
+        maxEdits = protoFuzzyQuery.getMaxEdits();
+      }
+    }
 
     int prefixLength =
         protoFuzzyQuery.hasPrefixLength()
