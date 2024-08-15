@@ -121,6 +121,7 @@ public class FetchTasks {
    * @param grpcTaskList fetch task definitions from search request
    * @param highlightFetchTask highlight fetch task
    * @param innerHitFetchTaskList innerHit fetch tasks
+   * @param hitsLoggerFetchTask hitsLogger fetch task
    */
   public FetchTasks(
       List<com.yelp.nrtsearch.server.grpc.FetchTask> grpcTaskList,
@@ -153,6 +154,7 @@ public class FetchTasks {
       task.processAllHits(searchContext, hits);
     }
     // highlight and innerHit doesn't support processAllHits now
+    // hitsLogger should be the last fetch task to run
     if (hitsLoggerFetchTask != null) {
       hitsLoggerFetchTask.processAllHits(searchContext, hits);
     }
