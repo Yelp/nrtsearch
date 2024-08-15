@@ -722,12 +722,7 @@ public class QueryNodeMapper {
 
     int maxEdits = FuzzyQuery.defaultMaxEdits;
     if (protoFuzzyQuery.hasAuto()) {
-      com.yelp.nrtsearch.server.grpc.FuzzyParams.AutoFuzziness autoFuziness =
-          FuzzyParams.AutoFuzziness.newBuilder()
-              .setLow(protoFuzzyQuery.getAuto().getLow())
-              .setHigh(protoFuzzyQuery.getAuto().getHigh())
-              .build();
-      maxEdits = computeMaxEditsFromTermLength(term, autoFuziness);
+      maxEdits = computeMaxEditsFromTermLength(term, protoFuzzyQuery.getAuto());
     } else {
       if (protoFuzzyQuery.hasMaxEdits()) {
         maxEdits = protoFuzzyQuery.getMaxEdits();

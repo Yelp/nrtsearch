@@ -268,8 +268,7 @@ public class SpanQueryTest extends ServerTestCase {
   public void testSpanMultiTermQueryFuzzyQueryAutoFuzziness() {
 
     // Create a fuzzy query object without max edits that should only match tomato.
-    FuzzyQuery.AutoFuzziness autoFuzziness =
-        FuzzyQuery.AutoFuzziness.newBuilder().setLow(3).setHigh(6).build();
+    AutoFuzziness autoFuzziness = AutoFuzziness.newBuilder().setLow(3).setHigh(6).build();
     FuzzyQuery fuzzyQuery =
         FuzzyQuery.newBuilder()
             .setField("text_field")

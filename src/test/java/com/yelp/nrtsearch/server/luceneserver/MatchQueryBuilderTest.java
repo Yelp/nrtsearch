@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import static org.junit.Assert.assertEquals;
 
+import com.yelp.nrtsearch.server.grpc.AutoFuzziness;
 import com.yelp.nrtsearch.server.grpc.FuzzyParams;
 import java.io.IOException;
 import java.util.HashMap;
@@ -101,7 +102,7 @@ public class MatchQueryBuilderTest {
             .setPrefixLength(5)
             .setMaxExpansions(7)
             .setTranspositions(true)
-            .setAuto(FuzzyParams.AutoFuzziness.newBuilder().build())
+            .setAuto(AutoFuzziness.newBuilder().build())
             .build();
     MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(getTestAnalyzer(), fuzzyParams);
     Query query = matchQueryBuilder.createBooleanQuery(FIELD, SINGLE_TERM_TEXT);
@@ -139,7 +140,7 @@ public class MatchQueryBuilderTest {
             .setPrefixLength(5)
             .setMaxExpansions(7)
             .setTranspositions(true)
-            .setAuto(FuzzyParams.AutoFuzziness.newBuilder().build())
+            .setAuto(AutoFuzziness.newBuilder().build())
             .build();
     MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(getTestAnalyzer(), fuzzyParams);
     Query query = matchQueryBuilder.createBooleanQuery(FIELD, MULTIPLE_TERMS_TEXT, OCCUR);
