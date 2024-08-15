@@ -741,11 +741,54 @@ public class QueryTest {
             .setMatchPhraseQuery(
                 MatchPhraseQuery.newBuilder()
                     .setField("vendor_name")
-                    .setQuery("SECOND second")
+                    .setQuery("SECOND again")
                     .setSlop(1))
             .build();
 
     Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(1, searchResponse.getTotalHits().getValue());
+          assertEquals(1, searchResponse.getHitsList().size());
+          SearchResponse.Hit hit = searchResponse.getHits(0);
+          String docId = hit.getFieldsMap().get("doc_id").getFieldValue(0).getTextValue();
+          assertEquals("2", docId);
+          LuceneServerTest.checkHits(hit);
+        };
+
+    testQuery(query, responseTester);
+  }
+
+  @Test
+  public void testSearchMatchPhraseQueryPositionIncrementGap() {
+    Query query =
+        Query.newBuilder()
+            .setMatchPhraseQuery(
+                MatchPhraseQuery.newBuilder()
+                    .setField("vendor_name")
+                    .setQuery("SECOND second")
+                    // slop less than default position increment gap
+                    .setSlop(1))
+            .build();
+
+    Consumer<SearchResponse> responseTester =
+        searchResponse -> {
+          assertEquals(0, searchResponse.getTotalHits().getValue());
+          assertEquals(0, searchResponse.getHitsList().size());
+        };
+
+    testQuery(query, responseTester);
+
+    query =
+        Query.newBuilder()
+            .setMatchPhraseQuery(
+                MatchPhraseQuery.newBuilder()
+                    .setField("vendor_name")
+                    .setQuery("SECOND second")
+                    // slop greater than default position increment gap
+                    .setSlop(101))
+            .build();
+
+    responseTester =
         searchResponse -> {
           assertEquals(1, searchResponse.getTotalHits().getValue());
           assertEquals(1, searchResponse.getHitsList().size());
@@ -937,7 +980,7 @@ public class QueryTest {
             .setMatchPhraseQuery(
                 MatchPhraseQuery.newBuilder()
                     .setField("vendor_name")
-                    .setQuery("SECOND second")
+                    .setQuery("SECOND again")
                     .setSlop(1))
             .build();
 
@@ -957,17 +1000,17 @@ public class QueryTest {
         grpcServer.getBlockingStub().search(buildSearchRequestWithExplain(query, explain));
     responseTester.accept(searchResponseExplained);
     String expectedExplain =
-        "0.40773362 = weight(vendor_name:\"second second\"~1 in 1) [], result of:\n"
-            + "  0.40773362 = score(freq=0.5), computed as boost * idf * tf from:\n"
-            + "    1.3862944 = idf, sum of:\n"
+        "0.3979403 = weight(vendor_name:\"second again\"~1 in 1) [], result of:\n"
+            + "  0.3979403 = score(freq=1.0), computed as boost * idf * tf from:\n"
+            + "    0.87546873 = idf, sum of:\n"
             + "      0.6931472 = idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:\n"
             + "        1 = n, number of documents containing term\n"
             + "        2 = N, total number of documents with field\n"
-            + "      0.6931472 = idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:\n"
-            + "        1 = n, number of documents containing term\n"
+            + "      0.18232156 = idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:\n"
+            + "        2 = n, number of documents containing term\n"
             + "        2 = N, total number of documents with field\n"
-            + "    0.29411763 = tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:\n"
-            + "      0.5 = phraseFreq=0.5\n"
+            + "    0.45454544 = tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:\n"
+            + "      1.0 = phraseFreq=1.0\n"
             + "      1.2 = k1, term saturation parameter\n"
             + "      0.75 = b, length normalization parameter\n"
             + "      4.0 = dl, length of field\n"

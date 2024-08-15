@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
+import com.yelp.nrtsearch.server.luceneserver.analysis.PosIncGapAnalyzerWrapper;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
@@ -54,6 +55,7 @@ import org.apache.lucene.util.BytesRef;
  */
 public abstract class TextBaseFieldDef extends IndexableFieldDef
     implements TermQueryable, GlobalOrdinalable {
+  static final int DEFAULT_POSITION_INCREMENT_GAP = 100;
 
   private final boolean isHighlighted;
   private final Analyzer indexAnalyzer;
@@ -146,15 +148,21 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
    */
   protected Analyzer parseIndexAnalyzer(Field requestField) {
     if (requestField.getSearch()) {
+      Analyzer analyzer;
       if (AnalyzerCreator.isAnalyzerDefined(requestField.getAnalyzer())) {
-        return AnalyzerCreator.getInstance().getAnalyzer(requestField.getAnalyzer());
+        analyzer = AnalyzerCreator.getInstance().getAnalyzer(requestField.getAnalyzer());
       } else {
         if (AnalyzerCreator.isAnalyzerDefined(requestField.getIndexAnalyzer())) {
-          return AnalyzerCreator.getInstance().getAnalyzer(requestField.getIndexAnalyzer());
+          analyzer = AnalyzerCreator.getInstance().getAnalyzer(requestField.getIndexAnalyzer());
         } else {
-          return AnalyzerCreator.getStandardAnalyzer();
+          analyzer = AnalyzerCreator.getStandardAnalyzer();
         }
       }
+      int positionIncrementGap =
+          requestField.hasPositionIncrementGap()
+              ? requestField.getPositionIncrementGap()
+              : DEFAULT_POSITION_INCREMENT_GAP;
+      return new PosIncGapAnalyzerWrapper(analyzer, positionIncrementGap);
     } else {
       return null;
     }

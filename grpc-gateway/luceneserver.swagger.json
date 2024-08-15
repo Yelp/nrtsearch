@@ -3133,6 +3133,11 @@
         "vectorElementType": {
           "$ref": "#/definitions/luceneserverVectorElementType",
           "description": "Element type for vector field, defaulting to FLOAT when not set."
+        },
+        "positionIncrementGap": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Position increment gap for indexing multi valued TEXT fields. Must be \u003e= 0, defaulting to 100 when not set."
         }
       }
     },
