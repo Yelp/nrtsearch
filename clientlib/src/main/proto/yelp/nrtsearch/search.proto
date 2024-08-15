@@ -613,6 +613,7 @@ message SearchRequest {
     map<string, InnerHit> inner_hits = 26;
     // Defines runtime fields for this query
     repeated RuntimeField runtimeFields = 27;
+    int32 terminateAfterMaxRecallCount = 28;
 }
 
 /* Inner Hit search request */

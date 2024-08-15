@@ -186,8 +186,14 @@ public abstract class DocCollector {
         request.getTerminateAfter() > 0
             ? request.getTerminateAfter()
             : indexState.getDefaultTerminateAfter();
+    int terminateAfterMaxRecallCount =
+        request.getTerminateAfterMaxRecallCount() > 0
+            ? request.getTerminateAfterMaxRecallCount()
+            : 0;
     if (terminateAfter > 0) {
-      wrapped = new TerminateAfterWrapper<>(wrapped, terminateAfter, () -> terminatedEarly = true);
+      wrapped =
+          new TerminateAfterWrapper<>(
+              wrapped, terminateAfter, terminateAfterMaxRecallCount, () -> terminatedEarly = true);
     }
     if (request.getProfile()) {
       statsWrapper = new SearchStatsWrapper<>(wrapped);
