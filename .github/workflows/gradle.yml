@@ -30,12 +30,6 @@ jobs:
       run: chmod +x gradlew
     - name: Build with Gradle
       run: ./gradlew clean installDist check test --info
-    - name: Yelp Reviews Perf test
-      run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
-    - name: Merge behavior tests
-      run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.grpc.MergeBehaviorTests" --info
-    - name: Long running tests
-      run: ./gradlew clean installDist :test -PlongRunningTestsOnly=* --info
     - name: Run Test Coverage
       run: ./gradlew jacocoTestReport
     - name: Generate JaCoCo Badge
@@ -63,5 +57,11 @@ jobs:
       with:
         name: jacoco-report
         path: build/reports/jacoco/
+    - name: Yelp Reviews Perf test
+      run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
+    - name: Merge behavior tests
+      run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.grpc.MergeBehaviorTests" --info
+    - name: Long running tests
+      run: ./gradlew clean installDist :test -PlongRunningTestsOnly=* --info
     - name: Run Tests For Example Plugin
       run: example-plugin/gradlew -p example-plugin clean test

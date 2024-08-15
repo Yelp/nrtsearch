@@ -115,6 +115,7 @@ public class LuceneServerConfiguration {
   private final boolean enableGlobalBucketAccess;
   private final int lowPriorityCopyPercentage;
   private final boolean verifyReplicationIndexId;
+  private final boolean useKeepAliveForReplication;
 
   @Inject
   public LuceneServerConfiguration(InputStream yamlStream) {
@@ -190,6 +191,7 @@ public class LuceneServerConfiguration {
     enableGlobalBucketAccess = configReader.getBoolean("enableGlobalBucketAccess", false);
     lowPriorityCopyPercentage = configReader.getInteger("lowPriorityCopyPercentage", 0);
     verifyReplicationIndexId = configReader.getBoolean("verifyReplicationIndexId", true);
+    useKeepAliveForReplication = configReader.getBoolean("useKeepAliveForReplication", false);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
     Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();
@@ -392,6 +394,10 @@ public class LuceneServerConfiguration {
 
   public boolean getVerifyReplicationIndexId() {
     return verifyReplicationIndexId;
+  }
+
+  public boolean getUseKeepAliveForReplication() {
+    return useKeepAliveForReplication;
   }
 
   public IndexLiveSettings getLiveSettingsOverride(String indexName) {
