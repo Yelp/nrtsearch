@@ -80,9 +80,10 @@ public class TerminateAfterWrapper<C extends Collector>
     SearcherResult searcherResult = in.reduce(innerCollectors);
     int totalHits = 0;
     for (TerminateAfterCollectorWrapper collector : collectors) {
-      totalHits += collector.docCount - 1;
+      totalHits += collector.docCount;
     }
-    searcherResult.getTopDocs().totalHits = new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO);
+    searcherResult.getTopDocs().totalHits =
+        new TotalHits(totalHits, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     return searcherResult;
   }
 
@@ -142,17 +143,17 @@ public class TerminateAfterWrapper<C extends Collector>
 
       @Override
       public void collect(int doc) throws IOException {
-        docCount++;
         int currDocCount = collectedDocCount.incrementAndGet();
-
         if (currDocCount > terminateAfter) {
+          terminatedEarly = true;
           if (currDocCount > terminateAfterMaxRecallCount) {
-            terminatedEarly = true;
             throw new CollectionTerminatedException();
           }
+          docCount++;
           return;
         }
         leafCollector.collect(doc);
+        docCount++;
       }
     }
   }
