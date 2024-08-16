@@ -25,7 +25,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Implementation of {@link FetchTask} which holds the required context to be able to log hits for a search request.
+ * Implementation of {@link FetchTask} which holds the required context to be able to log hits for a
+ * search request.
  */
 public class HitsLoggerFetchTask implements FetchTask {
   private final HitsLogger hitsLogger;
@@ -37,8 +38,8 @@ public class HitsLoggerFetchTask implements FetchTask {
   }
 
   /**
-   * Calls {@link HitsLogger} that logs hits. The logic for logging is implemented via
-   * {@link HitsLoggerPlugin}
+   * Calls {@link HitsLogger} that logs hits. The logic for logging is implemented via {@link
+   * HitsLoggerPlugin}
    *
    * @param searchContext search context
    * @param hits list of hits for query response

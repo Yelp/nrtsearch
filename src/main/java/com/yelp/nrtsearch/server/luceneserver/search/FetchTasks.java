@@ -105,7 +105,6 @@ public class FetchTasks {
     this.hitsLoggerFetchTask = hitsLoggerFetchTask;
   }
 
-
   /**
    * Constructor.
    *

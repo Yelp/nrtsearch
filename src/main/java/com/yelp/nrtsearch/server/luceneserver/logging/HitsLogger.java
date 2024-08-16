@@ -21,9 +21,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * This is the hits logger interface to provide the new logging hits feature with different implementations.
- * A single HitsLogger is supposed to be initiated once at the startup time and registered in the {@link
- * HitsLoggerCreator}.
+ * This is the hits logger interface to provide the new logging hits feature with different
+ * implementations. A single HitsLogger is supposed to be initiated once at the startup time and
+ * registered in the {@link HitsLoggerCreator}.
  */
 public interface HitsLogger {
   /**
@@ -33,6 +33,6 @@ public interface HitsLogger {
    * @param hits query hits
    * @param params any extra param needed for logging
    */
-  default void log(
-      SearchContext context, List<SearchResponse.Hit.Builder> hits, Map<String, Object> params) {}
+  void log(
+      SearchContext context, List<SearchResponse.Hit.Builder> hits, Map<String, Object> params);
 }

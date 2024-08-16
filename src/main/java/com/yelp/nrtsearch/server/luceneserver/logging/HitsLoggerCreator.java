@@ -39,8 +39,8 @@ public class HitsLoggerCreator {
   }
 
   /**
-   * Initialize singleton instance of {@link HitsLoggerCreator}.
-   * Registers the hits logger provided by {@link HitsLoggerPlugin}s.
+   * Initialize singleton instance of {@link HitsLoggerCreator}. Registers the hits logger provided
+   * by {@link HitsLoggerPlugin}s.
    *
    * @param configuration service configuration
    * @param plugins list of loaded plugins
@@ -49,7 +49,7 @@ public class HitsLoggerCreator {
     instance = new HitsLoggerCreator(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof HitsLoggerPlugin loggerPlugin) {
-          instance.register(loggerPlugin.getHitsLogger());
+        instance.register(loggerPlugin.getHitsLogger());
       }
     }
   }
