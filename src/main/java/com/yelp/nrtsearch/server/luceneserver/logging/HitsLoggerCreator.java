@@ -33,11 +33,11 @@ public class HitsLoggerCreator {
    */
   public HitsLoggerCreator(LuceneServerConfiguration configuration) {}
 
-  private void register(HitsLoggerProvider<?> hitsLogger) {
+  private void register(HitsLoggerProvider<?> hitsLoggerProvider) {
     if (this.hitsLoggerProvider != null) {
       throw new IllegalArgumentException("Hits logger already exists");
     }
-    this.hitsLoggerProvider = hitsLogger;
+    this.hitsLoggerProvider = hitsLoggerProvider;
   }
 
   /**
