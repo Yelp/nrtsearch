@@ -24,7 +24,7 @@ import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
-import com.yelp.nrtsearch.tools.nrt_utils.incremental.IncrementalCommandUtils;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalCommandUtils;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 

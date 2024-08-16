@@ -13,20 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.tools.nrt_utils.incremental;
+package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ListObjectsV2Request;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
 import java.time.Instant;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 @CommandLine.Command(
     name = ListIncrementalSnapshotsCommand.LIST_INCREMENTAL_SNAPSHOTS,
-    description = "List snapshots of incremental index data.")
+    description =
+        "List snapshots of incremental index data. Legacy command for use with v0 cluster data.")
 public class ListIncrementalSnapshotsCommand implements Callable<Integer> {
   public static final String LIST_INCREMENTAL_SNAPSHOTS = "listIncrementalSnapshots";
 
@@ -79,7 +80,8 @@ public class ListIncrementalSnapshotsCommand implements Callable<Integer> {
   @Override
   public Integer call() throws Exception {
     AmazonS3 s3Client =
-        StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+        LegacyStateCommandUtils.createS3Client(
+            bucketName, region, credsFile, credsProfile, maxRetry);
 
     String resolvedSnapshotRoot =
         IncrementalCommandUtils.getSnapshotRoot(snapshotRoot, serviceName);

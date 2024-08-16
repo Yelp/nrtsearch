@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.tools.nrt_utils.incremental;
+package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
+
+import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalCommandUtils.fromUTF8;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CopyObjectRequest;
@@ -25,16 +27,11 @@ import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
-import com.yelp.nrtsearch.server.backup.VersionManager;
-import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
-import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
-import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -43,7 +40,8 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
     name = RestoreIncrementalCommand.RESTORE_INCREMENTAL,
-    description = "Restore snapshot of incremental index data into existing cluster")
+    description =
+        "Restore snapshot of incremental index data into existing cluster. Legacy command for use with v0 cluster data.")
 public class RestoreIncrementalCommand implements Callable<Integer> {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   public static final String RESTORE_INCREMENTAL = "restoreIncremental";
@@ -136,9 +134,10 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     if (s3Client == null) {
       s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+          LegacyStateCommandUtils.createS3Client(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    VersionManager versionManager = new VersionManager(s3Client, bucketName);
+    LegacyVersionManager versionManager = new LegacyVersionManager(s3Client, bucketName);
 
     String resolvedSnapshotRoot =
         IncrementalCommandUtils.getSnapshotRoot(snapshotRoot, snapshotServiceName);
@@ -171,7 +170,7 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
 
   private void restoreIndexData(
       AmazonS3 s3Client,
-      VersionManager versionManager,
+      LegacyVersionManager versionManager,
       String restoreIndexResource,
       String restoreRoot,
       String snapshotDataRoot)
@@ -228,13 +227,13 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
 
   private void restoreIndexState(
       AmazonS3 s3Client,
-      VersionManager versionManager,
+      LegacyVersionManager versionManager,
       String restoreIndexResource,
       String restoreRoot,
       String snapshotDataRoot)
       throws IOException {
     String restoreIndexStateResource =
-        StateCommandUtils.getIndexStateResource(restoreIndexResource);
+        LegacyStateCommandUtils.getIndexStateResource(restoreIndexResource);
     String stateFileId = UUID.randomUUID().toString();
     String restoreStateKey = restoreRoot + restoreIndexStateResource + "/" + stateFileId;
 
@@ -249,7 +248,7 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
 
   private void maybeRestoreWarmingQueries(
       AmazonS3 s3Client,
-      VersionManager versionManager,
+      LegacyVersionManager versionManager,
       String restoreIndexResource,
       String restoreRoot,
       String snapshotDataRoot) {
@@ -283,7 +282,7 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
     S3Object stateObject = s3Client.getObject(bucketName, metadataFileKey);
     ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
     IOUtils.copy(stateObject.getObjectContent(), byteArrayOutputStream);
-    String fileContent = StateUtils.fromUTF8(byteArrayOutputStream.toByteArray());
+    String fileContent = fromUTF8(byteArrayOutputStream.toByteArray());
     System.out.println("Contents: " + fileContent);
     return OBJECT_MAPPER.readValue(fileContent, SnapshotMetadata.class);
   }
@@ -304,7 +303,7 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
   }
 
   private String getRestoreIndexResource() {
-    return BackendGlobalState.getUniqueIndexName(restoreIndexName, getRestoreIndexId());
+    return LegacyStateCommandUtils.getUniqueIndexName(restoreIndexName, getRestoreIndexId());
   }
 
   private String getRestoreIndexId() {

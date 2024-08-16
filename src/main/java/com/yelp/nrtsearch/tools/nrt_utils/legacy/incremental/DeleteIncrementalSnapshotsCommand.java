@@ -13,18 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.tools.nrt_utils.incremental;
-
-import static com.yelp.nrtsearch.tools.nrt_utils.incremental.IncrementalDataCleanupCommand.deleteObjects;
-import static com.yelp.nrtsearch.tools.nrt_utils.incremental.IncrementalDataCleanupCommand.getTimeIntervalMs;
+package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ListObjectsV2Request;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.annotations.VisibleForTesting;
-import com.yelp.nrtsearch.server.backup.VersionManager;
-import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -34,7 +31,8 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
     name = DeleteIncrementalSnapshotsCommand.DELETE_INCREMENTAL_SNAPSHOTS,
-    description = "Delete snapshots of incremental index data.")
+    description =
+        "Delete snapshots of incremental index data. Legacy command for use with v0 cluster data.")
 public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
   public static final String DELETE_INCREMENTAL_SNAPSHOTS = "deleteIncrementalSnapshots";
   private static final int DELETE_BATCH_SIZE = 1000;
@@ -121,16 +119,17 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     if (s3Client == null) {
       s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+          LegacyStateCommandUtils.createS3Client(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    VersionManager versionManager = new VersionManager(s3Client, bucketName);
+    LegacyVersionManager versionManager = new LegacyVersionManager(s3Client, bucketName);
 
-    long deleteAfterMs = getTimeIntervalMs(deleteAfter);
+    long deleteAfterMs = IncrementalDataCleanupCommand.getTimeIntervalMs(deleteAfter);
     long minTimestampMs = System.currentTimeMillis() - deleteAfterMs;
     System.out.println("minTimestampMs: " + minTimestampMs);
 
     String resolvedIndexResource =
-        StateCommandUtils.getResourceName(
+        LegacyStateCommandUtils.getResourceName(
             versionManager, serviceName, indexName, exactResourceName);
     String resolvedSnapshotRoot =
         IncrementalCommandUtils.getSnapshotRoot(snapshotRoot, serviceName);
@@ -201,7 +200,7 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
           deleteList.add(objectSummary.getKey());
           if (deleteList.size() == DELETE_BATCH_SIZE) {
             if (!dryRun) {
-              deleteObjects(s3Client, bucketName, deleteList);
+              IncrementalDataCleanupCommand.deleteObjects(s3Client, bucketName, deleteList);
             }
             deleteList.clear();
           }
@@ -211,7 +210,7 @@ public class DeleteIncrementalSnapshotsCommand implements Callable<Integer> {
       } while (result.isTruncated());
     }
     if (!deleteList.isEmpty() && !dryRun) {
-      deleteObjects(s3Client, bucketName, deleteList);
+      IncrementalDataCleanupCommand.deleteObjects(s3Client, bucketName, deleteList);
     }
   }
 

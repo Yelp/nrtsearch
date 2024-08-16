@@ -15,11 +15,11 @@
  */
 package com.yelp.nrtsearch.tools.nrt_utils;
 
-import com.yelp.nrtsearch.tools.nrt_utils.incremental.DeleteIncrementalSnapshotsCommand;
-import com.yelp.nrtsearch.tools.nrt_utils.incremental.IncrementalDataCleanupCommand;
-import com.yelp.nrtsearch.tools.nrt_utils.incremental.ListIncrementalSnapshotsCommand;
-import com.yelp.nrtsearch.tools.nrt_utils.incremental.RestoreIncrementalCommand;
-import com.yelp.nrtsearch.tools.nrt_utils.incremental.SnapshotIncrementalCommand;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.DeleteIncrementalSnapshotsCommand;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalDataCleanupCommand;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.ListIncrementalSnapshotsCommand;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.RestoreIncrementalCommand;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.SnapshotIncrementalCommand;
 import com.yelp.nrtsearch.tools.nrt_utils.state.GetRemoteStateCommand;
 import com.yelp.nrtsearch.tools.nrt_utils.state.PutRemoteStateCommand;
 import com.yelp.nrtsearch.tools.nrt_utils.state.UpdateGlobalIndexStateCommand;

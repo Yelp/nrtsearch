@@ -13,54 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.tools.nrt_utils.incremental;
+package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
 
-import static com.yelp.nrtsearch.server.grpc.TestServer.S3_ENDPOINT;
-import static com.yelp.nrtsearch.server.grpc.TestServer.SERVICE_NAME;
-import static com.yelp.nrtsearch.server.grpc.TestServer.TEST_BUCKET;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.yelp.nrtsearch.server.backup.VersionManager;
-import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
-import com.yelp.nrtsearch.server.grpc.Mode;
-import com.yelp.nrtsearch.server.grpc.TestServer;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
 import java.io.IOException;
 import java.util.Set;
-import org.junit.After;
+import java.util.UUID;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 public class IncrementalCommandUtilsTest {
-  @Rule public final TemporaryFolder folder = new TemporaryFolder();
+  private static final String TEST_BUCKET = "test-bucket";
+  private static final String SERVICE_NAME = "test_service";
 
-  @After
-  public void cleanup() {
-    TestServer.cleanupAll();
-  }
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
   private AmazonS3 getS3() {
-    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
-    return s3;
-  }
-
-  private TestServer getTestServer() throws IOException {
-    TestServer server =
-        TestServer.builder(folder)
-            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
-            .withRemoteStateBackend(false)
-            .build();
-    server.createSimpleIndex("test_index");
-    return server;
+    return s3Provider.getAmazonS3();
   }
 
   @Test
@@ -163,17 +141,35 @@ public class IncrementalCommandUtilsTest {
 
   @Test
   public void testGetVersionFiles() throws IOException {
-    TestServer server = getTestServer();
-    server.startPrimaryIndex("test_index", -1, null);
-    server.addSimpleDocs("test_index", 1, 2);
-    server.refresh("test_index");
-    server.commit("test_index");
-
+    String indexName = "test_index";
+    String indexId = "test_id";
     String indexDataResource =
         IncrementalCommandUtils.getIndexDataResource(
-            server.getGlobalState().getDataResourceForIndex("test_index"));
+            LegacyStateCommandUtils.getUniqueIndexName(indexName, indexId));
     AmazonS3 s3Client = getS3();
-    VersionManager versionManager = new VersionManager(s3Client, TEST_BUCKET);
+    Set<String> expectedIndexFiles = Set.of("_0.cfe", "_0.si", "_0.cfs", "segments_2");
+    for (String file : expectedIndexFiles) {
+      s3Client.putObject(
+          TEST_BUCKET,
+          IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource) + file,
+          "");
+    }
+    String manifestFile = UUID.randomUUID().toString();
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource) + manifestFile,
+        String.join("\n", expectedIndexFiles));
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource) + "1",
+        manifestFile);
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource)
+            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
+        "1");
+
+    LegacyVersionManager versionManager = new LegacyVersionManager(s3Client, TEST_BUCKET);
     long indexVersion = versionManager.getLatestVersionNumber(SERVICE_NAME, indexDataResource);
     String versionId =
         versionManager.getVersionString(
@@ -181,12 +177,11 @@ public class IncrementalCommandUtilsTest {
     Set<String> indexFiles =
         IncrementalCommandUtils.getVersionFiles(
             s3Client, TEST_BUCKET, SERVICE_NAME, indexDataResource, versionId);
-    assertEquals(Set.of("_0.cfe", "_0.si", "_0.cfs", "segments_2"), indexFiles);
+    assertEquals(expectedIndexFiles, indexFiles);
   }
 
   @Test
   public void testGetVersionFiles_notExist() throws IOException {
-    TestServer.initS3(folder);
     try {
       IncrementalCommandUtils.getVersionFiles(
           getS3(), TEST_BUCKET, SERVICE_NAME, "test_index", "not_exist");
