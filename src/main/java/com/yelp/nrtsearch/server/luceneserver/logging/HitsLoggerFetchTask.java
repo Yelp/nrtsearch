@@ -20,9 +20,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.plugins.HitsLoggerPlugin;
-import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Implementation of {@link FetchTask} which holds the required context to be able to log hits for a
@@ -30,11 +28,9 @@ import java.util.Map;
  */
 public class HitsLoggerFetchTask implements FetchTask {
   private final HitsLogger hitsLogger;
-  private final Map<String, Object> params;
 
   public HitsLoggerFetchTask(HitsLoggerCreator hitsLoggerCreator, LoggingHits loggingHits) {
-    this.hitsLogger = hitsLoggerCreator.getHitsLogger();
-    this.params = StructValueTransformer.transformStruct(loggingHits.getParams());
+    this.hitsLogger = hitsLoggerCreator.createHitsLogger(loggingHits);
   }
 
   /**
@@ -46,6 +42,6 @@ public class HitsLoggerFetchTask implements FetchTask {
    */
   @Override
   public void processAllHits(SearchContext searchContext, List<SearchResponse.Hit.Builder> hits) {
-    hitsLogger.log(searchContext, hits, params);
+    hitsLogger.log(searchContext, hits);
   }
 }

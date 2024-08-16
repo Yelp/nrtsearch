@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.plugins;
 
 import com.yelp.nrtsearch.server.luceneserver.logging.HitsLogger;
+import com.yelp.nrtsearch.server.luceneserver.logging.HitsLoggerProvider;
 
 /**
  * Plugin interface for providing custom logging. The plugins will be loaded at the startup time of
@@ -24,7 +25,7 @@ import com.yelp.nrtsearch.server.luceneserver.logging.HitsLogger;
  * Therefore, do not alter the instance object for any requests.
  */
 public interface HitsLoggerPlugin {
-  default HitsLogger getHitsLogger() {
+  default HitsLoggerProvider<? extends HitsLogger> getHitsLogger() {
     return null;
   }
 }

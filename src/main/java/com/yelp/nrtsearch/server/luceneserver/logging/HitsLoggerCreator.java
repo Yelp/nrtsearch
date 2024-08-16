@@ -16,13 +16,15 @@
 package com.yelp.nrtsearch.server.luceneserver.logging;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.plugins.HitsLoggerPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import com.yelp.nrtsearch.server.utils.StructValueTransformer;
 
 /** Factory class that handles registration and creation of {@link HitsLogger}s. */
 public class HitsLoggerCreator {
   private static HitsLoggerCreator instance;
-  private HitsLogger hitsLogger;
+  private HitsLoggerProvider<?> hitsLoggerProvider;
 
   /**
    * Constructor.
@@ -31,11 +33,11 @@ public class HitsLoggerCreator {
    */
   public HitsLoggerCreator(LuceneServerConfiguration configuration) {}
 
-  private void register(HitsLogger hitsLogger) {
-    if (this.hitsLogger != null) {
+  private void register(HitsLoggerProvider<?> hitsLogger) {
+    if (this.hitsLoggerProvider != null) {
       throw new IllegalArgumentException("Hits logger already exists");
     }
-    this.hitsLogger = hitsLogger;
+    this.hitsLoggerProvider = hitsLogger;
   }
 
   /**
@@ -60,14 +62,17 @@ public class HitsLoggerCreator {
   }
 
   /**
-   * Fetch the hits logger registered during startup.
+   * Create a {@link HitsLogger} instance given the {@link LoggingHits} message from the {@link
+   * com.yelp.nrtsearch.server.grpc.SearchRequest}
    *
+   * @param grpcLoggingHits definition message
    * @return the corresponding hits logger
    */
-  public HitsLogger getHitsLogger() {
-    if (this.hitsLogger == null) {
+  public HitsLogger createHitsLogger(LoggingHits grpcLoggingHits) {
+    HitsLoggerProvider<?> provider = this.hitsLoggerProvider;
+    if (this.hitsLoggerProvider == null) {
       throw new IllegalArgumentException("No hits logger was assigned");
     }
-    return hitsLogger;
+    return provider.get(StructValueTransformer.transformStruct(grpcLoggingHits.getParams()));
   }
 }

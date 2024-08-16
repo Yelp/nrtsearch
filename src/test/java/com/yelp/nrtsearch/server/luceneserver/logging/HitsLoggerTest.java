@@ -33,7 +33,6 @@ import org.junit.ClassRule;
 import org.junit.Test;
 
 public class HitsLoggerTest extends ServerTestCase {
-  private static final String TEST_INDEX = "test_index";
   private static String logMessage;
 
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
@@ -90,13 +89,14 @@ public class HitsLoggerTest extends ServerTestCase {
   static class TestHitsLoggerPlugin extends Plugin implements HitsLoggerPlugin {
 
     static class CustomHitsLogger implements HitsLogger {
-      public CustomHitsLogger() {}
+      private final Map<String, Object> params;
+
+      public CustomHitsLogger(Map<String, Object> params) {
+        this.params = params;
+      }
 
       @Override
-      public void log(
-          SearchContext context,
-          List<SearchResponse.Hit.Builder> hits,
-          Map<String, Object> params) {
+      public void log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {
         HitsLoggerTest.logMessage = "LOGGED " + hits.toString();
 
         if (!params.isEmpty()) {
@@ -106,8 +106,8 @@ public class HitsLoggerTest extends ServerTestCase {
     }
 
     @Override
-    public HitsLogger getHitsLogger() {
-      return new CustomHitsLogger();
+    public HitsLoggerProvider<? extends HitsLogger> getHitsLogger() {
+      return CustomHitsLogger::new;
     }
   }
 

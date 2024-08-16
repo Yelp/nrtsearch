@@ -18,7 +18,6 @@ package com.yelp.nrtsearch.server.luceneserver.logging;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.util.List;
-import java.util.Map;
 
 /**
  * This is the hits logger interface to provide the new logging hits feature with different
@@ -31,8 +30,6 @@ public interface HitsLogger {
    *
    * @param context the {@link SearchContext} to keep the contexts for this search request
    * @param hits query hits
-   * @param params any extra param needed for logging
    */
-  void log(
-      SearchContext context, List<SearchResponse.Hit.Builder> hits, Map<String, Object> params);
+  void log(SearchContext context, List<SearchResponse.Hit.Builder> hits);
 }

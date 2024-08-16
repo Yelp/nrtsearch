@@ -17,7 +17,10 @@ package com.yelp.nrtsearch.server.luceneserver.logging;
 
 import static org.junit.Assert.*;
 
+import com.google.protobuf.Struct;
+import com.google.protobuf.Value;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.plugins.HitsLoggerPlugin;
@@ -46,34 +49,52 @@ public class HitsLoggerCreatorTest {
 
   public static class TestHitsLoggerPlugin extends Plugin implements HitsLoggerPlugin {
     static class CustomHitsLogger implements HitsLogger {
-      public CustomHitsLogger() {}
+      public CustomHitsLogger(Map<String, Object> params) {}
 
       @Override
-      public void log(
-          SearchContext context,
-          List<SearchResponse.Hit.Builder> hits,
-          Map<String, Object> params) {}
+      public void log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {}
     }
 
     @Override
-    public HitsLogger getHitsLogger() {
-      return new CustomHitsLogger();
+    public HitsLoggerProvider<? extends HitsLogger> getHitsLogger() {
+      return CustomHitsLogger::new;
     }
   }
 
   @Test()
   public void testPluginHitsLoggerNotDefined() {
+    LoggingHits loggingHits = LoggingHits.newBuilder().build();
+
     IllegalArgumentException exception =
         assertThrows(
-            IllegalArgumentException.class, () -> HitsLoggerCreator.getInstance().getHitsLogger());
+            IllegalArgumentException.class,
+            () -> HitsLoggerCreator.getInstance().createHitsLogger(loggingHits));
 
     assertEquals("No hits logger was assigned", exception.getMessage());
   }
 
   @Test
-  public void testPluginProvidesHitsLogger() {
+  public void testPluginProvidesHitsLoggerWithParams() {
     init(Collections.singletonList(new TestHitsLoggerPlugin()));
-    HitsLogger hitsLogger = HitsLoggerCreator.getInstance().getHitsLogger();
+
+    LoggingHits loggingHits =
+        LoggingHits.newBuilder()
+            .setParams(
+                Struct.newBuilder()
+                    .putFields("external_value", Value.newBuilder().setStringValue("abc").build()))
+            .build();
+    HitsLogger hitsLogger = HitsLoggerCreator.getInstance().createHitsLogger(loggingHits);
+
+    assertTrue(hitsLogger instanceof TestHitsLoggerPlugin.CustomHitsLogger);
+  }
+
+  @Test
+  public void testPluginProvidesHitsLoggerWithNoParams() {
+    init(Collections.singletonList(new TestHitsLoggerPlugin()));
+
+    LoggingHits loggingHits = LoggingHits.newBuilder().build();
+    HitsLogger hitsLogger = HitsLoggerCreator.getInstance().createHitsLogger(loggingHits);
+
     assertTrue(hitsLogger instanceof TestHitsLoggerPlugin.CustomHitsLogger);
   }
 }
