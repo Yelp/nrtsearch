@@ -48,7 +48,7 @@ dependencies {
 
     // examples/advanced need this for JsonFormat
     api "com.google.protobuf:protobuf-java-util:${protobufVersion}"
-//    compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
+
     runtimeOnly "io.grpc:grpc-netty-shaded:${rootProject.grpcVersion}"
 
     //test deps
