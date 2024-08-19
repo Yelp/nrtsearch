@@ -996,15 +996,17 @@ public class LuceneServerTest {
 
   @Test
   public void testMetrics() {
+    System.setProperty("PROMETHEUS_DISABLE_CREATED_SERIES", "true");
     HttpBody response = grpcServer.getBlockingStub().metrics(Empty.newBuilder().build());
     HashSet expectedSampleNames =
         new HashSet(
             Arrays.asList(
-                "grpc_server_started_total",
-                "grpc_server_handled_total",
                 "grpc_server_msg_received_total",
-                "grpc_server_msg_sent_total",
-                "grpc_server_handled_latency_seconds"));
+                "grpc_server_handled_latency_seconds",
+                "grpc_server_handled_total",
+                "grpc_server_started_total",
+                "grpc_server_started_created",
+                "grpc_server_msg_sent_total"));
     assertEquals("text/plain", response.getContentType());
     String data = new String(response.getData().toByteArray());
     String[] arr = data.split("\n");

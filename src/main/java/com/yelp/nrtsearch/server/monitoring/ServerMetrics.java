@@ -37,7 +37,7 @@ class ServerMetrics {
       Counter.build()
           .namespace("grpc")
           .subsystem("server")
-          .name("started_total")
+          .name("started")
           .labelNames("grpc_type", "grpc_service", "grpc_method", "serviceName", "nodeName")
           .help("Total number of RPCs started on the server.");
 
@@ -45,7 +45,7 @@ class ServerMetrics {
       Counter.build()
           .namespace("grpc")
           .subsystem("server")
-          .name("handled_total")
+          .name("handled")
           .labelNames("grpc_type", "grpc_service", "grpc_method", "serviceName", "nodeName", "code")
           .help("Total number of RPCs completed on the server, regardless of success or failure.");
 
@@ -63,7 +63,7 @@ class ServerMetrics {
       Counter.build()
           .namespace("grpc")
           .subsystem("server")
-          .name("msg_received_total")
+          .name("msg_received")
           .labelNames("grpc_type", "grpc_service", "grpc_method", "serviceName", "nodeName")
           .help("Total number of stream messages received from the client.");
 
@@ -71,7 +71,7 @@ class ServerMetrics {
       Counter.build()
           .namespace("grpc")
           .subsystem("server")
-          .name("msg_sent_total")
+          .name("msg_sent")
           .labelNames("grpc_type", "grpc_service", "grpc_method", "serviceName", "nodeName")
           .help("Total number of stream messages sent by the server.");
 
