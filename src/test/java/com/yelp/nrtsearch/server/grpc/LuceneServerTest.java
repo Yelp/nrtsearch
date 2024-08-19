@@ -996,7 +996,6 @@ public class LuceneServerTest {
 
   @Test
   public void testMetrics() {
-    System.setProperty("PROMETHEUS_DISABLE_CREATED_SERIES", "true");
     HttpBody response = grpcServer.getBlockingStub().metrics(Empty.newBuilder().build());
     HashSet expectedSampleNames =
         new HashSet(
