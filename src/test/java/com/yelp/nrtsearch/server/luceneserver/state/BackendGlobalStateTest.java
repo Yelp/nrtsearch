@@ -22,6 +22,7 @@ import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -50,6 +51,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -64,6 +66,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
+import org.mockito.MockedStatic;
 
 public class BackendGlobalStateTest {
 
@@ -1327,5 +1330,17 @@ public class BackendGlobalStateTest {
     assertEquals(0, backendGlobalState.getReplicationPort());
     backendGlobalState.replicationStarted(100);
     assertEquals(100, backendGlobalState.getReplicationPort());
+  }
+
+  @Test
+  public void testGetIndexId() {
+    BackendGlobalState mockBackendGlobalState = mock(BackendGlobalState.class);
+    when(mockBackendGlobalState.getIndexId()).thenCallRealMethod();
+    LocalDateTime mockTime = LocalDateTime.of(2024, 8, 20, 12, 34, 56, 789000000);
+    try (MockedStatic<LocalDateTime> mockLocalDateTime = mockStatic(LocalDateTime.class)) {
+      mockLocalDateTime.when(LocalDateTime::now).thenReturn(mockTime);
+      String indexId = mockBackendGlobalState.getIndexId();
+      assertEquals("20240820123456789", indexId);
+    }
   }
 }

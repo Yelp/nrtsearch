@@ -27,6 +27,7 @@ import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.yelp.nrtsearch.server.utils.IndexIdUtil;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
 import java.io.ByteArrayOutputStream;
@@ -60,7 +61,8 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
 
   @CommandLine.Option(
       names = {"--restoreIndexId"},
-      description = "UUID to use for restored index, random if not specified")
+      description =
+          "Date-time formatted as yyyyMMddHHmmssSSS to use for restored index, uses current date-time if not specified")
   private String restoreIndexId;
 
   @CommandLine.Option(
@@ -88,7 +90,7 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
 
   @CommandLine.Option(
       names = {"--snapshotIndexIdentifier"},
-      description = "Index identifier for snapshot, in the form <index_name>-<UUID>",
+      description = "Index identifier for snapshot, in the form <index_name>-<yyyyMMddHHmmssSSS>",
       required = true)
   private String snapshotIndexIdentifier;
 
@@ -308,10 +310,10 @@ public class RestoreIncrementalCommand implements Callable<Integer> {
 
   private String getRestoreIndexId() {
     if (restoreIndexId == null) {
-      return UUID.randomUUID().toString();
+      return IndexIdUtil.generateIndexId();
     } else {
-      if (!IncrementalCommandUtils.isUUID(restoreIndexId)) {
-        throw new IllegalStateException("restoreIndexId must be a UUID");
+      if (!IndexIdUtil.isIndexId(restoreIndexId)) {
+        throw new IllegalStateException("restoreIndexId must be formatted as yyyyMMddHHmmssSSS");
       }
       return restoreIndexId;
     }

@@ -266,7 +266,7 @@ public class SnapshotRestoreCommandTest {
     assertEquals(1, timestamps.size());
     String snapshotTimestamp = timestamps.getFirst();
 
-    String restoreId = UUID.randomUUID().toString();
+    String restoreId = "20240820123456789";
     CommandLine restoreCmd = getInjectedRestoreCommand();
     exitCode =
         restoreCmd.execute(
@@ -303,7 +303,7 @@ public class SnapshotRestoreCommandTest {
     assertEquals(1, timestamps.size());
     String snapshotTimestamp = timestamps.getFirst();
 
-    String restoreId = UUID.randomUUID().toString();
+    String restoreId = "20240820123456789";
     CommandLine restoreCmd = getInjectedRestoreCommand();
     exitCode =
         restoreCmd.execute(
@@ -341,7 +341,7 @@ public class SnapshotRestoreCommandTest {
     assertEquals(1, timestamps.size());
     String snapshotTimestamp = timestamps.getFirst();
 
-    String restoreId = UUID.randomUUID().toString();
+    String restoreId = "20240820123456789";
     CommandLine restoreCmd = getInjectedRestoreCommand();
     exitCode =
         restoreCmd.execute(

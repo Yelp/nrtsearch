@@ -30,7 +30,6 @@ import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
 import java.io.IOException;
-import java.util.UUID;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -124,7 +123,7 @@ public class UpdateGlobalIndexStateCommandTest {
             "--serviceName=" + SERVICE_NAME,
             "--bucketName=" + TEST_BUCKET,
             "--indexName=test_index",
-            "--setUUID=" + firstIndexId);
+            "--setDateTime=" + firstIndexId);
     assertEquals(0, exitCode);
     server.restart();
     assertTrue(server.isStarted("test_index"));
@@ -192,7 +191,7 @@ public class UpdateGlobalIndexStateCommandTest {
   }
 
   @Test
-  public void testIndexUUIDNotInBackend() throws IOException {
+  public void testIndexIDNotInBackend() throws IOException {
     TestServer server = getTestServer();
     server.startPrimaryIndex("test_index", -1, null);
     String indexId = server.getGlobalState().getIndexStateManager("test_index").getIndexId();
@@ -203,7 +202,7 @@ public class UpdateGlobalIndexStateCommandTest {
             "--serviceName=" + SERVICE_NAME,
             "--bucketName=" + TEST_BUCKET,
             "--indexName=not_index",
-            "--setUUID=" + UUID.randomUUID());
+            "--setDateTime=20240820123456789");
     assertEquals(1, exitCode);
     server.restart();
 
@@ -223,15 +222,12 @@ public class UpdateGlobalIndexStateCommandTest {
   }
 
   @Test
-  public void testValidateIndexUUID() {
+  public void testValidateIndexID() {
     assertTrue(UpdateGlobalIndexStateCommand.validateParams(null, null));
-    assertTrue(
-        UpdateGlobalIndexStateCommand.validateParams(null, "d5401128-7aed-427c-8dc3-70a3e24c7c9a"));
-    assertTrue(
-        UpdateGlobalIndexStateCommand.validateParams(null, "d5401128-7AED-427c-8dc3-70a3e24c7c9a"));
+    assertTrue(UpdateGlobalIndexStateCommand.validateParams(null, "20240820123456789"));
+    assertTrue(UpdateGlobalIndexStateCommand.validateParams(null, "19701010000000000"));
     assertFalse(UpdateGlobalIndexStateCommand.validateParams(null, ""));
     assertFalse(UpdateGlobalIndexStateCommand.validateParams(null, "invalid"));
-    assertFalse(
-        UpdateGlobalIndexStateCommand.validateParams(null, "d5401128-7AED-427c-70a3e24c7c9a"));
+    assertFalse(UpdateGlobalIndexStateCommand.validateParams(null, "20241329233759999"));
   }
 }

@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.state;
 
+import static com.yelp.nrtsearch.server.utils.IndexIdUtil.generateIndexId;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
@@ -49,7 +51,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.lucene.util.IOUtils;
 import org.slf4j.Logger;
@@ -166,7 +167,7 @@ public class BackendGlobalState extends GlobalState {
    * Generate a unique id to identify an index instance. Protected to allow injection for testing.
    */
   protected String getIndexId() {
-    return UUID.randomUUID().toString();
+    return generateIndexId();
   }
 
   @VisibleForTesting

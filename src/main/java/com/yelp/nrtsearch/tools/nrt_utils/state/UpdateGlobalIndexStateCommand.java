@@ -24,6 +24,7 @@ import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
+import com.yelp.nrtsearch.server.utils.IndexIdUtil;
 import com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalCommandUtils;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
@@ -70,9 +71,10 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
   private String credsProfile;
 
   @CommandLine.Option(
-      names = {"--setUUID"},
-      description = "If specified, update index UUID to this value")
-  private String uuid;
+      names = {"--setDateTime"},
+      description =
+          "If specified, update index id to this value. Should match format yyyyMMddHHmmssSSS")
+  private String dateTimeString;
 
   @CommandLine.Option(
       names = {"--setStarted"},
@@ -94,16 +96,16 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
   }
 
   @VisibleForTesting
-  static boolean validateParams(String started, String uuid) {
+  static boolean validateParams(String started, String dateTimeString) {
     if (started != null) {
       if (!started.equalsIgnoreCase("true") && !started.equalsIgnoreCase("false")) {
         System.out.println("setStarted must be one of 'true' or 'false'");
         return false;
       }
     }
-    if (uuid != null) {
-      if (!IncrementalCommandUtils.isUUID(uuid)) {
-        System.out.println("Invalid UUID format: " + uuid);
+    if (dateTimeString != null) {
+      if (!IndexIdUtil.isIndexId(dateTimeString)) {
+        System.out.println("Invalid date time format: " + dateTimeString);
         return false;
       }
     }
@@ -112,7 +114,7 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    if (!validateParams(started, uuid)) {
+    if (!validateParams(started, dateTimeString)) {
       return 1;
     }
     if (s3Client == null) {
@@ -145,8 +147,9 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
     IndexGlobalState indexGlobalState = globalStateInfo.getIndicesOrThrow(indexName);
     boolean updated = false;
 
-    if (uuid != null) {
-      String updatedIndexResource = BackendGlobalState.getUniqueIndexName(indexName, uuid);
+    if (dateTimeString != null) {
+      String updatedIndexResource =
+          BackendGlobalState.getUniqueIndexName(indexName, dateTimeString);
       String updatedIndexDataResource =
           IncrementalCommandUtils.getIndexDataResource(updatedIndexResource);
       String updatedIndexStateResource =
@@ -156,7 +159,7 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
       long stateVersion =
           versionManager.getLatestVersionNumber(serviceName, updatedIndexStateResource);
       if (dataVersion == -1 || stateVersion == -1) {
-        System.out.println("Missing blessed resources for new uuid: " + uuid);
+        System.out.println("Missing blessed resources for new index id: " + dateTimeString);
         System.out.println(
             "Data resource: " + updatedIndexDataResource + ", version: " + dataVersion);
         System.out.println(
@@ -164,7 +167,7 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
         return 1;
       }
 
-      indexGlobalState = indexGlobalState.toBuilder().setId(uuid).build();
+      indexGlobalState = indexGlobalState.toBuilder().setId(dateTimeString).build();
       updated = true;
     }
 
