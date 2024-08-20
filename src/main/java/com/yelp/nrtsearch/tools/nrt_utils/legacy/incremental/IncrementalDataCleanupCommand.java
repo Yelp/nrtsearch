@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.tools.nrt_utils.incremental;
+package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
@@ -23,8 +23,8 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
-import com.yelp.nrtsearch.server.backup.VersionManager;
-import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -34,7 +34,8 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
     name = IncrementalDataCleanupCommand.INC_DATA_CLEANUP,
-    description = "Delete incremental backup index files in S3 based on given criteria")
+    description =
+        "Delete incremental backup index files in S3 based on given criteria. Legacy command for use with v0 cluster data.")
 public class IncrementalDataCleanupCommand implements Callable<Integer> {
   private static final int DELETE_BATCH_SIZE = 1000;
   public static final String LATEST_VERSION_FILE = "_latest_version";
@@ -132,12 +133,13 @@ public class IncrementalDataCleanupCommand implements Callable<Integer> {
 
     if (s3Client == null) {
       s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+          LegacyStateCommandUtils.createS3Client(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    VersionManager versionManager = new VersionManager(s3Client, bucketName);
+    LegacyVersionManager versionManager = new LegacyVersionManager(s3Client, bucketName);
 
     String resolvedIndexResource =
-        StateCommandUtils.getResourceName(
+        LegacyStateCommandUtils.getResourceName(
             versionManager, serviceName, indexName, exactResourceName);
     String indexDataResource = IncrementalCommandUtils.getIndexDataResource(resolvedIndexResource);
     long currentVersion = versionManager.getLatestVersionNumber(serviceName, indexDataResource);

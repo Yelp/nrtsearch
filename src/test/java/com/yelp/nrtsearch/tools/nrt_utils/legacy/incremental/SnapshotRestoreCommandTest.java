@@ -13,36 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.tools.nrt_utils.incremental;
+package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
 
-import static com.yelp.nrtsearch.server.grpc.TestServer.S3_ENDPOINT;
-import static com.yelp.nrtsearch.server.grpc.TestServer.SERVICE_NAME;
-import static com.yelp.nrtsearch.server.grpc.TestServer.TEST_BUCKET;
+import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalCommandUtils.toUTF8;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.backup.VersionManager;
-import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
-import com.yelp.nrtsearch.server.grpc.BackupWarmingQueriesRequest;
-import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
-import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
-import com.yelp.nrtsearch.server.grpc.Mode;
-import com.yelp.nrtsearch.server.grpc.RestoreIndex;
-import com.yelp.nrtsearch.server.grpc.TestServer;
-import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
-import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
-import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
+import com.yelp.nrtsearch.server.grpc.*;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,26 +42,20 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.commons.io.IOUtils;
-import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 import picocli.CommandLine;
 
 public class SnapshotRestoreCommandTest {
+  private static final String TEST_BUCKET = "test-bucket";
+  private static final String SERVICE_NAME = "test_service";
+  private static final String INDEX_STATE_FILE = "index_state.json";
+  private static final String GLOBAL_STATE_RESOURCE = "global_state";
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  @Rule public final TemporaryFolder folder = new TemporaryFolder();
-
-  @After
-  public void cleanup() {
-    TestServer.cleanupAll();
-  }
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
   private AmazonS3 getS3() {
-    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
-    return s3;
+    return s3Provider.getAmazonS3();
   }
 
   private CommandLine getInjectedSnapshotCommand() {
@@ -85,43 +70,121 @@ public class SnapshotRestoreCommandTest {
     return new CommandLine(command);
   }
 
-  private TestServer getTestServer() throws IOException {
-    TestServer server =
-        TestServer.builder(folder)
-            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
-            .withRemoteStateBackend(false)
-            .build();
-    server.createSimpleIndex("test_index");
-    server.startPrimaryIndex("test_index", -1, null);
-    server.addSimpleDocs("test_index", 1, 2);
-    server.refresh("test_index");
-    server.commit("test_index");
-    return server;
+  private String createIndex(String indexId) throws IOException {
+    return createIndex(getS3(), indexId);
   }
 
-  private void createWarmingQueries(TestServer server) throws IOException {
-    TestServer replica =
-        TestServer.builder(folder)
-            .withAutoStartConfig(
-                true, Mode.REPLICA, server.getReplicationPort(), IndexDataLocationType.REMOTE)
-            .withRemoteStateBackend(false)
-            .withAdditionalConfig(String.join("\n", "warmer:", "  maxWarmingQueries: 10"))
+  public static String createIndex(AmazonS3 s3Client, String indexId) throws IOException {
+    String indexName = "test_index";
+    String indexUniqueName = LegacyStateCommandUtils.getUniqueIndexName(indexName, indexId);
+    String stateFileId = UUID.randomUUID().toString();
+    GlobalStateInfo globalStateInfo =
+        GlobalStateInfo.newBuilder()
+            .putIndices(
+                indexName, IndexGlobalState.newBuilder().setId(indexId).setStarted(true).build())
             .build();
-    replica
-        .getClient()
-        .getBlockingStub()
-        .backupWarmingQueries(
-            BackupWarmingQueriesRequest.newBuilder()
-                .setIndex("test_index")
-                .setServiceName(SERVICE_NAME)
-                .setNumQueriesThreshold(0)
-                .setUptimeMinutesThreshold(0)
-                .build());
+    String stateStr = JsonFormat.printer().print(globalStateInfo);
+    byte[] stateData =
+        LegacyStateCommandUtils.buildStateFileArchive(
+            GLOBAL_STATE_RESOURCE, "state.json", toUTF8(stateStr));
+    ObjectMetadata metadata = new ObjectMetadata();
+    metadata.setContentLength(stateData.length);
+
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE) + stateFileId,
+        new ByteArrayInputStream(stateData),
+        metadata);
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE) + "1",
+        stateFileId);
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
+            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
+        "1");
+
+    IndexStateInfo indexStateInfo =
+        IndexStateInfo.newBuilder()
+            .setIndexName(indexName)
+            .putFields("field1", Field.newBuilder().setType(FieldType.ATOM).build())
+            .putFields("field2", Field.newBuilder().setType(FieldType.ATOM).build())
+            .putFields("field3", Field.newBuilder().setType(FieldType.ATOM).build())
+            .build();
+    stateStr = JsonFormat.printer().print(indexStateInfo);
+    stateData =
+        LegacyStateCommandUtils.buildStateFileArchive(
+            indexUniqueName, "index_state.json", toUTF8(stateStr));
+    metadata = new ObjectMetadata();
+    metadata.setContentLength(stateData.length);
+
+    String indexStateResource = LegacyStateCommandUtils.getIndexStateResource(indexUniqueName);
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexStateResource) + stateFileId,
+        new ByteArrayInputStream(stateData),
+        metadata);
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexStateResource) + "1",
+        stateFileId);
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexStateResource)
+            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
+        "1");
+
+    Set<String> indexFiles = Set.of("_0.cfe", "_0.si", "_0.cfs", "segments_2");
+    String indexDataResource = IncrementalCommandUtils.getIndexDataResource(indexUniqueName);
+    for (String indexFile : indexFiles) {
+      s3Client.putObject(
+          TEST_BUCKET,
+          IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource) + indexFile,
+          "index_data");
+    }
+    String manifestFile = UUID.randomUUID().toString();
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexDataResource) + manifestFile,
+        String.join("\n", indexFiles));
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource) + "1",
+        manifestFile);
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexDataResource)
+            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
+        "1");
+
+    return indexUniqueName;
+  }
+
+  private void createWarmingQueries(String indexId) {
+    AmazonS3 s3Client = getS3();
+    String fileId = UUID.randomUUID().toString();
+    String indexUniqueName = LegacyStateCommandUtils.getUniqueIndexName("test_index", indexId);
+    String indexWarmingResource =
+        IncrementalCommandUtils.getWarmingQueriesResource(indexUniqueName);
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, indexWarmingResource) + fileId,
+        "");
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexWarmingResource) + "1",
+        fileId);
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, indexWarmingResource)
+            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
+        "1");
   }
 
   @Test
   public void testSnapshot() throws IOException {
-    TestServer server = getTestServer();
+    String indexUniqueName = createIndex("test_id");
     CommandLine cmd = getInjectedSnapshotCommand();
 
     int exitCode =
@@ -132,15 +195,12 @@ public class SnapshotRestoreCommandTest {
     assertEquals(0, exitCode);
 
     assertSnapshotFiles(
-        getS3(),
-        server.getGlobalState().getDataResourceForIndex("test_index"),
-        SERVICE_NAME + "/" + IncrementalCommandUtils.SNAPSHOT_DIR,
-        false);
+        getS3(), indexUniqueName, SERVICE_NAME + "/" + IncrementalCommandUtils.SNAPSHOT_DIR, false);
   }
 
   @Test
   public void testSnapshotDifferentRoot() throws IOException {
-    TestServer server = getTestServer();
+    String indexUniqueName = createIndex("test_id");
     CommandLine cmd = getInjectedSnapshotCommand();
 
     int exitCode =
@@ -151,17 +211,13 @@ public class SnapshotRestoreCommandTest {
             "--snapshotRoot=different/root/");
     assertEquals(0, exitCode);
 
-    assertSnapshotFiles(
-        getS3(),
-        server.getGlobalState().getDataResourceForIndex("test_index"),
-        "different/root",
-        false);
+    assertSnapshotFiles(getS3(), indexUniqueName, "different/root", false);
   }
 
   @Test
   public void testSnapshotWarmingQueries() throws IOException {
-    TestServer server = getTestServer();
-    createWarmingQueries(server);
+    String indexUniqueName = createIndex("test_id");
+    createWarmingQueries("test_id");
     CommandLine cmd = getInjectedSnapshotCommand();
 
     int exitCode =
@@ -172,16 +228,13 @@ public class SnapshotRestoreCommandTest {
     assertEquals(0, exitCode);
 
     assertSnapshotFiles(
-        getS3(),
-        server.getGlobalState().getDataResourceForIndex("test_index"),
-        SERVICE_NAME + "/" + IncrementalCommandUtils.SNAPSHOT_DIR,
-        true);
+        getS3(), indexUniqueName, SERVICE_NAME + "/" + IncrementalCommandUtils.SNAPSHOT_DIR, true);
   }
 
   @Test
   public void testSnapshotWarmingQueriesDifferentRoot() throws IOException {
-    TestServer server = getTestServer();
-    createWarmingQueries(server);
+    String indexUniqueName = createIndex("test_id");
+    createWarmingQueries("test_id");
     CommandLine cmd = getInjectedSnapshotCommand();
 
     int exitCode =
@@ -192,16 +245,12 @@ public class SnapshotRestoreCommandTest {
             "--snapshotRoot=different/root/");
     assertEquals(0, exitCode);
 
-    assertSnapshotFiles(
-        getS3(),
-        server.getGlobalState().getDataResourceForIndex("test_index"),
-        "different/root",
-        true);
+    assertSnapshotFiles(getS3(), indexUniqueName, "different/root", true);
   }
 
   @Test
   public void testRestore() throws IOException {
-    TestServer server = getTestServer();
+    String indexUniqueName = createIndex("test_id");
     CommandLine cmd = getInjectedSnapshotCommand();
 
     int exitCode =
@@ -211,12 +260,11 @@ public class SnapshotRestoreCommandTest {
             "--bucketName=" + TEST_BUCKET);
     assertEquals(0, exitCode);
 
-    String indexResource = server.getGlobalState().getDataResourceForIndex("test_index");
     List<String> timestamps =
         getSnapshotTimestamps(
-            getS3(), indexResource, SERVICE_NAME + "/" + IncrementalCommandUtils.SNAPSHOT_DIR);
+            getS3(), indexUniqueName, SERVICE_NAME + "/" + IncrementalCommandUtils.SNAPSHOT_DIR);
     assertEquals(1, timestamps.size());
-    String snapshotTimestamp = timestamps.get(0);
+    String snapshotTimestamp = timestamps.getFirst();
 
     String restoreId = UUID.randomUUID().toString();
     CommandLine restoreCmd = getInjectedRestoreCommand();
@@ -227,19 +275,19 @@ public class SnapshotRestoreCommandTest {
             "--restoreIndexId=" + restoreId,
             "--bucketName=" + TEST_BUCKET,
             "--snapshotServiceName=" + SERVICE_NAME,
-            "--snapshotIndexIdentifier=" + indexResource,
+            "--snapshotIndexIdentifier=" + indexUniqueName,
             "--snapshotTimestamp=" + snapshotTimestamp);
     assertEquals(0, exitCode);
     assertRestoreFiles(
         getS3(),
         SERVICE_NAME,
-        BackendGlobalState.getUniqueIndexName("restore_index", restoreId),
+        LegacyStateCommandUtils.getUniqueIndexName("restore_index", restoreId),
         false);
   }
 
   @Test
   public void testRestoreDifferentCluster() throws IOException {
-    TestServer server = getTestServer();
+    String indexUniqueName = createIndex("test_id");
     CommandLine cmd = getInjectedSnapshotCommand();
 
     int exitCode =
@@ -249,12 +297,11 @@ public class SnapshotRestoreCommandTest {
             "--bucketName=" + TEST_BUCKET);
     assertEquals(0, exitCode);
 
-    String indexResource = server.getGlobalState().getDataResourceForIndex("test_index");
     List<String> timestamps =
         getSnapshotTimestamps(
-            getS3(), indexResource, SERVICE_NAME + "/" + IncrementalCommandUtils.SNAPSHOT_DIR);
+            getS3(), indexUniqueName, SERVICE_NAME + "/" + IncrementalCommandUtils.SNAPSHOT_DIR);
     assertEquals(1, timestamps.size());
-    String snapshotTimestamp = timestamps.get(0);
+    String snapshotTimestamp = timestamps.getFirst();
 
     String restoreId = UUID.randomUUID().toString();
     CommandLine restoreCmd = getInjectedRestoreCommand();
@@ -265,20 +312,20 @@ public class SnapshotRestoreCommandTest {
             "--restoreIndexId=" + restoreId,
             "--bucketName=" + TEST_BUCKET,
             "--snapshotServiceName=" + SERVICE_NAME,
-            "--snapshotIndexIdentifier=" + indexResource,
+            "--snapshotIndexIdentifier=" + indexUniqueName,
             "--snapshotTimestamp=" + snapshotTimestamp);
     assertEquals(0, exitCode);
     assertRestoreFiles(
         getS3(),
         "other_service",
-        BackendGlobalState.getUniqueIndexName("restore_index", restoreId),
+        LegacyStateCommandUtils.getUniqueIndexName("restore_index", restoreId),
         false);
   }
 
   @Test
   public void testRestoreWarmingQueries() throws IOException {
-    TestServer server = getTestServer();
-    createWarmingQueries(server);
+    String indexUniqueName = createIndex("test_id");
+    createWarmingQueries("test_id");
     CommandLine cmd = getInjectedSnapshotCommand();
 
     int exitCode =
@@ -288,12 +335,11 @@ public class SnapshotRestoreCommandTest {
             "--bucketName=" + TEST_BUCKET);
     assertEquals(0, exitCode);
 
-    String indexResource = server.getGlobalState().getDataResourceForIndex("test_index");
     List<String> timestamps =
         getSnapshotTimestamps(
-            getS3(), indexResource, SERVICE_NAME + "/" + IncrementalCommandUtils.SNAPSHOT_DIR);
+            getS3(), indexUniqueName, SERVICE_NAME + "/" + IncrementalCommandUtils.SNAPSHOT_DIR);
     assertEquals(1, timestamps.size());
-    String snapshotTimestamp = timestamps.get(0);
+    String snapshotTimestamp = timestamps.getFirst();
 
     String restoreId = UUID.randomUUID().toString();
     CommandLine restoreCmd = getInjectedRestoreCommand();
@@ -304,62 +350,14 @@ public class SnapshotRestoreCommandTest {
             "--restoreIndexId=" + restoreId,
             "--bucketName=" + TEST_BUCKET,
             "--snapshotServiceName=" + SERVICE_NAME,
-            "--snapshotIndexIdentifier=" + indexResource,
+            "--snapshotIndexIdentifier=" + indexUniqueName,
             "--snapshotTimestamp=" + snapshotTimestamp);
     assertEquals(0, exitCode);
     assertRestoreFiles(
         getS3(),
         SERVICE_NAME,
-        BackendGlobalState.getUniqueIndexName("restore_index", restoreId),
+        LegacyStateCommandUtils.getUniqueIndexName("restore_index", restoreId),
         true);
-  }
-
-  @Test
-  public void testRestoreDocs() throws IOException {
-    TestServer server = getTestServer();
-    CommandLine cmd = getInjectedSnapshotCommand();
-
-    int exitCode =
-        cmd.execute(
-            "--serviceName=" + SERVICE_NAME,
-            "--indexName=test_index",
-            "--bucketName=" + TEST_BUCKET);
-    assertEquals(0, exitCode);
-
-    String indexResource = server.getGlobalState().getDataResourceForIndex("test_index");
-    List<String> timestamps =
-        getSnapshotTimestamps(
-            getS3(), indexResource, SERVICE_NAME + "/" + IncrementalCommandUtils.SNAPSHOT_DIR);
-    assertEquals(1, timestamps.size());
-    String snapshotTimestamp = timestamps.get(0);
-
-    String restoreId = UUID.randomUUID().toString();
-    CommandLine restoreCmd = getInjectedRestoreCommand();
-    exitCode =
-        restoreCmd.execute(
-            "--restoreServiceName=" + SERVICE_NAME,
-            "--restoreIndexName=restore_index",
-            "--restoreIndexId=" + restoreId,
-            "--bucketName=" + TEST_BUCKET,
-            "--snapshotServiceName=" + SERVICE_NAME,
-            "--snapshotIndexIdentifier=" + indexResource,
-            "--snapshotTimestamp=" + snapshotTimestamp);
-    assertEquals(0, exitCode);
-
-    server.createIndex(
-        CreateIndexRequest.newBuilder()
-            .setIndexName("restore_index")
-            .setExistsWithId(restoreId)
-            .build());
-    server.startPrimaryIndex(
-        "restore_index",
-        -1,
-        RestoreIndex.newBuilder()
-            .setServiceName(SERVICE_NAME)
-            .setResourceName("restore_index")
-            .build());
-    server.verifySimpleDocs("test_index", 2);
-    server.verifySimpleDocs("restore_index", 2);
   }
 
   private void assertSnapshotFiles(
@@ -400,7 +398,7 @@ public class SnapshotRestoreCommandTest {
   private void assertRestoreFiles(
       AmazonS3 s3Client, String serviceName, String indexResource, boolean withWarming)
       throws IOException {
-    VersionManager versionManager = new VersionManager(s3Client, TEST_BUCKET);
+    LegacyVersionManager versionManager = new LegacyVersionManager(s3Client, TEST_BUCKET);
     String indexDataResource = IncrementalCommandUtils.getIndexDataResource(indexResource);
     long dataVersion = versionManager.getLatestVersionNumber(serviceName, indexDataResource);
     assertTrue(dataVersion >= 0);
@@ -421,12 +419,12 @@ public class SnapshotRestoreCommandTest {
             s3Client, TEST_BUCKET, serviceName, indexDataResource, dataVersionId);
     assertEquals(expectedIndexFiles, versionFiles);
 
-    String indexStateResource = StateCommandUtils.getIndexStateResource(indexResource);
+    String indexStateResource = LegacyStateCommandUtils.getIndexStateResource(indexResource);
     long stateVersion = versionManager.getLatestVersionNumber(serviceName, indexStateResource);
     assertTrue(stateVersion >= 0);
     String stateContent =
-        StateCommandUtils.getStateFileContents(
-            versionManager, serviceName, indexResource, StateUtils.INDEX_STATE_FILE);
+        LegacyStateCommandUtils.getStateFileContents(
+            versionManager, serviceName, indexResource, INDEX_STATE_FILE);
     assertNotNull(stateContent);
     IndexStateInfo.Builder stateBuilder = IndexStateInfo.newBuilder();
     JsonFormat.parser().merge(stateContent, stateBuilder);
@@ -471,7 +469,7 @@ public class SnapshotRestoreCommandTest {
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
-    String fileContent = StateUtils.fromUTF8(byteArrayOutputStream.toByteArray());
+    String fileContent = IncrementalCommandUtils.fromUTF8(byteArrayOutputStream.toByteArray());
     try {
       return OBJECT_MAPPER.readValue(fileContent, SnapshotMetadata.class);
     } catch (JsonProcessingException e) {

@@ -13,20 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.tools.nrt_utils.incremental;
+package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.S3Object;
-import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.*;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
 public class IncrementalCommandUtils {
   private static final String INDEX_DATA_SUFFIX = "_data_index_data";
+  private static final String WARMING_QUERIES_RESOURCE_SUFFIX = "_warming_queries";
   public static final String SNAPSHOT_INDEX_STATE_FILE = "index_state";
   public static final String SNAPSHOT_INDEX_FILES = "index_files";
   public static final String SNAPSHOT_WARMING_QUERIES = "index_warming_queries";
@@ -52,7 +55,7 @@ public class IncrementalCommandUtils {
    * @return index warming queries resource
    */
   public static String getWarmingQueriesResource(String indexResource) {
-    return indexResource + S3Backend.WARMING_QUERIES_RESOURCE_SUFFIX;
+    return indexResource + WARMING_QUERIES_RESOURCE_SUFFIX;
   }
 
   /**
@@ -197,5 +200,45 @@ public class IncrementalCommandUtils {
       }
     }
     return indexFileNames;
+  }
+
+  /**
+   * Convert a String to a UTF8 encoded byte array.
+   *
+   * @param s input string
+   * @throws IllegalArgumentException on malformed input string
+   */
+  public static byte[] toUTF8(String s) {
+    CharsetEncoder encoder = StandardCharsets.UTF_8.newEncoder();
+    // Make sure we catch any invalid UTF16:
+    encoder.onMalformedInput(CodingErrorAction.REPORT);
+    encoder.onUnmappableCharacter(CodingErrorAction.REPORT);
+    try {
+      ByteBuffer bb = encoder.encode(CharBuffer.wrap(s));
+      byte[] bytes = new byte[bb.limit()];
+      bb.position(0);
+      bb.get(bytes, 0, bytes.length);
+      return bytes;
+    } catch (CharacterCodingException cce) {
+      throw new IllegalArgumentException(cce);
+    }
+  }
+
+  /**
+   * Convert a UTF8 encoded byte array to a String.
+   *
+   * @param bytes input bytes
+   * @throws IllegalArgumentException on malformed input bytes
+   */
+  public static String fromUTF8(byte[] bytes) {
+    CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
+    // Make sure we catch any invalid UTF8:
+    decoder.onMalformedInput(CodingErrorAction.REPORT);
+    decoder.onUnmappableCharacter(CodingErrorAction.REPORT);
+    try {
+      return decoder.decode(ByteBuffer.wrap(bytes)).toString();
+    } catch (CharacterCodingException cce) {
+      throw new IllegalArgumentException(cce);
+    }
   }
 }

@@ -13,18 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.tools.nrt_utils.incremental;
+package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
 
-import static com.yelp.nrtsearch.server.grpc.TestServer.S3_ENDPOINT;
-import static com.yelp.nrtsearch.server.grpc.TestServer.SERVICE_NAME;
-import static com.yelp.nrtsearch.server.grpc.TestServer.TEST_BUCKET;
+import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalCommandUtils.toUTF8;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.yelp.nrtsearch.server.grpc.TestServer;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
+import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
+import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -37,27 +39,20 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 import picocli.CommandLine;
 
 public class DeleteIncrementalSnapshotsCommandTest {
+  private static final String TEST_BUCKET = "test-bucket";
+  private static final String SERVICE_NAME = "test_service";
+  private static final String GLOBAL_STATE_RESOURCE = "global_state";
   private static final long HOUR_TO_MS = 60L * 60L * 1000L;
 
-  @Rule public final TemporaryFolder folder = new TemporaryFolder();
-
-  @After
-  public void cleanup() {
-    TestServer.cleanupAll();
-  }
+  @Rule public final AmazonS3Provider s3Provider = new AmazonS3Provider(TEST_BUCKET);
 
   private AmazonS3 getS3() {
-    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
-    return s3;
+    return s3Provider.getAmazonS3();
   }
 
   private CommandLine getInjectedCommand() {
@@ -130,10 +125,7 @@ public class DeleteIncrementalSnapshotsCommandTest {
   }
 
   private Path getMetadataRoot(String indexUniqueName, String serviceName) {
-    return folder
-        .getRoot()
-        .toPath()
-        .resolve("s3")
+    return Path.of(s3Provider.getS3DirectoryPath())
         .resolve(TEST_BUCKET)
         .resolve(serviceName)
         .resolve(IncrementalCommandUtils.SNAPSHOT_DIR)
@@ -142,10 +134,7 @@ public class DeleteIncrementalSnapshotsCommandTest {
   }
 
   private Path getIndexSnapshotDataRoot(String indexUniqueName, String serviceName) {
-    return folder
-        .getRoot()
-        .toPath()
-        .resolve("s3")
+    return Path.of(s3Provider.getS3DirectoryPath())
         .resolve(TEST_BUCKET)
         .resolve(serviceName)
         .resolve(IncrementalCommandUtils.SNAPSHOT_DIR)
@@ -154,7 +143,6 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Test
   public void testDeleteSnapshots() throws IOException {
-    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + UUID.randomUUID();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -175,7 +163,6 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Test
   public void testDeleteSnapshotsDryRun() throws IOException {
-    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + UUID.randomUUID();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -202,7 +189,6 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Test
   public void testDeleteSnapshotsDifferentRoot() throws IOException {
-    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + UUID.randomUUID();
     List<TestSnapshotInfo> snapshotInfos =
         createTestSnapshotData(indexUniqueName, true, "different_root");
@@ -229,7 +215,6 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Test
   public void testDeleteSnapshotsKeepsN() throws IOException {
-    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + UUID.randomUUID();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -255,7 +240,6 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Test
   public void testDeleteSnapshotsKeepMore() throws IOException {
-    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + UUID.randomUUID();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -282,7 +266,6 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Test
   public void testDeleteAllSnapshots() throws IOException, InterruptedException {
-    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + UUID.randomUUID();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -304,7 +287,6 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Test
   public void testOnlyKeepN() throws IOException, InterruptedException {
-    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + UUID.randomUUID();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
@@ -326,7 +308,6 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Test
   public void testNoData() throws IOException {
-    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + UUID.randomUUID();
 
     CommandLine cmd = getInjectedCommand();
@@ -346,7 +327,6 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Test
   public void testDeleteDataWithoutMetadata() throws IOException {
-    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + UUID.randomUUID();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName, false);
 
@@ -366,7 +346,6 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Test
   public void testKeepDataWithoutMetadata() throws IOException {
-    TestServer.initS3(folder);
     String indexUniqueName = "test_index-" + UUID.randomUUID();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName, false);
 
@@ -387,9 +366,38 @@ public class DeleteIncrementalSnapshotsCommandTest {
 
   @Test
   public void testIndexIdFromGlobalState() throws IOException {
-    TestServer server = TestServer.builder(folder).withRemoteStateBackend(false).build();
-    server.createIndex("test_index");
-    String indexUniqueName = server.getGlobalState().getDataResourceForIndex("test_index");
+    String indexName = "test_index";
+    String indexId = "test_id";
+    String indexUniqueName = LegacyStateCommandUtils.getUniqueIndexName(indexName, indexId);
+    AmazonS3 s3Client = getS3();
+    String stateFileId = UUID.randomUUID().toString();
+    GlobalStateInfo globalStateInfo =
+        GlobalStateInfo.newBuilder()
+            .putIndices(
+                indexName, IndexGlobalState.newBuilder().setId(indexId).setStarted(true).build())
+            .build();
+    String stateStr = JsonFormat.printer().print(globalStateInfo);
+    byte[] stateData =
+        LegacyStateCommandUtils.buildStateFileArchive(
+            GLOBAL_STATE_RESOURCE, "state.json", toUTF8(stateStr));
+    ObjectMetadata metadata = new ObjectMetadata();
+    metadata.setContentLength(stateData.length);
+
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getDataKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE) + stateFileId,
+        new ByteArrayInputStream(stateData),
+        metadata);
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE) + "1",
+        stateFileId);
+    s3Client.putObject(
+        TEST_BUCKET,
+        IncrementalCommandUtils.getVersionKeyPrefix(SERVICE_NAME, GLOBAL_STATE_RESOURCE)
+            + IncrementalDataCleanupCommand.LATEST_VERSION_FILE,
+        "1");
+
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
     CommandLine cmd = getInjectedCommand();

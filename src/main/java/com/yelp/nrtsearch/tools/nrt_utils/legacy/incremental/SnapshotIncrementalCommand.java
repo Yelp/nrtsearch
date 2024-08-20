@@ -13,7 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.tools.nrt_utils.incremental;
+package com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental;
+
+import static com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalCommandUtils.toUTF8;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.CopyObjectRequest;
@@ -24,9 +26,8 @@ import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
-import com.yelp.nrtsearch.server.backup.VersionManager;
-import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
-import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.LegacyVersionManager;
+import com.yelp.nrtsearch.tools.nrt_utils.legacy.state.LegacyStateCommandUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +40,8 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
     name = SnapshotIncrementalCommand.SNAPSHOT_INCREMENTAL,
-    description = "Snapshot the current version of an index to a separate location in S3")
+    description =
+        "Snapshot the current version of an index to a separate location in S3. Legacy command for use with v0 cluster data.")
 public class SnapshotIncrementalCommand implements Callable<Integer> {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   public static final String SNAPSHOT_INCREMENTAL = "snapshotIncremental";
@@ -113,12 +115,13 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     if (s3Client == null) {
       s3Client =
-          StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
+          LegacyStateCommandUtils.createS3Client(
+              bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    VersionManager versionManager = new VersionManager(s3Client, bucketName);
+    LegacyVersionManager versionManager = new LegacyVersionManager(s3Client, bucketName);
 
     String resolvedIndexResource =
-        StateCommandUtils.getResourceName(
+        LegacyStateCommandUtils.getResourceName(
             versionManager, serviceName, indexName, exactResourceName);
 
     long currentTimestampMs = System.currentTimeMillis();
@@ -154,7 +157,9 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
   }
 
   private long copyIndexData(
-      VersionManager versionManager, String resolvedIndexResource, String snapshotIndexDataRoot)
+      LegacyVersionManager versionManager,
+      String resolvedIndexResource,
+      String snapshotIndexDataRoot)
       throws IOException, InterruptedException {
     String indexDataResource = IncrementalCommandUtils.getIndexDataResource(resolvedIndexResource);
     long currentDataVersion = versionManager.getLatestVersionNumber(serviceName, indexDataResource);
@@ -217,9 +222,12 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
   }
 
   private void copyIndexState(
-      VersionManager versionManager, String resolvedIndexResource, String snapshotIndexDataRoot)
+      LegacyVersionManager versionManager,
+      String resolvedIndexResource,
+      String snapshotIndexDataRoot)
       throws IOException {
-    String indexStateResource = StateCommandUtils.getIndexStateResource(resolvedIndexResource);
+    String indexStateResource =
+        LegacyStateCommandUtils.getIndexStateResource(resolvedIndexResource);
     long currentStateVersion =
         versionManager.getLatestVersionNumber(serviceName, indexStateResource);
     System.out.println("Current index state version: " + currentStateVersion);
@@ -236,13 +244,15 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
         .getS3()
         .copyObject(
             bucketName,
-            StateCommandUtils.getStateKey(serviceName, indexStateResource, stateVersionId),
+            LegacyStateCommandUtils.getStateKey(serviceName, indexStateResource, stateVersionId),
             bucketName,
             snapshotIndexDataRoot + IncrementalCommandUtils.SNAPSHOT_INDEX_STATE_FILE);
   }
 
   private void copyWarmingQueries(
-      VersionManager versionManager, String resolvedIndexResource, String snapshotIndexDataRoot)
+      LegacyVersionManager versionManager,
+      String resolvedIndexResource,
+      String snapshotIndexDataRoot)
       throws IOException {
     String indexWarmingQueriesResource =
         IncrementalCommandUtils.getWarmingQueriesResource(resolvedIndexResource);
@@ -278,7 +288,7 @@ public class SnapshotIncrementalCommand implements Callable<Integer> {
     String metadataFileStr = OBJECT_MAPPER.writeValueAsString(metadata);
     System.out.println(
         "Writing metadata file key: " + metadataFileKey + ", content: " + metadataFileStr);
-    byte[] fileData = StateUtils.toUTF8(metadataFileStr);
+    byte[] fileData = toUTF8(metadataFileStr);
     ObjectMetadata objectMetadata = new ObjectMetadata();
     objectMetadata.setContentLength(fileData.length);
     s3Client.putObject(
