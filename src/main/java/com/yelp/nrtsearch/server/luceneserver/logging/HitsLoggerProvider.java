@@ -16,12 +16,11 @@
 package com.yelp.nrtsearch.server.luceneserver.logging;
 
 import com.yelp.nrtsearch.server.grpc.LoggingHits;
-
 import java.util.Map;
 
 /**
- * Interface for getting a {@link HitsLogger} implementation initialized with the given
- * parameters map.
+ * Interface for getting a {@link HitsLogger} implementation initialized with the given parameters
+ * map.
  *
  * @param <T> HitsLogger type
  */
