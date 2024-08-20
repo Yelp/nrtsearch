@@ -30,7 +30,7 @@ repositories {
 }
 
 ext {
-    assertjVersion = '3.19.0'
+    assertjVersion = '3.26.3'
     grpcVersion = "1.46.0"
     junitVersion = "4.13.2"
     nrtsearchVersion = "1.+"

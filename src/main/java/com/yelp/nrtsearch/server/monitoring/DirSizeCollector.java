@@ -18,13 +18,13 @@ package com.yelp.nrtsearch.server.monitoring;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.prometheus.client.Collector;
 import io.prometheus.client.GaugeMetricFamily;
-import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.file.PathUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,9 +55,11 @@ public class DirSizeCollector extends Collector {
       Set<String> indexNames = globalState.getIndexNames();
       for (String indexName : indexNames) {
         Path indexDataPath = globalState.getIndexDir(indexName);
-        File indexDataFile = indexDataPath.toFile();
-        if (indexDataFile.exists()) {
-          long dirSizeBytes = FileUtils.sizeOfDirectory(indexDataFile);
+        if (Files.exists(indexDataPath)) {
+          if (Files.isSymbolicLink(indexDataPath)) {
+            indexDataPath = Files.readSymbolicLink(indexDataPath);
+          }
+          long dirSizeBytes = PathUtils.sizeOfDirectory(indexDataPath);
           indexDirSize.addMetric(Collections.singletonList(indexName), (double) dirSizeBytes);
         }
       }
