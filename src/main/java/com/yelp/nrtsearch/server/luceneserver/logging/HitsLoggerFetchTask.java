@@ -29,8 +29,8 @@ import java.util.List;
 public class HitsLoggerFetchTask implements FetchTask {
   private final HitsLogger hitsLogger;
 
-  public HitsLoggerFetchTask(HitsLoggerCreator hitsLoggerCreator, LoggingHits loggingHits) {
-    this.hitsLogger = hitsLoggerCreator.createHitsLogger(loggingHits);
+  public HitsLoggerFetchTask(LoggingHits loggingHits) {
+    this.hitsLogger = HitsLoggerCreator.getInstance().createHitsLogger(loggingHits);
   }
 
   /**

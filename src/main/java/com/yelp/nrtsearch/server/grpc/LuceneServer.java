@@ -355,16 +355,17 @@ public class LuceneServer {
 
     private void initExtendableComponents(
         LuceneServerConfiguration configuration, List<Plugin> plugins) {
+      // this block should be in alphabetical order
       AnalyzerCreator.initialize(configuration, plugins);
       CollectorCreator.initialize(configuration, plugins);
       CustomRequestProcessor.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);
       FieldDefCreator.initialize(configuration, plugins);
       HighlighterService.initialize(configuration, plugins);
+      HitsLoggerCreator.initialize(configuration, plugins);
       RescorerCreator.initialize(configuration, plugins);
       ScriptService.initialize(configuration, plugins);
       SimilarityCreator.initialize(configuration, plugins);
-      HitsLoggerCreator.initialize(configuration, plugins);
     }
 
     /** Get the global cluster state. */

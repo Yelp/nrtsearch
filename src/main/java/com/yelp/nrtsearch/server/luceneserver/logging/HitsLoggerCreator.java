@@ -20,11 +20,13 @@ import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.plugins.HitsLoggerPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.utils.StructValueTransformer;
+import java.util.HashMap;
+import java.util.Map;
 
 /** Factory class that handles registration and creation of {@link HitsLogger}s. */
 public class HitsLoggerCreator {
   private static HitsLoggerCreator instance;
-  private HitsLoggerProvider<?> hitsLoggerProvider;
+  private final Map<String, HitsLoggerProvider<?>> hitsLoggerMap = new HashMap<>();
 
   /**
    * Constructor.
@@ -33,11 +35,15 @@ public class HitsLoggerCreator {
    */
   public HitsLoggerCreator(LuceneServerConfiguration configuration) {}
 
-  private void register(HitsLoggerProvider<?> hitsLoggerProvider) {
-    if (this.hitsLoggerProvider != null) {
-      throw new IllegalArgumentException("Hits logger already exists");
+  private void register(Map<String, HitsLoggerProvider<? extends HitsLogger>> hitsLoggers) {
+    hitsLoggers.forEach(this::register);
+  }
+
+  private void register(String name, HitsLoggerProvider<?> hitsLoggerProvider) {
+    if (hitsLoggerMap.containsKey(name)) {
+      throw new IllegalArgumentException("HitsLogger " + name + " already exists");
     }
-    this.hitsLoggerProvider = hitsLoggerProvider;
+    hitsLoggerMap.put(name, hitsLoggerProvider);
   }
 
   /**
@@ -51,7 +57,7 @@ public class HitsLoggerCreator {
     instance = new HitsLoggerCreator(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof HitsLoggerPlugin loggerPlugin) {
-        instance.register(loggerPlugin.getHitsLogger());
+        instance.register(loggerPlugin.getHitsLoggers());
       }
     }
   }
@@ -69,9 +75,12 @@ public class HitsLoggerCreator {
    * @return the corresponding hits logger
    */
   public HitsLogger createHitsLogger(LoggingHits grpcLoggingHits) {
-    HitsLoggerProvider<?> provider = this.hitsLoggerProvider;
-    if (this.hitsLoggerProvider == null) {
-      throw new IllegalArgumentException("No hits logger was assigned");
+    HitsLoggerProvider<?> provider = hitsLoggerMap.get(grpcLoggingHits.getName());
+    if (provider == null) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Unknown hits logger name [%s] is specified; The available hits loggers are %s",
+              grpcLoggingHits.getName(), hitsLoggerMap.keySet()));
     }
     return provider.get(StructValueTransformer.transformStruct(grpcLoggingHits.getParams()));
   }

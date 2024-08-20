@@ -49,52 +49,93 @@ public class HitsLoggerCreatorTest {
 
   public static class TestHitsLoggerPlugin extends Plugin implements HitsLoggerPlugin {
     static class CustomHitsLogger implements HitsLogger {
-      public CustomHitsLogger(Map<String, Object> params) {}
+      public final Map<String, Object> params;
+
+      public CustomHitsLogger(Map<String, Object> params) {
+        this.params = params;
+      }
+
+      @Override
+      public void log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {}
+    }
+
+    static class CustomHitsLogger2 implements HitsLogger {
+      public CustomHitsLogger2(Map<String, Object> params) {}
 
       @Override
       public void log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {}
     }
 
     @Override
-    public HitsLoggerProvider<? extends HitsLogger> getHitsLogger() {
-      return CustomHitsLogger::new;
+    public Map<String, HitsLoggerProvider<? extends HitsLogger>> getHitsLoggers() {
+      return Map.of(
+          "custom_logger", TestHitsLoggerPlugin.CustomHitsLogger::new,
+          "custom_logger_2", TestHitsLoggerPlugin.CustomHitsLogger2::new);
     }
   }
 
   @Test()
   public void testPluginHitsLoggerNotDefined() {
-    LoggingHits loggingHits = LoggingHits.newBuilder().build();
+    init(Collections.singletonList(new TestHitsLoggerPlugin()));
+
+    LoggingHits loggingHits = LoggingHits.newBuilder().setName("logger_test").build();
 
     IllegalArgumentException exception =
         assertThrows(
             IllegalArgumentException.class,
             () -> HitsLoggerCreator.getInstance().createHitsLogger(loggingHits));
 
-    assertEquals("No hits logger was assigned", exception.getMessage());
+    String expectedMessage =
+        "Unknown hits logger name [logger_test] is specified; The available hits loggers are %s";
+
+    assertTrue(
+        String.format(expectedMessage, "[custom_logger, custom_logger_2]")
+                .equals(exception.getMessage())
+            || String.format(expectedMessage, "[custom_logger_2, custom_logger]")
+                .equals(exception.getMessage()));
+  }
+
+  @Test
+  public void testPluginProvidesHitsLogger() {
+    init(Collections.singletonList(new TestHitsLoggerPlugin()));
+    HitsLogger hitsLogger =
+        HitsLoggerCreator.getInstance()
+            .createHitsLogger(LoggingHits.newBuilder().setName("custom_logger_2").build());
+    assertTrue(hitsLogger instanceof TestHitsLoggerPlugin.CustomHitsLogger2);
+  }
+
+  @Test
+  public void testPluginDuplicateHitsLogger() {
+    IllegalArgumentException exception =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> init(List.of(new TestHitsLoggerPlugin(), new TestHitsLoggerPlugin())));
+
+    String expectedMessage = "HitsLogger %s already exists";
+    assertTrue(
+        String.format(expectedMessage, "custom_logger").equals(exception.getMessage())
+            || String.format(expectedMessage, "custom_logger_2").equals(exception.getMessage()));
   }
 
   @Test
   public void testPluginProvidesHitsLoggerWithParams() {
     init(Collections.singletonList(new TestHitsLoggerPlugin()));
 
-    LoggingHits loggingHits =
-        LoggingHits.newBuilder()
-            .setParams(
-                Struct.newBuilder()
-                    .putFields("external_value", Value.newBuilder().setStringValue("abc").build()))
-            .build();
-    HitsLogger hitsLogger = HitsLoggerCreator.getInstance().createHitsLogger(loggingHits);
-
+    HitsLogger hitsLogger =
+        HitsLoggerCreator.getInstance()
+            .createHitsLogger(
+                LoggingHits.newBuilder()
+                    .setName("custom_logger")
+                    .setParams(
+                        Struct.newBuilder()
+                            .putFields(
+                                "external_value", Value.newBuilder().setStringValue("abc").build()))
+                    .build());
     assertTrue(hitsLogger instanceof TestHitsLoggerPlugin.CustomHitsLogger);
-  }
 
-  @Test
-  public void testPluginProvidesHitsLoggerWithNoParams() {
-    init(Collections.singletonList(new TestHitsLoggerPlugin()));
-
-    LoggingHits loggingHits = LoggingHits.newBuilder().build();
-    HitsLogger hitsLogger = HitsLoggerCreator.getInstance().createHitsLogger(loggingHits);
-
-    assertTrue(hitsLogger instanceof TestHitsLoggerPlugin.CustomHitsLogger);
+    TestHitsLoggerPlugin.CustomHitsLogger customHitsLogger =
+        (TestHitsLoggerPlugin.CustomHitsLogger) hitsLogger;
+    assertEquals(1, customHitsLogger.params.size());
+    assertEquals("abc", customHitsLogger.params.get("external_value"));
   }
 }

@@ -87,7 +87,6 @@ public class HitsLoggerTest extends ServerTestCase {
   }
 
   static class TestHitsLoggerPlugin extends Plugin implements HitsLoggerPlugin {
-
     static class CustomHitsLogger implements HitsLogger {
       private final Map<String, Object> params;
 
@@ -105,9 +104,28 @@ public class HitsLoggerTest extends ServerTestCase {
       }
     }
 
+    static class CustomHitsLogger2 implements HitsLogger {
+      private final Map<String, Object> params;
+
+      public CustomHitsLogger2(Map<String, Object> params) {
+        this.params = params;
+      }
+
+      @Override
+      public void log(SearchContext context, List<SearchResponse.Hit.Builder> hits) {
+        HitsLoggerTest.logMessage = "LOGGED_2 " + hits.toString();
+
+        if (!params.isEmpty()) {
+          HitsLoggerTest.logMessage += " " + params;
+        }
+      }
+    }
+
     @Override
-    public HitsLoggerProvider<? extends HitsLogger> getHitsLogger() {
-      return CustomHitsLogger::new;
+    public Map<String, HitsLoggerProvider<? extends HitsLogger>> getHitsLoggers() {
+      return Map.of(
+          "custom_logger", CustomHitsLogger::new,
+          "custom_logger_2", CustomHitsLogger2::new);
     }
   }
 
@@ -129,6 +147,7 @@ public class HitsLoggerTest extends ServerTestCase {
                     .build())
             .setLoggingHits(
                 LoggingHits.newBuilder()
+                    .setName("custom_logger")
                     .setParams(
                         Struct.newBuilder()
                             .putFields(
@@ -157,10 +176,10 @@ public class HitsLoggerTest extends ServerTestCase {
                             .setTextValue("vendor")
                             .build())
                     .build())
-            .setLoggingHits(LoggingHits.newBuilder().build())
+            .setLoggingHits(LoggingHits.newBuilder().setName("custom_logger_2").build())
             .build();
     SearchResponse response = getGrpcServer().getBlockingStub().search(request);
-    String expectedLogMessage = "LOGGED " + List.of(response.getHits(0));
+    String expectedLogMessage = "LOGGED_2 " + List.of(response.getHits(0));
 
     assertEquals(expectedLogMessage, HitsLoggerTest.logMessage);
   }

@@ -1068,9 +1068,8 @@ message FilterResult {
 }
 
 message LoggingHits {
-    // number of hits to log. For example, totalHits = 20 and hitsCount = 50 means that 50 documents will be logged
-    // while 20 documents will be returned in the Search Response
-    int32 hitsCount = 1;
+    // name of the hits logger to be called, as registered by a HitsLoggerPlugin
+    string name = 1;
     //Optional logging parameters
     google.protobuf.Struct params = 2;
 }
