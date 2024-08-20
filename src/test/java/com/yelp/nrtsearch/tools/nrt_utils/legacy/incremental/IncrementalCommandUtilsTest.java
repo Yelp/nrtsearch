@@ -129,6 +129,17 @@ public class IncrementalCommandUtilsTest {
   }
 
   @Test
+  public void testIsUUID() {
+    assertTrue(IncrementalCommandUtils.isUUID("09d9c9e4-483e-4a90-9c4f-d342c8da1210"));
+    assertTrue(IncrementalCommandUtils.isUUID("09d9c9e4-483e-4a90-9c4F-D342c8da1210"));
+
+    assertFalse(IncrementalCommandUtils.isUUID("09d9c9e4-483e-4a90-D342c8da1210"));
+    assertFalse(IncrementalCommandUtils.isUUID("other_file"));
+    assertFalse(IncrementalCommandUtils.isUUID("_3.cfs"));
+    assertFalse(IncrementalCommandUtils.isUUID("segments"));
+  }
+
+  @Test
   public void testGetVersionFiles() throws IOException {
     String indexName = "test_index";
     String indexId = "test_id";

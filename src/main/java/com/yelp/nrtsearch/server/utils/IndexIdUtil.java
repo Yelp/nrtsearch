@@ -23,16 +23,12 @@ public class IndexIdUtil {
   private static final DateTimeFormatter INDEX_ID_FORMATTER =
       DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
-  /**
-   * Generate a unique index id based on the current time formatted as yyyyMMddHHmmssSSS.
-   */
+  /** Generate a unique index id based on the current time formatted as yyyyMMddHHmmssSSS. */
   public static String generateIndexId() {
     return INDEX_ID_FORMATTER.format(LocalDateTime.now());
   }
 
-  /**
-   * Check if the given string is a valid index id.
-   */
+  /** Check if the given string is a valid index id. */
   public static boolean isIndexId(String indexId) {
     try {
       INDEX_ID_FORMATTER.parse(indexId);
