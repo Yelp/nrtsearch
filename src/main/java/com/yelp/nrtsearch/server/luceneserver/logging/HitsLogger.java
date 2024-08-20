@@ -21,8 +21,8 @@ import java.util.List;
 
 /**
  * This is the hits logger interface to provide the new logging hits feature with different
- * implementations. A single HitsLogger is supposed to be initiated once at the startup time and
- * registered in the {@link HitsLoggerCreator}.
+ * implementations. HitLoggers are supposed to be initiated once at the startup time and registered in the {@link
+ * HitsLoggerCreator}.
  */
 public interface HitsLogger {
   /**

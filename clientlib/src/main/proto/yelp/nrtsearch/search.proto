@@ -614,7 +614,7 @@ message SearchRequest {
     map<string, InnerHit> inner_hits = 26;
     // Defines runtime fields for this query
     repeated RuntimeField runtimeFields = 27;
-    // Specify hits count and params to log hits
+    // Any custom logging that should log hits after ranking
     LoggingHits loggingHits = 28;
 }
 
