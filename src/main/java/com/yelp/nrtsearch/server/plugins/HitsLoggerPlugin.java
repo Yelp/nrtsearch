@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.plugins;
 
 import com.yelp.nrtsearch.server.luceneserver.logging.HitsLogger;
 import com.yelp.nrtsearch.server.luceneserver.logging.HitsLoggerProvider;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -27,6 +28,6 @@ import java.util.Map;
  */
 public interface HitsLoggerPlugin {
   default Map<String, HitsLoggerProvider<? extends HitsLogger>> getHitsLoggers() {
-    return null;
+    return Collections.emptyMap();
   }
 }

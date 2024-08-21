@@ -615,7 +615,7 @@ message SearchRequest {
     // Defines runtime fields for this query
     repeated RuntimeField runtimeFields = 27;
     // Any custom logging that should log hits after ranking
-    LoggingHits loggingHits = 28;
+    LoggingHits loggingHits = 29;
 }
 
 /* Inner Hit search request */
