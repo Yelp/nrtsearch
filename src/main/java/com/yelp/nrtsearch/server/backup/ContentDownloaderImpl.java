@@ -237,6 +237,6 @@ public class ContentDownloaderImpl implements ContentDownloader {
   }
 
   private String getTmpName() {
-    return UUID.randomUUID().toString() + TMP_SUFFIX;
+    return UUID.randomUUID() + TMP_SUFFIX;
   }
 }

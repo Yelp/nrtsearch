@@ -599,7 +599,7 @@ type CreateIndexRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	IndexName string `protobuf:"bytes,1,opt,name=indexName,proto3" json:"indexName,omitempty"` // name of the index to be created. [a-zA-Z0-9]*
-	// Set if state/data already exists in the data backend. Provides the UUID to identify and load the index.
+	// Set if state/data already exists in the data backend. Provides the yyyyMMddHHmmssSSS formatted date-time string to identify and load the index.
 	ExistsWithId string `protobuf:"bytes,2,opt,name=existsWithId,proto3" json:"existsWithId,omitempty"`
 	// Optional initial index settings
 	Settings *IndexSettings `protobuf:"bytes,3,opt,name=settings,proto3" json:"settings,omitempty"`
@@ -5798,7 +5798,7 @@ type IndexGlobalState struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Unique identifier for index (UUID)
+	// Unique identifier for index (yyyyMMddHHmmssSSS formatted date-time string)
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// If index should be started
 	Started bool `protobuf:"varint,2,opt,name=started,proto3" json:"started,omitempty"`

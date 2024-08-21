@@ -412,7 +412,7 @@ service ReplicationServer {
 /* Input to createIndex */
 message CreateIndexRequest {
     string indexName = 1; // name of the index to be created. [a-zA-Z0-9]*
-    // Set if state/data already exists in the data backend. Provides the UUID to identify and load the index.
+    // Set if state/data already exists in the data backend. Provides the yyyyMMddHHmmssSSS formatted date-time string to identify and load the index.
     string existsWithId = 2;
     // Optional initial index settings
     IndexSettings settings = 3;
@@ -1132,7 +1132,7 @@ message IndexStateInfo {
 }
 
 message IndexGlobalState {
-    // Unique identifier for index (UUID)
+    // Unique identifier for index (yyyyMMddHHmmssSSS formatted date-time string)
     string id = 1;
     // If index should be started
     bool started = 2;
