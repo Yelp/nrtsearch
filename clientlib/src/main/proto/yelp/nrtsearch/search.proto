@@ -614,6 +614,8 @@ message SearchRequest {
     map<string, InnerHit> inner_hits = 26;
     // Defines runtime fields for this query
     repeated RuntimeField runtimeFields = 27;
+    // Any custom logging that should log hits after ranking
+    LoggingHits loggingHits = 29;
 }
 
 /* Inner Hit search request */
@@ -1063,6 +1065,13 @@ message FilterResult {
     int32 docCount = 1;
     //Results from nested collectors.
     map<string, CollectorResult> nestedCollectorResults = 2;
+}
+
+message LoggingHits {
+    // name of the hits logger to be called, as registered by a HitsLoggerPlugin
+    string name = 1;
+    //Optional logging parameters
+    google.protobuf.Struct params = 2;
 }
 
 // Specify how to highlight matched text in SearchRequest

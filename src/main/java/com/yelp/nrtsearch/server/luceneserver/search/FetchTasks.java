@@ -19,6 +19,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.Builder;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlightFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
+import com.yelp.nrtsearch.server.luceneserver.logging.HitsLoggerFetchTask;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -78,6 +79,7 @@ public class FetchTasks {
   // highlightFetchTasks only.
   private HighlightFetchTask highlightFetchTask;
   private List<InnerHitFetchTask> innerHitFetchTaskList;
+  private HitsLoggerFetchTask hitsLoggerFetchTask;
 
   public HighlightFetchTask getHighlightFetchTask() {
     return highlightFetchTask;
@@ -85,6 +87,10 @@ public class FetchTasks {
 
   public List<InnerHitFetchTask> getInnerHitFetchTaskList() {
     return innerHitFetchTaskList;
+  }
+
+  public HitsLoggerFetchTask getHitsLoggerFetchTask() {
+    return hitsLoggerFetchTask;
   }
 
   public void setHighlightFetchTask(HighlightFetchTask highlightFetchTask) {
@@ -95,13 +101,17 @@ public class FetchTasks {
     this.innerHitFetchTaskList = innerHitFetchTaskList;
   }
 
+  public void setHitsLoggerFetchTask(HitsLoggerFetchTask hitsLoggerFetchTask) {
+    this.hitsLoggerFetchTask = hitsLoggerFetchTask;
+  }
+
   /**
    * Constructor.
    *
    * @param grpcTaskList fetch task definitions from search request
    */
   public FetchTasks(List<com.yelp.nrtsearch.server.grpc.FetchTask> grpcTaskList) {
-    this(grpcTaskList, null, null);
+    this(grpcTaskList, null, null, null);
   }
 
   /**
@@ -110,11 +120,13 @@ public class FetchTasks {
    * @param grpcTaskList fetch task definitions from search request
    * @param highlightFetchTask highlight fetch task
    * @param innerHitFetchTaskList innerHit fetch tasks
+   * @param hitsLoggerFetchTask hitsLogger fetch task
    */
   public FetchTasks(
       List<com.yelp.nrtsearch.server.grpc.FetchTask> grpcTaskList,
       HighlightFetchTask highlightFetchTask,
-      List<InnerHitFetchTask> innerHitFetchTaskList) {
+      List<InnerHitFetchTask> innerHitFetchTaskList,
+      HitsLoggerFetchTask hitsLoggerFetchTask) {
     taskList =
         grpcTaskList.stream()
             .map(
@@ -124,6 +136,7 @@ public class FetchTasks {
             .collect(Collectors.toList());
     this.highlightFetchTask = highlightFetchTask;
     this.innerHitFetchTaskList = innerHitFetchTaskList;
+    this.hitsLoggerFetchTask = hitsLoggerFetchTask;
   }
 
   /**
@@ -140,6 +153,12 @@ public class FetchTasks {
       task.processAllHits(searchContext, hits);
     }
     // highlight and innerHit doesn't support processAllHits now
+    // hitsLogger should be the last fetch task to run because it might need shared data from other
+    // plugins, including
+    // other fetch task plugins
+    if (hitsLoggerFetchTask != null) {
+      hitsLoggerFetchTask.processAllHits(searchContext, hits);
+    }
   }
 
   /**
