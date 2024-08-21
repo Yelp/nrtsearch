@@ -71,7 +71,7 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
   private String credsProfile;
 
   @CommandLine.Option(
-      names = {"--setDateTime"},
+      names = {"--setId"},
       description =
           "If specified, update index id to this value. Should match format yyyyMMddHHmmssSSS")
   private String dateTimeString;

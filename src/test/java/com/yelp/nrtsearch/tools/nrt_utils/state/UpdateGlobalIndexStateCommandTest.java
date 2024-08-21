@@ -123,7 +123,7 @@ public class UpdateGlobalIndexStateCommandTest {
             "--serviceName=" + SERVICE_NAME,
             "--bucketName=" + TEST_BUCKET,
             "--indexName=test_index",
-            "--setDateTime=" + firstIndexId);
+            "--setId=" + firstIndexId);
     assertEquals(0, exitCode);
     server.restart();
     assertTrue(server.isStarted("test_index"));
@@ -202,7 +202,7 @@ public class UpdateGlobalIndexStateCommandTest {
             "--serviceName=" + SERVICE_NAME,
             "--bucketName=" + TEST_BUCKET,
             "--indexName=not_index",
-            "--setDateTime=20240820123456789");
+            "--setId=20240820123456789");
     assertEquals(1, exitCode);
     server.restart();
 
