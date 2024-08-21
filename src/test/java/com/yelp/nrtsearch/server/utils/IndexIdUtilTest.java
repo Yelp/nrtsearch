@@ -19,6 +19,7 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.mockStatic;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import org.junit.Test;
 import org.mockito.MockedStatic;
 
@@ -28,7 +29,7 @@ public class IndexIdUtilTest {
   public void testGenerateIndexId() {
     LocalDateTime mockTime = LocalDateTime.of(2024, 8, 20, 12, 34, 56, 789000000);
     try (MockedStatic<LocalDateTime> mockLocalDateTime = mockStatic(LocalDateTime.class)) {
-      mockLocalDateTime.when(LocalDateTime::now).thenReturn(mockTime);
+      mockLocalDateTime.when(() -> LocalDateTime.now(ZoneId.of("UTC"))).thenReturn(mockTime);
       String indexId = IndexIdUtil.generateIndexId();
       assertEquals("20240820123456789", indexId);
     }

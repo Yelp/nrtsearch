@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1338,7 +1339,7 @@ public class BackendGlobalStateTest {
     when(mockBackendGlobalState.getIndexId()).thenCallRealMethod();
     LocalDateTime mockTime = LocalDateTime.of(2024, 8, 20, 12, 34, 56, 789000000);
     try (MockedStatic<LocalDateTime> mockLocalDateTime = mockStatic(LocalDateTime.class)) {
-      mockLocalDateTime.when(LocalDateTime::now).thenReturn(mockTime);
+      mockLocalDateTime.when(() -> LocalDateTime.now(ZoneId.of("UTC"))).thenReturn(mockTime);
       String indexId = mockBackendGlobalState.getIndexId();
       assertEquals("20240820123456789", indexId);
     }

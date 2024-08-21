@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.utils;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 
 public class IndexIdUtil {
@@ -25,7 +26,7 @@ public class IndexIdUtil {
 
   /** Generate a unique index id based on the current time formatted as yyyyMMddHHmmssSSS. */
   public static String generateIndexId() {
-    return INDEX_ID_FORMATTER.format(LocalDateTime.now());
+    return INDEX_ID_FORMATTER.format(LocalDateTime.now(ZoneId.of("UTC")));
   }
 
   /** Check if the given string is a valid index id. */
