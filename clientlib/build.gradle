@@ -30,11 +30,12 @@ startScripts.enabled = false
 def _artifactId = 'clientlib'
 
 // Dependency versions
-def protobufVersion = '3.25.1'
+def protobufVersion = '3.25.3'
 def protocVersion = protobufVersion
 
 dependencies {
     //grpc deps
+    api "com.google.api.grpc:proto-google-common-protos:2.41.0"
     implementation "io.grpc:grpc-protobuf:${rootProject.grpcVersion}"
     implementation "io.grpc:grpc-stub:${rootProject.grpcVersion}"
     implementation "io.grpc:grpc-okhttp:${rootProject.grpcVersion}"
