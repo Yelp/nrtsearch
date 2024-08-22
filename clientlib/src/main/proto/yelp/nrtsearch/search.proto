@@ -616,6 +616,15 @@ message SearchRequest {
     repeated RuntimeField runtimeFields = 27;
     // Any custom logging that should log hits after ranking
     LoggingHits loggingHits = 29;
+    // Keeps tracks of last hit for search after
+    LastHitInfo searchAfter = 30;
+}
+
+/* Last Hit info for search after */
+message LastHitInfo {
+    repeated string lastFieldValues = 1;
+    int32 lastDocId = 2;
+    float lastScore = 3;
 }
 
 /* Inner Hit search request */
@@ -805,6 +814,7 @@ message SearchResponse {
         int32 lastDocId = 3;
         repeated string lastFieldValues = 4;
         float lastScore = 5;
+        LastHitInfo lastHitInfo = 6;
     }
 
     Diagnostics diagnostics = 1;
