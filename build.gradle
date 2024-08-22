@@ -110,6 +110,7 @@ dependencies {
 
     testImplementation "junit:junit:${project.ext.junitVersion}"
     testImplementation "io.grpc:grpc-testing:${rootProject.grpcVersion}"
+    testImplementation "io.grpc:grpc-inprocess:${rootProject.grpcVersion}"
     testImplementation "org.mockito:mockito-core:${project.ext.mockitoVersion}"
     testImplementation "org.apache.lucene:lucene-test-framework:${luceneVersion}"
     testImplementation "org.locationtech.spatial4j:spatial4j:${spatial4jVersion}"
