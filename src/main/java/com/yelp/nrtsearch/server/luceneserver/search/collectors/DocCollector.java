@@ -168,6 +168,19 @@ public abstract class DocCollector {
         request.getTimeoutSec() > 0.0
             ? request.getTimeoutSec()
             : indexState.getDefaultSearchTimeoutSec();
+    int terminateAfter =
+        request.getTerminateAfter() > 0
+            ? request.getTerminateAfter()
+            : indexState.getDefaultTerminateAfter();
+    int terminateAfterMaxRecallCount =
+        request.getTerminateAfterMaxRecallCount() > 0
+            ? request.getTerminateAfterMaxRecallCount()
+            : 0;
+    if (terminateAfter > 0) {
+      wrapped =
+          new TerminateAfterWrapper<>(
+              wrapped, terminateAfter, terminateAfterMaxRecallCount, () -> terminatedEarly = true);
+    }
     if (timeout > 0.0) {
       int timeoutCheckEvery =
           request.getTimeoutCheckEvery() > 0
@@ -181,13 +194,6 @@ public abstract class DocCollector {
               timeoutCheckEvery,
               request.getDisallowPartialResults(),
               () -> hadTimeout = true);
-    }
-    int terminateAfter =
-        request.getTerminateAfter() > 0
-            ? request.getTerminateAfter()
-            : indexState.getDefaultTerminateAfter();
-    if (terminateAfter > 0) {
-      wrapped = new TerminateAfterWrapper<>(wrapped, terminateAfter, () -> terminatedEarly = true);
     }
     if (request.getProfile()) {
       statsWrapper = new SearchStatsWrapper<>(wrapped);

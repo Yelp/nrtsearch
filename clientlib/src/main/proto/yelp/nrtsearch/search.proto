@@ -614,6 +614,8 @@ message SearchRequest {
     map<string, InnerHit> inner_hits = 26;
     // Defines runtime fields for this query
     repeated RuntimeField runtimeFields = 27;
+    //Stop document collection in search phase after this many recalled documents, after terminateAfter docs will be counted but not scored upto terminateAfterMaxRecallCount.
+    int32 terminateAfterMaxRecallCount = 28;
     // Any custom logging that should log hits after ranking
     LoggingHits loggingHits = 29;
 }
