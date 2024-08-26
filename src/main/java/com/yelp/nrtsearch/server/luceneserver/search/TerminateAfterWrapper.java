@@ -21,12 +21,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
-import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.*;
 
 /**
  * Collector manager wrapper that terminates collection after a given number of documents. This doc
@@ -40,6 +35,7 @@ public class TerminateAfterWrapper<C extends Collector>
 
   private final CollectorManager<C, SearcherResult> in;
   private final int terminateAfter;
+  private final int terminateAfterMaxRecallCount;
   private final Runnable onEarlyTerminate;
   private final AtomicInteger collectedDocCount;
 
@@ -51,9 +47,13 @@ public class TerminateAfterWrapper<C extends Collector>
    * @param onEarlyTerminate action to perform if collection terminated early (done in reduce call)
    */
   public TerminateAfterWrapper(
-      CollectorManager<C, SearcherResult> in, int terminateAfter, Runnable onEarlyTerminate) {
+      CollectorManager<C, SearcherResult> in,
+      int terminateAfter,
+      int terminateAfterMaxRecallCount,
+      Runnable onEarlyTerminate) {
     this.in = in;
     this.terminateAfter = terminateAfter;
+    this.terminateAfterMaxRecallCount = terminateAfterMaxRecallCount;
     this.onEarlyTerminate = onEarlyTerminate;
     this.collectedDocCount = new AtomicInteger();
   }
@@ -74,10 +74,17 @@ public class TerminateAfterWrapper<C extends Collector>
         didTerminateEarly = true;
       }
     }
+    SearcherResult searcherResult = in.reduce(innerCollectors);
     if (didTerminateEarly) {
       onEarlyTerminate.run();
+      int totalHits = 0;
+      for (TerminateAfterCollectorWrapper collector : collectors) {
+        totalHits += collector.docCount;
+      }
+      searcherResult.getTopDocs().totalHits =
+          new TotalHits(totalHits, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     }
-    return in.reduce(innerCollectors);
+    return searcherResult;
   }
 
   /** Get the collector manager being wrapped. */
@@ -98,6 +105,7 @@ public class TerminateAfterWrapper<C extends Collector>
 
     private final C collector;
     private boolean terminatedEarly = false;
+    private int docCount = 0;
 
     public TerminateAfterCollectorWrapper(C collector) {
       this.collector = collector;
@@ -135,11 +143,17 @@ public class TerminateAfterWrapper<C extends Collector>
 
       @Override
       public void collect(int doc) throws IOException {
-        if (collectedDocCount.incrementAndGet() > terminateAfter) {
+        int currDocCount = collectedDocCount.incrementAndGet();
+        if (currDocCount > terminateAfter) {
           terminatedEarly = true;
-          throw new CollectionTerminatedException();
+          if (currDocCount > terminateAfterMaxRecallCount) {
+            throw new CollectionTerminatedException();
+          }
+          docCount++;
+          return;
         }
         leafCollector.collect(doc);
+        docCount++;
       }
     }
   }

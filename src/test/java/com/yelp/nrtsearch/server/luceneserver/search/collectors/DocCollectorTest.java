@@ -259,9 +259,6 @@ public class DocCollectorTest {
     assertTrue(docCollector.getManager() instanceof TestDocCollector.TestCollectorManager);
     assertTrue(docCollector.getWrappedManager() instanceof SearchStatsWrapper);
     SearchStatsWrapper<?> statsWrapper = (SearchStatsWrapper<?>) docCollector.getWrappedManager();
-    assertTrue(statsWrapper.getWrapped() instanceof TerminateAfterWrapper);
-    TerminateAfterWrapper<?> terminateAfterWrapper =
-        (TerminateAfterWrapper<?>) statsWrapper.getWrapped();
-    assertTrue(terminateAfterWrapper.getWrapped() instanceof SearchCutoffWrapper);
+    assertTrue(statsWrapper.getWrapped() instanceof SearchCutoffWrapper<?>);
   }
 }

@@ -100,15 +100,25 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
 
   @Test
   public void testNoTerminateAfter() {
-    SearchResponse response = doQuery(0, 0.0, false);
+    SearchResponse response = doQuery(0, 0, 0.0, false);
     assertEquals(100, response.getHitsCount());
+    assertEquals(100, response.getTotalHits().getValue());
+    assertFalse(response.getTerminatedEarly());
+  }
+
+  @Test
+  public void testNoTerminateAfterWithMaxRecall() {
+    SearchResponse response = doQuery(0, 10, 0.0, false);
+    assertEquals(100, response.getHitsCount());
+    assertEquals(100, response.getTotalHits().getValue());
     assertFalse(response.getTerminatedEarly());
   }
 
   @Test
   public void testTerminateAfter() {
-    SearchResponse response = doQuery(10, 0.0, false);
+    SearchResponse response = doQuery(10, 0, 0.0, false);
     assertEquals(10, response.getHitsCount());
+    assertEquals(10, response.getTotalHits().getValue());
     assertTrue(response.getTerminatedEarly());
   }
 
@@ -117,8 +127,9 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
     IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
     try {
       setDefaultTerminateAfter(15);
-      SearchResponse response = doQuery(0, 0.0, false);
+      SearchResponse response = doQuery(0, 0, 0.0, false);
       assertEquals(15, response.getHitsCount());
+      assertEquals(15, response.getTotalHits().getValue());
       assertTrue(response.getTerminatedEarly());
     } finally {
       setDefaultTerminateAfter(0);
@@ -130,8 +141,9 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
     IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
     try {
       setDefaultTerminateAfter(15);
-      SearchResponse response = doQuery(5, 0.0, false);
+      SearchResponse response = doQuery(5, 0, 0.0, false);
       assertEquals(5, response.getHitsCount());
+      assertEquals(5, response.getTotalHits().getValue());
       assertTrue(response.getTerminatedEarly());
     } finally {
       setDefaultTerminateAfter(0);
@@ -140,8 +152,33 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
 
   @Test
   public void testWithOtherWrappers() {
-    SearchResponse response = doQuery(10, 1000.0, true);
+    SearchResponse response = doQuery(10, 0, 1000.0, true);
     assertEquals(10, response.getHitsCount());
+    assertEquals(10, response.getTotalHits().getValue());
+    assertTrue(response.getTerminatedEarly());
+  }
+
+  @Test
+  public void testTerminateAfterWithMaxRecallCountGreater() {
+    SearchResponse response = doQuery(5, 10, 0.0, false);
+    assertEquals(5, response.getHitsCount());
+    assertEquals(10, response.getTotalHits().getValue());
+    assertTrue(response.getTerminatedEarly());
+  }
+
+  @Test
+  public void testTerminateAfterWithMaxRecallCountLower() {
+    SearchResponse response = doQuery(5, 3, 0.0, false);
+    assertEquals(5, response.getHitsCount());
+    assertEquals(5, response.getTotalHits().getValue());
+    assertTrue(response.getTerminatedEarly());
+  }
+
+  @Test
+  public void testTerminateAfterWithMaxRecallCountEqual() {
+    SearchResponse response = doQuery(5, 5, 0.0, false);
+    assertEquals(5, response.getHitsCount());
+    assertEquals(5, response.getTotalHits().getValue());
     assertTrue(response.getTerminatedEarly());
   }
 
@@ -156,7 +193,8 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
             false);
   }
 
-  private SearchResponse doQuery(int terminateAfter, double timeout, boolean profile) {
+  private SearchResponse doQuery(
+      int terminateAfter, int terminateAfterMaxRecallCount, double timeout, boolean profile) {
     return getGrpcServer()
         .getBlockingStub()
         .search(
@@ -166,6 +204,7 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
                 .addRetrieveFields("int_score")
                 .addRetrieveFields("int_field")
                 .setTerminateAfter(terminateAfter)
+                .setTerminateAfterMaxRecallCount(terminateAfterMaxRecallCount)
                 .setProfile(profile)
                 .setTimeoutSec(timeout)
                 .setStartHit(0)

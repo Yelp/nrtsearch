@@ -19,7 +19,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +31,7 @@ import com.yelp.nrtsearch.clientlib.Node;
 import com.yelp.nrtsearch.server.grpc.LuceneServer.ReplicationServerImpl;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient.DiscoveryFileAndPort;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.StatusRuntimeException;
@@ -36,6 +41,7 @@ import java.net.URI;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -162,5 +168,30 @@ public class ReplicationServerClientTest {
         client.close();
       }
     }
+  }
+
+  @Test
+  @SuppressWarnings("rawtypes")
+  public void testKeepAliveEnabled() {
+    ManagedChannelBuilder managedChannelBuilder = mock(ManagedChannelBuilder.class);
+    when(managedChannelBuilder.keepAliveTime(anyLong(), any(TimeUnit.class)))
+        .thenReturn(managedChannelBuilder);
+    when(managedChannelBuilder.keepAliveTimeout(anyLong(), any(TimeUnit.class)))
+        .thenReturn(managedChannelBuilder);
+    when(managedChannelBuilder.keepAliveWithoutCalls(anyBoolean()))
+        .thenReturn(managedChannelBuilder);
+
+    ReplicationServerClient.setKeepAlive(managedChannelBuilder, true);
+    verify(managedChannelBuilder).keepAliveTime(1, TimeUnit.MINUTES);
+    verify(managedChannelBuilder).keepAliveTimeout(10, TimeUnit.SECONDS);
+    verify(managedChannelBuilder).keepAliveWithoutCalls(true);
+  }
+
+  @Test
+  @SuppressWarnings("rawtypes")
+  public void testKeepAliveDisabled() {
+    ManagedChannelBuilder managedChannelBuilder = mock(ManagedChannelBuilder.class);
+    ReplicationServerClient.setKeepAlive(managedChannelBuilder, false);
+    verifyNoMoreInteractions(managedChannelBuilder);
   }
 }
