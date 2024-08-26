@@ -74,16 +74,16 @@ public class TerminateAfterWrapper<C extends Collector>
         didTerminateEarly = true;
       }
     }
+    SearcherResult searcherResult = in.reduce(innerCollectors);
     if (didTerminateEarly) {
       onEarlyTerminate.run();
+      int totalHits = 0;
+      for (TerminateAfterCollectorWrapper collector : collectors) {
+        totalHits += collector.docCount;
+      }
+      searcherResult.getTopDocs().totalHits =
+          new TotalHits(totalHits, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     }
-    SearcherResult searcherResult = in.reduce(innerCollectors);
-    int totalHits = 0;
-    for (TerminateAfterCollectorWrapper collector : collectors) {
-      totalHits += collector.docCount;
-    }
-    searcherResult.getTopDocs().totalHits =
-        new TotalHits(totalHits, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     return searcherResult;
   }
 
