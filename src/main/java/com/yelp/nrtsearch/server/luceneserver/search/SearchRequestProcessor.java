@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.search;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.Highlight;
 import com.yelp.nrtsearch.server.grpc.InnerHit;
+import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
 import com.yelp.nrtsearch.server.grpc.QueryRescorer;
@@ -39,6 +40,7 @@ import com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitContext;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitContext.InnerHitContextBuilder;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
+import com.yelp.nrtsearch.server.luceneserver.logging.HitsLoggerFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.QueryRescore;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
@@ -177,6 +179,12 @@ public class SearchRequestProcessor {
           new HighlightFetchTask(indexState, query, HighlighterService.getInstance(), highlight);
     }
 
+    HitsLoggerFetchTask hitsLoggerFetchTask = null;
+    if (searchRequest.hasLoggingHits()) {
+      LoggingHits loggingHits = searchRequest.getLoggingHits();
+      hitsLoggerFetchTask = new HitsLoggerFetchTask(loggingHits);
+    }
+
     List<InnerHitFetchTask> innerHitFetchTasks = null;
     if (searchRequest.getInnerHitsCount() > 0) {
       innerHitFetchTasks = new ArrayList<>(searchRequest.getInnerHitsCount());
@@ -197,7 +205,11 @@ public class SearchRequestProcessor {
     }
 
     contextBuilder.setFetchTasks(
-        new FetchTasks(searchRequest.getFetchTasksList(), highlightFetchTask, innerHitFetchTasks));
+        new FetchTasks(
+            searchRequest.getFetchTasksList(),
+            highlightFetchTask,
+            innerHitFetchTasks,
+            hitsLoggerFetchTask));
 
     contextBuilder.setQuery(query);
 
