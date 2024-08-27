@@ -47,4 +47,25 @@ public class FileUtil {
       }
     }
   }
+
+  /**
+   * Deletes all files in a directory recursively. If the path does not exist or is not a directory,
+   * this method does nothing.
+   *
+   * @param dir directory to delete files from
+   * @throws IOException in case deletion is unsuccessful
+   */
+  public static void deleteAllFilesInDir(Path dir) throws IOException {
+    if (Files.exists(dir) && Files.isDirectory(dir)) {
+      try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
+        for (Path path : stream) {
+          if (Files.isDirectory(path)) {
+            deleteAllFiles(path);
+          } else {
+            Files.delete(path);
+          }
+        }
+      }
+    }
+  }
 }

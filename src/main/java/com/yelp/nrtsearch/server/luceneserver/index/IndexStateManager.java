@@ -21,9 +21,9 @@ import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -97,12 +97,16 @@ public interface IndexStateManager extends Closeable {
    * Start the index.
    *
    * @param serverMode index mode
-   * @param dataPath path to any restored index data, or null
+   * @param nrtDataManager manager for loading and saving of remote nrt point data
    * @param primaryGen primary generation number
    * @param primaryClient replication client for replicas to talk to primary
    * @throws IOException on error accessing index data
    */
-  void start(Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
+  void start(
+      Mode serverMode,
+      NrtDataManager nrtDataManager,
+      long primaryGen,
+      ReplicationServerClient primaryClient)
       throws IOException;
 
   /**
@@ -116,7 +120,7 @@ public interface IndexStateManager extends Closeable {
   /**
    * Get the index id
    *
-   * @return
+   * @return index id
    */
   String getIndexId();
 }

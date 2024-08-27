@@ -19,6 +19,8 @@ import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
+import com.yelp.nrtsearch.server.luceneserver.nrt.RefreshUploadFuture;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.Deadline;
@@ -39,9 +41,11 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
 import org.apache.lucene.replicator.nrt.PrimaryNode;
 import org.apache.lucene.search.IndexSearcher;
@@ -57,6 +61,7 @@ public class NRTPrimaryNode extends PrimaryNode {
   private final HostPort hostPort;
   private final String indexName;
   private final IndexStateManager indexStateManager;
+  private final NrtDataManager nrtDataManager;
   final List<MergePreCopy> warmingSegments = Collections.synchronizedList(new ArrayList<>());
   final Queue<ReplicaDetails> replicasInfos = new ConcurrentLinkedQueue<>();
 
@@ -67,6 +72,7 @@ public class NRTPrimaryNode extends PrimaryNode {
       int id,
       long primaryGen,
       long forcePrimaryVersion,
+      NrtDataManager nrtDataManager,
       SearcherFactory searcherFactory,
       PrintStream printStream)
       throws IOException {
@@ -74,6 +80,16 @@ public class NRTPrimaryNode extends PrimaryNode {
     this.hostPort = hostPort;
     this.indexName = indexStateManager.getCurrent().getName();
     this.indexStateManager = indexStateManager;
+    this.nrtDataManager = nrtDataManager;
+  }
+
+  /**
+   * Get the {@link NrtDataManager} for this primary node.
+   *
+   * @return the {@link NrtDataManager} for this primary node
+   */
+  public NrtDataManager getNrtDataManager() {
+    return nrtDataManager;
   }
 
   public static class ReplicaDetails {
@@ -232,6 +248,7 @@ public class NRTPrimaryNode extends PrimaryNode {
   static class PrimaryNodeReferenceManager extends ReferenceManager<IndexSearcher> {
     final NRTPrimaryNode primary;
     final SearcherFactory searcherFactory;
+    List<RefreshUploadFuture> nextRefreshWatchers = new ArrayList<>();
 
     public PrimaryNodeReferenceManager(NRTPrimaryNode primary, SearcherFactory searcherFactory)
         throws IOException {
@@ -239,7 +256,18 @@ public class NRTPrimaryNode extends PrimaryNode {
       this.searcherFactory = searcherFactory;
       current =
           SearcherManager.getSearcher(
-              searcherFactory, primary.mgr.acquire().getIndexReader(), null);
+              searcherFactory, primary.getSearcherManager().acquire().getIndexReader(), null);
+    }
+
+    /**
+     * Get a future that will be notified when the next refresh is durable in the remote backend.
+     *
+     * @return refresh future
+     */
+    public synchronized Future<?> nextRefreshDurable() {
+      RefreshUploadFuture future = new RefreshUploadFuture();
+      nextRefreshWatchers.add(future);
+      return future;
     }
 
     @Override
@@ -249,16 +277,49 @@ public class NRTPrimaryNode extends PrimaryNode {
 
     @Override
     protected IndexSearcher refreshIfNeeded(IndexSearcher referenceToRefresh) throws IOException {
-      if (primary.flushAndRefresh()) {
-        primary.sendNewNRTPointToReplicas();
-        // NOTE: steals a ref from one ReferenceManager to another!
-        return SearcherManager.getSearcher(
-            searcherFactory,
-            primary.mgr.acquire().getIndexReader(),
-            referenceToRefresh.getIndexReader());
-      } else {
-        return null;
+      // get watchers waiting for a durable refresh
+      List<RefreshUploadFuture> watchers;
+      synchronized (this) {
+        watchers = nextRefreshWatchers;
+        nextRefreshWatchers = new ArrayList<>();
       }
+
+      boolean uploadQueued = false;
+      try {
+        if (primary.flushAndRefresh()) {
+          if (!watchers.isEmpty()) {
+            // queue the index upload if there are watchers waiting for a durable refresh
+            queueIndexUpload(watchers);
+            uploadQueued = true;
+          }
+          primary.sendNewNRTPointToReplicas();
+          // NOTE: steals a ref from one ReferenceManager to another!
+          return SearcherManager.getSearcher(
+              searcherFactory,
+              primary.getSearcherManager().acquire().getIndexReader(),
+              referenceToRefresh.getIndexReader());
+        } else {
+          if (!watchers.isEmpty()) {
+            // even if flush was a noop, we still need to make sure the data is uploaded
+            queueIndexUpload(watchers);
+            uploadQueued = true;
+          }
+          return null;
+        }
+      } catch (Throwable t) {
+        // We failed before adding the upload task to the queue, so we must notify the watchers here
+        if (!uploadQueued) {
+          for (RefreshUploadFuture watcher : watchers) {
+            watcher.setDone(t);
+          }
+        }
+        throw t;
+      }
+    }
+
+    private void queueIndexUpload(List<RefreshUploadFuture> watchers) throws IOException {
+      CopyState copyState = primary.getCopyState();
+      primary.getNrtDataManager().enqueueUpload(copyState, watchers);
     }
 
     @Override
@@ -487,6 +548,7 @@ public class NRTPrimaryNode extends PrimaryNode {
       replicationServerClient.close();
       it.remove();
     }
+    nrtDataManager.close();
     super.close();
   }
 }

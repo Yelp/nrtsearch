@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.remote.s3;
 
+import static com.yelp.nrtsearch.server.utils.TimeStringUtil.generateTimeStringSec;
+
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3URI;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
@@ -23,21 +25,30 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.transfer.Download;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.amazonaws.services.s3.transfer.Upload;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.backup.VersionManager;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtFileMetaData;
+import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.utils.ZipUtil;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Enumeration;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -53,6 +64,17 @@ public class S3Backend implements RemoteBackend {
   public static final String LATEST_VERSION = "_latest_version";
   static final String VERSION_STRING_FORMAT = "%s/_version/%s/%s";
   static final String RESOURCE_KEY_FORMAT = "%s/%s/%s";
+
+  private static final ObjectMapper OBJECT_MAPPER =
+      new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+  ;
+  static final String INDEX_RESOURCE_PREFIX_FORMAT = "%s/%s/%s/";
+  static final String INDEX_BACKEND_FILE_FORMAT = "%s-%s-%s";
+  static final String POINT_STATE_FILE_FORMAT = "%s-%s-%s";
+  static final String POINT_STATE = "point_state";
+  static final String DATA = "data";
+  static final String CURRENT_VERSION = "_current";
+
   private static final Logger logger = LoggerFactory.getLogger(S3Backend.class);
   private static final String ZIP_EXTENSION = ".zip";
 
@@ -66,16 +88,35 @@ public class S3Backend implements RemoteBackend {
   private final TransferManager transferManager;
 
   /**
+   * Pair of file names, one for the local file and one for the backend file.
+   *
+   * @param fileName local file name
+   * @param backendFileName backend file name
+   */
+  record FileNamePair(String fileName, String backendFileName) {}
+
+  /**
    * Constructor.
    *
    * @param configuration configuration
    * @param s3 s3 client
    */
   public S3Backend(LuceneServerConfiguration configuration, AmazonS3 s3) {
+    this(configuration.getBucketName(), configuration.getSavePluginBeforeUnzip(), s3);
+  }
+
+  /**
+   * Constructor.
+   *
+   * @param serviceBucket bucket name
+   * @param savePluginBeforeUnzip save plugin before unzipping
+   * @param s3 s3 client
+   */
+  public S3Backend(String serviceBucket, boolean savePluginBeforeUnzip, AmazonS3 s3) {
     this.s3 = s3;
     this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(NUM_S3_THREADS);
-    this.saveBeforeUnzip = configuration.getSavePluginBeforeUnzip();
-    this.serviceBucket = configuration.getBucketName();
+    this.saveBeforeUnzip = savePluginBeforeUnzip;
+    this.serviceBucket = serviceBucket;
     this.versionManger = new VersionManager(s3, serviceBucket);
     this.transferManager =
         TransferManagerBuilder.standard()
@@ -214,12 +255,17 @@ public class S3Backend implements RemoteBackend {
   @Override
   public boolean exists(String service, String indexIdentifier, IndexResourceType resourceType)
       throws IOException {
-    String resource = getResourceName(indexIdentifier, resourceType);
-    try {
-      getVersionString(service, resource, LATEST_VERSION);
-      return true;
-    } catch (IllegalArgumentException e) {
-      return false;
+    if (resourceType == IndexResourceType.POINT_STATE) {
+      String prefix = indexPointStateResourcePrefix(service, indexIdentifier);
+      return currentResourceExists(prefix);
+    } else {
+      String resource = getResourceName(indexIdentifier, resourceType);
+      try {
+        getVersionString(service, resource, LATEST_VERSION);
+        return true;
+      } catch (IllegalArgumentException e) {
+        return false;
+      }
     }
   }
 
@@ -258,10 +304,174 @@ public class S3Backend implements RemoteBackend {
     versionManger.blessVersion(service, resource, versionHash);
   }
 
+  @Override
+  public void uploadIndexFiles(
+      String service, String indexIdentifier, Path indexDir, Map<String, NrtFileMetaData> files)
+      throws IOException {
+    List<FileNamePair> fileList = getFileNamePairs(files);
+    String backendPrefix = indexDataResourcePrefix(service, indexIdentifier);
+    List<Upload> uploadList = new LinkedList<>();
+    for (FileNamePair pair : fileList) {
+      String backendKey = backendPrefix + pair.backendFileName;
+      Path localFile = indexDir.resolve(pair.fileName);
+      PutObjectRequest request =
+          new PutObjectRequest(serviceBucket, backendKey, localFile.toFile());
+      request.setGeneralProgressListener(
+          new S3ProgressListenerImpl(service, indexIdentifier, "upload_index_files"));
+      Upload upload = transferManager.upload(request);
+      uploadList.add(upload);
+    }
+
+    boolean hasFailure = false;
+    Throwable failureCause = null;
+    for (Upload upload : uploadList) {
+      if (hasFailure) {
+        upload.abort();
+      } else {
+        try {
+          upload.waitForUploadResult();
+        } catch (Throwable t) {
+          hasFailure = true;
+          failureCause = t;
+        }
+      }
+    }
+    if (hasFailure) {
+      throw new IOException("Error while downloading index files from s3. ", failureCause);
+    }
+  }
+
+  @Override
+  public void downloadIndexFiles(
+      String service, String indexIdentifier, Path indexDir, Map<String, NrtFileMetaData> files)
+      throws IOException {
+    List<FileNamePair> fileList = getFileNamePairs(files);
+    String backendPrefix = indexDataResourcePrefix(service, indexIdentifier);
+    List<Download> downloadList = new LinkedList<>();
+    boolean hasFailure = false;
+    Throwable failureCause = null;
+    for (FileNamePair pair : fileList) {
+      String backendKey = backendPrefix + pair.backendFileName;
+      Path localFile = indexDir.resolve(pair.fileName);
+      GetObjectRequest request = new GetObjectRequest(serviceBucket, backendKey);
+      request.setGeneralProgressListener(
+          new S3ProgressListenerImpl(service, indexIdentifier, "download_index_files"));
+      try {
+        Download download = transferManager.download(request, localFile.toFile());
+        downloadList.add(download);
+      } catch (Throwable t) {
+        hasFailure = true;
+        failureCause = t;
+        break;
+      }
+    }
+
+    for (Download download : downloadList) {
+      if (hasFailure) {
+        download.abort();
+      } else {
+        try {
+          download.waitForCompletion();
+        } catch (Throwable t) {
+          hasFailure = true;
+          failureCause = t;
+        }
+      }
+    }
+    if (hasFailure) {
+      throw new IOException("Error while downloading index files from s3. ", failureCause);
+    }
+  }
+
+  static String indexDataResourcePrefix(String service, String indexIdentifier) {
+    return String.format(INDEX_RESOURCE_PREFIX_FORMAT, service, indexIdentifier, DATA);
+  }
+
+  static List<FileNamePair> getFileNamePairs(Map<String, NrtFileMetaData> files) {
+    List<FileNamePair> fileList = new LinkedList<>();
+    for (Map.Entry<String, NrtFileMetaData> entry : files.entrySet()) {
+      String fileName = entry.getKey();
+      NrtFileMetaData fileMetaData = entry.getValue();
+      fileList.add(new FileNamePair(fileName, getIndexBackendFileName(fileName, fileMetaData)));
+    }
+    return fileList;
+  }
+
+  static String getIndexBackendFileName(String fileName, NrtFileMetaData fileMetaData) {
+    return String.format(
+        INDEX_BACKEND_FILE_FORMAT, fileMetaData.timeString, fileMetaData.primaryId, fileName);
+  }
+
+  @Override
+  public void uploadPointState(String service, String indexIdentifier, NrtPointState nrtPointState)
+      throws IOException {
+    String prefix = indexPointStateResourcePrefix(service, indexIdentifier);
+    String fileName = getPointStateFileName(nrtPointState);
+    String backendKey = prefix + fileName;
+    String jsonString = OBJECT_MAPPER.writeValueAsString(nrtPointState);
+    byte[] bytes = jsonString.getBytes(StandardCharsets.UTF_8);
+    ObjectMetadata metadata = new ObjectMetadata();
+    metadata.setContentLength(bytes.length);
+    PutObjectRequest request =
+        new PutObjectRequest(serviceBucket, backendKey, new ByteArrayInputStream(bytes), metadata);
+    request.setGeneralProgressListener(
+        new S3ProgressListenerImpl(service, indexIdentifier, "upload_point_state"));
+    s3.putObject(request);
+
+    setCurrentResource(prefix, fileName);
+  }
+
+  @Override
+  public NrtPointState downloadPointState(String service, String indexIdentifier)
+      throws IOException {
+    String prefix = indexPointStateResourcePrefix(service, indexIdentifier);
+    String fileName = getCurrentResourceName(prefix);
+    String backendKey = prefix + fileName;
+    GetObjectRequest request = new GetObjectRequest(serviceBucket, backendKey);
+    request.setGeneralProgressListener(
+        new S3ProgressListenerImpl(service, indexIdentifier, "download_point_state"));
+    S3Object s3Object = s3.getObject(request);
+    String jsonString = IOUtils.toString(s3Object.getObjectContent(), StandardCharsets.UTF_8);
+    return OBJECT_MAPPER.readValue(jsonString, NrtPointState.class);
+  }
+
+  static String indexPointStateResourcePrefix(String service, String indexIdentifier) {
+    return String.format(INDEX_RESOURCE_PREFIX_FORMAT, service, indexIdentifier, POINT_STATE);
+  }
+
+  static String getPointStateFileName(NrtPointState nrtPointState) {
+    String timestamp = generateTimeStringSec();
+    return String.format(
+        POINT_STATE_FILE_FORMAT, timestamp, nrtPointState.primaryId, nrtPointState.version);
+  }
+
+  String getCurrentResourceName(String prefix) throws IOException {
+    String key = prefix + CURRENT_VERSION;
+    S3Object s3Object = s3.getObject(serviceBucket, key);
+    return IOUtils.toString(s3Object.getObjectContent(), StandardCharsets.UTF_8);
+  }
+
+  void setCurrentResource(String prefix, String version) {
+    String key = prefix + CURRENT_VERSION;
+    byte[] bytes = version.getBytes(StandardCharsets.UTF_8);
+    ObjectMetadata metadata = new ObjectMetadata();
+    metadata.setContentLength(bytes.length);
+    PutObjectRequest request =
+        new PutObjectRequest(serviceBucket, key, new ByteArrayInputStream(bytes), metadata);
+    s3.putObject(request);
+    logger.info("Set current resource - prefix: {}, version: {}", prefix, version);
+  }
+
+  boolean currentResourceExists(String prefix) {
+    String key = prefix + CURRENT_VERSION;
+    return s3.doesObjectExist(serviceBucket, key);
+  }
+
   @VisibleForTesting
   static String getResourceName(String indexIdentifier, IndexResourceType resourceType) {
     return switch (resourceType) {
       case WARMING_QUERIES -> indexIdentifier + WARMING_QUERIES_RESOURCE_SUFFIX;
+      default -> throw new IllegalArgumentException("Unknown resource type: " + resourceType);
     };
   }
 

@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.state;
 
-import static com.yelp.nrtsearch.server.utils.IndexIdUtil.generateIndexId;
+import static com.yelp.nrtsearch.server.utils.TimeStringUtil.generateTimeStringMs;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.backup.Archiver;
@@ -167,7 +167,7 @@ public class BackendGlobalState extends GlobalState {
    * Generate a unique id to identify an index instance. Protected to allow injection for testing.
    */
   protected String getIndexId() {
-    return generateIndexId();
+    return generateTimeStringMs();
   }
 
   @VisibleForTesting
@@ -437,10 +437,14 @@ public class BackendGlobalState extends GlobalState {
       IndexStateManager indexStateManager, StartIndexRequest startIndexRequest) throws IOException {
     StartIndexHandler startIndexHandler =
         new StartIndexHandler(
-            getIncArchiver().orElse(null),
+            getConfiguration().getServiceName(),
+            getEphemeralId(),
             getRemoteBackend(),
-            getConfiguration().getArchiveDirectory(),
             indexStateManager,
+            getConfiguration()
+                .getIndexStartConfig()
+                .getDataLocationType()
+                .equals(IndexDataLocationType.REMOTE),
             getConfiguration().getDiscoveryFileUpdateIntervalMs());
     try {
       return startIndexHandler.handle(indexStateManager.getCurrent(), startIndexRequest);

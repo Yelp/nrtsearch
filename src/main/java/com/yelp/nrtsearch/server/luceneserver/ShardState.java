@@ -25,6 +25,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef.FacetValue
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.NrtIndexWriter;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
 import com.yelp.nrtsearch.server.utils.FileUtil;
@@ -34,6 +35,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,10 +43,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.facet.sortedset.DefaultSortedSetDocValuesReaderState;
 import org.apache.lucene.facet.sortedset.SortedSetDocValuesReaderState;
@@ -144,7 +143,7 @@ public class ShardState implements Closeable {
   /** Indexes changes, and provides the live searcher, possibly searching a specific generation. */
   private SearcherTaxonomyManager manager;
 
-  private ReferenceManager<IndexSearcher> searcherManager;
+  private NRTPrimaryNode.PrimaryNodeReferenceManager searcherManager;
 
   /** Thread to periodically reopen the index. */
   private ControlledRealTimeReopenThread<SearcherTaxonomyManager.SearcherAndTaxonomy> reopenThread;
@@ -169,8 +168,6 @@ public class ShardState implements Closeable {
 
   private final String name;
   private KeepAlive keepAlive;
-  // is this shard restored
-  private boolean restored;
   private volatile boolean started = false;
 
   public static String getShardDirectoryName(int shardOrd) {
@@ -242,14 +239,6 @@ public class ShardState implements Closeable {
     return false;
   }
 
-  public boolean isRestored() {
-    return restored;
-  }
-
-  public void setRestored(boolean restored) {
-    this.restored = restored;
-  }
-
   public String getState() {
     // TODO FIX ME: should it be read-only, etc?
     return isStarted() ? "started" : "not started";
@@ -303,14 +292,16 @@ public class ShardState implements Closeable {
       Path rootDir,
       ThreadPoolExecutor searchExecutor,
       int shardOrd,
-      boolean doCreate) {
+      boolean doCreate)
+      throws IOException {
     this.indexStateManager = indexStateManager;
     this.shardOrd = shardOrd;
-    if (rootDir == null) {
-      this.rootDir = null;
-    } else {
-      this.rootDir = rootDir.resolve(getShardDirectoryName(shardOrd));
+    this.rootDir = rootDir.resolve(getShardDirectoryName(shardOrd));
+
+    if (!Files.exists(rootDir)) {
+      Files.createDirectories(rootDir);
     }
+
     this.name = indexName + ":" + shardOrd;
     this.doCreate = doCreate;
     this.searchExecutor = searchExecutor;
@@ -319,10 +310,6 @@ public class ShardState implements Closeable {
   @Override
   public synchronized void close() throws IOException {
     logger.info(String.format("ShardState.close name= %s", name));
-
-    if (writer != null && writer.isOpen()) {
-      commit();
-    }
 
     started = false;
     List<Closeable> closeables = new ArrayList<>();
@@ -370,22 +357,53 @@ public class ShardState implements Closeable {
   }
 
   /** Commit all state. */
-  public synchronized long commit() throws IOException {
-    // This request may already have timed out on the client while waiting for the lock.
-    // If so, there is no reason to continue this heavyweight operation.
-    DeadlineUtils.checkDeadline("ShardState: commit " + this.name, "COMMIT");
-
+  public long commit() throws IOException {
     long gen;
-
-    // nocommit this does nothing on replica?  make a failing test!
-    if (writer != null) {
-      // nocommit: two phase commit?
-      if (taxoWriter != null) {
-        taxoWriter.commit();
+    boolean remoteCommit = isPrimary() && nrtPrimaryNode.getNrtDataManager().doRemoteCommit();
+    Future<?> refreshFuture = null;
+    synchronized (this) {
+      if (!isStarted()) {
+        throw new IllegalStateException("index \"" + name + "\" was not started");
       }
-      gen = writer.commit();
-    } else {
-      gen = -1;
+      // This request may already have timed out on the client while waiting for the lock.
+      // If so, there is no reason to continue this heavyweight operation.
+      DeadlineUtils.checkDeadline("ShardState: commit " + this.name, "COMMIT");
+
+      if (remoteCommit) {
+        // notify manager that next refresh should be durable
+        refreshFuture = searcherManager.nextRefreshDurable();
+      }
+
+      // nocommit this does nothing on replica?  make a failing test!
+      if (writer != null) {
+        // nocommit: two phase commit?
+        if (taxoWriter != null) {
+          taxoWriter.commit();
+        }
+        gen = writer.commit();
+      } else {
+        gen = -1;
+      }
+
+      if (remoteCommit) {
+        // commit does not trigger a refresh, so we need to do it here
+        maybeRefreshBlocking();
+      }
+    }
+
+    // We can wait for the data upload to complete outside the synchronized block.
+    if (remoteCommit) {
+      long start = System.nanoTime();
+      try {
+        refreshFuture.get();
+      } catch (InterruptedException | ExecutionException e) {
+        throw new RuntimeException("Error waiting for commit refresh", e);
+      } finally {
+        logger.info(
+            String.format(
+                "ShardState commit for %s waited %.4f ms for upload",
+                name, (System.nanoTime() - start) / 1000000.0));
+      }
     }
 
     return gen;
@@ -539,8 +557,12 @@ public class ShardState implements Closeable {
     }
   }
 
-  /** Start this shard as standalone (not primary nor replica) */
-  public synchronized void start() throws IOException {
+  /**
+   * Start this shard as standalone (not primary nor replica)
+   *
+   * @param nrtDataManager manager for loading and saving of remote nrt point data
+   */
+  public synchronized void start(NrtDataManager nrtDataManager) throws IOException {
 
     if (isStarted()) {
       throw new IllegalStateException("index \"" + name + "\" was already started");
@@ -548,12 +570,11 @@ public class ShardState implements Closeable {
     IndexState indexState = indexStateManager.getCurrent();
 
     try {
-      Path indexDirFile;
-      if (rootDir == null) {
-        indexDirFile = null;
-      } else {
-        indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
+      Path indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
+      if (!Files.exists(indexDirFile)) {
+        Files.createDirectories(indexDirFile);
       }
+      nrtDataManager.restoreIfNeeded(indexDirFile);
       origIndexDir =
           indexState
               .getDirectoryFactory()
@@ -673,10 +694,12 @@ public class ShardState implements Closeable {
    * Start this index as primary, to NRT-replicate to replicas. primaryGen should increase each time
    * a new primary is promoted for a given index.
    *
+   * @param nrtDataManager manager for loading and saving of remote nrt point data
    * @param primaryGen generation to use for {@link NRTPrimaryNode}, uses value from global state if
    *     -1
    */
-  public synchronized void startPrimary(long primaryGen) throws IOException {
+  public synchronized void startPrimary(NrtDataManager nrtDataManager, long primaryGen)
+      throws IOException {
     if (isStarted()) {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
@@ -684,12 +707,11 @@ public class ShardState implements Closeable {
     // nocommit share code better w/ start and startReplica!
 
     try {
-      Path indexDirFile;
-      if (rootDir == null) {
-        indexDirFile = null;
-      } else {
-        indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
+      Path indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
+      if (!Files.exists(indexDirFile)) {
+        Files.createDirectories(indexDirFile);
       }
+      nrtDataManager.restoreIfNeeded(indexDirFile);
       origIndexDir =
           indexState
               .getDirectoryFactory()
@@ -762,8 +784,13 @@ public class ShardState implements Closeable {
               0,
               resolvedPrimaryGen,
               -1,
+              nrtDataManager,
               new ShardSearcherFactory(false, true),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()));
+
+      // start thread to manage uploading index files
+      nrtDataManager.startUploadManager(nrtPrimaryNode, indexDirFile);
+
       // Enable merges
       writerConfig.setMergePolicy(mergePolicy);
 
@@ -901,10 +928,12 @@ public class ShardState implements Closeable {
   /**
    * Start this index as replica, pulling NRT changes from the specified primary.
    *
+   * @param nrtDataManager manager for loading and saving of remote nrt point data
    * @param primaryAddress client to communicate with primary replication server
    * @param primaryGen last primary generation, or -1 to detect from index
    */
-  public synchronized void startReplica(ReplicationServerClient primaryAddress, long primaryGen)
+  public synchronized void startReplica(
+      NrtDataManager nrtDataManager, ReplicationServerClient primaryAddress, long primaryGen)
       throws IOException {
     if (isStarted()) {
       throw new IllegalStateException("index \"" + name + "\" was already started");
@@ -914,12 +943,11 @@ public class ShardState implements Closeable {
 
     // nocommit share code better w/ start and startPrimary!
     try {
-      Path indexDirFile;
-      if (rootDir == null) {
-        indexDirFile = null;
-      } else {
-        indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
+      Path indexDirFile = rootDir.resolve(INDEX_DATA_DIR_NAME);
+      if (!Files.exists(indexDirFile)) {
+        Files.createDirectories(indexDirFile);
       }
+      nrtDataManager.restoreIfNeeded(indexDirFile);
       origIndexDir =
           indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
       // nocommit don't allow RAMDir

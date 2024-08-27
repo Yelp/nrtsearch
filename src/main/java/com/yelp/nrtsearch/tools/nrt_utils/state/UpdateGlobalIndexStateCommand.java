@@ -24,8 +24,9 @@ import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
-import com.yelp.nrtsearch.server.utils.IndexIdUtil;
-import com.yelp.nrtsearch.tools.nrt_utils.legacy.incremental.IncrementalCommandUtils;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
+import com.yelp.nrtsearch.server.utils.TimeStringUtil;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
@@ -104,7 +105,7 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
       }
     }
     if (dateTimeString != null) {
-      if (!IndexIdUtil.isIndexId(dateTimeString)) {
+      if (!TimeStringUtil.isTimeStringMs(dateTimeString)) {
         System.out.println("Invalid date time format: " + dateTimeString);
         return false;
       }
@@ -122,6 +123,7 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
           StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
     VersionManager versionManager = new VersionManager(s3Client, bucketName);
+    S3Backend s3Backend = new S3Backend(bucketName, false, s3Client);
 
     String resolvedResourceName =
         StateCommandUtils.getResourceName(
@@ -150,18 +152,16 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
     if (dateTimeString != null) {
       String updatedIndexResource =
           BackendGlobalState.getUniqueIndexName(indexName, dateTimeString);
-      String updatedIndexDataResource =
-          IncrementalCommandUtils.getIndexDataResource(updatedIndexResource);
       String updatedIndexStateResource =
           StateCommandUtils.getIndexStateResource(updatedIndexResource);
-      long dataVersion =
-          versionManager.getLatestVersionNumber(serviceName, updatedIndexDataResource);
+      boolean dataExists =
+          s3Backend.exists(
+              serviceName, updatedIndexResource, RemoteBackend.IndexResourceType.POINT_STATE);
       long stateVersion =
           versionManager.getLatestVersionNumber(serviceName, updatedIndexStateResource);
-      if (dataVersion == -1 || stateVersion == -1) {
+      if (!dataExists || stateVersion == -1) {
         System.out.println("Missing blessed resources for new index id: " + dateTimeString);
-        System.out.println(
-            "Data resource: " + updatedIndexDataResource + ", version: " + dataVersion);
+        System.out.println("Data resource: " + updatedIndexResource + ", exists: " + dataExists);
         System.out.println(
             "State resource: " + updatedIndexStateResource + ", version: " + stateVersion);
         return 1;

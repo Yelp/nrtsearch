@@ -27,10 +27,10 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler.UpdatedFieldInfo;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.StateBackend;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -219,7 +219,10 @@ public class BackendStateManager implements IndexStateManager {
 
   @Override
   public synchronized void start(
-      Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
+      Mode serverMode,
+      NrtDataManager nrtDataManager,
+      long primaryGen,
+      ReplicationServerClient primaryClient)
       throws IOException {
     if (currentState == null) {
       throw new IllegalStateException("No state for index: " + indexName);
@@ -227,7 +230,7 @@ public class BackendStateManager implements IndexStateManager {
     if (currentState.isStarted()) {
       throw new IllegalStateException("Index already started: " + indexName);
     }
-    currentState.start(serverMode, dataPath, primaryGen, primaryClient);
+    currentState.start(serverMode, nrtDataManager, primaryGen, primaryClient);
     if (serverMode != Mode.REPLICA && !currentState.getCurrentStateInfo().getCommitted()) {
       logger.info("Doing initial commit for index: " + indexName);
       currentState.commit();

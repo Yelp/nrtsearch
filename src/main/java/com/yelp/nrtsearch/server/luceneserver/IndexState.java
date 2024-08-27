@@ -29,6 +29,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextBaseFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexSimilarity;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.warming.Warmer;
 import com.yelp.nrtsearch.server.luceneserver.warming.WarmerConfig;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -218,11 +219,8 @@ public abstract class IndexState implements Closeable {
     // add meta data fields
     metaFields = getPredefinedMetaFields();
 
-    // nocommit require rootDir != null!  no RAMDirectory!
-    if (rootDir != null) {
-      if (!Files.exists(rootDir)) {
-        Files.createDirectories(rootDir);
-      }
+    if (!Files.exists(rootDir)) {
+      Files.createDirectories(rootDir);
     }
 
     searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
@@ -259,11 +257,6 @@ public abstract class IndexState implements Closeable {
               indexName,
               warmerConfig.getMaxWarmingQueries());
     }
-  }
-
-  /** Get directory storing local index state. */
-  public Path getStateDirectoryPath() {
-    return rootDir.resolve("state");
   }
 
   /**
@@ -333,13 +326,16 @@ public abstract class IndexState implements Closeable {
    * Start index in the given mode.
    *
    * @param serverMode server mode
-   * @param dataPath path to restored data, or null
+   * @param nrtDataManager manager for loading and saving of remote nrt point data
    * @param primaryGen primary generation, only valid for PRIMARY or REPLICA modes
    * @param primaryClient replication client for talking with primary, only valid for REPLICA mode
    * @throws IOException on filesystem error
    */
   public abstract void start(
-      Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
+      Mode serverMode,
+      NrtDataManager nrtDataManager,
+      long primaryGen,
+      ReplicationServerClient primaryClient)
       throws IOException;
 
   /**

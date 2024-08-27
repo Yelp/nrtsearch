@@ -48,6 +48,8 @@ import com.yelp.nrtsearch.server.grpc.LuceneServer.ReplicationServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.luceneserver.index.ImmutableIndexState;
 import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -93,14 +95,18 @@ public class StateBackendServerTest {
   private static final String TEST_BUCKET = "state-backend-server-test";
   private static final String TEST_SERVICE_NAME = "state-backend-test-service";
   private IndexArchiver archiverPrimary;
+  private RemoteBackend remoteBackendPrimary;
   private IndexArchiver archiverReplica;
+  private RemoteBackend remoteBackendReplica;
 
   @After
   public void cleanup() throws InterruptedException {
     cleanupPrimary();
     cleanupReplica();
     archiverPrimary = null;
+    remoteBackendPrimary = null;
     archiverReplica = null;
+    remoteBackendReplica = null;
   }
 
   private void cleanupPrimary() {
@@ -180,6 +186,7 @@ public class StateBackendServerTest {
             contentDownloader,
             versionManager,
             getPrimaryArchiveDir());
+    remoteBackendPrimary = new S3Backend(TEST_BUCKET, false, s3);
 
     BackupDiffManager backupDiffManagerReplica =
         new BackupDiffManager(
@@ -191,6 +198,7 @@ public class StateBackendServerTest {
             contentDownloader,
             versionManager,
             getReplicaArchiveDir());
+    remoteBackendReplica = new S3Backend(TEST_BUCKET, false, s3);
   }
 
   private LuceneServerConfiguration getPrimaryConfig() {
@@ -281,7 +289,7 @@ public class StateBackendServerTest {
         new LuceneServerImpl(
             getPrimaryArchiverConfig(),
             archiverPrimary,
-            null,
+            remoteBackendPrimary,
             new CollectorRegistry(),
             Collections.emptyList());
 
@@ -315,7 +323,7 @@ public class StateBackendServerTest {
         new LuceneServerImpl(
             getReplicaArchiverConfig(),
             archiverReplica,
-            null,
+            remoteBackendReplica,
             new CollectorRegistry(),
             Collections.emptyList());
 

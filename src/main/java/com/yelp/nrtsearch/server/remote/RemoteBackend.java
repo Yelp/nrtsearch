@@ -15,14 +15,18 @@
  */
 package com.yelp.nrtsearch.server.remote;
 
+import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtFileMetaData;
+import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
+import java.util.Map;
 
 /** Interface for interacting with service resources stored in a persistent backend. */
 public interface RemoteBackend extends PluginDownloader {
   enum IndexResourceType {
-    WARMING_QUERIES
+    WARMING_QUERIES,
+    POINT_STATE
   }
 
   /**
@@ -62,4 +66,51 @@ public interface RemoteBackend extends PluginDownloader {
    */
   void uploadFile(String service, String indexIdentifier, IndexResourceType resourceType, Path file)
       throws IOException;
+
+  /**
+   * Upload index files to the remote backend.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @param indexDir directory to upload files from
+   * @param files map of file names to metadata
+   * @throws IOException on error uploading files
+   */
+  void uploadIndexFiles(
+      String service, String indexIdentifier, Path indexDir, Map<String, NrtFileMetaData> files)
+      throws IOException;
+
+  /**
+   * Download index files from the remote backend.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @param indexDir directory to download files to
+   * @param files map of file names to metadata
+   * @throws IOException on error downloading files
+   */
+  void downloadIndexFiles(
+      String service, String indexIdentifier, Path indexDir, Map<String, NrtFileMetaData> files)
+      throws IOException;
+
+  /**
+   * Upload NRT point state to the remote backend.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @param nrtPointState NRT point state to upload
+   * @throws IOException on error uploading point state
+   */
+  void uploadPointState(String service, String indexIdentifier, NrtPointState nrtPointState)
+      throws IOException;
+
+  /**
+   * Download NRT point state from the remote backend.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @return downloaded NRT point state
+   * @throws IOException on error downloading point state
+   */
+  NrtPointState downloadPointState(String service, String indexIdentifier) throws IOException;
 }

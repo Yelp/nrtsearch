@@ -41,13 +41,13 @@ import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.StateBackend;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -1574,15 +1574,16 @@ public class BackendStateManagerTest {
     assertSame(mockState, stateManager.getCurrent());
 
     ReplicationServerClient mockReplicationClient = mock(ReplicationServerClient.class);
-    stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, mockReplicationClient);
+    NrtDataManager mockDataManager = mock(NrtDataManager.class);
+    stateManager.start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
     verify(mockState, times(1)).getCurrentStateInfo();
     verify(mockState, times(1)).isStarted();
-    verify(mockState, times(1)).start(Mode.PRIMARY, Path.of("/tmp"), 1, mockReplicationClient);
+    verify(mockState, times(1)).start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);
 
-    verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
+    verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState, mockDataManager);
   }
 
   @Test
@@ -1609,15 +1610,16 @@ public class BackendStateManagerTest {
     assertSame(mockState, stateManager.getCurrent());
 
     ReplicationServerClient mockReplicationClient = mock(ReplicationServerClient.class);
-    stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, mockReplicationClient);
+    NrtDataManager mockDataManager = mock(NrtDataManager.class);
+    stateManager.start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
     verify(mockState, times(1)).getCurrentStateInfo();
     verify(mockState, times(1)).isStarted();
-    verify(mockState, times(1)).start(Mode.PRIMARY, Path.of("/tmp"), 1, mockReplicationClient);
+    verify(mockState, times(1)).start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);
 
-    verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
+    verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState, mockDataManager);
   }
 
   @Test
@@ -1641,14 +1643,15 @@ public class BackendStateManagerTest {
     assertSame(mockState, stateManager.getCurrent());
 
     ReplicationServerClient mockReplicationClient = mock(ReplicationServerClient.class);
-    stateManager.start(Mode.REPLICA, Path.of("/tmp"), 1, mockReplicationClient);
+    NrtDataManager mockDataManager = mock(NrtDataManager.class);
+    stateManager.start(Mode.REPLICA, mockDataManager, 1, mockReplicationClient);
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
     verify(mockState, times(1)).isStarted();
-    verify(mockState, times(1)).start(Mode.REPLICA, Path.of("/tmp"), 1, mockReplicationClient);
+    verify(mockState, times(1)).start(Mode.REPLICA, mockDataManager, 1, mockReplicationClient);
 
-    verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState);
+    verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState, mockDataManager);
   }
 
   @Test
@@ -1679,7 +1682,8 @@ public class BackendStateManagerTest {
     MockStateManager.expectedState = updatedState;
 
     ReplicationServerClient mockReplicationClient = mock(ReplicationServerClient.class);
-    stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, mockReplicationClient);
+    NrtDataManager mockDataManager = mock(NrtDataManager.class);
+    stateManager.start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);
     assertSame(mockState2, stateManager.getCurrent());
 
     verify(mockBackend, times(1))
@@ -1689,17 +1693,18 @@ public class BackendStateManagerTest {
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), updatedState);
     verify(mockState, times(3)).getCurrentStateInfo();
     verify(mockState, times(1)).isStarted();
-    verify(mockState, times(1)).start(Mode.PRIMARY, Path.of("/tmp"), 1, mockReplicationClient);
+    verify(mockState, times(1)).start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);
     verify(mockState, times(1)).commit();
     verify(mockState, times(1)).getFieldAndFacetState();
 
-    verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState, mockState2);
+    verifyNoMoreInteractions(mockBackend, mockGlobalState, mockState, mockState2, mockDataManager);
   }
 
   @Test
   public void testStartIndexNoExistingState() throws IOException {
     StateBackend mockBackend = mock(StateBackend.class);
     GlobalState mockGlobalState = mock(GlobalState.class);
+    NrtDataManager mockDataManager = mock(NrtDataManager.class);
     BackendStateManager stateManager =
         new MockStateManager("test_index", "test_id", mockBackend, mockGlobalState);
 
@@ -1707,7 +1712,7 @@ public class BackendStateManagerTest {
         .thenReturn(null);
 
     try {
-      stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, mock(ReplicationServerClient.class));
+      stateManager.start(Mode.PRIMARY, mockDataManager, 1, mock(ReplicationServerClient.class));
       fail();
     } catch (IllegalStateException e) {
       assertEquals("No state for index: test_index", e.getMessage());
@@ -1718,6 +1723,7 @@ public class BackendStateManagerTest {
   public void testStartIndexAlreadyStarted() throws IOException {
     StateBackend mockBackend = mock(StateBackend.class);
     GlobalState mockGlobalState = mock(GlobalState.class);
+    NrtDataManager mockDataManager = mock(NrtDataManager.class);
     BackendStateManager stateManager =
         new MockStateManager("test_index", "test_id", mockBackend, mockGlobalState);
 
@@ -1734,7 +1740,7 @@ public class BackendStateManagerTest {
     stateManager.load();
 
     try {
-      stateManager.start(Mode.PRIMARY, Path.of("/tmp"), 1, mock(ReplicationServerClient.class));
+      stateManager.start(Mode.PRIMARY, mockDataManager, 1, mock(ReplicationServerClient.class));
       fail();
     } catch (IllegalStateException e) {
       assertEquals("Index already started: test_index", e.getMessage());
