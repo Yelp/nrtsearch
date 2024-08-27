@@ -811,9 +811,9 @@ message SearchResponse {
     message SearchState {
         int64 timestamp = 1;
         int64 searcherVersion = 2;
-        int32 lastDocId = 3;
-        repeated string lastFieldValues = 4;
-        float lastScore = 5;
+        int32 lastDocId = 3 [deprecated = true]; // replaced by lastHitInfo
+        repeated string lastFieldValues = 4 [deprecated = true]; // replaced by lastHitInfo
+        float lastScore = 5 [deprecated = true]; // replaced by lastHitInfo
         LastHitInfo lastHitInfo = 6;
     }
 

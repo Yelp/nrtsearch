@@ -66,6 +66,8 @@ public interface Sortable {
    */
   SortField getSortField(SortType type);
 
+  Object parseLastValue(String value);
+
   /**
    * Allow customized sorted value processing before return per fieldDef. The validation must be
    * completed here, and throw an exception if it is failed.

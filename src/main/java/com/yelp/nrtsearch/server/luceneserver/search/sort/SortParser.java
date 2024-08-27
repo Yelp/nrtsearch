@@ -22,8 +22,6 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.LatLonFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -147,58 +145,26 @@ public class SortParser {
   private static Object convertStringSortValue(
       SortType field, String stringValue, Map<String, FieldDef> queryFields)
       throws SearchHandler.SearchHandlerException {
-    Object sortValue;
-    FieldDef fd = null;
-    SortField.Type type;
     if (field.getFieldName().equals(DOCID)) {
-      type = SortField.Type.DOC;
-    } else if (field.getFieldName().equals(SCORE)) {
-      type = SortField.Type.SCORE;
-    } else {
-      fd = queryFields.get(field.getFieldName());
-      if (fd == null) {
-        throw new SearchHandler.SearchHandlerException(
-            String.format(
-                "field: %s was not registered and was not specified as a virtualField",
-                field.getFieldName()));
-      }
+      return Integer.valueOf(stringValue);
+    }
+    if (field.getFieldName().equals(SCORE)) {
+      return Float.valueOf(stringValue);
+    }
 
-      if (!(fd instanceof Sortable)) {
-        throw new IllegalArgumentException(
-            String.format("field: %s does not support sorting", field.getFieldName()));
-      }
-      type = ((Sortable) fd).getSortField(field).getType();
+    FieldDef fd = queryFields.get(field.getFieldName());
+    if (fd == null) {
+      throw new SearchHandler.SearchHandlerException(
+          String.format(
+              "field: %s was not registered and was not specified as a virtualField",
+              field.getFieldName()));
     }
-    switch (type) {
-      case DOC:
-      case INT:
-        sortValue = Integer.valueOf(stringValue);
-        break;
-      case SCORE:
-      case FLOAT:
-        sortValue = Float.valueOf(stringValue);
-        break;
-      case LONG:
-        sortValue = Long.valueOf(stringValue);
-        break;
-      case DOUBLE:
-        sortValue = Double.valueOf(stringValue);
-        break;
-      case STRING:
-      case STRING_VAL:
-        sortValue = stringValue;
-        break;
-      case CUSTOM:
-        if (fd instanceof VirtualFieldDef || fd instanceof LatLonFieldDef) {
-          sortValue = Double.valueOf(stringValue);
-        } else {
-          sortValue = stringValue;
-        }
-        break;
-      default:
-        throw new IllegalArgumentException("unable to parse string value for sort type: " + type);
+
+    if (!(fd instanceof Sortable)) {
+      throw new IllegalArgumentException(
+          String.format("field: %s does not support sorting", field.getFieldName()));
     }
-    return sortValue;
+    return ((Sortable) fd).parseLastValue(stringValue);
   }
 
   /**

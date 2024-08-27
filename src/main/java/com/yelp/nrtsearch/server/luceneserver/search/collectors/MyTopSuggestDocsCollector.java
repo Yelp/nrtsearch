@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
+import com.yelp.nrtsearch.server.grpc.LastHitInfo;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import java.io.IOException;
 import java.util.Collection;
@@ -88,6 +89,9 @@ public class MyTopSuggestDocsCollector extends DocCollector {
   @Override
   public void fillLastHit(SearchResponse.SearchState.Builder stateBuilder, ScoreDoc lastHit) {
     stateBuilder.setLastScore(lastHit.score);
+    LastHitInfo lastHitInfo =
+        LastHitInfo.newBuilder().setLastDocId(lastHit.doc).setLastScore(lastHit.score).build();
+    stateBuilder.setLastHitInfo(lastHitInfo);
   }
 
   public static class MyTopSuggestDocsCollectorManager

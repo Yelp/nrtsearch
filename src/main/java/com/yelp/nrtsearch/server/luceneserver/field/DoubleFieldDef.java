@@ -81,6 +81,11 @@ public class DoubleFieldDef extends NumberFieldDef {
   }
 
   @Override
+  public Object parseLastValue(String value) {
+    return Double.valueOf(value);
+  }
+
+  @Override
   protected Number getSortMissingValue(boolean missingLast) {
     return missingLast ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
   }

@@ -85,6 +85,11 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
   }
 
   @Override
+  public Object parseLastValue(String value) {
+    return value;
+  }
+
+  @Override
   protected void setSearchProperties(FieldType fieldType, Field requestField) {
     // This is how things are currently expected, if the field is searchable it
     // gets the same properties set as a text field. Even if it is not set

@@ -104,6 +104,11 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
   }
 
   @Override
+  public Object parseLastValue(String value) {
+    return Long.valueOf(value);
+  }
+
+  @Override
   public Query getRangeQuery(RangeQuery rangeQuery) {
     long lower =
         rangeQuery.getLower().isEmpty()
