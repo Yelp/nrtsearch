@@ -47,6 +47,7 @@ import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.LiveSettingsV2Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.SettingsV2Handler;
+import com.yelp.nrtsearch.server.luceneserver.logging.HitsLoggerCreator;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerCreator;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskCreator;
@@ -348,12 +349,14 @@ public class LuceneServer {
 
     private void initExtendableComponents(
         LuceneServerConfiguration configuration, List<Plugin> plugins) {
+      // this block should be in alphabetical order
       AnalyzerCreator.initialize(configuration, plugins);
       CollectorCreator.initialize(configuration, plugins);
       CustomRequestProcessor.initialize(configuration, plugins);
       FetchTaskCreator.initialize(configuration, plugins);
       FieldDefCreator.initialize(configuration, plugins);
       HighlighterService.initialize(configuration, plugins);
+      HitsLoggerCreator.initialize(configuration, plugins);
       RescorerCreator.initialize(configuration, plugins);
       ScriptService.initialize(configuration, plugins);
       SimilarityCreator.initialize(configuration, plugins);
@@ -1798,7 +1801,10 @@ public class LuceneServer {
         checkIndexId(addReplicaRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
 
         IndexState indexState = indexStateManager.getCurrent();
-        AddReplicaResponse reply = new AddReplicaHandler().handle(indexState, addReplicaRequest);
+        boolean useKeepAliveForReplication =
+            globalState.getConfiguration().getUseKeepAliveForReplication();
+        AddReplicaResponse reply =
+            new AddReplicaHandler(useKeepAliveForReplication).handle(indexState, addReplicaRequest);
         logger.info("AddReplicaHandler returned " + reply.toString());
         responseStreamObserver.onNext(reply);
         responseStreamObserver.onCompleted();

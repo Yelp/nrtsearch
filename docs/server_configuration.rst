@@ -124,6 +124,11 @@ Example server configuration
      - If enabled, registers JVM metrics with prometheus. 
      - true
 
+   * - useKeepAliveForReplication
+     - bool
+     - If enabled, the primary will enable keepAlive on the replication channel with keepAliveTime 1 minute and keepAliveTimeout 10 seconds. Replicas ignore this option.
+     - true
+
 .. list-table:: `Threadpool Configuration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.*``)
    :widths: 25 10 50 25
    :header-rows: 1

@@ -358,6 +358,75 @@ public class NrtDataManagerTest {
   }
 
   @Test
+  public void testMergeTasks_greaterVersion() throws IOException {
+    CopyState copyState = new CopyState(Map.of(), 5, 6, new byte[0], Set.of(), 7, null);
+    CopyState copyState2 = new CopyState(Map.of(), 6, 6, new byte[0], Set.of(), 7, null);
+    List<RefreshUploadFuture> refreshUploadFutures = List.of(mock(RefreshUploadFuture.class));
+    List<RefreshUploadFuture> refreshUploadFutures2 = List.of(mock(RefreshUploadFuture.class));
+    NrtDataManager.UploadTask uploadTask =
+        new NrtDataManager.UploadTask(copyState, refreshUploadFutures);
+    NrtDataManager.UploadTask uploadTask2 =
+        new NrtDataManager.UploadTask(copyState2, refreshUploadFutures2);
+
+    NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
+    NrtDataManager.UploadTask mergedTask =
+        NrtDataManager.mergeTasks(uploadTask, uploadTask2, mockPrimaryNode);
+    assertSame(copyState2, mergedTask.copyState());
+    assertEquals(
+        List.of(refreshUploadFutures.getFirst(), refreshUploadFutures2.getFirst()),
+        mergedTask.watchers());
+
+    verify(mockPrimaryNode, times(1)).releaseCopyState(copyState);
+    verifyNoMoreInteractions(mockPrimaryNode);
+  }
+
+  @Test
+  public void testMergeTasks_sameVersion() throws IOException {
+    CopyState copyState = new CopyState(Map.of(), 6, 6, new byte[0], Set.of(), 7, null);
+    CopyState copyState2 = new CopyState(Map.of(), 6, 6, new byte[0], Set.of(), 7, null);
+    List<RefreshUploadFuture> refreshUploadFutures = List.of(mock(RefreshUploadFuture.class));
+    List<RefreshUploadFuture> refreshUploadFutures2 = List.of(mock(RefreshUploadFuture.class));
+    NrtDataManager.UploadTask uploadTask =
+        new NrtDataManager.UploadTask(copyState, refreshUploadFutures);
+    NrtDataManager.UploadTask uploadTask2 =
+        new NrtDataManager.UploadTask(copyState2, refreshUploadFutures2);
+
+    NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
+    NrtDataManager.UploadTask mergedTask =
+        NrtDataManager.mergeTasks(uploadTask, uploadTask2, mockPrimaryNode);
+    assertSame(copyState2, mergedTask.copyState());
+    assertEquals(
+        List.of(refreshUploadFutures.getFirst(), refreshUploadFutures2.getFirst()),
+        mergedTask.watchers());
+
+    verify(mockPrimaryNode, times(1)).releaseCopyState(copyState);
+    verifyNoMoreInteractions(mockPrimaryNode);
+  }
+
+  @Test
+  public void testMergeTasks_lowerVersion() throws IOException {
+    CopyState copyState = new CopyState(Map.of(), 6, 6, new byte[0], Set.of(), 7, null);
+    CopyState copyState2 = new CopyState(Map.of(), 5, 6, new byte[0], Set.of(), 7, null);
+    List<RefreshUploadFuture> refreshUploadFutures = List.of(mock(RefreshUploadFuture.class));
+    List<RefreshUploadFuture> refreshUploadFutures2 = List.of(mock(RefreshUploadFuture.class));
+    NrtDataManager.UploadTask uploadTask =
+        new NrtDataManager.UploadTask(copyState, refreshUploadFutures);
+    NrtDataManager.UploadTask uploadTask2 =
+        new NrtDataManager.UploadTask(copyState2, refreshUploadFutures2);
+
+    NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
+    NrtDataManager.UploadTask mergedTask =
+        NrtDataManager.mergeTasks(uploadTask, uploadTask2, mockPrimaryNode);
+    assertSame(copyState, mergedTask.copyState());
+    assertEquals(
+        List.of(refreshUploadFutures.getFirst(), refreshUploadFutures2.getFirst()),
+        mergedTask.watchers());
+
+    verify(mockPrimaryNode, times(1)).releaseCopyState(copyState2);
+    verifyNoMoreInteractions(mockPrimaryNode);
+  }
+
+  @Test
   public void testClose_noThread() throws IOException {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     NrtDataManager nrtDataManager =

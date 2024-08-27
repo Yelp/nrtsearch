@@ -311,6 +311,8 @@ public class S3Backend implements RemoteBackend {
     List<FileNamePair> fileList = getFileNamePairs(files);
     String backendPrefix = indexDataResourcePrefix(service, indexIdentifier);
     List<Upload> uploadList = new LinkedList<>();
+    boolean hasFailure = false;
+    Throwable failureCause = null;
     for (FileNamePair pair : fileList) {
       String backendKey = backendPrefix + pair.backendFileName;
       Path localFile = indexDir.resolve(pair.fileName);
@@ -318,12 +320,16 @@ public class S3Backend implements RemoteBackend {
           new PutObjectRequest(serviceBucket, backendKey, localFile.toFile());
       request.setGeneralProgressListener(
           new S3ProgressListenerImpl(service, indexIdentifier, "upload_index_files"));
-      Upload upload = transferManager.upload(request);
-      uploadList.add(upload);
+      try {
+        Upload upload = transferManager.upload(request);
+        uploadList.add(upload);
+      } catch (Throwable t) {
+        hasFailure = true;
+        failureCause = t;
+        break;
+      }
     }
 
-    boolean hasFailure = false;
-    Throwable failureCause = null;
     for (Upload upload : uploadList) {
       if (hasFailure) {
         upload.abort();
@@ -383,10 +389,12 @@ public class S3Backend implements RemoteBackend {
     }
   }
 
+  @VisibleForTesting
   static String indexDataResourcePrefix(String service, String indexIdentifier) {
     return String.format(INDEX_RESOURCE_PREFIX_FORMAT, service, indexIdentifier, DATA);
   }
 
+  @VisibleForTesting
   static List<FileNamePair> getFileNamePairs(Map<String, NrtFileMetaData> files) {
     List<FileNamePair> fileList = new LinkedList<>();
     for (Map.Entry<String, NrtFileMetaData> entry : files.entrySet()) {
@@ -397,6 +405,7 @@ public class S3Backend implements RemoteBackend {
     return fileList;
   }
 
+  @VisibleForTesting
   static String getIndexBackendFileName(String fileName, NrtFileMetaData fileMetaData) {
     return String.format(
         INDEX_BACKEND_FILE_FORMAT, fileMetaData.timeString, fileMetaData.primaryId, fileName);
@@ -435,10 +444,12 @@ public class S3Backend implements RemoteBackend {
     return OBJECT_MAPPER.readValue(jsonString, NrtPointState.class);
   }
 
+  @VisibleForTesting
   static String indexPointStateResourcePrefix(String service, String indexIdentifier) {
     return String.format(INDEX_RESOURCE_PREFIX_FORMAT, service, indexIdentifier, POINT_STATE);
   }
 
+  @VisibleForTesting
   static String getPointStateFileName(NrtPointState nrtPointState) {
     String timestamp = generateTimeStringSec();
     return String.format(

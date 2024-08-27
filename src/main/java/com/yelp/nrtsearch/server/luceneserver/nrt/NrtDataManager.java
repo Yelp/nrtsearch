@@ -111,12 +111,12 @@ public class NrtDataManager implements Closeable {
   }
 
   @VisibleForTesting
-  UploadTask getCurrentUploadTask() {
+  synchronized UploadTask getCurrentUploadTask() {
     return currentUploadTask;
   }
 
   @VisibleForTesting
-  UploadTask getNextUploadTask() {
+  synchronized UploadTask getNextUploadTask() {
     return nextUploadTask;
   }
 
@@ -192,7 +192,7 @@ public class NrtDataManager implements Closeable {
             "Restored index data for service: {}, index: {} in {}ms",
             serviceName,
             indexIdentifier,
-            (System.nanoTime() - start) / 1_000_000);
+            (System.nanoTime() - start) / 1_000_000.0);
       }
 
       lastPointState = pointState;
@@ -228,22 +228,34 @@ public class NrtDataManager implements Closeable {
     } else if (nextUploadTask == null) {
       nextUploadTask = uploadTask;
     } else {
-      nextUploadTask = mergeTasks(nextUploadTask, uploadTask);
+      nextUploadTask = mergeTasks(nextUploadTask, uploadTask, primaryNode);
     }
   }
 
-  private UploadTask mergeTasks(UploadTask previous, UploadTask next) {
+  @VisibleForTesting
+  static UploadTask mergeTasks(UploadTask previous, UploadTask next, NRTPrimaryNode primaryNode) {
     List<RefreshUploadFuture> combinedWatchers = new ArrayList<>(previous.watchers);
     combinedWatchers.addAll(next.watchers);
 
+    // make sure the latest version is used for the merged task
+    CopyState taskCopyState;
+    CopyState releaseCopyState;
+    if (previous.copyState.version <= next.copyState.version) {
+      taskCopyState = next.copyState;
+      releaseCopyState = previous.copyState;
+    } else {
+      taskCopyState = previous.copyState;
+      releaseCopyState = next.copyState;
+    }
+
     // release previous CopyState to unref index files
     try {
-      primaryNode.releaseCopyState(previous.copyState);
+      primaryNode.releaseCopyState(releaseCopyState);
     } catch (Throwable t) {
       logger.warn("Failed to release copy state", t);
     }
 
-    return new UploadTask(next.copyState, combinedWatchers);
+    return new UploadTask(taskCopyState, combinedWatchers);
   }
 
   /** Background thread that processes upload tasks. */
@@ -329,9 +341,9 @@ public class NrtDataManager implements Closeable {
         if (lastFileMetaData != null && isSameFile(fileMetaData, lastFileMetaData)) {
           currentPointFiles.put(fileName, lastFileMetaData);
         } else {
-          String timestamp = TimeStringUtil.generateTimeStringSec();
+          String timeString = TimeStringUtil.generateTimeStringSec();
           NrtFileMetaData nrtFileMetaData =
-              new NrtFileMetaData(fileMetaData, ephemeralId, timestamp);
+              new NrtFileMetaData(fileMetaData, ephemeralId, timeString);
           currentPointFiles.put(fileName, nrtFileMetaData);
           filesToUpload.put(fileName, nrtFileMetaData);
         }
@@ -341,6 +353,7 @@ public class NrtDataManager implements Closeable {
       return currentPointFiles;
     }
 
+    @VisibleForTesting
     static boolean isSameFile(FileMetaData fileMetaData, NrtFileMetaData nrtFileMetaData) {
       return fileMetaData.length == nrtFileMetaData.length
           && fileMetaData.checksum == nrtFileMetaData.checksum

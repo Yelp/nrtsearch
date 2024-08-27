@@ -30,8 +30,8 @@ public class TimeStringUtilTest {
     LocalDateTime mockTime = LocalDateTime.of(2024, 8, 20, 12, 34, 56, 789000000);
     try (MockedStatic<LocalDateTime> mockLocalDateTime = mockStatic(LocalDateTime.class)) {
       mockLocalDateTime.when(() -> LocalDateTime.now(ZoneId.of("UTC"))).thenReturn(mockTime);
-      String indexId = TimeStringUtil.generateTimeStringMs();
-      assertEquals("20240820123456789", indexId);
+      String timeString = TimeStringUtil.generateTimeStringMs();
+      assertEquals("20240820123456789", timeString);
     }
   }
 
