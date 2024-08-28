@@ -621,7 +621,7 @@ message SearchRequest {
     // Keeps tracks of last hit for search after
     LastHitInfo searchAfter = 30;
     // Request kNN vector search queries, results will be combined with the standard query (if provided) using the boolean query SHOULD logic
-    repeated KnnQuery knn = 30;
+    repeated KnnQuery knn = 31;
 }
 
 /* Last Hit info for search after */
