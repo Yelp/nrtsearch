@@ -501,6 +501,7 @@ public class NrtDataManagerTest {
     nrtDataManager.enqueueUpload(copyState, List.of(refreshUploadFuture));
 
     refreshUploadFuture.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    waitUntilDone(nrtDataManager);
 
     NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "timestamp");
     NrtPointState nrtPointState =
@@ -570,6 +571,7 @@ public class NrtDataManagerTest {
 
     refreshUploadFuture.get(30, java.util.concurrent.TimeUnit.SECONDS);
     refreshUploadFuture2.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    waitUntilDone(nrtDataManager);
 
     NrtFileMetaData nrtFileMetaData1 = new NrtFileMetaData(fileMetaData1, PRIMARY_ID, "timestamp");
     NrtFileMetaData nrtFileMetaData2 = new NrtFileMetaData(fileMetaData2, PRIMARY_ID, "timestamp");
@@ -629,6 +631,7 @@ public class NrtDataManagerTest {
 
     refreshUploadFuture.get(30, java.util.concurrent.TimeUnit.SECONDS);
     refreshUploadFuture2.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    waitUntilDone(nrtDataManager);
 
     NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "timestamp");
     NrtPointState nrtPointState =
@@ -696,6 +699,7 @@ public class NrtDataManagerTest {
 
     refreshUploadFuture.get(30, java.util.concurrent.TimeUnit.SECONDS);
     refreshUploadFuture2.get(30, java.util.concurrent.TimeUnit.SECONDS);
+    waitUntilDone(nrtDataManager);
 
     NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "timestamp");
     NrtPointState nrtPointState =
@@ -758,6 +762,7 @@ public class NrtDataManagerTest {
     } catch (ExecutionException e) {
       assertEquals("java.io.IOException: error", e.getMessage());
     }
+    waitUntilDone(nrtDataManager);
     assertNull(nrtDataManager.getLastPointState());
 
     NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "timestamp");
@@ -785,6 +790,21 @@ public class NrtDataManagerTest {
                   return true;
                 }));
     verifyNoMoreInteractions(mockPrimaryNode, mockRemoteBackend);
+  }
+
+  private void waitUntilDone(NrtDataManager nrtDataManager) {
+    int count = 0;
+    while (nrtDataManager.getCurrentUploadTask() != null) {
+      count++;
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      if (count > 100) {
+        fail("Upload tasks are not done");
+      }
+    }
   }
 
   @Test
