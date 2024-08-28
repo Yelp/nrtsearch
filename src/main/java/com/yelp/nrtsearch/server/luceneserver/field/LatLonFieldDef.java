@@ -135,6 +135,11 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQu
   }
 
   @Override
+  public Object parseLastValue(String value) {
+    return Double.valueOf(value);
+  }
+
+  @Override
   public Query getGeoBoundingBoxQuery(GeoBoundingBoxQuery geoBoundingBoxQuery) {
     if (!this.isSearchable()) {
       throw new IllegalArgumentException(

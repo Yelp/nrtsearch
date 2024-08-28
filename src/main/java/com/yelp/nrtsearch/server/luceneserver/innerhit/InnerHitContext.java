@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.innerhit;
 
+import com.yelp.nrtsearch.server.grpc.LastHitInfo;
 import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.QueryNodeMapper;
@@ -259,6 +260,7 @@ public class InnerHitContext implements FieldFetchContext {
     private HighlightFetchTask highlightFetchTask;
     private QuerySortField querySort;
     private boolean explain;
+    private LastHitInfo searchAfter;
 
     private InnerHitContextBuilder() {}
 
@@ -341,6 +343,11 @@ public class InnerHitContext implements FieldFetchContext {
 
     public InnerHitContextBuilder withExplain(boolean explain) {
       this.explain = explain;
+      return this;
+    }
+
+    public InnerHitContextBuilder withSearchAfter(LastHitInfo searchAfter) {
+      this.searchAfter = searchAfter;
       return this;
     }
   }

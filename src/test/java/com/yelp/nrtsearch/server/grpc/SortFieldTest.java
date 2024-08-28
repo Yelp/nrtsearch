@@ -783,6 +783,131 @@ public class SortFieldTest extends ServerTestCase {
     }
   }
 
+  @Test
+  public void testSortDocIdWithSearchAfter() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(SortType.newBuilder().setFieldName("docid").build())
+                    .build())
+            .build();
+    LastHitInfo searchAfter =
+        LastHitInfo.newBuilder().setLastDocId(3).addLastFieldValues("3").build();
+    SearchResponse searchResponse = dosSortQuerySearchAfter(querySortField, searchAfter);
+    assertEquals(5, searchResponse.getHitsCount());
+
+    List<String> expectedIds = Arrays.asList("2", "3", "4", "5", "6");
+    assertFields(expectedIds, searchResponse.getHitsList());
+
+    List<Integer> expectedSort = Arrays.asList(5, 7, 9, 11, 13);
+    for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
+      var hit = searchResponse.getHits(i);
+      assertEquals(1, hit.getSortedFieldsCount());
+      assertEquals(
+          expectedSort.get(i).intValue(),
+          hit.getSortedFieldsOrThrow("docid").getFieldValue(0).getIntValue());
+      assertEquals(expectedSort.get(i).intValue(), hit.getLuceneDocId());
+
+      assertEquals(0.0, hit.getScore(), 0);
+      assertEquals(6, hit.getFieldsCount());
+    }
+  }
+
+  @Test
+  public void testSortVirtualFieldWithSearchAfter() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(
+                        SortType.newBuilder().setFieldName("query_virtual_field").build())
+                    .build())
+            .build();
+    LastHitInfo searchAfter =
+        LastHitInfo.newBuilder().setLastDocId(23).addLastFieldValues("-39.25").build();
+    SearchResponse searchResponse =
+        doSortQueryWithVirtualWithSearchAfter(querySortField, searchAfter);
+    assertEquals(5, searchResponse.getHitsCount());
+
+    List<String> expectedIds = Arrays.asList("12", "13", "14", "15", "16");
+    assertFields(expectedIds, searchResponse.getHitsList());
+
+    List<Double> expectedSort = Arrays.asList(-38.5, -37.75, -37.0, -36.25, -35.5);
+    for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
+      var hit = searchResponse.getHits(i);
+      assertEquals(1, hit.getSortedFieldsCount());
+      assertEquals(
+          expectedSort.get(i),
+          hit.getSortedFieldsOrThrow("query_virtual_field").getFieldValue(0).getDoubleValue(),
+          0.001);
+
+      assertEquals(0.0, hit.getScore(), 0);
+      assertEquals(7, hit.getFieldsCount());
+      assertEquals(
+          expectedSort.get(i),
+          hit.getFieldsOrThrow("query_virtual_field").getFieldValue(0).getDoubleValue(),
+          0.001);
+    }
+  }
+
+  @Test
+  public void testSortLatLonDistanceWithSearchAfter() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(
+                        SortType.newBuilder()
+                            .setFieldName("lat_lon_field")
+                            .setOrigin(Point.newBuilder().setLatitude(45).setLongitude(-100)))
+                    .build())
+            .build();
+    LastHitInfo searchAfter =
+        LastHitInfo.newBuilder().addLastFieldValues("68.09451648799867").build();
+    SearchResponse searchResponse =
+        doSortQueryWithGeoRadiusWithSearchAfter(querySortField, searchAfter);
+    assertEquals(3, searchResponse.getHitsCount());
+
+    List<String> expectedIds = Arrays.asList("3", "0", "4");
+    assertFields(expectedIds, searchResponse.getHitsList());
+
+    List<Double> expectedSort =
+        Arrays.asList(204.27675784229385, 204.27936772550663, 340.4630661331218);
+    for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
+      var hit = searchResponse.getHits(i);
+      assertEquals(1, hit.getSortedFieldsCount());
+      assertEquals(
+          expectedSort.get(i),
+          hit.getSortedFieldsOrThrow("lat_lon_field").getFieldValue(0).getDoubleValue(),
+          0.00001);
+
+      assertEquals(0.0, hit.getScore(), 0);
+      assertEquals(7, hit.getFieldsCount());
+    }
+  }
+
+  private SearchResponse dosSortQuerySearchAfter(
+      QuerySortField querySortField, LastHitInfo searchAfter) {
+    return getGrpcServer()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName(TEST_INDEX)
+                .setStartHit(0)
+                .setTopHits(5)
+                .addRetrieveFields("doc_id")
+                .addRetrieveFields("int_field")
+                .addRetrieveFields("long_field")
+                .addRetrieveFields("float_field")
+                .addRetrieveFields("double_field")
+                .addRetrieveFields("index_virtual_field")
+                .setQuery(Query.newBuilder().build())
+                .setQuerySort(querySortField)
+                .setSearchAfter(searchAfter)
+                .build());
+  }
+
   private SearchResponse doSortQuery(QuerySortField querySortField) {
     return getGrpcServer()
         .getBlockingStub()
@@ -799,6 +924,37 @@ public class SortFieldTest extends ServerTestCase {
                 .addRetrieveFields("index_virtual_field")
                 .setQuery(Query.newBuilder().build())
                 .setQuerySort(querySortField)
+                .build());
+  }
+
+  private SearchResponse doSortQueryWithVirtualWithSearchAfter(
+      QuerySortField querySortField, LastHitInfo searchAfter) {
+    return getGrpcServer()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName(TEST_INDEX)
+                .setStartHit(0)
+                .setTopHits(5)
+                .addRetrieveFields("doc_id")
+                .addRetrieveFields("int_field")
+                .addRetrieveFields("long_field")
+                .addRetrieveFields("float_field")
+                .addRetrieveFields("double_field")
+                .addRetrieveFields("index_virtual_field")
+                .addRetrieveFields("query_virtual_field")
+                .setQuery(Query.newBuilder().build())
+                .setQuerySort(querySortField)
+                .addVirtualFields(
+                    VirtualField.newBuilder()
+                        .setName("query_virtual_field")
+                        .setScript(
+                            Script.newBuilder()
+                                .setLang("js")
+                                .setSource("-int_field * 2.0 + double_field")
+                                .build())
+                        .build())
+                .setSearchAfter(searchAfter)
                 .build());
   }
 
@@ -828,6 +984,39 @@ public class SortFieldTest extends ServerTestCase {
                                 .setSource("-int_field * 2.0 + double_field")
                                 .build())
                         .build())
+                .build());
+  }
+
+  private SearchResponse doSortQueryWithGeoRadiusWithSearchAfter(
+      QuerySortField querySortField, LastHitInfo searchAfter) {
+    return getGrpcServer()
+        .getBlockingStub()
+        .search(
+            SearchRequest.newBuilder()
+                .setIndexName(TEST_INDEX)
+                .setStartHit(0)
+                .setTopHits(3)
+                .addRetrieveFields("doc_id")
+                .addRetrieveFields("int_field")
+                .addRetrieveFields("long_field")
+                .addRetrieveFields("float_field")
+                .addRetrieveFields("double_field")
+                .addRetrieveFields("index_virtual_field")
+                .addRetrieveFields("lat_lon_field")
+                .setQuery(
+                    Query.newBuilder()
+                        .setGeoRadiusQuery(
+                            GeoRadiusQuery.newBuilder()
+                                .setCenter(
+                                    LatLng.newBuilder()
+                                        .setLatitude(45.0)
+                                        .setLongitude(-100.0)
+                                        .build())
+                                .setField("lat_lon_field")
+                                .setRadius("0.8 mi"))
+                        .build())
+                .setQuerySort(querySortField)
+                .setSearchAfter(searchAfter)
                 .build());
   }
 

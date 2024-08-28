@@ -57,6 +57,11 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
   }
 
   @Override
+  public Object parseLastValue(String value) {
+    return value;
+  }
+
+  @Override
   protected void setSearchProperties(FieldType fieldType, Field requestField) {
     // TODO: make this configurable and default to true, this is hard to do with the
     // current grpc field type

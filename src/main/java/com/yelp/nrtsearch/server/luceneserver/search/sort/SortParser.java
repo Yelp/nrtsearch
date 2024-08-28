@@ -15,6 +15,8 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.search.sort;
 
+import com.yelp.nrtsearch.server.grpc.LastHitInfo;
+import com.yelp.nrtsearch.server.grpc.QuerySortField;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.grpc.SortType;
@@ -123,6 +125,46 @@ public class SortParser {
     }
 
     return values;
+  }
+
+  public static FieldDoc parseLastHitInfo(
+      LastHitInfo lastHitInfo, QuerySortField querySortField, Map<String, FieldDef> queryFields) {
+    Object[] values = new Object[lastHitInfo.getLastFieldValuesCount()];
+    for (int i = 0; i < values.length; i++) {
+      SortType sortType = querySortField.getFields().getSortedFields(i);
+      try {
+        values[i] =
+            convertStringSortValue(sortType, lastHitInfo.getLastFieldValues(i), queryFields);
+      } catch (SearchHandler.SearchHandlerException e) {
+        throw new IllegalArgumentException(e);
+      }
+    }
+    return new FieldDoc(lastHitInfo.getLastDocId(), lastHitInfo.getLastScore(), values);
+  }
+
+  private static Object convertStringSortValue(
+      SortType field, String stringValue, Map<String, FieldDef> queryFields)
+      throws SearchHandler.SearchHandlerException {
+    if (field.getFieldName().equals(DOCID)) {
+      return Integer.valueOf(stringValue);
+    }
+    if (field.getFieldName().equals(SCORE)) {
+      return Float.valueOf(stringValue);
+    }
+
+    FieldDef fd = queryFields.get(field.getFieldName());
+    if (fd == null) {
+      throw new SearchHandler.SearchHandlerException(
+          String.format(
+              "field: %s was not registered and was not specified as a virtualField",
+              field.getFieldName()));
+    }
+
+    if (!(fd instanceof Sortable)) {
+      throw new IllegalArgumentException(
+          String.format("field: %s does not support sorting", field.getFieldName()));
+    }
+    return ((Sortable) fd).parseLastValue(stringValue);
   }
 
   /**

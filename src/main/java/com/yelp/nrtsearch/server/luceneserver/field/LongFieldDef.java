@@ -77,6 +77,11 @@ public class LongFieldDef extends NumberFieldDef {
   }
 
   @Override
+  public Object parseLastValue(String value) {
+    return Long.valueOf(value);
+  }
+
+  @Override
   protected Number getSortMissingValue(boolean missingLast) {
     return missingLast ? Long.MAX_VALUE : Long.MIN_VALUE;
   }
