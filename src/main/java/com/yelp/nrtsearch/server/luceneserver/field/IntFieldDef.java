@@ -75,6 +75,11 @@ public class IntFieldDef extends NumberFieldDef {
   }
 
   @Override
+  public Object parseLastValue(String value) {
+    return Integer.valueOf(value);
+  }
+
+  @Override
   protected Number getSortMissingValue(boolean missingLast) {
     return missingLast ? Integer.MAX_VALUE : Integer.MIN_VALUE;
   }

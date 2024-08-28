@@ -149,8 +149,12 @@ public class SearchStateTest extends ServerTestCase {
     assertTrue(searchState.getTimestamp() - testStartTime < 500);
     assertTrue(searchState.getSearcherVersion() > 0);
     assertEquals(1, searchState.getLastDocId());
+    assertEquals(1, searchState.getLastHitInfo().getLastDocId());
     assertEquals(0, searchState.getLastScore(), 0);
+    assertEquals(0, searchState.getLastHitInfo().getLastScore(), 0);
     assertEquals(1, searchState.getLastFieldValuesCount());
+    assertEquals(1, searchState.getLastHitInfo().getLastFieldValuesCount());
     assertEquals("10", searchState.getLastFieldValues(0));
+    assertEquals("10", searchState.getLastHitInfo().getLastFieldValues(0));
   }
 }

@@ -81,6 +81,11 @@ public class FloatFieldDef extends NumberFieldDef {
   }
 
   @Override
+  public Object parseLastValue(String value) {
+    return Float.valueOf(value);
+  }
+
+  @Override
   protected Number getSortMissingValue(boolean missingLast) {
     return missingLast ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY;
   }

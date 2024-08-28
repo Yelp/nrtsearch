@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 import static com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor.TOTAL_HITS_THRESHOLD;
 
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
+import com.yelp.nrtsearch.server.grpc.LastHitInfo;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.luceneserver.search.sort.SortContext;
 import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
@@ -44,9 +45,17 @@ public class SortFieldCollector extends DocCollector {
       List<AdditionalCollectorManager<? extends Collector, ? extends CollectorResult>>
           additionalCollectors) {
     super(context, additionalCollectors);
-    FieldDoc searchAfter = null;
     int topHits = getNumHitsToCollect();
     int totalHitsThreshold = TOTAL_HITS_THRESHOLD;
+
+    FieldDoc searchAfter = null;
+    LastHitInfo lastHitInfo = context.getRequest().getSearchAfter();
+    if (lastHitInfo != null && lastHitInfo.getLastFieldValuesCount() > 0) {
+      searchAfter =
+          SortParser.parseLastHitInfo(
+              lastHitInfo, context.getRequest().getQuerySort(), context.getQueryFields());
+    }
+
     // if there are additional collectors, we cannot skip any recalled docs
     if (!additionalCollectors.isEmpty()) {
       totalHitsThreshold = Integer.MAX_VALUE;
@@ -77,8 +86,12 @@ public class SortFieldCollector extends DocCollector {
   @Override
   public void fillLastHit(SearchResponse.SearchState.Builder stateBuilder, ScoreDoc lastHit) {
     FieldDoc fd = (FieldDoc) lastHit;
+    LastHitInfo.Builder lastHitBuilder = LastHitInfo.newBuilder();
+    lastHitBuilder.setLastDocId(lastHit.doc);
     for (Object fv : fd.fields) {
       stateBuilder.addLastFieldValues(fv.toString());
+      lastHitBuilder.addLastFieldValues(fv.toString());
     }
+    stateBuilder.setLastHitInfo(lastHitBuilder.build());
   }
 }

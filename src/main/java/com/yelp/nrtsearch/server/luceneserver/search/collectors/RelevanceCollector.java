@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 import static com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor.TOTAL_HITS_THRESHOLD;
 
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
+import com.yelp.nrtsearch.server.grpc.LastHitInfo;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import java.util.List;
 import org.apache.lucene.search.Collector;
@@ -70,5 +71,8 @@ public class RelevanceCollector extends DocCollector {
   @Override
   public void fillLastHit(SearchResponse.SearchState.Builder stateBuilder, ScoreDoc lastHit) {
     stateBuilder.setLastScore(lastHit.score);
+    LastHitInfo lastHitInfo =
+        LastHitInfo.newBuilder().setLastDocId(lastHit.doc).setLastScore(lastHit.score).build();
+    stateBuilder.setLastHitInfo(lastHitInfo);
   }
 }
