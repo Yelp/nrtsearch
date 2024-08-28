@@ -2228,6 +2228,9 @@
         "lastScore": {
           "type": "number",
           "format": "float"
+        },
+        "lastHitInfo": {
+          "$ref": "#/definitions/luceneserverLastHitInfo"
         }
       }
     },
@@ -3535,6 +3538,9 @@
           "type": "integer",
           "format": "int32",
           "description": "Specifies the size to use for the TOP_TERMS* rewrite methods."
+        },
+        "auto": {
+          "$ref": "#/definitions/FuzzyParamsAutoFuzziness"
         }
       },
       "description": "A query that matches documents containing terms similar to the specified term."
@@ -3952,6 +3958,26 @@
         }
       }
     },
+    "luceneserverLastHitInfo": {
+      "type": "object",
+      "properties": {
+        "lastFieldValues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "lastDocId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "lastScore": {
+          "type": "number",
+          "format": "float"
+        }
+      },
+      "title": "Last Hit info for search after"
+    },
     "luceneserverLiveSettingsRequest": {
       "type": "object",
       "properties": {
@@ -4058,6 +4084,19 @@
         "liveSettings": {
           "$ref": "#/definitions/luceneserverIndexLiveSettings",
           "title": "Current live settings, including default values"
+        }
+      }
+    },
+    "luceneserverLoggingHits": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "title": "name of the hits logger to be called, as registered by a HitsLoggerPlugin"
+        },
+        "params": {
+          "type": "object",
+          "title": "Optional logging parameters"
         }
       }
     },
@@ -4946,6 +4985,19 @@
             "$ref": "#/definitions/luceneserverRuntimeField"
           },
           "title": "Defines runtime fields for this query"
+        },
+        "terminateAfterMaxRecallCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Stop document collection in search phase after this many recalled documents, after terminateAfter docs will be counted but not scored upto terminateAfterMaxRecallCount."
+        },
+        "loggingHits": {
+          "$ref": "#/definitions/luceneserverLoggingHits",
+          "title": "Any custom logging that should log hits after ranking"
+        },
+        "searchAfter": {
+          "$ref": "#/definitions/luceneserverLastHitInfo",
+          "title": "Keeps tracks of last hit for search after"
         }
       }
     },
