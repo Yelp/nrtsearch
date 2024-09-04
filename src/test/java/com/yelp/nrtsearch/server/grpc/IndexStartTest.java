@@ -882,4 +882,59 @@ public class IndexStartTest {
     assertEquals(1, replicaFiles.length);
     assertEquals("write.lock", replicaFiles[0]);
   }
+
+  @Test
+  public void testDoRemoteCommit_local() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startPrimaryIndex("test_index", -1, null);
+    assertFalse(
+        server
+            .getGlobalState()
+            .getIndex("test_index")
+            .getShard(0)
+            .nrtPrimaryNode
+            .getNrtDataManager()
+            .doRemoteCommit());
+  }
+
+  @Test
+  public void testDoRemoteCommit_remote() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.REMOTE)
+            .build();
+    server.createSimpleIndex("test_index");
+    server.startPrimaryIndex("test_index", -1, null);
+    assertTrue(
+        server
+            .getGlobalState()
+            .getIndex("test_index")
+            .getShard(0)
+            .nrtPrimaryNode
+            .getNrtDataManager()
+            .doRemoteCommit());
+  }
+
+  @Test
+  public void testCommitIndexNotStarted() throws IOException {
+    TestServer server =
+        TestServer.builder(folder)
+            .withAutoStartConfig(true, Mode.PRIMARY, 0, IndexDataLocationType.LOCAL)
+            .build();
+    server.createSimpleIndex("test_index");
+    assertFalse(server.isStarted("test_index"));
+    try {
+      server
+          .getClient()
+          .getBlockingStub()
+          .commit(CommitRequest.newBuilder().setIndexName("test_index").build());
+      fail();
+    } catch (StatusRuntimeException e) {
+      assertTrue(e.getMessage().contains("index \"test_index:0\" was not started"));
+    }
+  }
 }

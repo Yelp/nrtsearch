@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient.DiscoveryFileAndPort;
@@ -23,137 +22,144 @@ import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
+import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
-import com.yelp.nrtsearch.server.utils.FileUtil;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.HashSet;
+import java.util.Set;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.IndexReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexResponse> {
-  public enum INDEXED_DATA_TYPE {
-    DATA,
-    STATE
-  }
+  private static final Set<String> startingIndices = new HashSet<>();
 
-  private final Archiver incArchiver;
+  private final String serviceName;
+  private final String ephemeralId;
   private final RemoteBackend remoteBackend;
-  private final String archiveDirectory;
   private final IndexStateManager indexStateManager;
+  private final boolean remoteCommit;
   private final int discoveryFileUpdateIntervalMs;
   private static final Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
 
+  /**
+   * Constructor for StartIndexHandler.
+   *
+   * @param serviceName service name
+   * @param ephemeralId ephemeral id for this node
+   * @param remoteBackend remote state backend
+   * @param indexStateManager index state manager
+   * @param remoteCommit whether to commit to remote state
+   * @param discoveryFileUpdateIntervalMs interval to update backends from discovery file
+   */
   public StartIndexHandler(
-      Archiver incArchiver,
+      String serviceName,
+      String ephemeralId,
       RemoteBackend remoteBackend,
-      String archiveDirectory,
       IndexStateManager indexStateManager,
+      boolean remoteCommit,
       int discoveryFileUpdateIntervalMs) {
-    this.incArchiver = incArchiver;
+    this.serviceName = serviceName;
+    this.ephemeralId = ephemeralId;
     this.remoteBackend = remoteBackend;
-    this.archiveDirectory = archiveDirectory;
     this.indexStateManager = indexStateManager;
+    this.remoteCommit = remoteCommit;
     this.discoveryFileUpdateIntervalMs = discoveryFileUpdateIntervalMs;
   }
 
   @Override
   public StartIndexResponse handle(IndexState indexState, StartIndexRequest startIndexRequest)
       throws StartIndexHandlerException {
-    if (indexState.isStarted()) {
-      throw new IllegalArgumentException(
-          String.format("Index %s is already started", indexState.getName()));
+    String indexName = indexState.getName();
+    synchronized (startingIndices) {
+      if (indexState.isStarted()) {
+        throw new IllegalArgumentException(String.format("Index %s is already started", indexName));
+      }
+      // Ensure that the index is not already being started
+      if (startingIndices.contains(indexName)) {
+        throw new IllegalArgumentException(
+            String.format("Index %s is already being started", indexName));
+      }
+      startingIndices.add(indexName);
     }
 
+    try {
+      return handleInternal(indexState, startIndexRequest);
+    } finally {
+      synchronized (startingIndices) {
+        startingIndices.remove(indexName);
+      }
+    }
+  }
+
+  private StartIndexResponse handleInternal(
+      IndexState indexState, StartIndexRequest startIndexRequest)
+      throws StartIndexHandlerException {
     final ShardState shardState = indexState.getShard(0);
     final Mode mode = startIndexRequest.getMode();
     final long primaryGen;
     final ReplicationServerClient primaryClient;
-    Path dataPath = null;
 
+    RestoreIndex restoreIndex =
+        startIndexRequest.hasRestore() ? startIndexRequest.getRestore() : null;
+    NrtDataManager nrtDataManager =
+        new NrtDataManager(
+            serviceName,
+            BackendGlobalState.getUniqueIndexName(
+                indexState.getName(), indexStateManager.getIndexId()),
+            ephemeralId,
+            remoteBackend,
+            restoreIndex,
+            remoteCommit);
+    if (mode.equals(Mode.PRIMARY)) {
+      primaryGen = startIndexRequest.getPrimaryGen();
+      primaryClient = null;
+    } else if (mode.equals(Mode.REPLICA)) {
+      primaryGen = startIndexRequest.getPrimaryGen();
+      primaryClient = getPrimaryClientForRequest(startIndexRequest);
+    } else {
+      primaryGen = -1;
+      primaryClient = null;
+    }
+
+    long t0 = System.nanoTime();
     try {
-      if (startIndexRequest.hasRestore() && !shardState.isStarted()) {
-        synchronized (shardState) {
-          try {
-            if (!shardState.isRestored()) {
-              RestoreIndex restoreIndex = startIndexRequest.getRestore();
-              if (restoreIndex.getDeleteExistingData()) {
-                indexState.deleteIndexRootDir();
-                Files.createDirectories(indexState.getRootDir());
-                deleteDownloadedBackupDirectories(restoreIndex.getResourceName());
-              }
-
-              dataPath =
-                  downloadArtifact(
-                      restoreIndex.getServiceName(),
-                      restoreIndex.getResourceName(),
-                      INDEXED_DATA_TYPE.DATA);
-            } else {
-              throw new IllegalStateException(
-                  "Index " + indexState.getName() + " already restored");
-            }
-          } catch (IOException e) {
-            logger.info("Unable to delete existing index data", e);
-            throw new StartIndexHandlerException(e);
-          }
-        }
-      }
-      if (mode.equals(Mode.PRIMARY)) {
-        primaryGen = startIndexRequest.getPrimaryGen();
-        primaryClient = null;
-      } else if (mode.equals(Mode.REPLICA)) {
-        primaryGen = startIndexRequest.getPrimaryGen();
-        primaryClient = getPrimaryClientForRequest(startIndexRequest);
-      } else {
-        primaryGen = -1;
-        primaryClient = null;
+      if (mode.equals(Mode.REPLICA)) {
+        indexState.initWarmer(remoteBackend);
       }
 
-      long t0 = System.nanoTime();
-      try {
-        if (mode.equals(Mode.REPLICA)) {
-          indexState.initWarmer(remoteBackend);
-        }
+      indexStateManager.start(mode, nrtDataManager, primaryGen, primaryClient);
+    } catch (Exception e) {
+      logger.error("Cannot start IndexState/ShardState", e);
+      throw new StartIndexHandlerException(e);
+    }
 
-        indexStateManager.start(mode, dataPath, primaryGen, primaryClient);
-      } catch (Exception e) {
-        logger.error("Cannot start IndexState/ShardState", e);
-        throw new StartIndexHandlerException(e);
-      }
-
-      StartIndexResponse.Builder startIndexResponseBuilder = StartIndexResponse.newBuilder();
-      SearcherTaxonomyManager.SearcherAndTaxonomy s;
-      try {
-        s = shardState.acquire();
-      } catch (IOException e) {
-        logger.error("Acquire shard state failed", e);
-        throw new StartIndexHandlerException(e);
-      }
-      try {
-        IndexReader r = s.searcher.getIndexReader();
-        startIndexResponseBuilder.setMaxDoc(r.maxDoc());
-        startIndexResponseBuilder.setNumDocs(r.numDocs());
-        startIndexResponseBuilder.setSegments(r.toString());
-      } finally {
-        try {
-          shardState.release(s);
-        } catch (IOException e) {
-          logger.error("Release shard state failed", e);
-          throw new StartIndexHandlerException(e);
-        }
-      }
-      long t1 = System.nanoTime();
-      startIndexResponseBuilder.setStartTimeMS(((t1 - t0) / 1000000.0));
-      return startIndexResponseBuilder.build();
+    StartIndexResponse.Builder startIndexResponseBuilder = StartIndexResponse.newBuilder();
+    SearcherTaxonomyManager.SearcherAndTaxonomy s;
+    try {
+      s = shardState.acquire();
+    } catch (IOException e) {
+      logger.error("Acquire shard state failed", e);
+      throw new StartIndexHandlerException(e);
+    }
+    try {
+      IndexReader r = s.searcher.getIndexReader();
+      startIndexResponseBuilder.setMaxDoc(r.maxDoc());
+      startIndexResponseBuilder.setNumDocs(r.numDocs());
+      startIndexResponseBuilder.setSegments(r.toString());
     } finally {
-      if (startIndexRequest.hasRestore()) {
-        cleanupDownloadedArtifacts(
-            startIndexRequest.getRestore().getResourceName(), INDEXED_DATA_TYPE.DATA);
+      try {
+        shardState.release(s);
+      } catch (IOException e) {
+        logger.error("Release shard state failed", e);
+        throw new StartIndexHandlerException(e);
       }
     }
+    long t1 = System.nanoTime();
+    startIndexResponseBuilder.setStartTimeMS(((t1 - t0) / 1000000.0));
+    return startIndexResponseBuilder.build();
   }
 
   private ReplicationServerClient getPrimaryClientForRequest(StartIndexRequest request) {
@@ -167,45 +173,6 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
       throw new IllegalArgumentException(
           "Unable to initialize primary replication client for start request: " + request);
     }
-  }
-
-  private void deleteDownloadedBackupDirectories(String resourceName) throws IOException {
-    String resourceDataDirectory = IndexBackupUtils.getResourceData(resourceName);
-    FileUtil.deleteAllFiles(Paths.get(archiveDirectory, resourceDataDirectory));
-  }
-
-  /**
-   * Returns: path to "current" dir containing symlink to point to versionHash dirName that contains
-   * index data
-   */
-  public Path downloadArtifact(
-      String serviceName, String resourceName, INDEXED_DATA_TYPE indexDataType) {
-    String resource;
-    if (indexDataType.equals(INDEXED_DATA_TYPE.DATA)) {
-      resource = IndexBackupUtils.getResourceData(resourceName);
-    } else if (indexDataType.equals(INDEXED_DATA_TYPE.STATE)) {
-      resource = IndexBackupUtils.getResourceMetadata(resourceName);
-    } else {
-      throw new RuntimeException("Invalid INDEXED_DATA_TYPE " + indexDataType);
-    }
-    try {
-      return incArchiver.download(serviceName, resource);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  void cleanupDownloadedArtifacts(String resourceName, INDEXED_DATA_TYPE indexDataType) {
-    String resource;
-    if (indexDataType.equals(INDEXED_DATA_TYPE.DATA)) {
-      resource = IndexBackupUtils.getResourceData(resourceName);
-    } else if (indexDataType.equals(INDEXED_DATA_TYPE.STATE)) {
-      resource = IndexBackupUtils.getResourceMetadata(resourceName);
-    } else {
-      throw new RuntimeException("Invalid INDEXED_DATA_TYPE " + indexDataType);
-    }
-    logger.info("Cleaning up local index resource: " + resource);
-    incArchiver.deleteLocalFiles(resource);
   }
 
   public static class StartIndexHandlerException extends HandlerException {

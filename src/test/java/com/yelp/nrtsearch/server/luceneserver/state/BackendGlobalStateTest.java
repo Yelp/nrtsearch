@@ -42,11 +42,13 @@ import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.LocalStateBackend;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.StateBackend;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -88,6 +90,7 @@ public class BackendGlobalStateTest {
     // these must be initialized to create an IndexState
     FieldDefCreator.initialize(dummyConfig, dummyPlugins);
     SimilarityCreator.initialize(dummyConfig, dummyPlugins);
+    ThreadPoolExecutorFactory.init(dummyConfig.getThreadPoolConfiguration());
   }
 
   @Before
@@ -936,6 +939,7 @@ public class BackendGlobalStateTest {
     IndexStateManager mockManager = mock(IndexStateManager.class);
     IndexState mockState = mock(IndexState.class);
     when(mockManager.getCurrent()).thenReturn(mockState);
+    when(mockManager.getIndexId()).thenReturn("test_id_1");
     when(mockState.isStarted()).thenReturn(false);
     when(mockState.getName()).thenReturn("test_index");
     mockManagers.put(BackendGlobalState.getUniqueIndexName("test_index", "test_id_1"), mockManager);
@@ -965,9 +969,12 @@ public class BackendGlobalStateTest {
     verify(mockBackend, times(1)).commitGlobalState(updatedGlobalState);
     verify(mockManager, times(1)).load();
     verify(mockManager, times(1)).getCurrent();
-    verify(mockManager, times(1)).start(eq(Mode.STANDALONE), eq(null), eq(-1L), eq(null));
+    verify(mockManager, times(1)).getIndexId();
+    verify(mockManager, times(1))
+        .start(eq(Mode.STANDALONE), any(NrtDataManager.class), eq(-1L), eq(null));
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).getShard(0);
+    verify(mockState, times(2)).getName();
     verify(mockShardState, times(1)).acquire();
     verify(mockShardState, times(1)).release(any(SearcherAndTaxonomy.class));
     verify(mockSearcher, times(1)).getIndexReader();
@@ -994,6 +1001,7 @@ public class BackendGlobalStateTest {
     IndexStateManager mockManager = mock(IndexStateManager.class);
     IndexState mockState = mock(IndexState.class);
     when(mockManager.getCurrent()).thenReturn(mockState);
+    when(mockManager.getIndexId()).thenReturn("test_id_1");
     when(mockState.isStarted()).thenReturn(false);
     when(mockState.getName()).thenReturn("test_index");
     mockManagers.put(BackendGlobalState.getUniqueIndexName("test_index", "test_id_1"), mockManager);
@@ -1028,9 +1036,12 @@ public class BackendGlobalStateTest {
     verify(mockBackend, times(1)).commitGlobalState(updatedGlobalState);
     verify(mockManager, times(1)).load();
     verify(mockManager, times(1)).getCurrent();
-    verify(mockManager, times(1)).start(eq(Mode.PRIMARY), eq(null), eq(1L), eq(null));
+    verify(mockManager, times(1)).getIndexId();
+    verify(mockManager, times(1))
+        .start(eq(Mode.PRIMARY), any(NrtDataManager.class), eq(1L), eq(null));
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).getShard(0);
+    verify(mockState, times(2)).getName();
     verify(mockShardState, times(1)).acquire();
     verify(mockShardState, times(1)).release(any(SearcherAndTaxonomy.class));
     verify(mockSearcher, times(1)).getIndexReader();
@@ -1057,6 +1068,7 @@ public class BackendGlobalStateTest {
     IndexStateManager mockManager = mock(IndexStateManager.class);
     IndexState mockState = mock(IndexState.class);
     when(mockManager.getCurrent()).thenReturn(mockState);
+    when(mockManager.getIndexId()).thenReturn("test_id_1");
     when(mockState.isStarted()).thenReturn(false);
     when(mockState.getName()).thenReturn("test_index");
     mockManagers.put(BackendGlobalState.getUniqueIndexName("test_index", "test_id_1"), mockManager);
@@ -1083,11 +1095,17 @@ public class BackendGlobalStateTest {
     verify(mockBackend, times(1)).loadOrCreateGlobalState();
     verify(mockManager, times(1)).load();
     verify(mockManager, times(1)).getCurrent();
+    verify(mockManager, times(1)).getIndexId();
     verify(mockManager, times(1))
-        .start(eq(Mode.REPLICA), eq(null), eq(1L), any(ReplicationServerClient.class));
+        .start(
+            eq(Mode.REPLICA),
+            any(NrtDataManager.class),
+            eq(1L),
+            any(ReplicationServerClient.class));
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).getShard(0);
     verify(mockState, times(1)).initWarmer(any());
+    verify(mockState, times(2)).getName();
     verify(mockShardState, times(1)).acquire();
     verify(mockShardState, times(1)).release(any(SearcherAndTaxonomy.class));
     verify(mockSearcher, times(1)).getIndexReader();

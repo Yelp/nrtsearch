@@ -43,6 +43,8 @@ import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
+import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.DirectoryFactory;
@@ -56,16 +58,14 @@ import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IntFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler.UpdatedFieldInfo;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -75,7 +75,6 @@ import java.util.function.Function;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.store.Directory;
@@ -1222,213 +1221,6 @@ public class ImmutableIndexStateTest {
     assertEquals(indexSort, mergedSettings.getIndexSort());
   }
 
-  @Test(expected = NullPointerException.class)
-  public void testRestoreIndexData_nullRestorePath() throws IOException {
-    ImmutableIndexState.restoreIndexData(null, folder.getRoot().toPath());
-  }
-
-  @Test(expected = NullPointerException.class)
-  public void testRestoreIndexData_nullIndexRootPath() throws IOException {
-    ImmutableIndexState.restoreIndexData(folder.getRoot().toPath(), null);
-  }
-
-  @Test
-  public void testRestoreIndexData_restorePathNotExist() throws IOException {
-    Path testPath = folder.getRoot().toPath().resolve("not_exist");
-    try {
-      ImmutableIndexState.restoreIndexData(testPath, folder.getRoot().toPath());
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals("Restore path does not exist: " + testPath, e.getMessage());
-    }
-  }
-
-  @Test
-  public void testRestoreIndexData_indexRootPathNotExist() throws IOException {
-    Path testPath = folder.getRoot().toPath().resolve("not_exist");
-    try {
-      ImmutableIndexState.restoreIndexData(folder.getRoot().toPath(), testPath);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals("Index data root path does not exist: " + testPath, e.getMessage());
-    }
-  }
-
-  @Test
-  public void testRestoreIndexData_restorePathNotDirectory() throws IOException {
-    Path testPath = folder.newFile("not_dir").toPath();
-    try {
-      ImmutableIndexState.restoreIndexData(testPath, folder.getRoot().toPath());
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals("Restore path is not a directory: " + testPath, e.getMessage());
-    }
-  }
-
-  @Test
-  public void testRestoreIndexData_indexRootPathNotDirectory() throws IOException {
-    Path testPath = folder.newFile("not_dir").toPath();
-    try {
-      ImmutableIndexState.restoreIndexData(folder.getRoot().toPath(), testPath);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals("Index data root path is not a directory: " + testPath, e.getMessage());
-    }
-  }
-
-  @Test
-  public void testRestoreIndexData_restorePathIsEmpty() throws IOException {
-    Path testPath = folder.newFolder("restore-data-root").toPath();
-    try {
-      ImmutableIndexState.restoreIndexData(testPath, folder.getRoot().toPath());
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals("No data in restored directory: " + testPath, e.getMessage());
-    }
-  }
-
-  @Test
-  public void testRestoreIndexData_restorePathIndexDataPathNotPresent() throws IOException {
-    Path testPath = folder.newFolder("restore-data-root").toPath();
-    Path restoreDataRoot =
-        testPath.resolve("test_index-id").resolve("not_shard").resolve("not_index");
-    Files.createDirectories(restoreDataRoot);
-    try {
-      ImmutableIndexState.restoreIndexData(testPath, folder.getRoot().toPath());
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals("Index data not present in restored directory: " + testPath, e.getMessage());
-    }
-  }
-
-  @Test
-  public void testRestoreIndexData_restorePathIndexDataPathNotDirectory() throws IOException {
-    Path testPath = folder.newFolder("restore-data-root").toPath();
-    Path restoreDataRoot =
-        testPath.resolve("test_index-id").resolve(ShardState.getShardDirectoryName(0));
-    Files.createDirectories(restoreDataRoot);
-    Files.createFile(restoreDataRoot.resolve(ShardState.INDEX_DATA_DIR_NAME));
-    try {
-      ImmutableIndexState.restoreIndexData(testPath, folder.getRoot().toPath());
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals("Restored index data root is not a directory: " + testPath, e.getMessage());
-    }
-  }
-
-  @Test
-  public void testRestoreIndexData_restorePathIndexDataPathIsEmpty() throws IOException {
-    Path testPath = folder.newFolder("restore-data-root").toPath();
-    Path restoreDataRoot =
-        testPath
-            .resolve("test_index-id")
-            .resolve(ShardState.getShardDirectoryName(0))
-            .resolve(ShardState.INDEX_DATA_DIR_NAME);
-    Files.createDirectories(restoreDataRoot);
-    try {
-      ImmutableIndexState.restoreIndexData(testPath, folder.getRoot().toPath());
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals("No index data present in restore: " + testPath, e.getMessage());
-    }
-  }
-
-  @Test
-  public void testRestoreIndexData_restoresToEmptyIndexDir() throws IOException {
-    Path restoreRootPath = folder.newFolder("restore-data-root").toPath();
-    Path indexDataRootPath = folder.newFolder("index-data-root").toPath();
-    Path restoreDataRoot =
-        restoreRootPath
-            .resolve("test_index-id")
-            .resolve(ShardState.getShardDirectoryName(0))
-            .resolve(ShardState.INDEX_DATA_DIR_NAME);
-    Files.createDirectories(restoreDataRoot);
-    Set<String> restoreFiles = Set.of("file1", "file2", "file3");
-    for (String file : restoreFiles) {
-      Files.createFile(restoreDataRoot.resolve(file));
-    }
-    ImmutableIndexState.restoreIndexData(restoreRootPath, indexDataRootPath);
-
-    Path indexFilesRoot =
-        indexDataRootPath
-            .resolve(ShardState.getShardDirectoryName(0))
-            .resolve(ShardState.INDEX_DATA_DIR_NAME);
-    assertTrue(indexFilesRoot.toFile().exists());
-    assertTrue(indexFilesRoot.toFile().isDirectory());
-    Set<String> indexFiles = new HashSet<>();
-    for (Path p : (Iterable<Path>) Files.list(indexFilesRoot)::iterator) {
-      indexFiles.add(p.getFileName().toString());
-    }
-    assertEquals(restoreFiles, indexFiles);
-  }
-
-  @Test
-  public void testRestoreIndexData_restoreFailsForExistingIndexFiles() throws IOException {
-    Path restoreRootPath = folder.newFolder("restore-data-root").toPath();
-    Path indexDataRootPath = folder.newFolder("index-data-root").toPath();
-    Path restoreDataRoot =
-        restoreRootPath
-            .resolve("test_index-id")
-            .resolve(ShardState.getShardDirectoryName(0))
-            .resolve(ShardState.INDEX_DATA_DIR_NAME);
-    Files.createDirectories(restoreDataRoot);
-    Set<String> restoreFiles = Set.of("file1", "file2", "file3");
-    for (String file : restoreFiles) {
-      Files.createFile(restoreDataRoot.resolve(file));
-    }
-
-    Path indexFilesRoot =
-        indexDataRootPath
-            .resolve(ShardState.getShardDirectoryName(0))
-            .resolve(ShardState.INDEX_DATA_DIR_NAME);
-    Files.createDirectories(indexFilesRoot);
-    Files.createFile(indexFilesRoot.resolve("file2"));
-
-    try {
-      ImmutableIndexState.restoreIndexData(restoreRootPath, indexDataRootPath);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals(
-          "Cannot restore, directory has index data file: " + indexFilesRoot.resolve("file2"),
-          e.getMessage());
-    }
-  }
-
-  @Test
-  public void testRestoreIndexData_restoreIgnoresLockFile() throws IOException {
-    Path restoreRootPath = folder.newFolder("restore-data-root").toPath();
-    Path indexDataRootPath = folder.newFolder("index-data-root").toPath();
-    Path restoreDataRoot =
-        restoreRootPath
-            .resolve("test_index-id")
-            .resolve(ShardState.getShardDirectoryName(0))
-            .resolve(ShardState.INDEX_DATA_DIR_NAME);
-    Files.createDirectories(restoreDataRoot);
-    Set<String> restoreFiles = Set.of("file1", "file2", "file3");
-    for (String file : restoreFiles) {
-      Files.createFile(restoreDataRoot.resolve(file));
-    }
-
-    Path indexFilesRoot =
-        indexDataRootPath
-            .resolve(ShardState.getShardDirectoryName(0))
-            .resolve(ShardState.INDEX_DATA_DIR_NAME);
-    Files.createDirectories(indexFilesRoot);
-    Files.createFile(indexFilesRoot.resolve(IndexWriter.WRITE_LOCK_NAME));
-
-    ImmutableIndexState.restoreIndexData(restoreRootPath, indexDataRootPath);
-
-    assertTrue(indexFilesRoot.toFile().exists());
-    assertTrue(indexFilesRoot.toFile().isDirectory());
-    Set<String> indexFiles = new HashSet<>();
-    for (Path p : (Iterable<Path>) Files.list(indexFilesRoot)::iterator) {
-      indexFiles.add(p.getFileName().toString());
-    }
-    Set<String> expectedFiles = new HashSet<>(restoreFiles);
-    expectedFiles.add(IndexWriter.WRITE_LOCK_NAME);
-    assertEquals(expectedFiles, indexFiles);
-  }
-
   @Test
   public void testGetSaveState_empty() throws IOException {
     ImmutableIndexState indexState = getIndexState(getEmptyState());
@@ -1586,5 +1378,159 @@ public class ImmutableIndexStateTest {
     element = fieldObject.get("storeDocValues");
     assertNotNull(element);
     assertTrue(element.getAsBoolean());
+  }
+
+  @Test
+  public void testStart_notCommittedNoRestore() throws IOException {
+    ShardState mockShardState = mock(ShardState.class);
+    when(mockShardState.isStarted()).thenReturn(false);
+    ImmutableIndexState indexState =
+        getIndexState(
+            IndexStateInfo.newBuilder().build(),
+            new FieldAndFacetState(),
+            Map.of(0, mockShardState));
+    NrtDataManager mockNrtDataManager = mock(NrtDataManager.class);
+    when(mockNrtDataManager.hasRestoreData()).thenReturn(false);
+    ReplicationServerClient mockReplicationServerClient = mock(ReplicationServerClient.class);
+
+    indexState.start(Mode.STANDALONE, mockNrtDataManager, -1, mockReplicationServerClient);
+
+    verify(mockShardState, times(1)).isStarted();
+    verify(mockNrtDataManager, times(1)).hasRestoreData();
+    verify(mockShardState, times(1)).setDoCreate(true);
+    verify(mockShardState, times(1)).start(mockNrtDataManager);
+    verifyNoMoreInteractions(mockNrtDataManager, mockShardState, mockReplicationServerClient);
+  }
+
+  @Test
+  public void testStart_notCommittedHasRestore() throws IOException {
+    ShardState mockShardState = mock(ShardState.class);
+    when(mockShardState.isStarted()).thenReturn(false);
+    ImmutableIndexState indexState =
+        getIndexState(
+            IndexStateInfo.newBuilder().build(),
+            new FieldAndFacetState(),
+            Map.of(0, mockShardState));
+    NrtDataManager mockNrtDataManager = mock(NrtDataManager.class);
+    when(mockNrtDataManager.hasRestoreData()).thenReturn(true);
+    ReplicationServerClient mockReplicationServerClient = mock(ReplicationServerClient.class);
+
+    indexState.start(Mode.STANDALONE, mockNrtDataManager, -1, mockReplicationServerClient);
+
+    verify(mockShardState, times(1)).isStarted();
+    verify(mockNrtDataManager, times(1)).hasRestoreData();
+    verify(mockShardState, times(1)).setDoCreate(false);
+    verify(mockShardState, times(1)).start(mockNrtDataManager);
+    verifyNoMoreInteractions(mockNrtDataManager, mockShardState, mockReplicationServerClient);
+  }
+
+  @Test
+  public void testStart_committedNoRestore() throws IOException {
+    ShardState mockShardState = mock(ShardState.class);
+    when(mockShardState.isStarted()).thenReturn(false);
+    ImmutableIndexState indexState =
+        getIndexState(
+            IndexStateInfo.newBuilder().setCommitted(true).build(),
+            new FieldAndFacetState(),
+            Map.of(0, mockShardState));
+    NrtDataManager mockNrtDataManager = mock(NrtDataManager.class);
+    when(mockNrtDataManager.hasRestoreData()).thenReturn(false);
+    ReplicationServerClient mockReplicationServerClient = mock(ReplicationServerClient.class);
+
+    indexState.start(Mode.STANDALONE, mockNrtDataManager, -1, mockReplicationServerClient);
+
+    verify(mockShardState, times(1)).isStarted();
+    verify(mockShardState, times(1)).setDoCreate(false);
+    verify(mockShardState, times(1)).start(mockNrtDataManager);
+    verifyNoMoreInteractions(mockNrtDataManager, mockShardState, mockReplicationServerClient);
+  }
+
+  @Test
+  public void testStart_committedHasRestore() throws IOException {
+    ShardState mockShardState = mock(ShardState.class);
+    when(mockShardState.isStarted()).thenReturn(false);
+    ImmutableIndexState indexState =
+        getIndexState(
+            IndexStateInfo.newBuilder().setCommitted(true).build(),
+            new FieldAndFacetState(),
+            Map.of(0, mockShardState));
+    NrtDataManager mockNrtDataManager = mock(NrtDataManager.class);
+    when(mockNrtDataManager.hasRestoreData()).thenReturn(true);
+    ReplicationServerClient mockReplicationServerClient = mock(ReplicationServerClient.class);
+
+    indexState.start(Mode.STANDALONE, mockNrtDataManager, -1, mockReplicationServerClient);
+
+    verify(mockShardState, times(1)).isStarted();
+    verify(mockShardState, times(1)).setDoCreate(false);
+    verify(mockShardState, times(1)).start(mockNrtDataManager);
+    verifyNoMoreInteractions(mockNrtDataManager, mockShardState, mockReplicationServerClient);
+  }
+
+  @Test
+  public void testStart_primary() throws IOException {
+    ShardState mockShardState = mock(ShardState.class);
+    when(mockShardState.isStarted()).thenReturn(false);
+    ImmutableIndexState indexState =
+        getIndexState(
+            IndexStateInfo.newBuilder().build(),
+            new FieldAndFacetState(),
+            Map.of(0, mockShardState));
+    NrtDataManager mockNrtDataManager = mock(NrtDataManager.class);
+    when(mockNrtDataManager.hasRestoreData()).thenReturn(true);
+    ReplicationServerClient mockReplicationServerClient = mock(ReplicationServerClient.class);
+
+    indexState.start(Mode.PRIMARY, mockNrtDataManager, -1, mockReplicationServerClient);
+
+    verify(mockShardState, times(1)).isStarted();
+    verify(mockNrtDataManager, times(1)).hasRestoreData();
+    verify(mockShardState, times(1)).setDoCreate(false);
+    verify(mockShardState, times(1)).startPrimary(mockNrtDataManager, -1);
+    verifyNoMoreInteractions(mockNrtDataManager, mockShardState, mockReplicationServerClient);
+  }
+
+  @Test
+  public void testStart_replica() throws IOException {
+    ShardState mockShardState = mock(ShardState.class);
+    when(mockShardState.isStarted()).thenReturn(false);
+    ImmutableIndexState indexState =
+        getIndexState(
+            IndexStateInfo.newBuilder().build(),
+            new FieldAndFacetState(),
+            Map.of(0, mockShardState));
+    NrtDataManager mockNrtDataManager = mock(NrtDataManager.class);
+    when(mockNrtDataManager.hasRestoreData()).thenReturn(true);
+    ReplicationServerClient mockReplicationServerClient = mock(ReplicationServerClient.class);
+
+    indexState.start(Mode.REPLICA, mockNrtDataManager, -1, mockReplicationServerClient);
+
+    verify(mockShardState, times(1)).isStarted();
+    verify(mockNrtDataManager, times(1)).hasRestoreData();
+    verify(mockShardState, times(1)).setDoCreate(false);
+    verify(mockShardState, times(1))
+        .startReplica(mockNrtDataManager, mockReplicationServerClient, -1);
+    verifyNoMoreInteractions(mockNrtDataManager, mockShardState, mockReplicationServerClient);
+  }
+
+  @Test
+  public void testStart_alreadyStarted() throws IOException {
+    ShardState mockShardState = mock(ShardState.class);
+    when(mockShardState.isStarted()).thenReturn(true);
+    ImmutableIndexState indexState =
+        getIndexState(
+            IndexStateInfo.newBuilder().build(),
+            new FieldAndFacetState(),
+            Map.of(0, mockShardState));
+    NrtDataManager mockNrtDataManager = mock(NrtDataManager.class);
+    ReplicationServerClient mockReplicationServerClient = mock(ReplicationServerClient.class);
+
+    try {
+      indexState.start(Mode.STANDALONE, mockNrtDataManager, -1, mockReplicationServerClient);
+      fail();
+    } catch (IllegalStateException e) {
+      assertEquals("Index \"test_index\" is already started", e.getMessage());
+    }
+
+    verify(mockShardState, times(1)).isStarted();
+    verifyNoMoreInteractions(mockNrtDataManager, mockShardState, mockReplicationServerClient);
   }
 }

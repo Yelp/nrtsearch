@@ -15,9 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.index;
 
-import static com.yelp.nrtsearch.server.luceneserver.CreateSnapshotHandler.getSegmentFilesInSnapshot;
-import static com.yelp.nrtsearch.server.luceneserver.ReleaseSnapshotHandler.releaseSnapshot;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -31,20 +28,14 @@ import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.FieldMaskUtil;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.backup.Archiver;
-import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
-import com.yelp.nrtsearch.server.grpc.CreateSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
-import com.yelp.nrtsearch.server.grpc.SnapshotId;
-import com.yelp.nrtsearch.server.luceneserver.CreateSnapshotHandler;
 import com.yelp.nrtsearch.server.luceneserver.DirectoryFactory;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler.SearchHandlerException;
 import com.yelp.nrtsearch.server.luceneserver.ServerCodec;
@@ -52,27 +43,20 @@ import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
-import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
@@ -394,106 +378,39 @@ public class ImmutableIndexState extends IndexState {
 
   @Override
   public void start(
-      Mode serverMode, Path dataPath, long primaryGen, ReplicationServerClient primaryClient)
+      Mode serverMode,
+      NrtDataManager nrtDataManager,
+      long primaryGen,
+      ReplicationServerClient primaryClient)
       throws IOException {
     if (isStarted()) {
-      throw new IllegalStateException("index \"" + getName() + "\" was already started");
+      throw new IllegalStateException("Index \"" + getName() + "\" is already started");
     }
 
-    // restore data if provided
-    if (dataPath != null) {
-      restoreIndexData(dataPath, getRootDir());
-    }
-
-    // only create if the index has not been committed
+    // only create if the index has not been committed and there is no data to restore
     for (ShardState shard : shards.values()) {
-      shard.setDoCreate(!currentStateInfo.getCommitted() && dataPath == null);
+      shard.setDoCreate(!currentStateInfo.getCommitted() && !nrtDataManager.hasRestoreData());
     }
 
     // start all local shards
     switch (serverMode) {
       case STANDALONE:
         for (ShardState shard : shards.values()) {
-          shard.start();
+          shard.start(nrtDataManager);
         }
         break;
       case PRIMARY:
         for (ShardState shard : shards.values()) {
-          shard.startPrimary(primaryGen);
+          shard.startPrimary(nrtDataManager, primaryGen);
         }
         break;
       case REPLICA:
         for (ShardState shard : shards.values()) {
-          shard.startReplica(primaryClient, primaryGen);
+          shard.startReplica(nrtDataManager, primaryClient, primaryGen);
         }
         break;
       default:
         throw new IllegalArgumentException("Unknown server mode: " + serverMode);
-    }
-  }
-
-  static void restoreIndexData(Path restorePath, Path indexDataRoot) throws IOException {
-    Objects.requireNonNull(restorePath);
-    Objects.requireNonNull(indexDataRoot);
-    logger.info("Restore index data from path: " + restorePath + " to " + indexDataRoot);
-    File restorePathFile = restorePath.toFile();
-    File indexDataRootFile = indexDataRoot.toFile();
-    if (!restorePath.toFile().exists()) {
-      throw new IllegalArgumentException("Restore path does not exist: " + restorePath);
-    }
-    if (!restorePathFile.isDirectory()) {
-      throw new IllegalArgumentException("Restore path is not a directory: " + restorePath);
-    }
-    if (!indexDataRootFile.exists()) {
-      throw new IllegalArgumentException("Index data root path does not exist: " + indexDataRoot);
-    }
-    if (!indexDataRootFile.isDirectory()) {
-      throw new IllegalArgumentException(
-          "Index data root path is not a directory: " + indexDataRoot);
-    }
-    Path restoredDataRoot;
-    try (Stream<Path> restorePathFiles = Files.list(restorePath)) {
-      restoredDataRoot =
-          restorePathFiles
-              .findFirst()
-              .orElseThrow(
-                  () ->
-                      new IllegalArgumentException("No data in restored directory: " + restorePath))
-              .resolve(ShardState.getShardDirectoryName(0))
-              .resolve(ShardState.INDEX_DATA_DIR_NAME);
-    }
-    File restoredDataRootFile = restoredDataRoot.toFile();
-    if (!restoredDataRootFile.exists()) {
-      throw new IllegalArgumentException(
-          "Index data not present in restored directory: " + restorePath);
-    }
-    if (!restoredDataRootFile.isDirectory()) {
-      throw new IllegalArgumentException(
-          "Restored index data root is not a directory: " + restorePath);
-    }
-    if (restoredDataRootFile.listFiles().length == 0) {
-      throw new IllegalArgumentException("No index data present in restore: " + restorePath);
-    }
-    Path destDataRoot =
-        indexDataRoot
-            .resolve(ShardState.getShardDirectoryName(0))
-            .resolve(ShardState.INDEX_DATA_DIR_NAME);
-    StateUtils.ensureDirectory(destDataRoot);
-    try (Stream<Path> destDataFilesStream = Files.list(destDataRoot)) {
-      for (Path p : (Iterable<Path>) destDataFilesStream::iterator) {
-        // the lock file will not be part of the restore, so it should be ok to keep it
-        if (IndexWriter.WRITE_LOCK_NAME.equals(p.getFileName().toString())) {
-          continue;
-        }
-        throw new IllegalArgumentException("Cannot restore, directory has index data file: " + p);
-      }
-    }
-    // hard link all index files, should this be recursive?
-    try (Stream<Path> restoredDataFilesStream = Files.list(restoredDataRoot)) {
-      for (Path p : (Iterable<Path>) restoredDataFilesStream::iterator) {
-        Path destFile = destDataRoot.resolve(p.getFileName());
-        Files.createLink(destFile, p);
-      }
     }
   }
 
@@ -595,49 +512,11 @@ public class ImmutableIndexState extends IndexState {
 
   @Override
   public long commit() throws IOException {
-    // the shards map is created once and passed to all subsequent instance
-    synchronized (shards) {
-      long gen = -1;
-      for (ShardState shard : shards.values()) {
-        gen = shard.commit();
-      }
-
-      SnapshotId snapshotId = null;
-      try {
-        IndexDataLocationType locationType =
-            getGlobalState().getConfiguration().getIndexStartConfig().getDataLocationType();
-        if (this.getShard(0).isPrimary()
-            && getGlobalState().getIncArchiver().isPresent()
-            && locationType.equals(IndexDataLocationType.REMOTE)) {
-          CreateSnapshotRequest createSnapshotRequest =
-              CreateSnapshotRequest.newBuilder().setIndexName(getName()).build();
-
-          snapshotId =
-              new CreateSnapshotHandler()
-                  .createSnapshot(this, createSnapshotRequest)
-                  .getSnapshotId();
-          // upload data
-          Collection<String> segmentFiles = getSegmentFilesInSnapshot(this, snapshotId);
-          String resourceData = IndexBackupUtils.getResourceData(uniqueName);
-          Archiver incArchiver = getGlobalState().getIncArchiver().get();
-          String versionHash =
-              incArchiver.upload(
-                  getGlobalState().getConfiguration().getServiceName(),
-                  resourceData,
-                  getRootDir(),
-                  segmentFiles,
-                  Collections.emptyList(),
-                  true);
-          incArchiver.blessVersion(
-              getGlobalState().getConfiguration().getServiceName(), resourceData, versionHash);
-        }
-      } finally {
-        if (snapshotId != null) {
-          releaseSnapshot(this, getName(), snapshotId);
-        }
-      }
-      return gen;
+    long gen = -1;
+    for (ShardState shard : shards.values()) {
+      gen = shard.commit();
     }
+    return gen;
   }
 
   @Override

@@ -28,7 +28,10 @@ import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtFileMetaData;
+import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
+import com.yelp.nrtsearch.server.utils.TimeStringUtil;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -39,8 +42,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.apache.commons.io.IOUtils;
+import org.apache.lucene.replicator.nrt.CopyState;
+import org.apache.lucene.replicator.nrt.FileMetaData;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -116,6 +123,17 @@ public class S3BackendTest {
         s3Backend.exists("exist_service_2", "exist_index", IndexResourceType.WARMING_QUERIES));
     assertFalse(
         s3Backend.exists("exist_service", "exist_index_2", IndexResourceType.WARMING_QUERIES));
+  }
+
+  @Test
+  public void testExists_pointState() throws IOException {
+    String keyPrefix = S3Backend.indexPointStateResourcePrefix("exist_service3", "exist_index");
+    String key = keyPrefix + S3Backend.CURRENT_VERSION;
+    s3.putObject(BUCKET_NAME, key, "version");
+
+    assertTrue(s3Backend.exists("exist_service3", "exist_index", IndexResourceType.POINT_STATE));
+    assertFalse(s3Backend.exists("exist_service_4", "exist_index", IndexResourceType.POINT_STATE));
+    assertFalse(s3Backend.exists("exist_service3", "exist_index_2", IndexResourceType.POINT_STATE));
   }
 
   @Test
@@ -359,6 +377,258 @@ public class S3BackendTest {
     assertEquals(
         "test_service/_version/test_resource/version",
         S3Backend.getVersionKey("test_service", "test_resource", "version"));
+  }
+
+  @Test
+  public void testUploadIndexFiles() throws IOException {
+    File indexDir = folder.newFolder("index_dir");
+    File file1 = new File(indexDir, "file1");
+    Files.write(file1.toPath(), "file1_data".getBytes());
+    File file2 = new File(indexDir, "file2");
+    Files.write(file2.toPath(), "file2_data".getBytes());
+
+    NrtFileMetaData fileMetaData1 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "time_string_1");
+    NrtFileMetaData fileMetaData2 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "time_string_2");
+
+    s3Backend.uploadIndexFiles(
+        "upload_index_service",
+        "upload_index",
+        indexDir.toPath(),
+        Map.of("file1", fileMetaData1, "file2", fileMetaData2));
+
+    String keyPrefix = S3Backend.indexDataResourcePrefix("upload_index_service", "upload_index");
+    String filename1 = S3Backend.getIndexBackendFileName("file1", fileMetaData1);
+    String filename2 = S3Backend.getIndexBackendFileName("file2", fileMetaData2);
+
+    String contents =
+        convertToString(s3.getObject(BUCKET_NAME, keyPrefix + filename1).getObjectContent());
+    assertEquals("file1_data", contents);
+    contents = convertToString(s3.getObject(BUCKET_NAME, keyPrefix + filename2).getObjectContent());
+    assertEquals("file2_data", contents);
+  }
+
+  @Test
+  public void testUploadIndexFiles_notFound() throws IOException {
+    File indexDir = folder.newFolder("index_dir");
+    File file1 = new File(indexDir, "file1");
+    Files.write(file1.toPath(), "file1_data".getBytes());
+    File file2 = new File(indexDir, "file2");
+    Files.write(file2.toPath(), "file2_data".getBytes());
+
+    NrtFileMetaData fileMetaData1 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "time_string_1");
+    NrtFileMetaData fileMetaData2 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "time_string_2");
+    NrtFileMetaData fileMetaDataNotExist =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid3", "time_string_3");
+
+    try {
+      s3Backend.uploadIndexFiles(
+          "upload_index_service_2",
+          "upload_index",
+          indexDir.toPath(),
+          Map.of(
+              "file1", fileMetaData1, "not_exist", fileMetaDataNotExist, "file2", fileMetaData2));
+      fail();
+    } catch (IOException e) {
+      assertTrue(e.getCause().getMessage().contains("No such file or directory"));
+    }
+  }
+
+  @Test
+  public void testDownloadIndexFiles() throws IOException {
+    File indexDir = folder.newFolder("index_dir");
+
+    NrtFileMetaData fileMetaData1 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "time_string_1");
+    NrtFileMetaData fileMetaData2 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "time_string_2");
+
+    String keyPrefix =
+        S3Backend.indexDataResourcePrefix("download_index_service", "download_index");
+    String filename1 = S3Backend.getIndexBackendFileName("file1", fileMetaData1);
+    String filename2 = S3Backend.getIndexBackendFileName("file2", fileMetaData2);
+
+    s3.putObject(BUCKET_NAME, keyPrefix + filename1, "file1_data");
+    s3.putObject(BUCKET_NAME, keyPrefix + filename2, "file2_data");
+
+    s3Backend.downloadIndexFiles(
+        "download_index_service",
+        "download_index",
+        indexDir.toPath(),
+        Map.of("file1", fileMetaData1, "file2", fileMetaData2));
+
+    String contents = convertToString(Files.newInputStream(indexDir.toPath().resolve("file1")));
+    assertEquals("file1_data", contents);
+    contents = convertToString(Files.newInputStream(indexDir.toPath().resolve("file2")));
+    assertEquals("file2_data", contents);
+  }
+
+  @Test
+  public void testDownloadIndexFiles_notFound() throws IOException {
+    File indexDir = folder.newFolder("index_dir");
+
+    NrtFileMetaData fileMetaData1 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "time_string_1");
+    NrtFileMetaData fileMetaData2 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "time_string_2");
+    NrtFileMetaData fileMetaDataNotExist =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid3", "time_string_3");
+
+    String keyPrefix =
+        S3Backend.indexDataResourcePrefix("download_index_service", "download_index");
+    String filename1 = S3Backend.getIndexBackendFileName("file1", fileMetaData1);
+    String filename2 = S3Backend.getIndexBackendFileName("file2", fileMetaData2);
+
+    s3.putObject(BUCKET_NAME, keyPrefix + filename1, "file1_data");
+    s3.putObject(BUCKET_NAME, keyPrefix + filename2, "file2_data");
+
+    try {
+      s3Backend.downloadIndexFiles(
+          "download_index_service",
+          "download_index",
+          indexDir.toPath(),
+          Map.of(
+              "file1", fileMetaData1, "not_exist", fileMetaDataNotExist, "file2", fileMetaData2));
+      fail();
+    } catch (IOException e) {
+      assertTrue(e.getCause().getMessage().contains("Not Found"));
+    }
+  }
+
+  @Test
+  public void testGetIndexBackendFileName() {
+    NrtFileMetaData fileMetaData =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid", "time_string");
+    assertEquals(
+        "time_string-pid-file_name", S3Backend.getIndexBackendFileName("file_name", fileMetaData));
+  }
+
+  @Test
+  public void testIndexDataResourcePrefix() {
+    assertEquals("service/index/data/", S3Backend.indexDataResourcePrefix("service", "index"));
+  }
+
+  @Test
+  public void testGetFileNamePairs() throws IOException {
+    NrtFileMetaData fileMetaData1 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid1", "time_string_1");
+    NrtFileMetaData fileMetaData2 =
+        new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "time_string_2");
+
+    List<S3Backend.FileNamePair> fileNamePairs =
+        S3Backend.getFileNamePairs(Map.of("file1", fileMetaData1, "file2", fileMetaData2));
+    S3Backend.FileNamePair expected1 =
+        new S3Backend.FileNamePair("file1", "time_string_1-pid1-file1");
+    S3Backend.FileNamePair expected2 =
+        new S3Backend.FileNamePair("file2", "time_string_2-pid2-file2");
+    assertEquals(2, fileNamePairs.size());
+    assertTrue(fileNamePairs.contains(expected1));
+    assertTrue(fileNamePairs.contains(expected2));
+  }
+
+  @Test
+  public void testUploadPointState() throws IOException {
+    NrtPointState pointState = getPointState();
+
+    s3Backend.uploadPointState("upload_point_service", "upload_point_index", pointState);
+
+    String keyPrefix =
+        S3Backend.indexPointStateResourcePrefix("upload_point_service", "upload_point_index");
+    String fileName = S3Backend.getPointStateFileName(pointState);
+    String contents =
+        convertToString(s3.getObject(BUCKET_NAME, keyPrefix + fileName).getObjectContent());
+    assertEquals(getPointStateJson(), contents);
+
+    String latestKey = keyPrefix + S3Backend.CURRENT_VERSION;
+    contents = convertToString(s3.getObject(BUCKET_NAME, latestKey).getObjectContent());
+    assertEquals(fileName, contents);
+  }
+
+  @Test
+  public void testDownloadPointState() throws IOException {
+    NrtPointState pointState = getPointState();
+    String keyPrefix =
+        S3Backend.indexPointStateResourcePrefix("download_point_service", "download_point_index");
+    String fileName = S3Backend.getPointStateFileName(pointState);
+    s3.putObject(BUCKET_NAME, keyPrefix + fileName, getPointStateJson());
+    s3.putObject(BUCKET_NAME, keyPrefix + S3Backend.CURRENT_VERSION, fileName);
+
+    NrtPointState downloadedPointState =
+        s3Backend.downloadPointState("download_point_service", "download_point_index");
+    assertEquals(pointState, downloadedPointState);
+  }
+
+  @Test
+  public void testIndexPointStateResourcePrefix() {
+    assertEquals(
+        "service/index/point_state/", S3Backend.indexPointStateResourcePrefix("service", "index"));
+  }
+
+  @Test
+  public void testGetPointStateFileName() {
+    NrtPointState pointState = getPointState();
+    String fileName = S3Backend.getPointStateFileName(pointState);
+    String[] components = fileName.split("-");
+    assertEquals(3, components.length);
+    assertTrue(TimeStringUtil.isTimeStringSec(components[0]));
+    assertEquals("primaryId", components[1]);
+    assertEquals("1", components[2]);
+  }
+
+  private NrtPointState getPointState() {
+    long version = 1;
+    long gen = 3;
+    byte[] infosBytes = new byte[] {1, 2, 3, 4, 5};
+    long primaryGen = 5;
+    Set<String> completedMergeFiles = Set.of("file1");
+    String primaryId = "primaryId";
+    FileMetaData fileMetaData =
+        new FileMetaData(new byte[] {6, 7, 8}, new byte[] {0, 10, 11}, 10, 25);
+    NrtFileMetaData nrtFileMetaData =
+        new NrtFileMetaData(
+            new byte[] {6, 7, 8}, new byte[] {0, 10, 11}, 10, 25, "primaryId2", "timeString");
+    CopyState copyState =
+        new CopyState(
+            Map.of("file3", fileMetaData),
+            version,
+            gen,
+            infosBytes,
+            completedMergeFiles,
+            primaryGen,
+            null);
+    return new NrtPointState(copyState, Map.of("file3", nrtFileMetaData), primaryId);
+  }
+
+  private String getPointStateJson() {
+    return "{\"files\":{\"file3\":{\"header\":\"BgcI\",\"footer\":\"AAoL\",\"length\":10,\"checksum\":25,\"primaryId\":\"primaryId2\",\"timeString\":\"timeString\"}},\"version\":1,\"gen\":3,\"infosBytes\":\"AQIDBAU=\",\"primaryGen\":5,\"completedMergeFiles\":[\"file1\"],\"primaryId\":\"primaryId\"}";
+  }
+
+  @Test
+  public void testGetCurrentResourceName() throws IOException {
+    String prefix = "service_get_current/resource/";
+    s3.putObject(BUCKET_NAME, prefix + S3Backend.CURRENT_VERSION, "current_version_name");
+    assertEquals("current_version_name", s3Backend.getCurrentResourceName(prefix));
+  }
+
+  @Test
+  public void testSetCurrentResource() throws IOException {
+    String prefix = "service_set_current/resource/";
+    s3Backend.setCurrentResource(prefix, "current_version_name");
+    String contents =
+        convertToString(
+            s3.getObject(BUCKET_NAME, prefix + S3Backend.CURRENT_VERSION).getObjectContent());
+    assertEquals("current_version_name", contents);
+  }
+
+  @Test
+  public void testCurrentResourceExists() {
+    String prefix = "service_current_exists/resource/";
+    assertFalse(s3Backend.currentResourceExists(prefix));
+    s3.putObject(BUCKET_NAME, prefix + S3Backend.CURRENT_VERSION, "current_version_name");
+    assertTrue(s3Backend.currentResourceExists(prefix));
   }
 
   private void putMultiPart(String key, List<String> partsData) {
