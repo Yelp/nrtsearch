@@ -39,6 +39,9 @@ public class StateUtils {
   public static final String GLOBAL_STATE_FOLDER = "global_state";
   public static final String GLOBAL_STATE_FILE = "state.json";
   public static final String INDEX_STATE_FILE = "index_state.json";
+  private static final JsonFormat.Parser PROTO_JSON_PARSER =
+      JsonFormat.parser().ignoringUnknownFields();
+  private static final JsonFormat.Printer PROTO_JSON_PRINTER = JsonFormat.printer();
 
   private StateUtils() {}
 
@@ -135,7 +138,7 @@ public class StateUtils {
     byte[] fileData = Files.readAllBytes(filePath);
     String stateStr = fromUTF8(fileData);
     GlobalStateInfo.Builder stateBuilder = GlobalStateInfo.newBuilder();
-    JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
+    PROTO_JSON_PARSER.merge(stateStr, stateBuilder);
     return stateBuilder.build();
   }
 
@@ -149,7 +152,7 @@ public class StateUtils {
   public static GlobalStateInfo globalStateFromUTF8(byte[] buffer) throws IOException {
     String stateStr = fromUTF8(buffer);
     GlobalStateInfo.Builder stateBuilder = GlobalStateInfo.newBuilder();
-    JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
+    PROTO_JSON_PARSER.merge(stateStr, stateBuilder);
     return stateBuilder.build();
   }
 
@@ -165,7 +168,7 @@ public class StateUtils {
     byte[] fileData = Files.readAllBytes(filePath);
     String stateStr = fromUTF8(fileData);
     IndexStateInfo.Builder stateBuilder = IndexStateInfo.newBuilder();
-    JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
+    PROTO_JSON_PARSER.merge(stateStr, stateBuilder);
     return stateBuilder.build();
   }
 
@@ -179,7 +182,7 @@ public class StateUtils {
   public static IndexStateInfo indexStateFromUTF8(byte[] buffer) throws IOException {
     String stateStr = fromUTF8(buffer);
     IndexStateInfo.Builder stateBuilder = IndexStateInfo.newBuilder();
-    JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
+    PROTO_JSON_PARSER.merge(stateStr, stateBuilder);
     return stateBuilder.build();
   }
 
@@ -192,7 +195,7 @@ public class StateUtils {
    */
   public static byte[] globalStateToUTF8(GlobalStateInfo globalStateInfo) throws IOException {
     Objects.requireNonNull(globalStateInfo);
-    String stateStr = JsonFormat.printer().print(globalStateInfo);
+    String stateStr = PROTO_JSON_PRINTER.print(globalStateInfo);
     return toUTF8(stateStr);
   }
 
@@ -205,7 +208,7 @@ public class StateUtils {
    */
   public static byte[] indexStateToUTF8(IndexStateInfo indexStateInfo) throws IOException {
     Objects.requireNonNull(indexStateInfo);
-    String stateStr = JsonFormat.printer().print(indexStateInfo);
+    String stateStr = PROTO_JSON_PRINTER.print(indexStateInfo);
     return toUTF8(stateStr);
   }
 
