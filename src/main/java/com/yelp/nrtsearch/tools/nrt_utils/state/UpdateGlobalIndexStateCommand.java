@@ -18,12 +18,10 @@ package com.yelp.nrtsearch.tools.nrt_utils.state;
 import com.amazonaws.services.s3.AmazonS3;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.backup.VersionManager;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
-import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.utils.TimeStringUtil;
@@ -122,15 +120,9 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
       s3Client =
           StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    VersionManager versionManager = new VersionManager(s3Client, bucketName);
     S3Backend s3Backend = new S3Backend(bucketName, false, s3Client);
 
-    String resolvedResourceName =
-        StateCommandUtils.getResourceName(
-            versionManager, serviceName, RemoteStateBackend.GLOBAL_STATE_RESOURCE, false);
-    String stateFileContents =
-        StateCommandUtils.getStateFileContents(
-            versionManager, serviceName, resolvedResourceName, StateUtils.GLOBAL_STATE_FILE);
+    String stateFileContents = StateCommandUtils.getGlobalStateFileContents(s3Backend, serviceName);
     if (stateFileContents == null) {
       System.out.println("Could not find cluster global state");
       return 1;
@@ -152,18 +144,16 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
     if (dateTimeString != null) {
       String updatedIndexResource =
           BackendGlobalState.getUniqueIndexName(indexName, dateTimeString);
-      String updatedIndexStateResource =
-          StateCommandUtils.getIndexStateResource(updatedIndexResource);
       boolean dataExists =
           s3Backend.exists(
               serviceName, updatedIndexResource, RemoteBackend.IndexResourceType.POINT_STATE);
-      long stateVersion =
-          versionManager.getLatestVersionNumber(serviceName, updatedIndexStateResource);
-      if (!dataExists || stateVersion == -1) {
+      boolean stateExists =
+          s3Backend.exists(
+              serviceName, updatedIndexResource, RemoteBackend.IndexResourceType.INDEX_STATE);
+      if (!dataExists || !stateExists) {
         System.out.println("Missing blessed resources for new index id: " + dateTimeString);
         System.out.println("Data resource: " + updatedIndexResource + ", exists: " + dataExists);
-        System.out.println(
-            "State resource: " + updatedIndexStateResource + ", version: " + stateVersion);
+        System.out.println("State resource: " + updatedIndexResource + ", exists: " + stateExists);
         return 1;
       }
 
@@ -184,12 +174,7 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
       GlobalStateInfo updatedGlobalStateInfo = newStateBuilder.build();
       String stateStr = JsonFormat.printer().print(updatedGlobalStateInfo);
       byte[] stateBytes = StateUtils.toUTF8(stateStr);
-      StateCommandUtils.writeStateDataToBackend(
-          versionManager,
-          serviceName,
-          resolvedResourceName,
-          StateUtils.GLOBAL_STATE_FILE,
-          stateBytes);
+      s3Backend.uploadGlobalState(serviceName, stateBytes);
 
       System.out.println("Updated global state: " + stateStr);
     } else {
