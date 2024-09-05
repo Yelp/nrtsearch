@@ -32,16 +32,17 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.luceneserver.search.cache.NrtQueryCache;
+import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
-import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.client.CollectorRegistry;
-import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -158,18 +159,17 @@ public class LuceneServerTest {
   }
 
   private void setUpWarmer() throws IOException {
-    Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
-    Path warmingQueriesPath = warmingQueriesDir.resolve("warming_queries.txt");
-    try (BufferedWriter writer = Files.newBufferedWriter(warmingQueriesPath)) {
+    ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+    try (OutputStreamWriter writer =
+        new OutputStreamWriter(byteArrayOutputStream, StateUtils.getValidatingUTF8Encoder())) {
       List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
       for (String line : testSearchRequestsJson) {
         writer.write(line);
-        writer.newLine();
+        writer.write("\n");
       }
-      writer.flush();
     }
-    remoteBackend.uploadFile(
-        TEST_SERVICE_NAME, "test_index", IndexResourceType.WARMING_QUERIES, warmingQueriesPath);
+    byte[] warmingQueriesBytes = byteArrayOutputStream.toByteArray();
+    remoteBackend.uploadWarmingQueries(TEST_SERVICE_NAME, "test_index", warmingQueriesBytes);
   }
 
   private List<String> getTestSearchRequestsAsJsonStrings() {

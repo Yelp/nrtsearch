@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.state;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
@@ -40,7 +39,9 @@ public class StateUtils {
   public static final String GLOBAL_STATE_FOLDER = "global_state";
   public static final String GLOBAL_STATE_FILE = "state.json";
   public static final String INDEX_STATE_FILE = "index_state.json";
-  public static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final JsonFormat.Parser PROTO_JSON_PARSER =
+      JsonFormat.parser().ignoringUnknownFields();
+  private static final JsonFormat.Printer PROTO_JSON_PRINTER = JsonFormat.printer();
 
   private StateUtils() {}
 
@@ -76,8 +77,8 @@ public class StateUtils {
     Objects.requireNonNull(directory);
     Objects.requireNonNull(fileName);
 
-    String stateStr = JsonFormat.printer().print(globalStateInfo);
-    writeToFile(stateStr, directory, fileName);
+    byte[] stateBytes = globalStateToUTF8(globalStateInfo);
+    writeToFile(stateBytes, directory, fileName);
   }
 
   /**
@@ -96,24 +97,24 @@ public class StateUtils {
     Objects.requireNonNull(directory);
     Objects.requireNonNull(fileName);
 
-    String stateStr = JsonFormat.printer().print(stateInfo);
-    writeToFile(stateStr, directory, fileName);
+    byte[] stateBytes = indexStateToUTF8(stateInfo);
+    writeToFile(stateBytes, directory, fileName);
   }
 
   /**
-   * Write a string into a file in the specified directory. Data is written to a temp file, then
+   * Write utf8 data into a file in the specified directory. Data is written to a temp file, then
    * moved to replace any existing version. File is synced for durability.
    *
-   * @param stateStr file data string
+   * @param stateBytes file data utf8 buffer
    * @param directory directory to write state file into
    * @param fileName final name of state file
    * @throws IOException on filesystem error
    */
-  public static void writeToFile(String stateStr, Path directory, String fileName)
+  public static void writeToFile(byte[] stateBytes, Path directory, String fileName)
       throws IOException {
     File tmpStateFile = File.createTempFile(fileName, ".tmp", directory.toFile());
     try (FileOutputStream fileOutputStream = new FileOutputStream(tmpStateFile)) {
-      fileOutputStream.write(toUTF8(stateStr));
+      fileOutputStream.write(stateBytes);
     }
 
     Path tmpStatePath = tmpStateFile.toPath();
@@ -137,7 +138,21 @@ public class StateUtils {
     byte[] fileData = Files.readAllBytes(filePath);
     String stateStr = fromUTF8(fileData);
     GlobalStateInfo.Builder stateBuilder = GlobalStateInfo.newBuilder();
-    JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
+    PROTO_JSON_PARSER.merge(stateStr, stateBuilder);
+    return stateBuilder.build();
+  }
+
+  /**
+   * Read a {@link GlobalStateInfo} from a UTF8 encoded byte buffer.
+   *
+   * @param buffer UTF8 encoded byte buffer
+   * @return global state
+   * @throws IOException on parsing error
+   */
+  public static GlobalStateInfo globalStateFromUTF8(byte[] buffer) throws IOException {
+    String stateStr = fromUTF8(buffer);
+    GlobalStateInfo.Builder stateBuilder = GlobalStateInfo.newBuilder();
+    PROTO_JSON_PARSER.merge(stateStr, stateBuilder);
     return stateBuilder.build();
   }
 
@@ -153,8 +168,74 @@ public class StateUtils {
     byte[] fileData = Files.readAllBytes(filePath);
     String stateStr = fromUTF8(fileData);
     IndexStateInfo.Builder stateBuilder = IndexStateInfo.newBuilder();
-    JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
+    PROTO_JSON_PARSER.merge(stateStr, stateBuilder);
     return stateBuilder.build();
+  }
+
+  /**
+   * Read {@link IndexStateInfo} from a UTF8 encoded byte buffer.
+   *
+   * @param buffer UTF8 encoded byte buffer
+   * @return index state
+   * @throws IOException on parsing error
+   */
+  public static IndexStateInfo indexStateFromUTF8(byte[] buffer) throws IOException {
+    String stateStr = fromUTF8(buffer);
+    IndexStateInfo.Builder stateBuilder = IndexStateInfo.newBuilder();
+    PROTO_JSON_PARSER.merge(stateStr, stateBuilder);
+    return stateBuilder.build();
+  }
+
+  /**
+   * Convert a {@link GlobalStateInfo} to a UTF8 encoded byte array.
+   *
+   * @param globalStateInfo global state to encode
+   * @return UTF8 encoded byte array
+   * @throws IOException on serialization error
+   */
+  public static byte[] globalStateToUTF8(GlobalStateInfo globalStateInfo) throws IOException {
+    Objects.requireNonNull(globalStateInfo);
+    String stateStr = PROTO_JSON_PRINTER.print(globalStateInfo);
+    return toUTF8(stateStr);
+  }
+
+  /**
+   * Convert a {@link IndexStateInfo} to a UTF8 encoded byte array.
+   *
+   * @param indexStateInfo index state to encode
+   * @return UTF8 encoded byte array
+   * @throws IOException on serialization error
+   */
+  public static byte[] indexStateToUTF8(IndexStateInfo indexStateInfo) throws IOException {
+    Objects.requireNonNull(indexStateInfo);
+    String stateStr = PROTO_JSON_PRINTER.print(indexStateInfo);
+    return toUTF8(stateStr);
+  }
+
+  /**
+   * Get a UTF8 decoder that validates input for malformed or unmappable characters.
+   *
+   * @return UTF8 decoder
+   */
+  public static CharsetDecoder getValidatingUTF8Decoder() {
+    CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
+    // Make sure we catch any invalid UTF8:
+    decoder.onMalformedInput(CodingErrorAction.REPORT);
+    decoder.onUnmappableCharacter(CodingErrorAction.REPORT);
+    return decoder;
+  }
+
+  /**
+   * Get a UTF8 encoder that validates input for malformed or unmappable characters.
+   *
+   * @return UTF8 encoder
+   */
+  public static CharsetEncoder getValidatingUTF8Encoder() {
+    CharsetEncoder encoder = StandardCharsets.UTF_8.newEncoder();
+    // Make sure we catch any invalid UTF16:
+    encoder.onMalformedInput(CodingErrorAction.REPORT);
+    encoder.onUnmappableCharacter(CodingErrorAction.REPORT);
+    return encoder;
   }
 
   /**
@@ -164,10 +245,7 @@ public class StateUtils {
    * @throws IllegalArgumentException on malformed input string
    */
   public static byte[] toUTF8(String s) {
-    CharsetEncoder encoder = StandardCharsets.UTF_8.newEncoder();
-    // Make sure we catch any invalid UTF16:
-    encoder.onMalformedInput(CodingErrorAction.REPORT);
-    encoder.onUnmappableCharacter(CodingErrorAction.REPORT);
+    CharsetEncoder encoder = getValidatingUTF8Encoder();
     try {
       ByteBuffer bb = encoder.encode(CharBuffer.wrap(s));
       byte[] bytes = new byte[bb.limit()];
@@ -186,10 +264,7 @@ public class StateUtils {
    * @throws IllegalArgumentException on malformed input bytes
    */
   public static String fromUTF8(byte[] bytes) {
-    CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
-    // Make sure we catch any invalid UTF8:
-    decoder.onMalformedInput(CodingErrorAction.REPORT);
-    decoder.onUnmappableCharacter(CodingErrorAction.REPORT);
+    CharsetDecoder decoder = getValidatingUTF8Decoder();
     try {
       return decoder.decode(ByteBuffer.wrap(bytes)).toString();
     } catch (CharacterCodingException cce) {

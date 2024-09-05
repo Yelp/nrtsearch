@@ -17,10 +17,7 @@ package com.yelp.nrtsearch.tools.nrt_utils.state;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.google.common.annotations.VisibleForTesting;
-import com.yelp.nrtsearch.server.backup.VersionManager;
-import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
-import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
-import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
@@ -41,7 +38,7 @@ public class GetRemoteStateCommand implements Callable<Integer> {
       names = {"-r", "--resourceName"},
       description =
           "Resource name, should be index name or \""
-              + RemoteStateBackend.GLOBAL_STATE_RESOURCE
+              + StateCommandUtils.GLOBAL_STATE_RESOURCE
               + "\"",
       required = true)
   private String resourceName;
@@ -99,18 +96,17 @@ public class GetRemoteStateCommand implements Callable<Integer> {
       s3Client =
           StateCommandUtils.createS3Client(bucketName, region, credsFile, credsProfile, maxRetry);
     }
-    VersionManager versionManager = new VersionManager(s3Client, bucketName);
-
+    S3Backend s3Backend = new S3Backend(bucketName, false, s3Client);
     String resolvedResourceName =
-        StateCommandUtils.getResourceName(
-            versionManager, serviceName, resourceName, exactResourceName);
-    String stateFileName =
-        IndexBackupUtils.isBackendGlobalState(resolvedResourceName)
-            ? StateUtils.GLOBAL_STATE_FILE
-            : StateUtils.INDEX_STATE_FILE;
-    String stateFileContents =
-        StateCommandUtils.getStateFileContents(
-            versionManager, serviceName, resolvedResourceName, stateFileName);
+        StateCommandUtils.getResourceName(s3Backend, serviceName, resourceName, exactResourceName);
+
+    String stateFileContents;
+    if (StateCommandUtils.isGlobalState(resourceName)) {
+      stateFileContents = StateCommandUtils.getGlobalStateFileContents(s3Backend, serviceName);
+    } else {
+      stateFileContents =
+          StateCommandUtils.getIndexStateFileContents(s3Backend, serviceName, resolvedResourceName);
+    }
     if (stateFileContents != null) {
       if (outputFile.isEmpty()) {
         System.out.println("Content: " + stateFileContents);

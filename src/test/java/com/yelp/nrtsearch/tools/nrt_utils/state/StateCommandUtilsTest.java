@@ -36,23 +36,22 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.backup.VersionManager;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
-import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import com.yelp.nrtsearch.server.luceneserver.index.ImmutableIndexState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 import org.apache.commons.io.IOUtils;
 import org.junit.After;
 import org.junit.Rule;
@@ -74,8 +73,8 @@ public class StateCommandUtilsTest {
     return s3;
   }
 
-  private VersionManager getVersionManager() {
-    return new VersionManager(getS3(), TEST_BUCKET);
+  private S3Backend getRemoteBackend() {
+    return new S3Backend(TEST_BUCKET, false, getS3());
   }
 
   private TestServer getTestServer() throws IOException {
@@ -89,60 +88,42 @@ public class StateCommandUtilsTest {
   }
 
   @Test
-  public void testGetStateFileContents_GlobalNotExist() throws IOException {
+  public void testGetGlobalStateFileContents_notExist() throws IOException {
     TestServer.initS3(folder);
     String contents =
-        StateCommandUtils.getStateFileContents(
-            getVersionManager(),
-            SERVICE_NAME,
-            RemoteStateBackend.GLOBAL_STATE_RESOURCE,
-            StateUtils.GLOBAL_STATE_FILE);
+        StateCommandUtils.getGlobalStateFileContents(getRemoteBackend(), SERVICE_NAME);
     assertNull(contents);
   }
 
   @Test
-  public void testGetStateFileContents_IndexNotExist() throws IOException {
+  public void testGetIndexStateFileContents_notExist() throws IOException {
     TestServer.initS3(folder);
     String contents =
-        StateCommandUtils.getStateFileContents(
-            getVersionManager(), SERVICE_NAME, "test_index", StateUtils.INDEX_STATE_FILE);
+        StateCommandUtils.getIndexStateFileContents(getRemoteBackend(), SERVICE_NAME, "test_index");
     assertNull(contents);
   }
 
   @Test
-  public void testGetStateFileContents_ResourceNotExist() throws IOException {
+  public void testGetIndexStateFileContents_ResourceNotExist() throws IOException {
     TestServer.initS3(folder);
-    VersionManager mockVersionManager = mock(VersionManager.class);
-    String version = UUID.randomUUID().toString();
-    String indexResource = "test_index" + IndexBackupUtils.INDEX_STATE_SUFFIX;
-    when(mockVersionManager.getLatestVersionNumber(SERVICE_NAME, indexResource)).thenReturn(5L);
-    when(mockVersionManager.getVersionString(SERVICE_NAME, indexResource, String.valueOf(5L)))
-        .thenReturn(version);
-    when(mockVersionManager.getS3()).thenReturn(getS3());
-    when(mockVersionManager.getBucketName()).thenReturn(TEST_BUCKET);
-
+    S3Backend mockS3Backend = mock(S3Backend.class);
+    when(mockS3Backend.exists(
+            SERVICE_NAME, "test_index", RemoteBackend.IndexResourceType.INDEX_STATE))
+        .thenReturn(false);
     String contents =
-        StateCommandUtils.getStateFileContents(
-            mockVersionManager, SERVICE_NAME, "test_index", StateUtils.INDEX_STATE_FILE);
+        StateCommandUtils.getIndexStateFileContents(mockS3Backend, SERVICE_NAME, "test_index");
     assertNull(contents);
 
-    verify(mockVersionManager, times(1)).getLatestVersionNumber(SERVICE_NAME, indexResource);
-    verify(mockVersionManager, times(1))
-        .getVersionString(SERVICE_NAME, indexResource, String.valueOf(5L));
-    verify(mockVersionManager, times(1)).getS3();
-    verify(mockVersionManager, times(1)).getBucketName();
-    verifyNoMoreInteractions(mockVersionManager);
+    verify(mockS3Backend, times(1))
+        .exists(SERVICE_NAME, "test_index", RemoteBackend.IndexResourceType.INDEX_STATE);
+    verifyNoMoreInteractions(mockS3Backend);
   }
 
   @Test
-  public void testGetStateFileContents_GlobalState() throws IOException {
+  public void testGetGlobalStateFileContents() throws IOException {
     getTestServer();
     String contents =
-        StateCommandUtils.getStateFileContents(
-            getVersionManager(),
-            SERVICE_NAME,
-            RemoteStateBackend.GLOBAL_STATE_RESOURCE,
-            StateUtils.GLOBAL_STATE_FILE);
+        StateCommandUtils.getGlobalStateFileContents(getRemoteBackend(), SERVICE_NAME);
     GlobalStateInfo.Builder builder = GlobalStateInfo.newBuilder();
     JsonFormat.parser().merge(contents, builder);
     GlobalStateInfo stateInfo = builder.build();
@@ -152,14 +133,13 @@ public class StateCommandUtilsTest {
   }
 
   @Test
-  public void testGetStateFileContents_IndexState() throws IOException {
+  public void testGetIndexStateFileContents() throws IOException {
     TestServer server = getTestServer();
     String contents =
-        StateCommandUtils.getStateFileContents(
-            getVersionManager(),
+        StateCommandUtils.getIndexStateFileContents(
+            getRemoteBackend(),
             SERVICE_NAME,
-            server.getGlobalState().getDataResourceForIndex("test_index"),
-            StateUtils.INDEX_STATE_FILE);
+            server.getGlobalState().getDataResourceForIndex("test_index"));
     IndexStateInfo.Builder builder = IndexStateInfo.newBuilder();
     JsonFormat.parser().merge(contents, builder);
     IndexStateInfo stateInfo = builder.build();
@@ -167,18 +147,6 @@ public class StateCommandUtilsTest {
         ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
             .getCurrentStateInfo();
     assertEquals(expected, stateInfo);
-  }
-
-  @Test
-  public void testGetStateFileContents_FileNotInTar() throws IOException {
-    getTestServer();
-    String contents =
-        StateCommandUtils.getStateFileContents(
-            getVersionManager(),
-            SERVICE_NAME,
-            RemoteStateBackend.GLOBAL_STATE_RESOURCE,
-            "not_state_file");
-    assertNull(contents);
   }
 
   @Test
@@ -195,15 +163,10 @@ public class StateCommandUtilsTest {
   }
 
   @Test
-  public void testWriteStateDataToBackend_GlobalState() throws IOException {
+  public void testWriteGlobalStateDataToBackend() throws IOException {
     TestServer server = getTestServer();
-    VersionManager versionManager = getVersionManager();
-    String contents =
-        StateCommandUtils.getStateFileContents(
-            versionManager,
-            SERVICE_NAME,
-            RemoteStateBackend.GLOBAL_STATE_RESOURCE,
-            StateUtils.GLOBAL_STATE_FILE);
+    S3Backend remoteBackend = getRemoteBackend();
+    String contents = StateCommandUtils.getGlobalStateFileContents(remoteBackend, SERVICE_NAME);
     assertEquals(1, server.indices().size());
 
     GlobalStateInfo.Builder builder = GlobalStateInfo.newBuilder();
@@ -212,19 +175,14 @@ public class StateCommandUtilsTest {
     GlobalStateInfo stateInfo = builder.build();
 
     byte[] stateBytes = StateUtils.toUTF8(JsonFormat.printer().print(stateInfo));
-    StateCommandUtils.writeStateDataToBackend(
-        versionManager,
-        SERVICE_NAME,
-        RemoteStateBackend.GLOBAL_STATE_RESOURCE,
-        StateUtils.GLOBAL_STATE_FILE,
-        stateBytes);
+    StateCommandUtils.writeGlobalStateDataToBackend(remoteBackend, SERVICE_NAME, stateBytes);
 
     server.restart();
     assertEquals(0, server.indices().size());
   }
 
   @Test
-  public void testWriteStateDataToBackend_IndexState() throws IOException {
+  public void testWriteIndexStateDataToBackend() throws IOException {
     TestServer server = getTestServer();
     IndexStateInfo currentState =
         ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
@@ -237,11 +195,10 @@ public class StateCommandUtilsTest {
                     .build())
             .build();
     byte[] stateBytes = StateUtils.toUTF8(JsonFormat.printer().print(updatedState));
-    StateCommandUtils.writeStateDataToBackend(
-        getVersionManager(),
+    StateCommandUtils.writeIndexStateDataToBackend(
+        getRemoteBackend(),
         SERVICE_NAME,
         server.getGlobalState().getDataResourceForIndex("test_index"),
-        StateUtils.INDEX_STATE_FILE,
         stateBytes);
 
     server.restart();
@@ -326,10 +283,7 @@ public class StateCommandUtilsTest {
   public void testGetResourceName_GlobalState() throws IOException {
     String resourceName =
         StateCommandUtils.getResourceName(
-            mock(VersionManager.class),
-            SERVICE_NAME,
-            RemoteStateBackend.GLOBAL_STATE_RESOURCE,
-            false);
+            mock(S3Backend.class), SERVICE_NAME, RemoteStateBackend.GLOBAL_STATE_RESOURCE, false);
     assertEquals(RemoteStateBackend.GLOBAL_STATE_RESOURCE, resourceName);
   }
 
@@ -337,10 +291,7 @@ public class StateCommandUtilsTest {
   public void testGetResourceName_GlobalStateExact() throws IOException {
     String resourceName =
         StateCommandUtils.getResourceName(
-            mock(VersionManager.class),
-            SERVICE_NAME,
-            RemoteStateBackend.GLOBAL_STATE_RESOURCE,
-            true);
+            mock(S3Backend.class), SERVICE_NAME, RemoteStateBackend.GLOBAL_STATE_RESOURCE, true);
     assertEquals(RemoteStateBackend.GLOBAL_STATE_RESOURCE, resourceName);
   }
 
@@ -348,16 +299,16 @@ public class StateCommandUtilsTest {
   public void testGetResourceName_IndexStateExact() throws IOException {
     String resourceName =
         StateCommandUtils.getResourceName(
-            mock(VersionManager.class), SERVICE_NAME, "exact-resource-name", true);
+            mock(S3Backend.class), SERVICE_NAME, "exact-resource-name", true);
     assertEquals("exact-resource-name", resourceName);
   }
 
   @Test
   public void testGetResourceName_NoGlobalState() throws IOException {
     TestServer.initS3(folder);
-    VersionManager versionManager = getVersionManager();
+    S3Backend s3Backend = getRemoteBackend();
     try {
-      StateCommandUtils.getResourceName(versionManager, SERVICE_NAME, "test_index", false);
+      StateCommandUtils.getResourceName(s3Backend, SERVICE_NAME, "test_index", false);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals("Unable to load global state for cluster: \"test_server\"", e.getMessage());
@@ -367,9 +318,9 @@ public class StateCommandUtilsTest {
   @Test
   public void testGetResourceName_IndexNotExists() throws IOException {
     getTestServer();
-    VersionManager versionManager = getVersionManager();
+    S3Backend s3Backend = getRemoteBackend();
     try {
-      StateCommandUtils.getResourceName(versionManager, SERVICE_NAME, "invalid_test_index", false);
+      StateCommandUtils.getResourceName(s3Backend, SERVICE_NAME, "invalid_test_index", false);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(
@@ -381,24 +332,15 @@ public class StateCommandUtilsTest {
   @Test
   public void testGetResourceName_IndexResource() throws IOException {
     TestServer server = getTestServer();
-    VersionManager versionManager = getVersionManager();
+    S3Backend s3Backend = getRemoteBackend();
     String resourceName =
-        StateCommandUtils.getResourceName(versionManager, SERVICE_NAME, "test_index", false);
+        StateCommandUtils.getResourceName(s3Backend, SERVICE_NAME, "test_index", false);
     assertEquals(server.getGlobalState().getDataResourceForIndex("test_index"), resourceName);
   }
 
   @Test
-  public void testGetIndexStateResource() {
-    assertEquals("test_index-state", StateCommandUtils.getIndexStateResource("test_index"));
-  }
-
-  @Test
-  public void testGetStateKey() {
-    assertEquals("a/b/c", StateCommandUtils.getStateKey("a", "b", "c"));
-  }
-
-  @Test
-  public void testGetStateKeyPrefix() {
-    assertEquals("a/b/", StateCommandUtils.getStateKeyPrefix("a", "b"));
+  public void testIsGlobalState() {
+    assertTrue(StateCommandUtils.isGlobalState(StateCommandUtils.GLOBAL_STATE_RESOURCE));
+    assertFalse(StateCommandUtils.isGlobalState("test_index"));
   }
 }

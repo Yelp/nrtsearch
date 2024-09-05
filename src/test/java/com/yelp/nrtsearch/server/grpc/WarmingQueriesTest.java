@@ -20,7 +20,6 @@ import static org.junit.Assert.assertEquals;
 
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
-import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -85,10 +84,8 @@ public class WarmingQueriesTest {
     InputStream queriesStream =
         replica
             .getRemoteBackend()
-            .downloadStream(
-                SERVICE_NAME,
-                server.getGlobalState().getDataResourceForIndex("test_index"),
-                IndexResourceType.WARMING_QUERIES);
+            .downloadWarmingQueries(
+                SERVICE_NAME, server.getGlobalState().getDataResourceForIndex("test_index"));
     List<String> lines = new ArrayList<>();
     try (BufferedReader reader = new BufferedReader(new InputStreamReader(queriesStream))) {
       String line;

@@ -15,16 +15,21 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.state;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.StringValue;
+import com.google.protobuf.util.JsonFormat;
+import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
@@ -33,6 +38,11 @@ import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import java.io.IOException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -360,5 +370,134 @@ public class StateUtilsTest {
   @Test(expected = NullPointerException.class)
   public void testReadIndexNullFile() throws IOException {
     StateUtils.readIndexStateFromFile(null);
+  }
+
+  @Test
+  public void testWriteToFile() throws IOException {
+    StateUtils.writeToFile("test_data".getBytes(), folder.getRoot().toPath(), "test.txt");
+    assertTrue(Paths.get(folder.getRoot().getAbsolutePath(), "test.txt").toFile().exists());
+    byte[] fileBytes =
+        Files.readAllBytes(Paths.get(folder.getRoot().getAbsolutePath(), "test.txt"));
+    assertEquals("test_data", new String(fileBytes));
+  }
+
+  @Test
+  public void testWriteToFile_rewrite() throws IOException {
+    StateUtils.writeToFile("test_data".getBytes(), folder.getRoot().toPath(), "test.txt");
+    StateUtils.writeToFile("test_data_2".getBytes(), folder.getRoot().toPath(), "test.txt");
+    assertTrue(Paths.get(folder.getRoot().getAbsolutePath(), "test.txt").toFile().exists());
+    byte[] fileBytes =
+        Files.readAllBytes(Paths.get(folder.getRoot().getAbsolutePath(), "test.txt"));
+    assertEquals("test_data_2", new String(fileBytes));
+  }
+
+  @Test
+  public void testGlobalStateToUTF8() throws IOException {
+    GlobalStateInfo globalStateInfo = getGlobalStateInfo();
+    byte[] buffer = StateUtils.globalStateToUTF8(globalStateInfo);
+    byte[] expected = getGlobalStateBytes();
+    assertArrayEquals(expected, buffer);
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testGlobalStateToUTF8_null() throws IOException {
+    StateUtils.globalStateToUTF8(null);
+  }
+
+  @Test
+  public void testGlobalStateFromUTF8() throws IOException {
+    GlobalStateInfo globalStateInfo = getGlobalStateInfo();
+    byte[] buffer = getGlobalStateBytes();
+    GlobalStateInfo readState = StateUtils.globalStateFromUTF8(buffer);
+    assertEquals(globalStateInfo, readState);
+  }
+
+  @Test
+  public void testGlobalStateFromUTF8_invalid() {
+    try {
+      StateUtils.globalStateFromUTF8("invalid".getBytes());
+      fail();
+    } catch (IOException e) {
+      assertEquals("Expect message object but got: \"invalid\"", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testIndexStateToUTF8() throws IOException {
+    IndexStateInfo indexStateInfo = getIndexStateInfo();
+    byte[] buffer = StateUtils.indexStateToUTF8(indexStateInfo);
+    byte[] expected = getIndexStateBytes();
+    assertArrayEquals(expected, buffer);
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testIndexStateToUTF8_null() throws IOException {
+    StateUtils.indexStateToUTF8(null);
+  }
+
+  @Test
+  public void testIndexStateFromUTF8() throws IOException {
+    IndexStateInfo indexStateInfo = getIndexStateInfo();
+    byte[] buffer = getIndexStateBytes();
+    IndexStateInfo readState = StateUtils.indexStateFromUTF8(buffer);
+    assertEquals(indexStateInfo, readState);
+  }
+
+  @Test
+  public void testIndexStateFromUTF8_invalid() {
+    try {
+      StateUtils.indexStateFromUTF8("invalid".getBytes());
+      fail();
+    } catch (IOException e) {
+      assertEquals("Expect message object but got: \"invalid\"", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testGetValidatingUTF8Decoder() {
+    CharsetDecoder decoder = StateUtils.getValidatingUTF8Decoder();
+    assertNotNull(decoder);
+    assertEquals(CodingErrorAction.REPORT, decoder.malformedInputAction());
+    assertEquals(CodingErrorAction.REPORT, decoder.unmappableCharacterAction());
+  }
+
+  @Test
+  public void testGetValidatingUTF8Encoder() {
+    CharsetEncoder encoder = StateUtils.getValidatingUTF8Encoder();
+    assertNotNull(encoder);
+    assertEquals(CodingErrorAction.REPORT, encoder.malformedInputAction());
+    assertEquals(CodingErrorAction.REPORT, encoder.unmappableCharacterAction());
+  }
+
+  private GlobalStateInfo getGlobalStateInfo() {
+    return GlobalStateInfo.newBuilder()
+        .setGen(10)
+        .putIndices("index_1", IndexGlobalState.newBuilder().setId("id1").build())
+        .putIndices("index_2", IndexGlobalState.newBuilder().setId("id2").setStarted(true).build())
+        .build();
+  }
+
+  private byte[] getGlobalStateBytes() throws InvalidProtocolBufferException {
+    return JsonFormat.printer().print(getGlobalStateInfo()).getBytes(StandardCharsets.UTF_8);
+  }
+
+  private IndexStateInfo getIndexStateInfo() {
+    return IndexStateInfo.newBuilder()
+        .setCommitted(true)
+        .setGen(100)
+        .setSettings(
+            IndexSettings.newBuilder()
+                .setNrtCachingDirectoryMaxMergeSizeMB(DoubleValue.newBuilder().setValue(10).build())
+                .build())
+        .setLiveSettings(
+            IndexLiveSettings.newBuilder()
+                .setIndexRamBufferSizeMB(DoubleValue.newBuilder().setValue(111).build())
+                .build())
+        .putFields("field1", Field.newBuilder().setSearch(true).build())
+        .build();
+  }
+
+  private byte[] getIndexStateBytes() throws InvalidProtocolBufferException {
+    return JsonFormat.printer().print(getIndexStateInfo()).getBytes(StandardCharsets.UTF_8);
   }
 }

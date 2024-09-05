@@ -26,8 +26,23 @@ import java.util.Map;
 public interface RemoteBackend extends PluginDownloader {
   enum IndexResourceType {
     WARMING_QUERIES,
-    POINT_STATE
+    POINT_STATE,
+    INDEX_STATE
   }
+
+  enum GlobalResourceType {
+    GLOBAL_STATE
+  }
+
+  /**
+   * Get if a given global resource exists in the backend.
+   *
+   * @param service service name
+   * @param resourceType type of global resource
+   * @return if resource exists
+   * @throws IOException on error checking if resource exists
+   */
+  boolean exists(String service, GlobalResourceType resourceType) throws IOException;
 
   /**
    * Get if a given index resource exists in the backend.
@@ -36,36 +51,68 @@ public interface RemoteBackend extends PluginDownloader {
    * @param indexIdentifier unique index identifier
    * @param resourceType type of index resource
    * @return if resource exists
-   * @throws IOException
+   * @throws IOException on error checking if resource exists
    */
   boolean exists(String service, String indexIdentifier, IndexResourceType resourceType)
       throws IOException;
 
   /**
-   * Download index resource data from backend through an {@link InputStream}.
+   * Upload global state data to the remote backend.
    *
    * @param service service name
-   * @param indexIdentifier unique index identifier
-   * @param resourceType type of index resource
-   * @return input stream to process downloaded resource
-   * @throws IllegalArgumentException if resource does not exist
-   * @throws IOException
+   * @param data global state data
+   * @throws IOException on error uploading global state
    */
-  InputStream downloadStream(String service, String indexIdentifier, IndexResourceType resourceType)
-      throws IOException;
+  void uploadGlobalState(String service, byte[] data) throws IOException;
 
   /**
-   * Upload file contents to the specified index resource, replacing any existing version.
+   * Download global state data from the remote backend.
+   *
+   * @param service service name
+   * @return input stream of global state data
+   * @throws IOException on error downloading global state
+   */
+  InputStream downloadGlobalState(String service) throws IOException;
+
+  /**
+   * Upload index state data to the remote backend.
    *
    * @param service service name
    * @param indexIdentifier unique index identifier
-   * @param resourceType type of index resource
-   * @param file file data to upload
-   * @throws IllegalArgumentException if file does not exist, or is not a regular file
-   * @throws IOException on error uploading file
+   * @param data index state data
+   * @throws IOException on error uploading index state
    */
-  void uploadFile(String service, String indexIdentifier, IndexResourceType resourceType, Path file)
-      throws IOException;
+  void uploadIndexState(String service, String indexIdentifier, byte[] data) throws IOException;
+
+  /**
+   * Download index state data from the remote backend.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @return input stream of index state data
+   * @throws IOException on error downloading index state
+   */
+  InputStream downloadIndexState(String service, String indexIdentifier) throws IOException;
+
+  /**
+   * Upload warming query data to the remote backend.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @param data warming query data
+   * @throws IOException on error uploading warming queries
+   */
+  void uploadWarmingQueries(String service, String indexIdentifier, byte[] data) throws IOException;
+
+  /**
+   * Download warming query data from the remote backend.
+   *
+   * @param service service name
+   * @param indexIdentifier unique index identifier
+   * @return input stream of warming query data
+   * @throws IOException on error downloading warming queries
+   */
+  InputStream downloadWarmingQueries(String service, String indexIdentifier) throws IOException;
 
   /**
    * Upload index files to the remote backend.

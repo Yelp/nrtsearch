@@ -25,22 +25,10 @@ import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
-import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.backup.Archiver;
-import com.yelp.nrtsearch.server.backup.BackupDiffManager;
-import com.yelp.nrtsearch.server.backup.ContentDownloader;
-import com.yelp.nrtsearch.server.backup.ContentDownloaderImpl;
-import com.yelp.nrtsearch.server.backup.FileCompressAndUploader;
-import com.yelp.nrtsearch.server.backup.IndexArchiver;
-import com.yelp.nrtsearch.server.backup.TarImpl;
-import com.yelp.nrtsearch.server.backup.VersionManager;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
@@ -50,23 +38,17 @@ import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.grpc.SortFields;
 import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.Optional;
 import java.util.UUID;
-import net.jpountz.lz4.LZ4FrameInputStream;
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -78,31 +60,11 @@ public class RemoteStateBackendTest {
 
   private static final String TEST_BUCKET = "remote-state-test";
   private static final String TEST_SERVICE_NAME = "test-service-name";
-  private VersionManager versionManager;
-  private Archiver archiver;
+  private RemoteBackend remoteBackend;
 
   @Before
   public void setup() throws IOException {
-    Path archiverDirectory = folder.newFolder("archiver").toPath();
-
-    AmazonS3 s3 = s3Provider.getAmazonS3();
-    TransferManager transferManager =
-        TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
-
-    ContentDownloader contentDownloader =
-        new ContentDownloaderImpl(
-            new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, TEST_BUCKET, true);
-    FileCompressAndUploader fileCompressAndUploader =
-        new FileCompressAndUploader(
-            new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, TEST_BUCKET);
-    versionManager = new VersionManager(s3, TEST_BUCKET);
-    archiver =
-        new IndexArchiver(
-            mock(BackupDiffManager.class),
-            fileCompressAndUploader,
-            contentDownloader,
-            versionManager,
-            archiverDirectory);
+    remoteBackend = new S3Backend(TEST_BUCKET, false, s3Provider.getAmazonS3());
   }
 
   private LuceneServerConfiguration getConfig(boolean readOnly) throws IOException {
@@ -123,7 +85,7 @@ public class RemoteStateBackendTest {
     LuceneServerConfiguration serverConfiguration = getConfig(readOnly);
     when(mockState.getConfiguration()).thenReturn(serverConfiguration);
     when(mockState.getStateDir()).thenReturn(Paths.get(serverConfiguration.getStateDir()));
-    when(mockState.getIncArchiver()).thenReturn(Optional.of(archiver));
+    when(mockState.getRemoteBackend()).thenReturn(remoteBackend);
     return mockState;
   }
 
@@ -139,125 +101,34 @@ public class RemoteStateBackendTest {
         folder.getRoot().getAbsolutePath(), indexIdentifier, StateUtils.INDEX_STATE_FILE);
   }
 
-  private Path getS3FilePath(String versionHash) {
-    return Paths.get(
-        s3Provider.getS3DirectoryPath(),
-        TEST_BUCKET,
-        TEST_SERVICE_NAME,
-        RemoteStateBackend.GLOBAL_STATE_RESOURCE,
-        versionHash);
-  }
-
-  private Path getS3IndexFilePath(String indexIdentifier, String versionHash) {
-    return Paths.get(
-        s3Provider.getS3DirectoryPath(),
-        TEST_BUCKET,
-        TEST_SERVICE_NAME,
-        indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX,
-        versionHash);
-  }
-
   private GlobalStateInfo getS3State() throws IOException {
-    long currentVersion =
-        versionManager.getLatestVersionNumber(
-            TEST_SERVICE_NAME, RemoteStateBackend.GLOBAL_STATE_RESOURCE);
-    if (currentVersion < 0) {
+    if (!remoteBackend.exists(TEST_SERVICE_NAME, RemoteBackend.GlobalResourceType.GLOBAL_STATE)) {
       return null;
     }
-    String versionHash =
-        versionManager.getVersionString(
-            TEST_SERVICE_NAME,
-            RemoteStateBackend.GLOBAL_STATE_RESOURCE,
-            String.valueOf(currentVersion));
-    Path s3FilePath = getS3FilePath(versionHash);
-    assertTrue(s3FilePath.toFile().exists());
-    assertTrue(s3FilePath.toFile().isFile());
-
-    TarArchiveInputStream tarArchiveInputStream =
-        new TarArchiveInputStream(
-            new LZ4FrameInputStream(new FileInputStream(s3FilePath.toFile())));
-    GlobalStateInfo stateFromTar = null;
-    for (TarArchiveEntry tarArchiveEntry = tarArchiveInputStream.getNextTarEntry();
-        tarArchiveEntry != null;
-        tarArchiveEntry = tarArchiveInputStream.getNextTarEntry()) {
-      if (tarArchiveEntry.getName().endsWith(StateUtils.GLOBAL_STATE_FILE)) {
-        byte[] fileData = tarArchiveInputStream.readNBytes((int) tarArchiveEntry.getSize());
-        String stateStr = StateUtils.fromUTF8(fileData);
-        GlobalStateInfo.Builder stateBuilder = GlobalStateInfo.newBuilder();
-        JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
-        stateFromTar = stateBuilder.build();
-      }
-    }
-    return stateFromTar;
+    InputStream stateStream = remoteBackend.downloadGlobalState(TEST_SERVICE_NAME);
+    byte[] stateBytes = stateStream.readAllBytes();
+    return StateUtils.globalStateFromUTF8(stateBytes);
   }
 
   private IndexStateInfo getS3IndexState(String indexIdentifier) throws IOException {
-    long currentVersion =
-        versionManager.getLatestVersionNumber(
-            TEST_SERVICE_NAME, indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX);
-    if (currentVersion < 0) {
+    if (!remoteBackend.exists(
+        TEST_SERVICE_NAME, indexIdentifier, RemoteBackend.IndexResourceType.INDEX_STATE)) {
       return null;
     }
-    String versionHash =
-        versionManager.getVersionString(
-            TEST_SERVICE_NAME,
-            indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX,
-            String.valueOf(currentVersion));
-    Path s3FilePath = getS3IndexFilePath(indexIdentifier, versionHash);
-    assertTrue(s3FilePath.toFile().exists());
-    assertTrue(s3FilePath.toFile().isFile());
-
-    TarArchiveInputStream tarArchiveInputStream =
-        new TarArchiveInputStream(
-            new LZ4FrameInputStream(new FileInputStream(s3FilePath.toFile())));
-    IndexStateInfo stateFromTar = null;
-    for (TarArchiveEntry tarArchiveEntry = tarArchiveInputStream.getNextTarEntry();
-        tarArchiveEntry != null;
-        tarArchiveEntry = tarArchiveInputStream.getNextTarEntry()) {
-      if (tarArchiveEntry.getName().endsWith(StateUtils.INDEX_STATE_FILE)) {
-        byte[] fileData = tarArchiveInputStream.readNBytes((int) tarArchiveEntry.getSize());
-        String stateStr = StateUtils.fromUTF8(fileData);
-        IndexStateInfo.Builder stateBuilder = IndexStateInfo.newBuilder();
-        JsonFormat.parser().ignoringUnknownFields().merge(stateStr, stateBuilder);
-        stateFromTar = stateBuilder.build();
-      }
-    }
-    return stateFromTar;
+    InputStream stateStream = remoteBackend.downloadIndexState(TEST_SERVICE_NAME, indexIdentifier);
+    byte[] stateBytes = stateStream.readAllBytes();
+    return StateUtils.indexStateFromUTF8(stateBytes);
   }
 
   private void writeStateToS3(GlobalStateInfo state) throws IOException {
-    File tmpFolderFile = folder.newFolder();
-    Path tmpGlobalStatePath =
-        Paths.get(tmpFolderFile.getAbsolutePath(), StateUtils.GLOBAL_STATE_FOLDER);
-    StateUtils.ensureDirectory(tmpGlobalStatePath);
-    StateUtils.writeStateToFile(state, tmpGlobalStatePath, StateUtils.GLOBAL_STATE_FILE);
-    String version =
-        archiver.upload(
-            TEST_SERVICE_NAME,
-            RemoteStateBackend.GLOBAL_STATE_RESOURCE,
-            tmpGlobalStatePath,
-            Collections.singletonList(StateUtils.GLOBAL_STATE_FILE),
-            Collections.emptyList(),
-            true);
-    archiver.blessVersion(TEST_SERVICE_NAME, RemoteStateBackend.GLOBAL_STATE_RESOURCE, version);
+    byte[] stateBytes = StateUtils.globalStateToUTF8(state);
+    remoteBackend.uploadGlobalState(TEST_SERVICE_NAME, stateBytes);
   }
 
   private void writeIndexStateToS3(String indexIdentifier, IndexStateInfo state)
       throws IOException {
-    File tmpFolderFile = folder.newFolder();
-    Path tmpIndexStatePath = Paths.get(tmpFolderFile.getAbsolutePath(), indexIdentifier);
-    StateUtils.ensureDirectory(tmpIndexStatePath);
-    StateUtils.writeIndexStateToFile(state, tmpIndexStatePath, StateUtils.INDEX_STATE_FILE);
-    String version =
-        archiver.upload(
-            TEST_SERVICE_NAME,
-            indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX,
-            tmpIndexStatePath,
-            Collections.singletonList(StateUtils.INDEX_STATE_FILE),
-            Collections.emptyList(),
-            true);
-    archiver.blessVersion(
-        TEST_SERVICE_NAME, indexIdentifier + IndexBackupUtils.INDEX_STATE_SUFFIX, version);
+    byte[] stateBytes = StateUtils.indexStateToUTF8(state);
+    remoteBackend.uploadIndexState(TEST_SERVICE_NAME, indexIdentifier, stateBytes);
   }
 
   @Test
@@ -437,20 +308,6 @@ public class RemoteStateBackendTest {
       fail();
     } catch (IllegalStateException e) {
       assertEquals("Cannot update remote state when configured as read only", e.getMessage());
-    }
-  }
-
-  @Test
-  public void testArchiverRequired() throws IOException {
-    GlobalState mockState = mock(GlobalState.class);
-    LuceneServerConfiguration serverConfiguration = getConfig(false);
-    when(mockState.getConfiguration()).thenReturn(serverConfiguration);
-    when(mockState.getStateDir()).thenReturn(Paths.get(serverConfiguration.getStateDir()));
-    try {
-      new RemoteStateBackend(mockState);
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertEquals("Archiver must be provided for remote state usage", e.getMessage());
     }
   }
 
@@ -745,77 +602,5 @@ public class RemoteStateBackendTest {
     } catch (IllegalStateException e) {
       assertEquals("Cannot update remote state when configured as read only", e.getMessage());
     }
-  }
-
-  @Test
-  public void testFindIndexStateFile_fileInRootFolder() throws IOException {
-    Path filePath = folder.newFile(StateUtils.INDEX_STATE_FILE).toPath();
-    Path foundPath = RemoteStateBackend.findIndexStateFile(folder.getRoot().toPath());
-    assertEquals(filePath, foundPath);
-  }
-
-  @Test
-  public void testFindIndexStateFile_fileInDirectory() throws IOException {
-    folder.newFolder("folder1");
-    folder.newFolder("folder2");
-    folder.newFolder("folder3");
-    folder.newFile("file1");
-    folder.newFile("file2");
-    Files.createFile(folder.getRoot().toPath().resolve("folder1").resolve("file3"));
-    Files.createFile(folder.getRoot().toPath().resolve("folder2").resolve("file4"));
-    Path filePath =
-        folder.getRoot().toPath().resolve("folder2").resolve(StateUtils.INDEX_STATE_FILE);
-    Files.createFile(filePath);
-    Path foundPath = RemoteStateBackend.findIndexStateFile(folder.getRoot().toPath());
-    assertEquals(filePath, foundPath);
-  }
-
-  @Test
-  public void testFindIndexStateFile_emptyFolder() throws IOException {
-    try {
-      RemoteStateBackend.findIndexStateFile(folder.getRoot().toPath());
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertTrue(e.getMessage().startsWith("No index state file found in downloadPath: "));
-    }
-  }
-
-  @Test
-  public void testFindIndexStateFile_noStateFile() throws IOException {
-    folder.newFolder("folder1");
-    folder.newFolder("folder2");
-    folder.newFolder("folder3");
-    folder.newFile("file1");
-    folder.newFile("file2");
-    Files.createFile(folder.getRoot().toPath().resolve("folder1").resolve("file3"));
-    Files.createFile(folder.getRoot().toPath().resolve("folder2").resolve("file4"));
-    try {
-      RemoteStateBackend.findIndexStateFile(folder.getRoot().toPath());
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertTrue(e.getMessage().startsWith("No index state file found in downloadPath: "));
-    }
-  }
-
-  @Test
-  public void testFindIndexStateFile_multipleStateFile() throws IOException {
-    folder.newFolder("folder1");
-    folder.newFolder("folder2");
-    folder.newFolder("folder3");
-    Files.createFile(
-        folder.getRoot().toPath().resolve("folder1").resolve(StateUtils.INDEX_STATE_FILE));
-    Files.createFile(
-        folder.getRoot().toPath().resolve("folder2").resolve(StateUtils.INDEX_STATE_FILE));
-    try {
-      RemoteStateBackend.findIndexStateFile(folder.getRoot().toPath());
-      fail();
-    } catch (IllegalArgumentException e) {
-      assertTrue(e.getMessage().startsWith("Multiple index state files found in downloadedPath: "));
-    }
-  }
-
-  @Test(expected = NullPointerException.class)
-  public void testFindIndexStateFile_nullDownloadPath() throws IOException {
-    RemoteStateBackend.findIndexStateFile(null);
   }
 }

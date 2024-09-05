@@ -28,17 +28,16 @@ import com.yelp.nrtsearch.server.grpc.TermQuery;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
-import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.assertj.core.api.Assertions;
@@ -77,8 +76,7 @@ public class WarmerTest {
 
     warmer.backupWarmingQueriesToS3(service);
 
-    InputStream queriesStream =
-        remoteBackend.downloadStream(service, index, IndexResourceType.WARMING_QUERIES);
+    InputStream queriesStream = remoteBackend.downloadWarmingQueries(service, index);
     List<String> lines = new ArrayList<>();
     try (BufferedReader reader = new BufferedReader(new InputStreamReader(queriesStream))) {
       String line;
@@ -93,18 +91,9 @@ public class WarmerTest {
   @Test
   public void testWarmFromS3()
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
-    Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
-    Path warmingQueriesPath = warmingQueriesDir.resolve("warming_queries.txt");
-    try (BufferedWriter writer = Files.newBufferedWriter(warmingQueriesPath)) {
-      List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
-      for (String line : testSearchRequestsJson) {
-        writer.write(line);
-        writer.newLine();
-      }
-      writer.flush();
-    }
-    remoteBackend.uploadFile(
-        service, "test_index", IndexResourceType.WARMING_QUERIES, warmingQueriesPath);
+    List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
+    byte[] warmingBytes = getWarmingBytes(testSearchRequestsJson);
+    remoteBackend.uploadWarmingQueries(service, "test_index", warmingBytes);
 
     IndexState mockIndexState = mock(IndexState.class);
     SearchHandler mockSearchHandler = mock(SearchHandler.class);
@@ -120,18 +109,9 @@ public class WarmerTest {
   @Test
   public void testWarmFromS3_multiple()
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
-    Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
-    Path warmingQueriesPath = warmingQueriesDir.resolve("warming_queries.txt");
-    try (BufferedWriter writer = Files.newBufferedWriter(warmingQueriesPath)) {
-      List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
-      for (String line : testSearchRequestsJson) {
-        writer.write(line);
-        writer.newLine();
-      }
-      writer.flush();
-    }
-    remoteBackend.uploadFile(
-        service, "test_index", IndexResourceType.WARMING_QUERIES, warmingQueriesPath);
+    List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
+    byte[] warmingBytes = getWarmingBytes(testSearchRequestsJson);
+    remoteBackend.uploadWarmingQueries(service, "test_index", warmingBytes);
 
     IndexState mockIndexState = mock(IndexState.class);
     SearchHandler mockSearchHandler = mock(SearchHandler.class);
@@ -148,23 +128,14 @@ public class WarmerTest {
   @Test
   public void testWarmFromS3_parallel()
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
-    Path warmingQueriesDir = folder.newFolder("warming_queries").toPath();
-    Path warmingQueriesPath = warmingQueriesDir.resolve("warming_queries.txt");
     int warmingCountPerQuery = 10;
-    try (BufferedWriter writer = Files.newBufferedWriter(warmingQueriesPath)) {
-      List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
-      List<String> moreTestSearchRequestsJson = new ArrayList<>();
-      for (int i = 0; i < warmingCountPerQuery; i++) {
-        moreTestSearchRequestsJson.addAll(testSearchRequestsJson);
-      }
-      for (String line : moreTestSearchRequestsJson) {
-        writer.write(line);
-        writer.newLine();
-      }
-      writer.flush();
+    List<String> testSearchRequestsJson = getTestSearchRequestsAsJsonStrings();
+    List<String> moreTestSearchRequestsJson = new ArrayList<>();
+    for (int i = 0; i < warmingCountPerQuery; i++) {
+      moreTestSearchRequestsJson.addAll(testSearchRequestsJson);
     }
-    remoteBackend.uploadFile(
-        service, "test_index", IndexResourceType.WARMING_QUERIES, warmingQueriesPath);
+    byte[] warmingBytes = getWarmingBytes(moreTestSearchRequestsJson);
+    remoteBackend.uploadWarmingQueries(service, "test_index", warmingBytes);
 
     IndexState mockIndexState = mock(IndexState.class);
     SearchHandler mockSearchHandler = mock(SearchHandler.class);
@@ -175,6 +146,18 @@ public class WarmerTest {
       verify(mockSearchHandler, times(warmingCountPerQuery)).handle(mockIndexState, testRequest);
     }
     verifyNoMoreInteractions(mockSearchHandler);
+  }
+
+  private byte[] getWarmingBytes(List<String> queryStrings) throws IOException {
+    ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+    try (OutputStreamWriter writer =
+        new OutputStreamWriter(byteArrayOutputStream, StandardCharsets.UTF_8)) {
+      for (String line : queryStrings) {
+        writer.write(line);
+        writer.write("\n");
+      }
+    }
+    return byteArrayOutputStream.toByteArray();
   }
 
   private List<SearchRequest> getTestSearchRequests() {

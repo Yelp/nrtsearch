@@ -48,6 +48,7 @@ import com.yelp.nrtsearch.server.luceneserver.state.backend.LocalStateBackend;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.StateBackend;
 import com.yelp.nrtsearch.server.plugins.Plugin;
+import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -745,6 +746,8 @@ public class BackendGlobalStateTest {
             "\n",
             "stateConfig:",
             "  backendType: REMOTE",
+            "  remote:",
+            "    readOnly: false",
             "stateDir: " + folder.newFolder("state").getAbsolutePath(),
             "indexDir: " + folder.newFolder("index").getAbsolutePath());
     LuceneServerConfiguration config =
@@ -758,7 +761,12 @@ public class BackendGlobalStateTest {
     Archiver archiver = mock(Archiver.class);
     when(archiver.download(any(), any())).thenReturn(Paths.get(folder.getRoot().getAbsolutePath()));
 
-    BackendGlobalState backendGlobalState = new BackendGlobalState(config, archiver, null);
+    RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
+    when(mockRemoteBackend.exists(
+            any(String.class), eq(RemoteBackend.GlobalResourceType.GLOBAL_STATE)))
+        .thenReturn(false);
+
+    BackendGlobalState backendGlobalState = new BackendGlobalState(config, null, mockRemoteBackend);
     assertTrue(backendGlobalState.getStateBackend() instanceof RemoteStateBackend);
   }
 
