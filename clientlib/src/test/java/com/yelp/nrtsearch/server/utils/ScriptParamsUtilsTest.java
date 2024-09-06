@@ -586,4 +586,47 @@ public class ScriptParamsUtilsTest {
     params.put("struct", Script.ParamValue.newBuilder().build());
     ScriptParamsUtils.decodeParams(params);
   }
+
+  @Test
+  public void testEncodeFloatVector() {
+    float[] vector = new float[] {1.0F, 2.0F, 3.0F};
+    Script.ParamFloatVectorValue.Builder builder = Script.ParamFloatVectorValue.newBuilder();
+    ScriptParamsUtils.encodeFloatVector(builder, vector);
+    Script.ParamFloatVectorValue vectorValue = builder.build();
+    assertEquals(3, vectorValue.getValuesCount());
+    assertEquals(1.0F, vectorValue.getValues(0), Math.ulp(1.0F));
+    assertEquals(2.0F, vectorValue.getValues(1), Math.ulp(2.0F));
+    assertEquals(3.0F, vectorValue.getValues(2), Math.ulp(3.0F));
+  }
+
+  @Test
+  public void testEncodeFloatVector_empty() {
+    float[] vector = new float[0];
+    Script.ParamFloatVectorValue.Builder builder = Script.ParamFloatVectorValue.newBuilder();
+    ScriptParamsUtils.encodeFloatVector(builder, vector);
+    Script.ParamFloatVectorValue vectorValue = builder.build();
+    assertEquals(0, vectorValue.getValuesCount());
+  }
+
+  @Test
+  public void testDecodeFloatVector() {
+    Script.ParamFloatVectorValue vectorValue =
+        Script.ParamFloatVectorValue.newBuilder()
+            .addValues(1.0F)
+            .addValues(2.0F)
+            .addValues(3.0F)
+            .build();
+    float[] vector = ScriptParamsUtils.decodeFloatVector(vectorValue);
+    assertEquals(3, vector.length);
+    assertEquals(1.0F, vector[0], Math.ulp(1.0F));
+    assertEquals(2.0F, vector[1], Math.ulp(2.0F));
+    assertEquals(3.0F, vector[2], Math.ulp(3.0F));
+  }
+
+  @Test
+  public void testDecodeFloatVector_empty() {
+    Script.ParamFloatVectorValue vectorValue = Script.ParamFloatVectorValue.newBuilder().build();
+    float[] vector = ScriptParamsUtils.decodeFloatVector(vectorValue);
+    assertEquals(0, vector.length);
+  }
 }

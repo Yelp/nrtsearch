@@ -73,6 +73,21 @@ public class ScriptParamsUtils {
   }
 
   /**
+   * Decode a {@link com.yelp.nrtsearch.server.grpc.Script.ParamFloatVectorValue} message into an
+   * equivalent float array.
+   *
+   * @param vectorValue vector message
+   * @return float array
+   */
+  public static float[] decodeFloatVector(Script.ParamFloatVectorValue vectorValue) {
+    float[] vector = new float[vectorValue.getValuesCount()];
+    for (int i = 0; i < vectorValue.getValuesCount(); i++) {
+      vector[i] = vectorValue.getValues(i);
+    }
+    return vector;
+  }
+
+  /**
    * Decode a {@link com.yelp.nrtsearch.server.grpc.Script.ParamValue} message into an equivalent
    * java native type.
    *
@@ -100,6 +115,8 @@ public class ScriptParamsUtils {
         return decodeList(value.getListValue());
       case STRUCTVALUE:
         return decodeStruct(value.getStructValue());
+      case FLOATVECTORVALUE:
+        return decodeFloatVector(value.getFloatVectorValue());
       default:
         throw new IllegalArgumentException(
             "Unknown script parameter type: " + value.getParamValuesCase().name());
@@ -143,6 +160,21 @@ public class ScriptParamsUtils {
   }
 
   /**
+   * Encode an array of floating point values into a vector script parameter message, filling the
+   * values of the given {@link
+   * com.yelp.nrtsearch.server.grpc.Script.ParamFloatVectorValue.Builder}.
+   *
+   * @param vectorBuilder vector message to fill
+   * @param vector array of float values
+   */
+  public static void encodeFloatVector(
+      Script.ParamFloatVectorValue.Builder vectorBuilder, float[] vector) {
+    for (float value : vector) {
+      vectorBuilder.addValues(value);
+    }
+  }
+
+  /**
    * Encode a java native type value into an equivalent {@link
    * com.yelp.nrtsearch.server.grpc.Script.ParamValue}.
    *
@@ -182,6 +214,10 @@ public class ScriptParamsUtils {
             "Error converting native map to ParamStructValue Message: " + item, e);
       }
       return Script.ParamValue.newBuilder().setStructValue(builder).build();
+    } else if (item instanceof float[]) {
+      Script.ParamFloatVectorValue.Builder builder = Script.ParamFloatVectorValue.newBuilder();
+      encodeFloatVector(builder, (float[]) item);
+      return Script.ParamValue.newBuilder().setFloatVectorValue(builder).build();
     } else if (item instanceof Iterable) {
       Script.ParamListValue.Builder builder = Script.ParamListValue.newBuilder();
       @SuppressWarnings("unchecked")
