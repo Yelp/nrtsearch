@@ -679,6 +679,7 @@ message Script {
             ParamNullValue nullValue = 7;
             ParamListValue listValue = 8;
             ParamStructValue structValue = 9;
+            ParamFloatVectorValue floatVectorValue = 10;
         }
     }
 
@@ -695,6 +696,10 @@ message Script {
     // list parameter value
     message ParamListValue {
         repeated ParamValue values = 1;
+    }
+
+    message ParamFloatVectorValue {
+        repeated float values = 1;
     }
 
     map<string, ParamValue> params = 7; // parameters passed into script execution
