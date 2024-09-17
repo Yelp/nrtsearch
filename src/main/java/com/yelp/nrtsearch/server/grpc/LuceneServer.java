@@ -1655,6 +1655,23 @@ public class LuceneServer {
     }
 
     @Override
+    public void globalState(
+        GlobalStateRequest request, StreamObserver<GlobalStateResponse> responseObserver) {
+      try {
+        responseObserver.onNext(
+            GlobalStateResponse.newBuilder().setGlobalState(globalState.getStateInfo()).build());
+        responseObserver.onCompleted();
+      } catch (Exception e) {
+        logger.warn("error while trying to get global state", e);
+        responseObserver.onError(
+            Status.UNKNOWN
+                .withDescription("error while trying to get global state")
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+
+    @Override
     public void state(StateRequest request, StreamObserver<StateResponse> responseObserver) {
       try {
         IndexState indexState = globalState.getIndex(request.getIndexName());

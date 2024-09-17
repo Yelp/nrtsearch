@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DummyResponse;
+import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
@@ -166,6 +167,13 @@ public abstract class GlobalState implements Closeable {
   public Path getIndexDir(String indexName) {
     return Paths.get(indexDirBase.toString(), indexName);
   }
+
+  /**
+   * Get cluster global state info.
+   *
+   * @return global state info
+   */
+  public abstract GlobalStateInfo getStateInfo();
 
   /**
    * Get port the replication grpc server is listening on. This may be different from the value
