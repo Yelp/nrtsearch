@@ -43,7 +43,7 @@ public class GlobalStateTest {
             "  backendType: LOCAL",
             "stateDir: " + folder.getRoot().getAbsolutePath());
     LuceneServerConfiguration configuration = getConfig(configFile);
-    GlobalState globalState = GlobalState.createState(configuration, null, null);
+    GlobalState globalState = GlobalState.createState(configuration, null);
     assertTrue(globalState instanceof BackendGlobalState);
   }
 
@@ -51,7 +51,7 @@ public class GlobalStateTest {
   public void testGetGeneration() throws IOException {
     String configFile = String.join("\n", "stateConfig:", "  backendType: LOCAL");
     LuceneServerConfiguration configuration = getConfig(configFile);
-    GlobalState globalState = GlobalState.createState(configuration, null, null);
+    GlobalState globalState = GlobalState.createState(configuration, null);
     long gen = globalState.getGeneration();
     assertTrue(gen > 0);
     assertEquals(gen, globalState.getGeneration());
@@ -60,7 +60,7 @@ public class GlobalStateTest {
       Thread.sleep(50);
     } catch (InterruptedException ignore) {
     }
-    GlobalState globalState2 = GlobalState.createState(configuration, null, null);
+    GlobalState globalState2 = GlobalState.createState(configuration, null);
     assertTrue(globalState2.getGeneration() > gen);
   }
 }

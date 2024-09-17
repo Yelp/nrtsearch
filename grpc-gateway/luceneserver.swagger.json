@@ -1989,6 +1989,18 @@
         }
       }
     },
+    "ScriptParamFloatVectorValue": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      }
+    },
     "ScriptParamListValue": {
       "type": "object",
       "properties": {
@@ -2054,6 +2066,9 @@
         },
         "structValue": {
           "$ref": "#/definitions/ScriptParamStructValue"
+        },
+        "floatVectorValue": {
+          "$ref": "#/definitions/ScriptParamFloatVectorValue"
         }
       },
       "title": "script parameter entry"

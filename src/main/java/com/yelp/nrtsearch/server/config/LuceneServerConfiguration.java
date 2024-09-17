@@ -42,13 +42,11 @@ public class LuceneServerConfiguration {
   private static final long AS_LARGE_AS_INFINITE = TimeUnit.DAYS.toSeconds(1000L);
   public static final Path DEFAULT_USER_DIR =
       Paths.get(System.getProperty("user.home"), "lucene", "server");
-  public static final Path DEFAULT_ARCHIVER_DIR =
-      Paths.get(DEFAULT_USER_DIR.toString(), "archiver");
   public static final Path DEFAULT_STATE_DIR =
       Paths.get(DEFAULT_USER_DIR.toString(), "default_state");
   public static final Path DEFAULT_INDEX_DIR =
       Paths.get(DEFAULT_USER_DIR.toString(), "default_index");
-  private static final String DEFAULT_BUCKET_NAME = "DEFAULT_ARCHIVE_BUCKET";
+  private static final String DEFAULT_BUCKET_NAME = "DEFAULT_REMOTE_BUCKET";
   static final int DEFAULT_MAX_S3_CLIENT_RETRIES = 20;
   private static final String DEFAULT_HOSTNAME = "localhost";
   private static final int DEFAULT_PORT = 50051;
@@ -73,7 +71,6 @@ public class LuceneServerConfiguration {
   private final String hostName;
   private final String stateDir;
   private final String indexDir;
-  private final String archiveDirectory;
   private final String botoCfgPath;
   private final String bucketName;
   private final int maxS3ClientRetries;
@@ -135,7 +132,6 @@ public class LuceneServerConfiguration {
     hostName = substituteEnvVariables(configReader.getString("hostName", DEFAULT_HOSTNAME));
     stateDir = configReader.getString("stateDir", DEFAULT_STATE_DIR.toString());
     indexDir = configReader.getString("indexDir", DEFAULT_INDEX_DIR.toString());
-    archiveDirectory = configReader.getString("archiveDirectory", DEFAULT_ARCHIVER_DIR.toString());
     botoCfgPath = configReader.getString("botoCfgPath", null);
     bucketName = configReader.getString("bucketName", DEFAULT_BUCKET_NAME);
     maxS3ClientRetries =
@@ -258,10 +254,6 @@ public class LuceneServerConfiguration {
   /** Get max number of retries to configure for s3 client. If <= 0, use client default. */
   public int getMaxS3ClientRetries() {
     return maxS3ClientRetries;
-  }
-
-  public String getArchiveDirectory() {
-    return archiveDirectory;
   }
 
   public double[] getMetricsBuckets() {

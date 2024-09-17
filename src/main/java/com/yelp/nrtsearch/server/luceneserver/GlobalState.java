@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
@@ -48,7 +47,6 @@ public abstract class GlobalState implements Closeable {
   private final String hostName;
   private final int port;
   private final ThreadPoolConfiguration threadPoolConfiguration;
-  private final Archiver incArchiver;
   private final RemoteBackend remoteBackend;
   private int replicaReplicationPortPingInterval;
   private final String ephemeralId = UUID.randomUUID().toString();
@@ -69,15 +67,9 @@ public abstract class GlobalState implements Closeable {
   private final ThreadPoolExecutor searchThreadPoolExecutor;
 
   public static GlobalState createState(
-      LuceneServerConfiguration luceneServerConfiguration,
-      Archiver incArchiver,
-      RemoteBackend remoteBackend)
+      LuceneServerConfiguration luceneServerConfiguration, RemoteBackend remoteBackend)
       throws IOException {
-    return new BackendGlobalState(luceneServerConfiguration, incArchiver, remoteBackend);
-  }
-
-  public Optional<Archiver> getIncArchiver() {
-    return Optional.ofNullable(incArchiver);
+    return new BackendGlobalState(luceneServerConfiguration, remoteBackend);
   }
 
   public RemoteBackend getRemoteBackend() {
@@ -85,11 +77,8 @@ public abstract class GlobalState implements Closeable {
   }
 
   protected GlobalState(
-      LuceneServerConfiguration luceneServerConfiguration,
-      Archiver incArchiver,
-      RemoteBackend remoteBackend)
+      LuceneServerConfiguration luceneServerConfiguration, RemoteBackend remoteBackend)
       throws IOException {
-    this.incArchiver = incArchiver;
     this.remoteBackend = remoteBackend;
     this.nodeName = luceneServerConfiguration.getNodeName();
     this.stateDir = Paths.get(luceneServerConfiguration.getStateDir());
@@ -184,7 +173,7 @@ public abstract class GlobalState implements Closeable {
    */
   public abstract void replicationStarted(int replicationPort) throws IOException;
 
-  /** Get the data resource name for a given index. Used with incremental archiver functionality. */
+  /** Get the data resource name for a given index. Used by remote backend. */
   public abstract String getDataResourceForIndex(String indexName);
 
   public abstract Set<String> getIndexNames();

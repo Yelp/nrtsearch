@@ -18,7 +18,6 @@ package com.yelp.nrtsearch.server.luceneserver.state;
 import static com.yelp.nrtsearch.server.utils.TimeStringUtil.generateTimeStringMs;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
@@ -102,16 +101,13 @@ public class BackendGlobalState extends GlobalState {
    * Constructor.
    *
    * @param luceneServerConfiguration server config
-   * @param incArchiver archiver for remote backends
    * @param remoteBackend backend for persistent remote storage
    * @throws IOException on filesystem error
    */
   public BackendGlobalState(
-      LuceneServerConfiguration luceneServerConfiguration,
-      Archiver incArchiver,
-      RemoteBackend remoteBackend)
+      LuceneServerConfiguration luceneServerConfiguration, RemoteBackend remoteBackend)
       throws IOException {
-    super(luceneServerConfiguration, incArchiver, remoteBackend);
+    super(luceneServerConfiguration, remoteBackend);
     stateBackend = createStateBackend();
     GlobalStateInfo globalStateInfo = stateBackend.loadOrCreateGlobalState();
     // init index state managers

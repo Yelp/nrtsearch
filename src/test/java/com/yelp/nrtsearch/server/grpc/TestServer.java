@@ -22,22 +22,11 @@ import static org.junit.Assert.assertTrue;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.yelp.nrtsearch.clientlib.Node;
-import com.yelp.nrtsearch.server.backup.Archiver;
-import com.yelp.nrtsearch.server.backup.BackupDiffManager;
-import com.yelp.nrtsearch.server.backup.ContentDownloader;
-import com.yelp.nrtsearch.server.backup.ContentDownloaderImpl;
-import com.yelp.nrtsearch.server.backup.FileCompressAndUploader;
-import com.yelp.nrtsearch.server.backup.IndexArchiver;
-import com.yelp.nrtsearch.server.backup.NoTarImpl;
-import com.yelp.nrtsearch.server.backup.TarImpl;
-import com.yelp.nrtsearch.server.backup.VersionManager;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.StateConfig.StateBackendType;
@@ -61,7 +50,6 @@ import io.prometheus.client.CollectorRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -118,7 +106,6 @@ public class TestServer {
   private LuceneServerClient client;
   private ReplicationServerClient replicationClient;
   private LuceneServerImpl serverImpl;
-  private Archiver indexArchiver;
   private RemoteBackend remoteBackend;
 
   public static void initS3(TemporaryFolder folder) throws IOException {
@@ -148,38 +135,6 @@ public class TestServer {
     restart();
   }
 
-  private IndexArchiver createIndexArchiver(Path archiverDir) throws IOException {
-    Files.createDirectories(archiverDir);
-
-    AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
-    s3.setEndpoint(S3_ENDPOINT);
-    s3.createBucket(TEST_BUCKET);
-    TransferManager transferManager =
-        TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
-
-    ContentDownloader contentDownloader =
-        new ContentDownloaderImpl(
-            new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, TEST_BUCKET, true);
-    FileCompressAndUploader fileCompressAndUploader =
-        new FileCompressAndUploader(
-            new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, TEST_BUCKET);
-    ContentDownloader contentDownloaderNoTar =
-        new ContentDownloaderImpl(new NoTarImpl(), transferManager, TEST_BUCKET, true);
-    FileCompressAndUploader fileCompressAndUploaderNoTar =
-        new FileCompressAndUploader(new NoTarImpl(), transferManager, TEST_BUCKET);
-    VersionManager versionManager = new VersionManager(s3, TEST_BUCKET);
-    BackupDiffManager backupDiffManagerPrimary =
-        new BackupDiffManager(
-            contentDownloaderNoTar, fileCompressAndUploaderNoTar, versionManager, archiverDir);
-
-    return new IndexArchiver(
-        backupDiffManagerPrimary,
-        fileCompressAndUploader,
-        contentDownloader,
-        versionManager,
-        archiverDir);
-  }
-
   private RemoteBackend createRemoteBackend() {
     AmazonS3 s3 = new AmazonS3Client(new AnonymousAWSCredentials());
     s3.setEndpoint(S3_ENDPOINT);
@@ -193,15 +148,10 @@ public class TestServer {
 
   public void restart(boolean clearData) throws IOException {
     stop(clearData);
-    indexArchiver = createIndexArchiver(Paths.get(configuration.getArchiveDirectory()));
     remoteBackend = createRemoteBackend();
     serverImpl =
         new LuceneServerImpl(
-            configuration,
-            indexArchiver,
-            remoteBackend,
-            new CollectorRegistry(),
-            Collections.emptyList());
+            configuration, remoteBackend, new CollectorRegistry(), Collections.emptyList());
 
     replicationServer =
         ServerBuilder.forPort(0)
@@ -259,10 +209,6 @@ public class TestServer {
 
   public ReplicationServerClient getReplicationClient() {
     return replicationClient;
-  }
-
-  public Archiver getIndexArchiver() {
-    return indexArchiver;
   }
 
   public RemoteBackend getRemoteBackend() {
@@ -793,7 +739,6 @@ public class TestServer {
           "bucketName: " + TEST_BUCKET,
           "stateDir: " + Paths.get(folder.getRoot().toString(), "state_dir"),
           "indexDir: " + Paths.get(folder.getRoot().toString(), "index_dir-" + uuid),
-          "archiveDirectory: " + Paths.get(folder.getRoot().toString(), "archive_dir-" + uuid),
           "decInitialCommit: " + decInitialCommit,
           "syncInitialNrtPoint: true");
     }

@@ -139,13 +139,6 @@ task luceneServerClient(type: CreateStartScripts) {
     classpath = startScripts.classpath
 }
 
-task backupRestoreTool(type: CreateStartScripts) {
-    mainClass = 'com.yelp.nrtsearch.server.cli.BackupRestoreCommand'
-    applicationName = 'backup-restore'
-    outputDir = new File(project.buildDir, 'tmp-app')
-    classpath = startScripts.classpath
-}
-
 task nrtUtils(type: CreateStartScripts) {
     mainClass = 'com.yelp.nrtsearch.tools.nrt_utils.NrtUtilsCommand'
     applicationName = 'nrt_utils'
@@ -156,7 +149,6 @@ task nrtUtils(type: CreateStartScripts) {
 applicationDistribution.into('bin') {
     from(luceneServer)
     from(luceneServerClient)
-    from(backupRestoreTool)
     from(nrtUtils)
     fileMode = 0755
 }

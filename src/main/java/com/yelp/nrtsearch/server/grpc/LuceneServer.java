@@ -26,7 +26,6 @@ import com.google.common.collect.Sets;
 import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
-import com.google.inject.name.Named;
 import com.google.protobuf.Any;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
@@ -34,7 +33,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.LuceneServerModule;
 import com.yelp.nrtsearch.server.MetricsRequestHandler;
-import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.config.QueryCacheConfig;
 import com.yelp.nrtsearch.server.luceneserver.*;
@@ -94,7 +92,6 @@ import picocli.CommandLine;
 public class LuceneServer {
   private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
   private static final Splitter COMMA_SPLITTER = Splitter.on(",");
-  private final Archiver incArchiver;
   private final RemoteBackend remoteBackend;
   private final CollectorRegistry collectorRegistry;
   private final PluginsService pluginsService;
@@ -106,11 +103,9 @@ public class LuceneServer {
   @Inject
   public LuceneServer(
       LuceneServerConfiguration luceneServerConfiguration,
-      @Named("incArchiver") Archiver incArchiver,
       RemoteBackend remoteBackend,
       CollectorRegistry collectorRegistry) {
     this.luceneServerConfiguration = luceneServerConfiguration;
-    this.incArchiver = incArchiver;
     this.remoteBackend = remoteBackend;
     this.collectorRegistry = collectorRegistry;
     this.pluginsService =
@@ -124,8 +119,7 @@ public class LuceneServer {
     String nodeName = luceneServerConfiguration.getNodeName();
 
     LuceneServerImpl serverImpl =
-        new LuceneServerImpl(
-            luceneServerConfiguration, incArchiver, remoteBackend, collectorRegistry, plugins);
+        new LuceneServerImpl(luceneServerConfiguration, remoteBackend, collectorRegistry, plugins);
     GlobalState globalState = serverImpl.getGlobalState();
 
     registerMetrics(globalState);
@@ -305,7 +299,6 @@ public class LuceneServer {
      * extendable components.
      *
      * @param configuration server configuration
-     * @param incArchiver archiver for incremental index data copy
      * @param remoteBackend backend for persistent remote storage
      * @param collectorRegistry metrics collector registry
      * @param plugins loaded plugins
@@ -313,7 +306,6 @@ public class LuceneServer {
      */
     LuceneServerImpl(
         LuceneServerConfiguration configuration,
-        Archiver incArchiver,
         RemoteBackend remoteBackend,
         CollectorRegistry collectorRegistry,
         List<Plugin> plugins)
@@ -328,7 +320,7 @@ public class LuceneServer {
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);
 
-      this.globalState = GlobalState.createState(configuration, incArchiver, remoteBackend);
+      this.globalState = GlobalState.createState(configuration, remoteBackend);
       this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
     }
 

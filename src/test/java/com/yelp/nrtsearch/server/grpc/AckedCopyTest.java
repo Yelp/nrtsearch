@@ -26,7 +26,6 @@ import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.junit.After;
 import org.junit.Rule;
@@ -53,10 +52,9 @@ public class AckedCopyTest {
   private GrpcServer luceneServerSecondary;
   private GrpcServer replicationServerSecondary;
 
-  private static final String BUCKET_NAME = "archiver-unittest";
+  private static final String BUCKET_NAME = "acked-copy-unittest";
   private RemoteBackend remoteBackend;
   private AmazonS3 s3;
-  private Path archiverDirectory;
 
   @After
   public void tearDown() throws IOException {
@@ -67,7 +65,6 @@ public class AckedCopyTest {
   }
 
   public void setUp(int chunkSize, int ackEvery, int maxInFlight) throws IOException {
-    archiverDirectory = folder.newFolder("archiver").toPath();
     s3 = s3Provider.getAmazonS3();
 
     String extraConfig =

@@ -22,18 +22,11 @@ java {
 group 'com.yelp.nrtsearch.plugins'
 version '0.0.1'
 
-repositories {
-    mavenCentral()
-    maven {
-        url = uri("https://oss.sonatype.org/content/repositories/snapshots/")
-    }
-}
-
 ext {
     assertjVersion = '3.26.3'
     grpcVersion = "1.66.0"
     junitVersion = "4.13.2"
-    nrtsearchVersion = "1.+"
+    nrtsearchVersion = "1.0.0-alpha.+"
     protobufVersion = "3.25.3"
 }
 

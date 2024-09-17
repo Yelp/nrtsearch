@@ -18,7 +18,6 @@ package com.yelp.nrtsearch.server.remote.s3;
 import com.amazonaws.event.ProgressEvent;
 import com.amazonaws.services.s3.transfer.PersistableTransfer;
 import com.amazonaws.services.s3.transfer.internal.S3ProgressListener;
-import com.yelp.nrtsearch.server.backup.ContentDownloaderImpl;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.Semaphore;
@@ -31,7 +30,7 @@ import org.slf4j.LoggerFactory;
  * com.amazonaws.services.s3.transfer.TransferManager}.
  */
 public class S3ProgressListenerImpl implements S3ProgressListener {
-  private static final Logger logger = LoggerFactory.getLogger(ContentDownloaderImpl.class);
+  private static final Logger logger = LoggerFactory.getLogger(S3ProgressListenerImpl.class);
 
   private static final long LOG_THRESHOLD_BYTES = 1024 * 1024 * 500; // 500 MB
   private static final long LOG_THRESHOLD_SECONDS = 30;

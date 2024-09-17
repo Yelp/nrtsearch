@@ -24,7 +24,6 @@ Example server configuration
   fileSendDelay: false
   botoCfgPath: "/user/app/boto.cfg"
   bucketName: "nrtsearch-bucket"
-  archiveDirectory: "/user/app/primary_index_archiver"
   serviceName: "nrtsearch-service-test"
   restoreState: False
   downloadAsStream: "true"
@@ -72,7 +71,7 @@ Example server configuration
    * - bucketName
      - str
      - Name of bucket to use for external storage
-     - DEFAULT_ARCHIVE_BUCKET
+     - DEFAULT_REMOTE_BUCKET
 
    * - maxS3ClientRetries
      - int
@@ -83,11 +82,6 @@ Example server configuration
      - str
      - Path to AWS credentials (if using S3 for remote storage); Will use the DefaultAWSCredentialsProviderChain if omitted.
      - null
-
-   * - archiveDirectory
-     - str
-     - Directory for uploading/downloading from external storage. 
-     - `<DEFAULT_USER_DIR> <https://github.com/Yelp/nrtsearch/blob/f612f5d3e14e468ab8c9b45dd4be0ab84231b9de/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java#L35>`_/archiver
 
    * - downloadAsStream
      - bool
