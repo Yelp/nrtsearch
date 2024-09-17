@@ -46,4 +46,17 @@ public class JsonUtils {
   public static <T> T convertValue(Object fromValue, Class<T> toValueType) {
     return OBJECT_MAPPER.convertValue(fromValue, toValueType);
   }
+
+  /**
+   * Read the provided json string into the provided class type.
+   *
+   * @param content json string
+   * @param valueType class type
+   * @return instance of the class type
+   * @param <T> class type
+   * @throws IOException on error reading the json string
+   */
+  public static <T> T readValue(String content, Class<T> valueType) throws IOException {
+    return OBJECT_MAPPER.readValue(content, valueType);
+  }
 }

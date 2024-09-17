@@ -38,7 +38,9 @@ import com.yelp.nrtsearch.server.luceneserver.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
@@ -201,7 +203,9 @@ public class NrtDataManagerTest {
     NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "timestamp");
     Map<String, NrtFileMetaData> nrtFileMetaDataMap = Map.of("file1", nrtFileMetaData);
     NrtPointState nrtPointState = new NrtPointState(copyState, nrtFileMetaDataMap, PRIMARY_ID);
-    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME)).thenReturn(nrtPointState);
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtPointState);
+    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME))
+        .thenReturn(new ByteArrayInputStream(pointStateBytes));
 
     RestoreIndex restoreIndex =
         RestoreIndex.newBuilder()
@@ -244,7 +248,9 @@ public class NrtDataManagerTest {
     NrtFileMetaData nrtFileMetaData = new NrtFileMetaData(fileMetaData, PRIMARY_ID, "timestamp");
     Map<String, NrtFileMetaData> nrtFileMetaDataMap = Map.of("file1", nrtFileMetaData);
     NrtPointState nrtPointState = new NrtPointState(copyState, nrtFileMetaDataMap, PRIMARY_ID);
-    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME)).thenReturn(nrtPointState);
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtPointState);
+    when(mockRemoteBackend.downloadPointState(SERVICE_NAME, INDEX_NAME))
+        .thenReturn(new ByteArrayInputStream(pointStateBytes));
 
     RestoreIndex restoreIndex =
         RestoreIndex.newBuilder()
@@ -507,6 +513,7 @@ public class NrtDataManagerTest {
     NrtPointState nrtPointState =
         new NrtPointState(copyState, Map.of("file1", nrtFileMetaData), PRIMARY_ID);
     verifyPointStates(nrtPointState, nrtDataManager.getLastPointState());
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtDataManager.getLastPointState());
 
     verify(mockPrimaryNode, times(1)).releaseCopyState(copyState);
     verify(mockRemoteBackend, times(1))
@@ -517,7 +524,8 @@ public class NrtDataManagerTest {
                 arg -> {
                   verifyPointStates(nrtPointState, arg);
                   return true;
-                }));
+                }),
+            eq(pointStateBytes));
     verify(mockRemoteBackend, times(1))
         .uploadIndexFiles(
             eq(SERVICE_NAME),
@@ -588,11 +596,22 @@ public class NrtDataManagerTest {
     verify(mockPrimaryNode, times(1)).releaseCopyState(copyState2);
 
     ArgumentCaptor<NrtPointState> pointStateCaptor = ArgumentCaptor.forClass(NrtPointState.class);
+    ArgumentCaptor<byte[]> pointStateBytesCaptor = ArgumentCaptor.forClass(byte[].class);
     verify(mockRemoteBackend, times(2))
-        .uploadPointState(eq(SERVICE_NAME), eq(INDEX_NAME), pointStateCaptor.capture());
+        .uploadPointState(
+            eq(SERVICE_NAME),
+            eq(INDEX_NAME),
+            pointStateCaptor.capture(),
+            pointStateBytesCaptor.capture());
     List<NrtPointState> pointStates = pointStateCaptor.getAllValues();
     verifyPointStates(nrtPointState1, pointStates.get(0));
+    assertArrayEquals(
+        RemoteUtils.pointStateToUtf8(pointStates.get(0)),
+        pointStateBytesCaptor.getAllValues().get(0));
     verifyPointStates(nrtPointState2, pointStates.get(1));
+    assertArrayEquals(
+        RemoteUtils.pointStateToUtf8(pointStates.get(1)),
+        pointStateBytesCaptor.getAllValues().get(1));
 
     ArgumentCaptor<Map<String, NrtFileMetaData>> filesCaptor = ArgumentCaptor.forClass(Map.class);
     verify(mockRemoteBackend, times(2))
@@ -637,6 +656,7 @@ public class NrtDataManagerTest {
     NrtPointState nrtPointState =
         new NrtPointState(copyState, Map.of("file1", nrtFileMetaData), PRIMARY_ID);
     verifyPointStates(nrtPointState, nrtDataManager.getLastPointState());
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtDataManager.getLastPointState());
 
     verify(mockPrimaryNode, times(2)).releaseCopyState(copyState);
     verify(mockRemoteBackend, times(1))
@@ -647,7 +667,8 @@ public class NrtDataManagerTest {
                 arg -> {
                   verifyPointStates(nrtPointState, arg);
                   return true;
-                }));
+                }),
+            eq(pointStateBytes));
     verify(mockRemoteBackend, times(1))
         .uploadIndexFiles(
             eq(SERVICE_NAME),
@@ -705,6 +726,7 @@ public class NrtDataManagerTest {
     NrtPointState nrtPointState =
         new NrtPointState(copyState, Map.of("file1", nrtFileMetaData), PRIMARY_ID);
     verifyPointStates(nrtPointState, nrtDataManager.getLastPointState());
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(nrtDataManager.getLastPointState());
 
     verify(mockPrimaryNode, times(1)).releaseCopyState(copyState);
     verify(mockPrimaryNode, times(1)).releaseCopyState(copyState2);
@@ -716,7 +738,8 @@ public class NrtDataManagerTest {
                 arg -> {
                   verifyPointStates(nrtPointState, arg);
                   return true;
-                }));
+                }),
+            eq(pointStateBytes));
     verify(mockRemoteBackend, times(1))
         .uploadIndexFiles(
             eq(SERVICE_NAME),
@@ -736,7 +759,8 @@ public class NrtDataManagerTest {
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     doThrow(new IOException("error"))
         .when(mockRemoteBackend)
-        .uploadPointState(eq(SERVICE_NAME), eq(INDEX_NAME), any(NrtPointState.class));
+        .uploadPointState(
+            eq(SERVICE_NAME), eq(INDEX_NAME), any(NrtPointState.class), any(byte[].class));
     NrtDataManager nrtDataManager =
         new NrtDataManager(SERVICE_NAME, INDEX_NAME, PRIMARY_ID, mockRemoteBackend, null, true);
     NRTPrimaryNode mockPrimaryNode = mock(NRTPrimaryNode.class);
@@ -778,7 +802,8 @@ public class NrtDataManagerTest {
                 arg -> {
                   verifyPointStates(nrtPointState, arg);
                   return true;
-                }));
+                }),
+            any(byte[].class));
     verify(mockRemoteBackend, times(1))
         .uploadIndexFiles(
             eq(SERVICE_NAME),

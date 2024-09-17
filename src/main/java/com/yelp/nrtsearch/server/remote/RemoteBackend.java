@@ -145,10 +145,12 @@ public interface RemoteBackend extends PluginDownloader {
    *
    * @param service service name
    * @param indexIdentifier unique index identifier
-   * @param nrtPointState NRT point state to upload
+   * @param nrtPointState NRT point state
+   * @param data point state data to upload
    * @throws IOException on error uploading point state
    */
-  void uploadPointState(String service, String indexIdentifier, NrtPointState nrtPointState)
+  void uploadPointState(
+      String service, String indexIdentifier, NrtPointState nrtPointState, byte[] data)
       throws IOException;
 
   /**
@@ -156,8 +158,8 @@ public interface RemoteBackend extends PluginDownloader {
    *
    * @param service service name
    * @param indexIdentifier unique index identifier
-   * @return downloaded NRT point state
+   * @return input stream of point state data
    * @throws IOException on error downloading point state
    */
-  NrtPointState downloadPointState(String service, String indexIdentifier) throws IOException;
+  InputStream downloadPointState(String service, String indexIdentifier) throws IOException;
 }

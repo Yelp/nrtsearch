@@ -16,6 +16,8 @@
 package com.yelp.nrtsearch.server.luceneserver.nrt.state;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -26,6 +28,8 @@ import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
 
 /** State of a single NRT point, including the files and metadata associated with it. */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public final class NrtPointState {
 
   public Map<String, NrtFileMetaData> files;
