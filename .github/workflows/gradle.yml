@@ -8,7 +8,7 @@ on:
     inputs:
       branch:
         description: 'The branch to run the job on'
-        default: master
+        default: v0.x
         required: false
         type: string
 
