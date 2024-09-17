@@ -5,12 +5,12 @@ name: Java CI with Gradle for master branch
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   build:
-    uses: Yelp/nrtsearch/.github/workflows/gradle.yml@master
+    uses: Yelp/nrtsearch/.github/workflows/gradle.yml@main
     with:
-      branch: master
+      branch: main
