@@ -37,14 +37,6 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
 
   @Override
   protected void validateRequest(Field requestField) {
-    if (requestField.getHighlight() && !requestField.getSearch()) {
-      throw new IllegalArgumentException("search must be true when highlight is true");
-    }
-
-    if (requestField.getHighlight() && !requestField.getStore()) {
-      throw new IllegalArgumentException("store must be true when highlight is true");
-    }
-
     if (hasAnalyzer(requestField)) {
       throw new IllegalArgumentException(
           "no analyzer allowed with atom (it's hardwired to KeywordAnalyzer internally)");

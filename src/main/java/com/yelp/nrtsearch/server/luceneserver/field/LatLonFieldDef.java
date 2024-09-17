@@ -54,13 +54,6 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQu
   protected void validateRequest(Field requestField) {
     super.validateRequest(requestField);
 
-    if (requestField.getHighlight()) {
-      throw new IllegalArgumentException(
-          String.format(
-              "field: %s cannot have highlight=true. only type=text or type=atom fields can have highlight=true",
-              getName()));
-    }
-
     if (requestField.getStore()) {
       throw new IllegalArgumentException("latlon fields cannot be stored");
     }

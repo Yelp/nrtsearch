@@ -48,13 +48,6 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
   protected void validateRequest(Field requestField) {
     super.validateRequest(requestField);
 
-    if (requestField.getHighlight()) {
-      throw new IllegalArgumentException(
-          String.format(
-              "field: %s cannot have highlight=true. only type=text or type=atom fields can have highlight=true",
-              getName()));
-    }
-
     if (hasAnalyzer(requestField)) {
       throw new IllegalArgumentException("no analyzer allowed on polygon field");
     }

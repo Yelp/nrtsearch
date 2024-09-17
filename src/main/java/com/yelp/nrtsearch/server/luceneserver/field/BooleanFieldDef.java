@@ -45,13 +45,6 @@ public class BooleanFieldDef extends IndexableFieldDef implements TermQueryable 
   protected void validateRequest(Field requestField) {
     super.validateRequest(requestField);
 
-    if (requestField.getHighlight()) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Field: %s cannot have highlight=true. only type=text or type=atom fields can have highlight=true",
-              getName()));
-    }
-
     if (hasAnalyzer(requestField) && !requestField.getSearch()) {
       throw new IllegalArgumentException("No analyzer allowed when search=false");
     }
