@@ -21,11 +21,13 @@ import com.yelp.nrtsearch.server.luceneserver.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.utils.FileUtil;
 import com.yelp.nrtsearch.server.utils.TimeStringUtil;
 import java.io.Closeable;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -180,7 +182,9 @@ public class NrtDataManager implements Closeable {
 
     if (hasRestoreData()) {
       logger.info("Restoring index data for service: {}, index: {}", serviceName, indexIdentifier);
-      NrtPointState pointState = remoteBackend.downloadPointState(serviceName, indexIdentifier);
+      InputStream pointStateStream = remoteBackend.downloadPointState(serviceName, indexIdentifier);
+      byte[] pointStateBytes = pointStateStream.readAllBytes();
+      NrtPointState pointState = RemoteUtils.pointStateFromUtf8(pointStateBytes);
 
       long start = System.nanoTime();
       try {
@@ -292,7 +296,8 @@ public class NrtDataManager implements Closeable {
                 task.copyState.version);
             Map<String, NrtFileMetaData> versionFiles = uploadDiff(task.copyState);
             NrtPointState pointState = new NrtPointState(task.copyState, versionFiles, ephemeralId);
-            remoteBackend.uploadPointState(serviceName, indexIdentifier, pointState);
+            byte[] data = RemoteUtils.pointStateToUtf8(pointState);
+            remoteBackend.uploadPointState(serviceName, indexIdentifier, pointState, data);
             lastPointState = pointState;
           } else {
             logger.info(

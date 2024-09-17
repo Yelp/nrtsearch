@@ -78,4 +78,38 @@ public class TimeStringUtilTest {
     assertFalse(TimeStringUtil.isTimeStringSec("_3.cfs"));
     assertFalse(TimeStringUtil.isTimeStringSec("segments"));
   }
+
+  @Test
+  public void testFormatTimeStringMs() {
+    LocalDateTime localDateTime = LocalDateTime.of(2024, 8, 20, 12, 34, 56, 789000000);
+    String timeString =
+        TimeStringUtil.formatTimeStringMs(localDateTime.atZone(ZoneId.of("UTC")).toInstant());
+    assertEquals("20240820123456789", timeString);
+  }
+
+  @Test
+  public void testFormatTimeStringSec() {
+    LocalDateTime localDateTime = LocalDateTime.of(2024, 8, 20, 12, 34, 56, 789000000);
+    String timeString =
+        TimeStringUtil.formatTimeStringSec(localDateTime.atZone(ZoneId.of("UTC")).toInstant());
+    assertEquals("20240820123456", timeString);
+  }
+
+  @Test
+  public void testParseTimeStringMs() {
+    LocalDateTime localDateTime = LocalDateTime.of(2024, 8, 20, 12, 34, 56, 789000000);
+    String timeString = "20240820123456789";
+    assertEquals(
+        localDateTime.atZone(ZoneId.of("UTC")).toInstant(),
+        TimeStringUtil.parseTimeStringMs(timeString));
+  }
+
+  @Test
+  public void testParseTimeStringSec() {
+    LocalDateTime localDateTime = LocalDateTime.of(2024, 8, 20, 12, 34, 56);
+    String timeString = "20240820123456";
+    assertEquals(
+        localDateTime.atZone(ZoneId.of("UTC")).toInstant(),
+        TimeStringUtil.parseTimeStringSec(timeString));
+  }
 }

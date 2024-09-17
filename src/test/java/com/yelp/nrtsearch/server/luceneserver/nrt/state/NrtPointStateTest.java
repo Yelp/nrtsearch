@@ -29,21 +29,29 @@ import org.junit.Test;
 public class NrtPointStateTest {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-  final long version = 1;
-  final long gen = 3;
-  final byte[] infosBytes = new byte[] {1, 2, 3, 4, 5};
-  final long primaryGen = 5;
-  final Set<String> completedMergeFiles = Set.of("file1");
-  final String primaryId = "primaryId";
-  final FileMetaData fileMetaData =
+  static final long version = 1;
+  static final long gen = 3;
+  static final byte[] infosBytes = new byte[] {1, 2, 3, 4, 5};
+  static final long primaryGen = 5;
+  static final Set<String> completedMergeFiles = Set.of("file1");
+  static final String primaryId = "primaryId";
+  static final FileMetaData fileMetaData =
       new FileMetaData(new byte[] {6, 7, 8}, new byte[] {0, 10, 11}, 10, 25);
-  final NrtFileMetaData nrtFileMetaData =
+  static final NrtFileMetaData nrtFileMetaData =
       new NrtFileMetaData(
           new byte[] {6, 7, 8}, new byte[] {0, 10, 11}, 10, 25, "primaryId2", "timeString");
-  final String expectedJson =
+  static final String expectedJson =
       "{\"files\":{\"file3\":{\"header\":\"BgcI\",\"footer\":\"AAoL\",\"length\":10,\"checksum\":25,\"primaryId\":\"primaryId2\",\"timeString\":\"timeString\"}},\"version\":1,\"gen\":3,\"infosBytes\":\"AQIDBAU=\",\"primaryGen\":5,\"completedMergeFiles\":[\"file1\"],\"primaryId\":\"primaryId\"}";
 
-  private CopyState getCopyState() {
+  public static NrtPointState getNrtPointState() {
+    return new NrtPointState(getCopyState(), Map.of("file3", nrtFileMetaData), primaryId);
+  }
+
+  public static String getExpectedJson() {
+    return expectedJson;
+  }
+
+  private static CopyState getCopyState() {
     return new CopyState(
         Map.of("file3", fileMetaData),
         version,
@@ -92,7 +100,15 @@ public class NrtPointStateTest {
     assertNrtPointState(nrtPointState);
   }
 
-  private void assertNrtPointState(NrtPointState nrtPointState) {
+  @Test
+  public void testFromJson_unknownField() throws JsonProcessingException {
+    String json =
+        "{\"files\":{\"file3\":{\"header\":\"BgcI\",\"footer\":\"AAoL\",\"length\":10,\"checksum\":25,\"primaryId\":\"primaryId2\",\"timeString\":\"timeString\"}},\"version\":1,\"gen\":3,\"infosBytes\":\"AQIDBAU=\",\"primaryGen\":5,\"completedMergeFiles\":[\"file1\"],\"primaryId\":\"primaryId\",\"unknownField\":\"unknownValue\"}";
+    NrtPointState nrtPointState = OBJECT_MAPPER.readValue(json, NrtPointState.class);
+    assertNrtPointState(nrtPointState);
+  }
+
+  public static void assertNrtPointState(NrtPointState nrtPointState) {
     assertEquals(nrtPointState.version, version);
     assertEquals(nrtPointState.gen, gen);
     assertArrayEquals(nrtPointState.infosBytes, infosBytes);

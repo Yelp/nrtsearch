@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.utils;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -57,5 +58,45 @@ public class TimeStringUtil {
     } catch (Exception e) {
       return false;
     }
+  }
+
+  /**
+   * Format the given time as a UTC time string formatted as yyyyMMddHHmmssSSS.
+   *
+   * @param time time to format
+   * @return formatted time string
+   */
+  public static String formatTimeStringMs(Instant time) {
+    return MSEC_FORMATTER.format(time.atZone(ZoneId.of("UTC")));
+  }
+
+  /**
+   * Format the given time as a UTC time string formatted as yyyyMMddHHmmss.
+   *
+   * @param time time to format
+   * @return formatted time string
+   */
+  public static String formatTimeStringSec(Instant time) {
+    return SEC_FORMATTER.format(time.atZone(ZoneId.of("UTC")));
+  }
+
+  /**
+   * Parse the given UTC time string of the form yyyyMMddHHmmssSSS as an Instant.
+   *
+   * @param timeString time string to parse
+   * @return parsed Instant
+   */
+  public static Instant parseTimeStringMs(String timeString) {
+    return LocalDateTime.parse(timeString, MSEC_FORMATTER).atZone(ZoneId.of("UTC")).toInstant();
+  }
+
+  /**
+   * Parse the given UTC time string of the form yyyyMMddHHmmss as an Instant.
+   *
+   * @param timeString time string to parse
+   * @return parsed Instant
+   */
+  public static Instant parseTimeStringSec(String timeString) {
+    return LocalDateTime.parse(timeString, SEC_FORMATTER).atZone(ZoneId.of("UTC")).toInstant();
   }
 }

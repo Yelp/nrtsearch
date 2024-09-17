@@ -64,6 +64,14 @@ public class NrtFileMetaDataTest {
     assertNrtFileMetaData(nrtFileMetaData);
   }
 
+  @Test
+  public void testFromJson_unknownFields() throws JsonProcessingException {
+    String json =
+        "{\"header\":\"AQIDBAU=\",\"footer\":\"BQQDAgE=\",\"length\":10,\"checksum\":25,\"primaryId\":\"primaryId\",\"timeString\":\"timeString\",\"unknownField\":\"unknownValue\"}";
+    NrtFileMetaData nrtFileMetaData = OBJECT_MAPPER.readValue(json, NrtFileMetaData.class);
+    assertNrtFileMetaData(nrtFileMetaData);
+  }
+
   private void assertNrtFileMetaData(NrtFileMetaData nrtFileMetaData) {
     assertArrayEquals(header, nrtFileMetaData.header);
     assertArrayEquals(footer, nrtFileMetaData.footer);

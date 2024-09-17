@@ -32,6 +32,7 @@ import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
+import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.utils.TimeStringUtil;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.ByteArrayInputStream;
@@ -84,6 +85,11 @@ public class S3BackendTest {
   }
 
   @Test
+  public void testGetS3() {
+    assertEquals(s3, s3Backend.getS3());
+  }
+
+  @Test
   public void testDownloadFromS3Path() throws IOException {
     InputStream inputStream = s3Backend.downloadFromS3Path(BUCKET_NAME, KEY);
     String contentFromS3 = convertToString(inputStream);
@@ -115,15 +121,17 @@ public class S3BackendTest {
 
   @Test
   public void testExists() throws IOException {
-    exists(IndexResourceType.WARMING_QUERIES, S3Backend.WARMING);
-    exists(IndexResourceType.POINT_STATE, S3Backend.POINT_STATE);
-    exists(IndexResourceType.INDEX_STATE, S3Backend.INDEX_STATE);
+    exists(IndexResourceType.WARMING_QUERIES, S3Backend.WARMING, IndexResourceType.WARMING_QUERIES);
+    exists(IndexResourceType.POINT_STATE, S3Backend.POINT_STATE, IndexResourceType.POINT_STATE);
+    exists(IndexResourceType.INDEX_STATE, S3Backend.INDEX_STATE, IndexResourceType.INDEX_STATE);
   }
 
-  private void exists(IndexResourceType indexResourceType, String resourceName) throws IOException {
+  private void exists(
+      IndexResourceType indexResourceType, String resourceName, IndexResourceType resourceType)
+      throws IOException {
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "exist_service" + resourceName, "exist_index", resourceName);
+            "exist_service" + resourceName, "exist_index", resourceType);
     String fileName = S3Backend.getWarmingQueriesFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     s3.putObject(BUCKET_NAME, currentKey, fileName);
@@ -285,7 +293,7 @@ public class S3BackendTest {
   public void testDownloadIndexState_singlePart() throws IOException {
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "download_index_state_service", "download_index", S3Backend.INDEX_STATE);
+            "download_index_state_service", "download_index", IndexResourceType.INDEX_STATE);
     String fileName = S3Backend.getIndexStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     s3.putObject(BUCKET_NAME, currentKey, fileName);
@@ -300,7 +308,7 @@ public class S3BackendTest {
   public void testDownloadIndexState_multiPart() throws IOException {
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "download_index_state_service_2", "download_index_2", S3Backend.INDEX_STATE);
+            "download_index_state_service_2", "download_index_2", IndexResourceType.INDEX_STATE);
     String fileName = S3Backend.getIndexStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     s3.putObject(BUCKET_NAME, currentKey, fileName);
@@ -324,7 +332,7 @@ public class S3BackendTest {
 
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "download_index_state_service_3", "download_index_3", S3Backend.INDEX_STATE);
+            "download_index_state_service_3", "download_index_3", IndexResourceType.INDEX_STATE);
     String fileName = S3Backend.getIndexStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     s3.putObject(BUCKET_NAME, currentKey, fileName);
@@ -345,7 +353,7 @@ public class S3BackendTest {
   public void testDownloadIndexState_updateData() throws IOException {
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "download_index_state_service_4", "download_index_4", S3Backend.INDEX_STATE);
+            "download_index_state_service_4", "download_index_4", IndexResourceType.INDEX_STATE);
     String fileName = S3Backend.getIndexStateFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     s3.putObject(BUCKET_NAME, currentKey, fileName);
@@ -372,7 +380,7 @@ public class S3BackendTest {
 
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "upload_index_state_service", "upload_index", S3Backend.INDEX_STATE);
+            "upload_index_state_service", "upload_index", IndexResourceType.INDEX_STATE);
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     String contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
     assertIndexStateVersion(contents);
@@ -389,7 +397,7 @@ public class S3BackendTest {
 
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "upload_index_state_service_1", "upload_index_1", S3Backend.INDEX_STATE);
+            "upload_index_state_service_1", "upload_index_1", IndexResourceType.INDEX_STATE);
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     String contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
     assertIndexStateVersion(contents);
@@ -415,7 +423,7 @@ public class S3BackendTest {
   public void testIndexStateResourcePrefix() {
     assertEquals(
         "service/index/state/",
-        S3Backend.getIndexResourcePrefix("service", "index", S3Backend.INDEX_STATE));
+        S3Backend.getIndexResourcePrefix("service", "index", IndexResourceType.INDEX_STATE));
   }
 
   @Test
@@ -436,7 +444,7 @@ public class S3BackendTest {
   public void testDownloadWarmingQueries_singlePart() throws IOException {
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "download_warming_service", "download_index", S3Backend.WARMING);
+            "download_warming_service", "download_index", IndexResourceType.WARMING_QUERIES);
     String fileName = S3Backend.getWarmingQueriesFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     s3.putObject(BUCKET_NAME, currentKey, fileName);
@@ -451,7 +459,7 @@ public class S3BackendTest {
   public void testDownloadWarmingQueries_multiPart() throws IOException {
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "download_warming_service_2", "download_index_2", S3Backend.WARMING);
+            "download_warming_service_2", "download_index_2", IndexResourceType.WARMING_QUERIES);
     String fileName = S3Backend.getWarmingQueriesFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     s3.putObject(BUCKET_NAME, currentKey, fileName);
@@ -475,7 +483,7 @@ public class S3BackendTest {
 
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "download_warming_service_3", "download_index_3", S3Backend.WARMING);
+            "download_warming_service_3", "download_index_3", IndexResourceType.WARMING_QUERIES);
     String fileName = S3Backend.getWarmingQueriesFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     s3.putObject(BUCKET_NAME, currentKey, fileName);
@@ -496,7 +504,7 @@ public class S3BackendTest {
   public void testDownloadWarmingQueries_updateData() throws IOException {
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "download_warming_service_4", "download_index_4", S3Backend.WARMING);
+            "download_warming_service_4", "download_index_4", IndexResourceType.WARMING_QUERIES);
     String fileName = S3Backend.getWarmingQueriesFileName();
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     s3.putObject(BUCKET_NAME, currentKey, fileName);
@@ -523,7 +531,7 @@ public class S3BackendTest {
 
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "upload_warming_service", "upload_index", S3Backend.WARMING);
+            "upload_warming_service", "upload_index", IndexResourceType.WARMING_QUERIES);
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     String contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
     assertWarmingVersion(contents);
@@ -540,7 +548,7 @@ public class S3BackendTest {
 
     String prefix =
         S3Backend.getIndexResourcePrefix(
-            "upload_warming_service_1", "upload_index_1", S3Backend.WARMING);
+            "upload_warming_service_1", "upload_index_1", IndexResourceType.WARMING_QUERIES);
     String currentKey = prefix + S3Backend.CURRENT_VERSION;
     String contents = convertToString(s3.getObject(BUCKET_NAME, currentKey).getObjectContent());
     assertWarmingVersion(contents);
@@ -566,7 +574,7 @@ public class S3BackendTest {
   public void testWarmingQueriesResourcePrefix() {
     assertEquals(
         "service/index/warming/",
-        S3Backend.getIndexResourcePrefix("service", "index", S3Backend.WARMING));
+        S3Backend.getIndexResourcePrefix("service", "index", IndexResourceType.WARMING_QUERIES));
   }
 
   @Test
@@ -602,8 +610,7 @@ public class S3BackendTest {
         indexDir.toPath(),
         Map.of("file1", fileMetaData1, "file2", fileMetaData2));
 
-    String keyPrefix =
-        S3Backend.getIndexResourcePrefix("upload_index_service", "upload_index", S3Backend.DATA);
+    String keyPrefix = S3Backend.getIndexDataPrefix("upload_index_service", "upload_index");
     String filename1 = S3Backend.getIndexBackendFileName("file1", fileMetaData1);
     String filename2 = S3Backend.getIndexBackendFileName("file2", fileMetaData2);
 
@@ -651,9 +658,7 @@ public class S3BackendTest {
     NrtFileMetaData fileMetaData2 =
         new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid2", "time_string_2");
 
-    String keyPrefix =
-        S3Backend.getIndexResourcePrefix(
-            "download_index_service", "download_index", S3Backend.DATA);
+    String keyPrefix = S3Backend.getIndexDataPrefix("download_index_service", "download_index");
     String filename1 = S3Backend.getIndexBackendFileName("file1", fileMetaData1);
     String filename2 = S3Backend.getIndexBackendFileName("file2", fileMetaData2);
 
@@ -683,9 +688,7 @@ public class S3BackendTest {
     NrtFileMetaData fileMetaDataNotExist =
         new NrtFileMetaData(new byte[0], new byte[0], 1, 0, "pid3", "time_string_3");
 
-    String keyPrefix =
-        S3Backend.getIndexResourcePrefix(
-            "download_index_service", "download_index", S3Backend.DATA);
+    String keyPrefix = S3Backend.getIndexDataPrefix("download_index_service", "download_index");
     String filename1 = S3Backend.getIndexBackendFileName("file1", fileMetaData1);
     String filename2 = S3Backend.getIndexBackendFileName("file2", fileMetaData2);
 
@@ -715,9 +718,7 @@ public class S3BackendTest {
 
   @Test
   public void testIndexDataResourcePrefix() {
-    assertEquals(
-        "service/index/data/",
-        S3Backend.getIndexResourcePrefix("service", "index", S3Backend.DATA));
+    assertEquals("service/index/data/", S3Backend.getIndexDataPrefix("service", "index"));
   }
 
   @Test
@@ -741,12 +742,14 @@ public class S3BackendTest {
   @Test
   public void testUploadPointState() throws IOException {
     NrtPointState pointState = getPointState();
+    byte[] pointStateBytes = RemoteUtils.pointStateToUtf8(pointState);
 
-    s3Backend.uploadPointState("upload_point_service", "upload_point_index", pointState);
+    s3Backend.uploadPointState(
+        "upload_point_service", "upload_point_index", pointState, pointStateBytes);
 
     String keyPrefix =
         S3Backend.getIndexResourcePrefix(
-            "upload_point_service", "upload_point_index", S3Backend.POINT_STATE);
+            "upload_point_service", "upload_point_index", IndexResourceType.POINT_STATE);
     String fileName = S3Backend.getPointStateFileName(pointState);
     String contents =
         convertToString(s3.getObject(BUCKET_NAME, keyPrefix + fileName).getObjectContent());
@@ -762,13 +765,16 @@ public class S3BackendTest {
     NrtPointState pointState = getPointState();
     String keyPrefix =
         S3Backend.getIndexResourcePrefix(
-            "download_point_service", "download_point_index", S3Backend.POINT_STATE);
+            "download_point_service", "download_point_index", IndexResourceType.POINT_STATE);
     String fileName = S3Backend.getPointStateFileName(pointState);
     s3.putObject(BUCKET_NAME, keyPrefix + fileName, getPointStateJson());
     s3.putObject(BUCKET_NAME, keyPrefix + S3Backend.CURRENT_VERSION, fileName);
 
-    NrtPointState downloadedPointState =
-        s3Backend.downloadPointState("download_point_service", "download_point_index");
+    byte[] downloadedData =
+        s3Backend
+            .downloadPointState("download_point_service", "download_point_index")
+            .readAllBytes();
+    NrtPointState downloadedPointState = RemoteUtils.pointStateFromUtf8(downloadedData);
     assertEquals(pointState, downloadedPointState);
   }
 
@@ -776,7 +782,7 @@ public class S3BackendTest {
   public void testIndexPointStateResourcePrefix() {
     assertEquals(
         "service/index/point_state/",
-        S3Backend.getIndexResourcePrefix("service", "index", S3Backend.POINT_STATE));
+        S3Backend.getIndexResourcePrefix("service", "index", IndexResourceType.POINT_STATE));
   }
 
   @Test
