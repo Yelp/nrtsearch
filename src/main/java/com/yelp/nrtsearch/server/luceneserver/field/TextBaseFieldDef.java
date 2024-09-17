@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.Field;
-import com.yelp.nrtsearch.server.luceneserver.Constants;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.analysis.PosIncGapAnalyzerWrapper;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
@@ -51,13 +50,12 @@ import org.apache.lucene.util.BytesRef;
 
 /**
  * Base class for all text base field definitions. In addition to the properties from {@link
- * IndexableFieldDef}, text fields have the option for {@link Analyzer}s and highlighting.
+ * IndexableFieldDef}, text fields have the option for {@link Analyzer}s.
  */
 public abstract class TextBaseFieldDef extends IndexableFieldDef
     implements TermQueryable, GlobalOrdinalable {
   static final int DEFAULT_POSITION_INCREMENT_GAP = 100;
 
-  private final boolean isHighlighted;
   private final Analyzer indexAnalyzer;
   private final Analyzer searchAnalyzer;
   private final boolean eagerFieldGlobalOrdinals;
@@ -67,16 +65,14 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
 
   /**
    * Field constructor. Uses {@link IndexableFieldDef#IndexableFieldDef(String, Field)} to do common
-   * initialization, then sets up highlighting and analyzers. Analyzers are parsed through calls to
-   * the protected methods {@link #parseIndexAnalyzer(Field)} and {@link
-   * #parseSearchAnalyzer(Field)}.
+   * initialization, then sets up analyzers. Analyzers are parsed through calls to the protected
+   * methods {@link #parseIndexAnalyzer(Field)} and {@link #parseSearchAnalyzer(Field)}.
    *
    * @param name field name
    * @param requestField field definition from grpc request
    */
   protected TextBaseFieldDef(String name, Field requestField) {
     super(name, requestField);
-    isHighlighted = requestField.getHighlight();
     indexAnalyzer = parseIndexAnalyzer(requestField);
     searchAnalyzer = parseSearchAnalyzer(requestField);
     eagerFieldGlobalOrdinals = requestField.getEagerFieldGlobalOrdinals();
@@ -119,9 +115,6 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
   protected FacetValueType parseFacetValueType(Field requestField) {
     FacetType facetType = requestField.getFacet();
     if (facetType.equals(FacetType.HIERARCHY)) {
-      if (requestField.getHighlight()) {
-        throw new IllegalArgumentException("facet=hierarchy fields cannot have highlight=true");
-      }
       if (requestField.getSearch()) {
         throw new IllegalArgumentException("facet=hierarchy fields cannot have search=true");
       }
@@ -239,16 +232,6 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
 
     for (int i = 0; i < fieldValues.size(); i++) {
       String fieldStr = fieldValues.get(i);
-      if (isHighlighted && isMultiValue() && fieldStr.indexOf(Constants.INFORMATION_SEP) != -1) {
-        // TODO: we could remove this restriction if it
-        // ever matters ... we can highlight multi-valued
-        // fields at search time without stealing a
-        // character:
-        throw new IllegalArgumentException(
-            String.format(
-                "%s multiValued and highlighted fields cannot contain INFORMATION_SEPARATOR (U+001F) character: this character is used internally when highlighting multi-valued fields",
-                getName()));
-      }
       if (hasDocValues()) {
         BytesRef stringBytes = new BytesRef(fieldStr);
         if (docValuesType == DocValuesType.BINARY) {
@@ -280,7 +263,7 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
       if (paths.isEmpty()) {
         document.add(new FacetField(getName(), value));
       } else {
-        document.add(new FacetField(getName(), paths.toArray(new String[paths.size()])));
+        document.add(new FacetField(getName(), paths.toArray(new String[0])));
       }
     } else if (facetValueType == FacetValueType.FLAT) {
       document.add(new FacetField(getName(), value));
@@ -288,15 +271,6 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
       String facetValue = String.valueOf(value);
       document.add(new SortedSetDocValuesFacetField(getName(), facetValue));
     }
-  }
-
-  /**
-   * Get if this field is highlighted.
-   *
-   * @return if this field is highlighted
-   */
-  public boolean isHighlighted() {
-    return isHighlighted;
   }
 
   @Override
