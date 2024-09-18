@@ -67,7 +67,6 @@ import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortField.Type;
-import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.slf4j.Logger;
@@ -714,16 +713,6 @@ public class ImmutableIndexState extends IndexState {
   @Override
   public long getMaxMergePreCopyDurationSec() {
     return maxMergePreCopyDurationSec;
-  }
-
-  @Override
-  public void addSuggest(String name, JsonObject o) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public Map<String, Lookup> getSuggesters() {
-    throw new UnsupportedOperationException();
   }
 
   @Override

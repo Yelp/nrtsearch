@@ -93,10 +93,6 @@ public class CreateSnapshotHandler
       }
     }
 
-    // TODO: suggest state?
-    // nocommit must also snapshot snapshots state!?
-    // hard to think about
-
     SnapshotId.Builder snapshotIdBuilder =
         SnapshotId.newBuilder().setIndexGen(c.getGeneration()).setStateGen(stateGen);
     if (!shardState.isPrimary() && !shardState.isReplica()) {
