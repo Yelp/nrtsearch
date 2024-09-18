@@ -216,6 +216,11 @@ public class BackendGlobalState extends GlobalState {
   }
 
   @Override
+  public GlobalStateInfo getStateInfo() {
+    return immutableState.globalStateInfo;
+  }
+
+  @Override
   public void replicationStarted(int replicationPort) throws IOException {
     this.resolvedReplicationPort = replicationPort;
     if (getConfiguration().getIndexStartConfig().getAutoStart()) {

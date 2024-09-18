@@ -490,6 +490,39 @@
         ]
       }
     },
+    "/v1/global_state": {
+      "post": {
+        "summary": "Get the global state of the cluster",
+        "operationId": "LuceneServer_globalState",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverGlobalStateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverGlobalStateRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/indices": {
       "get": {
         "summary": "indices",
@@ -1989,6 +2022,18 @@
         }
       }
     },
+    "ScriptParamFloatVectorValue": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      }
+    },
     "ScriptParamListValue": {
       "type": "object",
       "properties": {
@@ -2054,6 +2099,9 @@
         },
         "structValue": {
           "$ref": "#/definitions/ScriptParamStructValue"
+        },
+        "floatVectorValue": {
+          "$ref": "#/definitions/ScriptParamFloatVectorValue"
         }
       },
       "title": "script parameter entry"
@@ -3579,6 +3627,35 @@
         }
       }
     },
+    "luceneserverGlobalStateInfo": {
+      "type": "object",
+      "properties": {
+        "gen": {
+          "type": "string",
+          "format": "int64",
+          "title": "State version generation"
+        },
+        "indices": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverIndexGlobalState"
+          },
+          "title": "Global state for indices"
+        }
+      }
+    },
+    "luceneserverGlobalStateRequest": {
+      "type": "object"
+    },
+    "luceneserverGlobalStateResponse": {
+      "type": "object",
+      "properties": {
+        "globalState": {
+          "$ref": "#/definitions/luceneserverGlobalStateInfo",
+          "title": "cluster global state"
+        }
+      }
+    },
     "luceneserverHealthCheckResponse": {
       "type": "object",
       "properties": {
@@ -3635,6 +3712,19 @@
             "$ref": "#/definitions/SearchResponseHit"
           },
           "description": "Ordered hits with scoring/sorting info and retrieved fields."
+        }
+      }
+    },
+    "luceneserverIndexGlobalState": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "title": "Unique identifier for index (yyyyMMddHHmmssSSS formatted date-time string)"
+        },
+        "started": {
+          "type": "boolean",
+          "title": "If index should be started"
         }
       }
     },

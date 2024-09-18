@@ -290,6 +290,14 @@ service LuceneServer {
     };
     }
 
+    /* Get the global state of the cluster */
+    rpc globalState (GlobalStateRequest) returns (GlobalStateResponse) {
+        option (google.api.http) = {
+      post: "/v1/global_state"
+      body: "*"
+    };
+    }
+
     /* Gets the state of a started index, includes settings, live_settings, search schema, suggest schema */
     rpc state (StateRequest) returns (StateResponse) {
         option (google.api.http) = {
@@ -889,6 +897,14 @@ message RestoreIndex {
     string serviceName = 1; // remote storage namespace qualifier for service
     string resourceName = 2; //remote storage namespace qualifier for resource e.g. indexName
     bool deleteExistingData = 3; // delete any existing data for the index
+}
+
+message GlobalStateRequest {
+}
+
+message GlobalStateResponse {
+    // cluster global state
+    GlobalStateInfo global_state = 1;
 }
 
 message StateRequest {
