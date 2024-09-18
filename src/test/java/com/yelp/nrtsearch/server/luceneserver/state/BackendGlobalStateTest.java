@@ -29,7 +29,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.protobuf.Int32Value;
-import com.yelp.nrtsearch.server.backup.Archiver;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
@@ -110,13 +109,11 @@ public class BackendGlobalStateTest {
      * Constructor.
      *
      * @param luceneServerConfiguration server config
-     * @param incArchiver archiver for remote backends
      * @throws IOException on filesystem error
      */
-    public MockBackendGlobalState(
-        LuceneServerConfiguration luceneServerConfiguration, Archiver incArchiver)
+    public MockBackendGlobalState(LuceneServerConfiguration luceneServerConfiguration)
         throws IOException {
-      super(luceneServerConfiguration, incArchiver, null);
+      super(luceneServerConfiguration, null);
     }
 
     @Override
@@ -181,7 +178,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     backendGlobalState.createIndex("test_index");
 
     assertEquals(1, backendGlobalState.getIndexNames().size());
@@ -222,7 +219,7 @@ public class BackendGlobalStateTest {
     MockBackendGlobalState.stateManagers = mockManagers;
     MockBackendGlobalState.expectedLiveSettingsOverrides = LIVE_SETTINGS_OVERRIDES;
     BackendGlobalState backendGlobalState =
-        new MockBackendGlobalState(getConfigWithLiveSettingsOverrides(), null);
+        new MockBackendGlobalState(getConfigWithLiveSettingsOverrides());
     backendGlobalState.createIndex("test_index");
 
     assertEquals(1, backendGlobalState.getIndexNames().size());
@@ -261,7 +258,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     backendGlobalState.createIndex("test_index");
 
     assertSame(mockManager, backendGlobalState.getIndexStateManager("test_index"));
@@ -291,7 +288,7 @@ public class BackendGlobalStateTest {
     when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
 
     MockBackendGlobalState.stateBackend = mockBackend;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     try {
       backendGlobalState.getIndexStateManager("invalid");
       fail();
@@ -319,7 +316,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     backendGlobalState.createIndex("test_index");
     backendGlobalState.createIndex("test_index_2");
 
@@ -372,7 +369,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     backendGlobalState.createIndex("test_index");
     try {
       backendGlobalState.createIndex("test_index");
@@ -402,7 +399,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     try {
       backendGlobalState.createIndex("test_index");
       fail();
@@ -425,7 +422,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     backendGlobalState.createIndex("test_index");
 
     assertEquals(1, backendGlobalState.getIndexNames().size());
@@ -474,7 +471,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     assertSame(mockState, backendGlobalState.getIndex("test_index"));
 
     verify(mockBackend, times(1)).loadOrCreateGlobalState();
@@ -507,7 +504,7 @@ public class BackendGlobalStateTest {
     MockBackendGlobalState.stateManagers = mockManagers;
     MockBackendGlobalState.expectedLiveSettingsOverrides = LIVE_SETTINGS_OVERRIDES;
     BackendGlobalState backendGlobalState =
-        new MockBackendGlobalState(getConfigWithLiveSettingsOverrides(), null);
+        new MockBackendGlobalState(getConfigWithLiveSettingsOverrides());
     assertSame(mockState, backendGlobalState.getIndex("test_index"));
 
     verify(mockBackend, times(1)).loadOrCreateGlobalState();
@@ -525,7 +522,7 @@ public class BackendGlobalStateTest {
     when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
 
     MockBackendGlobalState.stateBackend = mockBackend;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     try {
       backendGlobalState.getIndex("test_index");
       fail();
@@ -553,7 +550,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     backendGlobalState.createIndex("test_index");
     backendGlobalState.createIndex("test_index_2");
 
@@ -633,7 +630,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
 
     backendGlobalState.deleteIndex("test_index_2");
     assertEquals(Set.of("test_index"), backendGlobalState.getIndexNames());
@@ -677,7 +674,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     backendGlobalState.createIndex("test_index");
 
     assertEquals(1, backendGlobalState.getIndexNames().size());
@@ -735,7 +732,7 @@ public class BackendGlobalStateTest {
             "indexDir: " + folder.newFolder("index").getAbsolutePath());
     LuceneServerConfiguration config =
         new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
-    BackendGlobalState backendGlobalState = new BackendGlobalState(config, null, null);
+    BackendGlobalState backendGlobalState = new BackendGlobalState(config, null);
     assertTrue(backendGlobalState.getStateBackend() instanceof LocalStateBackend);
   }
 
@@ -758,15 +755,13 @@ public class BackendGlobalStateTest {
     StateUtils.ensureDirectory(tmpStateFolder);
     StateUtils.writeStateToFile(
         GlobalStateInfo.newBuilder().build(), tmpStateFolder, StateUtils.GLOBAL_STATE_FILE);
-    Archiver archiver = mock(Archiver.class);
-    when(archiver.download(any(), any())).thenReturn(Paths.get(folder.getRoot().getAbsolutePath()));
 
     RemoteBackend mockRemoteBackend = mock(RemoteBackend.class);
     when(mockRemoteBackend.exists(
             any(String.class), eq(RemoteBackend.GlobalResourceType.GLOBAL_STATE)))
         .thenReturn(false);
 
-    BackendGlobalState backendGlobalState = new BackendGlobalState(config, null, mockRemoteBackend);
+    BackendGlobalState backendGlobalState = new BackendGlobalState(config, mockRemoteBackend);
     assertTrue(backendGlobalState.getStateBackend() instanceof RemoteStateBackend);
   }
 
@@ -800,7 +795,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     backendGlobalState.createIndex("test_index");
 
     assertEquals(
@@ -832,7 +827,7 @@ public class BackendGlobalStateTest {
     when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
 
     MockBackendGlobalState.stateBackend = mockBackend;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     try {
       backendGlobalState.getDataResourceForIndex("invalid");
       fail();
@@ -857,7 +852,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     backendGlobalState.createIndex("test_index");
 
     assertSame(indexPath, backendGlobalState.getIndexDir("test_index"));
@@ -889,7 +884,7 @@ public class BackendGlobalStateTest {
     when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
 
     MockBackendGlobalState.stateBackend = mockBackend;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     StartIndexRequest request = StartIndexRequest.newBuilder().setIndexName("test_index").build();
     try {
       backendGlobalState.startIndex(request);
@@ -921,7 +916,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     StartIndexRequest request = StartIndexRequest.newBuilder().setIndexName("test_index").build();
     try {
       backendGlobalState.startIndex(request);
@@ -961,7 +956,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     StartIndexRequest request = StartIndexRequest.newBuilder().setIndexName("test_index").build();
     backendGlobalState.startIndex(request);
 
@@ -1023,7 +1018,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     StartIndexRequest request =
         StartIndexRequest.newBuilder()
             .setIndexName("test_index")
@@ -1090,7 +1085,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     StartIndexRequest request =
         StartIndexRequest.newBuilder()
             .setIndexName("test_index")
@@ -1131,7 +1126,7 @@ public class BackendGlobalStateTest {
     when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
 
     MockBackendGlobalState.stateBackend = mockBackend;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     StopIndexRequest request = StopIndexRequest.newBuilder().setIndexName("test_index").build();
     try {
       backendGlobalState.stopIndex(request);
@@ -1162,7 +1157,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     StopIndexRequest request = StopIndexRequest.newBuilder().setIndexName("test_index").build();
     try {
       backendGlobalState.stopIndex(request);
@@ -1197,7 +1192,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     StopIndexRequest request = StopIndexRequest.newBuilder().setIndexName("test_index").build();
 
     backendGlobalState.stopIndex(request);
@@ -1247,7 +1242,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     StopIndexRequest request = StopIndexRequest.newBuilder().setIndexName("test_index").build();
 
     backendGlobalState.stopIndex(request);
@@ -1270,7 +1265,7 @@ public class BackendGlobalStateTest {
     when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
 
     MockBackendGlobalState.stateBackend = mockBackend;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
 
     assertEquals(Collections.emptySet(), backendGlobalState.getIndexNames());
     assertEquals(Collections.emptySet(), backendGlobalState.getIndicesToStart());
@@ -1297,7 +1292,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
 
     assertEquals(Collections.singleton("test_index"), backendGlobalState.getIndexNames());
     assertEquals(Collections.singleton("test_index"), backendGlobalState.getIndicesToStart());
@@ -1333,7 +1328,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
 
     assertEquals(Set.of("test_index", "test_index_2"), backendGlobalState.getIndexNames());
     assertEquals(Collections.singleton("test_index_2"), backendGlobalState.getIndicesToStart());
@@ -1353,7 +1348,7 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
-    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig(), null);
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     assertEquals(0, backendGlobalState.getReplicationPort());
     backendGlobalState.replicationStarted(100);
     assertEquals(100, backendGlobalState.getReplicationPort());

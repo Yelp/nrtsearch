@@ -39,7 +39,7 @@ import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
 public class ReplicationServerTest {
-  private static final String BUCKET_NAME = "archiver-unittest";
+  private static final String BUCKET_NAME = "server-unittest";
 
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the

@@ -21,8 +21,6 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.transfer.TransferManager;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -34,13 +32,6 @@ import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.clientlib.Node;
-import com.yelp.nrtsearch.server.backup.BackupDiffManager;
-import com.yelp.nrtsearch.server.backup.ContentDownloader;
-import com.yelp.nrtsearch.server.backup.ContentDownloaderImpl;
-import com.yelp.nrtsearch.server.backup.FileCompressAndUploader;
-import com.yelp.nrtsearch.server.backup.IndexArchiver;
-import com.yelp.nrtsearch.server.backup.TarImpl;
-import com.yelp.nrtsearch.server.backup.VersionManager;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
@@ -94,18 +85,14 @@ public class StateBackendServerTest {
 
   private static final String TEST_BUCKET = "state-backend-server-test";
   private static final String TEST_SERVICE_NAME = "state-backend-test-service";
-  private IndexArchiver archiverPrimary;
   private RemoteBackend remoteBackendPrimary;
-  private IndexArchiver archiverReplica;
   private RemoteBackend remoteBackendReplica;
 
   @After
   public void cleanup() throws InterruptedException {
     cleanupPrimary();
     cleanupReplica();
-    archiverPrimary = null;
     remoteBackendPrimary = null;
-    archiverReplica = null;
     remoteBackendReplica = null;
   }
 
@@ -161,43 +148,11 @@ public class StateBackendServerTest {
     }
   }
 
-  private void initArchiver() throws IOException {
-    Files.createDirectories(getPrimaryArchiveDir());
+  private void initRemote() throws IOException {
     Files.createDirectories(getReplicaIndexDir());
 
     AmazonS3 s3 = s3Provider.getAmazonS3();
-    TransferManager transferManager =
-        TransferManagerBuilder.standard().withS3Client(s3).withShutDownThreadPools(false).build();
-
-    ContentDownloader contentDownloader =
-        new ContentDownloaderImpl(
-            new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, TEST_BUCKET, true);
-    FileCompressAndUploader fileCompressAndUploader =
-        new FileCompressAndUploader(
-            new TarImpl(TarImpl.CompressionMode.LZ4), transferManager, TEST_BUCKET);
-    VersionManager versionManager = new VersionManager(s3, TEST_BUCKET);
-    BackupDiffManager backupDiffManagerPrimary =
-        new BackupDiffManager(
-            contentDownloader, fileCompressAndUploader, versionManager, getPrimaryArchiveDir());
-    archiverPrimary =
-        new IndexArchiver(
-            backupDiffManagerPrimary,
-            fileCompressAndUploader,
-            contentDownloader,
-            versionManager,
-            getPrimaryArchiveDir());
     remoteBackendPrimary = new S3Backend(TEST_BUCKET, false, s3);
-
-    BackupDiffManager backupDiffManagerReplica =
-        new BackupDiffManager(
-            contentDownloader, fileCompressAndUploader, versionManager, getPrimaryArchiveDir());
-    archiverReplica =
-        new IndexArchiver(
-            backupDiffManagerReplica,
-            fileCompressAndUploader,
-            contentDownloader,
-            versionManager,
-            getReplicaArchiveDir());
     remoteBackendReplica = new S3Backend(TEST_BUCKET, false, s3);
   }
 
@@ -209,13 +164,12 @@ public class StateBackendServerTest {
             "serviceName: " + TEST_SERVICE_NAME,
             "stateDir: " + getStateDir(),
             "indexDir: " + getPrimaryIndexDir(),
-            "archiveDirectory: " + getPrimaryArchiveDir(),
             "stateConfig:",
             "  backendType: LOCAL");
     return new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
   }
 
-  private LuceneServerConfiguration getPrimaryArchiverConfig() {
+  private LuceneServerConfiguration getPrimaryRemoteConfig() {
     String configStr =
         String.join(
             "\n",
@@ -223,7 +177,6 @@ public class StateBackendServerTest {
             "serviceName: " + TEST_SERVICE_NAME,
             "stateDir: " + getStateDir(),
             "indexDir: " + getPrimaryIndexDir(),
-            "archiveDirectory: " + getPrimaryArchiveDir(),
             "stateConfig:",
             "  backendType: REMOTE",
             "  remote:",
@@ -242,14 +195,13 @@ public class StateBackendServerTest {
             "serviceName: " + TEST_SERVICE_NAME,
             "stateDir: " + getStateDir(),
             "indexDir: " + getReplicaIndexDir(),
-            "archiveDirectory: " + getReplicaArchiveDir(),
             "syncInitialNrtPoint: true",
             "stateConfig:",
             "  backendType: LOCAL");
     return new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
   }
 
-  private LuceneServerConfiguration getReplicaArchiverConfig() {
+  private LuceneServerConfiguration getReplicaRemoteConfig() {
     String configStr =
         String.join(
             "\n",
@@ -257,7 +209,6 @@ public class StateBackendServerTest {
             "serviceName: " + TEST_SERVICE_NAME,
             "stateDir: " + getStateDir(),
             "indexDir: " + getReplicaIndexDir(),
-            "archiveDirectory: " + getReplicaArchiveDir(),
             // don't sync on start to make restore testing easier
             "syncInitialNrtPoint: false",
             "stateConfig:",
@@ -272,7 +223,7 @@ public class StateBackendServerTest {
     cleanupPrimary();
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
-            getPrimaryConfig(), null, null, new CollectorRegistry(), Collections.emptyList());
+            getPrimaryConfig(), null, new CollectorRegistry(), Collections.emptyList());
 
     primaryReplicationServer =
         ServerBuilder.forPort(0)
@@ -283,12 +234,11 @@ public class StateBackendServerTest {
     primaryClient = new LuceneServerClient("localhost", primaryServer.getPort());
   }
 
-  private void restartPrimaryWithArchiver() throws IOException {
+  private void restartPrimaryWithRemote() throws IOException {
     cleanupPrimary();
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
-            getPrimaryArchiverConfig(),
-            archiverPrimary,
+            getPrimaryRemoteConfig(),
             remoteBackendPrimary,
             new CollectorRegistry(),
             Collections.emptyList());
@@ -306,7 +256,7 @@ public class StateBackendServerTest {
     cleanupReplica();
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
-            getReplicaConfig(), null, null, new CollectorRegistry(), Collections.emptyList());
+            getReplicaConfig(), null, new CollectorRegistry(), Collections.emptyList());
 
     replicaReplicationServer =
         ServerBuilder.forPort(0)
@@ -317,12 +267,11 @@ public class StateBackendServerTest {
     replicaClient = new LuceneServerClient("localhost", replicaServer.getPort());
   }
 
-  private void restartReplicaWithArchiver() throws IOException {
+  private void restartReplicaWithRemote() throws IOException {
     cleanupReplica();
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
-            getReplicaArchiverConfig(),
-            archiverReplica,
+            getReplicaRemoteConfig(),
             remoteBackendReplica,
             new CollectorRegistry(),
             Collections.emptyList());
@@ -344,16 +293,8 @@ public class StateBackendServerTest {
     return Paths.get(folder.getRoot().toString(), "primary_index_dir");
   }
 
-  private Path getPrimaryArchiveDir() {
-    return Paths.get(folder.getRoot().toString(), "primary_archive_dir");
-  }
-
   private Path getReplicaIndexDir() {
     return Paths.get(folder.getRoot().toString(), "replica_index_dir");
-  }
-
-  private Path getReplicaArchiveDir() {
-    return Paths.get(folder.getRoot().toString(), "replica_archive_dir");
   }
 
   private void initPrimary() throws IOException {
@@ -363,8 +304,8 @@ public class StateBackendServerTest {
     assertTrue(response.getIndicesResponseList().isEmpty());
   }
 
-  private void initPrimaryWithArchiver() throws IOException {
-    restartPrimaryWithArchiver();
+  private void initPrimaryWithRemote() throws IOException {
+    restartPrimaryWithRemote();
     IndicesResponse response =
         primaryClient.getBlockingStub().indices(IndicesRequest.newBuilder().build());
     assertTrue(response.getIndicesResponseList().isEmpty());
@@ -1772,15 +1713,15 @@ public class StateBackendServerTest {
   }
 
   @Test
-  public void testStartServerWithArchiver() throws IOException {
-    initArchiver();
-    initPrimaryWithArchiver();
+  public void testStartServerWithRemote() throws IOException {
+    initRemote();
+    initPrimaryWithRemote();
   }
 
   @Test
   public void testStartWithRestore() throws Exception {
-    initArchiver();
-    initPrimaryWithArchiver();
+    initRemote();
+    initPrimaryWithRemote();
     createIndexWithFields();
     startIndex(primaryClient, Mode.PRIMARY);
     addDocs(docs1.stream());
@@ -1790,15 +1731,15 @@ public class StateBackendServerTest {
 
     stopIndex(primaryClient);
 
-    restartPrimaryWithArchiver();
+    restartPrimaryWithRemote();
     startIndexWithRestore(primaryClient, Mode.PRIMARY, true);
     verifyDocs(1, primaryClient);
   }
 
   @Test
   public void testStartRestoreNoCommit() throws Exception {
-    initArchiver();
-    initPrimaryWithArchiver();
+    initRemote();
+    initPrimaryWithRemote();
     createIndexWithFields();
     startIndexWithRestore(primaryClient, Mode.PRIMARY, false);
     addDocs(docs1.stream());
@@ -1808,15 +1749,15 @@ public class StateBackendServerTest {
 
     stopIndex(primaryClient);
 
-    restartPrimaryWithArchiver();
+    restartPrimaryWithRemote();
     startIndexWithRestore(primaryClient, Mode.PRIMARY, true);
     verifyDocs(1, primaryClient);
   }
 
   @Test
   public void testReplicaRestore() throws Exception {
-    initArchiver();
-    initPrimaryWithArchiver();
+    initRemote();
+    initPrimaryWithRemote();
     createIndexWithFields();
     startIndex(primaryClient, Mode.PRIMARY);
     addDocs(docs1.stream());
@@ -1826,15 +1767,15 @@ public class StateBackendServerTest {
 
     stopIndex(primaryClient);
 
-    restartReplicaWithArchiver();
+    restartReplicaWithRemote();
     startIndexWithRestore(replicaClient, Mode.REPLICA, true);
     verifyDocs(1, replicaClient);
   }
 
   @Test
   public void testReplicaReDownloadsIndexData() throws Exception {
-    initArchiver();
-    initPrimaryWithArchiver();
+    initRemote();
+    initPrimaryWithRemote();
     createIndexWithFields();
     startIndex(primaryClient, Mode.PRIMARY);
     addDocs(docs1.stream());
@@ -1842,7 +1783,7 @@ public class StateBackendServerTest {
     refreshIndex(primaryClient);
     verifyDocs(1, primaryClient);
 
-    restartReplicaWithArchiver();
+    restartReplicaWithRemote();
     startIndexWithRestore(replicaClient, Mode.REPLICA, true);
     verifyDocs(1, replicaClient);
     stopIndex(replicaClient);
@@ -1860,15 +1801,15 @@ public class StateBackendServerTest {
 
   @Test
   public void testReplicaRestoreSchemaChange() throws Exception {
-    initArchiver();
-    initPrimaryWithArchiver();
+    initRemote();
+    initPrimaryWithRemote();
     createIndex();
     primaryClient
         .getBlockingStub()
         .registerFields(
             FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields1).build());
 
-    restartReplicaWithArchiver();
+    restartReplicaWithRemote();
 
     primaryClient
         .getBlockingStub()
@@ -1886,16 +1827,16 @@ public class StateBackendServerTest {
     verifySubFieldDocs(3, replicaClient);
 
     stopIndex(replicaClient);
-    restartReplicaWithArchiver();
+    restartReplicaWithRemote();
     startIndexWithRestore(replicaClient, Mode.REPLICA, true);
     verifyDocs(3, replicaClient);
   }
 
   @Test
   public void testStartReplicaNoGlobalState() throws IOException {
-    initArchiver();
+    initRemote();
     try {
-      restartReplicaWithArchiver();
+      restartReplicaWithRemote();
       fail();
     } catch (IllegalStateException e) {
       assertEquals("Cannot update remote state when configured as read only", e.getMessage());
@@ -1904,8 +1845,8 @@ public class StateBackendServerTest {
 
   @Test
   public void testAutoPrimaryGeneration() throws Exception {
-    initArchiver();
-    initPrimaryWithArchiver();
+    initRemote();
+    initPrimaryWithRemote();
     createIndexWithFields();
     startIndex(primaryClient, Mode.PRIMARY, -1);
     addDocs(docs1.stream());
@@ -1915,7 +1856,7 @@ public class StateBackendServerTest {
     stopIndex(primaryClient);
     cleanupPrimary();
 
-    restartReplicaWithArchiver();
+    restartReplicaWithRemote();
     replicaClient
         .getBlockingStub()
         .startIndex(
@@ -1935,7 +1876,7 @@ public class StateBackendServerTest {
 
     verifyDocs(1, replicaClient);
 
-    restartPrimaryWithArchiver();
+    restartPrimaryWithRemote();
     startIndex(primaryClient, Mode.PRIMARY, -1);
     addDocs(docs2.stream());
     commitIndex(primaryClient);
@@ -1945,7 +1886,7 @@ public class StateBackendServerTest {
     cleanupPrimary();
     stopIndex(replicaClient);
 
-    restartReplicaWithArchiver();
+    restartReplicaWithRemote();
     replicaClient
         .getBlockingStub()
         .startIndex(
@@ -1964,14 +1905,14 @@ public class StateBackendServerTest {
     verifyDocs(2, replicaClient);
     stopIndex(replicaClient);
 
-    restartPrimaryWithArchiver();
+    restartPrimaryWithRemote();
     startIndex(primaryClient, Mode.PRIMARY, -1);
     addDocs(docs3.stream());
     commitIndex(primaryClient);
     refreshIndex(primaryClient);
     verifyDocs(3, primaryClient);
 
-    restartReplicaWithArchiver();
+    restartReplicaWithRemote();
     replicaClient
         .getBlockingStub()
         .startIndex(

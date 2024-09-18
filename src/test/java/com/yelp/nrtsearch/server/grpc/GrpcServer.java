@@ -215,7 +215,7 @@ public class GrpcServer {
       if (collectorRegistry == null) {
         LuceneServerImpl serverImpl =
             new LuceneServer.LuceneServerImpl(
-                configuration, null, remoteBackend, collectorRegistry, plugins);
+                configuration, remoteBackend, collectorRegistry, plugins);
         globalState = serverImpl.getGlobalState();
         // Create a server, add service, start, and register for automatic graceful shutdown.
         server =
@@ -235,7 +235,7 @@ public class GrpcServer {
                 nodeName);
         LuceneServerImpl serverImpl =
             new LuceneServer.LuceneServerImpl(
-                configuration, null, remoteBackend, collectorRegistry, plugins);
+                configuration, remoteBackend, collectorRegistry, plugins);
         globalState = serverImpl.getGlobalState();
         // Create a server, add service, start, and register for automatic graceful shutdown.
         server =

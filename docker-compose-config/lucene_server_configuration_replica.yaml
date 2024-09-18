@@ -9,7 +9,6 @@ threadPoolConfiguration:
   maxIndexingThreads: 4
 botoCfgPath: "/user/app/boto.cfg"
 bucketName: "nrtsearch-bucket"
-archiveDirectory: "/user/app/replica_index_archiver"
 serviceName: "nrtsearch-service-test"
 restoreState: False
 downloadAsStream: "true"

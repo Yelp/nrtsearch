@@ -10,7 +10,6 @@ threadPoolConfiguration:
 fileSendDelay: false
 botoCfgPath: "/user/app/boto.cfg"
 bucketName: "nrtsearch-bucket"
-archiveDirectory: "/user/app/primary_index_archiver"
 serviceName: "nrtsearch-service-test"
 restoreState: False
 downloadAsStream: "true"

@@ -96,7 +96,6 @@ public class NrtsearchTest {
     try {
       config.put("stateDir", TEMPORARY_FOLDER.newFolder("tmp_state_dir").toString());
       config.put("indexDir", TEMPORARY_FOLDER.newFolder("tmp_index_dir").toString());
-      config.put("archiveDirectory", TEMPORARY_FOLDER.newFolder("tmp_archive_dir").toString());
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

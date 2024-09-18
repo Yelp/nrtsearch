@@ -40,7 +40,7 @@ public class LuceneServerModule extends AbstractModule {
   @Override
   protected void configure() {
     install(new S3Module());
-    install(new ArchiverModule());
+    install(new BackendModule());
   }
 
   @Inject

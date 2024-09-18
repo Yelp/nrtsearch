@@ -20,7 +20,7 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
-import com.yelp.nrtsearch.ArchiverModule;
+import com.yelp.nrtsearch.BackendModule;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 
 /**
@@ -39,7 +39,7 @@ public class TestLuceneServerModule extends AbstractModule {
   }
 
   protected void configure() {
-    install(new ArchiverModule());
+    install(new BackendModule());
   }
 
   @Inject
