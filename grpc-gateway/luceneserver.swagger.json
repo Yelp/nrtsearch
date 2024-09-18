@@ -874,7 +874,7 @@
     },
     "/v1/state": {
       "post": {
-        "summary": "Gets the state of a started index, includes settings, live_settings, search schema, suggest schema",
+        "summary": "Gets the state of a started index, includes settings, live_settings, search schema",
         "operationId": "LuceneServer_state",
         "responses": {
           "200": {
@@ -907,7 +907,7 @@
     },
     "/v1/state/{indexName}": {
       "get": {
-        "summary": "Gets the state of a started index, includes settings, live_settings, search schema, suggest schema",
+        "summary": "Gets the state of a started index, includes settings, live_settings, search schema",
         "operationId": "LuceneServer_state2",
         "responses": {
           "200": {
@@ -1056,105 +1056,6 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/luceneserverStopIndexRequest"
-            }
-          }
-        ],
-        "tags": [
-          "LuceneServer"
-        ]
-      }
-    },
-    "/v1/suggest_build": {
-      "post": {
-        "summary": "Builds a new auto-suggester, loading suggestions via the provided local file path.",
-        "operationId": "LuceneServer_buildSuggest",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/luceneserverBuildSuggestResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/luceneserverBuildSuggestRequest"
-            }
-          }
-        ],
-        "tags": [
-          "LuceneServer"
-        ]
-      }
-    },
-    "/v1/suggest_lookup": {
-      "post": {
-        "summary": "Perform an auto-suggest lookup.",
-        "operationId": "LuceneServer_suggestLookup",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/luceneserverSuggestLookupResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/luceneserverSuggestLookupRequest"
-            }
-          }
-        ],
-        "tags": [
-          "LuceneServer"
-        ]
-      }
-    },
-    "/v1/suggest_update": {
-      "post": {
-        "summary": "Updates existing suggestions, if the suggester supports near-real-time changes.",
-        "operationId": "LuceneServer_updateSuggest",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/luceneserverBuildSuggestResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/googlerpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/luceneserverBuildSuggestRequest"
             }
           }
         ],
@@ -2397,35 +2298,6 @@
         }
       }
     },
-    "luceneserverAnalyzingSuggester": {
-      "type": "object",
-      "properties": {
-        "analyzer": {
-          "type": "string"
-        },
-        "indexAnalyzer": {
-          "type": "string"
-        },
-        "queryAnalyzer": {
-          "type": "string"
-        },
-        "maxSurfaceFormsPerAnalyzedForm": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "maxGraphExpansions": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "preserveSep": {
-          "type": "boolean"
-        },
-        "exactFirst": {
-          "type": "boolean"
-        }
-      },
-      "title": "Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester"
-    },
     "luceneserverBackupWarmingQueriesRequest": {
       "type": "object",
       "properties": {
@@ -2508,56 +2380,6 @@
           "type": "integer",
           "format": "int32",
           "description": "Number of other collected counts not represented in the buckets' counts."
-        }
-      }
-    },
-    "luceneserverBuildSuggestRequest": {
-      "type": "object",
-      "properties": {
-        "indexName": {
-          "type": "string"
-        },
-        "infixSuggester": {
-          "$ref": "#/definitions/luceneserverInfixSuggester",
-          "title": "A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)"
-        },
-        "analyzingSuggester": {
-          "$ref": "#/definitions/luceneserverAnalyzingSuggester",
-          "title": "Suggester that first analyzes the surface form, adds the analyzed form to a weighted FST, and then does the same thing at lookup time (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester"
-        },
-        "fuzzySuggester": {
-          "$ref": "#/definitions/luceneserverFuzzySuggester",
-          "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
-        },
-        "completionInfixSuggester": {
-          "$ref": "#/definitions/luceneserverCompletionInfixSuggester",
-          "title": "A suggester that matches terms anywhere in the input text. The implementation is different from InfixSuggester"
-        },
-        "fuzzyInfixSuggester": {
-          "$ref": "#/definitions/luceneserverFuzzyInfixSuggester",
-          "description": "A suggester that matches fuzzy terms in the input text."
-        },
-        "localSource": {
-          "$ref": "#/definitions/luceneserverSuggestLocalSource"
-        },
-        "nonLocalSource": {
-          "$ref": "#/definitions/luceneserverSuggestNonLocalSource"
-        },
-        "suggestName": {
-          "type": "string"
-        }
-      }
-    },
-    "luceneserverBuildSuggestResponse": {
-      "type": "object",
-      "properties": {
-        "sizeInBytes": {
-          "type": "string",
-          "format": "int64"
-        },
-        "count": {
-          "type": "string",
-          "format": "int64"
         }
       }
     },
@@ -2644,21 +2466,6 @@
           "title": "Unique identifier for the primary instance that processed the request"
         }
       }
-    },
-    "luceneserverCompletionInfixSuggester": {
-      "type": "object",
-      "properties": {
-        "analyzer": {
-          "type": "string"
-        },
-        "indexAnalyzer": {
-          "type": "string"
-        },
-        "queryAnalyzer": {
-          "type": "string"
-        }
-      },
-      "title": "A suggester that matches terms anywhere in the input text. The implementation is different from InfixSuggester"
     },
     "luceneserverCompletionQuery": {
       "type": "object",
@@ -3399,39 +3206,6 @@
       },
       "description": "A query that wraps another query and uses custom scoring logic to compute the wrapped query's score."
     },
-    "luceneserverFuzzyInfixSuggester": {
-      "type": "object",
-      "properties": {
-        "analyzer": {
-          "type": "string"
-        },
-        "indexAnalyzer": {
-          "type": "string"
-        },
-        "queryAnalyzer": {
-          "type": "string"
-        },
-        "minFuzzyLength": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "nonFuzzyPrefix": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "maxEdits": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "transpositions": {
-          "type": "boolean"
-        },
-        "unicodeAware": {
-          "type": "boolean"
-        }
-      },
-      "title": "A suggester that matches fuzzy terms in the input text"
-    },
     "luceneserverFuzzyParams": {
       "type": "object",
       "properties": {
@@ -3497,53 +3271,6 @@
         }
       },
       "description": "A query that matches documents containing terms similar to the specified term."
-    },
-    "luceneserverFuzzySuggester": {
-      "type": "object",
-      "properties": {
-        "analyzer": {
-          "type": "string"
-        },
-        "indexAnalyzer": {
-          "type": "string"
-        },
-        "queryAnalyzer": {
-          "type": "string"
-        },
-        "maxSurfaceFormsPerAnalyzedForm": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "maxGraphExpansions": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "preserveSep": {
-          "type": "boolean"
-        },
-        "exactFirst": {
-          "type": "boolean"
-        },
-        "minFuzzyLength": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "nonFuzzyPrefix": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "maxEdits": {
-          "type": "integer",
-          "format": "int32"
-        },
-        "transpositions": {
-          "type": "boolean"
-        },
-        "unicodeAware": {
-          "type": "boolean"
-        }
-      },
-      "title": "Implements a fuzzy AnalyzingSuggester (see @lucene:suggest:org.apache.lucene.search.suggest.analyzing.FuzzySuggester"
     },
     "luceneserverGeoBoundingBoxQuery": {
       "type": "object",
@@ -3877,21 +3604,6 @@
           }
         }
       }
-    },
-    "luceneserverInfixSuggester": {
-      "type": "object",
-      "properties": {
-        "analyzer": {
-          "type": "string"
-        },
-        "indexAnalyzer": {
-          "type": "string"
-        },
-        "queryAnalyzer": {
-          "type": "string"
-        }
-      },
-      "title": "A suggester that matches terms anywhere in the input text, not just as a prefix. (see @lucene:org:server.InfixSuggester)"
     },
     "luceneserverInnerHit": {
       "type": "object",
@@ -4396,37 +4108,6 @@
         },
         "maxInclusive": {
           "type": "boolean"
-        }
-      }
-    },
-    "luceneserverOneHighlight": {
-      "type": "object",
-      "properties": {
-        "isHit": {
-          "type": "boolean"
-        },
-        "text": {
-          "type": "string"
-        }
-      }
-    },
-    "luceneserverOneSuggestLookupResponse": {
-      "type": "object",
-      "properties": {
-        "suggestLookupHighlight": {
-          "$ref": "#/definitions/luceneserverSuggestLookupHighlight",
-          "title": "Expert: custom Object to hold the result of a highlighted suggestion (currently only works with AnalyzingInfixSuggester)"
-        },
-        "key": {
-          "type": "string",
-          "title": "the key's text"
-        },
-        "weight": {
-          "type": "string",
-          "format": "int64"
-        },
-        "payload": {
-          "type": "string"
         }
       }
     },
@@ -5454,110 +5135,6 @@
       "type": "object",
       "properties": {
         "indexName": {
-          "type": "string"
-        }
-      }
-    },
-    "luceneserverSuggestLocalSource": {
-      "type": "object",
-      "properties": {
-        "localFile": {
-          "type": "string",
-          "description": "Local file (to the server) to read suggestions + weights from; format is weight U+001F suggestion U+001F payload,\none per line, with suggestion UTF-8 encoded. If this option is used then searcher, suggestField,\nweightField/Expression, payloadField should not be specified."
-        },
-        "hasContexts": {
-          "type": "boolean"
-        },
-        "hasPayload": {
-          "type": "boolean"
-        },
-        "hasMultiSearchText": {
-          "type": "boolean"
-        }
-      }
-    },
-    "luceneserverSuggestLookupHighlight": {
-      "type": "object",
-      "properties": {
-        "oneHighlight": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/luceneserverOneHighlight"
-          }
-        }
-      }
-    },
-    "luceneserverSuggestLookupRequest": {
-      "type": "object",
-      "properties": {
-        "indexName": {
-          "type": "string"
-        },
-        "suggestName": {
-          "type": "string"
-        },
-        "text": {
-          "type": "string"
-        },
-        "highlight": {
-          "type": "boolean"
-        },
-        "allTermsRequired": {
-          "type": "boolean"
-        },
-        "contexts": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "count": {
-          "type": "integer",
-          "format": "int32"
-        }
-      }
-    },
-    "luceneserverSuggestLookupResponse": {
-      "type": "object",
-      "properties": {
-        "results": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/luceneserverOneSuggestLookupResponse"
-          }
-        }
-      }
-    },
-    "luceneserverSuggestNonLocalSource": {
-      "type": "object",
-      "properties": {
-        "indexGen": {
-          "type": "string",
-          "format": "int64"
-        },
-        "version": {
-          "type": "string",
-          "format": "int64"
-        },
-        "snapshot": {
-          "type": "string"
-        },
-        "suggestField": {
-          "type": "string"
-        },
-        "weightField": {
-          "type": "string"
-        },
-        "weightExpression": {
-          "type": "string"
-        },
-        "payloadField": {
-          "type": "string"
-        },
-        "contextField": {
-          "type": "string"
-        },
-        "searchTextField": {
           "type": "string"
         }
       }

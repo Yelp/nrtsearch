@@ -3,7 +3,6 @@ syntax = "proto3";
 
 import "yelp/nrtsearch/search.proto";
 import "yelp/nrtsearch/analysis.proto";
-import "yelp/nrtsearch/suggest.proto";
 import "google/api/annotations.proto";
 import "google/api/httpbody.proto";
 import "google/protobuf/any.proto";
@@ -215,31 +214,6 @@ service LuceneServer {
 
     }
 
-    /* Builds a new auto-suggester, loading suggestions via the provided local file path.*/
-    rpc buildSuggest (BuildSuggestRequest) returns (BuildSuggestResponse) {
-        option (google.api.http) = {
-      post: "/v1/suggest_build"
-      body: "*"
-    };
-
-    }
-    /* Perform an auto-suggest lookup.*/
-    rpc suggestLookup (SuggestLookupRequest) returns (SuggestLookupResponse) {
-        option (google.api.http) = {
-      post: "/v1/suggest_lookup"
-      body: "*"
-    };
-
-    }
-    /* Updates existing suggestions, if the suggester supports near-real-time changes. */
-    rpc updateSuggest (BuildSuggestRequest) returns (BuildSuggestResponse) {
-        option (google.api.http) = {
-      post: "/v1/suggest_update"
-      body: "*"
-    };
-
-    }
-
     /*
     Creates a snapshot in the index, which is saved point-in-time view of the last commit
     in the index such that no files referenced by that snapshot will be deleted by ongoing
@@ -298,7 +272,7 @@ service LuceneServer {
     };
     }
 
-    /* Gets the state of a started index, includes settings, live_settings, search schema, suggest schema */
+    /* Gets the state of a started index, includes settings, live_settings, search schema */
     rpc state (StateRequest) returns (StateResponse) {
         option (google.api.http) = {
         post: "/v1/state"

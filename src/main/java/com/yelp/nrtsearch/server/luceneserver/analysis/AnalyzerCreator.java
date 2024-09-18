@@ -243,7 +243,6 @@ public class AnalyzerCreator {
     return customAnalyzer;
   }
 
-  // TODO: replace usages of this method in suggest with getAnalyzer
   public static Analyzer getStandardAnalyzer() {
     return new StandardAnalyzer();
   }

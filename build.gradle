@@ -179,7 +179,6 @@ test {
     } else {
         if (!project.hasProperty('includePerfTests')) {
             exclude '**/YelpReviewsTest.class'
-            exclude '**/YelpSuggestTest.class'
             exclude '**/MergeBehaviorTests.class'
             exclude '**/IncrementalDataCleanupCommandTest.class'
             filter {

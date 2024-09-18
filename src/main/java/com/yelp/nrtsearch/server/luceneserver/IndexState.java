@@ -49,7 +49,6 @@ import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.store.Directory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -471,10 +470,6 @@ public abstract class IndexState implements Closeable {
 
   /** Get the max merge precopy duration (in seconds). */
   public abstract long getMaxMergePreCopyDurationSec();
-
-  public abstract void addSuggest(String name, JsonObject o);
-
-  public abstract Map<String, Lookup> getSuggesters();
 
   /** Get if additional index metrics should be collected and published. */
   public abstract boolean getVerboseMetrics();

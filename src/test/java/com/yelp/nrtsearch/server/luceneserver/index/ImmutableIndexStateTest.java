@@ -1166,16 +1166,6 @@ public class ImmutableIndexStateTest {
     verify(mockShard, times(1)).commit();
   }
 
-  @Test(expected = UnsupportedOperationException.class)
-  public void testAddSuggest() throws IOException {
-    getIndexState(getEmptyState()).addSuggest(null, null);
-  }
-
-  @Test(expected = UnsupportedOperationException.class)
-  public void testGetSuggesters() throws IOException {
-    getIndexState(getEmptyState()).getSuggesters();
-  }
-
   @Test
   public void testDeleteIndex() throws IOException {
     ImmutableIndexState indexState = getIndexState(getEmptyState());
