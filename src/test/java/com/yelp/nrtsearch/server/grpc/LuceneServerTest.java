@@ -1268,8 +1268,8 @@ public class LuceneServerTest {
   }
 
   @Test
-  public void testCancellationDefaultDisabled() {
-    assertFalse(DeadlineUtils.getCancellationEnabled());
+  public void testCancellationDefaultEnabled() {
+    assertTrue(DeadlineUtils.getCancellationEnabled());
   }
 
   public static void checkHits(SearchResponse.Hit hit) {

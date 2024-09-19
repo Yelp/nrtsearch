@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -103,9 +102,7 @@ public class PluginsService {
    * OS path separator.
    */
   List<File> getPluginSearchPath() {
-    return Stream.of(config.getPluginSearchPath().split(File.pathSeparator))
-        .map(File::new)
-        .collect(Collectors.toList());
+    return config.getPluginSearchPath().stream().map(File::new).collect(Collectors.toList());
   }
 
   /**

@@ -21,12 +21,9 @@ Example server configuration
   threadPoolConfiguration:
     maxSearchingThreads: 4
     maxIndexingThreads: 18
-  fileSendDelay: false
   botoCfgPath: "/user/app/boto.cfg"
   bucketName: "nrtsearch-bucket"
   serviceName: "nrtsearch-service-test"
-  restoreState: False
-  downloadAsStream: "true"
 
 
 .. list-table:: `LuceneServerConfiguration <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/LuceneServerConfiguration.java>`_
@@ -83,20 +80,10 @@ Example server configuration
      - Path to AWS credentials (if using S3 for remote storage); Will use the DefaultAWSCredentialsProviderChain if omitted.
      - null
 
-   * - downloadAsStream
-     - bool
-     - If enabled, the content downloader will perform a streaming extraction of tar archives from remote storage to disk. Otherwise, the downloader will only extract after finishing downloading the archive to disk.
-     - true
-
-   * - restoreState
-     - bool
-     - Enables loading state from external storage on startup
-     - false
-
    * - deadlineCancellation
      - bool
      - Enables gRPC deadline based cancellation of requests. A request is cancelled early if it exceeds the deadline. Currently only supported by the search endpoint.
-     - false
+     - true
 
    * - lowPriorityCopyPercentage
      - int
@@ -109,14 +96,9 @@ Example server configuration
      - []
 
    * - pluginSearchPath
-     - str
-     - Search paths for plugins. These paths are separated by the system path separator character (; on Windows, : on Mac and Unix). The server will try to find the first directory in the search path matching a given plugin. 
+     - str or list
+     - Search paths for plugins. This can either be a single string or a list of strings. The server will try to find the first directory in the search path containing a given plugin.
      - plugins
-
-   * - publishJvmMetrics
-     - bool
-     - If enabled, registers JVM metrics with prometheus. 
-     - true
 
    * - useKeepAliveForReplication
      - bool

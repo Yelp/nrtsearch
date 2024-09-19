@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.plugins;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
@@ -45,6 +46,14 @@ public class PluginsServiceTest {
     return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
   }
 
+  private LuceneServerConfiguration getConfigWithSearchPaths(String... paths) {
+    StringBuilder config = new StringBuilder("pluginSearchPath:").append("\n");
+    for (String path : paths) {
+      config.append("  - ").append(path).append("\n");
+    }
+    return new LuceneServerConfiguration(new ByteArrayInputStream(config.toString().getBytes()));
+  }
+
   private CollectorRegistry getCollectorRegistry() {
     return new CollectorRegistry();
   }
@@ -60,14 +69,9 @@ public class PluginsServiceTest {
 
   @Test
   public void testGetMultiPluginSearchPath() {
-    String searchPath =
-        "some1/plugin1/path1"
-            + File.pathSeparator
-            + "some2/plugin2/path2"
-            + File.pathSeparator
-            + "some3/plugin3/path3"
-            + File.pathSeparator;
-    LuceneServerConfiguration config = getConfigWithSearchPath(searchPath);
+    LuceneServerConfiguration config =
+        getConfigWithSearchPaths(
+            "some1/plugin1/path1", "some2/plugin2/path2", "some3/plugin3/path3");
     PluginsService pluginsService = new PluginsService(config, null, getCollectorRegistry());
     List<File> expectedPaths = new ArrayList<>();
     expectedPaths.add(new File("some1/plugin1/path1"));
@@ -200,7 +204,7 @@ public class PluginsServiceTest {
     CollectorRegistry collectorRegistry = getCollectorRegistry();
     PluginsService pluginsService = new PluginsService(getEmptyConfig(), null, collectorRegistry);
     Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPlugin.class);
-    assertEquals(null, ((LoadTestPlugin) loadedPlugin).collectorRegistry);
+    assertNull(((LoadTestPlugin) loadedPlugin).collectorRegistry);
   }
 
   @Test
