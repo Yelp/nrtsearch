@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -75,17 +76,13 @@ public class LuceneServerConfiguration {
   private final String bucketName;
   private final int maxS3ClientRetries;
   private final double[] metricsBuckets;
-  private final boolean publishJvmMetrics;
   private final String[] plugins;
-  private final String pluginSearchPath;
+  private final List<String> pluginSearchPath;
   private final String serviceName;
-  private final boolean restoreState;
   private final ThreadPoolConfiguration threadPoolConfiguration;
   private final IndexPreloadConfig preloadConfig;
   private final QueryCacheConfig queryCacheConfig;
   private final WarmerConfig warmerConfig;
-  private final boolean downloadAsStream;
-  private final boolean fileSendDelay;
   private final boolean virtualSharding;
   private final boolean decInitialCommit;
   private final boolean syncInitialNrtPoint;
@@ -147,17 +144,16 @@ public class LuceneServerConfiguration {
       metricsBuckets = DEFAULT_METRICS_BUCKETS;
     }
     this.metricsBuckets = metricsBuckets;
-    publishJvmMetrics = configReader.getBoolean("publishJvmMetrics", true);
     plugins = configReader.getStringList("plugins", DEFAULT_PLUGINS).toArray(new String[0]);
     pluginSearchPath =
-        configReader.getString("pluginSearchPath", DEFAULT_PLUGIN_SEARCH_PATH.toString());
+        configReader.get(
+            "pluginSearchPath",
+            LuceneServerConfiguration::getPluginSearchPath,
+            List.of(DEFAULT_PLUGIN_SEARCH_PATH.toString()));
     serviceName = configReader.getString("serviceName", DEFAULT_SERVICE_NAME);
-    restoreState = configReader.getBoolean("restoreState", false);
     preloadConfig = IndexPreloadConfig.fromConfig(configReader);
     queryCacheConfig = QueryCacheConfig.fromConfig(configReader);
     warmerConfig = WarmerConfig.fromConfig(configReader);
-    downloadAsStream = configReader.getBoolean("downloadAsStream", true);
-    fileSendDelay = configReader.getBoolean("fileSendDelay", false);
     virtualSharding = configReader.getBoolean("virtualSharding", false);
     decInitialCommit = configReader.getBoolean("decInitialCommit", true);
     syncInitialNrtPoint = configReader.getBoolean("syncInitialNrtPoint", true);
@@ -169,7 +165,7 @@ public class LuceneServerConfiguration {
     fileCopyConfig = FileCopyConfig.fromConfig(configReader);
     threadPoolConfiguration = new ThreadPoolConfiguration(configReader);
     scriptCacheConfig = ScriptCacheConfig.fromConfig(configReader);
-    deadlineCancellation = configReader.getBoolean("deadlineCancellation", false);
+    deadlineCancellation = configReader.getBoolean("deadlineCancellation", true);
     stateConfig = StateConfig.fromConfig(configReader);
     indexStartConfig = IndexStartConfig.fromConfig(configReader);
     discoveryFileUpdateIntervalMs =
@@ -260,10 +256,6 @@ public class LuceneServerConfiguration {
     return metricsBuckets;
   }
 
-  public boolean getPublishJvmMetrics() {
-    return publishJvmMetrics;
-  }
-
   public int getReplicaReplicationPortPingInterval() {
     return replicaReplicationPortPingInterval;
   }
@@ -272,12 +264,8 @@ public class LuceneServerConfiguration {
     return this.plugins;
   }
 
-  public String getPluginSearchPath() {
+  public List<String> getPluginSearchPath() {
     return this.pluginSearchPath;
-  }
-
-  public boolean getRestoreState() {
-    return restoreState;
   }
 
   public IndexPreloadConfig getPreloadConfig() {
@@ -290,14 +278,6 @@ public class LuceneServerConfiguration {
 
   public WarmerConfig getWarmerConfig() {
     return warmerConfig;
-  }
-
-  public boolean getDownloadAsStream() {
-    return downloadAsStream;
-  }
-
-  public boolean getFileSendDelay() {
-    return fileSendDelay;
   }
 
   public boolean getVirtualSharding() {
@@ -423,5 +403,17 @@ public class LuceneServerConfiguration {
 
   public long getMaxConnectionAgeGraceForReplication() {
     return maxConnectionAgeGraceForReplication;
+  }
+
+  private static List<String> getPluginSearchPath(Object o) {
+    List<String> paths = new ArrayList<>();
+    if (o instanceof List list) {
+      for (Object item : list) {
+        paths.add(item.toString());
+      }
+    } else {
+      paths.add(o.toString());
+    }
+    return paths;
   }
 }

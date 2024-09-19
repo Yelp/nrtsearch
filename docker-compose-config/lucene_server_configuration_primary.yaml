@@ -7,9 +7,6 @@ indexDir: "/user/app/primary_index_base"
 threadPoolConfiguration:
   maxSearchingThreads: 4
   maxIndexingThreads: 18
-fileSendDelay: false
 botoCfgPath: "/user/app/boto.cfg"
 bucketName: "nrtsearch-bucket"
 serviceName: "nrtsearch-service-test"
-restoreState: False
-downloadAsStream: "true"

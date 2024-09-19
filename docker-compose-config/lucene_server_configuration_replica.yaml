@@ -10,5 +10,4 @@ threadPoolConfiguration:
 botoCfgPath: "/user/app/boto.cfg"
 bucketName: "nrtsearch-bucket"
 serviceName: "nrtsearch-service-test"
-restoreState: False
 downloadAsStream: "true"

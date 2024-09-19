@@ -217,9 +217,7 @@ public class LuceneServer {
   /** Register prometheus metrics exposed by /status/metrics */
   private void registerMetrics(GlobalState globalState) {
     // register jvm metrics
-    if (luceneServerConfiguration.getPublishJvmMetrics()) {
-      DefaultExports.register(collectorRegistry);
-    }
+    DefaultExports.register(collectorRegistry);
     // register thread pool metrics
     new ThreadPoolCollector().register(collectorRegistry);
     collectorRegistry.register(RejectionCounterWrapper.rejectionCounter);
@@ -1856,9 +1854,6 @@ public class LuceneServer {
                     .build();
             rawFileChunkStreamObserver.onNext(rawFileChunk);
             totalRead += chunkSize;
-            if (globalState.getConfiguration().getFileSendDelay()) {
-              randomDelay(ThreadLocalRandom.current());
-            }
           }
           // EOF
           rawFileChunkStreamObserver.onCompleted();
@@ -1971,27 +1966,6 @@ public class LuceneServer {
           }
         }
       };
-    }
-
-    /**
-     * induces random delay between 1ms to 10ms (both inclusive). Without this excessive buffering
-     * happens in server/primary if its to fast compared to receiver/replica. This only happens when
-     * we backfill an entire index i.e. very high indexing throughput.
-     * https://github.com/grpc/grpc-java/issues/6426. Note that flow control only works with client
-     * streaming, whereas we are using unary calls. For unary calls, you can
-     *
-     * <p>use NettyServerBuilder.maxConcurrentCallsPerConnection to limit concurrent calls
-     *
-     * <p>slow down to respond so that each request takes a little longer to get response.
-     *
-     * <p>For client streaming, you can in addition do manual flow control.
-     *
-     * @param random
-     * @throws InterruptedException
-     */
-    private void randomDelay(Random random) throws InterruptedException {
-      int val = random.nextInt(10);
-      Thread.sleep(val + 1);
     }
 
     @Override
