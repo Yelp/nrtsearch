@@ -26,6 +26,7 @@ import io.grpc.stub.StreamObserver;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -112,71 +113,8 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.createIndex(requestBuilder.build());
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
-    }
-    logger.info("Server returned : " + response.getResponse());
-  }
-
-  public void liveSettings(
-      String indexName,
-      double maxRefreshSec,
-      double minRefreshSec,
-      double maxSearcherAgeSec,
-      double indexRamBufferSizeMB,
-      int addDocumentsMaxBufferLen,
-      int sliceMaxDocs,
-      int sliceMaxSegments,
-      int virtualShards,
-      int maxMergedSegmentMB,
-      int segmentsPerTier,
-      double defaultSearchTimeoutSec,
-      int defaultSearchTimeoutCheckEvery,
-      int defaultTerminateAfter) {
-    logger.info(
-        String.format(
-            "will try to update liveSettings for indexName: %s, "
-                + "maxRefreshSec: %s, minRefreshSec: %s, maxSearcherAgeSec: %s, "
-                + "indexRamBufferSizeMB: %s, addDocumentsMaxBufferLen: %s, sliceMaxDocs: %s, "
-                + "sliceMaxSegments: %s, virtualShards: %s, maxMergedSegmentMB: %s, segmentsPerTier: %s, "
-                + "defaultSearchTimeoutSec: %s, defaultSearchTimeoutCheckEvery: %s, defaultTerminateAfter: %s ",
-            indexName,
-            maxRefreshSec,
-            minRefreshSec,
-            maxSearcherAgeSec,
-            indexRamBufferSizeMB,
-            addDocumentsMaxBufferLen,
-            sliceMaxDocs,
-            sliceMaxSegments,
-            virtualShards,
-            maxMergedSegmentMB,
-            segmentsPerTier,
-            defaultSearchTimeoutSec,
-            defaultSearchTimeoutCheckEvery,
-            defaultTerminateAfter));
-    LiveSettingsRequest request =
-        LiveSettingsRequest.newBuilder()
-            .setIndexName(indexName)
-            .setMaxRefreshSec(maxRefreshSec)
-            .setMinRefreshSec(minRefreshSec)
-            .setMaxSearcherAgeSec(maxSearcherAgeSec)
-            .setIndexRamBufferSizeMB(indexRamBufferSizeMB)
-            .setAddDocumentsMaxBufferLen(addDocumentsMaxBufferLen)
-            .setSliceMaxDocs(sliceMaxDocs)
-            .setSliceMaxSegments(sliceMaxSegments)
-            .setVirtualShards(virtualShards)
-            .setMaxMergedSegmentMB(maxMergedSegmentMB)
-            .setSegmentsPerTier(segmentsPerTier)
-            .setDefaultSearchTimeoutSec(defaultSearchTimeoutSec)
-            .setDefaultSearchTimeoutCheckEvery(defaultSearchTimeoutCheckEvery)
-            .setDefaultTerminateAfter(defaultTerminateAfter)
-            .build();
-    LiveSettingsResponse response;
-    try {
-      response = blockingStub.liveSettings(request);
-    } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
+      logger.error("Unable to create index {}", indexName, e);
+      throw e;
     }
     logger.info("Server returned : " + response.getResponse());
   }
@@ -186,8 +124,8 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.liveSettingsV2(liveSettingsV2Request);
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
+      logger.error("Unable to update live settings");
+      throw e;
     }
     try {
       logger.info("Server returned : " + JsonFormat.printer().print(response.getLiveSettings()));
@@ -202,8 +140,8 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.registerFields(fieldDefRequest);
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
+      logger.error("Unable to register fields");
+      throw e;
     }
     logger.info("Server returned : " + response.getResponse());
   }
@@ -213,21 +151,9 @@ public class LuceneServerClient implements Closeable {
     try {
       blockingStub.reloadState(reloadStateRequest);
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
+      logger.error("Unable to reload state");
+      throw e;
     }
-  }
-
-  public void settings(Path filePath) throws IOException {
-    SettingsRequest settingsRequest =
-        new LuceneServerClientBuilder.SettingsClientBuilder().buildRequest(filePath);
-    SettingsResponse response;
-    try {
-      response = blockingStub.settings(settingsRequest);
-    } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
-    }
-    logger.info("Server returned : " + response.getResponse());
   }
 
   public void settingsV2(String indexName, Path filePath) throws IOException {
@@ -243,8 +169,8 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.settingsV2(settingsRequest);
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
+      logger.error("Unable to apply settings");
+      throw e;
     }
     try {
       logger.info("Server returned : " + JsonFormat.printer().print(response.getSettings()));
@@ -260,8 +186,8 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.startIndex(startIndexRequest);
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
+      logger.error("Unable to start index");
+      throw e;
     }
     logger.info("Server returned : " + response.toString());
   }
@@ -273,8 +199,8 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.startIndexV2(startIndexRequest);
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
+      logger.error("Unable to start index {}", indexName);
+      throw e;
     }
     logger.info("Server returned : " + response.toString());
   }
@@ -282,6 +208,7 @@ public class LuceneServerClient implements Closeable {
   public void addDocuments(Stream<AddDocumentRequest> addDocumentRequestStream)
       throws InterruptedException {
     final CountDownLatch finishLatch = new CountDownLatch(1);
+    List<Throwable> exception = new ArrayList<>();
 
     StreamObserver<AddDocumentResponse> responseObserver =
         new StreamObserver<>() {
@@ -298,6 +225,7 @@ public class LuceneServerClient implements Closeable {
           @Override
           public void onError(Throwable t) {
             logger.error(t.getMessage(), t);
+            exception.add(t);
             finishLatch.countDown();
           }
 
@@ -326,7 +254,11 @@ public class LuceneServerClient implements Closeable {
 
     // Receiving happens asynchronously, so block here for 5 minutes
     if (!finishLatch.await(5, TimeUnit.MINUTES)) {
-      logger.warn("addDocuments can not finish within 5 minutes");
+      throw new IllegalStateException("addDocuments can not finish within 5 minutes");
+    }
+
+    if (!exception.isEmpty()) {
+      throw new RuntimeException(exception.get(0));
     }
   }
 
@@ -337,8 +269,8 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.refresh(request);
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
+      logger.error("Unable to call refresh on index {}", indexName);
+      throw e;
     }
     logger.info("Server returned refreshTimeMS : " + response.getRefreshTimeMS());
   }
@@ -350,8 +282,8 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.commit(request);
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
+      logger.error("Unable to commit index {}", indexName);
+      throw e;
     }
     logger.info(
         "Server returned sequence id: "
@@ -367,8 +299,8 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.stats(request);
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
+      logger.error("Unable to retrieve stats for index {}", indexName);
+      throw e;
     }
     logger.info("Server returned sequence id: " + response);
   }
@@ -394,8 +326,8 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.search(searchRequest);
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
+      logger.error("Unable to search");
+      throw e;
     }
     logger.info("Server returned : " + response.toString());
   }
@@ -407,8 +339,8 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.delete(addDocumentRequest);
     } catch (StatusRuntimeException e) {
-      logger.warn("RPC failed: {}", e.getStatus());
-      return;
+      logger.error("Unable to delete documents");
+      throw e;
     }
     logger.info(
         "Server returned indexGen : "
