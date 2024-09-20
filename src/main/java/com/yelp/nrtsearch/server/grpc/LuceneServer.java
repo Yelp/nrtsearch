@@ -59,6 +59,7 @@ import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.PluginsService;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.tools.cli.VersionProvider;
 import io.grpc.Context;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -244,7 +245,7 @@ public class LuceneServer {
   @CommandLine.Command(
       name = "lucene-server",
       mixinStandardHelpOptions = true,
-      versionProvider = com.yelp.nrtsearch.server.cli.VersionProvider.class,
+      versionProvider = VersionProvider.class,
       description = "Start NRT search server")
   public static class LuceneServerCommand implements Callable<Integer> {
     @CommandLine.Parameters(
