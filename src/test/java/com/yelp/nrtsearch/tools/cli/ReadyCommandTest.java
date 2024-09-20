@@ -23,7 +23,6 @@ import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.GrpcServer;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
-import com.yelp.nrtsearch.tools.cli.LuceneClientCommand;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import org.junit.After;

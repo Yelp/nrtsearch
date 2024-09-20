@@ -23,7 +23,6 @@ import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.TestServer;
-import com.yelp.nrtsearch.tools.cli.LuceneClientCommand;
 import java.io.IOException;
 import org.junit.After;
 import org.junit.Rule;

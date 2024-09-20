@@ -20,7 +20,6 @@ import static org.junit.Assert.fail;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
-import com.yelp.nrtsearch.tools.cli.CliUtils;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;

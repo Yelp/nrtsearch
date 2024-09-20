@@ -19,7 +19,6 @@ import static org.junit.Assert.*;
 
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
-import com.yelp.nrtsearch.tools.cli.LuceneClientCommand;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;

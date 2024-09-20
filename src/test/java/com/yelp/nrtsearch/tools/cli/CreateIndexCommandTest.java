@@ -29,7 +29,6 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FloatFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.LongFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.index.ImmutableIndexState;
-import com.yelp.nrtsearch.tools.cli.LuceneClientCommand;
 import java.io.IOException;
 import java.util.Map;
 import org.junit.After;
