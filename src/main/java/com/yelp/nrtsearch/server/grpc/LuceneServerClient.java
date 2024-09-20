@@ -113,7 +113,7 @@ public class LuceneServerClient implements Closeable {
     try {
       response = blockingStub.createIndex(requestBuilder.build());
     } catch (StatusRuntimeException e) {
-      logger.error("Unable to create index {}", indexName, e);
+      logger.error("Unable to create index {}", indexName);
       throw e;
     }
     logger.info("Server returned : " + response.getResponse());
