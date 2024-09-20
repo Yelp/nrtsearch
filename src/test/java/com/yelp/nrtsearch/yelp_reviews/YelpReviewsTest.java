@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server;
+package com.yelp.nrtsearch.yelp_reviews;
 
 import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -40,8 +40,8 @@ import com.yelp.nrtsearch.server.grpc.SettingsResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
-import com.yelp.nrtsearch.server.utils.OneDocBuilder;
-import com.yelp.nrtsearch.server.utils.ParallelDocumentIndexer;
+import com.yelp.nrtsearch.yelp_reviews.utils.OneDocBuilder;
+import com.yelp.nrtsearch.yelp_reviews.utils.ParallelDocumentIndexer;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.File;

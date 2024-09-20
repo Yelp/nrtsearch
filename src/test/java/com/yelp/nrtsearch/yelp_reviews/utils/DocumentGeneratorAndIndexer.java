@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.utils;
+package com.yelp.nrtsearch.yelp_reviews.utils;
 
 import com.google.gson.Gson;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
