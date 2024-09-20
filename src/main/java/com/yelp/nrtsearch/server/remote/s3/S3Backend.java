@@ -270,8 +270,13 @@ public class S3Backend implements RemoteBackend {
     return currentResourceExists(prefix);
   }
 
-  @VisibleForTesting
-  static String getGlobalStateResourcePrefix(String service) {
+  /**
+   * Get the S3 prefix for the service global resource.
+   *
+   * @param service service name
+   * @return S3 prefix
+   */
+  public static String getGlobalStateResourcePrefix(String service) {
     return String.format(GLOBAL_STATE_PREFIX_FORMAT, service, GLOBAL_STATE);
   }
 

@@ -343,4 +343,27 @@ public class StateCommandUtilsTest {
     assertTrue(StateCommandUtils.isGlobalState(StateCommandUtils.GLOBAL_STATE_RESOURCE));
     assertFalse(StateCommandUtils.isGlobalState("test_index"));
   }
+
+  @Test
+  public void testParseIndexResourceType() {
+    assertEquals(
+        RemoteBackend.IndexResourceType.INDEX_STATE,
+        StateCommandUtils.parseIndexResourceType("INDEX_STATE"));
+    assertEquals(
+        RemoteBackend.IndexResourceType.POINT_STATE,
+        StateCommandUtils.parseIndexResourceType("POINT_STATE"));
+    assertEquals(
+        RemoteBackend.IndexResourceType.WARMING_QUERIES,
+        StateCommandUtils.parseIndexResourceType("WARMING_QUERIES"));
+  }
+
+  @Test
+  public void testParseIndexResourceType_invalid() {
+    try {
+      StateCommandUtils.parseIndexResourceType("INVALID");
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("Invalid index resource type: INVALID", e.getMessage());
+    }
+  }
 }
