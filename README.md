@@ -159,5 +159,5 @@ This should create a src/main/docs/index.html file that can be seen in your loca
 This tool indexes yelp reviews available at [Yelp dataset challenge](https://www.yelp.com/dataset). It runs a default version with only 1k reviews of the `reviews.json` or you could download the yelp dataset and place the review.json in the user.home dir and the tool will use that instead. The complete review.json should have close to 7Million reviews. The tool runs multi-threaded indexing and a search thread in parallel reporting the `totalHits`.  Command to run this specific test:
 
 ```
-./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
+./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.yelp_reviews.YelpReviewsTest.runYelpReviews" --info
 ```

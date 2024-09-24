@@ -47,7 +47,7 @@ jobs:
         name: jacoco-report
         path: build/reports/jacoco/
     - name: Yelp Reviews Perf test
-      run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.YelpReviewsTest.runYelpReviews" --info
+      run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.yelp_reviews.YelpReviewsTest.runYelpReviews" --info
     - name: Merge behavior tests
       run: ./gradlew clean installDist :test -PincludePerfTests=* --tests "com.yelp.nrtsearch.server.grpc.MergeBehaviorTests" --info
     - name: Long running tests
