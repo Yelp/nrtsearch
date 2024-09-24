@@ -42,6 +42,7 @@ import java.nio.file.Paths;
 
 public class StateCommandUtils {
   public static final String GLOBAL_STATE_RESOURCE = "global_state";
+  public static final String NOT_SET = "not_set";
 
   private StateCommandUtils() {}
 
@@ -255,5 +256,21 @@ public class StateCommandUtils {
         BackendGlobalState.getUniqueIndexName(resource, indexGlobalState.getId());
     System.out.println("Index state resource: " + resolvedResource);
     return resolvedResource;
+  }
+
+  /**
+   * Parse input string into index resource type.
+   *
+   * @param resourceType input string
+   * @return index resource type
+   * @throws IllegalArgumentException if invalid resource type name
+   */
+  public static RemoteBackend.IndexResourceType parseIndexResourceType(String resourceType) {
+    return switch (resourceType) {
+      case "INDEX_STATE" -> RemoteBackend.IndexResourceType.INDEX_STATE;
+      case "POINT_STATE" -> RemoteBackend.IndexResourceType.POINT_STATE;
+      case "WARMING_QUERIES" -> RemoteBackend.IndexResourceType.WARMING_QUERIES;
+      default -> throw new IllegalArgumentException("Invalid index resource type: " + resourceType);
+    };
   }
 }
