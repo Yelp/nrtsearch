@@ -340,12 +340,22 @@ public class NRTReplicaNode extends ReplicaNode {
     // updates, or we are unable to start a new copy job. This is needed since long running nrt
     // points may fail if the primary cleans up old commit files.
     while (curVersion < primaryIndexVersion && (System.currentTimeMillis() - startMS < maxTimeMs)) {
-      CopyJob job = newNRTPoint(lastPrimaryGen, Long.MAX_VALUE);
+      CopyJob job = newNRTPoint(lastPrimaryGen, primaryIndexVersion);
       if (job == null) {
+        // A job won't be started if we are already at the target version,
+        // check if that is the case
+        curVersion = getCurrentSearchingVersion();
+        if (curVersion >= primaryIndexVersion) {
+          break;
+        }
+        // The job failed to start for another reason, abort
         logger.info("Nrt sync: failed to start copy job, aborting");
         return;
       }
-      logger.info("Nrt sync: started new copy job");
+      logger.info(
+          "Nrt sync: started new copy job, my version: {}, job version: {}",
+          curVersion,
+          job.getCopyState().version);
       while (true) {
         curVersion = getCurrentSearchingVersion();
         if (curVersion >= primaryIndexVersion) {
@@ -353,6 +363,7 @@ public class NRTReplicaNode extends ReplicaNode {
         }
         synchronized (this) {
           if (curNRTCopy == null) {
+            curVersion = getCurrentSearchingVersion();
             break;
           }
         }
