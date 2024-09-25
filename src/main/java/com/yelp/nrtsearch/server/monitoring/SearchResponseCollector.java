@@ -15,12 +15,15 @@
  */
 package com.yelp.nrtsearch.server.monitoring;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import io.prometheus.client.Collector;
-import io.prometheus.client.Counter;
-import io.prometheus.client.Summary;
+import io.prometheus.metrics.core.metrics.Counter;
+import io.prometheus.metrics.core.metrics.Summary;
+import io.prometheus.metrics.model.registry.MultiCollector;
+import io.prometheus.metrics.model.snapshots.MetricSnapshot;
+import io.prometheus.metrics.model.snapshots.MetricSnapshots;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,12 +35,13 @@ import org.slf4j.LoggerFactory;
  * Collector for metrics related to the {@link SearchResponse}. Has the option to collect verbose
  * metrics, which may be expensive to produce or publish
  */
-public class SearchResponseCollector extends Collector {
+public class SearchResponseCollector implements MultiCollector {
   private static final Logger logger = LoggerFactory.getLogger(SearchResponseCollector.class);
   private final GlobalState globalState;
 
-  private static final Summary searchResponseSizeBytes =
-      Summary.build()
+  @VisibleForTesting
+  static final Summary searchResponseSizeBytes =
+      Summary.builder()
           .name("nrt_search_response_size_bytes")
           .help("Size of response protobuf message")
           .quantile(0.0, 0)
@@ -46,10 +50,11 @@ public class SearchResponseCollector extends Collector {
           .quantile(0.99, 0.005)
           .quantile(1.0, 0)
           .labelNames("index")
-          .create();
+          .build();
 
-  private static final Summary searchResponseTotalHits =
-      Summary.build()
+  @VisibleForTesting
+  static final Summary searchResponseTotalHits =
+      Summary.builder()
           .name("nrt_search_response_total_hits")
           .help("Number of total hits for queries")
           .quantile(0.0, 0)
@@ -58,10 +63,11 @@ public class SearchResponseCollector extends Collector {
           .quantile(0.99, 0.005)
           .quantile(1.0, 0)
           .labelNames("index")
-          .create();
+          .build();
 
-  private static final Summary searchStageLatencyMs =
-      Summary.build()
+  @VisibleForTesting
+  static final Summary searchStageLatencyMs =
+      Summary.builder()
           .name("nrt_search_stage_latency_ms")
           .help("Latency of various search operations (ms)")
           .quantile(0.0, 0)
@@ -70,44 +76,54 @@ public class SearchResponseCollector extends Collector {
           .quantile(0.99, 0.005)
           .quantile(1.0, 0)
           .labelNames("index", "stage")
-          .create();
+          .build();
 
-  private static final Counter searchTimeoutCount =
-      Counter.build()
+  @VisibleForTesting
+  static final Counter searchTimeoutCount =
+      Counter.builder()
           .name("nrt_search_timeout_count")
           .help("Number of requests that hit the recall timeout")
           .labelNames("index")
-          .create();
+          .build();
 
-  private static final Counter searchTerminatedEarlyCount =
-      Counter.build()
+  @VisibleForTesting
+  static final Counter searchTerminatedEarlyCount =
+      Counter.builder()
           .name("nrt_search_terminated_early_count")
           .help("Number of requests that terminated early")
           .labelNames("index")
-          .create();
+          .build();
 
   public static void updateSearchResponseMetrics(
       SearchResponse searchResponse, String index, boolean verbose) {
     if (searchResponse.getHitTimeout()) {
-      searchTimeoutCount.labels(index).inc();
+      searchTimeoutCount.labelValues(index).inc();
     }
     if (searchResponse.getTerminatedEarly()) {
-      searchTerminatedEarlyCount.labels(index).inc();
+      searchTerminatedEarlyCount.labelValues(index).inc();
     }
 
     if (verbose) {
-      searchResponseSizeBytes.labels(index).observe(searchResponse.getSerializedSize());
-      searchResponseTotalHits.labels(index).observe(searchResponse.getTotalHits().getValue());
+      searchResponseSizeBytes.labelValues(index).observe(searchResponse.getSerializedSize());
+      searchResponseTotalHits.labelValues(index).observe(searchResponse.getTotalHits().getValue());
 
       Diagnostics diagnostics = searchResponse.getDiagnostics();
-      searchStageLatencyMs.labels(index, "recall").observe(diagnostics.getFirstPassSearchTimeMs());
-      searchStageLatencyMs.labels(index, "highlight").observe(diagnostics.getHighlightTimeMs());
-      searchStageLatencyMs.labels(index, "fetch").observe(diagnostics.getGetFieldsTimeMs());
+      searchStageLatencyMs
+          .labelValues(index, "recall")
+          .observe(diagnostics.getFirstPassSearchTimeMs());
+      searchStageLatencyMs
+          .labelValues(index, "highlight")
+          .observe(diagnostics.getHighlightTimeMs());
+      searchStageLatencyMs.labelValues(index, "fetch").observe(diagnostics.getGetFieldsTimeMs());
       for (Map.Entry<String, Double> entry : diagnostics.getFacetTimeMsMap().entrySet()) {
-        searchStageLatencyMs.labels(index, "facet:" + entry.getKey()).observe(entry.getValue());
+        searchStageLatencyMs
+            .labelValues(index, "facet:" + entry.getKey())
+            .observe(entry.getValue());
       }
       for (Map.Entry<String, Double> entry : diagnostics.getRescorersTimeMsMap().entrySet()) {
-        searchStageLatencyMs.labels(index, "rescorer:" + entry.getKey()).observe(entry.getValue());
+        searchStageLatencyMs
+            .labelValues(index, "rescorer:" + entry.getKey())
+            .observe(entry.getValue());
       }
     }
   }
@@ -117,12 +133,12 @@ public class SearchResponseCollector extends Collector {
   }
 
   @Override
-  public List<MetricFamilySamples> collect() {
-    List<MetricFamilySamples> mfs = new ArrayList<>();
+  public MetricSnapshots collect() {
+    List<MetricSnapshot> metrics = new ArrayList<>();
 
     try {
-      mfs.addAll(searchTimeoutCount.collect());
-      mfs.addAll(searchTerminatedEarlyCount.collect());
+      metrics.add(searchTimeoutCount.collect());
+      metrics.add(searchTerminatedEarlyCount.collect());
 
       boolean publishVerboseMetrics = false;
       Set<String> indexNames = globalState.getIndexNames();
@@ -133,14 +149,14 @@ public class SearchResponseCollector extends Collector {
         }
       }
       if (publishVerboseMetrics) {
-        mfs.addAll(searchResponseSizeBytes.collect());
-        mfs.addAll(searchResponseTotalHits.collect());
-        mfs.addAll(searchStageLatencyMs.collect());
+        metrics.add(searchResponseSizeBytes.collect());
+        metrics.add(searchResponseTotalHits.collect());
+        metrics.add(searchStageLatencyMs.collect());
       }
     } catch (Exception e) {
       logger.warn("Error getting search response metrics: ", e);
     }
 
-    return mfs;
+    return new MetricSnapshots(metrics);
   }
 }

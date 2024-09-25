@@ -15,24 +15,24 @@
  */
 package com.yelp.nrtsearch.server.monitoring;
 
-import io.prometheus.client.CollectorRegistry;
-import io.prometheus.client.Counter;
+import io.prometheus.metrics.core.metrics.Counter;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 
 public class DeadlineMetrics {
 
   public static final Counter nrtDeadlineCancelCount =
-      Counter.build()
+      Counter.builder()
           .name("nrt_deadline_cancel_count")
           .help("Number of requests canceled from expired deadlines.")
           .labelNames("operation")
-          .create();
+          .build();
 
   /**
    * Add all deadline metrics to the collector registry.
    *
    * @param registry collector registry
    */
-  public static void register(CollectorRegistry registry) {
+  public static void register(PrometheusRegistry registry) {
     registry.register(nrtDeadlineCancelCount);
   }
 }

@@ -250,11 +250,13 @@ public class NRTReplicaNode extends ReplicaNode {
 
     // record metrics for this nrt point
     if (job.getFailed()) {
-      NrtMetrics.nrtPointFailure.labels(indexName).inc();
+      NrtMetrics.nrtPointFailure.labelValues(indexName).inc();
     } else {
-      NrtMetrics.nrtPointTime.labels(indexName).observe((System.nanoTime() - startNS) / 1000000.0);
-      NrtMetrics.nrtPointSize.labels(indexName).observe(job.getTotalBytesCopied());
-      NrtMetrics.searcherVersion.labels(indexName).set(job.getCopyState().version);
+      NrtMetrics.nrtPointTime
+          .labelValues(indexName)
+          .observe((System.nanoTime() - startNS) / 1000000.0);
+      NrtMetrics.nrtPointSize.labelValues(indexName).observe(job.getTotalBytesCopied());
+      NrtMetrics.searcherVersion.labelValues(indexName).set(job.getCopyState().version);
     }
   }
 

@@ -17,27 +17,22 @@ package com.yelp.nrtsearch.server;
 
 import com.google.api.HttpBody;
 import com.google.protobuf.ByteString;
-import io.prometheus.client.CollectorRegistry;
-import io.prometheus.client.exporter.common.TextFormat;
-import java.io.BufferedWriter;
+import io.prometheus.metrics.expositionformats.PrometheusTextFormatWriter;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
 
 public class MetricsRequestHandler {
-  private final CollectorRegistry collectorRegistry;
+  private final PrometheusRegistry prometheusRegistry;
 
-  public MetricsRequestHandler(CollectorRegistry collectorRegistry) {
-    this.collectorRegistry = collectorRegistry;
+  public MetricsRequestHandler(PrometheusRegistry prometheusRegistry) {
+    this.prometheusRegistry = prometheusRegistry;
   }
 
   public HttpBody process() throws IOException {
-    try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        OutputStreamWriter outputStreamWriter = new OutputStreamWriter(byteArrayOutputStream);
-        Writer writer = new BufferedWriter(outputStreamWriter)) {
-      TextFormat.write004(writer, collectorRegistry.metricFamilySamples());
-      writer.flush();
+    try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+      PrometheusTextFormatWriter prometheusTextFormat = new PrometheusTextFormatWriter(false);
+      prometheusTextFormat.write(byteArrayOutputStream, prometheusRegistry.scrape());
       return HttpBody.newBuilder()
           .setContentType("text/plain")
           .setData(ByteString.copyFrom(byteArrayOutputStream.toByteArray()))

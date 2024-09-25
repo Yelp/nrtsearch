@@ -32,7 +32,7 @@ import io.grpc.ServerInterceptors;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.client.CollectorRegistry;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.file.DirectoryStream;
@@ -71,7 +71,7 @@ public class GrpcServer {
   private ManagedChannel replicationServerManagedChannel;
 
   public GrpcServer(
-      CollectorRegistry collectorRegistry,
+      PrometheusRegistry prometheusRegistry,
       GrpcCleanupRule grpcCleanup,
       LuceneServerConfiguration configuration,
       TemporaryFolder temporaryFolder,
@@ -89,7 +89,7 @@ public class GrpcServer {
     this.indexDir = indexDir;
     this.testIndex = index;
     this.remoteBackend = remoteBackend;
-    invoke(collectorRegistry, replicationGlobalState != null, port, remoteBackend, plugins);
+    invoke(prometheusRegistry, replicationGlobalState != null, port, remoteBackend, plugins);
   }
 
   public GrpcServer(
@@ -202,7 +202,7 @@ public class GrpcServer {
    * behaviors or state changes from the client side.
    */
   private void invoke(
-      CollectorRegistry collectorRegistry,
+      PrometheusRegistry prometheusRegistry,
       boolean isReplication,
       int port,
       RemoteBackend remoteBackend,
@@ -212,10 +212,10 @@ public class GrpcServer {
     String serverName = InProcessServerBuilder.generateName();
     if (!isReplication) {
       Server server;
-      if (collectorRegistry == null) {
+      if (prometheusRegistry == null) {
         LuceneServerImpl serverImpl =
             new LuceneServer.LuceneServerImpl(
-                configuration, remoteBackend, collectorRegistry, plugins);
+                configuration, remoteBackend, prometheusRegistry, plugins);
         globalState = serverImpl.getGlobalState();
         // Create a server, add service, start, and register for automatic graceful shutdown.
         server =
@@ -226,16 +226,12 @@ public class GrpcServer {
                 .build()
                 .start();
       } else {
-        String serviceName = configuration.getServiceName();
-        String nodeName = configuration.getNodeName();
         LuceneServerMonitoringServerInterceptor monitoringInterceptor =
             LuceneServerMonitoringServerInterceptor.create(
-                Configuration.allMetrics().withCollectorRegistry(collectorRegistry),
-                serviceName,
-                nodeName);
+                Configuration.allMetrics().withPrometheusRegistry(prometheusRegistry));
         LuceneServerImpl serverImpl =
             new LuceneServer.LuceneServerImpl(
-                configuration, remoteBackend, collectorRegistry, plugins);
+                configuration, remoteBackend, prometheusRegistry, plugins);
         globalState = serverImpl.getGlobalState();
         // Create a server, add service, start, and register for automatic graceful shutdown.
         server =

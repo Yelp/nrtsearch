@@ -50,6 +50,6 @@ public class NrtIndexWriter extends IndexWriter {
    */
   @Override
   protected void doBeforeFlush() throws IOException {
-    IndexMetrics.flushCount.labels(indexName).inc();
+    IndexMetrics.flushCount.labelValues(indexName).inc();
   }
 }

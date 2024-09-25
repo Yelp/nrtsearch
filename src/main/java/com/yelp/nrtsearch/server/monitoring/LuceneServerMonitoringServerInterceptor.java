@@ -28,12 +28,9 @@ public class LuceneServerMonitoringServerInterceptor implements ServerIntercepto
   private final Configuration configuration;
   private final ServerMetrics.Factory serverMetricsFactory;
 
-  public static LuceneServerMonitoringServerInterceptor create(
-      Configuration configuration, String serviceName, String nodeName) {
+  public static LuceneServerMonitoringServerInterceptor create(Configuration configuration) {
     return new LuceneServerMonitoringServerInterceptor(
-        Clock.systemDefaultZone(),
-        configuration,
-        new ServerMetrics.Factory(configuration, serviceName, nodeName));
+        Clock.systemDefaultZone(), configuration, new ServerMetrics.Factory(configuration));
   }
 
   private LuceneServerMonitoringServerInterceptor(

@@ -48,7 +48,7 @@ public class DeadlineUtils {
     if (cancellationEnabled) {
       Deadline deadline = Context.current().getDeadline();
       if (deadline != null && deadline.isExpired()) {
-        DeadlineMetrics.nrtDeadlineCancelCount.labels(operation).inc();
+        DeadlineMetrics.nrtDeadlineCancelCount.labelValues(operation).inc();
         throw Status.CANCELLED
             .withDescription("Request deadline exceeded: " + message)
             .asRuntimeException();
@@ -61,7 +61,7 @@ public class DeadlineUtils {
     if (cancellationEnabled) {
       Deadline deadline = Context.current().getDeadline();
       if (deadline != null && deadline.isExpired()) {
-        DeadlineMetrics.nrtDeadlineCancelCount.labels(operation).inc();
+        DeadlineMetrics.nrtDeadlineCancelCount.labelValues(operation).inc();
         throw Status.CANCELLED
             .withDescription(
                 "Request deadline exceeded: "

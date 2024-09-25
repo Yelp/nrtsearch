@@ -51,14 +51,15 @@ def s3mockVersion = '0.2.6'
 def commonsCompressVersion = '1.27.0'
 def awsJavaSdkVersion = '1.12.768'
 def guiceVersion = '7.0.0'
-def prometheusClientVersion = '0.16.0'
+def prometheusClientVersion = '1.3.1'
 def fastutilVersion = '8.5.14'
 
 dependencies {
 
     //prometheus (metrics) deps
-    implementation "io.prometheus:simpleclient_servlet:${prometheusClientVersion}"
-    implementation "io.prometheus:simpleclient_hotspot:${prometheusClientVersion}"
+    implementation "io.prometheus:prometheus-metrics-core:${prometheusClientVersion}"
+    implementation "io.prometheus:prometheus-metrics-instrumentation-jvm:${prometheusClientVersion}"
+    implementation "io.prometheus:prometheus-metrics-exposition-formats:${prometheusClientVersion}"
     implementation "io.grpc:grpc-netty-shaded:${rootProject.grpcVersion}"
 
     //logging deps

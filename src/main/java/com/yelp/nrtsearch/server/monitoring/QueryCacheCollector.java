@@ -16,74 +16,94 @@
 package com.yelp.nrtsearch.server.monitoring;
 
 import com.yelp.nrtsearch.server.luceneserver.search.cache.NrtQueryCache;
-import io.prometheus.client.Collector;
-import io.prometheus.client.GaugeMetricFamily;
+import io.prometheus.metrics.core.metrics.Gauge;
+import io.prometheus.metrics.model.registry.MultiCollector;
+import io.prometheus.metrics.model.snapshots.MetricSnapshot;
+import io.prometheus.metrics.model.snapshots.MetricSnapshots;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 
 /** Class to manage collection of metrics related to the query cache. */
-public class QueryCacheCollector extends Collector {
+public class QueryCacheCollector implements MultiCollector {
+  private static final Gauge queryCacheHits =
+      Gauge.builder()
+          .name("nrt_query_cache_hits")
+          .help("Total number of query cache hits.")
+          .build();
+  private static final Gauge queryCacheMisses =
+      Gauge.builder()
+          .name("nrt_query_cache_misses")
+          .help("Total number of query cache misses.")
+          .build();
+  private static final Gauge queryCacheSize =
+      Gauge.builder()
+          .name("nrt_query_cache_size")
+          .help("Total number of entries in query cache.")
+          .build();
+  private static final Gauge queryCacheSizeBytes =
+      Gauge.builder()
+          .name("nrt_query_cache_size_bytes")
+          .help("Total memory used by query cache.")
+          .build();
+  private static final Gauge queryCacheCount =
+      Gauge.builder()
+          .name("nrt_query_cache_count")
+          .help("Total number of entries added to the query cache.")
+          .build();
+  private static final Gauge queryCacheEvictionCount =
+      Gauge.builder()
+          .name("nrt_query_cache_eviction_count")
+          .help("Total number of query cache evictions.")
+          .build();
+  private static final Gauge queryCacheQuerySize =
+      Gauge.builder()
+          .name("nrt_query_cache_query_size")
+          .help("Total number of queries in query cache.")
+          .build();
+  private static final Gauge queryCacheQueryCount =
+      Gauge.builder()
+          .name("nrt_query_cache_query_count")
+          .help("Total number of queries added to the query cache.")
+          .build();
+  private static final Gauge queryCacheQueryEvictionCount =
+      Gauge.builder()
+          .name("nrt_query_cache_query_eviction_count")
+          .help("Total number of query cache query evictions.")
+          .build();
 
   @Override
-  public List<MetricFamilySamples> collect() {
+  public MetricSnapshots collect() {
     QueryCache queryCache = IndexSearcher.getDefaultQueryCache();
-    if (!(queryCache instanceof NrtQueryCache)) {
-      return Collections.emptyList();
+    if (!(queryCache instanceof NrtQueryCache nrtQueryCache)) {
+      return new MetricSnapshots();
     }
-    NrtQueryCache nrtQueryCache = (NrtQueryCache) queryCache;
 
-    List<MetricFamilySamples> mfs = new ArrayList<>();
-    mfs.add(
-        new GaugeMetricFamily(
-            "nrt_query_cache_hits",
-            "Total number of query cache hits.",
-            nrtQueryCache.getHitCount()));
-    mfs.add(
-        new GaugeMetricFamily(
-            "nrt_query_cache_misses",
-            "Total number of query cache misses.",
-            nrtQueryCache.getMissCount()));
-    mfs.add(
-        new GaugeMetricFamily(
-            "nrt_query_cache_size",
-            "Total number of entries in query cache.",
-            nrtQueryCache.getCacheSize()));
-    mfs.add(
-        new GaugeMetricFamily(
-            "nrt_query_cache_size_bytes",
-            "Total memory used by query cache.",
-            nrtQueryCache.ramBytesUsed()));
-    mfs.add(
-        new GaugeMetricFamily(
-            "nrt_query_cache_count",
-            "Total number of entries added to the query cache.",
-            nrtQueryCache.getCacheCount()));
-    mfs.add(
-        new GaugeMetricFamily(
-            "nrt_query_cache_eviction_count",
-            "Total number of query cache evictions.",
-            nrtQueryCache.getEvictionCount()));
+    queryCacheHits.set(nrtQueryCache.getHitCount());
+    queryCacheMisses.set(nrtQueryCache.getMissCount());
+    queryCacheSize.set(nrtQueryCache.getCacheSize());
+    queryCacheSizeBytes.set(nrtQueryCache.ramBytesUsed());
+    queryCacheCount.set(nrtQueryCache.getCacheCount());
+    queryCacheEvictionCount.set(nrtQueryCache.getEvictionCount());
 
     long cacheQueryCount = nrtQueryCache.getCacheQueryCount();
     long cacheQuerySize = nrtQueryCache.getCacheQuerySize();
-    mfs.add(
-        new GaugeMetricFamily(
-            "nrt_query_cache_query_size",
-            "Total number of queries in query cache.",
-            cacheQuerySize));
-    mfs.add(
-        new GaugeMetricFamily(
-            "nrt_query_cache_query_count",
-            "Total number of queries added to the query cache.",
-            cacheQueryCount));
-    mfs.add(
-        new GaugeMetricFamily(
-            "nrt_query_cache_query_eviction_count",
-            "Total number of query cache query evictions.",
-            (cacheQueryCount - cacheQuerySize)));
-    return mfs;
+    queryCacheQuerySize.set(cacheQuerySize);
+    queryCacheQueryCount.set(cacheQueryCount);
+    queryCacheQueryEvictionCount.set(cacheQueryCount - cacheQuerySize);
+
+    List<MetricSnapshot> metrics = new ArrayList<>();
+    metrics.add(queryCacheHits.collect());
+    metrics.add(queryCacheMisses.collect());
+    metrics.add(queryCacheSize.collect());
+    metrics.add(queryCacheSizeBytes.collect());
+    metrics.add(queryCacheCount.collect());
+    metrics.add(queryCacheEvictionCount.collect());
+    metrics.add(queryCacheQuerySize.collect());
+    metrics.add(queryCacheQueryCount.collect());
+    metrics.add(queryCacheQueryEvictionCount.collect());
+
+    return new MetricSnapshots(metrics);
   }
 }

@@ -70,8 +70,8 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
-import io.prometheus.client.CollectorRegistry;
-import io.prometheus.client.hotspot.DefaultExports;
+import io.prometheus.metrics.instrumentation.jvm.JvmMetrics;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -94,7 +94,7 @@ public class LuceneServer {
   private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
   private static final Splitter COMMA_SPLITTER = Splitter.on(",");
   private final RemoteBackend remoteBackend;
-  private final CollectorRegistry collectorRegistry;
+  private final PrometheusRegistry prometheusRegistry;
   private final PluginsService pluginsService;
 
   private Server server;
@@ -105,22 +105,20 @@ public class LuceneServer {
   public LuceneServer(
       LuceneServerConfiguration luceneServerConfiguration,
       RemoteBackend remoteBackend,
-      CollectorRegistry collectorRegistry) {
+      PrometheusRegistry prometheusRegistry) {
     this.luceneServerConfiguration = luceneServerConfiguration;
     this.remoteBackend = remoteBackend;
-    this.collectorRegistry = collectorRegistry;
+    this.prometheusRegistry = prometheusRegistry;
     this.pluginsService =
-        new PluginsService(luceneServerConfiguration, remoteBackend, collectorRegistry);
+        new PluginsService(luceneServerConfiguration, remoteBackend, prometheusRegistry);
   }
 
   @VisibleForTesting
   public void start() throws IOException {
     List<Plugin> plugins = pluginsService.loadPlugins();
-    String serviceName = luceneServerConfiguration.getServiceName();
-    String nodeName = luceneServerConfiguration.getNodeName();
 
     LuceneServerImpl serverImpl =
-        new LuceneServerImpl(luceneServerConfiguration, remoteBackend, collectorRegistry, plugins);
+        new LuceneServerImpl(luceneServerConfiguration, remoteBackend, prometheusRegistry, plugins);
     GlobalState globalState = serverImpl.getGlobalState();
 
     registerMetrics(globalState);
@@ -171,9 +169,7 @@ public class LuceneServer {
         LuceneServerMonitoringServerInterceptor.create(
             Configuration.allMetrics()
                 .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
-                .withCollectorRegistry(collectorRegistry),
-            serviceName,
-            nodeName);
+                .withPrometheusRegistry(prometheusRegistry));
     /* The port on which the server should run */
     GrpcServerExecutorSupplier executorSupplier = new GrpcServerExecutorSupplier();
     server =
@@ -218,23 +214,23 @@ public class LuceneServer {
   /** Register prometheus metrics exposed by /status/metrics */
   private void registerMetrics(GlobalState globalState) {
     // register jvm metrics
-    DefaultExports.register(collectorRegistry);
+    JvmMetrics.builder().register(prometheusRegistry);
     // register thread pool metrics
-    new ThreadPoolCollector().register(collectorRegistry);
-    collectorRegistry.register(RejectionCounterWrapper.rejectionCounter);
+    prometheusRegistry.register(new ThreadPoolCollector());
+    prometheusRegistry.register(RejectionCounterWrapper.rejectionCounter);
     // register nrt metrics
-    NrtMetrics.register(collectorRegistry);
+    NrtMetrics.register(prometheusRegistry);
     // register index metrics
-    IndexMetrics.register(collectorRegistry);
+    IndexMetrics.register(prometheusRegistry);
     // register query cache metrics
-    new QueryCacheCollector().register(collectorRegistry);
+    prometheusRegistry.register(new QueryCacheCollector());
     // register deadline cancellation metrics
-    DeadlineMetrics.register(collectorRegistry);
+    DeadlineMetrics.register(prometheusRegistry);
     // register directory size metrics
-    new DirSizeCollector(globalState).register(collectorRegistry);
-    new ProcStatCollector().register(collectorRegistry);
-    new MergeSchedulerCollector(globalState).register(collectorRegistry);
-    new SearchResponseCollector(globalState).register(collectorRegistry);
+    prometheusRegistry.register(new DirSizeCollector(globalState));
+    prometheusRegistry.register(new ProcStatCollector());
+    prometheusRegistry.register(new MergeSchedulerCollector(globalState));
+    prometheusRegistry.register(new SearchResponseCollector(globalState));
   }
 
   /** Main launches the server from the command line. */
@@ -290,7 +286,7 @@ public class LuceneServer {
     private final JsonFormat.Printer protoMessagePrinter =
         JsonFormat.printer().omittingInsignificantWhitespace();
     private final GlobalState globalState;
-    private final CollectorRegistry collectorRegistry;
+    private final PrometheusRegistry prometheusRegistry;
     private final ThreadPoolExecutor searchThreadPoolExecutor;
 
     /**
@@ -299,17 +295,17 @@ public class LuceneServer {
      *
      * @param configuration server configuration
      * @param remoteBackend backend for persistent remote storage
-     * @param collectorRegistry metrics collector registry
+     * @param prometheusRegistry metrics collector registry
      * @param plugins loaded plugins
      * @throws IOException
      */
     LuceneServerImpl(
         LuceneServerConfiguration configuration,
         RemoteBackend remoteBackend,
-        CollectorRegistry collectorRegistry,
+        PrometheusRegistry prometheusRegistry,
         List<Plugin> plugins)
         throws IOException {
-      this.collectorRegistry = collectorRegistry;
+      this.prometheusRegistry = prometheusRegistry;
 
       DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
       CompletionPostingsFormatUtil.setCompletionCodecLoadMode(
@@ -1530,7 +1526,7 @@ public class LuceneServer {
     @Override
     public void metrics(Empty request, StreamObserver<HttpBody> responseObserver) {
       try {
-        HttpBody reply = new MetricsRequestHandler(collectorRegistry).process();
+        HttpBody reply = new MetricsRequestHandler(prometheusRegistry).process();
         logger.debug("MetricsRequestHandler returned " + reply.toString());
         responseObserver.onNext(reply);
         responseObserver.onCompleted();

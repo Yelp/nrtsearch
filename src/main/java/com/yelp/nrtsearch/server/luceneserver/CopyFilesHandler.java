@@ -106,10 +106,12 @@ public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
 
     // record metrics for merge copy
     if (job.getFailed()) {
-      NrtMetrics.nrtMergeFailure.labels(indexName).inc();
+      NrtMetrics.nrtMergeFailure.labelValues(indexName).inc();
     } else {
-      NrtMetrics.nrtMergeTime.labels(indexName).observe((System.nanoTime() - startNS) / 1000000.0);
-      NrtMetrics.nrtMergeSize.labels(indexName).observe(job.getTotalBytesCopied());
+      NrtMetrics.nrtMergeTime
+          .labelValues(indexName)
+          .observe((System.nanoTime() - startNS) / 1000000.0);
+      NrtMetrics.nrtMergeSize.labelValues(indexName).observe(job.getTotalBytesCopied());
     }
   }
 

@@ -15,9 +15,9 @@
  */
 package com.yelp.nrtsearch.server.monitoring;
 
-import io.prometheus.client.CollectorRegistry;
-import io.prometheus.client.Counter;
-import io.prometheus.client.Gauge;
+import io.prometheus.metrics.core.metrics.Counter;
+import io.prometheus.metrics.core.metrics.Gauge;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -33,75 +33,75 @@ import org.apache.lucene.search.IndexSearcher.LeafSlice;
 /** Class to manage the collection of per index metrics. */
 public class IndexMetrics {
   public static final Gauge numDocs =
-      Gauge.build()
+      Gauge.builder()
           .name("nrt_index_num_docs")
           .help("Number of index documents.")
           .labelNames("index")
-          .create();
+          .build();
   public static final Gauge numDeletedDocs =
-      Gauge.build()
+      Gauge.builder()
           .name("nrt_index_num_deleted_docs")
           .help("Number of deleted index documents.")
           .labelNames("index")
-          .create();
+          .build();
   public static final Gauge sizeBytes =
-      Gauge.build()
+      Gauge.builder()
           .name("nrt_index_size_bytes")
           .help("Index size in bytes.")
           .labelNames("index")
-          .create();
+          .build();
   public static final Gauge numSegments =
-      Gauge.build()
+      Gauge.builder()
           .name("nrt_index_num_segments")
           .help("Number of index segments.")
           .labelNames("index")
-          .create();
+          .build();
   public static final Gauge segmentDocs =
-      Gauge.build()
+      Gauge.builder()
           .name("nrt_index_segment_docs")
           .help("Quantiles of documents per segment.")
           .labelNames("index", "quantile")
-          .create();
+          .build();
   public static final Gauge numSlices =
-      Gauge.build()
+      Gauge.builder()
           .name("nrt_index_num_slices")
           .help("Number of index searcher slices.")
           .labelNames("index")
-          .create();
+          .build();
   public static final Gauge sliceSegments =
-      Gauge.build()
+      Gauge.builder()
           .name("nrt_index_slice_segments")
           .help("Quantiles of segments per slice.")
           .labelNames("index", "quantile")
-          .create();
+          .build();
   public static final Gauge sliceDocs =
-      Gauge.build()
+      Gauge.builder()
           .name("nrt_index_slice_docs")
           .help("Quantiles of documents per slice.")
           .labelNames("index", "quantile")
-          .create();
+          .build();
   public static final Counter flushCount =
-      Counter.build()
+      Counter.builder()
           .name("nrt_index_flush_count")
           .help("Number times the IndexWriter has flushed.")
           .labelNames("index")
-          .create();
+          .build();
 
   public static void updateReaderStats(String index, IndexReader reader) {
-    numDocs.labels(index).set(reader.numDocs());
-    numDeletedDocs.labels(index).set(reader.numDeletedDocs());
-    numSegments.labels(index).set(reader.leaves().size());
+    numDocs.labelValues(index).set(reader.numDocs());
+    numDeletedDocs.labelValues(index).set(reader.numDeletedDocs());
+    numSegments.labelValues(index).set(reader.leaves().size());
 
     if (reader.leaves().size() > 0) {
       ArrayList<LeafReaderContext> sortedLeaves = new ArrayList<>(reader.leaves());
       // sort by segment size
       sortedLeaves.sort(Comparator.comparingInt(l -> l.reader().maxDoc()));
-      segmentDocs.labels(index, "min").set(sortedLeaves.get(0).reader().maxDoc());
-      segmentDocs.labels(index, "0.5").set(getSegmentDocsQuantile(0.5, sortedLeaves));
-      segmentDocs.labels(index, "0.95").set(getSegmentDocsQuantile(0.95, sortedLeaves));
-      segmentDocs.labels(index, "0.99").set(getSegmentDocsQuantile(0.99, sortedLeaves));
+      segmentDocs.labelValues(index, "min").set(sortedLeaves.get(0).reader().maxDoc());
+      segmentDocs.labelValues(index, "0.5").set(getSegmentDocsQuantile(0.5, sortedLeaves));
+      segmentDocs.labelValues(index, "0.95").set(getSegmentDocsQuantile(0.95, sortedLeaves));
+      segmentDocs.labelValues(index, "0.99").set(getSegmentDocsQuantile(0.99, sortedLeaves));
       segmentDocs
-          .labels(index, "max")
+          .labelValues(index, "max")
           .set(sortedLeaves.get(sortedLeaves.size() - 1).reader().maxDoc());
 
       try {
@@ -111,7 +111,7 @@ public class IndexMetrics {
         for (SegmentCommitInfo info : infos) {
           indexSize += info.sizeInBytes();
         }
-        sizeBytes.labels(index).set(indexSize);
+        sizeBytes.labelValues(index).set(indexSize);
       } catch (Exception ignored) {
         // don't let an exception here stop creation of a new searcher
       }
@@ -120,7 +120,7 @@ public class IndexMetrics {
 
   public static void updateSearcherStats(String index, IndexSearcher searcher) {
     LeafSlice[] slices = searcher.getSlices();
-    numSlices.labels(index).set(slices.length);
+    numSlices.labelValues(index).set(slices.length);
 
     if (slices.length > 0) {
       // segments per slice
@@ -129,11 +129,11 @@ public class IndexMetrics {
         segments[i] = slices[i].leaves.length;
       }
       Arrays.sort(segments);
-      sliceSegments.labels(index, "min").set(segments[0]);
-      sliceSegments.labels(index, "0.5").set(getSliceSegmentsQuantile(0.5, segments));
-      sliceSegments.labels(index, "0.95").set(getSliceSegmentsQuantile(0.95, segments));
-      sliceSegments.labels(index, "0.99").set(getSliceSegmentsQuantile(0.99, segments));
-      sliceSegments.labels(index, "max").set(segments[segments.length - 1]);
+      sliceSegments.labelValues(index, "min").set(segments[0]);
+      sliceSegments.labelValues(index, "0.5").set(getSliceSegmentsQuantile(0.5, segments));
+      sliceSegments.labelValues(index, "0.95").set(getSliceSegmentsQuantile(0.95, segments));
+      sliceSegments.labelValues(index, "0.99").set(getSliceSegmentsQuantile(0.99, segments));
+      sliceSegments.labelValues(index, "max").set(segments[segments.length - 1]);
 
       // docs per slice
       long[] docCounts = new long[slices.length];
@@ -145,11 +145,11 @@ public class IndexMetrics {
         docCounts[i] = sliceCount;
       }
       Arrays.sort(docCounts);
-      sliceDocs.labels(index, "min").set(docCounts[0]);
-      sliceDocs.labels(index, "0.5").set(getSliceDocsQuantile(0.5, docCounts));
-      sliceDocs.labels(index, "0.95").set(getSliceDocsQuantile(0.95, docCounts));
-      sliceDocs.labels(index, "0.99").set(getSliceDocsQuantile(0.99, docCounts));
-      sliceDocs.labels(index, "max").set(docCounts[docCounts.length - 1]);
+      sliceDocs.labelValues(index, "min").set(docCounts[0]);
+      sliceDocs.labelValues(index, "0.5").set(getSliceDocsQuantile(0.5, docCounts));
+      sliceDocs.labelValues(index, "0.95").set(getSliceDocsQuantile(0.95, docCounts));
+      sliceDocs.labelValues(index, "0.99").set(getSliceDocsQuantile(0.99, docCounts));
+      sliceDocs.labelValues(index, "max").set(docCounts[docCounts.length - 1]);
     }
   }
 
@@ -158,7 +158,7 @@ public class IndexMetrics {
    *
    * @param registry collector registry
    */
-  public static void register(CollectorRegistry registry) {
+  public static void register(PrometheusRegistry registry) {
     registry.register(numDocs);
     registry.register(numDeletedDocs);
     registry.register(sizeBytes);

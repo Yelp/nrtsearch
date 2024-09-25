@@ -24,13 +24,14 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
-import io.prometheus.client.Collector.MetricFamilySamples;
+import io.prometheus.metrics.model.snapshots.MetricSnapshot;
+import io.prometheus.metrics.model.snapshots.MetricSnapshots;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -53,6 +54,15 @@ public class SearchResponseCollectorTest {
     SearchResponseCollector.updateSearchResponseMetrics(testResponse, "test_index", true);
   }
 
+  @Before
+  public void setUp() {
+    SearchResponseCollector.searchResponseSizeBytes.clear();
+    SearchResponseCollector.searchResponseTotalHits.clear();
+    SearchResponseCollector.searchStageLatencyMs.clear();
+    SearchResponseCollector.searchTimeoutCount.clear();
+    SearchResponseCollector.searchTerminatedEarlyCount.clear();
+  }
+
   @Test
   public void testVerboseMetricsDisabled() throws IOException {
     GlobalState mockGlobalState = mock(GlobalState.class);
@@ -63,12 +73,12 @@ public class SearchResponseCollectorTest {
     when(mockGlobalState.getIndex("test_index")).thenReturn(mockIndexState);
 
     SearchResponseCollector collector = new SearchResponseCollector(mockGlobalState);
-    List<MetricFamilySamples> metrics = collector.collect();
+    MetricSnapshots metrics = collector.collect();
     assertEquals(2, metrics.size());
 
-    Map<String, MetricFamilySamples> metricsMap = new HashMap<>();
-    for (MetricFamilySamples samples : metrics) {
-      metricsMap.put(samples.name, samples);
+    Map<String, MetricSnapshot> metricsMap = new HashMap<>();
+    for (MetricSnapshot metric : metrics) {
+      metricsMap.put(metric.getMetadata().getName(), metric);
     }
     assertEquals(
         Set.of("nrt_search_timeout_count", "nrt_search_terminated_early_count"),
@@ -85,12 +95,12 @@ public class SearchResponseCollectorTest {
     when(mockGlobalState.getIndex("test_index")).thenReturn(mockIndexState);
 
     SearchResponseCollector collector = new SearchResponseCollector(mockGlobalState);
-    List<MetricFamilySamples> metrics = collector.collect();
+    MetricSnapshots metrics = collector.collect();
     assertEquals(5, metrics.size());
 
-    Map<String, MetricFamilySamples> metricsMap = new HashMap<>();
-    for (MetricFamilySamples samples : metrics) {
-      metricsMap.put(samples.name, samples);
+    Map<String, MetricSnapshot> metricsMap = new HashMap<>();
+    for (MetricSnapshot metric : metrics) {
+      metricsMap.put(metric.getMetadata().getName(), metric);
     }
     assertEquals(
         Set.of(

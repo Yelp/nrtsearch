@@ -46,7 +46,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
-import io.prometheus.client.CollectorRegistry;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -151,7 +151,7 @@ public class TestServer {
     remoteBackend = createRemoteBackend();
     serverImpl =
         new LuceneServerImpl(
-            configuration, remoteBackend, new CollectorRegistry(), Collections.emptyList());
+            configuration, remoteBackend, new PrometheusRegistry(), Collections.emptyList());
 
     replicationServer =
         ServerBuilder.forPort(0)

@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.plugins;
 
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.remote.PluginDownloader;
-import io.prometheus.client.CollectorRegistry;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -43,7 +43,7 @@ public class PluginsService {
   private static final Logger logger = LoggerFactory.getLogger(PluginsService.class);
 
   private final LuceneServerConfiguration config;
-  private final CollectorRegistry collectorRegistry;
+  private final PrometheusRegistry prometheusRegistry;
   private final List<PluginDescriptor> loadedPluginDescriptors = new ArrayList<>();
 
   private final PluginDownloader pluginDownloader;
@@ -51,9 +51,9 @@ public class PluginsService {
   public PluginsService(
       LuceneServerConfiguration config,
       PluginDownloader pluginDownloader,
-      CollectorRegistry collectorRegistry) {
+      PrometheusRegistry prometheusRegistry) {
     this.config = config;
-    this.collectorRegistry = collectorRegistry;
+    this.prometheusRegistry = prometheusRegistry;
     this.pluginDownloader = pluginDownloader;
   }
 
@@ -193,7 +193,7 @@ public class PluginsService {
               .getDeclaredConstructor(new Class[] {LuceneServerConfiguration.class})
               .newInstance(config);
       if (plugin instanceof MetricsPlugin) {
-        ((MetricsPlugin) plugin).registerMetrics(collectorRegistry);
+        ((MetricsPlugin) plugin).registerMetrics(prometheusRegistry);
       }
       return plugin;
     } catch (Exception e) {

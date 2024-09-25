@@ -201,8 +201,8 @@ public class NRTPrimaryNode extends PrimaryNode {
     // about?
     long version = getCopyStateVersion();
     logMessage("send flushed version=" + version + " replica count " + replicasInfos.size());
-    NrtMetrics.searcherVersion.labels(indexName).set(version);
-    NrtMetrics.nrtPrimaryPointCount.labels(indexName).inc();
+    NrtMetrics.searcherVersion.labelValues(indexName).set(version);
+    NrtMetrics.nrtPrimaryPointCount.labelValues(indexName).inc();
 
     // Notify current replicas:
     Iterator<ReplicaDetails> it = replicasInfos.iterator();
@@ -342,7 +342,7 @@ public class NRTPrimaryNode extends PrimaryNode {
       return;
     }
 
-    NrtMetrics.nrtMergeCopyStartCount.labels(indexName).inc();
+    NrtMetrics.nrtMergeCopyStartCount.labelValues(indexName).inc();
 
     long maxMergePreCopyDurationSec = getCurrentMaxMergePreCopyDurationSec();
     Deadline deadline;
@@ -428,9 +428,9 @@ public class NRTPrimaryNode extends PrimaryNode {
 
       // record metrics for this merge
       NrtMetrics.nrtPrimaryMergeTime
-          .labels(indexName)
+          .labelValues(indexName)
           .observe((System.nanoTime() - mergeStartNS) / 1000000.0);
-      NrtMetrics.nrtMergeCopyEndCount.labels(indexName).inc();
+      NrtMetrics.nrtMergeCopyEndCount.labelValues(indexName).inc();
     }
   }
 
