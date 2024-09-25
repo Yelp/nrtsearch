@@ -176,6 +176,6 @@ public class DeadlineUtilsTest {
   }
 
   private int getCancelMetricCount() {
-    return (int) DeadlineMetrics.nrtDeadlineCancelCount.labels("TEST").get();
+    return (int) DeadlineMetrics.nrtDeadlineCancelCount.labelValues("TEST").get();
   }
 }

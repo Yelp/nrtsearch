@@ -47,7 +47,7 @@ import io.grpc.ServerBuilder;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
-import io.prometheus.client.CollectorRegistry;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -223,7 +223,7 @@ public class StateBackendServerTest {
     cleanupPrimary();
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
-            getPrimaryConfig(), null, new CollectorRegistry(), Collections.emptyList());
+            getPrimaryConfig(), null, new PrometheusRegistry(), Collections.emptyList());
 
     primaryReplicationServer =
         ServerBuilder.forPort(0)
@@ -240,7 +240,7 @@ public class StateBackendServerTest {
         new LuceneServerImpl(
             getPrimaryRemoteConfig(),
             remoteBackendPrimary,
-            new CollectorRegistry(),
+            new PrometheusRegistry(),
             Collections.emptyList());
 
     primaryReplicationServer =
@@ -256,7 +256,7 @@ public class StateBackendServerTest {
     cleanupReplica();
     LuceneServerImpl serverImpl =
         new LuceneServerImpl(
-            getReplicaConfig(), null, new CollectorRegistry(), Collections.emptyList());
+            getReplicaConfig(), null, new PrometheusRegistry(), Collections.emptyList());
 
     replicaReplicationServer =
         ServerBuilder.forPort(0)
@@ -273,7 +273,7 @@ public class StateBackendServerTest {
         new LuceneServerImpl(
             getReplicaRemoteConfig(),
             remoteBackendReplica,
-            new CollectorRegistry(),
+            new PrometheusRegistry(),
             Collections.emptyList());
 
     replicaReplicationServer =

@@ -15,10 +15,10 @@
  */
 package com.yelp.nrtsearch.server.monitoring;
 
-import io.prometheus.client.CollectorRegistry;
-import io.prometheus.client.Counter;
-import io.prometheus.client.Gauge;
-import io.prometheus.client.Summary;
+import io.prometheus.metrics.core.metrics.Counter;
+import io.prometheus.metrics.core.metrics.Gauge;
+import io.prometheus.metrics.core.metrics.Summary;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 
 /**
  * Class for managing collection of nrt related metrics. Collects metrics on publishing of new nrt
@@ -26,105 +26,105 @@ import io.prometheus.client.Summary;
  */
 public class NrtMetrics {
   public static final Gauge searcherVersion =
-      Gauge.build()
+      Gauge.builder()
           .name("nrt_searcher_version")
           .help("Current searcher version.")
           .labelNames("index")
-          .create();
+          .build();
 
   public static final Counter nrtPrimaryPointCount =
-      Counter.build()
+      Counter.builder()
           .name("nrt_primary_point_count")
           .help("Number of nrt points created on the primary.")
           .labelNames("index")
-          .create();
+          .build();
   public static final Summary nrtPrimaryMergeTime =
-      Summary.build()
+      Summary.builder()
           .name("nrt_primary_merge_time_ms")
           .help("Time to copy data for merge (ms).")
           .quantile(0.5, 0.05)
           .quantile(0.95, 0.01)
           .quantile(0.99, 0.01)
           .labelNames("index")
-          .create();
+          .build();
 
   public static final Counter nrtPointFailure =
-      Counter.build()
+      Counter.builder()
           .name("nrt_point_failure_count")
           .help("Number of failed nrt point copies")
           .labelNames("index")
-          .create();
+          .build();
   public static final Summary nrtPointSize =
-      Summary.build()
+      Summary.builder()
           .name("nrt_point_copy_size")
           .help("Data copied for nrt points.")
           .quantile(0.5, 0.05)
           .quantile(0.95, 0.01)
           .quantile(0.99, 0.01)
           .labelNames("index")
-          .create();
+          .build();
   public static final Summary nrtPointTime =
-      Summary.build()
+      Summary.builder()
           .name("nrt_point_copy_time_ms")
           .help("Time to copy data for nrt point (ms).")
           .quantile(0.5, 0.05)
           .quantile(0.95, 0.01)
           .quantile(0.99, 0.01)
           .labelNames("index")
-          .create();
+          .build();
 
   public static final Counter nrtMergeFailure =
-      Counter.build()
+      Counter.builder()
           .name("nrt_merge_failure_count")
           .help("Number of failed merge copies.")
           .labelNames("index")
-          .create();
+          .build();
   public static final Summary nrtMergeSize =
-      Summary.build()
+      Summary.builder()
           .name("nrt_merge_copy_size")
           .help("Data copied for merges.")
           .quantile(0.5, 0.05)
           .quantile(0.95, 0.01)
           .quantile(0.99, 0.01)
           .labelNames("index")
-          .create();
+          .build();
   public static final Summary nrtMergeTime =
-      Summary.build()
+      Summary.builder()
           .name("nrt_merge_copy_time_ms")
           .help("Time to copy data for merge (ms).")
           .quantile(0.5, 0.05)
           .quantile(0.95, 0.01)
           .quantile(0.99, 0.01)
           .labelNames("index")
-          .create();
+          .build();
 
   public static final Counter nrtMergeCopyStartCount =
-      Counter.build()
+      Counter.builder()
           .name("nrt_merge_copy_start_count")
           .help("Number of merge copies started")
           .labelNames("index")
-          .create();
+          .build();
 
   public static final Counter nrtMergeCopyEndCount =
-      Counter.build()
+      Counter.builder()
           .name("nrt_merge_copy_end_count")
           .help("Number of merge copies ended")
           .labelNames("index")
-          .create();
+          .build();
 
   public static final Counter nrtAckedCopyMB =
-      Counter.build()
+      Counter.builder()
           .name("nrt_acked_copy_mb")
           .help("Total acked data copied.")
           .labelNames("index")
-          .create();
+          .build();
 
   /**
    * Add all nrt metrics to the collector registry.
    *
    * @param registry collector registry
    */
-  public static void register(CollectorRegistry registry) {
+  public static void register(PrometheusRegistry registry) {
     registry.register(searcherVersion);
     registry.register(nrtPrimaryPointCount);
     registry.register(nrtPrimaryMergeTime);

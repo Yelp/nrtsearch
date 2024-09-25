@@ -28,7 +28,7 @@ import com.yelp.nrtsearch.server.plugins.FieldTypePlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.client.CollectorRegistry;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -60,7 +60,7 @@ public class CustomFieldTypeTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
   private GrpcServer grpcServer;
-  private CollectorRegistry collectorRegistry;
+  private PrometheusRegistry prometheusRegistry;
 
   @After
   public void tearDown() throws IOException {
@@ -75,16 +75,16 @@ public class CustomFieldTypeTest {
 
   @Before
   public void setUp() throws IOException {
-    collectorRegistry = new CollectorRegistry();
-    grpcServer = setUpGrpcServer(collectorRegistry);
+    prometheusRegistry = new PrometheusRegistry();
+    grpcServer = setUpGrpcServer(prometheusRegistry);
   }
 
-  private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
+  private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     return new GrpcServer(
-        collectorRegistry,
+        prometheusRegistry,
         grpcCleanup,
         luceneServerConfiguration,
         folder,

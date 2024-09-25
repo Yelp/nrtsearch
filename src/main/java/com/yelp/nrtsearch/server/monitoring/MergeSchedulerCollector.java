@@ -15,11 +15,13 @@
  */
 package com.yelp.nrtsearch.server.monitoring;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import io.prometheus.client.Collector;
-import io.prometheus.client.GaugeMetricFamily;
+import io.prometheus.metrics.core.metrics.Gauge;
+import io.prometheus.metrics.model.registry.MultiCollector;
+import io.prometheus.metrics.model.snapshots.MetricSnapshot;
+import io.prometheus.metrics.model.snapshots.MetricSnapshots;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
@@ -29,8 +31,33 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Collector to for metrics from the {@link IndexWriter}'s {@link MergeScheduler}. */
-public class MergeSchedulerCollector extends Collector {
+public class MergeSchedulerCollector implements MultiCollector {
   private static final Logger logger = LoggerFactory.getLogger(MergeSchedulerCollector.class);
+
+  @VisibleForTesting
+  static final Gauge indexPendingMergeCount =
+      Gauge.builder()
+          .name("nrt_pending_merge_count")
+          .help("Current number of pending merges")
+          .labelNames("index")
+          .build();
+
+  @VisibleForTesting
+  static final Gauge indexMaxMergeThreadCount =
+      Gauge.builder()
+          .name("nrt_max_merge_thread_count")
+          .help("Max running merge threads")
+          .labelNames("index")
+          .build();
+
+  @VisibleForTesting
+  static final Gauge indexMaxMergeCount =
+      Gauge.builder()
+          .name("nrt_max_merge_count")
+          .help("Max existing merge threads")
+          .labelNames("index")
+          .build();
+
   private final GlobalState globalState;
 
   public MergeSchedulerCollector(GlobalState globalState) {
@@ -38,50 +65,34 @@ public class MergeSchedulerCollector extends Collector {
   }
 
   @Override
-  public List<MetricFamilySamples> collect() {
-    List<MetricFamilySamples> mfs = new ArrayList<>();
-
-    GaugeMetricFamily indexPendingMergeCount =
-        new GaugeMetricFamily(
-            "nrt_pending_merge_count",
-            "Current number of pending merges",
-            Collections.singletonList("index"));
-    mfs.add(indexPendingMergeCount);
-
-    GaugeMetricFamily indexMaxMergeThreadCount =
-        new GaugeMetricFamily(
-            "nrt_max_merge_thread_count",
-            "Max running merge threads",
-            Collections.singletonList("index"));
-    mfs.add(indexMaxMergeThreadCount);
-
-    GaugeMetricFamily indexMaxMergeCount =
-        new GaugeMetricFamily(
-            "nrt_max_merge_count",
-            "Max existing merge threads",
-            Collections.singletonList("index"));
-    mfs.add(indexMaxMergeCount);
+  public MetricSnapshots collect() {
+    List<MetricSnapshot> metrics = new ArrayList<>();
 
     try {
       Set<String> indexNames = globalState.getIndexNames();
       for (String indexName : indexNames) {
         IndexWriter writer = globalState.getIndex(indexName).getShard(0).getWriter();
-        List<String> labels = Collections.singletonList(indexName);
         if (writer != null) {
           MergeScheduler mergeScheduler = writer.getConfig().getMergeScheduler();
-          if (mergeScheduler instanceof ConcurrentMergeScheduler) {
-            ConcurrentMergeScheduler concurrentMergeScheduler =
-                (ConcurrentMergeScheduler) mergeScheduler;
-            indexPendingMergeCount.addMetric(labels, concurrentMergeScheduler.mergeThreadCount());
-            indexMaxMergeThreadCount.addMetric(
-                labels, concurrentMergeScheduler.getMaxThreadCount());
-            indexMaxMergeCount.addMetric(labels, concurrentMergeScheduler.getMaxMergeCount());
+          if (mergeScheduler instanceof ConcurrentMergeScheduler concurrentMergeScheduler) {
+            indexPendingMergeCount
+                .labelValues(indexName)
+                .set(concurrentMergeScheduler.mergeThreadCount());
+            indexMaxMergeThreadCount
+                .labelValues(indexName)
+                .set(concurrentMergeScheduler.getMaxThreadCount());
+            indexMaxMergeCount
+                .labelValues(indexName)
+                .set(concurrentMergeScheduler.getMaxMergeCount());
           }
         }
       }
+      metrics.add(indexMaxMergeCount.collect());
+      metrics.add(indexMaxMergeThreadCount.collect());
+      metrics.add(indexPendingMergeCount.collect());
     } catch (Exception e) {
       logger.warn("Error getting merge scheduler metrics: ", e);
     }
-    return mfs;
+    return new MetricSnapshots(metrics);
   }
 }

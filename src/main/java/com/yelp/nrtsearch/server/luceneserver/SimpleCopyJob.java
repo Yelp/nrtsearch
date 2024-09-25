@@ -301,7 +301,7 @@ public class SimpleCopyJob extends CopyJob {
     public void onNext(RawFileChunk value) {
       // buffer all file chunks, this is bounded by the max in flight config value
       pendingChunks.add(value);
-      NrtMetrics.nrtAckedCopyMB.labels(indexName).inc(value.getSerializedSize() * BYTES_TO_MB);
+      NrtMetrics.nrtAckedCopyMB.labelValues(indexName).inc(value.getSerializedSize() * BYTES_TO_MB);
     }
 
     @Override

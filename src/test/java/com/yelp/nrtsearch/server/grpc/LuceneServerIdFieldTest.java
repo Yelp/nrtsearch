@@ -24,7 +24,7 @@ import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.client.CollectorRegistry;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -69,16 +69,16 @@ public class LuceneServerIdFieldTest {
 
   @Before
   public void setUp() throws IOException {
-    CollectorRegistry collectorRegistry = new CollectorRegistry();
-    grpcServer = setUpGrpcServer(collectorRegistry);
+    PrometheusRegistry prometheusRegistry = new PrometheusRegistry();
+    grpcServer = setUpGrpcServer(prometheusRegistry);
   }
 
-  private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
+  private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     return new GrpcServer(
-        collectorRegistry,
+        prometheusRegistry,
         grpcCleanup,
         luceneServerConfiguration,
         folder,

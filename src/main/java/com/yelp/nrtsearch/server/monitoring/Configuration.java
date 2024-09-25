@@ -15,18 +15,18 @@
  */
 package com.yelp.nrtsearch.server.monitoring;
 
-import io.prometheus.client.CollectorRegistry;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 
 /**
  * Holds information about which metrics should be kept track of during rpc calls. Can be used to
  * turn on more elaborate and expensive metrics, such as latency histograms.
  */
 public class Configuration {
-  private static double[] DEFAULT_LATENCY_BUCKETS =
+  private static final double[] DEFAULT_LATENCY_BUCKETS =
       new double[] {.001, .005, .01, .05, 0.075, .1, .25, .5, 1, 2, 5, 10};
 
   private final boolean isIncludeLatencyHistograms;
-  private final CollectorRegistry collectorRegistry;
+  private final PrometheusRegistry prometheusRegistry;
   private final double[] latencyBuckets;
 
   /**
@@ -36,7 +36,7 @@ public class Configuration {
   public static com.yelp.nrtsearch.server.monitoring.Configuration cheapMetricsOnly() {
     return new com.yelp.nrtsearch.server.monitoring.Configuration(
         false /* isIncludeLatencyHistograms */,
-        CollectorRegistry.defaultRegistry,
+        PrometheusRegistry.defaultRegistry,
         DEFAULT_LATENCY_BUCKETS);
   }
 
@@ -48,18 +48,18 @@ public class Configuration {
   public static com.yelp.nrtsearch.server.monitoring.Configuration allMetrics() {
     return new com.yelp.nrtsearch.server.monitoring.Configuration(
         true /* isIncludeLatencyHistograms */,
-        CollectorRegistry.defaultRegistry,
+        PrometheusRegistry.defaultRegistry,
         DEFAULT_LATENCY_BUCKETS);
   }
 
   /**
    * Returns a copy {@link com.yelp.nrtsearch.server.monitoring.Configuration} with the difference
-   * that Prometheus metrics are recorded using the supplied {@link CollectorRegistry}.
+   * that Prometheus metrics are recorded using the supplied {@link PrometheusRegistry}.
    */
-  public com.yelp.nrtsearch.server.monitoring.Configuration withCollectorRegistry(
-      CollectorRegistry collectorRegistry) {
+  public com.yelp.nrtsearch.server.monitoring.Configuration withPrometheusRegistry(
+      PrometheusRegistry prometheusRegistry) {
     return new com.yelp.nrtsearch.server.monitoring.Configuration(
-        isIncludeLatencyHistograms, collectorRegistry, latencyBuckets);
+        isIncludeLatencyHistograms, prometheusRegistry, latencyBuckets);
   }
 
   /**
@@ -68,7 +68,7 @@ public class Configuration {
    */
   public com.yelp.nrtsearch.server.monitoring.Configuration withLatencyBuckets(double[] buckets) {
     return new com.yelp.nrtsearch.server.monitoring.Configuration(
-        isIncludeLatencyHistograms, collectorRegistry, buckets);
+        isIncludeLatencyHistograms, prometheusRegistry, buckets);
   }
 
   /** Returns whether or not latency histograms for calls should be included. */
@@ -76,9 +76,9 @@ public class Configuration {
     return isIncludeLatencyHistograms;
   }
 
-  /** Returns the {@link CollectorRegistry} used to record stats. */
-  public CollectorRegistry getCollectorRegistry() {
-    return collectorRegistry;
+  /** Returns the {@link PrometheusRegistry} used to record stats. */
+  public PrometheusRegistry getPrometheusRegistry() {
+    return prometheusRegistry;
   }
 
   /** Returns the histogram buckets to use for latency metrics. */
@@ -88,10 +88,10 @@ public class Configuration {
 
   private Configuration(
       boolean isIncludeLatencyHistograms,
-      CollectorRegistry collectorRegistry,
+      PrometheusRegistry prometheusRegistry,
       double[] latencyBuckets) {
     this.isIncludeLatencyHistograms = isIncludeLatencyHistograms;
-    this.collectorRegistry = collectorRegistry;
+    this.prometheusRegistry = prometheusRegistry;
     this.latencyBuckets = latencyBuckets;
   }
 }

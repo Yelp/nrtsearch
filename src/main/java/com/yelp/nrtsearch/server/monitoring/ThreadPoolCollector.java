@@ -15,11 +15,12 @@
  */
 package com.yelp.nrtsearch.server.monitoring;
 
-import io.prometheus.client.Collector;
-import io.prometheus.client.Counter;
-import io.prometheus.client.GaugeMetricFamily;
+import io.prometheus.metrics.core.metrics.Counter;
+import io.prometheus.metrics.core.metrics.Gauge;
+import io.prometheus.metrics.model.registry.MultiCollector;
+import io.prometheus.metrics.model.snapshots.MetricSnapshot;
+import io.prometheus.metrics.model.snapshots.MetricSnapshots;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,16 +32,53 @@ import java.util.concurrent.ThreadPoolExecutor;
  * queue usage, as well as rejection count. Executors must be added with {@link #addPool(String,
  * ThreadPoolExecutor)}.
  */
-public class ThreadPoolCollector extends Collector {
+public class ThreadPoolCollector implements MultiCollector {
+
+  private static final Gauge poolSize =
+      Gauge.builder()
+          .name("nrt_thread_pool_size")
+          .help("Current number of threads in the pool.")
+          .labelNames("pool")
+          .build();
+  private static final Gauge poolMax =
+      Gauge.builder()
+          .name("nrt_thread_pool_max")
+          .help("Maximum number of threads in the pool.")
+          .labelNames("pool")
+          .build();
+  private static final Gauge poolActive =
+      Gauge.builder()
+          .name("nrt_thread_pool_active")
+          .help("Number of active threads in the pool.")
+          .labelNames("pool")
+          .build();
+  private static final Gauge poolTasks =
+      Gauge.builder()
+          .name("nrt_thread_pool_tasks")
+          .help("Number of tasks ever scheduled for execution.")
+          .labelNames("pool")
+          .build();
+  private static final Gauge poolQueueSize =
+      Gauge.builder()
+          .name("nrt_thread_pool_queue_size")
+          .help("Current size of pool task queue.")
+          .labelNames("pool")
+          .build();
+  private static final Gauge poolQueueRemaining =
+      Gauge.builder()
+          .name("nrt_thread_pool_queue_remaining")
+          .help("Capacity left in pool task queue.")
+          .labelNames("pool")
+          .build();
 
   /** Wrapper class to record the rejection count for a {@link ThreadPoolExecutor}. */
   public static class RejectionCounterWrapper implements RejectedExecutionHandler {
     public static final Counter rejectionCounter =
-        Counter.build()
+        Counter.builder()
             .name("nrt_thread_pool_reject_count")
             .help("Count of rejected tasks.")
             .labelNames("pool")
-            .create();
+            .build();
 
     private final RejectedExecutionHandler in;
     private final String poolName;
@@ -52,7 +90,7 @@ public class ThreadPoolCollector extends Collector {
 
     @Override
     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-      rejectionCounter.labels(poolName).inc();
+      rejectionCounter.labelValues(poolName).inc();
       in.rejectedExecution(r, executor);
     }
   }
@@ -66,45 +104,28 @@ public class ThreadPoolCollector extends Collector {
   }
 
   @Override
-  public List<MetricFamilySamples> collect() {
-    List<MetricFamilySamples> mfs = new ArrayList<>();
-
-    List<String> metricLabels = Collections.singletonList("pool");
-    GaugeMetricFamily poolSize =
-        new GaugeMetricFamily(
-            "nrt_thread_pool_size", "Current number of threads in the pool.", metricLabels);
-    mfs.add(poolSize);
-    GaugeMetricFamily poolMax =
-        new GaugeMetricFamily(
-            "nrt_thread_pool_max", "Maximum number of threads in the pool.", metricLabels);
-    mfs.add(poolMax);
-    GaugeMetricFamily poolActive =
-        new GaugeMetricFamily(
-            "nrt_thread_pool_active", "Number of active threads in the pool.", metricLabels);
-    mfs.add(poolActive);
-    GaugeMetricFamily poolTasks =
-        new GaugeMetricFamily(
-            "nrt_thread_pool_tasks", "Number of tasks ever scheduled for execution.", metricLabels);
-    mfs.add(poolTasks);
-    GaugeMetricFamily poolQueueSize =
-        new GaugeMetricFamily(
-            "nrt_thread_pool_queue_size", "Current size of pool task queue.", metricLabels);
-    mfs.add(poolQueueSize);
-    GaugeMetricFamily poolQueueRemaining =
-        new GaugeMetricFamily(
-            "nrt_thread_pool_queue_remaining", "Capacity left in pool task queue.", metricLabels);
-    mfs.add(poolQueueRemaining);
+  public MetricSnapshots collect() {
+    List<MetricSnapshot> metrics = new ArrayList<>();
 
     for (Map.Entry<String, ThreadPoolExecutor> entry : pools.entrySet()) {
-      List<String> poolLabel = Collections.singletonList(entry.getKey());
-      poolSize.addMetric(poolLabel, entry.getValue().getPoolSize());
-      poolMax.addMetric(poolLabel, entry.getValue().getMaximumPoolSize());
-      poolActive.addMetric(poolLabel, entry.getValue().getActiveCount());
-      poolTasks.addMetric(poolLabel, entry.getValue().getTaskCount());
-      poolQueueSize.addMetric(poolLabel, entry.getValue().getQueue().size());
-      poolQueueRemaining.addMetric(poolLabel, entry.getValue().getQueue().remainingCapacity());
+      String poolLabel = entry.getKey();
+      poolSize.labelValues(poolLabel).set(entry.getValue().getPoolSize());
+      poolMax.labelValues(poolLabel).set(entry.getValue().getMaximumPoolSize());
+      poolActive.labelValues(poolLabel).set(entry.getValue().getActiveCount());
+      poolTasks.labelValues(poolLabel).set(entry.getValue().getTaskCount());
+      poolQueueSize.labelValues(poolLabel).set(entry.getValue().getQueue().size());
+      poolQueueRemaining
+          .labelValues(poolLabel)
+          .set(entry.getValue().getQueue().remainingCapacity());
     }
 
-    return mfs;
+    metrics.add(poolSize.collect());
+    metrics.add(poolMax.collect());
+    metrics.add(poolActive.collect());
+    metrics.add(poolTasks.collect());
+    metrics.add(poolQueueSize.collect());
+    metrics.add(poolQueueRemaining.collect());
+
+    return new MetricSnapshots(metrics);
   }
 }

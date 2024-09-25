@@ -17,10 +17,11 @@ package com.yelp.nrtsearch.server.monitoring;
 
 import io.grpc.MethodDescriptor;
 import io.grpc.Status.Code;
-import io.prometheus.client.CollectorRegistry;
-import io.prometheus.client.Counter;
-import io.prometheus.client.Histogram;
-import io.prometheus.client.SimpleCollector;
+import io.prometheus.metrics.core.datapoints.CounterDataPoint;
+import io.prometheus.metrics.core.datapoints.DistributionDataPoint;
+import io.prometheus.metrics.core.metrics.Counter;
+import io.prometheus.metrics.core.metrics.Histogram;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -34,45 +35,35 @@ import java.util.Optional;
  */
 class ServerMetrics {
   private static final Counter.Builder serverStartedBuilder =
-      Counter.build()
-          .namespace("grpc")
-          .subsystem("server")
-          .name("started")
-          .labelNames("grpc_type", "grpc_service", "grpc_method", "serviceName", "nodeName")
+      Counter.builder()
+          .name("grpc_server_started")
+          .labelNames("grpc_type", "grpc_service", "grpc_method")
           .help("Total number of RPCs started on the server.");
 
   private static final Counter.Builder serverHandledBuilder =
-      Counter.build()
-          .namespace("grpc")
-          .subsystem("server")
-          .name("handled")
-          .labelNames("grpc_type", "grpc_service", "grpc_method", "serviceName", "nodeName", "code")
+      Counter.builder()
+          .name("grpc_server_handled")
+          .labelNames("grpc_type", "grpc_service", "grpc_method", "code")
           .help("Total number of RPCs completed on the server, regardless of success or failure.");
 
   private static final Histogram.Builder serverHandledLatencySecondsBuilder =
-      Histogram.build()
-          .namespace("grpc")
-          .subsystem("server")
-          .name("handled_latency_seconds")
-          .labelNames("grpc_type", "grpc_service", "grpc_method", "serviceName", "nodeName")
+      Histogram.builder()
+          .name("grpc_server_handled_latency_seconds")
+          .labelNames("grpc_type", "grpc_service", "grpc_method")
           .help(
               "Histogram of response latency (seconds) of gRPC that had been application-level "
                   + "handled by the server.");
 
   private static final Counter.Builder serverStreamMessagesReceivedBuilder =
-      Counter.build()
-          .namespace("grpc")
-          .subsystem("server")
-          .name("msg_received")
-          .labelNames("grpc_type", "grpc_service", "grpc_method", "serviceName", "nodeName")
+      Counter.builder()
+          .name("grpc_server_msg_received")
+          .labelNames("grpc_type", "grpc_service", "grpc_method")
           .help("Total number of stream messages received from the client.");
 
   private static final Counter.Builder serverStreamMessagesSentBuilder =
-      Counter.build()
-          .namespace("grpc")
-          .subsystem("server")
-          .name("msg_sent")
-          .labelNames("grpc_type", "grpc_service", "grpc_method", "serviceName", "nodeName")
+      Counter.builder()
+          .name("grpc_server_msg_sent")
+          .labelNames("grpc_type", "grpc_service", "grpc_method")
           .help("Total number of stream messages sent by the server.");
 
   private final Counter serverStarted;
@@ -80,9 +71,6 @@ class ServerMetrics {
   private final Counter serverStreamMessagesReceived;
   private final Counter serverStreamMessagesSent;
   private final Optional<Histogram> serverHandledLatencySeconds;
-
-  private final String serviceName;
-  private final String nodeName;
 
   private final com.yelp.nrtsearch.server.monitoring.GrpcMethod method;
 
@@ -92,17 +80,13 @@ class ServerMetrics {
       Counter serverHandled,
       Counter serverStreamMessagesReceived,
       Counter serverStreamMessagesSent,
-      Optional<Histogram> serverHandledLatencySeconds,
-      String serviceName,
-      String nodeName) {
+      Optional<Histogram> serverHandledLatencySeconds) {
     this.method = method;
     this.serverStarted = serverStarted;
     this.serverHandled = serverHandled;
     this.serverStreamMessagesReceived = serverStreamMessagesReceived;
     this.serverStreamMessagesSent = serverStreamMessagesSent;
     this.serverHandledLatencySeconds = serverHandledLatencySeconds;
-    this.serviceName = serviceName;
-    this.nodeName = nodeName;
   }
 
   public void recordCallStarted() {
@@ -143,24 +127,18 @@ class ServerMetrics {
     private final Counter serverStreamMessagesSent;
     private final Optional<Histogram> serverHandledLatencySeconds;
 
-    private final String serviceName;
-    private final String nodeName;
-
-    Factory(Configuration configuration, String serviceName, String nodeName) {
-      CollectorRegistry registry = configuration.getCollectorRegistry();
+    Factory(Configuration configuration) {
+      PrometheusRegistry registry = configuration.getPrometheusRegistry();
       this.serverStarted = serverStartedBuilder.register(registry);
       this.serverHandled = serverHandledBuilder.register(registry);
       this.serverStreamMessagesReceived = serverStreamMessagesReceivedBuilder.register(registry);
       this.serverStreamMessagesSent = serverStreamMessagesSentBuilder.register(registry);
 
-      this.serviceName = serviceName;
-      this.nodeName = nodeName;
-
       if (configuration.isIncludeLatencyHistograms()) {
         this.serverHandledLatencySeconds =
             Optional.of(
                 serverHandledLatencySecondsBuilder
-                    .buckets(configuration.getLatencyBuckets())
+                    .classicUpperBounds(configuration.getLatencyBuckets())
                     .register(registry));
       } else {
         this.serverHandledLatencySeconds = Optional.empty();
@@ -178,17 +156,21 @@ class ServerMetrics {
           serverHandled,
           serverStreamMessagesReceived,
           serverStreamMessagesSent,
-          serverHandledLatencySeconds,
-          serviceName,
-          nodeName);
+          serverHandledLatencySeconds);
     }
   }
 
-  private <T> T addLabels(SimpleCollector<T> collector, String... labels) {
+  private CounterDataPoint addLabels(Counter collector, String... labels) {
     List<String> allLabels = new ArrayList<>();
-    Collections.addAll(
-        allLabels, method.type(), method.serviceName(), method.methodName(), serviceName, nodeName);
+    Collections.addAll(allLabels, method.type(), method.serviceName(), method.methodName());
     Collections.addAll(allLabels, labels);
-    return collector.labels(allLabels.toArray(new String[0]));
+    return collector.labelValues(allLabels.toArray(new String[0]));
+  }
+
+  private DistributionDataPoint addLabels(Histogram collector, String... labels) {
+    List<String> allLabels = new ArrayList<>();
+    Collections.addAll(allLabels, method.type(), method.serviceName(), method.methodName());
+    Collections.addAll(allLabels, labels);
+    return collector.labelValues(allLabels.toArray(new String[0]));
   }
 }

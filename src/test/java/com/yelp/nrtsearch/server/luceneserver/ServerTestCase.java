@@ -37,7 +37,7 @@ import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import io.grpc.stub.StreamObserver;
 import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.client.CollectorRegistry;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -80,7 +80,7 @@ public class ServerTestCase {
   @ClassRule public static final TemporaryFolder folder = new TemporaryFolder();
 
   private static GrpcServer grpcServer;
-  private static CollectorRegistry collectorRegistry;
+  private static PrometheusRegistry prometheusRegistry;
   private static GlobalState globalState;
   private static boolean initialized = false;
 
@@ -88,8 +88,8 @@ public class ServerTestCase {
     return grpcServer;
   }
 
-  public static CollectorRegistry getCollectorRegistry() {
-    return collectorRegistry;
+  public static PrometheusRegistry getPrometheusRegistry() {
+    return prometheusRegistry;
   }
 
   public static GlobalState getGlobalState() {
@@ -209,19 +209,19 @@ public class ServerTestCase {
   }
 
   public void setUpClass() throws Exception {
-    collectorRegistry = new CollectorRegistry();
-    grpcServer = setUpGrpcServer(collectorRegistry);
+    prometheusRegistry = new PrometheusRegistry();
+    grpcServer = setUpGrpcServer(prometheusRegistry);
     initIndices();
   }
 
-  private GrpcServer setUpGrpcServer(CollectorRegistry collectorRegistry) throws IOException {
+  private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), getExtraConfig());
     GrpcServer server =
         new GrpcServer(
-            collectorRegistry,
+            prometheusRegistry,
             grpcCleanup,
             luceneServerConfiguration,
             folder,

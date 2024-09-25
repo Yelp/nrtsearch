@@ -24,22 +24,30 @@ import static org.mockito.Mockito.when;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ShardState;
-import io.prometheus.client.Collector.MetricFamilySamples;
-import io.prometheus.client.Collector.MetricFamilySamples.Sample;
+import io.prometheus.metrics.model.snapshots.GaugeSnapshot;
+import io.prometheus.metrics.model.snapshots.MetricSnapshot;
+import io.prometheus.metrics.model.snapshots.MetricSnapshots;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LiveIndexWriterConfig;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class MergeSchedulerCollectorTest {
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
+
+  @Before
+  public void setUp() throws IOException {
+    MergeSchedulerCollector.indexPendingMergeCount.clear();
+    MergeSchedulerCollector.indexMaxMergeThreadCount.clear();
+    MergeSchedulerCollector.indexMaxMergeCount.clear();
+  }
 
   @Test
   public void testCollectMetrics() throws IOException {
@@ -61,37 +69,34 @@ public class MergeSchedulerCollectorTest {
     when(mockGlobalState.getIndex("test_index")).thenReturn(mockIndexState);
 
     MergeSchedulerCollector collector = new MergeSchedulerCollector(mockGlobalState);
-    List<MetricFamilySamples> metrics = collector.collect();
+    MetricSnapshots metrics = collector.collect();
 
     assertEquals(3, metrics.size());
-    Map<String, MetricFamilySamples> metricsMap = new HashMap<>();
-    for (MetricFamilySamples samples : metrics) {
-      metricsMap.put(samples.name, samples);
+    Map<String, GaugeSnapshot.GaugeDataPointSnapshot> sampleMap = new HashMap<>();
+    for (MetricSnapshot metric : metrics) {
+      assertEquals(1, metric.getDataPoints().size());
+      GaugeSnapshot.GaugeDataPointSnapshot sample =
+          (GaugeSnapshot.GaugeDataPointSnapshot) metric.getDataPoints().getFirst();
+      sampleMap.put(metric.getMetadata().getName(), sample);
     }
 
-    MetricFamilySamples samples = metricsMap.get("nrt_pending_merge_count");
-    assertNotNull(samples);
-    assertEquals(1, samples.samples.size());
-    Sample sample = samples.samples.get(0);
-    assertEquals(Collections.singletonList("index"), sample.labelNames);
-    assertEquals(Collections.singletonList("test_index"), sample.labelValues);
-    assertEquals(3, sample.value, 0);
+    GaugeSnapshot.GaugeDataPointSnapshot sample = sampleMap.get("nrt_pending_merge_count");
+    assertNotNull(sample);
+    assertEquals("index", sample.getLabels().getName(0));
+    assertEquals("test_index", sample.getLabels().getValue(0));
+    assertEquals(3, sample.getValue(), 0);
 
-    samples = metricsMap.get("nrt_max_merge_thread_count");
-    assertNotNull(samples);
-    assertEquals(1, samples.samples.size());
-    sample = samples.samples.get(0);
-    assertEquals(Collections.singletonList("index"), sample.labelNames);
-    assertEquals(Collections.singletonList("test_index"), sample.labelValues);
-    assertEquals(4, sample.value, 0);
+    sample = sampleMap.get("nrt_max_merge_thread_count");
+    assertNotNull(sample);
+    assertEquals("index", sample.getLabels().getName(0));
+    assertEquals("test_index", sample.getLabels().getValue(0));
+    assertEquals(4, sample.getValue(), 0);
 
-    samples = metricsMap.get("nrt_max_merge_count");
-    assertNotNull(samples);
-    assertEquals(1, samples.samples.size());
-    sample = samples.samples.get(0);
-    assertEquals(Collections.singletonList("index"), sample.labelNames);
-    assertEquals(Collections.singletonList("test_index"), sample.labelValues);
-    assertEquals(6, sample.value, 0);
+    sample = sampleMap.get("nrt_max_merge_count");
+    assertNotNull(sample);
+    assertEquals("index", sample.getLabels().getName(0));
+    assertEquals("test_index", sample.getLabels().getValue(0));
+    assertEquals(6, sample.getValue(), 0);
   }
 
   @Test
@@ -99,11 +104,11 @@ public class MergeSchedulerCollectorTest {
     GlobalState mockGlobalState = mock(GlobalState.class);
     when(mockGlobalState.getIndexNames()).thenReturn(Collections.emptySet());
     MergeSchedulerCollector collector = new MergeSchedulerCollector(mockGlobalState);
-    List<MetricFamilySamples> metrics = collector.collect();
+    MetricSnapshots metrics = collector.collect();
 
     assertEquals(3, metrics.size());
-    for (MetricFamilySamples samples : metrics) {
-      assertTrue(samples.samples.isEmpty());
+    for (MetricSnapshot metric : metrics) {
+      assertTrue(metric.getDataPoints().isEmpty());
     }
   }
 }

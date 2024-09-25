@@ -38,7 +38,7 @@ import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
-import io.prometheus.client.CollectorRegistry;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -116,7 +116,7 @@ public class LuceneServerTest {
 
   private GrpcServer grpcServer;
   private GrpcServer replicaGrpcServer;
-  private CollectorRegistry collectorRegistry;
+  private PrometheusRegistry prometheusRegistry;
   private RemoteBackend remoteBackend;
   private AmazonS3 s3;
   private final String TEST_SERVICE_NAME = "TEST_SERVICE_NAME";
@@ -145,10 +145,10 @@ public class LuceneServerTest {
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), "bucketName: " + bucketName);
 
-    collectorRegistry = new CollectorRegistry();
+    prometheusRegistry = new PrometheusRegistry();
     remoteBackend = setUpRemoteBackend(luceneServerConfiguration);
-    grpcServer = setUpGrpcServer(luceneServerConfiguration, collectorRegistry);
-    replicaGrpcServer = setUpReplicaGrpcServer(collectorRegistry);
+    grpcServer = setUpGrpcServer(luceneServerConfiguration, prometheusRegistry);
+    replicaGrpcServer = setUpReplicaGrpcServer(prometheusRegistry);
     setUpWarmer();
   }
 
@@ -179,12 +179,12 @@ public class LuceneServerTest {
   }
 
   private GrpcServer setUpGrpcServer(
-      LuceneServerConfiguration luceneServerConfiguration, CollectorRegistry collectorRegistry)
+      LuceneServerConfiguration luceneServerConfiguration, PrometheusRegistry prometheusRegistry)
       throws IOException {
     String testIndex = "test_index";
 
     return new GrpcServer(
-        collectorRegistry,
+        prometheusRegistry,
         grpcCleanup,
         luceneServerConfiguration,
         folder,
@@ -196,7 +196,7 @@ public class LuceneServerTest {
         Collections.emptyList());
   }
 
-  private GrpcServer setUpReplicaGrpcServer(CollectorRegistry collectorRegistry)
+  private GrpcServer setUpReplicaGrpcServer(PrometheusRegistry prometheusRegistry)
       throws IOException {
     String testIndex = "test_index";
     LuceneServerConfiguration luceneServerReplicaConfiguration =
@@ -996,19 +996,20 @@ public class LuceneServerTest {
 
   @Test
   public void testMetrics() {
+    // make rpc calls to populate some metrics
+    grpcServer.getBlockingStub().status(HealthCheckRequest.newBuilder().build());
+
     HttpBody response = grpcServer.getBlockingStub().metrics(Empty.newBuilder().build());
     HashSet expectedSampleNames =
         new HashSet(
             Arrays.asList(
-                "grpc_server_msg_received_total",
                 "grpc_server_handled_latency_seconds",
                 "grpc_server_handled_total",
-                "grpc_server_started_total",
-                "grpc_server_started_created",
-                "grpc_server_msg_sent_total"));
+                "grpc_server_started_total"));
     assertEquals("text/plain", response.getContentType());
     String data = new String(response.getData().toByteArray());
     String[] arr = data.split("\n");
+    System.out.println(Arrays.toString(arr));
     Set<String> labelsHelp = new HashSet<>();
     Set<String> labelsType = new HashSet<>();
     for (int i = 0; i < arr.length; i++) {
@@ -1018,8 +1019,8 @@ public class LuceneServerTest {
         labelsType.add(arr[i].split(" ")[2]);
       }
     }
-    assertEquals(true, labelsHelp.equals(labelsType));
-    assertEquals(true, labelsHelp.equals(expectedSampleNames));
+    assertEquals(labelsType, labelsHelp);
+    assertEquals(expectedSampleNames, labelsHelp);
   }
 
   @Test

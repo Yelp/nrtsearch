@@ -22,7 +22,7 @@ import com.google.inject.Singleton;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LuceneServer;
 import com.yelp.nrtsearch.server.module.S3Module;
-import io.prometheus.client.CollectorRegistry;
+import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -46,8 +46,8 @@ public class LuceneServerModule extends AbstractModule {
   @Inject
   @Singleton
   @Provides
-  public CollectorRegistry providesCollectorRegistry() {
-    return new CollectorRegistry();
+  public PrometheusRegistry providesPrometheusRegistry() {
+    return new PrometheusRegistry();
   }
 
   @Inject
