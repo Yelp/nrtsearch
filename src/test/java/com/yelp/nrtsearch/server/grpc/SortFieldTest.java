@@ -479,6 +479,38 @@ public class SortFieldTest extends ServerTestCase {
   }
 
   @Test
+  public void testSortAtomDocId() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(SortType.newBuilder().setFieldName("doc_id").build())
+                    .build())
+            .build();
+    SearchResponse searchResponse = doSortQuery(querySortField);
+    assertEquals(5, searchResponse.getHitsCount());
+    List<String> expectedIds = Arrays.asList("0", "1", "10", "11", "12");
+    assertFields(expectedIds, searchResponse.getHitsList());
+  }
+
+  @Test
+  public void testSortAtomDocIdSearchAfter() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(SortType.newBuilder().setFieldName("doc_id").build())
+                    .build())
+            .build();
+    LastHitInfo searchAfter = LastHitInfo.newBuilder().addLastFieldValues("1").build();
+    SearchResponse searchResponse = dosSortQuerySearchAfter(querySortField, searchAfter);
+    assertEquals(5, searchResponse.getHitsCount());
+
+    List<String> expectedIds = Arrays.asList("1", "10", "11", "12", "13");
+    assertFields(expectedIds, searchResponse.getHitsList());
+  }
+
+  @Test
   public void testSortDocId() {
     QuerySortField querySortField =
         QuerySortField.newBuilder()
@@ -780,6 +812,35 @@ public class SortFieldTest extends ServerTestCase {
 
       assertEquals(1.0, hit.getScore(), 0);
       assertEquals(7, hit.getFieldsCount());
+    }
+  }
+
+  @Test
+  public void testSortIntFieldWithSearchAfter() {
+    QuerySortField querySortField =
+        QuerySortField.newBuilder()
+            .setFields(
+                SortFields.newBuilder()
+                    .addSortedFields(SortType.newBuilder().setFieldName("int_field").build())
+                    .build())
+            .build();
+    LastHitInfo searchAfter = LastHitInfo.newBuilder().addLastFieldValues("1").build();
+    SearchResponse searchResponse = dosSortQuerySearchAfter(querySortField, searchAfter);
+    assertEquals(5, searchResponse.getHitsCount());
+
+    List<String> expectedIds = Arrays.asList("91", "92", "93", "94", "95");
+    assertFields(expectedIds, searchResponse.getHitsList());
+
+    List<Integer> expectedSort = Arrays.asList(1, 2, 3, 4, 5);
+    for (int i = 0; i < searchResponse.getHitsCount(); ++i) {
+      var hit = searchResponse.getHits(i);
+      assertEquals(1, hit.getSortedFieldsCount());
+      assertEquals(
+          expectedSort.get(i).intValue(),
+          hit.getSortedFieldsOrThrow("int_field").getFieldValue(0).getIntValue());
+
+      assertEquals(0.0, hit.getScore(), 0);
+      assertEquals(6, hit.getFieldsCount());
     }
   }
 
