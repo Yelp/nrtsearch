@@ -76,6 +76,11 @@ public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
     fieldType.setTokenized(false);
   }
 
+  @Override
+  public boolean isSearchable() {
+    return true;
+  }
+
   /**
    * Store the docvalues if it's requested and store the string value in the document
    *
