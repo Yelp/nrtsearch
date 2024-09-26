@@ -68,7 +68,7 @@ public class S3Backend implements RemoteBackend {
   static final String POINT_STATE = "point_state";
   static final String DATA = "data";
   static final String WARMING = "warming";
-  static final String CURRENT_VERSION = "_current";
+  public static final String CURRENT_VERSION = "_current";
 
   private static final Logger logger = LoggerFactory.getLogger(S3Backend.class);
   private static final String ZIP_EXTENSION = ".zip";

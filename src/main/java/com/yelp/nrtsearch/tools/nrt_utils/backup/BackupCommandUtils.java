@@ -92,7 +92,7 @@ public class BackupCommandUtils {
    * @param bucketName s3 bucket
    * @param keys keys to delete
    */
-  static void deleteObjects(AmazonS3 s3Client, String bucketName, List<String> keys) {
+  public static void deleteObjects(AmazonS3 s3Client, String bucketName, List<String> keys) {
     System.out.println("Batch deleting objects, size: " + keys.size());
     DeleteObjectsRequest multiObjectDeleteRequest =
         new DeleteObjectsRequest(bucketName).withKeys(keys.toArray(new String[0])).withQuiet(true);
@@ -107,7 +107,7 @@ public class BackupCommandUtils {
    * @param interval interval string
    * @return interval in ms
    */
-  static long getTimeIntervalMs(String interval) {
+  public static long getTimeIntervalMs(String interval) {
     String trimmed = interval.trim();
     if (trimmed.length() < 2) {
       throw new IllegalArgumentException("Invalid time interval: " + trimmed);

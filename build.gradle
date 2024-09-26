@@ -169,11 +169,13 @@ test {
     environment(Map.of('CUSTOM_HOST', 'my_custom_host', 'VAR1', 'v1', 'VAR2', 'v2', 'VAR3', 'v3'))
     if (project.hasProperty('longRunningTestsOnly')) {
         include '**/IncrementalDataCleanupCommandTest.class'
+        include '**/CleanupDataCommandTest.class'
     } else {
         if (!project.hasProperty('includePerfTests')) {
             exclude '**/YelpReviewsTest.class'
             exclude '**/MergeBehaviorTests.class'
             exclude '**/IncrementalDataCleanupCommandTest.class'
+            exclude '**/CleanupDataCommandTest.class'
             filter {
                 excludeTestsMatching '*.NodeNameResolverAndLoadBalancingTests.testSimpleLoadBalancingAsync'
             }
