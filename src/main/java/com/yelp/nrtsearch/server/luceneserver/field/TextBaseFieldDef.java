@@ -62,6 +62,7 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
 
   public final Map<IndexReader.CacheKey, GlobalOrdinalLookup> ordinalLookupCache = new HashMap<>();
   private final Object ordinalBuilderLock = new Object();
+  private final int ignoreAbove;
 
   /**
    * Field constructor. Uses {@link IndexableFieldDef#IndexableFieldDef(String, Field)} to do common
@@ -76,6 +77,7 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
     indexAnalyzer = parseIndexAnalyzer(requestField);
     searchAnalyzer = parseSearchAnalyzer(requestField);
     eagerFieldGlobalOrdinals = requestField.getEagerFieldGlobalOrdinals();
+    ignoreAbove = requestField.getIgnoreAbove();
   }
 
   @Override
@@ -232,6 +234,9 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
 
     for (int i = 0; i < fieldValues.size(); i++) {
       String fieldStr = fieldValues.get(i);
+      if (ignoreAbove > 0 && fieldStr.length() > ignoreAbove) {
+        continue;
+      }
       if (hasDocValues()) {
         BytesRef stringBytes = new BytesRef(fieldStr);
         if (docValuesType == DocValuesType.BINARY) {

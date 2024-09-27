@@ -574,6 +574,9 @@ message Field {
     VectorElementType vectorElementType = 34;
     // Position increment gap for indexing multi valued TEXT fields. Must be >= 0, defaulting to 100 when not set.
     optional int32 positionIncrementGap = 35;
+    // For arrays of strings, ignoreAbove will be applied for each array element separately and string elements longer than ignore_above will not be indexed or stored.
+    // This option is also useful for protecting against Lucene’s term byte-length limit of 32766
+    int32 ignoreAbove = 36;
 }
 
 // Vector field element type
