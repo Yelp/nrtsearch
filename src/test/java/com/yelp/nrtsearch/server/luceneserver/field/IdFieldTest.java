@@ -80,4 +80,26 @@ public class IdFieldTest extends ServerTestCase {
     assertEquals(1, hit.getFieldsOrThrow("id").getFieldValueCount());
     assertEquals("3", hit.getFieldsOrThrow("id").getFieldValue(0).getTextValue());
   }
+
+  @Test
+  public void testAlwaysSearchable() {
+    SearchResponse response =
+        getGrpcServer()
+            .getBlockingStub()
+            .search(
+                SearchRequest.newBuilder()
+                    .setIndexName(DEFAULT_TEST_INDEX)
+                    .setTopHits(3)
+                    .addRetrieveFields("id")
+                    .setQuery(
+                        Query.newBuilder()
+                            .setTermQuery(
+                                TermQuery.newBuilder().setField("id").setTextValue("2").build())
+                            .build())
+                    .build());
+    assertEquals(1, response.getHitsCount());
+    SearchResponse.Hit hit = response.getHits(0);
+    assertEquals(1, hit.getFieldsOrThrow("id").getFieldValueCount());
+    assertEquals("2", hit.getFieldsOrThrow("id").getFieldValue(0).getTextValue());
+  }
 }
