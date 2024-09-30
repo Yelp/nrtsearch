@@ -46,6 +46,7 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.utils.ObjectToCompositeFieldTransformer;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -323,7 +324,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     hitBuilders.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
 
     IndexState indexState = searchContext.getIndexState();
-    int fetch_thread_pool_size = indexState.getThreadPoolConfiguration().getMaxFetchThreads();
+    int fetch_thread_pool_size =
+        indexState
+            .getThreadPoolConfiguration()
+            .getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.FETCH)
+            .maxThreads();
     int min_parallel_fetch_num_fields =
         indexState.getThreadPoolConfiguration().getMinParallelFetchNumFields();
     int min_parallel_fetch_num_hits =

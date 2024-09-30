@@ -5,6 +5,8 @@ replicationPort: "8001"
 stateDir: "primary_state"
 indexDir: "primary_index_base"
 threadPoolConfiguration:
-  maxSearchingThreads: 4
-  maxIndexingThreads: 18
+  search:
+    maxThreads: 4
+  index:
+    maxThreads: 18
 verifyReplicationIndexId: false

@@ -17,76 +17,117 @@ package com.yelp.nrtsearch.server.config;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.yelp.nrtsearch.server.utils.JsonUtils;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
+import java.util.HashMap;
 import java.util.Map;
 
 /** Configuration for various ThreadPool Settings used in nrtsearch */
 public class ThreadPoolConfiguration {
+  public static final String CONFIG_PREFIX = "threadPoolConfiguration.";
 
   private static final int AVAILABLE_PROCESSORS = Runtime.getRuntime().availableProcessors();
-  private static final int DEFAULT_MAX_SEARCHING_THREADS = ((AVAILABLE_PROCESSORS * 3) / 2) + 1;
-  private static final int DEFAULT_MAX_SEARCH_BUFFERED_ITEMS =
-      Math.max(1000, 2 * DEFAULT_MAX_SEARCHING_THREADS);
+  public static final int DEFAULT_SEARCHING_THREADS = ((AVAILABLE_PROCESSORS * 3) / 2) + 1;
+  public static final int DEFAULT_SEARCH_BUFFERED_ITEMS =
+      Math.max(1000, 2 * DEFAULT_SEARCHING_THREADS);
 
-  private static final int DEFAULT_MAX_INDEXING_THREADS = AVAILABLE_PROCESSORS + 1;
-  private static final int DEFAULT_MAX_FILL_FIELDS_THREADS = 1;
+  public static final int DEFAULT_INDEXING_THREADS = AVAILABLE_PROCESSORS + 1;
+  public static final int DEFAULT_INDEXING_BUFFERED_ITEMS =
+      Math.max(200, 2 * DEFAULT_INDEXING_THREADS);
 
-  private static final int DEFAULT_MAX_INDEXING_BUFFERED_ITEMS =
-      Math.max(200, 2 * DEFAULT_MAX_INDEXING_THREADS);
+  public static final int DEFAULT_GRPC_LUCENESERVER_THREADS = DEFAULT_INDEXING_THREADS;
+  public static final int DEFAULT_GRPC_LUCENESERVER_BUFFERED_ITEMS =
+      DEFAULT_INDEXING_BUFFERED_ITEMS;
 
-  private static final int DEFAULT_MAX_GRPC_LUCENESERVER_THREADS = DEFAULT_MAX_INDEXING_THREADS;
-  private static final int DEFAULT_MAX_GRPC_LUCENESERVER_BUFFERED_ITEMS =
-      DEFAULT_MAX_INDEXING_BUFFERED_ITEMS;
+  public static final int DEFAULT_GRPC_REPLICATIONSERVER_THREADS = DEFAULT_INDEXING_THREADS;
+  public static final int DEFAULT_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS =
+      DEFAULT_INDEXING_BUFFERED_ITEMS;
 
-  private static final int DEFAULT_MAX_GRPC_REPLICATIONSERVER_THREADS =
-      DEFAULT_MAX_INDEXING_THREADS;
-  private static final int DEFAULT_MAX_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS =
-      DEFAULT_MAX_INDEXING_BUFFERED_ITEMS;
-
+  public static final int DEFAULT_FETCH_THREADS = 1;
+  public static final int DEFAULT_FETCH_BUFFERED_ITEMS = DEFAULT_SEARCH_BUFFERED_ITEMS;
   public static final int DEFAULT_MIN_PARALLEL_FETCH_NUM_FIELDS = 20;
   public static final int DEFAULT_MIN_PARALLEL_FETCH_NUM_HITS = 50;
 
-  private static final int DEFAULT_GRPC_EXECUTOR_THREADS = AVAILABLE_PROCESSORS * 2;
-  private static final int DEFAULT_METRICS_EXECUTOR_THREADS = AVAILABLE_PROCESSORS;
+  public static final int DEFAULT_GRPC_THREADS = AVAILABLE_PROCESSORS * 2;
+  public static final int DEFAULT_GRPC_BUFFERED_ITEMS = 8;
 
-  public static final int DEFAULT_VECTOR_MERGE_EXECUTOR_THREADS = AVAILABLE_PROCESSORS;
+  public static final int DEFAULT_METRICS_THREADS = AVAILABLE_PROCESSORS;
+  public static final int DEFAULT_METRICS_BUFFERED_ITEMS = 8;
 
-  private final int maxSearchingThreads;
-  private final int maxSearchBufferedItems;
+  public static final int DEFAULT_VECTOR_MERGE_THREADS = AVAILABLE_PROCESSORS;
+  public static final int DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS =
+      Math.max(100, 2 * DEFAULT_VECTOR_MERGE_THREADS);
 
-  private final int maxFetchThreads;
   private final int minParallelFetchNumFields;
   private final int minParallelFetchNumHits;
   private final boolean parallelFetchByField;
 
-  private final int maxIndexingThreads;
-  private final int maxIndexingBufferedItems;
+  /**
+   * Settings for a {@link com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory.ExecutorType}.
+   *
+   * @param maxThreads max number of threads
+   * @param maxBufferedItems max number of buffered items
+   * @param threadNamePrefix prefix for thread names
+   */
+  public record ThreadPoolSettings(int maxThreads, int maxBufferedItems, String threadNamePrefix) {}
 
-  private final int maxGrpcLuceneserverThreads;
-  private final int maxGrpcLuceneserverBufferedItems;
+  private static final Map<ThreadPoolExecutorFactory.ExecutorType, ThreadPoolSettings>
+      defaultThreadPoolSettings =
+          Map.of(
+              ThreadPoolExecutorFactory.ExecutorType.SEARCH,
+              new ThreadPoolSettings(
+                  DEFAULT_SEARCHING_THREADS, DEFAULT_SEARCH_BUFFERED_ITEMS, "LuceneSearchExecutor"),
+              ThreadPoolExecutorFactory.ExecutorType.INDEX,
+              new ThreadPoolSettings(
+                  DEFAULT_INDEXING_THREADS,
+                  DEFAULT_INDEXING_BUFFERED_ITEMS,
+                  "LuceneIndexingExecutor"),
+              ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
+              new ThreadPoolSettings(
+                  DEFAULT_GRPC_LUCENESERVER_THREADS,
+                  DEFAULT_GRPC_LUCENESERVER_BUFFERED_ITEMS,
+                  "GrpcLuceneServerExecutor"),
+              ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
+              new ThreadPoolSettings(
+                  DEFAULT_GRPC_REPLICATIONSERVER_THREADS,
+                  DEFAULT_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS,
+                  "GrpcReplicationServerExecutor"),
+              ThreadPoolExecutorFactory.ExecutorType.FETCH,
+              new ThreadPoolSettings(
+                  DEFAULT_FETCH_THREADS, DEFAULT_FETCH_BUFFERED_ITEMS, "LuceneFetchExecutor"),
+              ThreadPoolExecutorFactory.ExecutorType.GRPC,
+              new ThreadPoolSettings(
+                  DEFAULT_GRPC_THREADS, DEFAULT_GRPC_BUFFERED_ITEMS, "GrpcExecutor"),
+              ThreadPoolExecutorFactory.ExecutorType.METRICS,
+              new ThreadPoolSettings(
+                  DEFAULT_METRICS_THREADS, DEFAULT_METRICS_BUFFERED_ITEMS, "MetricsExecutor"),
+              ThreadPoolExecutorFactory.ExecutorType.VECTOR_MERGE,
+              new ThreadPoolSettings(
+                  DEFAULT_VECTOR_MERGE_THREADS,
+                  DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS,
+                  "VectorMergeExecutor"));
 
-  private final int maxGrpcReplicationserverThreads;
-  private final int maxGrpcReplicationserverBufferedItems;
-
-  private final int grpcExecutorThreads;
-  private final int metricsExecutorThreads;
-
-  private final int vectorMergeExecutorThreads;
-  private final int vectorMergeExecutorBufferedItems;
+  private final Map<ThreadPoolExecutorFactory.ExecutorType, ThreadPoolSettings> threadPoolSettings;
 
   public ThreadPoolConfiguration(YamlConfigReader configReader) {
-    maxSearchingThreads =
-        getNumThreads(
-            configReader,
-            "threadPoolConfiguration.maxSearchingThreads",
-            DEFAULT_MAX_SEARCHING_THREADS);
-    maxSearchBufferedItems =
-        configReader.getInteger(
-            "threadPoolConfiguration.maxSearchBufferedItems", DEFAULT_MAX_SEARCH_BUFFERED_ITEMS);
-    maxFetchThreads =
-        getNumThreads(
-            configReader,
-            "threadPoolConfiguration.maxFetchThreads",
-            DEFAULT_MAX_FILL_FIELDS_THREADS);
+    threadPoolSettings = new HashMap<>();
+    for (ThreadPoolExecutorFactory.ExecutorType executorType :
+        ThreadPoolExecutorFactory.ExecutorType.values()) {
+      ThreadPoolSettings defaultSettings = defaultThreadPoolSettings.get(executorType);
+      String poolConfigPrefix = CONFIG_PREFIX + executorType.name().toLowerCase() + ".";
+      int maxThreads =
+          getNumThreads(
+              configReader, poolConfigPrefix + "maxThreads", defaultSettings.maxThreads());
+      int maxBufferedItems =
+          configReader.getInteger(
+              poolConfigPrefix + "maxBufferedItems", defaultSettings.maxBufferedItems());
+      String threadNamePrefix =
+          configReader.getString(
+              poolConfigPrefix + "threadNamePrefix", defaultSettings.threadNamePrefix());
+      threadPoolSettings.put(
+          executorType, new ThreadPoolSettings(maxThreads, maxBufferedItems, threadNamePrefix));
+    }
+
+    // TODO: Move these setting somewhere else. They might be better as index live settings.
     minParallelFetchNumFields =
         configReader.getInteger(
             "threadPoolConfiguration.minParallelFetchNumFields",
@@ -96,55 +137,6 @@ public class ThreadPoolConfiguration {
             "threadPoolConfiguration.minParallelFetchNumHits", DEFAULT_MIN_PARALLEL_FETCH_NUM_HITS);
     parallelFetchByField =
         configReader.getBoolean("threadPoolConfiguration.parallelFetchByField", true);
-
-    maxIndexingThreads =
-        getNumThreads(
-            configReader,
-            "threadPoolConfiguration.maxIndexingThreads",
-            DEFAULT_MAX_INDEXING_THREADS);
-    maxIndexingBufferedItems =
-        configReader.getInteger(
-            "threadPoolConfiguration.maxIndexingBufferedItems",
-            DEFAULT_MAX_INDEXING_BUFFERED_ITEMS);
-
-    maxGrpcLuceneserverThreads =
-        getNumThreads(
-            configReader,
-            "threadPoolConfiguration.maxGrpcLuceneserverThreads",
-            DEFAULT_MAX_GRPC_LUCENESERVER_THREADS);
-    maxGrpcLuceneserverBufferedItems =
-        configReader.getInteger(
-            "threadPoolConfiguration.maxGrpcLuceneserverBufferedItems",
-            DEFAULT_MAX_GRPC_LUCENESERVER_BUFFERED_ITEMS);
-
-    maxGrpcReplicationserverThreads =
-        getNumThreads(
-            configReader,
-            "threadPoolConfiguration.maxGrpcReplicationserverThreads",
-            DEFAULT_MAX_GRPC_REPLICATIONSERVER_THREADS);
-    maxGrpcReplicationserverBufferedItems =
-        configReader.getInteger(
-            "threadPoolConfiguration.maxGrpcReplicationserverBufferedItems",
-            DEFAULT_MAX_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS);
-
-    grpcExecutorThreads =
-        getNumThreads(
-            configReader, "threadPoolConfiguration.grpcThreads", DEFAULT_GRPC_EXECUTOR_THREADS);
-    metricsExecutorThreads =
-        getNumThreads(
-            configReader,
-            "threadPoolConfiguration.metricsThreads",
-            DEFAULT_METRICS_EXECUTOR_THREADS);
-
-    vectorMergeExecutorThreads =
-        getNumThreads(
-            configReader,
-            "threadPoolConfiguration.vectorMergeThreads",
-            DEFAULT_VECTOR_MERGE_EXECUTOR_THREADS);
-    vectorMergeExecutorBufferedItems =
-        configReader.getInteger(
-            "threadPoolConfiguration.vectorMergeBufferedItems",
-            Math.max(100, 2 * vectorMergeExecutorThreads));
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -200,16 +192,9 @@ public class ThreadPoolConfiguration {
         defaultValue);
   }
 
-  public int getMaxSearchingThreads() {
-    return maxSearchingThreads;
-  }
-
-  public int getMaxSearchBufferedItems() {
-    return maxSearchBufferedItems;
-  }
-
-  public int getMaxFetchThreads() {
-    return maxFetchThreads;
+  public ThreadPoolSettings getThreadPoolSettings(
+      ThreadPoolExecutorFactory.ExecutorType executorType) {
+    return threadPoolSettings.get(executorType);
   }
 
   public int getMinParallelFetchNumFields() {
@@ -222,45 +207,5 @@ public class ThreadPoolConfiguration {
 
   public boolean getParallelFetchByField() {
     return parallelFetchByField;
-  }
-
-  public int getMaxIndexingThreads() {
-    return maxIndexingThreads;
-  }
-
-  public int getMaxIndexingBufferedItems() {
-    return maxIndexingBufferedItems;
-  }
-
-  public int getMaxGrpcLuceneserverThreads() {
-    return maxGrpcLuceneserverThreads;
-  }
-
-  public int getMaxGrpcReplicationserverThreads() {
-    return maxGrpcReplicationserverThreads;
-  }
-
-  public int getMaxGrpcLuceneserverBufferedItems() {
-    return maxGrpcLuceneserverBufferedItems;
-  }
-
-  public int getMaxGrpcReplicationserverBufferedItems() {
-    return maxGrpcReplicationserverBufferedItems;
-  }
-
-  public int getGrpcExecutorThreads() {
-    return grpcExecutorThreads;
-  }
-
-  public int getMetricsExecutorThreads() {
-    return metricsExecutorThreads;
-  }
-
-  public int getVectorMergeExecutorThreads() {
-    return vectorMergeExecutorThreads;
-  }
-
-  public int getVectorMergeExecutorBufferedItems() {
-    return vectorMergeExecutorBufferedItems;
   }
 }

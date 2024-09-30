@@ -49,14 +49,213 @@ public class ThreadPoolExecutorFactoryTest {
   }
 
   @Test
+  public void testSearchThreadPool_default() {
+    init();
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH);
+    assertEquals(executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_SEARCHING_THREADS);
+    assertEquals(
+        executor.getQueue().remainingCapacity(),
+        ThreadPoolConfiguration.DEFAULT_SEARCH_BUFFERED_ITEMS);
+  }
+
+  @Test
+  public void testSearchThreadPool_set() {
+    init(
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  search:",
+            "    maxThreads: 5",
+            "    maxBufferedItems: 10"));
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH);
+    assertEquals(executor.getCorePoolSize(), 5);
+    assertEquals(executor.getQueue().remainingCapacity(), 10);
+  }
+
+  @Test
+  public void testIndexThreadPool_default() {
+    init();
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.INDEX);
+    assertEquals(executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_INDEXING_THREADS);
+    assertEquals(
+        executor.getQueue().remainingCapacity(),
+        ThreadPoolConfiguration.DEFAULT_INDEXING_BUFFERED_ITEMS);
+  }
+
+  @Test
+  public void testIndexThreadPool_set() {
+    init(
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  index:",
+            "    maxThreads: 5",
+            "    maxBufferedItems: 10"));
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.INDEX);
+    assertEquals(executor.getCorePoolSize(), 5);
+    assertEquals(executor.getQueue().remainingCapacity(), 10);
+  }
+
+  @Test
+  public void testLuceneServerThreadPool_default() {
+    init();
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER);
+    assertEquals(
+        executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_GRPC_LUCENESERVER_THREADS);
+    assertEquals(
+        executor.getQueue().remainingCapacity(),
+        ThreadPoolConfiguration.DEFAULT_GRPC_LUCENESERVER_BUFFERED_ITEMS);
+  }
+
+  @Test
+  public void testLuceneServerThreadPool_set() {
+    init(
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  luceneserver:",
+            "    maxThreads: 5",
+            "    maxBufferedItems: 10"));
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER);
+    assertEquals(executor.getCorePoolSize(), 5);
+    assertEquals(executor.getQueue().remainingCapacity(), 10);
+  }
+
+  @Test
+  public void testReplicationServerThreadPool_default() {
+    init();
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER);
+    assertEquals(
+        executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_GRPC_REPLICATIONSERVER_THREADS);
+    assertEquals(
+        executor.getQueue().remainingCapacity(),
+        ThreadPoolConfiguration.DEFAULT_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS);
+  }
+
+  @Test
+  public void testReplicationServerThreadPool_set() {
+    init(
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  replicationserver:",
+            "    maxThreads: 5",
+            "    maxBufferedItems: 10"));
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER);
+    assertEquals(executor.getCorePoolSize(), 5);
+    assertEquals(executor.getQueue().remainingCapacity(), 10);
+  }
+
+  @Test
+  public void testFetchThreadPool_default() {
+    init();
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.FETCH);
+    assertEquals(executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_FETCH_THREADS);
+    assertEquals(
+        executor.getQueue().remainingCapacity(),
+        ThreadPoolConfiguration.DEFAULT_FETCH_BUFFERED_ITEMS);
+  }
+
+  @Test
+  public void testFetchThreadPool_set() {
+    init(
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  fetch:",
+            "    maxThreads: 5",
+            "    maxBufferedItems: 10"));
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.FETCH);
+    assertEquals(executor.getCorePoolSize(), 5);
+    assertEquals(executor.getQueue().remainingCapacity(), 10);
+  }
+
+  @Test
+  public void testGrpcThreadPool_default() {
+    init();
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.GRPC);
+    assertEquals(executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_GRPC_THREADS);
+    assertEquals(
+        executor.getQueue().remainingCapacity(),
+        ThreadPoolConfiguration.DEFAULT_GRPC_BUFFERED_ITEMS);
+  }
+
+  @Test
+  public void testGrpcThreadPool_set() {
+    init(
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  grpc:",
+            "    maxThreads: 5",
+            "    maxBufferedItems: 10"));
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.GRPC);
+    assertEquals(executor.getCorePoolSize(), 5);
+    assertEquals(executor.getQueue().remainingCapacity(), 10);
+  }
+
+  @Test
+  public void testMetricsThreadPool_default() {
+    init();
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.METRICS);
+    assertEquals(executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_METRICS_THREADS);
+    assertEquals(
+        executor.getQueue().remainingCapacity(),
+        ThreadPoolConfiguration.DEFAULT_METRICS_BUFFERED_ITEMS);
+  }
+
+  @Test
+  public void testMetricsThreadPool_set() {
+    init(
+        String.join(
+            "\n",
+            "threadPoolConfiguration:",
+            "  metrics:",
+            "    maxThreads: 5",
+            "    maxBufferedItems: 10"));
+    ThreadPoolExecutor executor =
+        ThreadPoolExecutorFactory.getInstance()
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.METRICS);
+    assertEquals(executor.getCorePoolSize(), 5);
+    assertEquals(executor.getQueue().remainingCapacity(), 10);
+  }
+
+  @Test
   public void testVectorMergeThreadPool_default() {
     init();
     ThreadPoolExecutor executor =
         ThreadPoolExecutorFactory.getInstance()
             .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.VECTOR_MERGE);
+    assertEquals(executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_VECTOR_MERGE_THREADS);
     assertEquals(
-        executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_VECTOR_MERGE_EXECUTOR_THREADS);
-    assertEquals(executor.getQueue().remainingCapacity(), 100);
+        executor.getQueue().remainingCapacity(),
+        ThreadPoolConfiguration.DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS);
   }
 
   @Test
@@ -65,8 +264,9 @@ public class ThreadPoolExecutorFactoryTest {
         String.join(
             "\n",
             "threadPoolConfiguration:",
-            "  vectorMergeThreads: 5",
-            "  vectorMergeBufferedItems: 10"));
+            "  vector_merge:",
+            "    maxThreads: 5",
+            "    maxBufferedItems: 10"));
     ThreadPoolExecutor executor =
         ThreadPoolExecutorFactory.getInstance()
             .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.VECTOR_MERGE);
