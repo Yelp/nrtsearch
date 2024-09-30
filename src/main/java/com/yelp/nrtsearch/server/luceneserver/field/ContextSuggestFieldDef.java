@@ -25,7 +25,7 @@ import java.util.Optional;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.search.suggest.document.Completion99PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion912PostingsFormat;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 
 public class ContextSuggestFieldDef extends IndexableFieldDef {
@@ -116,6 +116,6 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
 
   @Override
   public PostingsFormat getPostingsFormat() {
-    return new Completion99PostingsFormat();
+    return new Completion912PostingsFormat();
   }
 }

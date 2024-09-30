@@ -601,7 +601,6 @@ message VectorIndexingOptions {
     // The number of bits to use for quantizing the vectors. It can have the following values:
     //      4 - half byte
     //      7 - signed byte (default)
-    //      8 - unsigned byte
     optional int32 quantized_bits = 6;
     // Whether to compress the vectors, if true, the vectors that are quantized with <= 4 bits will be compressed into
     // a single byte. If false, the vectors will be stored as is. This provides a trade-off of memory usage and speed. default: false

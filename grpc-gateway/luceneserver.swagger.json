@@ -5404,7 +5404,7 @@
         "quantizedBits": {
           "type": "integer",
           "format": "int32",
-          "title": "The number of bits to use for quantizing the vectors. It can have the following values:\n     4 - half byte\n     7 - signed byte (default)\n     8 - unsigned byte"
+          "title": "The number of bits to use for quantizing the vectors. It can have the following values:\n     4 - half byte\n     7 - signed byte (default)"
         },
         "quantizedCompress": {
           "type": "boolean",
