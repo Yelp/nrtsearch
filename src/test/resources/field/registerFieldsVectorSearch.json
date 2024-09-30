@@ -111,17 +111,6 @@
       }
     },
     {
-      "name": "quantized_vector_8",
-      "type": "VECTOR",
-      "search": true,
-      "vectorDimensions": 3,
-      "vectorSimilarity": "l2_norm",
-      "vectorIndexingOptions": {
-        "type": "hnsw_scalar_quantized",
-        "quantized_bits": 8
-      }
-    },
-    {
       "name": "filter",
       "type": "ATOM",
       "search": true,

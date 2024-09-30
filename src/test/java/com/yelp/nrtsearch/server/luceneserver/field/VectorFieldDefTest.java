@@ -152,11 +152,6 @@ public class VectorFieldDefTest extends ServerTestCase {
                         .addValue(createVectorString(random, 3, false))
                         .build())
                 .putFields(
-                    "quantized_vector_8",
-                    MultiValuedField.newBuilder()
-                        .addValue(createVectorString(random, 3, false))
-                        .build())
-                .putFields(
                     "filter", MultiValuedField.newBuilder().addValue("term" + j % 10).build())
                 .build());
       }
@@ -461,16 +456,6 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   @Test
-  public void testQuantizedVectorSearch_8() {
-    singleVectorQueryAndVerify(
-        "quantized_vector_8",
-        List.of(0.25f, 0.5f, 0.75f),
-        VectorSimilarityFunction.EUCLIDEAN,
-        1.0f,
-        0.001);
-  }
-
-  @Test
   public void testVectorSearch_boost() {
     singleVectorQueryAndVerify(
         "vector_l2_norm", List.of(0.25f, 0.5f, 0.75f), VectorSimilarityFunction.EUCLIDEAN, 2.0f);
@@ -684,7 +669,7 @@ public class VectorFieldDefTest extends ServerTestCase {
 
   @Test
   public void testHybridVectorSearch() {
-    List<Float> queryVector = List.of(0.25f, 0.5f, 0.75f);
+    List<Float> queryVector = List.of(0.05f, 0.5f, 0.75f);
     String field = "vector_cosine";
     SearchResponse searchResponse =
         getGrpcServer()
@@ -1376,7 +1361,7 @@ public class VectorFieldDefTest extends ServerTestCase {
       new VectorFieldDef("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("bits must be one of: 4, 7, 8; bits=9", e.getMessage());
+      assertEquals("bits must be one of: 4, 7; bits=9", e.getMessage());
     }
   }
 

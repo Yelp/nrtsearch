@@ -1425,7 +1425,6 @@ type VectorIndexingOptions struct {
 	//
 	//	4 - half byte
 	//	7 - signed byte (default)
-	//	8 - unsigned byte
 	QuantizedBits *int32 `protobuf:"varint,6,opt,name=quantized_bits,json=quantizedBits,proto3,oneof" json:"quantized_bits,omitempty"`
 	// Whether to compress the vectors, if true, the vectors that are quantized with <= 4 bits will be compressed into
 	// a single byte. If false, the vectors will be stored as is. This provides a trade-off of memory usage and speed. default: false
