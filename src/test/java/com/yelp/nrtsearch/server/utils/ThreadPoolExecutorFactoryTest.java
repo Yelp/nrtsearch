@@ -251,7 +251,7 @@ public class ThreadPoolExecutorFactoryTest {
     init();
     ThreadPoolExecutor executor =
         ThreadPoolExecutorFactory.getInstance()
-            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.VECTOR_MERGE);
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.VECTORMERGE);
     assertEquals(executor.getCorePoolSize(), ThreadPoolConfiguration.DEFAULT_VECTOR_MERGE_THREADS);
     assertEquals(
         executor.getQueue().remainingCapacity(),
@@ -264,12 +264,12 @@ public class ThreadPoolExecutorFactoryTest {
         String.join(
             "\n",
             "threadPoolConfiguration:",
-            "  vector_merge:",
+            "  vectormerge:",
             "    maxThreads: 5",
             "    maxBufferedItems: 10"));
     ThreadPoolExecutor executor =
         ThreadPoolExecutorFactory.getInstance()
-            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.VECTOR_MERGE);
+            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.VECTORMERGE);
     assertEquals(executor.getCorePoolSize(), 5);
     assertEquals(executor.getQueue().remainingCapacity(), 10);
   }

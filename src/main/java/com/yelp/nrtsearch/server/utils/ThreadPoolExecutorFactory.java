@@ -35,7 +35,7 @@ public class ThreadPoolExecutorFactory {
     FETCH,
     GRPC,
     METRICS,
-    VECTOR_MERGE
+    VECTORMERGE
   }
 
   private static final Logger logger = LoggerFactory.getLogger(ThreadPoolExecutorFactory.class);

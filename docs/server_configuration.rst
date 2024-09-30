@@ -221,17 +221,17 @@ Example server configuration
      - Name prefix for threads created by metrics threadpool executor
      - MetricsExecutor
 
-   * - vector_merge.maxThreads
+   * - vectormerge.maxThreads
      - int
      - Size of vector merge threadpool executor
      - numCPUs
 
-   * - vector_merge.maxBufferedItems
+   * - vectormerge.maxBufferedItems
      - int
      - Max tasks that can be queued by vector merge threadpool executor
      - max(100, 2 * numCPUs)
 
-   * - vector_merge.threadNamePrefix
+   * - vectormerge.threadNamePrefix
      - string
      - Name prefix for threads created by vector merge threadpool executor
      - VectorMergeExecutor

@@ -324,22 +324,22 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     hitBuilders.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
 
     IndexState indexState = searchContext.getIndexState();
-    int fetch_thread_pool_size =
+    int fetchThreadPoolSize =
         indexState
             .getThreadPoolConfiguration()
             .getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.FETCH)
             .maxThreads();
-    int min_parallel_fetch_num_fields =
+    int minParallelFetchNumFields =
         indexState.getThreadPoolConfiguration().getMinParallelFetchNumFields();
-    int min_parallel_fetch_num_hits =
+    int minParallelFetchNumHits =
         indexState.getThreadPoolConfiguration().getMinParallelFetchNumHits();
     boolean parallelFetchByField =
         indexState.getThreadPoolConfiguration().getParallelFetchByField();
 
     if (parallelFetchByField
-        && fetch_thread_pool_size > 1
-        && searchContext.getRetrieveFields().keySet().size() > min_parallel_fetch_num_fields
-        && hitBuilders.size() > min_parallel_fetch_num_hits) {
+        && fetchThreadPoolSize > 1
+        && searchContext.getRetrieveFields().keySet().size() > minParallelFetchNumFields
+        && hitBuilders.size() > minParallelFetchNumHits) {
       // Fetch fields in parallel
 
       List<LeafReaderContext> leaves =
@@ -357,8 +357,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       // round up
       int parallelism =
           Math.min(
-              fetch_thread_pool_size,
-              (fields.size() + min_parallel_fetch_num_fields - 1) / min_parallel_fetch_num_fields);
+              fetchThreadPoolSize,
+              (fields.size() + minParallelFetchNumFields - 1) / minParallelFetchNumFields);
       List<List<String>> fieldsChunks =
           Lists.partition(fields, (fields.size() + parallelism - 1) / parallelism);
       List<Future<List<Map<String, CompositeFieldValue>>>> futures = new ArrayList<>();
@@ -402,16 +402,16 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
       }
     } else if (!parallelFetchByField
-        && fetch_thread_pool_size > 1
-        && hitBuilders.size() > min_parallel_fetch_num_hits) {
+        && fetchThreadPoolSize > 1
+        && hitBuilders.size() > minParallelFetchNumHits) {
       // Fetch docs in parallel
 
       // parallelism is min of fetchThreadPoolSize and hitsBuilder.size() / MIN_PARALLEL_NUM_HITS
       // round up
       int parallelism =
           Math.min(
-              fetch_thread_pool_size,
-              (hitBuilders.size() + min_parallel_fetch_num_hits - 1) / min_parallel_fetch_num_hits);
+              fetchThreadPoolSize,
+              (hitBuilders.size() + minParallelFetchNumHits - 1) / minParallelFetchNumHits);
       List<List<Hit.Builder>> docChunks =
           Lists.partition(hitBuilders, (hitBuilders.size() + parallelism - 1) / parallelism);
 

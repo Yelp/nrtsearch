@@ -100,7 +100,7 @@ public class ThreadPoolConfiguration {
               ThreadPoolExecutorFactory.ExecutorType.METRICS,
               new ThreadPoolSettings(
                   DEFAULT_METRICS_THREADS, DEFAULT_METRICS_BUFFERED_ITEMS, "MetricsExecutor"),
-              ThreadPoolExecutorFactory.ExecutorType.VECTOR_MERGE,
+              ThreadPoolExecutorFactory.ExecutorType.VECTORMERGE,
               new ThreadPoolSettings(
                   DEFAULT_VECTOR_MERGE_THREADS,
                   DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS,

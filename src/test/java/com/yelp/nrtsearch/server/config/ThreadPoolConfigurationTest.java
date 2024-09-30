@@ -299,7 +299,7 @@ public class ThreadPoolConfigurationTest {
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
         threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.VECTOR_MERGE);
+            ThreadPoolExecutorFactory.ExecutorType.VECTORMERGE);
     assertEquals(
         threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_VECTOR_MERGE_THREADS);
     assertEquals(
@@ -314,7 +314,7 @@ public class ThreadPoolConfigurationTest {
         String.join(
             "\n",
             "threadPoolConfiguration:",
-            "  vector_merge:",
+            "  vectormerge:",
             "    maxThreads: 5",
             "    maxBufferedItems: 10",
             "    threadNamePrefix: customName");
@@ -322,7 +322,7 @@ public class ThreadPoolConfigurationTest {
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
         threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.VECTOR_MERGE);
+            ThreadPoolExecutorFactory.ExecutorType.VECTORMERGE);
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());

@@ -112,7 +112,7 @@ public class VectorFieldDef extends IndexableFieldDef implements VectorQueryable
     ExecutorService executorService =
         mergeWorkers > 1
             ? ThreadPoolExecutorFactory.getInstance()
-                .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.VECTOR_MERGE)
+                .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.VECTORMERGE)
             : null;
     KnnVectorsFormat vectorsFormat =
         switch (vectorSearchType) {
