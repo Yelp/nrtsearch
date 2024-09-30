@@ -26,7 +26,8 @@ public class MultiSegmentParallelDocsFetchTest extends MultiSegmentTest {
     return String.join(
         "\n",
         "threadPoolConfiguration:",
-        "  maxFetchThreads: 8",
+        "  fetch:",
+        "    maxThreads: 8",
         "  minParallelFetchNumFields: 1",
         "  minParallelFetchNumHits: 1",
         "  parallelFetchByField: false");

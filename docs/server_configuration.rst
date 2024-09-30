@@ -19,8 +19,10 @@ Example server configuration
   stateDir: "/user/app/primary_state"
   indexDir: "/user/app/primary_index_base"
   threadPoolConfiguration:
-    maxSearchingThreads: 4
-    maxIndexingThreads: 18
+    search:
+      maxThreads: 4
+    index:
+      maxThreads: 18
   botoCfgPath: "/user/app/boto.cfg"
   bucketName: "nrtsearch-bucket"
   serviceName: "nrtsearch-service-test"
@@ -114,32 +116,127 @@ Example server configuration
      - Description
      - Default
 
-   * - maxSearchingThreads
+   * - search.maxThreads
      - int
      - Size of searcher threadpool executor
      - (numCPUs * 3) / 2 + 1
 
-   * - maxFetchThreads
+   * - search.maxBufferedItems
      - int
-     - Size of fetch threadpool executor
-     - 1
+     - Max tasks that can be queued by searcher threadpool executor
+     - max(1000, 2 * ((numCPUs * 3) / 2 + 1))
 
-   * - maxIndexingThreads
+   * - search.threadNamePrefix
+     - string
+     - Name prefix for threads created by searcher threadpool executor
+     - LuceneSearchExecutor
+
+   * - index.maxThreads
      - int
      - Size of indexing threadpool executor
      - numCPUs + 1
 
-   * - maxGrpcLuceneserverThreads
+   * - index.maxBufferedItems
+     - int
+     - Max tasks that can be queued by indexing threadpool executor
+     - max(200, 2 * (numCPUs + 1))
+
+   * - index.threadNamePrefix
+     - string
+     - Name prefix for threads created by indexing threadpool executor
+     - LuceneIndexingExecutor
+
+   * - luceneserver.maxThreads
      - int
      - Size of LuceneServer threadpool executor
      - numCPUs + 1
 
-   * - maxGrpcReplicationserverThreads
+   * - luceneserver.maxBufferedItems
+     - int
+     - Max tasks that can be queued by LuceneServer threadpool executor
+     - max(200, 2 * (numCPUs + 1))
+
+   * - luceneserver.threadNamePrefix
+     - string
+     - Name prefix for threads created by LuceneServer threadpool executor
+     - GrpcLuceneServerExecutor
+
+   * - replicationserver.maxThreads
      - int
      - Size of ReplicationServer threadpool executor
      - numCPUs + 1
 
-.. list-table:: `Alternative Max Threads Config <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.max*Threads.*``)
+   * - replicationserver.maxBufferedItems
+     - int
+     - Max tasks that can be queued by ReplicationServer threadpool executor
+     - max(200, 2 * (numCPUs + 1))
+
+   * - replicationserver.threadNamePrefix
+     - string
+     - Name prefix for threads created by ReplicationServer threadpool executor
+     - GrpcReplicationServerExecutor
+
+   * - fetch.maxThreads
+     - int
+     - Size of fetch threadpool executor
+     - 1
+
+   * - fetch.maxBufferedItems
+     - int
+     - Max tasks that can be queued by fetch threadpool executor
+     - max(1000, 2 * ((numCPUs * 3) / 2 + 1))
+
+   * - fetch.threadNamePrefix
+     - string
+     - Name prefix for threads created by fetch threadpool executor
+     - LuceneFetchExecutor
+
+   * - grpc.maxThreads
+     - int
+     - Size of gRPC threadpool executor
+     - 2 * numCPUs
+
+   * - grpc.maxBufferedItems
+     - int
+     - Max tasks that can be queued by gRPC threadpool executor
+     - 8
+
+   * - grpc.threadNamePrefix
+     - string
+     - Name prefix for threads created by gRPC threadpool executor
+     - GrpcExecutor
+
+   * - metrics.maxThreads
+     - int
+     - Size of metrics threadpool executor
+     - numCPUs
+
+   * - metrics.maxBufferedItems
+     - int
+     - Max tasks that can be queued by metrics threadpool executor
+     - 8
+
+   * - metrics.threadNamePrefix
+     - string
+     - Name prefix for threads created by metrics threadpool executor
+     - MetricsExecutor
+
+   * - vectormerge.maxThreads
+     - int
+     - Size of vector merge threadpool executor
+     - numCPUs
+
+   * - vectormerge.maxBufferedItems
+     - int
+     - Max tasks that can be queued by vector merge threadpool executor
+     - max(100, 2 * numCPUs)
+
+   * - vectormerge.threadNamePrefix
+     - string
+     - Name prefix for threads created by vector merge threadpool executor
+     - VectorMergeExecutor
+
+.. list-table:: `Alternative Max Threads Config <https://github.com/Yelp/nrtsearch/blob/master/src/main/java/com/yelp/nrtsearch/server/config/ThreadPoolConfiguration.java>`_ (``threadPoolConfiguration.*.maxThreads.*``)
    :widths: 25 10 50 25
    :header-rows: 1
 

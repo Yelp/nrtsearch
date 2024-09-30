@@ -5,8 +5,10 @@ replicationPort: "8003"
 stateDir: "/user/app/replica_state"
 indexDir: "/user/app/replica_index_base"
 threadPoolConfiguration:
-  maxSearchingThreads: 16
-  maxIndexingThreads: 4
+  search:
+    maxThreads: 16
+  index:
+    maxThreads: 4
 botoCfgPath: "/user/app/boto.cfg"
 bucketName: "nrtsearch-bucket"
 serviceName: "nrtsearch-service-test"

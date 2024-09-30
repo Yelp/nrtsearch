@@ -83,7 +83,7 @@ public class TimeoutTest extends ServerTestCase {
 
   @Override
   public String getExtraConfig() {
-    return String.join("\n", "threadPoolConfiguration:", "  maxSearchingThreads: 1");
+    return String.join("\n", "threadPoolConfiguration:", "  search:", "    maxThreads: 1");
   }
 
   @Override

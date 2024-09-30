@@ -40,7 +40,7 @@ public class GrpcServerExecutorSupplierTest {
         new ThreadPoolConfiguration(
             new YamlConfigReader(
                 new ByteArrayInputStream(
-                    "threadPoolConfiguration:\n  maxSearchingThreads: 1".getBytes())));
+                    "threadPoolConfiguration:\n  search:\n    maxThreads: 1".getBytes())));
     ThreadPoolExecutorFactory.init(threadPoolConfiguration);
   }
 
