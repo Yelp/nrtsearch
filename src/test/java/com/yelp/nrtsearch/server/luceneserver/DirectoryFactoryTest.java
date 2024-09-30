@@ -15,23 +15,15 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
 import com.yelp.nrtsearch.server.config.YamlConfigReader;
-import com.yelp.nrtsearch.server.luceneserver.DirectoryFactory.SplitMMapDirectory;
-import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.Collections;
-import java.util.Set;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MMapDirectory;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -42,124 +34,87 @@ public class DirectoryFactoryTest {
   @ClassRule public static final TemporaryFolder folder = new TemporaryFolder();
 
   private static final DirectoryFactory mmFactory = DirectoryFactory.get("MMapDirectory");
+  private static final DirectoryFactory fsFactory = DirectoryFactory.get("FSDirectory");
 
   @Test
-  public void testAllPreset() throws IOException {
-    try (Directory directory =
-        mmFactory.open(folder.getRoot().toPath(), IndexPreloadConfig.PRELOAD_ALL)) {
-      assertTrue(directory instanceof MMapDirectory);
-      assertFalse(directory instanceof SplitMMapDirectory);
-      assertTrue(((MMapDirectory) directory).getPreload());
-    }
-  }
-
-  @Test
-  public void testDefault() throws IOException {
+  public void testMMapDefault() throws IOException {
     String configFile = "nodeName: \"lucene_server_foo\"";
     IndexPreloadConfig config =
         IndexPreloadConfig.fromConfig(
             new YamlConfigReader(new ByteArrayInputStream(configFile.getBytes())));
     try (Directory directory = mmFactory.open(folder.getRoot().toPath(), config)) {
       assertTrue(directory instanceof MMapDirectory);
-      assertFalse(directory instanceof SplitMMapDirectory);
-      assertTrue(((MMapDirectory) directory).getPreload());
-    }
-  }
-
-  @Test
-  public void testPreloadFalse() throws IOException {
-    IndexPreloadConfig config = new IndexPreloadConfig(false, Collections.emptySet());
-    try (Directory directory = mmFactory.open(folder.getRoot().toPath(), config)) {
-      assertTrue(directory instanceof MMapDirectory);
-      assertFalse(directory instanceof SplitMMapDirectory);
       assertFalse(((MMapDirectory) directory).getPreload());
     }
   }
 
   @Test
-  public void testPreloadFalseWithExtension() throws IOException {
+  public void testMMapPreloadFalseWithExtension() throws IOException {
     IndexPreloadConfig config =
         new IndexPreloadConfig(false, Collections.singleton(IndexPreloadConfig.ALL_EXTENSIONS));
     try (Directory directory = mmFactory.open(folder.getRoot().toPath(), config)) {
       assertTrue(directory instanceof MMapDirectory);
-      assertFalse(directory instanceof SplitMMapDirectory);
       assertFalse(((MMapDirectory) directory).getPreload());
     }
   }
 
   @Test
-  public void testPreloadEmptyExtensions() throws IOException {
+  public void testMMapPreloadEmptyExtensions() throws IOException {
     IndexPreloadConfig config = new IndexPreloadConfig(true, Collections.emptySet());
     try (Directory directory = mmFactory.open(folder.getRoot().toPath(), config)) {
       assertTrue(directory instanceof MMapDirectory);
-      assertFalse(directory instanceof SplitMMapDirectory);
       assertFalse(((MMapDirectory) directory).getPreload());
     }
   }
 
   @Test
-  public void testPreloadAll() throws IOException {
+  public void testMMapPreloadAll() throws IOException {
     IndexPreloadConfig config =
         new IndexPreloadConfig(true, Collections.singleton(IndexPreloadConfig.ALL_EXTENSIONS));
     try (Directory directory = mmFactory.open(folder.getRoot().toPath(), config)) {
       assertTrue(directory instanceof MMapDirectory);
-      assertFalse(directory instanceof SplitMMapDirectory);
       assertTrue(((MMapDirectory) directory).getPreload());
     }
   }
 
   @Test
-  public void testPreloadExtensions() throws IOException {
-    IndexPreloadConfig config = new IndexPreloadConfig(true, Set.of("doc", "dim"));
-    try (Directory directory = mmFactory.open(folder.getRoot().toPath(), config)) {
+  public void testFSDefault() throws IOException {
+    String configFile = "nodeName: \"lucene_server_foo\"";
+    IndexPreloadConfig config =
+        IndexPreloadConfig.fromConfig(
+            new YamlConfigReader(new ByteArrayInputStream(configFile.getBytes())));
+    try (Directory directory = fsFactory.open(folder.getRoot().toPath(), config)) {
       assertTrue(directory instanceof MMapDirectory);
-      assertTrue(directory instanceof SplitMMapDirectory);
-      SplitMMapDirectory splitMMapDirectory = (SplitMMapDirectory) directory;
-      assertFalse(splitMMapDirectory.getPreload());
-      assertTrue(splitMMapDirectory.getSplitToDirectory().getPreload());
-      assertTrue(splitMMapDirectory.shouldSplit("file.doc"));
-      assertTrue(splitMMapDirectory.shouldSplit("file.dim"));
-      assertFalse(splitMMapDirectory.shouldSplit("file.nvd"));
-      assertFalse(splitMMapDirectory.shouldSplit("file.tim"));
+      assertFalse(((MMapDirectory) directory).getPreload());
     }
   }
 
   @Test
-  public void testSplitReading() throws IOException {
-    IndexPreloadConfig config = new IndexPreloadConfig(true, Set.of("doc", "dim"));
-    writeTestFiles();
-    try (Directory directory = mmFactory.open(folder.getRoot().toPath(), config)) {
+  public void testFSPreloadFalseWithExtension() throws IOException {
+    IndexPreloadConfig config =
+        new IndexPreloadConfig(false, Collections.singleton(IndexPreloadConfig.ALL_EXTENSIONS));
+    try (Directory directory = fsFactory.open(folder.getRoot().toPath(), config)) {
       assertTrue(directory instanceof MMapDirectory);
-      assertTrue(directory instanceof SplitMMapDirectory);
-      SplitMMapDirectory splitMMapDirectory = (SplitMMapDirectory) directory;
-      assertFalse(splitMMapDirectory.getPreload());
-      assertTrue(splitMMapDirectory.getSplitToDirectory().getPreload());
-      assertTrue(splitMMapDirectory.shouldSplit("file.doc"));
-      assertFalse(splitMMapDirectory.shouldSplit("file.tim"));
-      assertFileContents("file.doc", directory, "DOC File Contents");
-      assertFileContents("file.tim", directory, "TIM File Contents");
+      assertFalse(((MMapDirectory) directory).getPreload());
     }
   }
 
-  private void writeTestFiles() throws IOException {
-    writeTestFile("file.doc", "DOC File Contents");
-    writeTestFile("file.tim", "TIM File Contents");
+  @Test
+  public void testFSPreloadEmptyExtensions() throws IOException {
+    IndexPreloadConfig config = new IndexPreloadConfig(true, Collections.emptySet());
+    try (Directory directory = fsFactory.open(folder.getRoot().toPath(), config)) {
+      assertTrue(directory instanceof MMapDirectory);
+      assertFalse(((MMapDirectory) directory).getPreload());
+    }
   }
 
-  private void writeTestFile(String name, String contents) throws IOException {
-    String fullName = Paths.get(folder.getRoot().getAbsolutePath(), name).toString();
-    BufferedWriter writer = new BufferedWriter(new FileWriter(fullName));
-    writer.write(contents);
-    writer.close();
-  }
-
-  private void assertFileContents(String file, Directory directory, String expectedContents)
-      throws IOException {
-    try (IndexInput fileInput = directory.openInput(file, IOContext.DEFAULT)) {
-      byte[] fileArray = new byte[(int) fileInput.length()];
-      fileInput.readBytes(fileArray, 0, (int) fileInput.length());
-      String fileString = new String(fileArray);
-      assertEquals(expectedContents, fileString);
+  @Test
+  public void testFSPreloadAll() throws IOException {
+    IndexPreloadConfig config =
+        new IndexPreloadConfig(true, Collections.singleton(IndexPreloadConfig.ALL_EXTENSIONS));
+    try (Directory directory = fsFactory.open(folder.getRoot().toPath(), config)) {
+      assertTrue(directory instanceof MMapDirectory);
+      assertTrue(((MMapDirectory) directory).getPreload());
     }
   }
 }

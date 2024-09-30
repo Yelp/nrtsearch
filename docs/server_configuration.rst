@@ -234,3 +234,22 @@ Example server configuration
      - int
      - Maximum number of in-flight chunks sent by the primary.
      - 2000
+
+.. list-table:: `Index Data Preload Configuration <https://github.com/Yelp/nrtsearch/blob/main/src/main/java/com/yelp/nrtsearch/server/config/IndexPreloadConfig.java>`_ (``preload.*``)
+   :widths: 25 10 50 25
+   :header-rows: 1
+
+   * - Property
+     - Type
+     - Description
+     - Default
+
+   * - enabled
+     - bool
+     - If opening index files with an MMapDirectory should preload the data into the OS page cache
+     - false
+
+   * - extensions
+     - list
+     - List of index file extensions to preload. Including '*' will preload all files.
+     - ['*']

@@ -22,6 +22,7 @@ import static org.junit.Assert.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.util.Collections;
 import java.util.Set;
+import org.apache.lucene.store.IOContext;
 import org.junit.Test;
 
 public class IndexPreloadConfigTest {
@@ -35,25 +36,53 @@ public class IndexPreloadConfigTest {
   public void testDefault() {
     String configFile = "nodeName: \"lucene_server_foo\"";
     IndexPreloadConfig config = getConfig(configFile);
-    assertTrue(config.getShouldPreload());
-    assertTrue(config.getPreloadAll());
+    assertFalse(config.getPreload());
     assertEquals(config.getExtensions(), Collections.singleton(IndexPreloadConfig.ALL_EXTENSIONS));
   }
 
   @Test
   public void testNoPreload() {
-    String configFile = "preloadIndexData: false";
+    String configFile = String.join("\n", "preload: ", "  enabled: true");
     IndexPreloadConfig config = getConfig(configFile);
-    assertFalse(config.getShouldPreload());
-    assertFalse(config.getPreloadAll());
+    assertTrue(config.getPreload());
+    assertEquals(config.getExtensions(), Collections.singleton(IndexPreloadConfig.ALL_EXTENSIONS));
   }
 
   @Test
   public void testPreloadExtensions() {
-    String configFile = String.join("\n", "preloadExtensions:", "  - dvd", "  - tim");
+    String configFile =
+        String.join("\n", "preload:", "  enabled: true", "  extensions:", "    - dvd", "    - tim");
     IndexPreloadConfig config = getConfig(configFile);
-    assertTrue(config.getShouldPreload());
-    assertFalse(config.getPreloadAll());
+    assertTrue(config.getPreload());
     assertEquals(config.getExtensions(), Set.of("dvd", "tim"));
+  }
+
+  @Test
+  public void testPreloadPredicate_all() {
+    String configFile = "preload:\n enabled: true";
+    IndexPreloadConfig config = getConfig(configFile);
+    assertTrue(config.preloadPredicate().test("file.dvd", IOContext.DEFAULT));
+    assertTrue(config.preloadPredicate().test("file.tim", IOContext.DEFAULT));
+    assertTrue(config.preloadPredicate().test("file", IOContext.DEFAULT));
+  }
+
+  @Test
+  public void testPreloadPredicate_specific() {
+    String configFile =
+        String.join("\n", "preload:", "  enabled: true", "  extensions:", "    - dvd", "    - tim");
+    IndexPreloadConfig config = getConfig(configFile);
+    assertTrue(config.preloadPredicate().test("file.dvd", IOContext.DEFAULT));
+    assertTrue(config.preloadPredicate().test("file.tim", IOContext.DEFAULT));
+    assertFalse(config.preloadPredicate().test("file", IOContext.DEFAULT));
+    assertFalse(config.preloadPredicate().test("file.mp3", IOContext.DEFAULT));
+  }
+
+  @Test
+  public void testPreloadPredicate_disabled() {
+    String configFile = "preload:\n enabled: false";
+    IndexPreloadConfig config = getConfig(configFile);
+    assertFalse(config.preloadPredicate().test("file.dvd", IOContext.DEFAULT));
+    assertFalse(config.preloadPredicate().test("file.tim", IOContext.DEFAULT));
+    assertFalse(config.preloadPredicate().test("file", IOContext.DEFAULT));
   }
 }

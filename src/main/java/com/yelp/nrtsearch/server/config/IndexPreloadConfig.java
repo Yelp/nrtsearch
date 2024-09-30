@@ -15,16 +15,20 @@
  */
 package com.yelp.nrtsearch.server.config;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiPredicate;
+import org.apache.lucene.store.FileSwitchDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.MMapDirectory;
 
 /** Class containing configuration related to index data preloading. */
 public class IndexPreloadConfig {
+  private static final String CONFIG_PREFIX = "preload.";
   public static final String ALL_EXTENSIONS = "*";
-  public static final IndexPreloadConfig PRELOAD_ALL =
-      new IndexPreloadConfig(true, Collections.singleton(ALL_EXTENSIONS));
   private final boolean preload;
   private final Set<String> extensions;
 
@@ -35,9 +39,10 @@ public class IndexPreloadConfig {
    * @return class instance
    */
   public static IndexPreloadConfig fromConfig(YamlConfigReader configReader) {
-    boolean preload = configReader.getBoolean("preloadIndexData", true);
+    boolean preload = configReader.getBoolean(CONFIG_PREFIX + "enabled", false);
     List<String> preloadExtensions =
-        configReader.getStringList("preloadExtensions", Collections.singletonList(ALL_EXTENSIONS));
+        configReader.getStringList(
+            CONFIG_PREFIX + "extensions", Collections.singletonList(ALL_EXTENSIONS));
     return new IndexPreloadConfig(preload, new HashSet<>(preloadExtensions));
   }
 
@@ -52,18 +57,31 @@ public class IndexPreloadConfig {
     this.extensions = Collections.unmodifiableSet(extensions);
   }
 
-  /** Get if any index data should be preloaded. */
-  public boolean getShouldPreload() {
-    return preload && !extensions.isEmpty();
+  /**
+   * Get predicate to determine if an {@link MMapDirectory} file should be preloaded.
+   *
+   * @return predicate to determine if a file should be preloaded
+   */
+  public BiPredicate<String, IOContext> preloadPredicate() {
+    if (preload) {
+      if (extensions.contains(ALL_EXTENSIONS)) {
+        return MMapDirectory.ALL_FILES;
+      }
+      return (fileName, context) -> {
+        String extension = FileSwitchDirectory.getExtension(fileName);
+        return extensions.contains(extension);
+      };
+    }
+    return MMapDirectory.NO_FILES;
   }
 
-  /** Get if all index files should be preloaded. */
-  public boolean getPreloadAll() {
-    return preload && extensions.contains(ALL_EXTENSIONS);
+  @VisibleForTesting
+  boolean getPreload() {
+    return preload;
   }
 
-  /** Get file extensions that should be preloaded. */
-  public Set<String> getExtensions() {
+  @VisibleForTesting
+  Set<String> getExtensions() {
     return extensions;
   }
 }
