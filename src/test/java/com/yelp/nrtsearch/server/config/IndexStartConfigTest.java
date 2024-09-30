@@ -16,7 +16,6 @@
 package com.yelp.nrtsearch.server.config;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -36,7 +35,7 @@ public class IndexStartConfigTest {
   public void testDefaultConfig() {
     String configFile = "nodeName: \"lucene_server_foo\"";
     IndexStartConfig startConfig = getConfig(configFile);
-    assertFalse(startConfig.getAutoStart());
+    assertTrue(startConfig.getAutoStart());
     assertEquals(Mode.STANDALONE, startConfig.getMode());
     assertEquals("", startConfig.getDiscoveryHost());
     assertEquals(Integer.valueOf(0), startConfig.getDiscoveryPort());
