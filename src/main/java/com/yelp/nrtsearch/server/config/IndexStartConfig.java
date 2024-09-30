@@ -43,7 +43,7 @@ public class IndexStartConfig {
    */
   public static IndexStartConfig fromConfig(YamlConfigReader configReader) {
     Objects.requireNonNull(configReader);
-    boolean autoStart = configReader.getBoolean(CONFIG_PREFIX + "autoStart", false);
+    boolean autoStart = configReader.getBoolean(CONFIG_PREFIX + "autoStart", true);
     Mode mode = Mode.valueOf(configReader.getString(CONFIG_PREFIX + "mode", "STANDALONE"));
     String discoveryHost =
         configReader.getString(CONFIG_PREFIX + PRIMARY_DISCOVERY_PREFIX + "host", "");
