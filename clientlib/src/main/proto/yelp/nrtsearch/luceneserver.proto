@@ -576,7 +576,7 @@ message Field {
     optional int32 positionIncrementGap = 35;
     // For arrays of strings, ignoreAbove will be applied for each array element separately and string elements longer than ignore_above will not be indexed or stored.
     // This option is also useful for protecting against Lucene’s term byte-length limit of 32766
-    int32 ignoreAbove = 36;
+    optional int32 ignoreAbove = 36;
 }
 
 // Vector field element type
