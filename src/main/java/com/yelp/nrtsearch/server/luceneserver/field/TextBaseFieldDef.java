@@ -62,6 +62,7 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
 
   public final Map<IndexReader.CacheKey, GlobalOrdinalLookup> ordinalLookupCache = new HashMap<>();
   private final Object ordinalBuilderLock = new Object();
+  private final int ignoreAbove;
 
   /**
    * Field constructor. Uses {@link IndexableFieldDef#IndexableFieldDef(String, Field)} to do common
@@ -76,6 +77,7 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
     indexAnalyzer = parseIndexAnalyzer(requestField);
     searchAnalyzer = parseSearchAnalyzer(requestField);
     eagerFieldGlobalOrdinals = requestField.getEagerFieldGlobalOrdinals();
+    ignoreAbove = requestField.hasIgnoreAbove() ? requestField.getIgnoreAbove() : Integer.MAX_VALUE;
   }
 
   @Override
@@ -236,18 +238,20 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
         BytesRef stringBytes = new BytesRef(fieldStr);
         if (docValuesType == DocValuesType.BINARY) {
           document.add(new BinaryDocValuesField(getName(), stringBytes));
-        } else if (docValuesType == DocValuesType.SORTED) {
-          document.add(new SortedDocValuesField(getName(), stringBytes));
-        } else if (docValuesType == DocValuesType.SORTED_SET) {
-          document.add(new SortedSetDocValuesField(getName(), stringBytes));
-        } else {
-          throw new IllegalArgumentException(
-              String.format(
-                  "Unsupported doc value type %s for field %s", docValuesType, this.getName()));
+        } else if (fieldStr.length() <= ignoreAbove) {
+          if (docValuesType == DocValuesType.SORTED) {
+            document.add(new SortedDocValuesField(getName(), stringBytes));
+          } else if (docValuesType == DocValuesType.SORTED_SET) {
+            document.add(new SortedSetDocValuesField(getName(), stringBytes));
+          } else {
+            throw new IllegalArgumentException(
+                String.format(
+                    "Unsupported doc value type %s for field %s", docValuesType, this.getName()));
+          }
         }
       }
 
-      if (isStored() || isSearchable()) {
+      if ((isStored() || isSearchable()) && fieldStr.length() <= ignoreAbove) {
         document.add(new FieldWithData(getName(), fieldType, fieldStr));
       }
 
