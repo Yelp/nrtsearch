@@ -57,8 +57,8 @@ public class ExistsQueryTest extends ServerTestCase {
             .setIndexName(name)
             .putFields("id", MultiValuedField.newBuilder().addValue("1").build())
             .putFields("name", MultiValuedField.newBuilder().addValue("").build())
-            .putFields("pickup_partners", MultiValuedField.newBuilder().addValue("[]").build())
-            .putFields("delivery_areas", MultiValuedField.newBuilder().addValue("[]").build())
+            .putFields("pickup_partners", MultiValuedField.newBuilder().addValue("{}").build())
+            .putFields("delivery_areas", MultiValuedField.newBuilder().addValue("{}").build())
             .build();
 
     // Should match all exists queries

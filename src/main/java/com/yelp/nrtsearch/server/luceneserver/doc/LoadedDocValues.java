@@ -20,8 +20,6 @@ import static org.apache.lucene.util.ArrayUtil.oversize;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.ListValue;
 import com.google.protobuf.Struct;
-import com.google.protobuf.Value;
-import com.google.protobuf.util.JsonFormat;
 import com.google.type.LatLng;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
@@ -37,7 +35,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.LongFunction;
-import java.util.stream.Collectors;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.ArrayUtil;
@@ -752,39 +749,36 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
   }
 
-  public static final class ObjectJsonDocValues extends LoadedDocValues<Struct> {
+  public static final class ObjectStructDocValues extends LoadedDocValues<Struct> {
     private final BinaryDocValues docValues;
-    private List<Struct> value;
+    private final List<Struct> value = new ArrayList<>();
 
-    public ObjectJsonDocValues(BinaryDocValues docValues) {
+    public ObjectStructDocValues(BinaryDocValues docValues) {
       this.docValues = docValues;
     }
 
     @Override
     public void setDocId(int docID) throws IOException {
+      value.clear();
       if (docValues.advanceExact(docID)) {
-        String jsonString = STRING_DECODER.apply(docValues.binaryValue());
-        ListValue.Builder builder = ListValue.newBuilder();
-        JsonFormat.parser().merge(jsonString, builder);
-        value =
-            builder.getValuesList().stream()
-                .map(Value::getStructValue)
-                .collect(Collectors.toList());
-      } else {
-        value = null;
+        BytesRef bytesRef = docValues.binaryValue();
+        ListValue listValue =
+            ListValue.parser().parseFrom(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        for (int i = 0; i < listValue.getValuesCount(); ++i) {
+          value.add(listValue.getValues(i).getStructValue());
+        }
       }
     }
 
     @Override
     public Struct get(int index) {
-      if (value == null) {
+      if (value.isEmpty()) {
         throw new IllegalStateException("No doc values for document");
       }
-      try {
-        return value.get(index);
-      } catch (IndexOutOfBoundsException e) {
-        throw new RuntimeException(e);
+      if (index < 0 || index >= value.size()) {
+        throw new IndexOutOfBoundsException("No doc value for index: " + index);
       }
+      return value.get(index);
     }
 
     public Struct getValue() {
@@ -799,7 +793,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
 
     @Override
     public int size() {
-      return value == null ? 0 : value.size();
+      return value.size();
     }
   }
 
