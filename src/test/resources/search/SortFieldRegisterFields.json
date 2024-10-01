@@ -4,7 +4,8 @@
     {
       "name": "doc_id",
       "type": "ATOM",
-      "storeDocValues": true
+      "storeDocValues": true,
+      "group": true
     },
     {
       "name": "int_field",

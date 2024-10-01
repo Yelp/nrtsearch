@@ -31,6 +31,7 @@ import java.util.function.BiFunction;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.BytesRef;
 
 /**
  * Class to handle creation of a {@link Sort} used to sort documents by field values for queries.
@@ -195,7 +196,11 @@ public class SortParser {
         break;
       case STRING:
       case STRING_VAL:
-        fieldValue.setTextValue((String) sortValue);
+        if (sortValue instanceof BytesRef) {
+          fieldValue.setTextValue(((BytesRef) sortValue).utf8ToString());
+        } else {
+          fieldValue.setTextValue((String) sortValue);
+        }
         break;
       case CUSTOM:
         // could be anything, try to determine from value class
