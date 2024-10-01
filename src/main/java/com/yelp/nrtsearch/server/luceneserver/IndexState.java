@@ -85,7 +85,6 @@ public abstract class IndexState implements Closeable {
 
   private static final Pattern reSimpleName = Pattern.compile("^[a-zA-Z_][a-zA-Z_0-9]*$");
   private final ThreadPoolExecutor searchThreadPoolExecutor;
-  private final ExecutorService fetchThreadPoolExecutor;
   private Warmer warmer = null;
 
   /** The meta field definitions */
@@ -96,6 +95,20 @@ public abstract class IndexState implements Closeable {
    * com.yelp.nrtsearch.server.luceneserver.doc.SegmentDocLookup} for a given lucene segment.
    */
   public final DocLookup docLookup = new DocLookup(this, this::getField);
+
+  /**
+   * Holds the configuration for parallel fetch operations.
+   *
+   * @param maxParallelism maximum number of parallel fetch operations
+   * @param parallelFetchByField if true, fetches are parallelized by field instead of by document
+   * @param parallelFetchChunkSize number of documents/fields in each parallel fetch operation
+   * @param fetchExecutor executor service for parallel fetch operations
+   */
+  public record ParallelFetchConfig(
+      int maxParallelism,
+      boolean parallelFetchByField,
+      int parallelFetchChunkSize,
+      ExecutorService fetchExecutor) {}
 
   /** Search-time analyzer. */
   public final Analyzer searchAnalyzer =
@@ -223,7 +236,6 @@ public abstract class IndexState implements Closeable {
     }
 
     searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
-    fetchThreadPoolExecutor = globalState.getFetchService();
   }
 
   /** Get index name. */
@@ -272,11 +284,6 @@ public abstract class IndexState implements Closeable {
   /** Get thread pool to use for search operations. */
   public ThreadPoolExecutor getSearchThreadPoolExecutor() {
     return searchThreadPoolExecutor;
-  }
-
-  /** Get thread pool to use for parallel fetch operations. */
-  public ExecutorService getFetchThreadPoolExecutor() {
-    return fetchThreadPoolExecutor;
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
@@ -373,6 +380,13 @@ public abstract class IndexState implements Closeable {
   public abstract Set<String> getInternalFacetFieldNames();
 
   public abstract FacetsConfig getFacetsConfig();
+
+  /**
+   * Get configuration for parallel fetch for this index.
+   *
+   * @return configuration for parallel fetch
+   */
+  public abstract ParallelFetchConfig getParallelFetchConfig();
 
   /**
    * Get shard state.

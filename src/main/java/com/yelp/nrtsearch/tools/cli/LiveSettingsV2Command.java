@@ -118,6 +118,17 @@ public class LiveSettingsV2Command implements Callable<Integer> {
   private String verboseMetrics;
 
   @CommandLine.Option(
+      names = {"--parallelFetchByField"},
+      description =
+          "If fetch parallelism should be done by groups of fields instead of document, must be 'true' or 'false'")
+  private String parallelFetchByField;
+
+  @CommandLine.Option(
+      names = {"--parallelFetchChunkSize"},
+      description = "The number of documents/fields per parallel fetch task")
+  private Integer parallelFetchChunkSize;
+
+  @CommandLine.Option(
       names = {"--local"},
       description =
           "Applies changes ephemerally to local node only. Response contains local settings only when this flag is used.")
@@ -188,6 +199,14 @@ public class LiveSettingsV2Command implements Callable<Integer> {
       if (verboseMetrics != null) {
         liveSettingsBuilder.setVerboseMetrics(
             BoolValue.newBuilder().setValue(parseBoolean(verboseMetrics)).build());
+      }
+      if (parallelFetchByField != null) {
+        liveSettingsBuilder.setParallelFetchByField(
+            BoolValue.newBuilder().setValue(parseBoolean(parallelFetchByField)).build());
+      }
+      if (parallelFetchChunkSize != null) {
+        liveSettingsBuilder.setParallelFetchChunkSize(
+            Int32Value.newBuilder().setValue(parallelFetchChunkSize).build());
       }
 
       IndexLiveSettings indexLiveSettings = liveSettingsBuilder.build();
