@@ -16,10 +16,10 @@
 package com.yelp.nrtsearch.server.luceneserver.field;
 
 import static com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator.hasAnalyzer;
+import static com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef.bytesRefToStruct;
+import static com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef.jsonToStruct;
 
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Struct;
-import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.GeoPointQuery;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -82,13 +82,13 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
           .forEach(x -> document.add(x));
 
       if (isStored()) {
-        document.add(new StoredField(this.getName(), fieldValue));
+        document.add(new StoredField(this.getName(), jsonToStruct(fieldValue).toByteArray()));
       }
     }
     if (hasDocValues()) {
       document.add(
           new BinaryDocValuesField(
-              getName(), new BytesRef(ObjectFieldDef.wrapJsonStringList(fieldValues))));
+              getName(), new BytesRef(ObjectFieldDef.jsonToStructList(fieldValues).toByteArray())));
     }
   }
 
@@ -101,7 +101,7 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
   public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.BINARY) {
       BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
-      return new LoadedDocValues.ObjectJsonDocValues(binaryDocValues);
+      return new LoadedDocValues.ObjectStructDocValues(binaryDocValues);
     }
     throw new IllegalStateException(
         String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
@@ -109,13 +109,8 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
 
   @Override
   public SearchResponse.Hit.FieldValue getStoredFieldValue(StoredValue value) {
-    Struct.Builder builder = Struct.newBuilder();
-    try {
-      JsonFormat.parser().merge(value.getStringValue(), builder);
-    } catch (InvalidProtocolBufferException e) {
-      throw new RuntimeException(e);
-    }
-    return SearchResponse.Hit.FieldValue.newBuilder().setStructValue(builder.build()).build();
+    Struct struct = bytesRefToStruct(value.getBinaryValue());
+    return SearchResponse.Hit.FieldValue.newBuilder().setStructValue(struct).build();
   }
 
   @Override

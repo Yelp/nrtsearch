@@ -18,7 +18,9 @@ package com.yelp.nrtsearch.server.luceneserver.field;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.ListValue;
 import com.google.protobuf.Struct;
+import com.google.protobuf.Value;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -105,12 +107,13 @@ public class ObjectFieldDef extends IndexableFieldDef {
     fieldValues.stream().map(e -> gson.fromJson(e, Map.class)).forEach(e -> fieldValueMaps.add(e));
     if (isStored()) {
       for (String fieldValue : fieldValues) {
-        document.add(new StoredField(this.getName(), fieldValue));
+        document.add(new StoredField(this.getName(), jsonToStruct(fieldValue).toByteArray()));
       }
     }
     if (hasDocValues()) {
       document.add(
-          new BinaryDocValuesField(getName(), new BytesRef(wrapJsonStringList(fieldValues))));
+          new BinaryDocValuesField(
+              getName(), new BytesRef(jsonToStructList(fieldValues).toByteArray())));
     }
     parseFieldWithChildrenObject(document, fieldValueMaps, facetHierarchyPaths);
   }
@@ -177,7 +180,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
   public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.BINARY) {
       BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
-      return new LoadedDocValues.ObjectJsonDocValues(binaryDocValues);
+      return new LoadedDocValues.ObjectStructDocValues(binaryDocValues);
     }
     throw new IllegalStateException(
         String.format("Unsupported doc value type %s for field %s", docValuesType, this.getName()));
@@ -185,26 +188,52 @@ public class ObjectFieldDef extends IndexableFieldDef {
 
   @Override
   public SearchResponse.Hit.FieldValue getStoredFieldValue(StoredValue value) {
-    Struct.Builder builder = Struct.newBuilder();
-    try {
-      JsonFormat.parser().merge(value.getStringValue(), builder);
-    } catch (InvalidProtocolBufferException e) {
-      throw new RuntimeException(e);
-    }
-    return SearchResponse.Hit.FieldValue.newBuilder().setStructValue(builder.build()).build();
+    Struct struct = bytesRefToStruct(value.getBinaryValue());
+    return SearchResponse.Hit.FieldValue.newBuilder().setStructValue(struct).build();
   }
 
   /**
-   * wrap list of json string to a single string
+   * Convert list of json object strings to protobuf {@link ListValue} of {@link Struct} values.
    *
-   * @param jsonStringList
-   * @return
+   * @param jsonStringList list of json strings
+   * @return protobuf list of struct values
    */
-  public static String wrapJsonStringList(List<String> jsonStringList) {
-    StringBuilder sb = new StringBuilder();
-    sb.append("[");
-    sb.append(String.join(",", jsonStringList));
-    sb.append("]");
-    return sb.toString();
+  public static ListValue jsonToStructList(List<String> jsonStringList) {
+    ListValue.Builder listValueBuilder = ListValue.newBuilder();
+    for (String jsonString : jsonStringList) {
+      listValueBuilder.addValues(
+          Value.newBuilder().setStructValue(jsonToStruct(jsonString)).build());
+    }
+    return listValueBuilder.build();
+  }
+
+  /**
+   * Convert json object string to protobuf {@link Struct}.
+   *
+   * @param jsonString json string
+   * @return protobuf struct
+   */
+  public static Struct jsonToStruct(String jsonString) {
+    Struct.Builder structBuilder = Struct.newBuilder();
+    try {
+      JsonFormat.parser().merge(jsonString, structBuilder);
+    } catch (InvalidProtocolBufferException e) {
+      throw new RuntimeException(e);
+    }
+    return structBuilder.build();
+  }
+
+  /**
+   * Parse {@link BytesRef} containing a serialized {@link Struct}.
+   *
+   * @param bytesRef bytes ref
+   * @return parsed struct
+   */
+  public static Struct bytesRefToStruct(BytesRef bytesRef) {
+    try {
+      return Struct.parser().parseFrom(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    } catch (InvalidProtocolBufferException e) {
+      throw new RuntimeException(e);
+    }
   }
 }
