@@ -18,7 +18,6 @@ package com.yelp.nrtsearch.server.luceneserver.handler;
 import com.google.protobuf.GeneratedMessageV3;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.LuceneServerStubBuilder;
-import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
@@ -27,7 +26,11 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Abstract class for handlers that process requests and produce responses or provide a handler for
- * streaming responses
+ * streaming responses. For a gRPC method x, create a class xHandler that extends Handler. Override
+ * the {@link #handle(StreamObserver)} method for streaming responses, or the {@link
+ * #handle(GeneratedMessageV3, StreamObserver)} method for unary responses. Initialize the handler
+ * in {@link com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl} and call the appropriate
+ * method on the handler in the gRPC call.
  *
  * @param <T> Request type
  * @param <S> Response type
@@ -43,10 +46,6 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
 
   protected GlobalState getGlobalState() {
     return globalState;
-  }
-
-  protected boolean isValidMagicHeader(int magicHeader) {
-    return magicHeader == ReplicationServerClient.BINARY_MAGIC;
   }
 
   public void handle(T protoRequest, StreamObserver<S> responseObserver) {
