@@ -18,16 +18,50 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.google.gson.JsonObject;
 import com.yelp.nrtsearch.server.grpc.StateRequest;
 import com.yelp.nrtsearch.server.grpc.StateResponse;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class GetStateHandler implements Handler<StateRequest, StateResponse> {
-  Logger logger = LoggerFactory.getLogger(GetStateHandler.class);
+// TODO: rename to StateHandler
+public class GetStateHandler extends Handler<StateRequest, StateResponse> {
+  private static final Logger logger = LoggerFactory.getLogger(GetStateHandler.class);
+  private static GetStateHandler instance;
+
+  public GetStateHandler(GlobalState globalState) {
+    super(globalState);
+  }
+
+  public static void initialize(GlobalState globalState) {
+    instance = new GetStateHandler(globalState);
+  }
+
+  public static GetStateHandler getInstance() {
+    return instance;
+  }
 
   @Override
-  public StateResponse handle(IndexState indexState, StateRequest stateRequest)
-      throws HandlerException {
+  public void handle(StateRequest request, StreamObserver<StateResponse> responseObserver) {
+    try {
+      IndexState indexState = getGlobalState().getIndex(request.getIndexName());
+      StateResponse reply = handle(indexState);
+      logger.debug("GetStateHandler returned " + reply);
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      logger.warn("error while trying to get state for index " + request.getIndexName(), e);
+      responseObserver.onError(
+          Status.INVALID_ARGUMENT
+              .withDescription(
+                  "error while trying to get state for index " + request.getIndexName())
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private StateResponse handle(IndexState indexState) throws HandlerException {
     StateResponse.Builder builder = StateResponse.newBuilder();
     JsonObject savedState = new JsonObject();
     try {

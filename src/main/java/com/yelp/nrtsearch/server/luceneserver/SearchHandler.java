@@ -17,6 +17,8 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat.Printer;
 import com.yelp.nrtsearch.server.grpc.DeadlineUtils;
 import com.yelp.nrtsearch.server.grpc.FacetResult;
 import com.yelp.nrtsearch.server.grpc.ProfileResult;
@@ -36,6 +38,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.RuntimeFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
 import com.yelp.nrtsearch.server.luceneserver.innerhit.InnerHitFetchTask;
 import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreTask;
 import com.yelp.nrtsearch.server.luceneserver.script.RuntimeScript;
@@ -46,7 +49,11 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.utils.ObjectToCompositeFieldTransformer;
+import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
 import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -66,15 +73,20 @@ import org.apache.lucene.search.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
+public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   private static final ExecutorService DIRECT_EXECUTOR = MoreExecutors.newDirectExecutorService();
+  private static final Printer protoMessagePrinter =
+      ProtoMessagePrinter.omittingInsignificantWhitespace();
+  private static SearchHandler instance;
 
   private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
   private final ThreadPoolExecutor threadPoolExecutor;
   private final boolean warming;
 
-  public SearchHandler(ThreadPoolExecutor threadPoolExecutor) {
-    this(threadPoolExecutor, false);
+  public SearchHandler(GlobalState globalState, ThreadPoolExecutor threadPoolExecutor) {
+    super(globalState);
+    this.threadPoolExecutor = threadPoolExecutor;
+    this.warming = false;
   }
 
   /**
@@ -82,11 +94,72 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
    * @param warming set to true if we are warming the index right now
    */
   public SearchHandler(ThreadPoolExecutor threadPoolExecutor, boolean warming) {
+    super(null);
     this.threadPoolExecutor = threadPoolExecutor;
     this.warming = warming;
   }
 
+  public static void initialize(GlobalState globalState, ThreadPoolExecutor threadPoolExecutor) {
+    instance = new SearchHandler(globalState, threadPoolExecutor);
+  }
+
+  public static SearchHandler getInstance() {
+    return instance;
+  }
+
   @Override
+  public void handle(SearchRequest searchRequest, StreamObserver<SearchResponse> responseObserver) {
+    try {
+      SearchResponse reply = getSearchResponse(searchRequest);
+      setResponseCompression(searchRequest.getResponseCompression(), responseObserver);
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (IOException e) {
+      logger.warn(
+          "error while trying to read index state dir for indexName: {}",
+          searchRequest.getIndexName(),
+          e);
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription(
+                  "error while trying to read index state dir for indexName: "
+                      + searchRequest.getIndexName())
+              .augmentDescription(e.getMessage())
+              .withCause(e)
+              .asRuntimeException());
+    } catch (Exception e) {
+      String searchRequestJson = null;
+      try {
+        searchRequestJson = protoMessagePrinter.print(searchRequest);
+      } catch (InvalidProtocolBufferException ignored) {
+        // Ignore as invalid proto would have thrown an exception earlier
+      }
+      logger.warn(
+          "error while trying to execute search for index {}: request: {}",
+          searchRequest.getIndexName(),
+          searchRequestJson,
+          e);
+      if (e instanceof StatusRuntimeException) {
+        responseObserver.onError(e);
+      } else {
+        responseObserver.onError(
+            Status.UNKNOWN
+                .withDescription(
+                    String.format(
+                        "error while trying to execute search for index %s. check logs for full searchRequest.",
+                        searchRequest.getIndexName()))
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
+    }
+  }
+
+  public SearchResponse getSearchResponse(SearchRequest searchRequest)
+      throws IOException, SearchHandlerException {
+    IndexState indexState = getGlobalState().getIndex(searchRequest.getIndexName());
+    return handle(indexState, searchRequest);
+  }
+
   public SearchResponse handle(IndexState indexState, SearchRequest searchRequest)
       throws SearchHandlerException {
     // this request may have been waiting in the grpc queue too long

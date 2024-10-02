@@ -17,16 +17,51 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.DeleteIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DeleteIndexResponse;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DeleteIndexHandler implements Handler<DeleteIndexRequest, DeleteIndexResponse> {
+public class DeleteIndexHandler extends Handler<DeleteIndexRequest, DeleteIndexResponse> {
   private static final Logger logger = LoggerFactory.getLogger(DeleteIndexHandler.class.getName());
+  private static DeleteIndexHandler instance;
+
+  public DeleteIndexHandler(GlobalState globalState) {
+    super(globalState);
+  }
+
+  public static void initialize(GlobalState globalState) {
+    instance = new DeleteIndexHandler(globalState);
+  }
+
+  public static DeleteIndexHandler getInstance() {
+    return instance;
+  }
 
   @Override
-  public DeleteIndexResponse handle(IndexState indexState, DeleteIndexRequest protoRequest)
-      throws DeleteIndexHandlerException {
+  public void handle(
+      DeleteIndexRequest deleteIndexRequest, StreamObserver<DeleteIndexResponse> responseObserver) {
+    logger.info("Received delete index request: {}", deleteIndexRequest);
+    try {
+      IndexState indexState = getGlobalState().getIndex(deleteIndexRequest.getIndexName());
+      DeleteIndexResponse reply = handle(indexState);
+      logger.info("DeleteIndexHandler returned " + reply);
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      logger.warn("error while trying to delete index " + deleteIndexRequest.getIndexName(), e);
+      responseObserver.onError(
+          Status.INVALID_ARGUMENT
+              .withDescription(
+                  "error while trying to delete index: " + deleteIndexRequest.getIndexName())
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private DeleteIndexResponse handle(IndexState indexState) throws DeleteIndexHandlerException {
     try {
       indexState.getGlobalState().deleteIndex(indexState.getName());
       indexState.deleteIndex();

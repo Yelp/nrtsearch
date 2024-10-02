@@ -16,18 +16,57 @@
 package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.*;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class DeleteAllDocumentsHandler
-    implements Handler<DeleteAllDocumentsRequest, DeleteAllDocumentsResponse> {
+    extends Handler<DeleteAllDocumentsRequest, DeleteAllDocumentsResponse> {
   private static final Logger logger =
       LoggerFactory.getLogger(DeleteAllDocumentsHandler.class.getName());
+  private static DeleteAllDocumentsHandler instance;
+
+  public DeleteAllDocumentsHandler(GlobalState globalState) {
+    super(globalState);
+  }
+
+  public static void initialize(GlobalState globalState) {
+    instance = new DeleteAllDocumentsHandler(globalState);
+  }
+
+  public static DeleteAllDocumentsHandler getInstance() {
+    return instance;
+  }
 
   @Override
-  public DeleteAllDocumentsResponse handle(
-      IndexState indexState, DeleteAllDocumentsRequest deleteAllDocumentsRequest)
+  public void handle(
+      DeleteAllDocumentsRequest deleteAllDocumentsRequest,
+      StreamObserver<DeleteAllDocumentsResponse> responseObserver) {
+    logger.info("Received delete all documents request: {}", deleteAllDocumentsRequest);
+    try {
+      IndexState indexState = getGlobalState().getIndex(deleteAllDocumentsRequest.getIndexName());
+      DeleteAllDocumentsResponse reply = handle(indexState);
+      logger.info("DeleteAllDocumentsHandler returned " + reply);
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      logger.warn(
+          "error while trying to deleteAll for index " + deleteAllDocumentsRequest.getIndexName(),
+          e);
+      responseObserver.onError(
+          Status.INVALID_ARGUMENT
+              .withDescription(
+                  "error while trying to deleteAll for index: "
+                      + deleteAllDocumentsRequest.getIndexName())
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private DeleteAllDocumentsResponse handle(IndexState indexState)
       throws DeleteAllDocumentsHandlerException {
     final ShardState shardState = indexState.getShard(0);
     indexState.verifyStarted();

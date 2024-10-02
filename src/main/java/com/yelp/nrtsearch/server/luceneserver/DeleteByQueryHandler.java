@@ -17,6 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
 import com.yelp.nrtsearch.server.grpc.DeleteByQueryRequest;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -24,12 +27,49 @@ import org.apache.lucene.search.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DeleteByQueryHandler implements Handler<DeleteByQueryRequest, AddDocumentResponse> {
+public class DeleteByQueryHandler extends Handler<DeleteByQueryRequest, AddDocumentResponse> {
   private static final Logger logger = LoggerFactory.getLogger(DeleteByQueryHandler.class);
+  private static DeleteByQueryHandler instance;
   private final QueryNodeMapper queryNodeMapper = QueryNodeMapper.getInstance();
 
+  public DeleteByQueryHandler(GlobalState globalState) {
+    super(globalState);
+  }
+
+  public static void initialize(GlobalState globalState) {
+    instance = new DeleteByQueryHandler(globalState);
+  }
+
+  public static DeleteByQueryHandler getInstance() {
+    return instance;
+  }
+
   @Override
-  public AddDocumentResponse handle(
+  public void handle(
+      DeleteByQueryRequest deleteByQueryRequest,
+      StreamObserver<AddDocumentResponse> responseObserver) {
+    try {
+      IndexState indexState = getGlobalState().getIndex(deleteByQueryRequest.getIndexName());
+      AddDocumentResponse reply = handle(indexState, deleteByQueryRequest);
+      logger.debug("DeleteDocumentsHandler returned " + reply.toString());
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      logger.warn(
+          "Error while trying to delete documents from index: {}",
+          deleteByQueryRequest.getIndexName(),
+          e);
+      responseObserver.onError(
+          Status.INVALID_ARGUMENT
+              .withDescription(
+                  "Error while trying to delete documents from index: "
+                      + deleteByQueryRequest.getIndexName())
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private AddDocumentResponse handle(
       IndexState indexState, DeleteByQueryRequest deleteByQueryRequest)
       throws DeleteByQueryHandlerException {
     final ShardState shardState = indexState.getShard(0);

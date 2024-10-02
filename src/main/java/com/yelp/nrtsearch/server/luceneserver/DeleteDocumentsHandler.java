@@ -18,6 +18,9 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.google.protobuf.ProtocolStringList;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,12 +29,49 @@ import org.apache.lucene.index.Term;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DeleteDocumentsHandler implements Handler<AddDocumentRequest, AddDocumentResponse> {
+public class DeleteDocumentsHandler extends Handler<AddDocumentRequest, AddDocumentResponse> {
   private static final Logger logger =
       LoggerFactory.getLogger(DeleteDocumentsHandler.class.getName());
+  private static DeleteDocumentsHandler instance;
+
+  public DeleteDocumentsHandler(GlobalState globalState) {
+    super(globalState);
+  }
+
+  public static void initialize(GlobalState globalState) {
+    instance = new DeleteDocumentsHandler(globalState);
+  }
+
+  public static DeleteDocumentsHandler getInstance() {
+    return instance;
+  }
 
   @Override
-  public AddDocumentResponse handle(IndexState indexState, AddDocumentRequest addDocumentRequest)
+  public void handle(
+      AddDocumentRequest addDocumentRequest, StreamObserver<AddDocumentResponse> responseObserver) {
+    try {
+      IndexState indexState = getGlobalState().getIndex(addDocumentRequest.getIndexName());
+      AddDocumentResponse reply = handleInternal(indexState, addDocumentRequest);
+      logger.debug("DeleteDocumentsHandler returned {}", reply);
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      logger.error(
+          "error while trying to delete documents for index {}",
+          addDocumentRequest.getIndexName(),
+          e);
+      responseObserver.onError(
+          Status.INVALID_ARGUMENT
+              .withDescription(
+                  "error while trying to delete documents for index: "
+                      + addDocumentRequest.getIndexName())
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private AddDocumentResponse handleInternal(
+      IndexState indexState, AddDocumentRequest addDocumentRequest)
       throws DeleteDocumentsHandlerException {
     final ShardState shardState = indexState.getShard(0);
     indexState.verifyStarted();

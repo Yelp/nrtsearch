@@ -21,6 +21,7 @@ import com.yelp.nrtsearch.server.grpc.ReplicationServerClient.DiscoveryFileAndPo
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler.HandlerException;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
@@ -33,7 +34,9 @@ import org.apache.lucene.index.IndexReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexResponse> {
+// TODO: this class should be called something else to differentiate from the handler for grpc
+// request, or alternatively the call structure needs to be changed
+public class StartIndexHandler {
   private static final Set<String> startingIndices = new HashSet<>();
 
   private final String serviceName;
@@ -69,7 +72,6 @@ public class StartIndexHandler implements Handler<StartIndexRequest, StartIndexR
     this.discoveryFileUpdateIntervalMs = discoveryFileUpdateIntervalMs;
   }
 
-  @Override
   public StartIndexResponse handle(IndexState indexState, StartIndexRequest startIndexRequest)
       throws StartIndexHandlerException {
     String indexName = indexState.getName();
