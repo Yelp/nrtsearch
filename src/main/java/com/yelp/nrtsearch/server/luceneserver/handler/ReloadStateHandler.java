@@ -26,18 +26,9 @@ import org.slf4j.LoggerFactory;
 
 public class ReloadStateHandler extends Handler<ReloadStateRequest, ReloadStateResponse> {
   private static final Logger logger = LoggerFactory.getLogger(ReloadStateHandler.class);
-  private static ReloadStateHandler instance;
 
   public ReloadStateHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new ReloadStateHandler(globalState);
-  }
-
-  public static ReloadStateHandler getInstance() {
-    return instance;
   }
 
   @Override

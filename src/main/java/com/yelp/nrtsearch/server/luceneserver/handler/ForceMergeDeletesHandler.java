@@ -29,18 +29,9 @@ import org.slf4j.LoggerFactory;
 public class ForceMergeDeletesHandler
     extends Handler<ForceMergeDeletesRequest, ForceMergeDeletesResponse> {
   private static final Logger logger = LoggerFactory.getLogger(ForceMergeDeletesHandler.class);
-  private static ForceMergeDeletesHandler instance;
 
   public ForceMergeDeletesHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new ForceMergeDeletesHandler(globalState);
-  }
-
-  public static ForceMergeDeletesHandler getInstance() {
-    return instance;
   }
 
   @Override

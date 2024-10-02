@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.google.gson.JsonParser;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
@@ -34,19 +33,9 @@ import org.slf4j.LoggerFactory;
 
 public class SettingsHandler extends Handler<SettingsRequest, SettingsResponse> {
   private static final Logger logger = LoggerFactory.getLogger(SettingsHandler.class);
-  private static SettingsHandler instance;
-  private final JsonParser jsonParser = new JsonParser();
 
   public SettingsHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new SettingsHandler(globalState);
-  }
-
-  public static SettingsHandler getInstance() {
-    return instance;
   }
 
   @Override
@@ -56,7 +45,7 @@ public class SettingsHandler extends Handler<SettingsRequest, SettingsResponse> 
     try {
       IndexState indexState = getGlobalState().getIndex(settingsRequest.getIndexName());
       SettingsResponse reply = handle(indexState, settingsRequest);
-      logger.info("SettingsHandler returned " + reply.toString());
+      logger.info("SettingsHandler returned " + reply);
       responseObserver.onNext(reply);
       responseObserver.onCompleted();
     } catch (IOException e) {

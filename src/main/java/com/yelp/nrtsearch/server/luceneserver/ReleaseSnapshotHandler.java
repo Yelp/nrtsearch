@@ -27,18 +27,9 @@ import org.slf4j.LoggerFactory;
 public class ReleaseSnapshotHandler
     extends Handler<ReleaseSnapshotRequest, ReleaseSnapshotResponse> {
   private static final Logger logger = LoggerFactory.getLogger(ReleaseSnapshotHandler.class);
-  private static ReleaseSnapshotHandler instance;
 
   public ReleaseSnapshotHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new ReleaseSnapshotHandler(globalState);
-  }
-
-  public static ReleaseSnapshotHandler getInstance() {
-    return instance;
   }
 
   @Override

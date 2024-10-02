@@ -77,15 +77,14 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
   private static final ExecutorService DIRECT_EXECUTOR = MoreExecutors.newDirectExecutorService();
   private static final Printer protoMessagePrinter =
       ProtoMessagePrinter.omittingInsignificantWhitespace();
-  private static SearchHandler instance;
 
   private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
   private final ThreadPoolExecutor threadPoolExecutor;
   private final boolean warming;
 
-  public SearchHandler(GlobalState globalState, ThreadPoolExecutor threadPoolExecutor) {
+  public SearchHandler(GlobalState globalState) {
     super(globalState);
-    this.threadPoolExecutor = threadPoolExecutor;
+    this.threadPoolExecutor = globalState.getSearchThreadPoolExecutor();
     this.warming = false;
   }
 
@@ -97,14 +96,6 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     super(null);
     this.threadPoolExecutor = threadPoolExecutor;
     this.warming = warming;
-  }
-
-  public static void initialize(GlobalState globalState, ThreadPoolExecutor threadPoolExecutor) {
-    instance = new SearchHandler(globalState, threadPoolExecutor);
-  }
-
-  public static SearchHandler getInstance() {
-    return instance;
   }
 
   @Override

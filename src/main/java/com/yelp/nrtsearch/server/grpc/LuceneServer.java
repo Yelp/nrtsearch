@@ -326,8 +326,41 @@ public class LuceneServer {
     private final JsonFormat.Printer protoMessagePrinter =
         JsonFormat.printer().omittingInsignificantWhitespace();
     private final GlobalState globalState;
-    private final PrometheusRegistry prometheusRegistry;
-    private final ThreadPoolExecutor searchThreadPoolExecutor;
+
+    private final AddDocumentHandler addDocumentHandler;
+    private final BackupWarmingQueriesHandler backupWarmingQueriesHandler;
+    private final CommitHandler commitHandler;
+    private final CreateIndexHandler createIndexHandler;
+    private final CreateSnapshotHandler createSnapshotHandler;
+    private final CustomHandler customHandler;
+    private final DeleteAllDocumentsHandler deleteAllDocumentsHandler;
+    private final DeleteByQueryHandler deleteByQueryHandler;
+    private final DeleteDocumentsHandler deleteDocumentsHandler;
+    private final DeleteIndexHandler deleteIndexHandler;
+    private final ForceMergeDeletesHandler forceMergeDeletesHandler;
+    private final ForceMergeHandler forceMergeHandler;
+    private final GetAllSnapshotIndexGenHandler getAllSnapshotIndexGenHandler;
+    private final GetStateHandler getStateHandler;
+    private final GlobalStateHandler globalStateHandler;
+    private final IndicesHandler indicesHandler;
+    private final LiveSettingsHandler liveSettingsHandler;
+    private final LiveSettingsV2Handler liveSettingsV2Handler;
+    private final MetricsHandler metricsHandler;
+    private final ReadyHandler readyHandler;
+    private final RefreshHandler refreshHandler;
+    private final RegisterFieldsHandler registerFieldsHandler;
+    private final ReleaseSnapshotHandler releaseSnapshotHandler;
+    private final ReloadStateHandler reloadStateHandler;
+    private final SearchHandler searchHandler;
+    private final SearchV2Handler searchV2Handler;
+    private final SettingsHandler settingsHandler;
+    private final SettingsV2Handler settingsV2Handler;
+    private final StartIndexHandler startIndexHandler;
+    private final StartIndexV2Handler startIndexV2Handler;
+    private final StatsHandler statsHandler;
+    private final StatusHandler statusHandler;
+    private final StopIndexHandler stopIndexHandler;
+    private final UpdateFieldsHandler updateFieldsHandler;
 
     /**
      * Constructor used with newer state handling. Defers initialization of global state until after
@@ -345,7 +378,6 @@ public class LuceneServer {
         PrometheusRegistry prometheusRegistry,
         List<Plugin> plugins)
         throws IOException {
-      this.prometheusRegistry = prometheusRegistry;
 
       DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
       CompletionPostingsFormatUtil.setCompletionCodecLoadMode(
@@ -356,9 +388,42 @@ public class LuceneServer {
       initExtendableComponents(configuration, plugins);
 
       this.globalState = GlobalState.createState(configuration, remoteBackend);
-      this.searchThreadPoolExecutor = globalState.getSearchThreadPoolExecutor();
 
-      initializeHandlers();
+      // Initialize handlers
+      addDocumentHandler = new AddDocumentHandler(globalState);
+      backupWarmingQueriesHandler = new BackupWarmingQueriesHandler(globalState);
+      commitHandler = new CommitHandler(globalState);
+      createIndexHandler = new CreateIndexHandler(globalState);
+      createSnapshotHandler = new CreateSnapshotHandler(globalState);
+      customHandler = new CustomHandler(globalState);
+      deleteAllDocumentsHandler = new DeleteAllDocumentsHandler(globalState);
+      deleteByQueryHandler = new DeleteByQueryHandler(globalState);
+      deleteDocumentsHandler = new DeleteDocumentsHandler(globalState);
+      deleteIndexHandler = new DeleteIndexHandler(globalState);
+      forceMergeDeletesHandler = new ForceMergeDeletesHandler(globalState);
+      forceMergeHandler = new ForceMergeHandler(globalState);
+      getAllSnapshotIndexGenHandler = new GetAllSnapshotIndexGenHandler(globalState);
+      getStateHandler = new GetStateHandler(globalState);
+      globalStateHandler = new GlobalStateHandler(globalState);
+      indicesHandler = new IndicesHandler(globalState);
+      liveSettingsHandler = new LiveSettingsHandler(globalState);
+      liveSettingsV2Handler = new LiveSettingsV2Handler(globalState);
+      metricsHandler = new MetricsHandler(prometheusRegistry);
+      readyHandler = new ReadyHandler(globalState);
+      refreshHandler = new RefreshHandler(globalState);
+      registerFieldsHandler = new RegisterFieldsHandler(globalState);
+      releaseSnapshotHandler = new ReleaseSnapshotHandler(globalState);
+      reloadStateHandler = new ReloadStateHandler(globalState);
+      searchHandler = new SearchHandler(globalState);
+      searchV2Handler = new SearchV2Handler(globalState, searchHandler);
+      settingsHandler = new SettingsHandler(globalState);
+      settingsV2Handler = new SettingsV2Handler(globalState);
+      startIndexHandler = new StartIndexHandler(globalState);
+      startIndexV2Handler = new StartIndexV2Handler(globalState);
+      statsHandler = new StatsHandler(globalState);
+      statusHandler = new StatusHandler();
+      stopIndexHandler = new StopIndexHandler(globalState);
+      updateFieldsHandler = new UpdateFieldsHandler(globalState);
     }
 
     @VisibleForTesting
@@ -391,43 +456,6 @@ public class LuceneServer {
       SimilarityCreator.initialize(configuration, plugins);
     }
 
-    private void initializeHandlers() {
-      AddDocumentHandler.initialize(globalState);
-      BackupWarmingQueriesHandler.initialize(globalState);
-      CommitHandler.initialize(globalState);
-      CreateIndexHandler.initialize(globalState);
-      CreateSnapshotHandler.initialize(globalState);
-      CustomHandler.initialize(globalState);
-      DeleteAllDocumentsHandler.initialize(globalState);
-      DeleteByQueryHandler.initialize(globalState);
-      DeleteDocumentsHandler.initialize(globalState);
-      DeleteIndexHandler.initialize(globalState);
-      ForceMergeDeletesHandler.initialize(globalState);
-      ForceMergeHandler.initialize(globalState);
-      GetAllSnapshotIndexGenHandler.initialize(globalState);
-      GetStateHandler.initialize(globalState);
-      GlobalStateHandler.initialize(globalState);
-      IndicesHandler.initialize(globalState);
-      LiveSettingsHandler.initialize(globalState);
-      LiveSettingsV2Handler.initialize(globalState);
-      MetricsHandler.initialize(globalState, prometheusRegistry);
-      ReadyHandler.initialize(globalState);
-      RefreshHandler.initialize(globalState);
-      RegisterFieldsHandler.initialize(globalState);
-      ReleaseSnapshotHandler.initialize(globalState);
-      ReloadStateHandler.initialize(globalState);
-      SearchHandler.initialize(globalState, searchThreadPoolExecutor);
-      SearchV2Handler.initialize(globalState);
-      SettingsHandler.initialize(globalState);
-      SettingsV2Handler.initialize(globalState);
-      StartIndexHandler.initialize(globalState);
-      StartIndexV2Handler.initialize(globalState);
-      StatsHandler.initialize(globalState);
-      StatusHandler.initialize(globalState);
-      StopIndexHandler.initialize(globalState);
-      UpdateFieldsHandler.initialize(globalState);
-    }
-
     /** Get the global cluster state. */
     public GlobalState getGlobalState() {
       return globalState;
@@ -436,139 +464,139 @@ public class LuceneServer {
     @Override
     public void createIndex(
         CreateIndexRequest req, StreamObserver<CreateIndexResponse> responseObserver) {
-      CreateIndexHandler.getInstance().handle(req, responseObserver);
+      createIndexHandler.handle(req, responseObserver);
     }
 
     @Override
     public void liveSettings(
         LiveSettingsRequest req, StreamObserver<LiveSettingsResponse> responseObserver) {
-      LiveSettingsHandler.getInstance().handle(req, responseObserver);
+      liveSettingsHandler.handle(req, responseObserver);
     }
 
     @Override
     public void liveSettingsV2(
         LiveSettingsV2Request req, StreamObserver<LiveSettingsV2Response> responseObserver) {
-      LiveSettingsV2Handler.getInstance().handle(req, responseObserver);
+      liveSettingsV2Handler.handle(req, responseObserver);
     }
 
     @Override
     public void registerFields(
         FieldDefRequest fieldDefRequest, StreamObserver<FieldDefResponse> responseObserver) {
-      RegisterFieldsHandler.getInstance().handle(fieldDefRequest, responseObserver);
+      registerFieldsHandler.handle(fieldDefRequest, responseObserver);
     }
 
     @Override
     public void updateFields(
         FieldDefRequest fieldDefRequest, StreamObserver<FieldDefResponse> responseObserver) {
-      UpdateFieldsHandler.getInstance().handle(fieldDefRequest, responseObserver);
+      updateFieldsHandler.handle(fieldDefRequest, responseObserver);
     }
 
     @Override
     public void settings(
         SettingsRequest settingsRequest, StreamObserver<SettingsResponse> responseObserver) {
-      SettingsHandler.getInstance().handle(settingsRequest, responseObserver);
+      settingsHandler.handle(settingsRequest, responseObserver);
     }
 
     @Override
     public void settingsV2(
         SettingsV2Request settingsRequest, StreamObserver<SettingsV2Response> responseObserver) {
-      SettingsV2Handler.getInstance().handle(settingsRequest, responseObserver);
+      settingsV2Handler.handle(settingsRequest, responseObserver);
     }
 
     @Override
     public void startIndex(
         StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
-      StartIndexHandler.getInstance().handle(startIndexRequest, responseObserver);
+      startIndexHandler.handle(startIndexRequest, responseObserver);
     }
 
     @Override
     public void startIndexV2(
         StartIndexV2Request startIndexRequest,
         StreamObserver<StartIndexResponse> responseObserver) {
-      StartIndexV2Handler.getInstance().handle(startIndexRequest, responseObserver);
+      startIndexV2Handler.handle(startIndexRequest, responseObserver);
     }
 
     @Override
     public StreamObserver<AddDocumentRequest> addDocuments(
         StreamObserver<AddDocumentResponse> responseObserver) {
-      return AddDocumentHandler.getInstance().handle(responseObserver);
+      return addDocumentHandler.handle(responseObserver);
     }
 
     @Override
     public void refresh(
         RefreshRequest refreshRequest,
         StreamObserver<RefreshResponse> refreshResponseStreamObserver) {
-      RefreshHandler.getInstance().handle(refreshRequest, refreshResponseStreamObserver);
+      refreshHandler.handle(refreshRequest, refreshResponseStreamObserver);
     }
 
     @Override
     public void commit(
         CommitRequest commitRequest, StreamObserver<CommitResponse> commitResponseStreamObserver) {
-      CommitHandler.getInstance().handle(commitRequest, commitResponseStreamObserver);
+      commitHandler.handle(commitRequest, commitResponseStreamObserver);
     }
 
     @Override
     public void stats(
         StatsRequest statsRequest, StreamObserver<StatsResponse> statsResponseStreamObserver) {
-      StatsHandler.getInstance().handle(statsRequest, statsResponseStreamObserver);
+      statsHandler.handle(statsRequest, statsResponseStreamObserver);
     }
 
     @Override
     public void search(
         SearchRequest searchRequest, StreamObserver<SearchResponse> responseObserver) {
-      SearchHandler.getInstance().handle(searchRequest, responseObserver);
+      searchHandler.handle(searchRequest, responseObserver);
     }
 
     @Override
     public void searchV2(
         SearchRequest searchRequest, StreamObserver<Any> searchResponseStreamObserver) {
-      SearchV2Handler.getInstance().handle(searchRequest, searchResponseStreamObserver);
+      searchV2Handler.handle(searchRequest, searchResponseStreamObserver);
     }
 
     @Override
     public void delete(
         AddDocumentRequest addDocumentRequest,
         StreamObserver<AddDocumentResponse> responseObserver) {
-      DeleteDocumentsHandler.getInstance().handle(addDocumentRequest, responseObserver);
+      deleteDocumentsHandler.handle(addDocumentRequest, responseObserver);
     }
 
     @Override
     public void deleteByQuery(
         DeleteByQueryRequest deleteByQueryRequest,
         StreamObserver<AddDocumentResponse> responseObserver) {
-      DeleteByQueryHandler.getInstance().handle(deleteByQueryRequest, responseObserver);
+      deleteByQueryHandler.handle(deleteByQueryRequest, responseObserver);
     }
 
     @Override
     public void deleteAll(
         DeleteAllDocumentsRequest deleteAllDocumentsRequest,
         StreamObserver<DeleteAllDocumentsResponse> responseObserver) {
-      DeleteAllDocumentsHandler.getInstance().handle(deleteAllDocumentsRequest, responseObserver);
+      deleteAllDocumentsHandler.handle(deleteAllDocumentsRequest, responseObserver);
     }
 
     @Override
     public void deleteIndex(
         DeleteIndexRequest deleteIndexRequest,
         StreamObserver<DeleteIndexResponse> responseObserver) {
-      DeleteIndexHandler.getInstance().handle(deleteIndexRequest, responseObserver);
+      deleteIndexHandler.handle(deleteIndexRequest, responseObserver);
     }
 
     @Override
     public void stopIndex(
         StopIndexRequest stopIndexRequest, StreamObserver<DummyResponse> responseObserver) {
-      StopIndexHandler.getInstance().handle(stopIndexRequest, responseObserver);
+      stopIndexHandler.handle(stopIndexRequest, responseObserver);
     }
 
     @Override
     public void reloadState(
         ReloadStateRequest request, StreamObserver<ReloadStateResponse> responseObserver) {
-      ReloadStateHandler.getInstance().handle(request, responseObserver);
+      reloadStateHandler.handle(request, responseObserver);
     }
 
     @Override
     public void status(
         HealthCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
-      StatusHandler.getInstance().handle(request, responseObserver);
+      statusHandler.handle(request, responseObserver);
     }
 
     /**
@@ -579,74 +607,74 @@ public class LuceneServer {
     @Override
     public void ready(
         ReadyCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
-      ReadyHandler.getInstance().handle(request, responseObserver);
+      readyHandler.handle(request, responseObserver);
     }
 
     @Override
     public void createSnapshot(
         CreateSnapshotRequest createSnapshotRequest,
         StreamObserver<CreateSnapshotResponse> responseObserver) {
-      CreateSnapshotHandler.getInstance().handle(createSnapshotRequest, responseObserver);
+      createSnapshotHandler.handle(createSnapshotRequest, responseObserver);
     }
 
     @Override
     public void releaseSnapshot(
         ReleaseSnapshotRequest releaseSnapshotRequest,
         StreamObserver<ReleaseSnapshotResponse> responseObserver) {
-      ReleaseSnapshotHandler.getInstance().handle(releaseSnapshotRequest, responseObserver);
+      releaseSnapshotHandler.handle(releaseSnapshotRequest, responseObserver);
     }
 
     @Override
     public void getAllSnapshotIndexGen(
         GetAllSnapshotGenRequest request,
         StreamObserver<GetAllSnapshotGenResponse> responseObserver) {
-      GetAllSnapshotIndexGenHandler.getInstance().handle(request, responseObserver);
+      getAllSnapshotIndexGenHandler.handle(request, responseObserver);
     }
 
     @Override
     public void backupWarmingQueries(
         BackupWarmingQueriesRequest request,
         StreamObserver<BackupWarmingQueriesResponse> responseObserver) {
-      BackupWarmingQueriesHandler.getInstance().handle(request, responseObserver);
+      backupWarmingQueriesHandler.handle(request, responseObserver);
     }
 
     @Override
     public void metrics(Empty request, StreamObserver<HttpBody> responseObserver) {
-      MetricsHandler.getInstance().handle(request, responseObserver);
+      metricsHandler.handle(request, responseObserver);
     }
 
     @Override
     public void indices(IndicesRequest request, StreamObserver<IndicesResponse> responseObserver) {
-      IndicesHandler.getInstance().handle(request, responseObserver);
+      indicesHandler.handle(request, responseObserver);
     }
 
     @Override
     public void globalState(
         GlobalStateRequest request, StreamObserver<GlobalStateResponse> responseObserver) {
-      GlobalStateHandler.getInstance().handle(request, responseObserver);
+      globalStateHandler.handle(request, responseObserver);
     }
 
     @Override
     public void state(StateRequest request, StreamObserver<StateResponse> responseObserver) {
-      GetStateHandler.getInstance().handle(request, responseObserver);
+      getStateHandler.handle(request, responseObserver);
     }
 
     @Override
     public void forceMerge(
         ForceMergeRequest forceMergeRequest, StreamObserver<ForceMergeResponse> responseObserver) {
-      ForceMergeHandler.getInstance().handle(forceMergeRequest, responseObserver);
+      forceMergeHandler.handle(forceMergeRequest, responseObserver);
     }
 
     @Override
     public void forceMergeDeletes(
         ForceMergeDeletesRequest forceMergeRequest,
         StreamObserver<ForceMergeDeletesResponse> responseObserver) {
-      ForceMergeDeletesHandler.getInstance().handle(forceMergeRequest, responseObserver);
+      forceMergeDeletesHandler.handle(forceMergeRequest, responseObserver);
     }
 
     @Override
     public void custom(CustomRequest request, StreamObserver<CustomResponse> responseObserver) {
-      CustomHandler.getInstance().handle(request, responseObserver);
+      customHandler.handle(request, responseObserver);
     }
   }
 

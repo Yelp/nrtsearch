@@ -30,18 +30,9 @@ import org.slf4j.LoggerFactory;
 
 public class IndicesHandler extends Handler<IndicesRequest, IndicesResponse> {
   private static final Logger logger = LoggerFactory.getLogger(IndicesHandler.class);
-  private static IndicesHandler instance;
 
   public IndicesHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new IndicesHandler(globalState);
-  }
-
-  public static IndicesHandler getInstance() {
-    return instance;
   }
 
   @Override

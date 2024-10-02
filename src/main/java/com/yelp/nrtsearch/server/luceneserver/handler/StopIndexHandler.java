@@ -25,18 +25,9 @@ import org.slf4j.LoggerFactory;
 
 public class StopIndexHandler extends Handler<StopIndexRequest, DummyResponse> {
   private static final Logger logger = LoggerFactory.getLogger(StopIndexHandler.class);
-  private static StopIndexHandler instance;
 
   public StopIndexHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new StopIndexHandler(globalState);
-  }
-
-  public static StopIndexHandler getInstance() {
-    return instance;
   }
 
   @Override

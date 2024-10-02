@@ -28,18 +28,9 @@ import org.slf4j.LoggerFactory;
 
 public class UpdateFieldsHandler extends Handler<FieldDefRequest, FieldDefResponse> {
   private static final Logger logger = LoggerFactory.getLogger(UpdateFieldsHandler.class);
-  private static UpdateFieldsHandler instance;
 
   public UpdateFieldsHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new UpdateFieldsHandler(globalState);
-  }
-
-  public static UpdateFieldsHandler getInstance() {
-    return instance;
   }
 
   @Override

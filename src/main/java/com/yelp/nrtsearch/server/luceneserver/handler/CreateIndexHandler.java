@@ -25,18 +25,9 @@ import org.slf4j.LoggerFactory;
 
 public class CreateIndexHandler extends Handler<CreateIndexRequest, CreateIndexResponse> {
   private static final Logger logger = LoggerFactory.getLogger(CreateIndexHandler.class);
-  private static CreateIndexHandler instance;
 
   public CreateIndexHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new CreateIndexHandler(globalState);
-  }
-
-  public static CreateIndexHandler getInstance() {
-    return instance;
   }
 
   @Override

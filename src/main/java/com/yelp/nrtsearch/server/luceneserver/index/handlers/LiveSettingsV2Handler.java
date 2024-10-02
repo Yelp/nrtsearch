@@ -31,18 +31,9 @@ import org.slf4j.LoggerFactory;
 /** Static helper class to handle a LiveSettingsV2 request and produce a response. */
 public class LiveSettingsV2Handler extends Handler<LiveSettingsV2Request, LiveSettingsV2Response> {
   private static final Logger logger = LoggerFactory.getLogger(LiveSettingsV2Handler.class);
-  private static LiveSettingsV2Handler instance;
 
   public LiveSettingsV2Handler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new LiveSettingsV2Handler(globalState);
-  }
-
-  public static LiveSettingsV2Handler getInstance() {
-    return instance;
   }
 
   @Override

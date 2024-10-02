@@ -26,18 +26,9 @@ import org.slf4j.LoggerFactory;
 
 public class StartIndexV2Handler extends Handler<StartIndexV2Request, StartIndexResponse> {
   private static final Logger logger = LoggerFactory.getLogger(StartIndexV2Handler.class);
-  private static StartIndexV2Handler instance;
 
   public StartIndexV2Handler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new StartIndexV2Handler(globalState);
-  }
-
-  public static StartIndexV2Handler getInstance() {
-    return instance;
   }
 
   @Override

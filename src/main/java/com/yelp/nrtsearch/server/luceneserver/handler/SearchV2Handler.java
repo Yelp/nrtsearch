@@ -34,24 +34,18 @@ public class SearchV2Handler extends Handler<SearchRequest, Any> {
   private static final Logger logger = LoggerFactory.getLogger(SearchV2Handler.class.getName());
   private static final Printer protoMessagePrinter =
       ProtoMessagePrinter.omittingInsignificantWhitespace();
-  private static SearchV2Handler instance;
 
-  public SearchV2Handler(GlobalState globalState) {
+  private final SearchHandler searchHandler;
+
+  public SearchV2Handler(GlobalState globalState, SearchHandler searchHandler) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new SearchV2Handler(globalState);
-  }
-
-  public static SearchV2Handler getInstance() {
-    return instance;
+    this.searchHandler = searchHandler;
   }
 
   @Override
   public void handle(SearchRequest searchRequest, StreamObserver<Any> responseObserver) {
     try {
-      SearchResponse searchResponse = SearchHandler.getInstance().getSearchResponse(searchRequest);
+      SearchResponse searchResponse = searchHandler.getSearchResponse(searchRequest);
       setResponseCompression(searchRequest.getResponseCompression(), responseObserver);
       responseObserver.onNext(Any.pack(searchResponse));
       responseObserver.onCompleted();

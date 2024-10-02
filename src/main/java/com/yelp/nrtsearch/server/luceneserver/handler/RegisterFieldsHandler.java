@@ -26,21 +26,11 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// TODO: combine this with FieldUpdateHandler
 public class RegisterFieldsHandler extends Handler<FieldDefRequest, FieldDefResponse> {
   private static final Logger logger = LoggerFactory.getLogger(RegisterFieldsHandler.class);
-  private static RegisterFieldsHandler instance;
 
   public RegisterFieldsHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new RegisterFieldsHandler(globalState);
-  }
-
-  public static RegisterFieldsHandler getInstance() {
-    return instance;
   }
 
   @Override

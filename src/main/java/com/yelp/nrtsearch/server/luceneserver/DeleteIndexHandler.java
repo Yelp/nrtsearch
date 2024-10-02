@@ -26,18 +26,9 @@ import org.slf4j.LoggerFactory;
 
 public class DeleteIndexHandler extends Handler<DeleteIndexRequest, DeleteIndexResponse> {
   private static final Logger logger = LoggerFactory.getLogger(DeleteIndexHandler.class.getName());
-  private static DeleteIndexHandler instance;
 
   public DeleteIndexHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new DeleteIndexHandler(globalState);
-  }
-
-  public static DeleteIndexHandler getInstance() {
-    return instance;
   }
 
   @Override

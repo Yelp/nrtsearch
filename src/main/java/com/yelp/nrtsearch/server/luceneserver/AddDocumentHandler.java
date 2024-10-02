@@ -50,18 +50,9 @@ import org.slf4j.LoggerFactory;
 
 public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentResponse> {
   private static final Logger logger = LoggerFactory.getLogger(AddDocumentHandler.class);
-  private static AddDocumentHandler instance;
 
-  private AddDocumentHandler(GlobalState globalState) {
+  public AddDocumentHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new AddDocumentHandler(globalState);
-  }
-
-  public static AddDocumentHandler getInstance() {
-    return instance;
   }
 
   @Override

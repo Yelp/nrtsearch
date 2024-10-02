@@ -25,18 +25,9 @@ import org.slf4j.LoggerFactory;
 
 public class GlobalStateHandler extends Handler<GlobalStateRequest, GlobalStateResponse> {
   private static final Logger logger = LoggerFactory.getLogger(GlobalStateHandler.class);
-  private static GlobalStateHandler instance;
 
   public GlobalStateHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new GlobalStateHandler(globalState);
-  }
-
-  public static GlobalStateHandler getInstance() {
-    return instance;
   }
 
   @Override

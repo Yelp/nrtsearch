@@ -27,18 +27,9 @@ public class DeleteAllDocumentsHandler
     extends Handler<DeleteAllDocumentsRequest, DeleteAllDocumentsResponse> {
   private static final Logger logger =
       LoggerFactory.getLogger(DeleteAllDocumentsHandler.class.getName());
-  private static DeleteAllDocumentsHandler instance;
 
   public DeleteAllDocumentsHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new DeleteAllDocumentsHandler(globalState);
-  }
-
-  public static DeleteAllDocumentsHandler getInstance() {
-    return instance;
   }
 
   @Override

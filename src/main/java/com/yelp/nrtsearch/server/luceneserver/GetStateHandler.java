@@ -28,18 +28,9 @@ import org.slf4j.LoggerFactory;
 // TODO: rename to StateHandler
 public class GetStateHandler extends Handler<StateRequest, StateResponse> {
   private static final Logger logger = LoggerFactory.getLogger(GetStateHandler.class);
-  private static GetStateHandler instance;
 
   public GetStateHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new GetStateHandler(globalState);
-  }
-
-  public static GetStateHandler getInstance() {
-    return instance;
   }
 
   @Override

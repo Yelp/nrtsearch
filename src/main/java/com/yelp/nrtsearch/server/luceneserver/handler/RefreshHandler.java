@@ -28,18 +28,9 @@ import org.slf4j.LoggerFactory;
 
 public class RefreshHandler extends Handler<RefreshRequest, RefreshResponse> {
   private static final Logger logger = LoggerFactory.getLogger(RefreshHandler.class);
-  private static RefreshHandler instance;
 
   public RefreshHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new RefreshHandler(globalState);
-  }
-
-  public static RefreshHandler getInstance() {
-    return instance;
   }
 
   @Override

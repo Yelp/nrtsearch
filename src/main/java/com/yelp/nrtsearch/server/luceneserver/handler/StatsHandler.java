@@ -40,18 +40,9 @@ import org.slf4j.LoggerFactory;
 
 public class StatsHandler extends Handler<StatsRequest, StatsResponse> {
   private static final Logger logger = LoggerFactory.getLogger(StatsHandler.class);
-  private static StatsHandler instance;
 
   public StatsHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new StatsHandler(globalState);
-  }
-
-  public static StatsHandler getInstance() {
-    return instance;
   }
 
   @Override

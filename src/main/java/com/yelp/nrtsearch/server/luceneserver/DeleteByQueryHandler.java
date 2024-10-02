@@ -29,19 +29,10 @@ import org.slf4j.LoggerFactory;
 
 public class DeleteByQueryHandler extends Handler<DeleteByQueryRequest, AddDocumentResponse> {
   private static final Logger logger = LoggerFactory.getLogger(DeleteByQueryHandler.class);
-  private static DeleteByQueryHandler instance;
   private final QueryNodeMapper queryNodeMapper = QueryNodeMapper.getInstance();
 
   public DeleteByQueryHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new DeleteByQueryHandler(globalState);
-  }
-
-  public static DeleteByQueryHandler getInstance() {
-    return instance;
   }
 
   @Override

@@ -32,18 +32,9 @@ import org.slf4j.LoggerFactory;
 public class DeleteDocumentsHandler extends Handler<AddDocumentRequest, AddDocumentResponse> {
   private static final Logger logger =
       LoggerFactory.getLogger(DeleteDocumentsHandler.class.getName());
-  private static DeleteDocumentsHandler instance;
 
   public DeleteDocumentsHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new DeleteDocumentsHandler(globalState);
-  }
-
-  public static DeleteDocumentsHandler getInstance() {
-    return instance;
   }
 
   @Override

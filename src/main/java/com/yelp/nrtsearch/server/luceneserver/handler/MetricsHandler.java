@@ -18,7 +18,6 @@ package com.yelp.nrtsearch.server.luceneserver.handler;
 import com.google.api.HttpBody;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.metrics.expositionformats.PrometheusTextFormatWriter;
@@ -30,20 +29,11 @@ import org.slf4j.LoggerFactory;
 
 public class MetricsHandler extends Handler<Empty, HttpBody> {
   private static final Logger logger = LoggerFactory.getLogger(MetricsHandler.class);
-  private static MetricsHandler instance;
-  private static PrometheusRegistry prometheusRegistry;
+  private final PrometheusRegistry prometheusRegistry;
 
-  public MetricsHandler(GlobalState globalState) {
-    super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState, PrometheusRegistry prometheusRegistry) {
-    instance = new MetricsHandler(globalState);
-    MetricsHandler.prometheusRegistry = prometheusRegistry;
-  }
-
-  public static MetricsHandler getInstance() {
-    return instance;
+  public MetricsHandler(PrometheusRegistry prometheusRegistry) {
+    super(null);
+    this.prometheusRegistry = prometheusRegistry;
   }
 
   @Override

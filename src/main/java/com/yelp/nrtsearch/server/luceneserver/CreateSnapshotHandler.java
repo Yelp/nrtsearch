@@ -34,18 +34,9 @@ import org.slf4j.LoggerFactory;
 
 public class CreateSnapshotHandler extends Handler<CreateSnapshotRequest, CreateSnapshotResponse> {
   private static final Logger logger = LoggerFactory.getLogger(CreateSnapshotHandler.class);
-  private static CreateSnapshotHandler instance;
 
   public CreateSnapshotHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new CreateSnapshotHandler(globalState);
-  }
-
-  public static CreateSnapshotHandler getInstance() {
-    return instance;
   }
 
   @Override

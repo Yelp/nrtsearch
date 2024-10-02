@@ -18,7 +18,6 @@ package com.yelp.nrtsearch.server.luceneserver.handler;
 import com.yelp.nrtsearch.server.grpc.HealthCheckRequest;
 import com.yelp.nrtsearch.server.grpc.HealthCheckResponse;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
@@ -26,18 +25,9 @@ import org.slf4j.LoggerFactory;
 
 public class StatusHandler extends Handler<HealthCheckRequest, HealthCheckResponse> {
   private static final Logger logger = LoggerFactory.getLogger(StatusHandler.class);
-  private static StatusHandler instance;
 
-  public StatusHandler(GlobalState globalState) {
-    super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new StatusHandler(globalState);
-  }
-
-  public static StatusHandler getInstance() {
-    return instance;
+  public StatusHandler() {
+    super(null);
   }
 
   @Override

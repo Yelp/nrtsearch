@@ -30,18 +30,9 @@ import org.slf4j.LoggerFactory;
 
 public class CommitHandler extends Handler<CommitRequest, CommitResponse> {
   private static final Logger logger = LoggerFactory.getLogger(CommitHandler.class);
-  private static CommitHandler instance;
 
   public CommitHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new CommitHandler(globalState);
-  }
-
-  public static CommitHandler getInstance() {
-    return instance;
   }
 
   @Override

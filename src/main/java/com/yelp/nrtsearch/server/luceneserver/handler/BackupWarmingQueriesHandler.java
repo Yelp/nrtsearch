@@ -30,18 +30,9 @@ import org.slf4j.LoggerFactory;
 public class BackupWarmingQueriesHandler
     extends Handler<BackupWarmingQueriesRequest, BackupWarmingQueriesResponse> {
   private static final Logger logger = LoggerFactory.getLogger(BackupWarmingQueriesHandler.class);
-  private static BackupWarmingQueriesHandler instance;
 
   public BackupWarmingQueriesHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new BackupWarmingQueriesHandler(globalState);
-  }
-
-  public static BackupWarmingQueriesHandler getInstance() {
-    return instance;
   }
 
   @Override

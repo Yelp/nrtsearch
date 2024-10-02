@@ -27,18 +27,9 @@ import org.slf4j.LoggerFactory;
 public class GetAllSnapshotIndexGenHandler
     extends Handler<GetAllSnapshotGenRequest, GetAllSnapshotGenResponse> {
   private static final Logger logger = LoggerFactory.getLogger(GetAllSnapshotIndexGenHandler.class);
-  private static GetAllSnapshotIndexGenHandler instance;
 
   public GetAllSnapshotIndexGenHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new GetAllSnapshotIndexGenHandler(globalState);
-  }
-
-  public static GetAllSnapshotIndexGenHandler getInstance() {
-    return instance;
   }
 
   @Override

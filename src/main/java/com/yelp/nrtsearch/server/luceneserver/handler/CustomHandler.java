@@ -26,18 +26,9 @@ import org.slf4j.LoggerFactory;
 
 public class CustomHandler extends Handler<CustomRequest, CustomResponse> {
   private static final Logger logger = LoggerFactory.getLogger(CustomHandler.class);
-  private static CustomHandler instance;
 
   public CustomHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new CustomHandler(globalState);
-  }
-
-  public static CustomHandler getInstance() {
-    return instance;
   }
 
   @Override

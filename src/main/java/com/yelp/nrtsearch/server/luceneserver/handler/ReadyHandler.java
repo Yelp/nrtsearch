@@ -34,18 +34,9 @@ import org.slf4j.LoggerFactory;
 public class ReadyHandler extends Handler<ReadyCheckRequest, HealthCheckResponse> {
   private static final Logger logger = LoggerFactory.getLogger(ReadyHandler.class);
   private static final Splitter COMMA_SPLITTER = Splitter.on(",");
-  private static ReadyHandler instance;
 
   public ReadyHandler(GlobalState globalState) {
     super(globalState);
-  }
-
-  public static void initialize(GlobalState globalState) {
-    instance = new ReadyHandler(globalState);
-  }
-
-  public static ReadyHandler getInstance() {
-    return instance;
   }
 
   @Override

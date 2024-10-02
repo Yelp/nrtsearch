@@ -34,14 +34,6 @@ public class ForceMergeHandler extends Handler<ForceMergeRequest, ForceMergeResp
     super(globalState);
   }
 
-  public static void initialize(GlobalState globalState) {
-    instance = new ForceMergeHandler(globalState);
-  }
-
-  public static ForceMergeHandler getInstance() {
-    return instance;
-  }
-
   @Override
   public void handle(
       ForceMergeRequest forceMergeRequest, StreamObserver<ForceMergeResponse> responseObserver) {
