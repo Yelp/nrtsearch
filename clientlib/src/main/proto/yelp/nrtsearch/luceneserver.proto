@@ -581,6 +581,9 @@ message Field {
     int32 vectorDimensions = 29; // Dimensions for vector field type
     // If field based global ordinals should be built up front, otherwise this is done lazily on first access. Currently only for fields with text doc values (TEXT/ATOM).
     bool eagerFieldGlobalOrdinals = 30;
+    // For arrays of strings, ignoreAbove will be applied for each array element separately and string elements longer than ignore_above will not be indexed or stored.
+    // This option is also useful for protecting against Lucene’s term byte-length limit of 32766
+    optional int32 ignoreAbove = 36;
 }
 
 /* Input to registerFields */

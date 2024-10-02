@@ -30,6 +30,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.util.BytesRef;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,8 +90,14 @@ public class SortFieldCollector extends DocCollector {
     LastHitInfo.Builder lastHitBuilder = LastHitInfo.newBuilder();
     lastHitBuilder.setLastDocId(lastHit.doc);
     for (Object fv : fd.fields) {
-      stateBuilder.addLastFieldValues(fv.toString());
-      lastHitBuilder.addLastFieldValues(fv.toString());
+      String fvstr;
+      if (fv instanceof BytesRef) {
+        fvstr = ((BytesRef) fv).utf8ToString();
+      } else {
+        fvstr = fv.toString();
+      }
+      stateBuilder.addLastFieldValues(fvstr);
+      lastHitBuilder.addLastFieldValues(fvstr);
     }
     stateBuilder.setLastHitInfo(lastHitBuilder.build());
   }

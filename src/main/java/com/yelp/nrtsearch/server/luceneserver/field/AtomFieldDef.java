@@ -27,6 +27,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.util.BytesRef;
 
 /** Field class for 'ATOM' field type. Uses {@link KeywordAnalyzer} for text analysis. */
 public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
@@ -86,7 +87,7 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
 
   @Override
   public Object parseLastValue(String value) {
-    return value;
+    return new BytesRef(value);
   }
 
   @Override
