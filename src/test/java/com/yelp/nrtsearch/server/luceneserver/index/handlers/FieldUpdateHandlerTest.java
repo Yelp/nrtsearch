@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.index.handlers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -116,7 +115,6 @@ public class FieldUpdateHandlerTest {
     assertTrue(fieldAndFacetState.getIdFieldDef().isEmpty());
     assertTrue(fieldAndFacetState.getIndexedAnalyzedFields().isEmpty());
     assertTrue(fieldAndFacetState.getEagerGlobalOrdinalFields().isEmpty());
-    assertNotNull(fieldAndFacetState.getExprBindings());
     assertTrue(fieldAndFacetState.getFacetsConfig().getDimConfigs().isEmpty());
     assertTrue(fieldAndFacetState.getInternalFacetFieldNames().isEmpty());
     return updatedFieldInfo;
@@ -168,7 +166,6 @@ public class FieldUpdateHandlerTest {
     assertTrue(fieldAndFacetState.getIdFieldDef().isEmpty());
     assertTrue(fieldAndFacetState.getIndexedAnalyzedFields().isEmpty());
     assertTrue(fieldAndFacetState.getEagerGlobalOrdinalFields().isEmpty());
-    assertNotNull(fieldAndFacetState.getExprBindings());
     assertTrue(fieldAndFacetState.getFacetsConfig().getDimConfigs().isEmpty());
     assertTrue(fieldAndFacetState.getInternalFacetFieldNames().isEmpty());
   }
@@ -215,7 +212,6 @@ public class FieldUpdateHandlerTest {
         fieldAndFacetState.getFields().get("field4"), fieldAndFacetState.getIdFieldDef().get());
     assertTrue(fieldAndFacetState.getIndexedAnalyzedFields().isEmpty());
     assertTrue(fieldAndFacetState.getEagerGlobalOrdinalFields().isEmpty());
-    assertNotNull(fieldAndFacetState.getExprBindings());
     assertTrue(fieldAndFacetState.getFacetsConfig().getDimConfigs().isEmpty());
     assertTrue(fieldAndFacetState.getInternalFacetFieldNames().isEmpty());
   }
@@ -303,7 +299,6 @@ public class FieldUpdateHandlerTest {
     assertEquals(
         Set.of("field3", "field4"), Sets.newHashSet(fieldAndFacetState.getIndexedAnalyzedFields()));
     assertTrue(fieldAndFacetState.getEagerGlobalOrdinalFields().isEmpty());
-    assertNotNull(fieldAndFacetState.getExprBindings());
     assertTrue(fieldAndFacetState.getFacetsConfig().getDimConfigs().isEmpty());
     assertTrue(fieldAndFacetState.getInternalFacetFieldNames().isEmpty());
   }
@@ -339,7 +334,6 @@ public class FieldUpdateHandlerTest {
     assertTrue(fieldAndFacetState.getIdFieldDef().isEmpty());
     assertTrue(fieldAndFacetState.getIndexedAnalyzedFields().isEmpty());
     assertTrue(fieldAndFacetState.getEagerGlobalOrdinalFields().isEmpty());
-    assertNotNull(fieldAndFacetState.getExprBindings());
     assertTrue(fieldAndFacetState.getFacetsConfig().getDimConfigs().isEmpty());
     assertTrue(fieldAndFacetState.getInternalFacetFieldNames().isEmpty());
   }
@@ -385,7 +379,6 @@ public class FieldUpdateHandlerTest {
     assertTrue(fieldAndFacetState.getIdFieldDef().isEmpty());
     assertTrue(fieldAndFacetState.getIndexedAnalyzedFields().isEmpty());
     assertTrue(fieldAndFacetState.getEagerGlobalOrdinalFields().isEmpty());
-    assertNotNull(fieldAndFacetState.getExprBindings());
     assertTrue(fieldAndFacetState.getFacetsConfig().getDimConfigs().isEmpty());
     assertTrue(fieldAndFacetState.getInternalFacetFieldNames().isEmpty());
   }
@@ -455,7 +448,6 @@ public class FieldUpdateHandlerTest {
         Set.of("field3.child1", "field3.child3.grandchild1"),
         Sets.newHashSet(fieldAndFacetState.getIndexedAnalyzedFields()));
     assertTrue(fieldAndFacetState.getEagerGlobalOrdinalFields().isEmpty());
-    assertNotNull(fieldAndFacetState.getExprBindings());
     assertTrue(fieldAndFacetState.getFacetsConfig().getDimConfigs().isEmpty());
     assertTrue(fieldAndFacetState.getInternalFacetFieldNames().isEmpty());
   }
@@ -526,7 +518,6 @@ public class FieldUpdateHandlerTest {
         Set.of("field3.child1", "field3.child3.grandchild1"),
         Sets.newHashSet(fieldAndFacetState.getIndexedAnalyzedFields()));
     assertTrue(fieldAndFacetState.getEagerGlobalOrdinalFields().isEmpty());
-    assertNotNull(fieldAndFacetState.getExprBindings());
     assertTrue(fieldAndFacetState.getFacetsConfig().getDimConfigs().isEmpty());
     assertTrue(fieldAndFacetState.getInternalFacetFieldNames().isEmpty());
   }
@@ -578,7 +569,6 @@ public class FieldUpdateHandlerTest {
     assertEquals(List.of("field3"), fieldAndFacetState.getIndexedAnalyzedFields());
     assertEquals(1, fieldAndFacetState.getEagerGlobalOrdinalFields().size());
     assertTrue(fieldAndFacetState.getEagerGlobalOrdinalFields().containsKey("field3"));
-    assertNotNull(fieldAndFacetState.getExprBindings());
     assertEquals(1, fieldAndFacetState.getFacetsConfig().getDimConfigs().size());
     DimConfig dimConfig = fieldAndFacetState.getFacetsConfig().getDimConfig("field3");
     assertTrue(dimConfig.multiValued);
@@ -619,7 +609,6 @@ public class FieldUpdateHandlerTest {
     assertEquals(Set.of("field3"), Sets.newHashSet(fieldAndFacetState.getIndexedAnalyzedFields()));
     assertEquals(1, fieldAndFacetState.getEagerGlobalOrdinalFields().size());
     assertTrue(fieldAndFacetState.getEagerGlobalOrdinalFields().containsKey("field3"));
-    assertNotNull(fieldAndFacetState.getExprBindings());
     assertEquals(2, fieldAndFacetState.getFacetsConfig().getDimConfigs().size());
     dimConfig = fieldAndFacetState.getFacetsConfig().getDimConfig("field3");
     assertTrue(dimConfig.multiValued);

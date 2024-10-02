@@ -54,7 +54,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -467,11 +466,6 @@ public class ImmutableIndexState extends IndexState {
   @Override
   public Map<String, GlobalOrdinalable> getEagerFieldGlobalOrdinalFields() {
     return fieldAndFacetState.getFieldEagerGlobalOrdinalFields();
-  }
-
-  @Override
-  public Bindings getExpressionBindings() {
-    return fieldAndFacetState.getExprBindings();
   }
 
   @Override

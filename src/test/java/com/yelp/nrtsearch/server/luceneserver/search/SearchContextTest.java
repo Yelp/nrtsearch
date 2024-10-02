@@ -88,7 +88,7 @@ public class SearchContextTest extends ServerTestCase {
         .setCollector(new DummyCollector())
         .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .setRescorers(Collections.emptyList())
-        .setDocLookup(new DocLookup(getGlobalState().getIndex(DEFAULT_TEST_INDEX), null))
+        .setDocLookup(new DocLookup(getGlobalState().getIndex(DEFAULT_TEST_INDEX)::getField))
         .setSharedDocContext(new DefaultSharedDocContext());
   }
 

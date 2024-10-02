@@ -60,7 +60,6 @@ import org.apache.lucene.search.DoubleValues;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -713,7 +712,6 @@ public class ScoreScriptTest {
     testQueryFieldScript("verify_doc_values", "registerFieldsBasic.json", "addDocs.csv", 1.5);
   }
 
-  @Ignore("Only js scripting language is supported in index fields now, enable after fix")
   @Test
   public void testScriptDocValuesIndexField() throws Exception {
     GrpcServer.TestServer testAddDocs =
@@ -841,7 +839,6 @@ public class ScoreScriptTest {
         Math.ulp(2.0));
   }
 
-  @Ignore("Only js scripting language is supported in index fields now, enable after fix")
   @Test
   public void testScriptUsingScoreInIndexField() throws Exception {
     GrpcServer.TestServer testAddDocs =
