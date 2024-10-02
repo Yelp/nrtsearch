@@ -119,7 +119,6 @@ import java.io.OutputStream;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
