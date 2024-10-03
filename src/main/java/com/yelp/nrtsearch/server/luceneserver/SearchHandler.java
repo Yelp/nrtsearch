@@ -92,8 +92,9 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
    * @param threadPoolExecutor Threadpool to execute a parallel search
    * @param warming set to true if we are warming the index right now
    */
-  public SearchHandler(ThreadPoolExecutor threadPoolExecutor, boolean warming) {
-    super(null);
+  public SearchHandler(
+      GlobalState globalState, ThreadPoolExecutor threadPoolExecutor, boolean warming) {
+    super(globalState);
     this.threadPoolExecutor = threadPoolExecutor;
     this.warming = warming;
   }
