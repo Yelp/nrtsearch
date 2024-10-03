@@ -30,7 +30,7 @@ import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -126,7 +126,7 @@ public class SnapshotCommand implements Callable<Integer> {
     String resolvedIndexResource =
         StateCommandUtils.getResourceName(s3Backend, serviceName, indexName, exactResourceName);
 
-    String timeStringMs = TimeStringUtil.generateTimeStringMs();
+    String timeStringMs = TimeStringUtils.generateTimeStringMs();
     String resolvedSnapshotRoot = BackupCommandUtils.getSnapshotRoot(snapshotRoot, serviceName);
     String snapshotIndexDataRoot =
         BackupCommandUtils.getSnapshotIndexDataRoot(

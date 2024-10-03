@@ -27,7 +27,7 @@ import com.yelp.nrtsearch.server.grpc.RefreshRequest;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.TermsCollector;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
-import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.search.GlobalOrdinalLookup;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;

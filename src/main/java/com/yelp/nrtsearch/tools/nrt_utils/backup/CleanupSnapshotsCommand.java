@@ -21,7 +21,7 @@ import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -176,8 +176,8 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
     for (String prefix : dataPrefixes) {
       String[] splits = prefix.split("/");
       String timeString = splits[splits.length - 1];
-      if (TimeStringUtil.isTimeStringMs(timeString)) {
-        long dataTimestamp = TimeStringUtil.parseTimeStringMs(timeString).toEpochMilli();
+      if (TimeStringUtils.isTimeStringMs(timeString)) {
+        long dataTimestamp = TimeStringUtils.parseTimeStringMs(timeString).toEpochMilli();
         if (dataTimestamp < minTimestampMs) {
           deletePrefixes.add(prefix);
         }
@@ -250,8 +250,8 @@ public class CleanupSnapshotsCommand implements Callable<Integer> {
 
       for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
         String snapshotSuffix = objectSummary.getKey().split(metadataPrefix)[1];
-        if (TimeStringUtil.isTimeStringMs(snapshotSuffix)) {
-          long timestampMs = TimeStringUtil.parseTimeStringMs(snapshotSuffix).toEpochMilli();
+        if (TimeStringUtils.isTimeStringMs(snapshotSuffix)) {
+          long timestampMs = TimeStringUtils.parseTimeStringMs(snapshotSuffix).toEpochMilli();
           snapshotTimestamps.add(new TimestampAndTimeString(timestampMs, snapshotSuffix));
         } else {
           System.out.println("Skipping invalid timestamp: " + snapshotSuffix);

@@ -17,6 +17,7 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.google.protobuf.GeneratedMessageV3;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
 import io.grpc.stub.StreamObserver;
 
 /* Interface for handlers that take in an indexState and the protoBuff request and returns the protoBuff response */

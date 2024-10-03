@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.handler;
 import com.google.protobuf.GeneratedMessageV3;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.LuceneServerStubBuilder;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;

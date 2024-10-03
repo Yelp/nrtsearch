@@ -20,9 +20,9 @@ import static com.yelp.nrtsearch.server.grpc.LuceneServerTest.RETRIEVED_VALUES;
 import static org.junit.Assert.*;
 
 import com.google.common.collect.Sets;
-import com.yelp.nrtsearch.server.LuceneServerTestConfigurationFactory;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
+import com.yelp.nrtsearch.server.utils.LuceneServerTestConfigurationFactory;
 import io.grpc.testing.GrpcCleanupRule;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.IOException;

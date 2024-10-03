@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.remote.s3;
 
-import static com.yelp.nrtsearch.server.utils.TimeStringUtil.generateTimeStringSec;
+import static com.yelp.nrtsearch.server.utils.TimeStringUtils.generateTimeStringSec;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3URI;
@@ -35,7 +35,7 @@ import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
-import com.yelp.nrtsearch.server.utils.ZipUtil;
+import com.yelp.nrtsearch.server.utils.ZipUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -127,7 +127,7 @@ public class S3Backend implements RemoteBackend {
   public String downloadPluginIfNeeded(String pluginNameOrPath, Path destPath) {
     if (S3Util.isValidS3FilePath(pluginNameOrPath) && pluginNameOrPath.endsWith(ZIP_EXTENSION)) {
       logger.info("Downloading plugin: {}", pluginNameOrPath);
-      ZipUtil.extractZip(downloadFromS3Path(pluginNameOrPath), destPath, saveBeforeUnzip);
+      ZipUtils.extractZip(downloadFromS3Path(pluginNameOrPath), destPath, saveBeforeUnzip);
       // Assuming that the plugin directory is same as the name of the file
       return S3Util.getS3FileName(pluginNameOrPath).split(".zip")[0];
     }

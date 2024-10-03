@@ -25,7 +25,7 @@ import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.yelp.nrtsearch.server.grpc.TestServer;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -116,7 +116,7 @@ public class CleanupSnapshotsCommandTest {
 
     for (TestSnapshotInfo snapshotInfo : snapshotInfos) {
       String timeString =
-          TimeStringUtil.formatTimeStringMs(Instant.ofEpochMilli(snapshotInfo.timestampMs));
+          TimeStringUtils.formatTimeStringMs(Instant.ofEpochMilli(snapshotInfo.timestampMs));
       if (snapshotInfo.hasMetadata) {
         Path metadataFile = metadataRootFolder.resolve(timeString);
         Files.createFile(metadataFile);
@@ -156,7 +156,7 @@ public class CleanupSnapshotsCommandTest {
   @Test
   public void testDeleteSnapshots() throws IOException {
     TestServer.initS3(folder);
-    String indexUniqueName = "test_index-" + TimeStringUtil.generateTimeStringMs();
+    String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
     CommandLine cmd = getInjectedCommand();
@@ -177,7 +177,7 @@ public class CleanupSnapshotsCommandTest {
   @Test
   public void testDeleteSnapshotsDryRun() throws IOException {
     TestServer.initS3(folder);
-    String indexUniqueName = "test_index-" + TimeStringUtil.generateTimeStringMs();
+    String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
     CommandLine cmd = getInjectedCommand();
@@ -204,7 +204,7 @@ public class CleanupSnapshotsCommandTest {
   @Test
   public void testDeleteSnapshotsDifferentRoot() throws IOException {
     TestServer.initS3(folder);
-    String indexUniqueName = "test_index-" + TimeStringUtil.generateTimeStringMs();
+    String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos =
         createTestSnapshotData(indexUniqueName, true, "different_root");
 
@@ -231,7 +231,7 @@ public class CleanupSnapshotsCommandTest {
   @Test
   public void testDeleteSnapshotsKeepsN() throws IOException {
     TestServer.initS3(folder);
-    String indexUniqueName = "test_index-" + TimeStringUtil.generateTimeStringMs();
+    String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
     CommandLine cmd = getInjectedCommand();
@@ -257,7 +257,7 @@ public class CleanupSnapshotsCommandTest {
   @Test
   public void testDeleteSnapshotsKeepMore() throws IOException {
     TestServer.initS3(folder);
-    String indexUniqueName = "test_index-" + TimeStringUtil.generateTimeStringMs();
+    String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
     CommandLine cmd = getInjectedCommand();
@@ -284,7 +284,7 @@ public class CleanupSnapshotsCommandTest {
   @Test
   public void testDeleteAllSnapshots() throws IOException, InterruptedException {
     TestServer.initS3(folder);
-    String indexUniqueName = "test_index-" + TimeStringUtil.generateTimeStringMs();
+    String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
     CommandLine cmd = getInjectedCommand();
@@ -306,7 +306,7 @@ public class CleanupSnapshotsCommandTest {
   @Test
   public void testOnlyKeepN() throws IOException, InterruptedException {
     TestServer.initS3(folder);
-    String indexUniqueName = "test_index-" + TimeStringUtil.generateTimeStringMs();
+    String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName);
 
     CommandLine cmd = getInjectedCommand();
@@ -328,7 +328,7 @@ public class CleanupSnapshotsCommandTest {
   @Test
   public void testNoData() throws IOException {
     TestServer.initS3(folder);
-    String indexUniqueName = "test_index-" + TimeStringUtil.generateTimeStringMs();
+    String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
 
     CommandLine cmd = getInjectedCommand();
 
@@ -348,7 +348,7 @@ public class CleanupSnapshotsCommandTest {
   @Test
   public void testDeleteDataWithoutMetadata() throws IOException {
     TestServer.initS3(folder);
-    String indexUniqueName = "test_index-" + TimeStringUtil.generateTimeStringMs();
+    String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName, false);
 
     CommandLine cmd = getInjectedCommand();
@@ -368,7 +368,7 @@ public class CleanupSnapshotsCommandTest {
   @Test
   public void testKeepDataWithoutMetadata() throws IOException {
     TestServer.initS3(folder);
-    String indexUniqueName = "test_index-" + TimeStringUtil.generateTimeStringMs();
+    String indexUniqueName = "test_index-" + TimeStringUtils.generateTimeStringMs();
     List<TestSnapshotInfo> snapshotInfos = createTestSnapshotData(indexUniqueName, false);
 
     CommandLine cmd = getInjectedCommand();
@@ -417,14 +417,15 @@ public class CleanupSnapshotsCommandTest {
         Stream.of(infos)
             .collect(
                 Collectors.toMap(
-                    i -> TimeStringUtil.formatTimeStringMs(Instant.ofEpochMilli(i.timestampMs)),
+                    i -> TimeStringUtils.formatTimeStringMs(Instant.ofEpochMilli(i.timestampMs)),
                     i -> i.files));
 
     Set<String> expectedMetadata = new HashSet<>();
     Set<String> expectedDataFolders = new HashSet<>();
     Set<String> metadataVersions = new HashSet<>();
     for (TestSnapshotInfo info : infos) {
-      String timeString = TimeStringUtil.formatTimeStringMs(Instant.ofEpochMilli(info.timestampMs));
+      String timeString =
+          TimeStringUtils.formatTimeStringMs(Instant.ofEpochMilli(info.timestampMs));
       if (info.hasMetadata) {
         expectedMetadata.add(timeString);
       }

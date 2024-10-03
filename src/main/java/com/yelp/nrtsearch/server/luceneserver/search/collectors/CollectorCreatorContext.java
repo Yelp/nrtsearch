@@ -16,9 +16,9 @@
 package com.yelp.nrtsearch.server.luceneserver.search.collectors;
 
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
-import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.util.Map;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;

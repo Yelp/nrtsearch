@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.index;
 
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import org.apache.lucene.search.similarities.BM25Similarity;
@@ -26,7 +25,7 @@ import org.apache.lucene.search.similarities.Similarity;
  * Similarity wrapper for use at indexing time, which finds the proper per field similarity. This
  * similarity is set in the {@link org.apache.lucene.index.IndexWriterConfig} when an index is
  * started. The {@link IndexStateManager} provides access to the fields in the latest {@link
- * com.yelp.nrtsearch.server.luceneserver.IndexState}.
+ * IndexState}.
  */
 public class IndexSimilarity extends PerFieldSimilarityWrapper {
   private static final Similarity DEFAULT_SIMILARITY = new BM25Similarity();

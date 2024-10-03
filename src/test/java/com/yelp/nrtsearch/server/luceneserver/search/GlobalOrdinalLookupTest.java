@@ -24,11 +24,11 @@ import static org.junit.Assert.fail;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
-import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.stream.Stream;

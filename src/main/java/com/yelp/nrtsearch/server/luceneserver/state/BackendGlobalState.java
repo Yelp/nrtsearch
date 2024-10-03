@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.state;
 
-import static com.yelp.nrtsearch.server.utils.TimeStringUtil.generateTimeStringMs;
+import static com.yelp.nrtsearch.server.utils.TimeStringUtils.generateTimeStringMs;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
@@ -32,11 +32,10 @@ import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.StartIndexHandler;
 import com.yelp.nrtsearch.server.luceneserver.StartIndexHandler.StartIndexHandlerException;
 import com.yelp.nrtsearch.server.luceneserver.index.BackendStateManager;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.LocalStateBackend;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;

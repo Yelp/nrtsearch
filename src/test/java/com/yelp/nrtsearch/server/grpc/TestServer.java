@@ -34,13 +34,13 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.LuceneServer.ReplicationServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
-import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import com.yelp.nrtsearch.server.utils.FileUtil;
+import com.yelp.nrtsearch.server.utils.FileUtils;
 import io.findify.s3mock.S3Mock;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -234,7 +234,7 @@ public class TestServer {
       }
       if (clearData) {
         try {
-          FileUtil.deleteAllFiles(globalState.getIndexDirBase());
+          FileUtils.deleteAllFiles(globalState.getIndexDirBase());
         } catch (Exception e) {
           throw new RuntimeException(e);
         }

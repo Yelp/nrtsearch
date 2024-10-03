@@ -26,6 +26,8 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.FieldValue.Vector.Builder;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
+import com.yelp.nrtsearch.server.luceneserver.vector.ByteVectorType;
+import com.yelp.nrtsearch.server.luceneserver.vector.FloatVectorType;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
@@ -951,9 +953,9 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
   }
 
-  public static final class SingleVector extends LoadedDocValues<VectorType> {
+  public static final class SingleVector extends LoadedDocValues<FloatVectorType> {
     private final BinaryDocValues docValues;
-    private VectorType value;
+    private FloatVectorType value;
 
     public SingleVector(BinaryDocValues docValues) {
       this.docValues = docValues;
@@ -972,18 +974,18 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
 
     /** Decodes binary doc value to float array and wraps it into a VectorType */
-    private static VectorType decodeBytesRefToVectorType(BytesRef bytesRef) {
+    private static FloatVectorType decodeBytesRefToVectorType(BytesRef bytesRef) {
       float[] floats = new float[bytesRef.length / Float.BYTES];
       FloatBuffer fb =
           ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length).asFloatBuffer();
       fb.get(floats);
-      return new VectorType(floats);
+      return new FloatVectorType(floats);
     }
 
     /** Provide field value containing the doc value data for a given index */
     @Override
     public FieldValue toFieldValue(int index) {
-      VectorType vector = get(index);
+      FloatVectorType vector = get(index);
       Builder vectorBuilder = Vector.newBuilder();
       for (float value : vector.getVectorData()) {
         vectorBuilder.addValue(value);
@@ -994,7 +996,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
 
     @Override
-    public VectorType get(int index) {
+    public FloatVectorType get(int index) {
       if (value == null) {
         throw new IllegalStateException("No doc values for document");
       } else if (index != 0) {
@@ -1008,7 +1010,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
       return value == null ? 0 : 1;
     }
 
-    public VectorType getValue() {
+    public FloatVectorType getValue() {
       return get(0);
     }
   }
@@ -1071,9 +1073,9 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
    * Doc value interface for vector data loaded from index vector values indexed for vector search.
    * Calls to {@link #setDocId(int)} must provide ids in increasing order.
    */
-  public static final class SingleSearchVector extends LoadedDocValues<VectorType> {
+  public static final class SingleSearchVector extends LoadedDocValues<FloatVectorType> {
     private final FloatVectorValues vectorValues;
-    private VectorType value = null;
+    private FloatVectorType value = null;
 
     public SingleSearchVector(FloatVectorValues vectorValues) {
       this.vectorValues = vectorValues;
@@ -1086,7 +1088,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
           vectorValues.advance(docID);
         }
         if (vectorValues.docID() == docID) {
-          value = new VectorType(vectorValues.vectorValue());
+          value = new FloatVectorType(vectorValues.vectorValue());
         } else {
           value = null;
         }
@@ -1095,7 +1097,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
 
     @Override
     public FieldValue toFieldValue(int index) {
-      VectorType vector = get(index);
+      FloatVectorType vector = get(index);
       Builder vectorBuilder = Vector.newBuilder();
       for (float value : vector.getVectorData()) {
         vectorBuilder.addValue(value);
@@ -1106,7 +1108,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
     }
 
     @Override
-    public VectorType get(int index) {
+    public FloatVectorType get(int index) {
       if (value == null) {
         throw new IllegalStateException("No doc values for document");
       } else if (index != 0) {
@@ -1120,7 +1122,7 @@ public abstract class LoadedDocValues<T> extends AbstractList<T> {
       return value == null ? 0 : 1;
     }
 
-    public VectorType getValue() {
+    public FloatVectorType getValue() {
       return get(0);
     }
   }

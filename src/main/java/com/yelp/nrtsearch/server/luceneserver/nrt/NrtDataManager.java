@@ -17,13 +17,12 @@ package com.yelp.nrtsearch.server.luceneserver.nrt;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
-import com.yelp.nrtsearch.server.luceneserver.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
-import com.yelp.nrtsearch.server.utils.FileUtil;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.FileUtils;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import java.io.Closeable;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -177,7 +176,7 @@ public class NrtDataManager implements Closeable {
       return;
     }
     if (restoreIndex.getDeleteExistingData()) {
-      FileUtil.deleteAllFilesInDir(shardDataDir);
+      FileUtils.deleteAllFilesInDir(shardDataDir);
     }
 
     if (hasRestoreData()) {
@@ -346,7 +345,7 @@ public class NrtDataManager implements Closeable {
         if (lastFileMetaData != null && isSameFile(fileMetaData, lastFileMetaData)) {
           currentPointFiles.put(fileName, lastFileMetaData);
         } else {
-          String timeString = TimeStringUtil.generateTimeStringSec();
+          String timeString = TimeStringUtils.generateTimeStringSec();
           NrtFileMetaData nrtFileMetaData =
               new NrtFileMetaData(fileMetaData, ephemeralId, timeString);
           currentPointFiles.put(fileName, nrtFileMetaData);
