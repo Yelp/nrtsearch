@@ -16,12 +16,13 @@
 package com.yelp.nrtsearch.server.luceneserver.search;
 
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
+import com.yelp.nrtsearch.server.luceneserver.handler.SearchHandler;
 import java.util.Map;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager.SearcherAndTaxonomy;
 
 /**
- * Interface to provided needed information to use {@link
- * com.yelp.nrtsearch.server.luceneserver.SearchHandler.FillFieldsTask} to retrieve document fields.
+ * Interface to provided needed information to use {@link SearchHandler.FillFieldsTask} to retrieve
+ * document fields.
  */
 public interface FieldFetchContext {
 

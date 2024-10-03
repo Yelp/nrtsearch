@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver;
+package com.yelp.nrtsearch.server.luceneserver.handler;
 
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
@@ -23,7 +23,8 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsResponse;
-import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;

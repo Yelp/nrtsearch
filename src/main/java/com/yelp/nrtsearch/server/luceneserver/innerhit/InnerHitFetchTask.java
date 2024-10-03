@@ -21,7 +21,7 @@ import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics.Builder;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.TotalHits;
-import com.yelp.nrtsearch.server.luceneserver.SearchHandler;
+import com.yelp.nrtsearch.server.luceneserver.handler.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks.FetchTask;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
