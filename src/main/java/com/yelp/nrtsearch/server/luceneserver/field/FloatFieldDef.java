@@ -35,10 +35,10 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.NumericUtils;
 
 /** Field class for 'FLOAT' field type. */
-public class FloatFieldDef extends NumberFieldDef {
+public class FloatFieldDef extends NumberFieldDef<Float> {
 
   public FloatFieldDef(String name, Field requestField) {
-    super(name, requestField, FLOAT_PARSER);
+    super(name, requestField, FLOAT_PARSER, Float.class);
   }
 
   @Override
@@ -59,12 +59,12 @@ public class FloatFieldDef extends NumberFieldDef {
   }
 
   @Override
-  protected LoadedDocValues<?> getNumericDocValues(NumericDocValues docValues) {
+  protected LoadedDocValues<Float> getNumericDocValues(NumericDocValues docValues) {
     return new LoadedDocValues.SingleFloat(docValues);
   }
 
   @Override
-  protected LoadedDocValues<?> getSortedNumericDocValues(SortedNumericDocValues docValues) {
+  protected LoadedDocValues<Float> getSortedNumericDocValues(SortedNumericDocValues docValues) {
     return new LoadedDocValues.SortedFloats(docValues);
   }
 
@@ -159,7 +159,7 @@ public class FloatFieldDef extends NumberFieldDef {
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
-    List<Float> floatTerms = new ArrayList(textValues.size());
+    List<Float> floatTerms = new ArrayList<>(textValues.size());
     textValues.forEach((s) -> floatTerms.add(Float.parseFloat(s)));
     return FloatPoint.newSetQuery(getName(), floatTerms);
   }

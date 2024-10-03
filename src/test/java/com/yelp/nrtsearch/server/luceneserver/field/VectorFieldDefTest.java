@@ -857,7 +857,7 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorDimensions(3)
             .setVectorSimilarity("l2_norm")
             .build();
-    VectorFieldDef vectorFieldDef = new VectorFieldDef("vector", field);
+    VectorFieldDef<?> vectorFieldDef = VectorFieldDef.createField("vector", field);
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
@@ -877,7 +877,7 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorIndexingOptions(
                 VectorIndexingOptions.newBuilder().setType("hnsw").setHnswM(5).build())
             .build();
-    VectorFieldDef vectorFieldDef = new VectorFieldDef("vector", field);
+    VectorFieldDef<?> vectorFieldDef = VectorFieldDef.createField("vector", field);
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
@@ -900,7 +900,7 @@ public class VectorFieldDefTest extends ServerTestCase {
                     .setHnswEfConstruction(50)
                     .build())
             .build();
-    VectorFieldDef vectorFieldDef = new VectorFieldDef("vector", field);
+    VectorFieldDef<?> vectorFieldDef = VectorFieldDef.createField("vector", field);
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertNotNull(format);
     assertEquals(
@@ -920,7 +920,7 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorIndexingOptions(VectorIndexingOptions.newBuilder().setType("invalid").build())
             .build();
     try {
-      new VectorFieldDef("vector", field);
+      VectorFieldDef.createField("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
       assertTrue(
@@ -940,7 +940,7 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorSimilarity("invalid")
             .build();
     try {
-      new VectorFieldDef("vector", field);
+      VectorFieldDef.createField("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
       assertTrue(
@@ -959,7 +959,7 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setStoreDocValues(true)
             .build();
     try {
-      new VectorFieldDef("vector", field);
+      VectorFieldDef.createField("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals("Vector dimension must be <= 4096", e.getMessage());
@@ -977,7 +977,7 @@ public class VectorFieldDefTest extends ServerTestCase {
             .setVectorSimilarity("cosine")
             .build();
     try {
-      new VectorFieldDef("vector", field);
+      VectorFieldDef.createField("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals("Vector dimension must be <= 4096", e.getMessage());
@@ -986,7 +986,7 @@ public class VectorFieldDefTest extends ServerTestCase {
 
   @Test
   public void testValidateVector_nan() throws IOException {
-    VectorFieldDef vectorFieldDef = getCosineField();
+    VectorFieldDef.FloatVectorFieldDef vectorFieldDef = getCosineField();
     try {
       vectorFieldDef.validateVectorForSearch(new float[] {1.0f, Float.NaN, 1.0f});
       fail();
@@ -997,7 +997,7 @@ public class VectorFieldDefTest extends ServerTestCase {
 
   @Test
   public void testValidateVector_inf() throws IOException {
-    VectorFieldDef vectorFieldDef = getCosineField();
+    VectorFieldDef.FloatVectorFieldDef vectorFieldDef = getCosineField();
     try {
       vectorFieldDef.validateVectorForSearch(new float[] {1.0f, Float.POSITIVE_INFINITY, 1.0f});
       fail();
@@ -1008,7 +1008,7 @@ public class VectorFieldDefTest extends ServerTestCase {
 
   @Test
   public void testValidateVector_zero_magnitude() throws IOException {
-    VectorFieldDef vectorFieldDef = getL2Field();
+    VectorFieldDef.FloatVectorFieldDef vectorFieldDef = getL2Field();
     vectorFieldDef.validateVectorForSearch(new float[] {0.0f, 0.0f, 0.0f});
 
     vectorFieldDef = getCosineField();
@@ -1022,7 +1022,7 @@ public class VectorFieldDefTest extends ServerTestCase {
 
   @Test
   public void testValidateByteVector_zero_magnitude() throws IOException {
-    VectorFieldDef vectorFieldDef = getL2ByteField();
+    VectorFieldDef.ByteVectorFieldDef vectorFieldDef = getL2ByteField();
     vectorFieldDef.validateVectorForSearch(new byte[] {0, 0, 0});
 
     vectorFieldDef = getCosineByteField();
@@ -1036,7 +1036,7 @@ public class VectorFieldDefTest extends ServerTestCase {
 
   @Test
   public void testValidateVector_not_normalized() throws IOException {
-    VectorFieldDef vectorFieldDef = getDotField();
+    VectorFieldDef.FloatVectorFieldDef vectorFieldDef = getDotField();
     try {
       vectorFieldDef.validateVectorForSearch(new float[] {1.0f, 1.0f, 1.0f});
       fail();
@@ -1045,45 +1045,45 @@ public class VectorFieldDefTest extends ServerTestCase {
     }
   }
 
-  private VectorFieldDef getCosineField() throws IOException {
-    return (VectorFieldDef)
+  private VectorFieldDef.FloatVectorFieldDef getCosineField() throws IOException {
+    return (VectorFieldDef.FloatVectorFieldDef)
         getGrpcServer()
             .getGlobalState()
             .getIndex(VECTOR_SEARCH_INDEX_NAME)
             .getField("vector_cosine");
   }
 
-  private VectorFieldDef getL2Field() throws IOException {
-    return (VectorFieldDef)
+  private VectorFieldDef.FloatVectorFieldDef getL2Field() throws IOException {
+    return (VectorFieldDef.FloatVectorFieldDef)
         getGrpcServer()
             .getGlobalState()
             .getIndex(VECTOR_SEARCH_INDEX_NAME)
             .getField("vector_l2_norm");
   }
 
-  private VectorFieldDef getDotField() throws IOException {
-    return (VectorFieldDef)
+  private VectorFieldDef.FloatVectorFieldDef getDotField() throws IOException {
+    return (VectorFieldDef.FloatVectorFieldDef)
         getGrpcServer().getGlobalState().getIndex(VECTOR_SEARCH_INDEX_NAME).getField("vector_dot");
   }
 
-  private VectorFieldDef getCosineByteField() throws IOException {
-    return (VectorFieldDef)
+  private VectorFieldDef.ByteVectorFieldDef getCosineByteField() throws IOException {
+    return (VectorFieldDef.ByteVectorFieldDef)
         getGrpcServer()
             .getGlobalState()
             .getIndex(VECTOR_SEARCH_INDEX_NAME)
             .getField("byte_vector_cosine");
   }
 
-  private VectorFieldDef getL2ByteField() throws IOException {
-    return (VectorFieldDef)
+  private VectorFieldDef.ByteVectorFieldDef getL2ByteField() throws IOException {
+    return (VectorFieldDef.ByteVectorFieldDef)
         getGrpcServer()
             .getGlobalState()
             .getIndex(VECTOR_SEARCH_INDEX_NAME)
             .getField("byte_vector_l2_norm");
   }
 
-  private VectorFieldDef getQuantizedField() throws IOException {
-    return (VectorFieldDef)
+  private VectorFieldDef.FloatVectorFieldDef getQuantizedField() throws IOException {
+    return (VectorFieldDef.FloatVectorFieldDef)
         getGrpcServer()
             .getGlobalState()
             .getIndex(VECTOR_SEARCH_INDEX_NAME)
@@ -1301,7 +1301,7 @@ public class VectorFieldDefTest extends ServerTestCase {
 
   @Test
   public void testGetVectorFormat() throws IOException {
-    VectorFieldDef vectorFieldDef = getCosineField();
+    VectorFieldDef<?> vectorFieldDef = getCosineField();
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertEquals(
         "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn=16, beamWidth=100, flatVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer()))",
@@ -1310,7 +1310,7 @@ public class VectorFieldDefTest extends ServerTestCase {
 
   @Test
   public void testGetQuantizedVectorFormat() throws IOException {
-    VectorFieldDef vectorFieldDef = getQuantizedField();
+    VectorFieldDef<?> vectorFieldDef = getQuantizedField();
     KnnVectorsFormat format = vectorFieldDef.getVectorsFormat();
     assertEquals(
         "Lucene99HnswScalarQuantizedVectorsFormat(name=Lucene99HnswScalarQuantizedVectorsFormat, maxConn=16, beamWidth=100, flatVectorFormat=Lucene99ScalarQuantizedVectorsFormat(name=Lucene99ScalarQuantizedVectorsFormat, confidenceInterval=null, bits=7, compress=false, flatVectorScorer=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer()), rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())))",
@@ -1333,7 +1333,7 @@ public class VectorFieldDefTest extends ServerTestCase {
                     .build())
             .build();
     try {
-      new VectorFieldDef("vector", field);
+      VectorFieldDef.createField("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(
@@ -1358,7 +1358,7 @@ public class VectorFieldDefTest extends ServerTestCase {
                     .build())
             .build();
     try {
-      new VectorFieldDef("vector", field);
+      VectorFieldDef.createField("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals("bits must be one of: 4, 7; bits=9", e.getMessage());
@@ -1379,7 +1379,7 @@ public class VectorFieldDefTest extends ServerTestCase {
                 VectorIndexingOptions.newBuilder().setType("hnsw_scalar_quantized").build())
             .build();
     try {
-      new VectorFieldDef("vector", field);
+      VectorFieldDef.createField("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(
@@ -1403,7 +1403,7 @@ public class VectorFieldDefTest extends ServerTestCase {
                     .build())
             .build();
     try {
-      new VectorFieldDef("vector", field);
+      VectorFieldDef.createField("vector", field);
       fail();
     } catch (IllegalArgumentException e) {
       assertEquals(

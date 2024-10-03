@@ -19,7 +19,6 @@ import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.analysis.PosIncGapAnalyzerWrapper;
-import com.yelp.nrtsearch.server.luceneserver.doc.DocValuesFactory;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.TermQueryable;
@@ -44,6 +43,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -52,7 +52,7 @@ import org.apache.lucene.util.BytesRef;
  * Base class for all text base field definitions. In addition to the properties from {@link
  * IndexableFieldDef}, text fields have the option for {@link Analyzer}s.
  */
-public abstract class TextBaseFieldDef extends IndexableFieldDef
+public abstract class TextBaseFieldDef extends IndexableFieldDef<String>
     implements TermQueryable, GlobalOrdinalable {
   static final int DEFAULT_POSITION_INCREMENT_GAP = 100;
 
@@ -65,15 +65,15 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
   private final int ignoreAbove;
 
   /**
-   * Field constructor. Uses {@link IndexableFieldDef#IndexableFieldDef(String, Field)} to do common
-   * initialization, then sets up analyzers. Analyzers are parsed through calls to the protected
-   * methods {@link #parseIndexAnalyzer(Field)} and {@link #parseSearchAnalyzer(Field)}.
+   * Field constructor. Uses {@link IndexableFieldDef#IndexableFieldDef(String, Field, Class)} to do
+   * common initialization, then sets up analyzers. Analyzers are parsed through calls to the
+   * protected methods {@link #parseIndexAnalyzer(Field)} and {@link #parseSearchAnalyzer(Field)}.
    *
    * @param name field name
    * @param requestField field definition from grpc request
    */
   protected TextBaseFieldDef(String name, Field requestField) {
-    super(name, requestField);
+    super(name, requestField, String.class);
     indexAnalyzer = parseIndexAnalyzer(requestField);
     searchAnalyzer = parseSearchAnalyzer(requestField);
     eagerFieldGlobalOrdinals = requestField.getEagerFieldGlobalOrdinals();
@@ -207,15 +207,20 @@ public abstract class TextBaseFieldDef extends IndexableFieldDef
   }
 
   @Override
-  public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+  public LoadedDocValues<String> getDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.SORTED) {
       SortedDocValues sortedDocValues = DocValues.getSorted(context.reader(), getName());
       return new LoadedDocValues.SingleString(sortedDocValues);
     } else if (docValuesType == DocValuesType.BINARY) {
       BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
       return new LoadedDocValues.SingleBinaryString(binaryDocValues);
+    } else if (docValuesType == DocValuesType.SORTED_SET) {
+      SortedSetDocValues sortedSetDocValues = DocValues.getSortedSet(context.reader(), getName());
+      return new LoadedDocValues.SortedStrings(sortedSetDocValues);
     } else {
-      return DocValuesFactory.getBinaryDocValues(getName(), docValuesType, context);
+      throw new IllegalArgumentException(
+          String.format(
+              "Unsupported doc value type %s for field %s", docValuesType, this.getName()));
     }
   }
 

@@ -36,8 +36,12 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.similarities.Similarity;
 
-/** Base class for all field definition types that can be written into the index. */
-public abstract class IndexableFieldDef extends FieldDef {
+/**
+ * Base class for all field definition types that can be written into the index.
+ *
+ * @param <T> doc value object type
+ */
+public abstract class IndexableFieldDef<T> extends FieldDef {
   public enum FacetValueType {
     NO_FACETS,
     FLAT,
@@ -52,8 +56,9 @@ public abstract class IndexableFieldDef extends FieldDef {
   private final PostingsFormat postingsFormat;
   private final DocValuesFormat docValuesFormat;
   private final Similarity similarity;
+  private final Class<? super T> docValuesObjectClass;
 
-  private final Map<String, IndexableFieldDef> childFields;
+  private final Map<String, IndexableFieldDef<?>> childFields;
 
   protected final DocValuesType docValuesType;
   protected final IndexableFieldDef.FacetValueType facetValueType;
@@ -68,8 +73,10 @@ public abstract class IndexableFieldDef extends FieldDef {
    *
    * @param name name of field
    * @param requestField field definition from grpc request
+   * @param docValuesObjectClass class of doc values object
    */
-  protected IndexableFieldDef(String name, Field requestField) {
+  protected IndexableFieldDef(
+      String name, Field requestField, Class<? super T> docValuesObjectClass) {
     super(name);
 
     validateRequest(requestField);
@@ -101,9 +108,11 @@ public abstract class IndexableFieldDef extends FieldDef {
     this.similarity =
         SimilarityCreator.getInstance().createSimilarity(similarityStr, similarityParams);
 
+    this.docValuesObjectClass = docValuesObjectClass;
+
     // add any children this field has
     if (requestField.getChildFieldsCount() > 0) {
-      Map<String, IndexableFieldDef> childFields = new HashMap<>();
+      Map<String, IndexableFieldDef<?>> childFields = new HashMap<>();
       for (Field field : requestField.getChildFieldsList()) {
         checkChildName(field.getName());
         String childName = getName() + IndexState.CHILD_FIELD_SEPARATOR + field.getName();
@@ -111,7 +120,7 @@ public abstract class IndexableFieldDef extends FieldDef {
         if (!(fieldDef instanceof IndexableFieldDef)) {
           throw new IllegalArgumentException("Child field is not indexable: " + childName);
         }
-        childFields.put(childName, (IndexableFieldDef) fieldDef);
+        childFields.put(childName, (IndexableFieldDef<?>) fieldDef);
       }
       this.childFields = Collections.unmodifiableMap(childFields);
     } else {
@@ -132,19 +141,19 @@ public abstract class IndexableFieldDef extends FieldDef {
   }
 
   /**
-   * Method called by {@link #IndexableFieldDef(String, Field)} to validate the provided {@link
-   * Field}. Field definitions should define a version that checks for incompatible parameters and
-   * any other potential issues. It is recommended to also call the super version of this method, so
-   * that general checks do not need to be repeated everywhere.
+   * Method called by {@link #IndexableFieldDef(String, Field, Class)} to validate the provided
+   * {@link Field}. Field definitions should define a version that checks for incompatible
+   * parameters and any other potential issues. It is recommended to also call the super version of
+   * this method, so that general checks do not need to be repeated everywhere.
    *
    * @param requestField field properties to validate
    */
   protected void validateRequest(Field requestField) {}
 
   /**
-   * Method called by {@link #IndexableFieldDef(String, Field)} to determine the doc value type used
-   * by this field. Fields are not necessarily limited to one doc value, but this should represent
-   * the primary value that will be accessible to scripts and search through {@link
+   * Method called by {@link #IndexableFieldDef(String, Field, Class)} to determine the doc value
+   * type used by this field. Fields are not necessarily limited to one doc value, but this should
+   * represent the primary value that will be accessible to scripts and search through {@link
    * #getDocValues(LeafReaderContext)}. A value of NONE implies that the field does not support doc
    * values.
    *
@@ -156,8 +165,8 @@ public abstract class IndexableFieldDef extends FieldDef {
   }
 
   /**
-   * Method called by {@link #IndexableFieldDef(String, Field)} to determine the facet value type
-   * for this field. The result of this method is exposed externally through {@link
+   * Method called by {@link #IndexableFieldDef(String, Field, Class)} to determine the facet value
+   * type for this field. The result of this method is exposed externally through {@link
    * #getFacetValueType()}. A value of NO_FACETS implies that the field does not support facets.
    *
    * @param requestField field from request
@@ -168,12 +177,12 @@ public abstract class IndexableFieldDef extends FieldDef {
   }
 
   /**
-   * Method called by {@link #IndexableFieldDef(String, Field)} to set the search properties on the
-   * given {@link FieldType}. The {@link FieldType#setStored(boolean)} has already been set to the
-   * value from {@link Field#getStore()}. This method should set any other needed properties, such
-   * as index options, tokenization, term vectors, etc. It likely should not set a doc value type,
-   * as those are usually added separately. The common use of this {@link FieldType} is to add a
-   * {@link FieldWithData} during indexing. This method should not freeze the field type.
+   * Method called by {@link #IndexableFieldDef(String, Field, Class)} to set the search properties
+   * on the given {@link FieldType}. The {@link FieldType#setStored(boolean)} has already been set
+   * to the value from {@link Field#getStore()}. This method should set any other needed properties,
+   * such as index options, tokenization, term vectors, etc. It likely should not set a doc value
+   * type, as those are usually added separately. The common use of this {@link FieldType} is to add
+   * a {@link FieldWithData} during indexing. This method should not freeze the field type.
    *
    * @param fieldType type that needs search properties set
    * @param requestField field from request
@@ -242,7 +251,7 @@ public abstract class IndexableFieldDef extends FieldDef {
    *
    * @return child map
    */
-  public Map<String, IndexableFieldDef> getChildFields() {
+  public Map<String, IndexableFieldDef<?>> getChildFields() {
     return childFields;
   }
 
@@ -255,8 +264,17 @@ public abstract class IndexableFieldDef extends FieldDef {
    * @return doc values for field
    * @throws IOException if there is an error loading doc values
    */
-  public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+  public LoadedDocValues<? extends T> getDocValues(LeafReaderContext context) throws IOException {
     throw new UnsupportedOperationException("Doc values not supported for field: " + getName());
+  }
+
+  /**
+   * Get the class of the doc values object for this field.
+   *
+   * @return class of doc values object
+   */
+  public Class<? super T> getDocValuesObjectClass() {
+    return docValuesObjectClass;
   }
 
   /**

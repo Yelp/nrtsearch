@@ -42,13 +42,13 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 
-public class ObjectFieldDef extends IndexableFieldDef {
+public class ObjectFieldDef extends IndexableFieldDef<Struct> {
 
   private final Gson gson;
   private final boolean isNestedDoc;
 
   protected ObjectFieldDef(String name, Field requestField) {
-    super(name, requestField);
+    super(name, requestField, Struct.class);
     this.isNestedDoc = requestField.getNestedDoc();
     gson = new GsonBuilder().serializeNulls().create();
   }
@@ -122,7 +122,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
       Document document,
       List<Map<String, Object>> fieldValues,
       List<List<String>> facetHierarchyPaths) {
-    for (Map.Entry<String, IndexableFieldDef> childField : this.getChildFields().entrySet()) {
+    for (Map.Entry<String, IndexableFieldDef<?>> childField : this.getChildFields().entrySet()) {
       String[] keys = childField.getKey().split("\\.");
       String key = keys[keys.length - 1];
       if (childField.getValue().getType().equals("OBJECT")) {
@@ -177,7 +177,7 @@ public class ObjectFieldDef extends IndexableFieldDef {
   }
 
   @Override
-  public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+  public LoadedDocValues<Struct> getDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.BINARY) {
       BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
       return new LoadedDocValues.ObjectStructDocValues(binaryDocValues);

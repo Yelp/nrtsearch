@@ -45,7 +45,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 
 /** Field class for 'DATE_TIME' field type. */
-public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, RangeQueryable {
+public class DateTimeFieldDef extends IndexableFieldDef<Instant>
+    implements Sortable, RangeQueryable {
   private static final String EPOCH_MILLIS = "epoch_millis";
   private static final String STRICT_DATE_OPTIONAL_TIME = "strict_date_optional_time";
 
@@ -79,7 +80,7 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
   }
 
   public DateTimeFieldDef(String name, Field requestField) {
-    super(name, requestField);
+    super(name, requestField, Instant.class);
     dateTimeFormat = requestField.getDateTimeFormat();
     dateTimeFormatter = createDateTimeFormatter(dateTimeFormat);
   }
@@ -278,7 +279,7 @@ public class DateTimeFieldDef extends IndexableFieldDef implements Sortable, Ran
   }
 
   @Override
-  public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+  public LoadedDocValues<Instant> getDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.NUMERIC) {
       NumericDocValues numericDocValues = DocValues.getNumeric(context.reader(), getName());
       return new LoadedDocValues.SingleDateTime(numericDocValues);

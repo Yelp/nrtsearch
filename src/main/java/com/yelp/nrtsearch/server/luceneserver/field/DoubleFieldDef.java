@@ -35,10 +35,10 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.NumericUtils;
 
 /** Field class for 'DOUBLE' field type. */
-public class DoubleFieldDef extends NumberFieldDef {
+public class DoubleFieldDef extends NumberFieldDef<Double> {
 
   public DoubleFieldDef(String name, Field requestField) {
-    super(name, requestField, DOUBLE_PARSER);
+    super(name, requestField, DOUBLE_PARSER, Double.class);
   }
 
   @Override
@@ -59,12 +59,12 @@ public class DoubleFieldDef extends NumberFieldDef {
   }
 
   @Override
-  protected LoadedDocValues<?> getNumericDocValues(NumericDocValues docValues) {
+  protected LoadedDocValues<Double> getNumericDocValues(NumericDocValues docValues) {
     return new LoadedDocValues.SingleDouble(docValues);
   }
 
   @Override
-  protected LoadedDocValues<?> getSortedNumericDocValues(SortedNumericDocValues docValues) {
+  protected LoadedDocValues<Double> getSortedNumericDocValues(SortedNumericDocValues docValues) {
     return new LoadedDocValues.SortedDoubles(docValues);
   }
 
@@ -160,7 +160,7 @@ public class DoubleFieldDef extends NumberFieldDef {
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
-    List<Double> doubleTerms = new ArrayList(textValues.size());
+    List<Double> doubleTerms = new ArrayList<>(textValues.size());
     textValues.forEach((s) -> doubleTerms.add(Double.parseDouble(s)));
     return DoublePoint.newSetQuery(getName(), doubleTerms);
   }

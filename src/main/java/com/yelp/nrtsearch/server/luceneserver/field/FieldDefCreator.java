@@ -60,7 +60,7 @@ public class FieldDefCreator {
         (name, field) -> {
           throw new UnsupportedOperationException("Runtime fields should be created directly");
         });
-    register("VECTOR", VectorFieldDef::new);
+    register("VECTOR", VectorFieldDef::createField);
     register("CONTEXT_SUGGEST", ContextSuggestFieldDef::new);
   }
 

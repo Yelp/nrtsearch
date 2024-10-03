@@ -34,10 +34,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 
 /** Field class for 'INT' field type. */
-public class IntFieldDef extends NumberFieldDef {
+public class IntFieldDef extends NumberFieldDef<Integer> {
 
   public IntFieldDef(String name, Field requestField) {
-    super(name, requestField, INT_PARSER);
+    super(name, requestField, INT_PARSER, Integer.class);
   }
 
   @Override
@@ -57,12 +57,12 @@ public class IntFieldDef extends NumberFieldDef {
   }
 
   @Override
-  protected LoadedDocValues<?> getNumericDocValues(NumericDocValues docValues) {
+  protected LoadedDocValues<Integer> getNumericDocValues(NumericDocValues docValues) {
     return new LoadedDocValues.SingleInteger(docValues);
   }
 
   @Override
-  protected LoadedDocValues<?> getSortedNumericDocValues(SortedNumericDocValues docValues) {
+  protected LoadedDocValues<Integer> getSortedNumericDocValues(SortedNumericDocValues docValues) {
     return new LoadedDocValues.SortedIntegers(docValues);
   }
 
@@ -150,7 +150,7 @@ public class IntFieldDef extends NumberFieldDef {
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
-    List<Integer> intTerms = new ArrayList(textValues.size());
+    List<Integer> intTerms = new ArrayList<>(textValues.size());
     textValues.forEach((s) -> intTerms.add(Integer.parseInt(s)));
     return IntPoint.newSetQuery(getName(), intTerms);
   }

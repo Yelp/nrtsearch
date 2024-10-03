@@ -51,8 +51,10 @@ import org.apache.lucene.util.NumericUtils;
 /**
  * Base class for all fields that are a {@link Number} type. Contains the common handling used by
  * all of number fields and provides abstract functions for type specific operations.
+ *
+ * @param <T> doc value object type
  */
-public abstract class NumberFieldDef extends IndexableFieldDef
+public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
     implements Bindable, Sortable, RangeQueryable, TermQueryable {
   public static final Function<String, Number> INT_PARSER = Integer::valueOf;
   public static final Function<String, Number> LONG_PARSER = Long::valueOf;
@@ -69,8 +71,12 @@ public abstract class NumberFieldDef extends IndexableFieldDef
 
   private final Function<String, Number> fieldParser;
 
-  protected NumberFieldDef(String name, Field requestField, Function<String, Number> fieldParser) {
-    super(name, requestField);
+  protected NumberFieldDef(
+      String name,
+      Field requestField,
+      Function<String, Number> fieldParser,
+      Class<T> docValuesClass) {
+    super(name, requestField, docValuesClass);
     this.fieldParser = fieldParser;
   }
 
@@ -140,7 +146,7 @@ public abstract class NumberFieldDef extends IndexableFieldDef
    * @param docValues doc values accessor
    * @return loaded doc values implementation
    */
-  protected abstract LoadedDocValues<?> getNumericDocValues(NumericDocValues docValues);
+  protected abstract LoadedDocValues<T> getNumericDocValues(NumericDocValues docValues);
 
   /**
    * Get the appropriate {@link LoadedDocValues} implementation for the field type using the given
@@ -149,7 +155,7 @@ public abstract class NumberFieldDef extends IndexableFieldDef
    * @param docValues doc values accessor
    * @return loaded doc values implementation
    */
-  protected abstract LoadedDocValues<?> getSortedNumericDocValues(SortedNumericDocValues docValues);
+  protected abstract LoadedDocValues<T> getSortedNumericDocValues(SortedNumericDocValues docValues);
 
   /**
    * Get the {@link LongToDoubleFunction} to use when decoding doc value data in {@link
@@ -215,7 +221,7 @@ public abstract class NumberFieldDef extends IndexableFieldDef
   }
 
   @Override
-  public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+  public LoadedDocValues<T> getDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.NUMERIC) {
       NumericDocValues numericDocValues = DocValues.getNumeric(context.reader(), getName());
       return getNumericDocValues(numericDocValues);
