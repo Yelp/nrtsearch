@@ -38,10 +38,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 
-public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryable {
+public class PolygonfieldDef extends IndexableFieldDef<Struct> implements PolygonQueryable {
 
   protected PolygonfieldDef(String name, Field requestField) {
-    super(name, requestField);
+    super(name, requestField, Struct.class);
   }
 
   @Override
@@ -79,7 +79,7 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
       }
 
       Arrays.stream(LatLonShape.createIndexableFields(getName(), polygons[0]))
-          .forEach(x -> document.add(x));
+          .forEach(document::add);
 
       if (isStored()) {
         document.add(new StoredField(this.getName(), jsonToStruct(fieldValue).toByteArray()));
@@ -98,7 +98,7 @@ public class PolygonfieldDef extends IndexableFieldDef implements PolygonQueryab
   }
 
   @Override
-  public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+  public LoadedDocValues<Struct> getDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.BINARY) {
       BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
       return new LoadedDocValues.ObjectStructDocValues(binaryDocValues);

@@ -36,9 +36,9 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 
 /** Field class for 'BOOLEAN' field type. */
-public class BooleanFieldDef extends IndexableFieldDef implements TermQueryable {
+public class BooleanFieldDef extends IndexableFieldDef<Boolean> implements TermQueryable {
   protected BooleanFieldDef(String name, Field requestField) {
-    super(name, requestField);
+    super(name, requestField, Boolean.class);
   }
 
   @Override
@@ -113,7 +113,7 @@ public class BooleanFieldDef extends IndexableFieldDef implements TermQueryable 
   }
 
   @Override
-  public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+  public LoadedDocValues<Boolean> getDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.NUMERIC) {
       NumericDocValues numericDocValues = DocValues.getNumeric(context.reader(), getName());
       return new LoadedDocValues.SingleBoolean(numericDocValues);

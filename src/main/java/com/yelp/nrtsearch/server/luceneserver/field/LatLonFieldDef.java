@@ -28,6 +28,7 @@ import com.yelp.nrtsearch.server.grpc.SortType;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.GeoQueryable;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.Sortable;
+import com.yelp.nrtsearch.server.luceneserver.geo.GeoPoint;
 import com.yelp.nrtsearch.server.luceneserver.geo.GeoUtils;
 import java.io.IOException;
 import java.util.List;
@@ -45,9 +46,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 
 /** Field class for 'LAT_LON' field type. */
-public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQueryable {
+public class LatLonFieldDef extends IndexableFieldDef<GeoPoint> implements Sortable, GeoQueryable {
   public LatLonFieldDef(String name, Field requestField) {
-    super(name, requestField);
+    super(name, requestField, GeoPoint.class);
   }
 
   @Override
@@ -98,7 +99,7 @@ public class LatLonFieldDef extends IndexableFieldDef implements Sortable, GeoQu
   }
 
   @Override
-  public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+  public LoadedDocValues<GeoPoint> getDocValues(LeafReaderContext context) throws IOException {
     if (docValuesType == DocValuesType.SORTED_NUMERIC) {
       SortedNumericDocValues sortedNumericDocValues =
           DocValues.getSortedNumeric(context.reader(), getName());

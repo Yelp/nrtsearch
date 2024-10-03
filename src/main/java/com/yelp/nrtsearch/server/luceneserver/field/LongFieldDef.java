@@ -34,10 +34,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 
 /** Field class for 'LONG' field type. */
-public class LongFieldDef extends NumberFieldDef {
+public class LongFieldDef extends NumberFieldDef<Long> {
 
   public LongFieldDef(String name, Field requestField) {
-    super(name, requestField, LONG_PARSER);
+    super(name, requestField, LONG_PARSER, Long.class);
   }
 
   @Override
@@ -57,12 +57,12 @@ public class LongFieldDef extends NumberFieldDef {
   }
 
   @Override
-  protected LoadedDocValues<?> getNumericDocValues(NumericDocValues docValues) {
+  protected LoadedDocValues<Long> getNumericDocValues(NumericDocValues docValues) {
     return new LoadedDocValues.SingleLong(docValues);
   }
 
   @Override
-  protected LoadedDocValues<?> getSortedNumericDocValues(SortedNumericDocValues docValues) {
+  protected LoadedDocValues<Long> getSortedNumericDocValues(SortedNumericDocValues docValues) {
     return new LoadedDocValues.SortedLongs(docValues);
   }
 
@@ -146,7 +146,7 @@ public class LongFieldDef extends NumberFieldDef {
 
   @Override
   public Query getTermInSetQueryFromTextValues(List<String> textValues) {
-    List<Long> longTerms = new ArrayList(textValues.size());
+    List<Long> longTerms = new ArrayList<>(textValues.size());
     textValues.forEach((s) -> longTerms.add(Long.parseLong(s)));
     return LongPoint.newSetQuery(getName(), longTerms);
   }

@@ -28,7 +28,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.search.suggest.document.Completion912PostingsFormat;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 
-public class ContextSuggestFieldDef extends IndexableFieldDef {
+public class ContextSuggestFieldDef extends IndexableFieldDef<Void> {
   private static final Gson GSON = new GsonBuilder().serializeNulls().create();
   private final Analyzer indexAnalyzer;
   private final Analyzer searchAnalyzer;
@@ -38,7 +38,7 @@ public class ContextSuggestFieldDef extends IndexableFieldDef {
    * @param requestField field definition from grpc request
    */
   protected ContextSuggestFieldDef(String name, Field requestField) {
-    super(name, requestField);
+    super(name, requestField, Void.class);
     this.indexAnalyzer = this.parseIndexAnalyzer(requestField);
     this.searchAnalyzer = this.parseSearchAnalyzer(requestField);
   }

@@ -96,10 +96,10 @@ public class CustomFieldTypeTest {
         Collections.singletonList(new TestFieldTypePlugin()));
   }
 
-  static class TestFieldDef extends IndexableFieldDef {
+  static class TestFieldDef extends IndexableFieldDef<Integer> {
 
     public TestFieldDef(String name, Field requestField) {
-      super(name, requestField);
+      super(name, requestField, Integer.class);
     }
 
     @Override
@@ -108,7 +108,7 @@ public class CustomFieldTypeTest {
     }
 
     @Override
-    public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+    public LoadedDocValues<Integer> getDocValues(LeafReaderContext context) throws IOException {
       NumericDocValues numericDocValues = DocValues.getNumeric(context.reader(), getName());
       return new LoadedDocValues.SingleInteger(numericDocValues);
     }

@@ -151,14 +151,14 @@ public class FieldUpdateHandler {
     FieldDef fieldDef = FieldDefCreator.getInstance().createFieldDef(field.getName(), field);
     fieldStateBuilder.addField(fieldDef, field);
     if (fieldDef instanceof IndexableFieldDef) {
-      addChildFields((IndexableFieldDef) fieldDef, fieldStateBuilder);
+      addChildFields((IndexableFieldDef<?>) fieldDef, fieldStateBuilder);
     }
     logger.info("REGISTER: " + fieldDef.getName() + " -> " + fieldDef);
   }
 
   // recursively add all children to pendingFieldDefs
   private static void addChildFields(
-      IndexableFieldDef indexableFieldDef, FieldAndFacetState.Builder fieldStateBuilder) {
+      IndexableFieldDef<?> indexableFieldDef, FieldAndFacetState.Builder fieldStateBuilder) {
     indexableFieldDef
         .getChildFields()
         .forEach(

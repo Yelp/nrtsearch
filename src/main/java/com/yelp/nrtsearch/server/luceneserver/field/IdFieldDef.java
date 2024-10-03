@@ -36,10 +36,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 
 /** Field class for defining '_ID' fields which are used to update documents */
-public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
+public class IdFieldDef extends IndexableFieldDef<String> implements TermQueryable {
 
   protected IdFieldDef(String name, Field requestField) {
-    super(name, requestField);
+    super(name, requestField, String.class);
   }
 
   /**
@@ -119,7 +119,7 @@ public class IdFieldDef extends IndexableFieldDef implements TermQueryable {
    * @throws IOException
    */
   @Override
-  public LoadedDocValues<?> getDocValues(LeafReaderContext context) throws IOException {
+  public LoadedDocValues<String> getDocValues(LeafReaderContext context) throws IOException {
     if (hasDocValues()) {
       SortedDocValues sortedDocValues = DocValues.getSorted(context.reader(), getName());
       return new LoadedDocValues.SingleString(sortedDocValues);
