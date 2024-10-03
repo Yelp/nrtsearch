@@ -72,7 +72,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -1027,17 +1026,6 @@ public class ImmutableIndexStateTest {
     ImmutableIndexState indexState = getIndexState(getEmptyState(), mockFieldState);
     assertSame(eagerOrdinalFields, indexState.getEagerGlobalOrdinalFields());
     verify(mockFieldState, times(1)).getEagerGlobalOrdinalFields();
-    verifyNoMoreInteractions(mockFieldState);
-  }
-
-  @Test
-  public void testGetExpressionBindings() throws IOException {
-    FieldAndFacetState mockFieldState = mock(FieldAndFacetState.class);
-    Bindings mockBindings = mock(Bindings.class);
-    when(mockFieldState.getExprBindings()).thenReturn(mockBindings);
-    ImmutableIndexState indexState = getIndexState(getEmptyState(), mockFieldState);
-    assertSame(mockBindings, indexState.getExpressionBindings());
-    verify(mockFieldState, times(1)).getExprBindings();
     verifyNoMoreInteractions(mockFieldState);
   }
 

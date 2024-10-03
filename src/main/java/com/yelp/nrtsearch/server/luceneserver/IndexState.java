@@ -44,7 +44,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Pattern;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
-import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
@@ -95,7 +94,7 @@ public abstract class IndexState implements Closeable {
    * Index level doc values lookup. Generates {@link
    * com.yelp.nrtsearch.server.luceneserver.doc.SegmentDocLookup} for a given lucene segment.
    */
-  public final DocLookup docLookup = new DocLookup(this, this::getField);
+  public final DocLookup docLookup = new DocLookup(this::getField);
 
   /** Search-time analyzer. */
   public final Analyzer searchAnalyzer =
@@ -361,9 +360,6 @@ public abstract class IndexState implements Closeable {
 
   /** Get fields with doc values that do eager global ordinal building. */
   public abstract Map<String, GlobalOrdinalable> getEagerFieldGlobalOrdinalFields();
-
-  /** Get field bindings to use for javascript expressions. */
-  public abstract Bindings getExpressionBindings();
 
   /** Verifies if it has nested child object fields. */
   public abstract boolean hasNestedChildFields();

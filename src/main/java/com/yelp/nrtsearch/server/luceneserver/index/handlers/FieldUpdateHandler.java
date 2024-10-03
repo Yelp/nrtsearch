@@ -20,6 +20,7 @@ import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefResponse;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.luceneserver.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
@@ -28,7 +29,6 @@ import com.yelp.nrtsearch.server.luceneserver.index.FieldAndFacetState;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
-import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -179,21 +179,8 @@ public class FieldUpdateHandler {
     ScoreScript.Factory factory =
         ScriptService.getInstance().compile(field.getScript(), ScoreScript.CONTEXT);
     Map<String, Object> params = ScriptParamsUtils.decodeParams(field.getScript().getParamsMap());
-    // Workaround for the fact that the javascript expression may need bindings to other fields in
-    // this request.
-    // Build the complete bindings and pass it as a script parameter. We might want to think about a
-    // better way of
-    // doing this (or maybe updating index state in general).
-    if (field.getScript().getLang().equals(JsScriptEngine.LANG)) {
-      params = new HashMap<>(params);
-      params.put("bindings", fieldStateBuilder.getBindings());
-    } else {
-      // TODO fix this, by removing DocLookup dependency on IndexState. Should be possible to just
-      // use the fields from the field state builder
-      throw new IllegalArgumentException("Only js lang supported for index virtual fields");
-    }
-    // js scripts use Bindings instead of DocLookup
-    DoubleValuesSource values = factory.newFactory(params, null);
+    DoubleValuesSource values =
+        factory.newFactory(params, new DocLookup(fieldStateBuilder.getFields()::get));
 
     FieldDef virtualFieldDef = new VirtualFieldDef(field.getName(), values);
     fieldStateBuilder.addField(virtualFieldDef, field);

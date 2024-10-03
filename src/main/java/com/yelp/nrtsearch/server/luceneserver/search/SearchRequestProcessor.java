@@ -68,7 +68,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.lucene.facet.DrillDownQuery;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -143,8 +142,7 @@ public class SearchRequestProcessor {
         getRetrieveFields(searchRequest.getRetrieveFieldsList(), queryFields);
     contextBuilder.setRetrieveFields(Collections.unmodifiableMap(retrieveFields));
 
-    Function<String, FieldDef> fieldDefLookup = (String s) -> queryFields.get(s);
-    DocLookup docLookup = new DocLookup(indexState, fieldDefLookup);
+    DocLookup docLookup = new DocLookup(queryFields::get);
     contextBuilder.setDocLookup(docLookup);
 
     String rootQueryNestedPath =
@@ -418,8 +416,8 @@ public class SearchRequestProcessor {
   /**
    * Add index fields to given query fields map.
    *
-   * @param indexState state for query index
    * @param queryFields mutable current map of query fields
+   * @param otherFields fields to add to query fields
    * @throws IllegalArgumentException if any index field already exists
    */
   private static void addToQueryFields(
