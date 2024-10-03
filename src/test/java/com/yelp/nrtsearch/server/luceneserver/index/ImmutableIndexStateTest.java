@@ -70,9 +70,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -139,6 +139,9 @@ public class ImmutableIndexStateTest {
 
     when(mockGlobalState.getIndexDirBase()).thenReturn(folder.getRoot().toPath());
     when(mockGlobalState.getConfiguration()).thenReturn(dummyConfig);
+    when(mockGlobalState.getThreadPoolConfiguration())
+        .thenReturn(dummyConfig.getThreadPoolConfiguration());
+    when(mockGlobalState.getFetchService()).thenReturn(mock(ExecutorService.class));
     return new ImmutableIndexState(
         mockManager,
         mockGlobalState,
@@ -629,6 +632,9 @@ public class ImmutableIndexStateTest {
 
     when(mockGlobalState.getIndexDirBase()).thenReturn(folder.getRoot().toPath());
     when(mockGlobalState.getConfiguration()).thenReturn(dummyConfig);
+    when(mockGlobalState.getThreadPoolConfiguration())
+        .thenReturn(dummyConfig.getThreadPoolConfiguration());
+    when(mockGlobalState.getFetchService()).thenReturn(mock(ExecutorService.class));
     return new ImmutableIndexState(
         mockManager,
         mockGlobalState,
@@ -811,6 +817,93 @@ public class ImmutableIndexStateTest {
   }
 
   @Test
+  public void testParallelFetchConfig_default() throws IOException {
+    IndexState.ParallelFetchConfig parallelFetchConfig =
+        getIndexState(getEmptyState()).getParallelFetchConfig();
+    assertEquals(1, parallelFetchConfig.maxParallelism());
+    assertFalse(parallelFetchConfig.parallelFetchByField());
+    assertEquals(50, parallelFetchConfig.parallelFetchChunkSize());
+    assertNotNull(parallelFetchConfig.fetchExecutor());
+  }
+
+  @Test
+  public void testParallelFetchConfig_setParallelFetchByField() throws IOException {
+    IndexState.ParallelFetchConfig parallelFetchConfig =
+        getIndexState(
+                getStateWithLiveSettings(
+                    IndexLiveSettings.newBuilder()
+                        .setParallelFetchByField(BoolValue.newBuilder().setValue(true).build())
+                        .build()))
+            .getParallelFetchConfig();
+    assertEquals(1, parallelFetchConfig.maxParallelism());
+    assertTrue(parallelFetchConfig.parallelFetchByField());
+    assertEquals(50, parallelFetchConfig.parallelFetchChunkSize());
+    assertNotNull(parallelFetchConfig.fetchExecutor());
+  }
+
+  @Test
+  public void testParallelFetchConfig_setParallelFetchChunkSize() throws IOException {
+    IndexState.ParallelFetchConfig parallelFetchConfig =
+        getIndexState(
+                getStateWithLiveSettings(
+                    IndexLiveSettings.newBuilder()
+                        .setParallelFetchChunkSize(Int32Value.newBuilder().setValue(100).build())
+                        .build()))
+            .getParallelFetchConfig();
+    assertEquals(1, parallelFetchConfig.maxParallelism());
+    assertFalse(parallelFetchConfig.parallelFetchByField());
+    assertEquals(100, parallelFetchConfig.parallelFetchChunkSize());
+    assertNotNull(parallelFetchConfig.fetchExecutor());
+  }
+
+  @Test
+  public void testParallelFetchConfig_invalidParallelFetchChunkSize() throws IOException {
+    try {
+      getIndexState(
+              getStateWithLiveSettings(
+                  IndexLiveSettings.newBuilder()
+                      .setParallelFetchChunkSize(Int32Value.newBuilder().setValue(0).build())
+                      .build()))
+          .getParallelFetchConfig();
+      fail();
+    } catch (IllegalArgumentException e) {
+      assertEquals("parallelFetchChunkSize must be > 0", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testParallelFetchConfig_maxParallelism() throws IOException {
+    IndexStateManager mockManager = mock(IndexStateManager.class);
+    GlobalState mockGlobalState = mock(GlobalState.class);
+
+    String configFile = "threadPoolConfiguration:\n  fetch:\n    maxThreads: 10";
+    LuceneServerConfiguration config =
+        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+
+    when(mockGlobalState.getIndexDirBase()).thenReturn(folder.getRoot().toPath());
+    when(mockGlobalState.getConfiguration()).thenReturn(config);
+    when(mockGlobalState.getThreadPoolConfiguration())
+        .thenReturn(config.getThreadPoolConfiguration());
+    when(mockGlobalState.getFetchService()).thenReturn(mock(ExecutorService.class));
+    IndexState indexState =
+        new ImmutableIndexState(
+            mockManager,
+            mockGlobalState,
+            "test_index",
+            BackendGlobalState.getUniqueIndexName("test_index", "test_id"),
+            IndexStateInfo.newBuilder().build(),
+            new FieldAndFacetState(),
+            IndexLiveSettings.newBuilder().build(),
+            Map.of());
+
+    IndexState.ParallelFetchConfig parallelFetchConfig = indexState.getParallelFetchConfig();
+    assertEquals(10, parallelFetchConfig.maxParallelism());
+    assertFalse(parallelFetchConfig.parallelFetchByField());
+    assertEquals(50, parallelFetchConfig.parallelFetchChunkSize());
+    assertNotNull(parallelFetchConfig.fetchExecutor());
+  }
+
+  @Test
   public void testGetCurrentStateInfo() throws IOException {
     IndexStateInfo indexStateInfo = getEmptyState();
     ImmutableIndexState indexState = getIndexState(indexStateInfo);
@@ -865,6 +958,9 @@ public class ImmutableIndexStateTest {
 
     when(mockGlobalState.getIndexDirBase()).thenReturn(folder.getRoot().toPath());
     when(mockGlobalState.getConfiguration()).thenReturn(dummyConfig);
+    when(mockGlobalState.getThreadPoolConfiguration())
+        .thenReturn(dummyConfig.getThreadPoolConfiguration());
+    when(mockGlobalState.getFetchService()).thenReturn(mock(ExecutorService.class));
     return new ImmutableIndexState(
         mockManager,
         mockGlobalState,
@@ -1027,17 +1123,6 @@ public class ImmutableIndexStateTest {
     ImmutableIndexState indexState = getIndexState(getEmptyState(), mockFieldState);
     assertSame(eagerOrdinalFields, indexState.getEagerGlobalOrdinalFields());
     verify(mockFieldState, times(1)).getEagerGlobalOrdinalFields();
-    verifyNoMoreInteractions(mockFieldState);
-  }
-
-  @Test
-  public void testGetExpressionBindings() throws IOException {
-    FieldAndFacetState mockFieldState = mock(FieldAndFacetState.class);
-    Bindings mockBindings = mock(Bindings.class);
-    when(mockFieldState.getExprBindings()).thenReturn(mockBindings);
-    ImmutableIndexState indexState = getIndexState(getEmptyState(), mockFieldState);
-    assertSame(mockBindings, indexState.getExpressionBindings());
-    verify(mockFieldState, times(1)).getExprBindings();
     verifyNoMoreInteractions(mockFieldState);
   }
 

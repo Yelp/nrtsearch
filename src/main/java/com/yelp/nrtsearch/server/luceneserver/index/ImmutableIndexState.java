@@ -46,6 +46,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.properties.GlobalOrdinalable
 import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.search.sort.SortParser;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
+import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -54,7 +55,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -127,6 +127,7 @@ public class ImmutableIndexState extends IndexState {
   public static final int DEFAULT_VIRTUAL_SHARDS = 1;
   public static final int DEFAULT_SEGMENTS_PER_TIER = 10;
   public static final int DEFAULT_MAX_MERGED_SEGMENT_MB = 5 * 1024;
+  public static final int DEFAULT_PARALLEL_FETCH_CHUNK_SIZE = 50;
 
   // default live settings as message, so they can be merged with saved settings
   public static final IndexLiveSettings DEFAULT_INDEX_LIVE_SETTINGS =
@@ -150,6 +151,9 @@ public class ImmutableIndexState extends IndexState {
           .setDefaultTerminateAfter(Int32Value.newBuilder().setValue(0).build())
           .setMaxMergePreCopyDurationSec(UInt64Value.newBuilder().setValue(0))
           .setVerboseMetrics(BoolValue.newBuilder().setValue(false).build())
+          .setParallelFetchByField(BoolValue.newBuilder().setValue(false).build())
+          .setParallelFetchChunkSize(
+              Int32Value.newBuilder().setValue(DEFAULT_PARALLEL_FETCH_CHUNK_SIZE).build())
           .build();
 
   // Live Settings
@@ -168,6 +172,7 @@ public class ImmutableIndexState extends IndexState {
   private final int defaultTerminateAfter;
   private final long maxMergePreCopyDurationSec;
   private final boolean verboseMetrics;
+  private final ParallelFetchConfig parallelFetchConfig;
 
   private final IndexStateManager indexStateManager;
   private final String uniqueName;
@@ -261,6 +266,20 @@ public class ImmutableIndexState extends IndexState {
     maxMergePreCopyDurationSec =
         mergedLiveSettingsWithLocal.getMaxMergePreCopyDurationSec().getValue();
     verboseMetrics = mergedLiveSettingsWithLocal.getVerboseMetrics().getValue();
+    // Parallel fetch config
+    int maxParallelism =
+        globalState
+            .getThreadPoolConfiguration()
+            .getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.FETCH)
+            .maxThreads();
+    boolean parallelFetchByField = mergedLiveSettingsWithLocal.getParallelFetchByField().getValue();
+    int parallelFetchChunkSize = mergedLiveSettingsWithLocal.getParallelFetchChunkSize().getValue();
+    parallelFetchConfig =
+        new ParallelFetchConfig(
+            maxParallelism,
+            parallelFetchByField,
+            parallelFetchChunkSize,
+            globalState.getFetchService());
 
     // If there is previous shard state, use it. Otherwise, initialize the shard.
     if (previousShardState != null) {
@@ -470,11 +489,6 @@ public class ImmutableIndexState extends IndexState {
   }
 
   @Override
-  public Bindings getExpressionBindings() {
-    return fieldAndFacetState.getExprBindings();
-  }
-
-  @Override
   public boolean hasNestedChildFields() {
     return fieldAndFacetState.getHasNestedChildFields();
   }
@@ -492,6 +506,11 @@ public class ImmutableIndexState extends IndexState {
   @Override
   public FacetsConfig getFacetsConfig() {
     return fieldAndFacetState.getFacetsConfig();
+  }
+
+  @Override
+  public ParallelFetchConfig getParallelFetchConfig() {
+    return parallelFetchConfig;
   }
 
   @Override
@@ -798,6 +817,9 @@ public class ImmutableIndexState extends IndexState {
     }
     if (liveSettings.getMaxMergePreCopyDurationSec().getValue() < 0) {
       throw new IllegalArgumentException("maxMergePreCopyDurationSec must be >= 0");
+    }
+    if (liveSettings.getParallelFetchChunkSize().getValue() <= 0) {
+      throw new IllegalArgumentException("parallelFetchChunkSize must be > 0");
     }
   }
 

@@ -79,7 +79,7 @@ public class JsScriptBindingsTest {
 
   @Test(expected = NullPointerException.class)
   public void testNullParams() {
-    new JsScriptBindings(new FieldDefBindings(Collections.emptyMap()), null);
+    new JsScriptBindings(new FieldDefBindings(name -> null), null);
   }
 
   @Test
@@ -88,8 +88,7 @@ public class JsScriptBindingsTest {
     params.put("param1", 100);
     params.put("param2", 1.11);
 
-    JsScriptBindings bindings =
-        new JsScriptBindings(new FieldDefBindings(Collections.emptyMap()), params);
+    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(name -> null), params);
     DoubleValuesSource p1Source = bindings.getDoubleValuesSource("param1");
     assertEquals(100D, p1Source.getValues(null, null).doubleValue(), 0.001);
     DoubleValuesSource p2Source = bindings.getDoubleValuesSource("param2");
@@ -108,7 +107,8 @@ public class JsScriptBindingsTest {
     fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
     fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
 
-    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
+    JsScriptBindings bindings =
+        new JsScriptBindings(new FieldDefBindings(fieldDefMap::get), params);
     DoubleValuesSource f1Source = bindings.getDoubleValuesSource("field1");
     DoubleValuesSource f2Source = bindings.getDoubleValuesSource("field2");
     assertNotSame(f1Source, f2Source);
@@ -128,7 +128,8 @@ public class JsScriptBindingsTest {
     fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
     fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
 
-    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
+    JsScriptBindings bindings =
+        new JsScriptBindings(new FieldDefBindings(fieldDefMap::get), params);
     bindings.getDoubleValuesSource("invalid");
   }
 
@@ -144,7 +145,8 @@ public class JsScriptBindingsTest {
     fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
     fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
 
-    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
+    JsScriptBindings bindings =
+        new JsScriptBindings(new FieldDefBindings(fieldDefMap::get), params);
     bindings.getDoubleValuesSource("doc['invalid'].value");
   }
 
@@ -160,7 +162,8 @@ public class JsScriptBindingsTest {
     fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
     fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
 
-    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
+    JsScriptBindings bindings =
+        new JsScriptBindings(new FieldDefBindings(fieldDefMap::get), params);
     bindings.getDoubleValuesSource("doc[1].value");
   }
 
@@ -176,7 +179,8 @@ public class JsScriptBindingsTest {
     fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
     fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
 
-    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
+    JsScriptBindings bindings =
+        new JsScriptBindings(new FieldDefBindings(fieldDefMap::get), params);
     bindings.getDoubleValuesSource("not_doc['field1'].value");
   }
 
@@ -192,7 +196,8 @@ public class JsScriptBindingsTest {
     fieldDefMap.put("field1", new VirtualFieldDef("field1", field1Source));
     fieldDefMap.put("field2", new VirtualFieldDef("field2", field2Source));
 
-    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(fieldDefMap), params);
+    JsScriptBindings bindings =
+        new JsScriptBindings(new FieldDefBindings(fieldDefMap::get), params);
     bindings.getDoubleValuesSource("doc['field1']");
   }
 
@@ -202,8 +207,7 @@ public class JsScriptBindingsTest {
     params.put("param1", 100);
     params.put("param2", 1.11);
 
-    JsScriptBindings bindings =
-        new JsScriptBindings(new FieldDefBindings(Collections.emptyMap()), params);
+    JsScriptBindings bindings = new JsScriptBindings(new FieldDefBindings(name -> null), params);
     DoubleValuesSource p1Source = bindings.getDoubleValuesSource("param1");
     DoubleValuesSource p2Source = bindings.getDoubleValuesSource("param2");
     DoubleValuesSource p1SourceNext = bindings.getDoubleValuesSource("param1");

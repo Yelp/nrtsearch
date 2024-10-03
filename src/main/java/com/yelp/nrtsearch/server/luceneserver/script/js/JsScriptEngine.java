@@ -15,12 +15,11 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.script.js;
 
+import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptContext;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptEngine;
 import java.text.ParseException;
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
@@ -71,22 +70,8 @@ public class JsScriptEngine implements ScriptEngine {
     }
     ScoreScript.Factory factory =
         ((params, docLookup) -> {
-          Map<String, Object> scriptParams;
-          Bindings fieldBindings;
-          Object bindingsParam = params.get("bindings");
-          if (bindingsParam instanceof Bindings) {
-            fieldBindings = (Bindings) bindingsParam;
-
-            // we do not want the bindings to be used as an expression parameter, so remove it.
-            // the extra copy may not be absolutely needed, but this only happens when a new
-            // virtual field is added to the index, and this keeps the code thread safe.
-            scriptParams = new HashMap<>(params);
-            scriptParams.remove("bindings");
-          } else {
-            fieldBindings = docLookup.getIndexState().getExpressionBindings();
-            scriptParams = params;
-          }
-          return expr.getDoubleValuesSource(new JsScriptBindings(fieldBindings, scriptParams));
+          Bindings fieldBindings = new FieldDefBindings(docLookup::getFieldDef);
+          return expr.getDoubleValuesSource(new JsScriptBindings(fieldBindings, params));
         });
     return context.factoryClazz.cast(factory);
   }

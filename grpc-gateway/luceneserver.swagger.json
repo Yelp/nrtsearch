@@ -1276,6 +1276,21 @@
             "type": "boolean"
           },
           {
+            "name": "liveSettings.parallelFetchByField",
+            "description": "If fetch parallelism should be done by groups of fields instead of document, default: false",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "liveSettings.parallelFetchChunkSize",
+            "description": "The number of documents/fields per parallel fetch task, default: 50",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
             "name": "local",
             "description": "When set to true, live settings changes are only applied to the local node. These changes are ephemeral, so will not persist through a restart. Also, the live settings returned in the response will contain the local overrides only when this flag is true.",
             "in": "query",
@@ -3531,6 +3546,15 @@
         "verboseMetrics": {
           "type": "boolean",
           "title": "Collect and publish additional index metrics, which may be more expensive in terms of volume, memory and/or compute, default: false"
+        },
+        "parallelFetchByField": {
+          "type": "boolean",
+          "title": "If fetch parallelism should be done by groups of fields instead of document, default: false"
+        },
+        "parallelFetchChunkSize": {
+          "type": "integer",
+          "format": "int32",
+          "title": "The number of documents/fields per parallel fetch task, default: 50"
         }
       }
     },

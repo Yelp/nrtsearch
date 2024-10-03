@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.doc;
 
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import java.util.function.Function;
 import org.apache.lucene.index.LeafReaderContext;
@@ -25,11 +24,9 @@ import org.apache.lucene.index.LeafReaderContext;
  * SegmentDocLookup} bound to single lucene segment.
  */
 public class DocLookup {
-  private final IndexState indexState;
   private final Function<String, FieldDef> fieldDefLookup;
 
-  public DocLookup(IndexState indexState, Function<String, FieldDef> fieldDefLookup) {
-    this.indexState = indexState;
+  public DocLookup(Function<String, FieldDef> fieldDefLookup) {
     this.fieldDefLookup = fieldDefLookup;
   }
 
@@ -41,15 +38,6 @@ public class DocLookup {
    */
   public SegmentDocLookup getSegmentLookup(LeafReaderContext context) {
     return new SegmentDocLookup(fieldDefLookup, context);
-  }
-
-  /**
-   * Get the state information associated with this index.
-   *
-   * @return index state
-   */
-  public IndexState getIndexState() {
-    return indexState;
   }
 
   /**

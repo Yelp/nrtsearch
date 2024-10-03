@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.server.luceneserver.index;
 
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.FieldDefBindings;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
@@ -31,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import org.apache.lucene.expressions.Bindings;
 import org.apache.lucene.facet.FacetsConfig;
 import org.apache.lucene.facet.FacetsConfig.DimConfig;
 
@@ -48,7 +46,6 @@ public class FieldAndFacetState {
   private final List<String> indexedAnalyzedFields;
   private final Map<String, FieldDef> eagerGlobalOrdinalFields;
   private final Map<String, GlobalOrdinalable> eagerFieldGlobalOrdinalFields;
-  private final Bindings exprBindings;
 
   // facet
   private final FacetsConfig facetsConfig;
@@ -62,7 +59,6 @@ public class FieldAndFacetState {
     indexedAnalyzedFields = Collections.emptyList();
     eagerGlobalOrdinalFields = Collections.emptyMap();
     eagerFieldGlobalOrdinalFields = Collections.emptyMap();
-    exprBindings = new FieldDefBindings(fields);
 
     facetsConfig = new FacetsConfig();
     internalFacetFieldNames = Collections.emptySet();
@@ -81,7 +77,6 @@ public class FieldAndFacetState {
     eagerGlobalOrdinalFields = Collections.unmodifiableMap(builder.eagerGlobalOrdinalFields);
     eagerFieldGlobalOrdinalFields =
         Collections.unmodifiableMap(builder.eagerFieldGlobalOrdinalFields);
-    exprBindings = builder.exprBindings;
 
     facetsConfig = builder.facetsConfig;
     internalFacetFieldNames = Collections.unmodifiableSet(builder.internalFacetFieldNames);
@@ -117,11 +112,6 @@ public class FieldAndFacetState {
     return eagerFieldGlobalOrdinalFields;
   }
 
-  /** Get field expression {@link Bindings} used for js scripting language. */
-  public Bindings getExprBindings() {
-    return exprBindings;
-  }
-
   /** Get facet config. */
   public FacetsConfig getFacetsConfig() {
     return facetsConfig;
@@ -145,7 +135,6 @@ public class FieldAndFacetState {
     private final List<String> indexedAnalyzedFields;
     private final Map<String, FieldDef> eagerGlobalOrdinalFields;
     private final Map<String, GlobalOrdinalable> eagerFieldGlobalOrdinalFields;
-    private final Bindings exprBindings;
 
     // facet
     private final FacetsConfig facetsConfig;
@@ -158,7 +147,6 @@ public class FieldAndFacetState {
       this.indexedAnalyzedFields = new ArrayList<>(initial.indexedAnalyzedFields);
       this.eagerGlobalOrdinalFields = new HashMap<>(initial.eagerGlobalOrdinalFields);
       this.eagerFieldGlobalOrdinalFields = new HashMap<>(initial.eagerFieldGlobalOrdinalFields);
-      this.exprBindings = new FieldDefBindings(this.fields);
 
       this.facetsConfig = new FacetsConfig();
       this.internalFacetFieldNames = new HashSet<>();
@@ -174,8 +162,13 @@ public class FieldAndFacetState {
       }
     }
 
-    public Bindings getBindings() {
-      return exprBindings;
+    /**
+     * Get fields currently registered with the builder.
+     *
+     * @return map of registered fields
+     */
+    public Map<String, FieldDef> getFields() {
+      return fields;
     }
 
     /**

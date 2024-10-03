@@ -44,8 +44,6 @@ public class ThreadPoolConfiguration {
 
   public static final int DEFAULT_FETCH_THREADS = 1;
   public static final int DEFAULT_FETCH_BUFFERED_ITEMS = DEFAULT_SEARCH_BUFFERED_ITEMS;
-  public static final int DEFAULT_MIN_PARALLEL_FETCH_NUM_FIELDS = 20;
-  public static final int DEFAULT_MIN_PARALLEL_FETCH_NUM_HITS = 50;
 
   public static final int DEFAULT_GRPC_THREADS = AVAILABLE_PROCESSORS * 2;
   public static final int DEFAULT_GRPC_BUFFERED_ITEMS = 8;
@@ -56,10 +54,6 @@ public class ThreadPoolConfiguration {
   public static final int DEFAULT_VECTOR_MERGE_THREADS = AVAILABLE_PROCESSORS;
   public static final int DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS =
       Math.max(100, 2 * DEFAULT_VECTOR_MERGE_THREADS);
-
-  private final int minParallelFetchNumFields;
-  private final int minParallelFetchNumHits;
-  private final boolean parallelFetchByField;
 
   /**
    * Settings for a {@link com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory.ExecutorType}.
@@ -126,17 +120,6 @@ public class ThreadPoolConfiguration {
       threadPoolSettings.put(
           executorType, new ThreadPoolSettings(maxThreads, maxBufferedItems, threadNamePrefix));
     }
-
-    // TODO: Move these setting somewhere else. They might be better as index live settings.
-    minParallelFetchNumFields =
-        configReader.getInteger(
-            "threadPoolConfiguration.minParallelFetchNumFields",
-            DEFAULT_MIN_PARALLEL_FETCH_NUM_FIELDS);
-    minParallelFetchNumHits =
-        configReader.getInteger(
-            "threadPoolConfiguration.minParallelFetchNumHits", DEFAULT_MIN_PARALLEL_FETCH_NUM_HITS);
-    parallelFetchByField =
-        configReader.getBoolean("threadPoolConfiguration.parallelFetchByField", true);
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
@@ -195,17 +178,5 @@ public class ThreadPoolConfiguration {
   public ThreadPoolSettings getThreadPoolSettings(
       ThreadPoolExecutorFactory.ExecutorType executorType) {
     return threadPoolSettings.get(executorType);
-  }
-
-  public int getMinParallelFetchNumFields() {
-    return minParallelFetchNumFields;
-  }
-
-  public int getMinParallelFetchNumHits() {
-    return minParallelFetchNumHits;
-  }
-
-  public boolean getParallelFetchByField() {
-    return parallelFetchByField;
   }
 }
