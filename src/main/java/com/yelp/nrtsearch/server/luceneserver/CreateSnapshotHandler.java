@@ -19,29 +19,54 @@ import com.google.gson.JsonObject;
 import com.yelp.nrtsearch.server.grpc.CreateSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.CreateSnapshotResponse;
 import com.yelp.nrtsearch.server.grpc.SnapshotId;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
-import java.util.Collection;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class CreateSnapshotHandler
-    implements Handler<CreateSnapshotRequest, CreateSnapshotResponse> {
+public class CreateSnapshotHandler extends Handler<CreateSnapshotRequest, CreateSnapshotResponse> {
+  private static final Logger logger = LoggerFactory.getLogger(CreateSnapshotHandler.class);
+
+  public CreateSnapshotHandler(GlobalState globalState) {
+    super(globalState);
+  }
+
   @Override
-  public CreateSnapshotResponse handle(
-      IndexState indexState, CreateSnapshotRequest createSnapshotRequest) throws HandlerException {
+  public void handle(
+      CreateSnapshotRequest createSnapshotRequest,
+      StreamObserver<CreateSnapshotResponse> responseObserver) {
     try {
-      return createSnapshot(indexState, createSnapshotRequest);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
+      IndexState indexState = getGlobalState().getIndex(createSnapshotRequest.getIndexName());
+      CreateSnapshotResponse reply = createSnapshot(indexState, createSnapshotRequest);
+      logger.info(String.format("CreateSnapshotHandler returned results %s", reply.toString()));
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      logger.warn(
+          String.format(
+              "error while trying to createSnapshot for index %s",
+              createSnapshotRequest.getIndexName()),
+          e);
+      responseObserver.onError(
+          Status.UNKNOWN
+              .withDescription(
+                  String.format(
+                      "error while trying to createSnapshot for index %s",
+                      createSnapshotRequest.getIndexName()))
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
     }
   }
 
-  public CreateSnapshotResponse createSnapshot(
+  private CreateSnapshotResponse createSnapshot(
       IndexState indexState, CreateSnapshotRequest createSnapshotRequest) throws IOException {
     indexState.verifyStarted();
 
@@ -115,47 +140,5 @@ public class CreateSnapshotHandler
         + snapshotId.getTaxonomyGen()
         + ":"
         + snapshotId.getStateGen();
-  }
-
-  /**
-   * Get names of all index files in a given snapshot.
-   *
-   * @param indexState index state
-   * @param snapshotId snapshot id
-   * @return collection of file names
-   * @throws IOException
-   */
-  public static Collection<String> getSegmentFilesInSnapshot(
-      IndexState indexState, SnapshotId snapshotId) throws IOException {
-    String snapshotIdAsString = CreateSnapshotHandler.getSnapshotIdAsString(snapshotId);
-    IndexState.Gens snapshot = new IndexState.Gens(snapshotIdAsString);
-    if (indexState.getShards().size() != 1) {
-      throw new IllegalStateException(
-          String.format(
-              "%s shards found index %s instead of exactly 1",
-              indexState.getShards().size(), indexState.getName()));
-    }
-    ShardState state = indexState.getShards().entrySet().iterator().next().getValue();
-    SearcherTaxonomyManager.SearcherAndTaxonomy searcherAndTaxonomy = null;
-    IndexReader indexReader = null;
-    try {
-      searcherAndTaxonomy = state.acquire();
-      indexReader =
-          DirectoryReader.openIfChanged(
-              (DirectoryReader) searcherAndTaxonomy.searcher.getIndexReader(),
-              state.snapshots.getIndexCommit(snapshot.indexGen));
-      if (!(indexReader instanceof StandardDirectoryReader)) {
-        throw new IllegalStateException("Unable to find segments to backup");
-      }
-      StandardDirectoryReader standardDirectoryReader = (StandardDirectoryReader) indexReader;
-      return standardDirectoryReader.getSegmentInfos().files(true);
-    } finally {
-      if (searcherAndTaxonomy != null) {
-        state.release(searcherAndTaxonomy);
-      }
-      if (indexReader != null) {
-        indexReader.close();
-      }
-    }
   }
 }
