@@ -17,17 +17,49 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotResponse;
-import com.yelp.nrtsearch.server.grpc.SnapshotId;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ReleaseSnapshotHandler
-    implements Handler<ReleaseSnapshotRequest, ReleaseSnapshotResponse> {
+    extends Handler<ReleaseSnapshotRequest, ReleaseSnapshotResponse> {
   private static final Logger logger = LoggerFactory.getLogger(ReleaseSnapshotHandler.class);
 
+  public ReleaseSnapshotHandler(GlobalState globalState) {
+    super(globalState);
+  }
+
   @Override
-  public ReleaseSnapshotResponse handle(
+  public void handle(
+      ReleaseSnapshotRequest releaseSnapshotRequest,
+      StreamObserver<ReleaseSnapshotResponse> responseObserver) {
+    try {
+      IndexState indexState = getGlobalState().getIndex(releaseSnapshotRequest.getIndexName());
+      ReleaseSnapshotResponse reply = handle(indexState, releaseSnapshotRequest);
+      logger.info(String.format("CreateSnapshotHandler returned results %s", reply.toString()));
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      logger.warn(
+          String.format(
+              "error while trying to releaseSnapshot for index %s",
+              releaseSnapshotRequest.getIndexName()),
+          e);
+      responseObserver.onError(
+          Status.UNKNOWN
+              .withDescription(
+                  String.format(
+                      "error while trying to releaseSnapshot for index %s",
+                      releaseSnapshotRequest.getIndexName()))
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private ReleaseSnapshotResponse handle(
       IndexState indexState, ReleaseSnapshotRequest releaseSnapshotRequest) {
     final ShardState shardState = indexState.getShard(0);
     final IndexState.Gens gens =
@@ -55,23 +87,5 @@ public class ReleaseSnapshotHandler
       throw new RuntimeException(e);
     }
     return ReleaseSnapshotResponse.newBuilder().setSuccess(true).build();
-  }
-
-  /**
-   * Release resources held by the given snapshot.
-   *
-   * @param indexState index state
-   * @param indexName index name
-   * @param snapshotId snapshot id
-   */
-  public static void releaseSnapshot(
-      IndexState indexState, String indexName, SnapshotId snapshotId) {
-    ReleaseSnapshotRequest releaseSnapshotRequest =
-        ReleaseSnapshotRequest.newBuilder()
-            .setIndexName(indexName)
-            .setSnapshotId(snapshotId)
-            .build();
-    ReleaseSnapshotResponse releaseSnapshotResponse =
-        new ReleaseSnapshotHandler().handle(indexState, releaseSnapshotRequest);
   }
 }

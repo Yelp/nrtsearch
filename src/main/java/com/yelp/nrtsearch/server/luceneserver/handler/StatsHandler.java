@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Yelp Inc.
+ * Copyright 2024 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,19 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver;
+package com.yelp.nrtsearch.server.luceneserver.handler;
 
-import com.yelp.nrtsearch.server.grpc.IndexStatsResponse;
-import com.yelp.nrtsearch.server.grpc.IndicesResponse;
 import com.yelp.nrtsearch.server.grpc.Searcher;
 import com.yelp.nrtsearch.server.grpc.StatsRequest;
 import com.yelp.nrtsearch.server.grpc.StatsResponse;
 import com.yelp.nrtsearch.server.grpc.Taxonomy;
+import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -36,21 +38,49 @@ import org.apache.lucene.search.SearcherLifetimeManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class StatsRequestHandler implements Handler<StatsRequest, StatsResponse> {
-  Logger logger = LoggerFactory.getLogger(StatsRequestHandler.class);
+public class StatsHandler extends Handler<StatsRequest, StatsResponse> {
+  private static final Logger logger = LoggerFactory.getLogger(StatsHandler.class);
+
+  public StatsHandler(GlobalState globalState) {
+    super(globalState);
+  }
 
   @Override
-  public StatsResponse handle(IndexState indexState, StatsRequest statsRequest)
-      throws HandlerException {
+  public void handle(StatsRequest statsRequest, StreamObserver<StatsResponse> responseObserver) {
     try {
-      return process(indexState);
+      IndexState indexState = getGlobalState().getIndex(statsRequest.getIndexName());
+      indexState.verifyStarted();
+      StatsResponse reply = process(indexState);
+      logger.debug("StatsHandler retrieved stats for index: {} ", reply);
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
     } catch (IOException e) {
-      logger.warn(" Failed to generate stats for index:  " + indexState.getName(), e);
-      throw new HandlerException(e);
+      logger.warn(
+          "error while trying to read index state dir for indexName: {}",
+          statsRequest.getIndexName(),
+          e);
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription(
+                  "error while trying to read index state dir for indexName: "
+                      + statsRequest.getIndexName())
+              .augmentDescription(e.getMessage())
+              .withCause(e)
+              .asRuntimeException());
+    } catch (Exception e) {
+      logger.warn(
+          "error while trying to retrieve stats for index {}", statsRequest.getIndexName(), e);
+      responseObserver.onError(
+          Status.UNKNOWN
+              .withDescription(
+                  "error while trying to retrieve stats for index: " + statsRequest.getIndexName())
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
     }
   }
 
-  private StatsResponse process(IndexState indexState) throws IOException {
+  // Public because it's used by IndicesHandler
+  public static StatsResponse process(IndexState indexState) throws IOException {
     StatsResponse.Builder statsResponseBuilder = StatsResponse.newBuilder();
     if (indexState.getShards().size() > 1) {
       logger.error(
@@ -126,30 +156,5 @@ public class StatsRequestHandler implements Handler<StatsRequest, StatsResponse>
       }
     }
     return statsResponseBuilder.build();
-  }
-
-  public static IndicesResponse getIndicesResponse(GlobalState globalState)
-      throws IOException, HandlerException {
-    Set<String> indexNames = globalState.getIndexNames();
-    IndicesResponse.Builder builder = IndicesResponse.newBuilder();
-    for (String indexName : indexNames) {
-      IndexState indexState = globalState.getIndex(indexName);
-      if (indexState.isStarted()) {
-        StatsResponse statsResponse =
-            new StatsRequestHandler()
-                .handle(indexState, StatsRequest.newBuilder().setIndexName(indexName).build());
-        builder.addIndicesResponse(
-            IndexStatsResponse.newBuilder()
-                .setIndexName(indexName)
-                .setStatsResponse(statsResponse)
-                .build());
-      } else {
-        builder.addIndicesResponse(
-            IndexStatsResponse.newBuilder()
-                .setIndexName(indexName)
-                .setStatsResponse(StatsResponse.newBuilder().setState("not_started").build()));
-      }
-    }
-    return builder.build();
   }
 }

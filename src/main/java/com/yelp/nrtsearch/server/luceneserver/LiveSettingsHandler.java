@@ -21,15 +21,54 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsResponse;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class LiveSettingsHandler implements Handler<LiveSettingsRequest, LiveSettingsResponse> {
+public class LiveSettingsHandler extends Handler<LiveSettingsRequest, LiveSettingsResponse> {
   private static final Logger logger = LoggerFactory.getLogger(LiveSettingsHandler.class);
 
+  public LiveSettingsHandler(GlobalState globalState) {
+    super(globalState);
+  }
+
   @Override
+  public void handle(
+      LiveSettingsRequest req, StreamObserver<LiveSettingsResponse> responseObserver) {
+    logger.info("Received live settings request: {}", req);
+    try {
+      IndexState indexState = getGlobalState().getIndex(req.getIndexName());
+      LiveSettingsResponse reply = handle(indexState, req);
+      logger.info("LiveSettingsHandler returned {}", reply.toString());
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (IllegalArgumentException e) {
+      logger.warn("index: {} was not yet created", req.getIndexName(), e);
+      responseObserver.onError(
+          Status.ALREADY_EXISTS
+              .withDescription("invalid indexName: " + req.getIndexName())
+              .augmentDescription("IllegalArgumentException()")
+              .withCause(e)
+              .asRuntimeException());
+    } catch (Exception e) {
+      logger.warn(
+          "error while trying to read index state dir for indexName: " + req.getIndexName(), e);
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription(
+                  "error while trying to read index state dir for indexName: "
+                      + req.getIndexName()
+                      + "at rootDir: ")
+              .augmentDescription("IOException()")
+              .withCause(e)
+              .asRuntimeException());
+    }
+  }
+
   public LiveSettingsResponse handle(
       IndexState indexStateIn, LiveSettingsRequest liveSettingsRequest) {
     return handleAsLiveSettingsV2(indexStateIn, liveSettingsRequest);

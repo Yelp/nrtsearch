@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver;
 
-import com.google.gson.JsonParser;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
@@ -24,17 +23,59 @@ import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsResponse;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SettingsHandler implements Handler<SettingsRequest, SettingsResponse> {
-  Logger logger = LoggerFactory.getLogger(SettingsHandler.class);
-  private final JsonParser jsonParser = new JsonParser();
+public class SettingsHandler extends Handler<SettingsRequest, SettingsResponse> {
+  private static final Logger logger = LoggerFactory.getLogger(SettingsHandler.class);
+
+  public SettingsHandler(GlobalState globalState) {
+    super(globalState);
+  }
 
   @Override
-  public SettingsResponse handle(final IndexState indexStateIn, SettingsRequest settingsRequest)
+  public void handle(
+      SettingsRequest settingsRequest, StreamObserver<SettingsResponse> responseObserver) {
+    logger.info("Received settings request: {}", settingsRequest);
+    try {
+      IndexState indexState = getGlobalState().getIndex(settingsRequest.getIndexName());
+      SettingsResponse reply = handle(indexState, settingsRequest);
+      logger.info("SettingsHandler returned " + reply);
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (IOException e) {
+      logger.warn(
+          "error while trying to read index state dir for indexName: "
+              + settingsRequest.getIndexName(),
+          e);
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription(
+                  "error while trying to read index state dir for indexName: "
+                      + settingsRequest.getIndexName())
+              .augmentDescription("IOException()")
+              .withCause(e)
+              .asRuntimeException());
+    } catch (Exception e) {
+      logger.warn(
+          "error while trying to update/get settings for index " + settingsRequest.getIndexName(),
+          e);
+      responseObserver.onError(
+          Status.INVALID_ARGUMENT
+              .withDescription(
+                  "error while trying to update/get settings for index: "
+                      + settingsRequest.getIndexName())
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private SettingsResponse handle(final IndexState indexStateIn, SettingsRequest settingsRequest)
       throws SettingsHandlerException {
     return handleAsSettingsV2(indexStateIn, settingsRequest);
   }

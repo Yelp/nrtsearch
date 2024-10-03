@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Yelp Inc.
+ * Copyright 2024 Yelp Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,23 +13,47 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server;
+package com.yelp.nrtsearch.server.luceneserver.handler;
 
 import com.google.api.HttpBody;
 import com.google.protobuf.ByteString;
+import com.google.protobuf.Empty;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import io.prometheus.metrics.expositionformats.PrometheusTextFormatWriter;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class MetricsRequestHandler {
+public class MetricsHandler extends Handler<Empty, HttpBody> {
+  private static final Logger logger = LoggerFactory.getLogger(MetricsHandler.class);
   private final PrometheusRegistry prometheusRegistry;
 
-  public MetricsRequestHandler(PrometheusRegistry prometheusRegistry) {
+  public MetricsHandler(PrometheusRegistry prometheusRegistry) {
+    super(null);
     this.prometheusRegistry = prometheusRegistry;
   }
 
-  public HttpBody process() throws IOException {
+  @Override
+  public void handle(Empty request, StreamObserver<HttpBody> responseObserver) {
+    try {
+      HttpBody reply = process();
+      logger.debug("MetricsRequestHandler returned " + reply.toString());
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      logger.warn("error while trying to get metrics", e);
+      responseObserver.onError(
+          Status.INVALID_ARGUMENT
+              .withDescription("error while trying to get metrics")
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private HttpBody process() throws IOException {
     try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
       PrometheusTextFormatWriter prometheusTextFormat = new PrometheusTextFormatWriter(false);
       prometheusTextFormat.write(byteArrayOutputStream, prometheusRegistry.scrape());
