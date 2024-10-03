@@ -142,3 +142,20 @@ Specifies the maximum time to wait for replicas to precopy merged segment files.
 Must be >= 0
 
 Default: 0
+
+parallelFetchByField
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When using parallelism to fetch field values, this setting determines if the work should be divided by fields or by documents.
+
+Default: false (divide by documents)
+
+
+parallelFetchChunkSize
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When using parallelism to fetch field values, this setting determines the maximum number of fields/documents to process in a single task.
+
+Must be > 0
+
+Default: 50

@@ -46,7 +46,6 @@ import com.yelp.nrtsearch.server.luceneserver.search.SearchRequestProcessor;
 import com.yelp.nrtsearch.server.luceneserver.search.SearcherResult;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
 import com.yelp.nrtsearch.server.utils.ObjectToCompositeFieldTransformer;
-import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -323,23 +322,13 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         new ArrayList<>(searchContext.getResponseBuilder().getHitsBuilderList());
     hitBuilders.sort(Comparator.comparing(Hit.Builder::getLuceneDocId));
 
-    IndexState indexState = searchContext.getIndexState();
-    int fetchThreadPoolSize =
-        indexState
-            .getThreadPoolConfiguration()
-            .getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.FETCH)
-            .maxThreads();
-    int minParallelFetchNumFields =
-        indexState.getThreadPoolConfiguration().getMinParallelFetchNumFields();
-    int minParallelFetchNumHits =
-        indexState.getThreadPoolConfiguration().getMinParallelFetchNumHits();
-    boolean parallelFetchByField =
-        indexState.getThreadPoolConfiguration().getParallelFetchByField();
+    IndexState.ParallelFetchConfig parallelFetchConfig =
+        searchContext.getIndexState().getParallelFetchConfig();
 
-    if (parallelFetchByField
-        && fetchThreadPoolSize > 1
-        && searchContext.getRetrieveFields().keySet().size() > minParallelFetchNumFields
-        && hitBuilders.size() > minParallelFetchNumHits) {
+    if (parallelFetchConfig.parallelFetchByField()
+        && parallelFetchConfig.maxParallelism() > 1
+        && searchContext.getRetrieveFields().keySet().size()
+            > parallelFetchConfig.parallelFetchChunkSize()) {
       // Fetch fields in parallel
 
       List<LeafReaderContext> leaves =
@@ -353,12 +342,13 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       }
       List<String> fields = new ArrayList<>(searchContext.getRetrieveFields().keySet());
 
-      // parallelism is min of fetchThreadPoolSize and fields.size() / MIN_PARALLEL_NUM_FIELDS
+      // parallelism is min of maxParallelism and fields.size() / parallelFetchChunkSize
       // round up
       int parallelism =
           Math.min(
-              fetchThreadPoolSize,
-              (fields.size() + minParallelFetchNumFields - 1) / minParallelFetchNumFields);
+              parallelFetchConfig.maxParallelism(),
+              (fields.size() + parallelFetchConfig.parallelFetchChunkSize() - 1)
+                  / parallelFetchConfig.parallelFetchChunkSize());
       List<List<String>> fieldsChunks =
           Lists.partition(fields, (fields.size() + parallelism - 1) / parallelism);
       List<Future<List<Map<String, CompositeFieldValue>>>> futures = new ArrayList<>();
@@ -368,11 +358,10 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       // Stored fields are not widely used for NRTSearch (not recommended for memory usage)
       for (List<String> fieldsChunk : fieldsChunks) {
         futures.add(
-            indexState
-                .getFetchThreadPoolExecutor()
+            parallelFetchConfig
+                .fetchExecutor()
                 .submit(
                     new FillFieldsTask(
-                        indexState,
                         searchContext.getSearcherAndTaxonomy().searcher,
                         hitIdToLeaves,
                         hitBuilders,
@@ -401,17 +390,18 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
         }
         searchContext.getFetchTasks().processHit(searchContext, leaf, hitResponse);
       }
-    } else if (!parallelFetchByField
-        && fetchThreadPoolSize > 1
-        && hitBuilders.size() > minParallelFetchNumHits) {
+    } else if (!parallelFetchConfig.parallelFetchByField()
+        && parallelFetchConfig.maxParallelism() > 1
+        && hitBuilders.size() > parallelFetchConfig.parallelFetchChunkSize()) {
       // Fetch docs in parallel
 
-      // parallelism is min of fetchThreadPoolSize and hitsBuilder.size() / MIN_PARALLEL_NUM_HITS
+      // parallelism is min of maxParallelism and hitsBuilder.size() / parallelFetchChunkSize
       // round up
       int parallelism =
           Math.min(
-              fetchThreadPoolSize,
-              (hitBuilders.size() + minParallelFetchNumHits - 1) / minParallelFetchNumHits);
+              parallelFetchConfig.maxParallelism(),
+              (hitBuilders.size() + parallelFetchConfig.parallelFetchChunkSize() - 1)
+                  / parallelFetchConfig.parallelFetchChunkSize());
       List<List<Hit.Builder>> docChunks =
           Lists.partition(hitBuilders, (hitBuilders.size() + parallelism - 1) / parallelism);
 
@@ -419,8 +409,8 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
       List<Future<?>> futures = new ArrayList<>();
       for (List<Hit.Builder> docChunk : docChunks) {
         futures.add(
-            indexState
-                .getFetchThreadPoolExecutor()
+            parallelFetchConfig
+                .fetchExecutor()
                 .submit(new FillDocsTask(searchContext, docChunk, searchContext.getQuery())));
       }
       for (Future<?> future : futures) {
@@ -709,7 +699,6 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
 
   public static class FillFieldsTask implements Callable<List<Map<String, CompositeFieldValue>>> {
 
-    private IndexState state;
     private IndexSearcher s;
     private List<LeafReaderContext> hitIdToleaves;
     private List<Hit.Builder> hitBuilders;
@@ -717,13 +706,11 @@ public class SearchHandler implements Handler<SearchRequest, SearchResponse> {
     private SearchContext searchContext;
 
     public FillFieldsTask(
-        IndexState indexState,
         IndexSearcher indexSearcher,
         List<LeafReaderContext> hitIdToleaves,
         List<Hit.Builder> hitBuilders,
         List<String> fields,
         SearchContext searchContext) {
-      this.state = indexState;
       this.s = indexSearcher;
       this.fields = fields;
       this.searchContext = searchContext;
