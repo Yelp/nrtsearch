@@ -15,14 +15,15 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.rescore;
 
+import com.yelp.nrtsearch.server.luceneserver.handler.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.search.SearchContext;
 import java.io.IOException;
 import org.apache.lucene.search.TopDocs;
 
 /**
  * A wrapper component for {@link RescoreOperation} and <i>int windowSize</i>. It has a public
- * <i>rescore</i> method which is called by the {@link
- * com.yelp.nrtsearch.server.luceneserver.SearchHandler} to rescore the first-pass hits.
+ * <i>rescore</i> method which is called by the {@link SearchHandler} to rescore the first-pass
+ * hits.
  */
 public class RescoreTask {
 
