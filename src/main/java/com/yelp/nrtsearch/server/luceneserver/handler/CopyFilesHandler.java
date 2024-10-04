@@ -13,12 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver;
+package com.yelp.nrtsearch.server.luceneserver.handler;
 
 import com.yelp.nrtsearch.server.grpc.CopyFiles;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
-import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
