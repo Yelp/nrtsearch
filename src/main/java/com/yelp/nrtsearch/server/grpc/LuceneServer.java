@@ -23,7 +23,6 @@ import com.google.inject.Guice;
 import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.protobuf.Any;
-import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.LuceneServerModule;
@@ -33,11 +32,9 @@ import com.yelp.nrtsearch.server.luceneserver.AddReplicaHandler;
 import com.yelp.nrtsearch.server.luceneserver.CopyFilesHandler;
 import com.yelp.nrtsearch.server.luceneserver.GetNodesInfoHandler;
 import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.NewNRTPointHandler;
 import com.yelp.nrtsearch.server.luceneserver.RecvCopyStateHandler;
 import com.yelp.nrtsearch.server.luceneserver.ReplicaCurrentSearchingVersionHandler;
-import com.yelp.nrtsearch.server.luceneserver.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.luceneserver.custom.request.CustomRequestProcessor;
@@ -61,12 +58,15 @@ import com.yelp.nrtsearch.server.luceneserver.handler.IndicesHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.LiveSettingsHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.MetricsHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.ReadyHandler;
+import com.yelp.nrtsearch.server.luceneserver.handler.RecvRawFileHandler;
+import com.yelp.nrtsearch.server.luceneserver.handler.RecvRawFileV2Handler;
 import com.yelp.nrtsearch.server.luceneserver.handler.RefreshHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.RegisterFieldsHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.ReleaseSnapshotHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.ReloadStateHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.SearchHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.SearchV2Handler;
+import com.yelp.nrtsearch.server.luceneserver.handler.SendRawFileHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.SettingsHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.StartIndexHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.StartIndexV2Handler;
@@ -75,7 +75,6 @@ import com.yelp.nrtsearch.server.luceneserver.handler.StatusHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.StopIndexHandler;
 import com.yelp.nrtsearch.server.luceneserver.handler.UpdateFieldsHandler;
 import com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService;
-import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.LiveSettingsV2Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.SettingsV2Handler;
 import com.yelp.nrtsearch.server.luceneserver.logging.HitsLoggerCreator;
@@ -106,16 +105,13 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
 import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.metrics.instrumentation.jvm.JvmMetrics;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -123,8 +119,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormatUtil;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
@@ -681,6 +675,17 @@ public class LuceneServer {
     private final GlobalState globalState;
     private final boolean verifyIndexId;
 
+    private final AddReplicaHandler addReplicaHandler;
+    private final CopyFilesHandler copyFilesHandler;
+    private final GetNodesInfoHandler getNodesInfoHandler;
+    private final NewNRTPointHandler newNRTPointHandler;
+    private final RecvCopyStateHandler recvCopyStateHandler;
+    private final RecvRawFileHandler recvRawFileHandler;
+    private final RecvRawFileV2Handler recvRawFileV2Handler;
+    private final ReplicaCurrentSearchingVersionHandler replicaCurrentSearchingVersionHandler;
+    private final SendRawFileHandler sendRawFileHandler;
+    private final WriteNRTPointHandler writeNRTPointHandler;
+
     @VisibleForTesting
     static void checkIndexId(String actual, String expected, boolean throwException) {
       if (!actual.equals(expected)) {
@@ -697,446 +702,77 @@ public class LuceneServer {
     public ReplicationServerImpl(GlobalState globalState, boolean verifyIndexId) {
       this.globalState = globalState;
       this.verifyIndexId = verifyIndexId;
+
+      addReplicaHandler = new AddReplicaHandler(globalState, verifyIndexId);
+      copyFilesHandler = new CopyFilesHandler(globalState, verifyIndexId);
+      getNodesInfoHandler = new GetNodesInfoHandler(globalState);
+      newNRTPointHandler = new NewNRTPointHandler(globalState, verifyIndexId);
+      recvCopyStateHandler = new RecvCopyStateHandler(globalState, verifyIndexId);
+      recvRawFileHandler = new RecvRawFileHandler(globalState, verifyIndexId);
+      recvRawFileV2Handler = new RecvRawFileV2Handler(globalState, verifyIndexId);
+      replicaCurrentSearchingVersionHandler =
+          new ReplicaCurrentSearchingVersionHandler(globalState);
+      sendRawFileHandler = new SendRawFileHandler(globalState);
+      writeNRTPointHandler = new WriteNRTPointHandler(globalState);
     }
 
     @Override
     public void addReplicas(
         AddReplicaRequest addReplicaRequest,
         StreamObserver<AddReplicaResponse> responseStreamObserver) {
-      try {
-        IndexStateManager indexStateManager =
-            globalState.getIndexStateManager(addReplicaRequest.getIndexName());
-        checkIndexId(addReplicaRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
-
-        IndexState indexState = indexStateManager.getCurrent();
-        boolean useKeepAliveForReplication =
-            globalState.getConfiguration().getUseKeepAliveForReplication();
-        AddReplicaResponse reply =
-            new AddReplicaHandler(useKeepAliveForReplication).handle(indexState, addReplicaRequest);
-        logger.info("AddReplicaHandler returned " + reply.toString());
-        responseStreamObserver.onNext(reply);
-        responseStreamObserver.onCompleted();
-      } catch (StatusRuntimeException e) {
-        logger.warn("error while trying addReplicas " + addReplicaRequest.getIndexName(), e);
-        responseStreamObserver.onError(e);
-      } catch (Exception e) {
-        logger.warn("error while trying addReplicas " + addReplicaRequest.getIndexName(), e);
-        responseStreamObserver.onError(
-            Status.INTERNAL
-                .withDescription(
-                    "error while trying to addReplicas for index: "
-                        + addReplicaRequest.getIndexName())
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
-      }
+      addReplicaHandler.handle(addReplicaRequest, responseStreamObserver);
     }
 
     @Override
     public StreamObserver<RawFileChunk> sendRawFile(
         StreamObserver<TransferStatus> responseObserver) {
-      OutputStream outputStream = null;
-      try {
-        // TODO: where do we write these files to?
-        outputStream = new FileOutputStream(File.createTempFile("tempfile", ".tmp"));
-      } catch (IOException e) {
-        new RuntimeException(e);
-      }
-      return new SendRawFileStreamObserver(outputStream, responseObserver);
-    }
-
-    static class SendRawFileStreamObserver implements StreamObserver<RawFileChunk> {
-      private static final Logger logger =
-          LoggerFactory.getLogger(SendRawFileStreamObserver.class.getName());
-      private final OutputStream outputStream;
-      private final StreamObserver<TransferStatus> responseObserver;
-      private final long startTime;
-
-      SendRawFileStreamObserver(
-          OutputStream outputStream, StreamObserver<TransferStatus> responseObserver) {
-        this.outputStream = outputStream;
-        this.responseObserver = responseObserver;
-        startTime = System.nanoTime();
-      }
-
-      @Override
-      public void onNext(RawFileChunk value) {
-        // called by client once per chunk of data
-        try {
-          logger.trace("sendRawFile onNext");
-          value.getContent().writeTo(outputStream);
-        } catch (IOException e) {
-          try {
-            outputStream.close();
-          } catch (IOException ex) {
-            logger.warn("error trying to close outputStream", ex);
-          } finally {
-            // we either had error in writing to outputStream or cant close it,
-            // either case we need to raise it back to client
-            responseObserver.onError(e);
-          }
-        }
-      }
-
-      @Override
-      public void onError(Throwable t) {
-        logger.warn("sendRawFile cancelled", t);
-        try {
-          outputStream.close();
-        } catch (IOException e) {
-          logger.warn("error while trying to close outputStream", e);
-        } finally {
-          // we want to raise error always here
-          responseObserver.onError(t);
-        }
-      }
-
-      @Override
-      public void onCompleted() {
-        logger.info("sendRawFile completed");
-        // called by client after the entire file is sent
-        try {
-          outputStream.close();
-          // TOOD: should we send fileSize copied?
-          long endTime = System.nanoTime();
-          long totalTimeInMilliSeoncds = (endTime - startTime) / (1000 * 1000);
-          responseObserver.onNext(
-              TransferStatus.newBuilder()
-                  .setCode(TransferStatusCode.Done)
-                  .setMessage(String.valueOf(totalTimeInMilliSeoncds))
-                  .build());
-          responseObserver.onCompleted();
-        } catch (IOException e) {
-          logger.warn("error while trying to close outputStream", e);
-          responseObserver.onError(e);
-        }
-      }
+      return sendRawFileHandler.handle(responseObserver);
     }
 
     @Override
     public void recvRawFile(
         FileInfo fileInfoRequest, StreamObserver<RawFileChunk> rawFileChunkStreamObserver) {
-      try {
-        IndexStateManager indexStateManager =
-            globalState.getIndexStateManager(fileInfoRequest.getIndexName());
-        checkIndexId(fileInfoRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
-
-        IndexState indexState = indexStateManager.getCurrent();
-        ShardState shardState = indexState.getShard(0);
-        try (IndexInput luceneFile =
-            shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT)) {
-          long len = luceneFile.length();
-          long pos = fileInfoRequest.getFpStart();
-          luceneFile.seek(pos);
-          byte[] buffer = new byte[1024 * 64];
-          long totalRead;
-          totalRead = pos;
-          while (totalRead < len) {
-            int chunkSize = (int) Math.min(buffer.length, (len - totalRead));
-            luceneFile.readBytes(buffer, 0, chunkSize);
-            RawFileChunk rawFileChunk =
-                RawFileChunk.newBuilder()
-                    .setContent(ByteString.copyFrom(buffer, 0, chunkSize))
-                    .build();
-            rawFileChunkStreamObserver.onNext(rawFileChunk);
-            totalRead += chunkSize;
-          }
-          // EOF
-          rawFileChunkStreamObserver.onCompleted();
-        }
-      } catch (StatusRuntimeException e) {
-        logger.warn("error on recvRawFile " + fileInfoRequest.getFileName(), e);
-        rawFileChunkStreamObserver.onError(e);
-      } catch (Exception e) {
-        logger.warn("error on recvRawFile " + fileInfoRequest.getFileName(), e);
-        rawFileChunkStreamObserver.onError(
-            Status.INTERNAL
-                .withDescription("error on recvRawFile: " + fileInfoRequest.getFileName())
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
-      }
+      recvRawFileHandler.handle(fileInfoRequest, rawFileChunkStreamObserver);
     }
 
     @Override
     public StreamObserver<FileInfo> recvRawFileV2(
         StreamObserver<RawFileChunk> rawFileChunkStreamObserver) {
-      return new StreamObserver<>() {
-        private IndexState indexState;
-        private IndexInput luceneFile;
-        private byte[] buffer;
-        private final int ackEvery =
-            globalState.getConfiguration().getFileCopyConfig().getAckEvery();
-        private final int maxInflight =
-            globalState.getConfiguration().getFileCopyConfig().getMaxInFlight();
-        private int lastAckedSeq = 0;
-        private int currentSeq = 0;
-        private long fileOffset;
-        private long fileLength;
-
-        @Override
-        public void onNext(FileInfo fileInfoRequest) {
-          try {
-            if (indexState == null) {
-              // Start transfer
-              IndexStateManager indexStateManager =
-                  globalState.getIndexStateManager(fileInfoRequest.getIndexName());
-              checkIndexId(
-                  fileInfoRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
-
-              indexState = indexStateManager.getCurrent();
-              ShardState shardState = indexState.getShard(0);
-              if (shardState == null) {
-                throw new IllegalStateException(
-                    "Error getting shard state for: " + fileInfoRequest.getIndexName());
-              }
-              luceneFile =
-                  shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT);
-              luceneFile.seek(fileInfoRequest.getFpStart());
-              fileOffset = fileInfoRequest.getFpStart();
-              fileLength = luceneFile.length();
-              buffer = new byte[globalState.getConfiguration().getFileCopyConfig().getChunkSize()];
-            } else {
-              // ack existing transfer
-              lastAckedSeq = fileInfoRequest.getAckSeqNum();
-              if (lastAckedSeq <= 0) {
-                throw new IllegalArgumentException(
-                    "Invalid ackSeqNum: " + fileInfoRequest.getAckSeqNum());
-              }
-            }
-            while (fileOffset < fileLength && (currentSeq - lastAckedSeq) < maxInflight) {
-              int chunkSize = (int) Math.min(buffer.length, (fileLength - fileOffset));
-              luceneFile.readBytes(buffer, 0, chunkSize);
-              currentSeq++;
-              RawFileChunk rawFileChunk =
-                  RawFileChunk.newBuilder()
-                      .setContent(ByteString.copyFrom(buffer, 0, chunkSize))
-                      .setSeqNum(currentSeq)
-                      .setAck((currentSeq % ackEvery) == 0)
-                      .build();
-              rawFileChunkStreamObserver.onNext(rawFileChunk);
-              fileOffset += chunkSize;
-              if (fileOffset == fileLength) {
-                rawFileChunkStreamObserver.onCompleted();
-              }
-            }
-            logger.debug(
-                String.format("recvRawFileV2: in flight chunks: %d", currentSeq - lastAckedSeq));
-          } catch (Throwable t) {
-            maybeCloseFile();
-            rawFileChunkStreamObserver.onError(t);
-            throw new RuntimeException(t);
-          }
-        }
-
-        @Override
-        public void onError(Throwable t) {
-          logger.error("recvRawFileV2 onError", t);
-          maybeCloseFile();
-          rawFileChunkStreamObserver.onError(t);
-        }
-
-        @Override
-        public void onCompleted() {
-          maybeCloseFile();
-          logger.debug("recvRawFileV2 onCompleted");
-        }
-
-        private void maybeCloseFile() {
-          if (luceneFile != null) {
-            try {
-              luceneFile.close();
-            } catch (IOException e) {
-              logger.warn("Error closing index file", e);
-            }
-            luceneFile = null;
-          }
-        }
-      };
+      return recvRawFileV2Handler.handle(rawFileChunkStreamObserver);
     }
 
     @Override
     public void recvCopyState(
         CopyStateRequest request, StreamObserver<CopyState> responseObserver) {
-      try {
-        IndexStateManager indexStateManager =
-            globalState.getIndexStateManager(request.getIndexName());
-        checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
-
-        IndexState indexState = indexStateManager.getCurrent();
-        CopyState reply = new RecvCopyStateHandler().handle(indexState, request);
-        logger.debug(
-            "RecvCopyStateHandler returned, completedMergeFiles count: "
-                + reply.getCompletedMergeFilesCount());
-        responseObserver.onNext(reply);
-        responseObserver.onCompleted();
-      } catch (StatusRuntimeException e) {
-        logger.warn("error while trying recvCopyState " + request.getIndexName(), e);
-        responseObserver.onError(e);
-      } catch (Exception e) {
-        logger.warn(
-            String.format(
-                "error on recvCopyState for replicaId: %s, for index: %s",
-                request.getReplicaId(), request.getIndexName()),
-            e);
-        responseObserver.onError(
-            Status.INTERNAL
-                .withDescription(
-                    String.format(
-                        "error on recvCopyState for replicaId: %s, for index: %s",
-                        request.getReplicaId(), request.getIndexName()))
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
-      }
+      recvCopyStateHandler.handle(request, responseObserver);
     }
 
     @Override
     public void copyFiles(CopyFiles request, StreamObserver<TransferStatus> responseObserver) {
-      try {
-        IndexStateManager indexStateManager =
-            globalState.getIndexStateManager(request.getIndexName());
-        checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
-
-        IndexState indexState = indexStateManager.getCurrent();
-        CopyFilesHandler copyFilesHandler = new CopyFilesHandler();
-        // we need to send multiple responses to client from this method
-        copyFilesHandler.handle(indexState, request, responseObserver);
-        logger.info("CopyFilesHandler returned successfully");
-      } catch (StatusRuntimeException e) {
-        logger.warn("error while trying copyFiles " + request.getIndexName(), e);
-        responseObserver.onError(e);
-      } catch (Exception e) {
-        logger.warn(
-            String.format(
-                "error on copyFiles for primaryGen: %s, for index: %s",
-                request.getPrimaryGen(), request.getIndexName()),
-            e);
-        responseObserver.onError(
-            Status.INTERNAL
-                .withDescription(
-                    String.format(
-                        "error on copyFiles for primaryGen: %s, for index: %s",
-                        request.getPrimaryGen(), request.getIndexName()))
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
-      }
+      copyFilesHandler.handle(request, responseObserver);
     }
 
     @Override
     public void newNRTPoint(NewNRTPoint request, StreamObserver<TransferStatus> responseObserver) {
-      try {
-        IndexStateManager indexStateManager =
-            globalState.getIndexStateManager(request.getIndexName());
-        checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
-
-        IndexState indexState = indexStateManager.getCurrent();
-        NewNRTPointHandler newNRTPointHander = new NewNRTPointHandler();
-        TransferStatus reply = newNRTPointHander.handle(indexState, request);
-        logger.debug(
-            "NewNRTPointHandler returned status "
-                + reply.getCode()
-                + " message: "
-                + reply.getMessage());
-        responseObserver.onNext(reply);
-        responseObserver.onCompleted();
-      } catch (StatusRuntimeException e) {
-        logger.warn(
-            String.format(
-                "error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s",
-                request.getIndexName(), request.getVersion(), request.getPrimaryGen()),
-            e);
-        responseObserver.onError(e);
-      } catch (Exception e) {
-        logger.warn(
-            String.format(
-                "error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s",
-                request.getIndexName(), request.getVersion(), request.getPrimaryGen()),
-            e);
-        responseObserver.onError(
-            Status.INTERNAL
-                .withDescription(
-                    String.format(
-                        "error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s",
-                        request.getIndexName(), request.getVersion(), request.getPrimaryGen()))
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
-      }
+      newNRTPointHandler.handle(request, responseObserver);
     }
 
     @Override
     public void writeNRTPoint(
         IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
-      try {
-        IndexStateManager indexStateManager =
-            globalState.getIndexStateManager(indexNameRequest.getIndexName());
-        IndexState indexState = indexStateManager.getCurrent();
-        WriteNRTPointHandler writeNRTPointHander =
-            new WriteNRTPointHandler(indexStateManager.getIndexId());
-        SearcherVersion reply = writeNRTPointHander.handle(indexState, indexNameRequest);
-        logger.debug("WriteNRTPointHandler returned version " + reply.getVersion());
-        responseObserver.onNext(reply);
-        responseObserver.onCompleted();
-      } catch (Exception e) {
-        logger.warn(
-            String.format(
-                "error on writeNRTPoint for indexName: %s", indexNameRequest.getIndexName()),
-            e);
-        responseObserver.onError(
-            Status.INTERNAL
-                .withDescription(
-                    String.format(
-                        "error on writeNRTPoint for indexName: %s",
-                        indexNameRequest.getIndexName()))
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
-      }
+      writeNRTPointHandler.handle(indexNameRequest, responseObserver);
     }
 
     @Override
     public void getCurrentSearcherVersion(
         IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
-      try {
-        IndexState indexState = globalState.getIndex(indexNameRequest.getIndexName());
-        ReplicaCurrentSearchingVersionHandler replicaCurrentSearchingVersionHandler =
-            new ReplicaCurrentSearchingVersionHandler();
-        SearcherVersion reply =
-            replicaCurrentSearchingVersionHandler.handle(indexState, indexNameRequest);
-        logger.info("ReplicaCurrentSearchingVersionHandler returned version " + reply.getVersion());
-        responseObserver.onNext(reply);
-        responseObserver.onCompleted();
-      } catch (Exception e) {
-        logger.warn(
-            String.format(
-                "error on getCurrentSearcherVersion for indexName: %s",
-                indexNameRequest.getIndexName()),
-            e);
-        responseObserver.onError(
-            Status.INTERNAL
-                .withDescription(
-                    String.format(
-                        "error on getCurrentSearcherVersion for indexName: %s",
-                        indexNameRequest.getIndexName()))
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
-      }
+      replicaCurrentSearchingVersionHandler.handle(indexNameRequest, responseObserver);
     }
 
     @Override
     public void getConnectedNodes(
         GetNodesRequest getNodesRequest, StreamObserver<GetNodesResponse> responseObserver) {
-      try {
-        IndexState indexState = globalState.getIndex(getNodesRequest.getIndexName());
-        GetNodesResponse reply = new GetNodesInfoHandler().handle(indexState, getNodesRequest);
-        logger.debug(
-            "GetNodesInfoHandler returned GetNodeResponse of size " + reply.getNodesCount());
-        responseObserver.onNext(reply);
-        responseObserver.onCompleted();
-      } catch (Exception e) {
-        logger.warn("error on GetNodesInfoHandler", e);
-        responseObserver.onError(
-            Status.INTERNAL
-                .withDescription(String.format("error on GetNodesInfoHandler"))
-                .augmentDescription(e.getMessage())
-                .asRuntimeException());
-      }
+      getNodesInfoHandler.handle(getNodesRequest, responseObserver);
     }
   }
 }

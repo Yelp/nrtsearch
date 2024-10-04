@@ -17,12 +17,47 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.IndexName;
 import com.yelp.nrtsearch.server.grpc.SearcherVersion;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class ReplicaCurrentSearchingVersionHandler implements Handler<IndexName, SearcherVersion> {
+public class ReplicaCurrentSearchingVersionHandler extends Handler<IndexName, SearcherVersion> {
+  private static final Logger logger =
+      LoggerFactory.getLogger(ReplicaCurrentSearchingVersionHandler.class);
+
+  public ReplicaCurrentSearchingVersionHandler(GlobalState globalState) {
+    super(globalState);
+  }
 
   @Override
-  public SearcherVersion handle(IndexState indexState, IndexName indexNameRequest)
+  public void handle(IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
+    try {
+      IndexState indexState = getGlobalState().getIndex(indexNameRequest.getIndexName());
+      SearcherVersion reply = handle(indexState, indexNameRequest);
+      logger.info("ReplicaCurrentSearchingVersionHandler returned version " + reply.getVersion());
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      logger.warn(
+          String.format(
+              "error on getCurrentSearcherVersion for indexName: %s",
+              indexNameRequest.getIndexName()),
+          e);
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription(
+                  String.format(
+                      "error on getCurrentSearcherVersion for indexName: %s",
+                      indexNameRequest.getIndexName()))
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private SearcherVersion handle(IndexState indexState, IndexName indexNameRequest)
       throws HandlerException {
     ShardState shardState = indexState.getShard(0);
     if (!shardState.isReplica() || !shardState.isStarted()) {

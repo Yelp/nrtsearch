@@ -18,13 +18,65 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.NewNRTPoint;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class NewNRTPointHandler implements Handler<NewNRTPoint, TransferStatus> {
+public class NewNRTPointHandler extends Handler<NewNRTPoint, TransferStatus> {
+  private static final Logger logger = LoggerFactory.getLogger(NewNRTPointHandler.class);
+  private final boolean verifyIndexId;
+
+  public NewNRTPointHandler(GlobalState globalState, boolean verifyIndexId) {
+    super(globalState);
+    this.verifyIndexId = verifyIndexId;
+  }
 
   @Override
-  public TransferStatus handle(IndexState indexState, NewNRTPoint newNRTPointRequest)
-      throws HandlerException {
+  public void handle(NewNRTPoint request, StreamObserver<TransferStatus> responseObserver) {
+    try {
+      IndexStateManager indexStateManager =
+          getGlobalState().getIndexStateManager(request.getIndexName());
+      checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
+
+      IndexState indexState = indexStateManager.getCurrent();
+      TransferStatus reply = handle(indexState, request);
+      logger.debug(
+          "NewNRTPointHandler returned status "
+              + reply.getCode()
+              + " message: "
+              + reply.getMessage());
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (StatusRuntimeException e) {
+      logger.warn(
+          String.format(
+              "error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s",
+              request.getIndexName(), request.getVersion(), request.getPrimaryGen()),
+          e);
+      responseObserver.onError(e);
+    } catch (Exception e) {
+      logger.warn(
+          String.format(
+              "error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s",
+              request.getIndexName(), request.getVersion(), request.getPrimaryGen()),
+          e);
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription(
+                  String.format(
+                      "error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s",
+                      request.getIndexName(), request.getVersion(), request.getPrimaryGen()))
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private TransferStatus handle(IndexState indexState, NewNRTPoint newNRTPointRequest) {
     ShardState shardState = indexState.getShard(0);
     if (shardState.isReplica() == false) {
       throw new IllegalArgumentException(

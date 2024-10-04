@@ -18,8 +18,11 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.IndexName;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.SearcherVersion;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Queue;
@@ -28,17 +31,40 @@ import org.apache.lucene.index.DirectoryReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class WriteNRTPointHandler implements Handler<IndexName, SearcherVersion> {
+public class WriteNRTPointHandler extends Handler<IndexName, SearcherVersion> {
   private static final Logger logger = LoggerFactory.getLogger(WriteNRTPointHandler.class);
-  private final String indexId;
 
-  public WriteNRTPointHandler(String indexId) {
-    this.indexId = indexId;
+  public WriteNRTPointHandler(GlobalState globalState) {
+    super(globalState);
   }
 
   @Override
-  public SearcherVersion handle(IndexState indexState, IndexName protoRequest)
-      throws HandlerException {
+  public void handle(IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
+    try {
+      IndexStateManager indexStateManager =
+          getGlobalState().getIndexStateManager(indexNameRequest.getIndexName());
+      String indexId = indexStateManager.getIndexId();
+      IndexState indexState = indexStateManager.getCurrent();
+      SearcherVersion reply = handle(indexState, indexId);
+      logger.debug("WriteNRTPointHandler returned version " + reply.getVersion());
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      logger.warn(
+          String.format(
+              "error on writeNRTPoint for indexName: %s", indexNameRequest.getIndexName()),
+          e);
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription(
+                  String.format(
+                      "error on writeNRTPoint for indexName: %s", indexNameRequest.getIndexName()))
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private SearcherVersion handle(IndexState indexState, String indexId) {
     final ShardState shardState = indexState.getShard(0);
 
     if (shardState.isPrimary() == false) {

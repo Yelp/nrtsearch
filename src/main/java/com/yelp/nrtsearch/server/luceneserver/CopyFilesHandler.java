@@ -18,20 +18,63 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.CopyFiles;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.lucene.replicator.nrt.CopyJob;
 import org.apache.lucene.replicator.nrt.FileMetaData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
+public class CopyFilesHandler extends Handler<CopyFiles, TransferStatus> {
+  private static final Logger logger = LoggerFactory.getLogger(CopyFilesHandler.class);
   private static final long CHECK_SLEEP_TIME_MS = 10;
   private static final int CHECKS_PER_STATUS_MESSAGE = 3000; // at least 30s between status messages
+  private final boolean verifyIndexId;
+
+  public CopyFilesHandler(GlobalState globalState, boolean verifyIndexId) {
+    super(globalState);
+    this.verifyIndexId = verifyIndexId;
+  }
 
   @Override
-  public void handle(
+  public void handle(CopyFiles request, StreamObserver<TransferStatus> responseObserver) {
+    try {
+      IndexStateManager indexStateManager =
+          getGlobalState().getIndexStateManager(request.getIndexName());
+      checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
+
+      IndexState indexState = indexStateManager.getCurrent();
+      // we need to send multiple responses to client from this method
+      handle(indexState, request, responseObserver);
+      logger.info("CopyFilesHandler returned successfully");
+    } catch (StatusRuntimeException e) {
+      logger.warn("error while trying copyFiles " + request.getIndexName(), e);
+      responseObserver.onError(e);
+    } catch (Exception e) {
+      logger.warn(
+          String.format(
+              "error on copyFiles for primaryGen: %s, for index: %s",
+              request.getPrimaryGen(), request.getIndexName()),
+          e);
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription(
+                  String.format(
+                      "error on copyFiles for primaryGen: %s, for index: %s",
+                      request.getPrimaryGen(), request.getIndexName()))
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private void handle(
       IndexState indexState,
       CopyFiles copyFilesRequest,
       StreamObserver<TransferStatus> responseObserver)
@@ -113,11 +156,5 @@ public class CopyFilesHandler implements Handler<CopyFiles, TransferStatus> {
           .observe((System.nanoTime() - startNS) / 1000000.0);
       NrtMetrics.nrtMergeSize.labelValues(indexName).observe(job.getTotalBytesCopied());
     }
-  }
-
-  @Override
-  public TransferStatus handle(IndexState indexState, CopyFiles protoRequest)
-      throws HandlerException {
-    throw new UnsupportedOperationException("This method is in not implemented for this class");
   }
 }
