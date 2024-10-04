@@ -18,6 +18,8 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.AddReplicaRequest;
 import com.yelp.nrtsearch.server.grpc.AddReplicaResponse;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
 import java.io.IOException;
 
 public class AddReplicaHandler implements Handler<AddReplicaRequest, AddReplicaResponse> {

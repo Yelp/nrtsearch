@@ -18,11 +18,14 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.IndexName;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.SearcherVersion;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.nrt.NRTPrimaryNode;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Iterator;
-import java.util.Queue;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
 import org.slf4j.Logger;
@@ -55,8 +58,8 @@ public class WriteNRTPointHandler implements Handler<IndexName, SearcherVersion>
         // before notifying all replicas, at which point we have a newer version index than client
         // knew about?
         long version = shardState.nrtPrimaryNode.getCopyStateVersion();
-        Queue<NRTPrimaryNode.ReplicaDetails> replicasInfos =
-            shardState.nrtPrimaryNode.replicasInfos;
+        Collection<NRTPrimaryNode.ReplicaDetails> replicasInfos =
+            shardState.nrtPrimaryNode.getNodesInfo();
         shardState.nrtPrimaryNode.message(
             "send flushed version=" + version + " replica count " + replicasInfos.size());
 

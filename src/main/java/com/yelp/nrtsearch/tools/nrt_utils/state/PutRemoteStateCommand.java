@@ -17,7 +17,6 @@ package com.yelp.nrtsearch.tools.nrt_utils.state;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.google.common.annotations.VisibleForTesting;
-import com.yelp.nrtsearch.server.luceneserver.IndexBackupUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -115,7 +114,7 @@ public class PutRemoteStateCommand implements Callable<Integer> {
     byte[] fileBytes = Files.readAllBytes(Path.of(stateFile));
     if (!skipValidate) {
       StateCommandUtils.validateConfigData(
-          fileBytes, IndexBackupUtils.isBackendGlobalState(resolvedResourceName));
+          fileBytes, StateCommandUtils.isGlobalState(resolvedResourceName));
     }
 
     if (backupFile != null) {

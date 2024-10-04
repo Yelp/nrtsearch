@@ -21,7 +21,7 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
@@ -150,8 +150,8 @@ public class ListResourceVersions implements Callable<Integer> {
     String[] splits = keySuffix.split("-");
     if (splits.length > 1) {
       String timeString = splits[0];
-      if (TimeStringUtil.isTimeStringSec(timeString)) {
-        timestampStr = " (" + TimeStringUtil.parseTimeStringSec(timeString).toString() + ")";
+      if (TimeStringUtils.isTimeStringSec(timeString)) {
+        timestampStr = " (" + TimeStringUtils.parseTimeStringSec(timeString).toString() + ")";
       }
     }
     System.out.println(keySuffix + timestampStr);

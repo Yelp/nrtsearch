@@ -20,8 +20,8 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
-import com.yelp.nrtsearch.BackendModule;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.modules.BackendModule;
 
 /**
  * A Guice module to initialize {@link com.yelp.nrtsearch.server.grpc.LuceneServer} instance for

@@ -22,7 +22,7 @@ import static com.yelp.nrtsearch.server.luceneserver.state.StateUtils.INDEX_STAT
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import java.io.File;
 import java.io.IOException;

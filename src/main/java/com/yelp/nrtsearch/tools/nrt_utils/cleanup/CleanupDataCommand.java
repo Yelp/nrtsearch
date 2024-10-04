@@ -27,7 +27,7 @@ import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.backup.BackupCommandUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
 import java.util.ArrayList;
@@ -234,7 +234,7 @@ public class CleanupDataCommand implements Callable<Integer> {
       UUID.fromString(uuidString);
       Long.valueOf(parts[6]);
       String timeString = pointStateFileName.split("-")[0];
-      return TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+      return TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
     } catch (Exception e) {
       throw new IllegalArgumentException("Invalid point state name: " + pointStateFileName, e);
     }
@@ -259,7 +259,7 @@ public class CleanupDataCommand implements Callable<Integer> {
       String uuidString = String.join("-", parts[1], parts[2], parts[3], parts[4], parts[5]);
       UUID.fromString(uuidString);
       String timeString = dataFileName.split("-")[0];
-      return TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+      return TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
     } catch (Exception e) {
       throw new IllegalArgumentException("Invalid data name: " + dataFileName, e);
     }

@@ -26,7 +26,7 @@ import org.apache.lucene.analysis.AnalyzerWrapper;
  * Analyzer wrapper for use at indexing time, which finds the proper per field analyzer. This
  * analyzer is set in the {@link org.apache.lucene.index.IndexWriterConfig} when an index is
  * started. The {@link IndexStateManager} provides access to the fields in the latest {@link
- * com.yelp.nrtsearch.server.luceneserver.IndexState}.
+ * IndexState}.
  */
 public class IndexAnalyzer extends AnalyzerWrapper {
   private final IndexStateManager stateManager;

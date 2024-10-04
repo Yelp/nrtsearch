@@ -19,7 +19,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.ListObjectsV2Request;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
 import java.time.format.DateTimeParseException;
 import java.util.concurrent.Callable;
@@ -117,7 +117,7 @@ public class ListSnapshotsCommand implements Callable<Integer> {
     }
     String timestampStr = splits[1];
     try {
-      return TimeStringUtil.parseTimeStringMs(timestampStr).toString();
+      return TimeStringUtils.parseTimeStringMs(timestampStr).toString();
     } catch (DateTimeParseException e) {
       return null;
     }

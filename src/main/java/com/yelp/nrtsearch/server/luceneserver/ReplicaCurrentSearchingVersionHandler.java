@@ -17,6 +17,8 @@ package com.yelp.nrtsearch.server.luceneserver;
 
 import com.yelp.nrtsearch.server.grpc.IndexName;
 import com.yelp.nrtsearch.server.grpc.SearcherVersion;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
 import java.io.IOException;
 
 public class ReplicaCurrentSearchingVersionHandler implements Handler<IndexName, SearcherVersion> {
