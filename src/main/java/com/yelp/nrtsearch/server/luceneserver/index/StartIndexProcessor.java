@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver;
+package com.yelp.nrtsearch.server.luceneserver.index;
 
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
@@ -22,9 +22,6 @@ import com.yelp.nrtsearch.server.grpc.RestoreIndex;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.luceneserver.handler.Handler.HandlerException;
-import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
-import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
-import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -36,9 +33,7 @@ import org.apache.lucene.index.IndexReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// TODO: this class should be called something else to differentiate from the handler for grpc
-// request, or alternatively the call structure needs to be changed
-public class StartIndexHandler {
+public class StartIndexProcessor {
   private static final Set<String> startingIndices = new HashSet<>();
 
   private final String serviceName;
@@ -47,7 +42,7 @@ public class StartIndexHandler {
   private final IndexStateManager indexStateManager;
   private final boolean remoteCommit;
   private final int discoveryFileUpdateIntervalMs;
-  private static final Logger logger = LoggerFactory.getLogger(StartIndexHandler.class);
+  private static final Logger logger = LoggerFactory.getLogger(StartIndexProcessor.class);
 
   /**
    * Constructor for StartIndexHandler.
@@ -59,7 +54,7 @@ public class StartIndexHandler {
    * @param remoteCommit whether to commit to remote state
    * @param discoveryFileUpdateIntervalMs interval to update backends from discovery file
    */
-  public StartIndexHandler(
+  public StartIndexProcessor(
       String serviceName,
       String ephemeralId,
       RemoteBackend remoteBackend,
@@ -74,8 +69,8 @@ public class StartIndexHandler {
     this.discoveryFileUpdateIntervalMs = discoveryFileUpdateIntervalMs;
   }
 
-  public StartIndexResponse handle(IndexState indexState, StartIndexRequest startIndexRequest)
-      throws StartIndexHandlerException {
+  public StartIndexResponse process(IndexState indexState, StartIndexRequest startIndexRequest)
+      throws StartIndexProcessorException {
     String indexName = indexState.getName();
     synchronized (startingIndices) {
       if (indexState.isStarted()) {
@@ -90,7 +85,7 @@ public class StartIndexHandler {
     }
 
     try {
-      return handleInternal(indexState, startIndexRequest);
+      return processInternal(indexState, startIndexRequest);
     } finally {
       synchronized (startingIndices) {
         startingIndices.remove(indexName);
@@ -98,9 +93,9 @@ public class StartIndexHandler {
     }
   }
 
-  private StartIndexResponse handleInternal(
+  private StartIndexResponse processInternal(
       IndexState indexState, StartIndexRequest startIndexRequest)
-      throws StartIndexHandlerException {
+      throws StartIndexProcessorException {
     final ShardState shardState = indexState.getShard(0);
     final Mode mode = startIndexRequest.getMode();
     final long primaryGen;
@@ -137,7 +132,7 @@ public class StartIndexHandler {
       indexStateManager.start(mode, nrtDataManager, primaryGen, primaryClient);
     } catch (Exception e) {
       logger.error("Cannot start IndexState/ShardState", e);
-      throw new StartIndexHandlerException(e);
+      throw new StartIndexProcessorException(e);
     }
 
     StartIndexResponse.Builder startIndexResponseBuilder = StartIndexResponse.newBuilder();
@@ -146,7 +141,7 @@ public class StartIndexHandler {
       s = shardState.acquire();
     } catch (IOException e) {
       logger.error("Acquire shard state failed", e);
-      throw new StartIndexHandlerException(e);
+      throw new StartIndexProcessorException(e);
     }
     try {
       IndexReader r = s.searcher.getIndexReader();
@@ -158,7 +153,7 @@ public class StartIndexHandler {
         shardState.release(s);
       } catch (IOException e) {
         logger.error("Release shard state failed", e);
-        throw new StartIndexHandlerException(e);
+        throw new StartIndexProcessorException(e);
       }
     }
     long t1 = System.nanoTime();
@@ -179,9 +174,9 @@ public class StartIndexHandler {
     }
   }
 
-  public static class StartIndexHandlerException extends HandlerException {
+  public static class StartIndexProcessorException extends HandlerException {
 
-    public StartIndexHandlerException(Exception e) {
+    public StartIndexProcessorException(Exception e) {
       super(e);
     }
   }

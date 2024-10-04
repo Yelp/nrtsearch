@@ -32,11 +32,11 @@ import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.grpc.StartIndexV2Request;
 import com.yelp.nrtsearch.server.grpc.StopIndexRequest;
-import com.yelp.nrtsearch.server.luceneserver.StartIndexHandler;
-import com.yelp.nrtsearch.server.luceneserver.StartIndexHandler.StartIndexHandlerException;
 import com.yelp.nrtsearch.server.luceneserver.index.BackendStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
+import com.yelp.nrtsearch.server.luceneserver.index.StartIndexProcessor;
+import com.yelp.nrtsearch.server.luceneserver.index.StartIndexProcessor.StartIndexProcessorException;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.LocalStateBackend;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.RemoteStateBackend;
 import com.yelp.nrtsearch.server.luceneserver.state.backend.StateBackend;
@@ -435,8 +435,8 @@ public class BackendGlobalState extends GlobalState {
 
   private StartIndexResponse startIndex(
       IndexStateManager indexStateManager, StartIndexRequest startIndexRequest) throws IOException {
-    StartIndexHandler startIndexHandler =
-        new StartIndexHandler(
+    StartIndexProcessor startIndexHandler =
+        new StartIndexProcessor(
             getConfiguration().getServiceName(),
             getEphemeralId(),
             getRemoteBackend(),
@@ -447,8 +447,8 @@ public class BackendGlobalState extends GlobalState {
                 .equals(IndexDataLocationType.REMOTE),
             getConfiguration().getDiscoveryFileUpdateIntervalMs());
     try {
-      return startIndexHandler.handle(indexStateManager.getCurrent(), startIndexRequest);
-    } catch (StartIndexHandlerException e) {
+      return startIndexHandler.process(indexStateManager.getCurrent(), startIndexRequest);
+    } catch (StartIndexProcessorException e) {
       throw new RuntimeException(e);
     }
   }
