@@ -21,7 +21,7 @@ import static org.mockito.Mockito.when;
 
 import com.google.protobuf.ByteString;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
