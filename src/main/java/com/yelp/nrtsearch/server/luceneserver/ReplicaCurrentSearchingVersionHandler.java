@@ -18,10 +18,11 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.IndexName;
 import com.yelp.nrtsearch.server.grpc.SearcherVersion;
 import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,8 +60,7 @@ public class ReplicaCurrentSearchingVersionHandler extends Handler<IndexName, Se
     }
   }
 
-  private SearcherVersion handle(IndexState indexState, IndexName indexNameRequest)
-      throws HandlerException {
+  private SearcherVersion handle(IndexState indexState, IndexName indexNameRequest) {
     ShardState shardState = indexState.getShard(0);
     if (!shardState.isReplica() || !shardState.isStarted()) {
       throw new IllegalArgumentException(

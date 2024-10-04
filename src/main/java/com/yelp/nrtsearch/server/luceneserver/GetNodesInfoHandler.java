@@ -22,6 +22,7 @@ import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.nrt.NRTPrimaryNode;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.HostPort;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;

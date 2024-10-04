@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.handler;
 import com.yelp.nrtsearch.server.grpc.RawFileChunk;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.FileOutputStream;
