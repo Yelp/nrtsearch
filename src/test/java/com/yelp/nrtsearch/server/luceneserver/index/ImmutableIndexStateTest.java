@@ -52,8 +52,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IdFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.IntFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler;
-import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler.UpdatedFieldInfo;
+import com.yelp.nrtsearch.server.luceneserver.index.FieldUpdateUtils.UpdatedFieldInfo;
 import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
@@ -382,7 +381,7 @@ public class ImmutableIndexStateTest {
             .setSearch(true)
             .build();
     UpdatedFieldInfo fieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             new FieldAndFacetState(), Collections.emptyMap(), Collections.singleton(sortField));
     ImmutableIndexState indexState =
         getIndexState(
@@ -1022,7 +1021,7 @@ public class ImmutableIndexStateTest {
             .setSearch(true)
             .build();
     UpdatedFieldInfo fieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             new FieldAndFacetState(), Collections.emptyMap(), Collections.singleton(field));
     IndexStateInfo indexStateInfo =
         getEmptyState().toBuilder().putAllFields(fieldInfo.fields).build();
@@ -1060,7 +1059,7 @@ public class ImmutableIndexStateTest {
             .setSearch(true)
             .build();
     UpdatedFieldInfo fieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             new FieldAndFacetState(), Collections.emptyMap(), Collections.singleton(field));
     IndexStateInfo indexStateInfo =
         getEmptyState().toBuilder().putAllFields(fieldInfo.fields).build();
@@ -1078,7 +1077,7 @@ public class ImmutableIndexStateTest {
             .setSearch(true)
             .build();
     UpdatedFieldInfo fieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             new FieldAndFacetState(), Collections.emptyMap(), Collections.singleton(field));
     IndexStateInfo indexStateInfo =
         getEmptyState().toBuilder().putAllFields(fieldInfo.fields).build();

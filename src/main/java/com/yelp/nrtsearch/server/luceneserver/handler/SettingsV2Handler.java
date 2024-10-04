@@ -13,13 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver.index.handlers;
+package com.yelp.nrtsearch.server.luceneserver.handler;
 
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.SettingsV2Request;
 import com.yelp.nrtsearch.server.grpc.SettingsV2Response;
-import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import io.grpc.Status;
