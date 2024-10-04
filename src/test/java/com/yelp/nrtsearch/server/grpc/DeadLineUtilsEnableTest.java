@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertTrue;
 
-import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import com.yelp.nrtsearch.server.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import org.junit.ClassRule;
 import org.junit.Test;

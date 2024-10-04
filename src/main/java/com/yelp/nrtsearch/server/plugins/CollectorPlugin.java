@@ -16,8 +16,8 @@
 package com.yelp.nrtsearch.server.plugins;
 
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
-import com.yelp.nrtsearch.server.luceneserver.search.collectors.AdditionalCollectorManager;
-import com.yelp.nrtsearch.server.luceneserver.search.collectors.CollectorProvider;
+import com.yelp.nrtsearch.server.search.collectors.AdditionalCollectorManager;
+import com.yelp.nrtsearch.server.search.collectors.CollectorProvider;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.lucene.search.Collector;

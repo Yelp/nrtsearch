@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import com.yelp.nrtsearch.server.luceneserver.search.FetchTaskProvider;
-import com.yelp.nrtsearch.server.luceneserver.search.FetchTasks;
+import com.yelp.nrtsearch.server.search.FetchTaskProvider;
+import com.yelp.nrtsearch.server.search.FetchTasks;
 import java.util.Collections;
 import java.util.Map;
 

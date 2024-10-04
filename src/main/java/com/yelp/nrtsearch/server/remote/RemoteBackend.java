@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.remote;
 
-import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtFileMetaData;
-import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
+import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
+import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;

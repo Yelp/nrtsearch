@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityProvider;
+import com.yelp.nrtsearch.server.similarity.SimilarityProvider;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.lucene.search.similarities.Similarity;

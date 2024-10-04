@@ -21,14 +21,14 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
+import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.field.FloatFieldDef;
+import com.yelp.nrtsearch.server.field.LongFieldDef;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
-import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.FloatFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.LongFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.index.ImmutableIndexState;
+import com.yelp.nrtsearch.server.index.ImmutableIndexState;
 import java.io.IOException;
 import java.util.Map;
 import org.junit.After;

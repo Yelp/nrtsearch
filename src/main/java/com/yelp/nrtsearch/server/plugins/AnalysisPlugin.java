@@ -15,7 +15,9 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import com.yelp.nrtsearch.server.luceneserver.analysis.AnalysisProvider;
+import com.yelp.nrtsearch.server.analysis.AnalysisComponent;
+import com.yelp.nrtsearch.server.analysis.AnalysisProvider;
+import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
 import java.util.Collections;
 import java.util.Map;
 import org.apache.lucene.analysis.Analyzer;
@@ -34,9 +36,8 @@ import org.apache.lucene.analysis.TokenFilterFactory;
 public interface AnalysisPlugin {
 
   /**
-   * Provides a set of custom {@link Analyzer} to register with the {@link
-   * com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator}. The analyzer name can be used
-   * as the predefined AnalyzerType in gRPC requests.
+   * Provides a set of custom {@link Analyzer} to register with the {@link AnalyzerCreator}. The
+   * analyzer name can be used as the predefined AnalyzerType in gRPC requests.
    *
    * @return registration Map for analyzer name to {@link AnalysisProvider}
    */
@@ -46,12 +47,10 @@ public interface AnalysisPlugin {
 
   /**
    * Provides a set of custom {@link TokenFilterFactory} classes to register with the {@link
-   * com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator} for use with {@link
-   * com.yelp.nrtsearch.server.grpc.CustomAnalyzer} building.
+   * AnalyzerCreator} for use with {@link com.yelp.nrtsearch.server.grpc.CustomAnalyzer} building.
    *
    * <p>The class must have a constructor that takes only a param Map[String,String]. If nrtsearch
-   * specific context is required, implement the {@link
-   * com.yelp.nrtsearch.server.luceneserver.analysis.AnalysisComponent} interface to receive
+   * specific context is required, implement the {@link AnalysisComponent} interface to receive
    * additional initialization during building.
    *
    * @return registration Map for token filter name to {@link TokenFilterFactory} class
@@ -62,12 +61,10 @@ public interface AnalysisPlugin {
 
   /**
    * Provides a set of custom {@link CharFilterFactory} classes to register with the {@link
-   * com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator} for use with {@link
-   * com.yelp.nrtsearch.server.grpc.CustomAnalyzer} building.
+   * AnalyzerCreator} for use with {@link com.yelp.nrtsearch.server.grpc.CustomAnalyzer} building.
    *
    * <p>The class must have a constructor that takes only a param Map[String,String]. If nrtsearch
-   * specific context is required, implement the {@link
-   * com.yelp.nrtsearch.server.luceneserver.analysis.AnalysisComponent} interface to receive
+   * specific context is required, implement the {@link AnalysisComponent} interface to receive
    * additional initialization during building.
    *
    * @return registration Map for char filter name to {@link CharFilterFactory} class

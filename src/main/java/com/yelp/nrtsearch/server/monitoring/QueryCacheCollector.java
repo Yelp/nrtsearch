@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.monitoring;
 
-import com.yelp.nrtsearch.server.luceneserver.search.cache.NrtQueryCache;
+import com.yelp.nrtsearch.server.search.cache.NrtQueryCache;
 import io.prometheus.metrics.core.metrics.Gauge;
 import io.prometheus.metrics.model.registry.MultiCollector;
 import io.prometheus.metrics.model.snapshots.MetricSnapshot;

@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.grpc;
 import static org.junit.Assert.*;
 
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
-import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
+import com.yelp.nrtsearch.server.index.IndexState;
 import java.io.IOException;
 import java.util.stream.Stream;
 import org.junit.After;

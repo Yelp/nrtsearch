@@ -16,9 +16,9 @@
 package com.yelp.nrtsearch.server.utils;
 
 import com.google.protobuf.Int32Value;
+import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.*;
-import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
-import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
+import com.yelp.nrtsearch.server.script.js.JsScriptEngine;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;

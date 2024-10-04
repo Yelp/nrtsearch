@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import com.yelp.nrtsearch.server.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Collections;

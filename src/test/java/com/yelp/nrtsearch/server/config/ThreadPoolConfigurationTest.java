@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.config;
 
 import static org.junit.Assert.*;
 
-import com.yelp.nrtsearch.server.luceneserver.concurrent.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;

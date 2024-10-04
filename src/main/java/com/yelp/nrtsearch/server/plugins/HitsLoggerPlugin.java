@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import com.yelp.nrtsearch.server.luceneserver.logging.HitsLogger;
-import com.yelp.nrtsearch.server.luceneserver.logging.HitsLoggerProvider;
+import com.yelp.nrtsearch.server.logging.HitsLogger;
+import com.yelp.nrtsearch.server.logging.HitsLoggerProvider;
 import java.util.Collections;
 import java.util.Map;
 

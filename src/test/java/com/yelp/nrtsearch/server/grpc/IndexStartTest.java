@@ -24,7 +24,7 @@ import static org.junit.Assert.fail;
 import com.google.protobuf.BoolValue;
 import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
-import com.yelp.nrtsearch.server.luceneserver.nrt.NRTReplicaNode;
+import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import io.grpc.StatusRuntimeException;
 import java.io.IOException;
 import java.util.Collections;

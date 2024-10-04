@@ -19,9 +19,9 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.config.YamlConfigReader;
-import com.yelp.nrtsearch.server.luceneserver.concurrent.ThreadPoolExecutorFactory;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.ServerCall;
