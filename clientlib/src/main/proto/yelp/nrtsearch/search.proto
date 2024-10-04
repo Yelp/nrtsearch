@@ -724,7 +724,7 @@ message SortType {
     /* Whether missing values should sort last instead of first.
     Note that this runs \"before\" reverse, so if you sort missing first and reverse=true then missing values will
     be at the end.*/
-    bool missingLat = 4;
+    bool missingLast = 4;
     // Sort in reverse of the field's natural order
     bool reverse = 5;
     // The unit used for the distance sort. Supported options are m, km and mi, default is m

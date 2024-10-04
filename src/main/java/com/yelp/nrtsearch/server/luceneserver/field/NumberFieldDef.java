@@ -280,7 +280,7 @@ public abstract class NumberFieldDef<T> extends IndexableFieldDef<T>
       sortField = new SortField(getName(), getSortFieldType(), type.getReverse());
     }
 
-    boolean missingLast = type.getMissingLat();
+    boolean missingLast = type.getMissingLast();
     sortField.setMissingValue(getSortMissingValue(missingLast));
     return sortField;
   }

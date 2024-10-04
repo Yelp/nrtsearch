@@ -94,7 +94,7 @@ public class DateTimeFieldDef extends IndexableFieldDef<Instant>
       throw new IllegalStateException("DATE_TIME does not support sort for multi value field");
     }
     SortField sortField = new SortField(getName(), SortField.Type.LONG, type.getReverse());
-    boolean missingLast = type.getMissingLat();
+    boolean missingLast = type.getMissingLast();
     sortField.setMissingValue(missingLast ? Long.MAX_VALUE : Long.MIN_VALUE);
     return sortField;
   }

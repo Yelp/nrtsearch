@@ -89,7 +89,7 @@ public class AtomFieldDef extends TextBaseFieldDef implements Sortable {
       sortField = new SortField(getName(), SortField.Type.STRING, type.getReverse());
     }
 
-    boolean missingLast = type.getMissingLat();
+    boolean missingLast = type.getMissingLast();
     if (missingLast) {
       sortField.setMissingValue(SortField.STRING_LAST);
     } else {
