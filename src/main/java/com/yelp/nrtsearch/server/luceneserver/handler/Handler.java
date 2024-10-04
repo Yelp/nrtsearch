@@ -15,10 +15,12 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.handler;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.GeneratedMessageV3;
-import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.LuceneServerStubBuilder;
+import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
+import io.grpc.Status;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
@@ -52,7 +54,7 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
     throw new UnsupportedOperationException("This method is not supported");
   }
 
-  public StreamObserver<AddDocumentRequest> handle(StreamObserver<S> responseObserver) {
+  public StreamObserver<T> handle(StreamObserver<S> responseObserver) {
     throw new UnsupportedOperationException("This method is not supported");
   }
 
@@ -73,6 +75,23 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
         serverCallStreamObserver.setCompression(compressionType);
       } catch (Exception e) {
         logger.warn("Unable to set response compression to type '" + compressionType + "' : " + e);
+      }
+    }
+  }
+
+  protected boolean isValidMagicHeader(int magicHeader) {
+    return magicHeader == ReplicationServerClient.BINARY_MAGIC;
+  }
+
+  @VisibleForTesting
+  public static void checkIndexId(String actual, String expected, boolean throwException) {
+    if (!actual.equals(expected)) {
+      String message =
+          String.format("Index id mismatch, expected: %s, actual: %s", expected, actual);
+      if (throwException) {
+        throw Status.FAILED_PRECONDITION.withDescription(message).asRuntimeException();
+      } else {
+        logger.warn(message);
       }
     }
   }

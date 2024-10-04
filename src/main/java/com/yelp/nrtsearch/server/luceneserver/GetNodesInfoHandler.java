@@ -18,20 +18,45 @@ package com.yelp.nrtsearch.server.luceneserver;
 import com.yelp.nrtsearch.server.grpc.GetNodesRequest;
 import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
 import com.yelp.nrtsearch.server.grpc.NodeInfo;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.nrt.NRTPrimaryNode;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.HostPort;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.util.Collection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class GetNodesInfoHandler implements Handler<GetNodesRequest, GetNodesResponse> {
+public class GetNodesInfoHandler extends Handler<GetNodesRequest, GetNodesResponse> {
   private static final Logger logger = LoggerFactory.getLogger(GetNodesInfoHandler.class);
 
+  public GetNodesInfoHandler(GlobalState globalState) {
+    super(globalState);
+  }
+
   @Override
-  public GetNodesResponse handle(IndexState indexState, GetNodesRequest getNodesRequest)
-      throws HandlerException {
+  public void handle(
+      GetNodesRequest getNodesRequest, StreamObserver<GetNodesResponse> responseObserver) {
+    try {
+      IndexState indexState = getGlobalState().getIndex(getNodesRequest.getIndexName());
+      GetNodesResponse reply = handle(indexState);
+      logger.debug("GetNodesInfoHandler returned GetNodeResponse of size " + reply.getNodesCount());
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      logger.warn("error on GetNodesInfoHandler", e);
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription("error on GetNodesInfoHandler")
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private GetNodesResponse handle(IndexState indexState) {
     GetNodesResponse.Builder builder = GetNodesResponse.newBuilder();
     ShardState shardState = indexState.getShard(0);
     if (!shardState.isPrimary() || !shardState.isStarted()) {

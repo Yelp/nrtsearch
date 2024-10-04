@@ -20,16 +20,66 @@ import com.yelp.nrtsearch.server.grpc.CopyState;
 import com.yelp.nrtsearch.server.grpc.CopyStateRequest;
 import com.yelp.nrtsearch.server.grpc.FileMetadata;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.nrt.NRTPrimaryNode;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.lucene.replicator.nrt.FileMetaData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class RecvCopyStateHandler implements Handler<CopyStateRequest, CopyState> {
+public class RecvCopyStateHandler extends Handler<CopyStateRequest, CopyState> {
+  private static final Logger logger = LoggerFactory.getLogger(RecvCopyStateHandler.class);
+
+  private final boolean verifyIndexId;
+
+  public RecvCopyStateHandler(GlobalState globalState, boolean verifyIndexId) {
+    super(globalState);
+    this.verifyIndexId = verifyIndexId;
+  }
+
   @Override
-  public CopyState handle(IndexState indexState, CopyStateRequest copyStateRequest) {
+  public void handle(CopyStateRequest request, StreamObserver<CopyState> responseObserver) {
+    try {
+      IndexStateManager indexStateManager =
+          getGlobalState().getIndexStateManager(request.getIndexName());
+      checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
+
+      IndexState indexState = indexStateManager.getCurrent();
+      CopyState reply = handle(indexState, request);
+      logger.debug(
+          "RecvCopyStateHandler returned, completedMergeFiles count: "
+              + reply.getCompletedMergeFilesCount());
+      responseObserver.onNext(reply);
+      responseObserver.onCompleted();
+    } catch (StatusRuntimeException e) {
+      logger.warn("error while trying recvCopyState " + request.getIndexName(), e);
+      responseObserver.onError(e);
+    } catch (Exception e) {
+      logger.warn(
+          String.format(
+              "error on recvCopyState for replicaId: %s, for index: %s",
+              request.getReplicaId(), request.getIndexName()),
+          e);
+      responseObserver.onError(
+          Status.INTERNAL
+              .withDescription(
+                  String.format(
+                      "error on recvCopyState for replicaId: %s, for index: %s",
+                      request.getReplicaId(), request.getIndexName()))
+              .augmentDescription(e.getMessage())
+              .asRuntimeException());
+    }
+  }
+
+  private CopyState handle(IndexState indexState, CopyStateRequest copyStateRequest) {
     ShardState shardState = indexState.getShard(0);
     if (shardState.isPrimary() == false) {
       throw new IllegalArgumentException(
