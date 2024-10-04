@@ -16,8 +16,12 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.google.protobuf.ByteString;
+import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.stub.StreamObserver;
@@ -52,11 +56,16 @@ public class CopyFileTest {
     // Generate a unique in-process server name.
     String serverName = InProcessServerBuilder.generateName();
 
+    GlobalState mockGlobalState = mock(GlobalState.class);
+    LuceneServerConfiguration mockConfiguration = mock(LuceneServerConfiguration.class);
+    when(mockGlobalState.getConfiguration()).thenReturn(mockConfiguration);
+    when(mockConfiguration.getUseKeepAliveForReplication()).thenReturn(true);
+
     // Create a server, add service, start, and register for automatic graceful shutdown.
     grpcCleanup.register(
         InProcessServerBuilder.forName(serverName)
             .directExecutor()
-            .addService(new LuceneServer.ReplicationServerImpl(null, false))
+            .addService(new LuceneServer.ReplicationServerImpl(mockGlobalState, false))
             .build()
             .start());
 
