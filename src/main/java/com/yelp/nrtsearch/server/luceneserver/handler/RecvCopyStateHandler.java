@@ -13,14 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver;
+package com.yelp.nrtsearch.server.luceneserver.handler;
 
 import com.google.protobuf.ByteString;
 import com.yelp.nrtsearch.server.grpc.CopyState;
 import com.yelp.nrtsearch.server.grpc.CopyStateRequest;
 import com.yelp.nrtsearch.server.grpc.FileMetadata;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
-import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.ShardState;

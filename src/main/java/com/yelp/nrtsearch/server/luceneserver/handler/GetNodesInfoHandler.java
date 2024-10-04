@@ -13,12 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver;
+package com.yelp.nrtsearch.server.luceneserver.handler;
 
 import com.yelp.nrtsearch.server.grpc.GetNodesRequest;
 import com.yelp.nrtsearch.server.grpc.GetNodesResponse;
 import com.yelp.nrtsearch.server.grpc.NodeInfo;
-import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
 import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
 import com.yelp.nrtsearch.server.luceneserver.nrt.NRTPrimaryNode;

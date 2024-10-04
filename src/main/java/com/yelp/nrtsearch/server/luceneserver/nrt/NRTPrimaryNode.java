@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.luceneserver.nrt;
 import com.yelp.nrtsearch.server.grpc.FilesMetadata;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
-import com.yelp.nrtsearch.server.luceneserver.RecvCopyStateHandler;
+import com.yelp.nrtsearch.server.luceneserver.handler.RecvCopyStateHandler;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.utils.HostPort;
