@@ -22,8 +22,7 @@ import com.yelp.nrtsearch.server.grpc.IndexSettings;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
-import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler;
-import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler.UpdatedFieldInfo;
+import com.yelp.nrtsearch.server.luceneserver.index.FieldUpdateUtils.UpdatedFieldInfo;
 import com.yelp.nrtsearch.server.luceneserver.nrt.NrtDataManager;
 import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
@@ -87,7 +86,7 @@ public class BackendStateManager implements IndexStateManager {
     // name. Let's fix it here so that it updates on the next commit.
     stateInfo = fixIndexName(stateInfo, indexName);
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             new FieldAndFacetState(), Collections.emptyMap(), stateInfo.getFieldsMap().values());
     currentState =
         createIndexState(stateInfo, updatedFieldInfo.fieldAndFacetState, liveSettingsOverrides);
@@ -201,7 +200,7 @@ public class BackendStateManager implements IndexStateManager {
       throw new IllegalStateException("No state for index: " + indexName);
     }
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             currentState.getFieldAndFacetState(),
             currentState.getCurrentStateInfo().getFieldsMap(),
             fields);

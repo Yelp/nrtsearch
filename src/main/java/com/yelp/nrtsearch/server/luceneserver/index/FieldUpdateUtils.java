@@ -13,24 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver.index.handlers;
+package com.yelp.nrtsearch.server.luceneserver.index;
 
 import com.yelp.nrtsearch.server.grpc.Field;
-import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
-import com.yelp.nrtsearch.server.grpc.FieldDefResponse;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.luceneserver.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.index.FieldAndFacetState;
-import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
-import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -40,24 +34,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Static helper class to handle a request to add/update fields. */
-public class FieldUpdateHandler {
-  private static final Logger logger = LoggerFactory.getLogger(FieldUpdateHandler.class);
+public class FieldUpdateUtils {
+  private static final Logger logger = LoggerFactory.getLogger(FieldUpdateUtils.class);
 
-  private FieldUpdateHandler() {}
-
-  /**
-   * Handle a FieldDefRequest.
-   *
-   * @param indexStateManager state manager for index
-   * @param request request message
-   * @return response message
-   * @throws IOException on error committing state
-   */
-  public static FieldDefResponse handle(
-      IndexStateManager indexStateManager, FieldDefRequest request) throws IOException {
-    String updatedFields = indexStateManager.updateFields(request.getFieldList());
-    return FieldDefResponse.newBuilder().setResponse(updatedFields).build();
-  }
+  private FieldUpdateUtils() {}
 
   /**
    * Container class to hold the {@link Field} definitions used in state, and the corresponding

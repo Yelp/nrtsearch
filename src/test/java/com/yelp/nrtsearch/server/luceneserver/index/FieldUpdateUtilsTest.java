@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yelp.nrtsearch.server.luceneserver.index.handlers;
+package com.yelp.nrtsearch.server.luceneserver.index;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -43,9 +43,7 @@ import com.yelp.nrtsearch.server.luceneserver.field.LongFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.ObjectFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.TextFieldDef;
 import com.yelp.nrtsearch.server.luceneserver.field.VirtualFieldDef;
-import com.yelp.nrtsearch.server.luceneserver.index.FieldAndFacetState;
-import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
-import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler.UpdatedFieldInfo;
+import com.yelp.nrtsearch.server.luceneserver.index.FieldUpdateUtils.UpdatedFieldInfo;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
 import com.yelp.nrtsearch.server.luceneserver.script.js.JsScriptEngine;
 import com.yelp.nrtsearch.server.luceneserver.similarity.SimilarityCreator;
@@ -62,7 +60,7 @@ import org.assertj.core.util.Sets;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class FieldUpdateHandlerTest {
+public class FieldUpdateUtilsTest {
 
   private static final List<Field> simpleUpdates = new ArrayList<>();
 
@@ -101,7 +99,7 @@ public class FieldUpdateHandlerTest {
     Map<String, Field> initialFields = Collections.emptyMap();
 
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(initialState, initialFields, simpleUpdates);
+        FieldUpdateUtils.updateFields(initialState, initialFields, simpleUpdates);
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(2, fields.size());
     assertEquals(simpleUpdates.get(0), fields.get("field1"));
@@ -147,7 +145,7 @@ public class FieldUpdateHandlerTest {
             .build());
 
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(4, fields.size());
@@ -191,7 +189,7 @@ public class FieldUpdateHandlerTest {
             .build());
 
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(4, fields.size());
@@ -237,11 +235,11 @@ public class FieldUpdateHandlerTest {
             .build());
 
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
 
     try {
-      FieldUpdateHandler.updateFields(
+      FieldUpdateUtils.updateFields(
           updatedFieldInfo.fieldAndFacetState,
           updatedFieldInfo.fields,
           Collections.singleton(
@@ -279,7 +277,7 @@ public class FieldUpdateHandlerTest {
             .build());
 
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(4, fields.size());
@@ -317,7 +315,7 @@ public class FieldUpdateHandlerTest {
             .build());
 
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(3, fields.size());
@@ -360,7 +358,7 @@ public class FieldUpdateHandlerTest {
             .build());
 
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(4, fields.size());
@@ -424,7 +422,7 @@ public class FieldUpdateHandlerTest {
             .build());
 
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(3, fields.size());
@@ -494,7 +492,7 @@ public class FieldUpdateHandlerTest {
             .build());
 
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(3, fields.size());
@@ -549,7 +547,7 @@ public class FieldUpdateHandlerTest {
             .build());
 
     UpdatedFieldInfo updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
     Map<String, Field> fields = updatedFieldInfo.fields;
     assertEquals(4, fields.size());
@@ -587,7 +585,7 @@ public class FieldUpdateHandlerTest {
             .build());
 
     updatedFieldInfo =
-        FieldUpdateHandler.updateFields(
+        FieldUpdateUtils.updateFields(
             updatedFieldInfo.fieldAndFacetState, updatedFieldInfo.fields, fieldUpdates2);
     fields = updatedFieldInfo.fields;
     assertEquals(5, fields.size());
@@ -635,7 +633,7 @@ public class FieldUpdateHandlerTest {
             .build());
 
     try {
-      FieldUpdateHandler.updateFields(
+      FieldUpdateUtils.updateFields(
           initialInfo.fieldAndFacetState, initialInfo.fields, fieldUpdates);
       fail();
     } catch (IllegalArgumentException e) {
@@ -669,7 +667,8 @@ public class FieldUpdateHandlerTest {
     FieldDefRequest request =
         FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fieldUpdates).build();
 
-    FieldDefResponse response = FieldUpdateHandler.handle(mockManager, request);
+    String updatedFields = mockManager.updateFields(request.getFieldList());
+    FieldDefResponse response = FieldDefResponse.newBuilder().setResponse(updatedFields).build();
     assertEquals("result_string", response.getResponse());
 
     verify(mockManager, times(1)).updateFields(fieldUpdates);
