@@ -3011,6 +3011,11 @@
           "type": "integer",
           "format": "int32",
           "description": "Position increment gap for indexing multi valued TEXT fields. Must be \u003e= 0, defaulting to 100 when not set."
+        },
+        "ignoreAbove": {
+          "type": "integer",
+          "format": "int32",
+          "title": "For arrays of strings, ignoreAbove will be applied for each array element separately and string elements longer than ignore_above will not be indexed or stored.\nThis option is also useful for protecting against Lucene’s term byte-length limit of 32766"
         }
       }
     },
@@ -4960,7 +4965,7 @@
         "origin": {
           "$ref": "#/definitions/luceneserverPoint"
         },
-        "missingLat": {
+        "missingLast": {
           "type": "boolean",
           "description": "Whether missing values should sort last instead of first.\nNote that this runs \\\"before\\\" reverse, so if you sort missing first and reverse=true then missing values will\nbe at the end."
         },
