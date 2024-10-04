@@ -104,7 +104,6 @@ import com.yelp.nrtsearch.tools.cli.VersionProvider;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
-import io.grpc.Status;
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder;
 import io.grpc.protobuf.services.ProtoReflectionService;
 import io.grpc.stub.StreamObserver;
@@ -685,19 +684,6 @@ public class LuceneServer {
     private final ReplicaCurrentSearchingVersionHandler replicaCurrentSearchingVersionHandler;
     private final SendRawFileHandler sendRawFileHandler;
     private final WriteNRTPointHandler writeNRTPointHandler;
-
-    @VisibleForTesting
-    static void checkIndexId(String actual, String expected, boolean throwException) {
-      if (!actual.equals(expected)) {
-        String message =
-            String.format("Index id mismatch, expected: %s, actual: %s", expected, actual);
-        if (throwException) {
-          throw Status.FAILED_PRECONDITION.withDescription(message).asRuntimeException();
-        } else {
-          logger.warn(message);
-        }
-      }
-    }
 
     public ReplicationServerImpl(GlobalState globalState, boolean verifyIndexId) {
       this.globalState = globalState;

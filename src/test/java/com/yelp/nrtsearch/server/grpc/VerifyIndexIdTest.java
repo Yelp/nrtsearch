@@ -18,6 +18,7 @@ package com.yelp.nrtsearch.server.grpc;
 import static org.junit.Assert.*;
 
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
+import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -260,23 +261,23 @@ public class VerifyIndexIdTest {
 
   @Test
   public void testCheckIndexId_same() {
-    LuceneServer.ReplicationServerImpl.checkIndexId("id1", "id1", false);
+    Handler.checkIndexId("id1", "id1", false);
   }
 
   @Test
   public void testCheckIndexId_different() {
-    LuceneServer.ReplicationServerImpl.checkIndexId("id1", "id2", false);
+    Handler.checkIndexId("id1", "id2", false);
   }
 
   @Test
   public void testCheckIndexId_verifySame() {
-    LuceneServer.ReplicationServerImpl.checkIndexId("id1", "id1", true);
+    Handler.checkIndexId("id1", "id1", true);
   }
 
   @Test
   public void testCheckIndexId_verifyDifferent() {
     try {
-      LuceneServer.ReplicationServerImpl.checkIndexId("id1", "id2", true);
+      Handler.checkIndexId("id1", "id2", true);
       fail();
     } catch (StatusRuntimeException e) {
       assertEquals(Status.FAILED_PRECONDITION.getCode(), e.getStatus().getCode());
