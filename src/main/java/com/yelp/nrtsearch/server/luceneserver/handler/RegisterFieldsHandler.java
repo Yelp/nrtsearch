@@ -17,9 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver.handler;
 
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefResponse;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import com.yelp.nrtsearch.server.luceneserver.index.handlers.FieldUpdateHandler;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;

@@ -23,6 +23,8 @@ import com.yelp.nrtsearch.server.luceneserver.index.IndexStateManager;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.monitoring;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import io.prometheus.metrics.core.metrics.Gauge;
 import io.prometheus.metrics.model.registry.MultiCollector;
 import io.prometheus.metrics.model.snapshots.MetricSnapshot;

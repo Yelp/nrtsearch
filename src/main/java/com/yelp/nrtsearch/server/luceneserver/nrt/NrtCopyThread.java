@@ -15,7 +15,6 @@
  */
 package com.yelp.nrtsearch.server.luceneserver.nrt;
 
-import com.yelp.nrtsearch.server.luceneserver.SimpleCopyJob;
 import java.io.Closeable;
 import java.util.Locale;
 import org.apache.lucene.replicator.nrt.CopyJob;

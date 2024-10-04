@@ -20,15 +20,15 @@ import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.KnnQuery;
 import com.yelp.nrtsearch.server.grpc.VectorIndexingOptions;
-import com.yelp.nrtsearch.server.luceneserver.doc.ByteVectorType;
+import com.yelp.nrtsearch.server.luceneserver.concurrent.ThreadPoolExecutorFactory;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleSearchVector;
 import com.yelp.nrtsearch.server.luceneserver.doc.LoadedDocValues.SingleVector;
-import com.yelp.nrtsearch.server.luceneserver.doc.VectorType;
 import com.yelp.nrtsearch.server.luceneserver.field.properties.VectorQueryable;
-import com.yelp.nrtsearch.server.luceneserver.search.query.vector.NrtKnnByteVectorQuery;
-import com.yelp.nrtsearch.server.luceneserver.search.query.vector.NrtKnnFloatVectorQuery;
-import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.luceneserver.query.vector.NrtKnnByteVectorQuery;
+import com.yelp.nrtsearch.server.luceneserver.query.vector.NrtKnnFloatVectorQuery;
+import com.yelp.nrtsearch.server.luceneserver.vector.ByteVectorType;
+import com.yelp.nrtsearch.server.luceneserver.vector.FloatVectorType;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
@@ -322,13 +322,14 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
   }
 
   /** Field class for 'FLOAT' vector field type. */
-  public static class FloatVectorFieldDef extends VectorFieldDef<VectorType> {
+  public static class FloatVectorFieldDef extends VectorFieldDef<FloatVectorType> {
     public FloatVectorFieldDef(String name, Field requestField) {
-      super(name, requestField, VectorType.class);
+      super(name, requestField, FloatVectorType.class);
     }
 
     @Override
-    public LoadedDocValues<VectorType> getDocValues(LeafReaderContext context) throws IOException {
+    public LoadedDocValues<FloatVectorType> getDocValues(LeafReaderContext context)
+        throws IOException {
       if (docValuesType == DocValuesType.BINARY) {
         BinaryDocValues binaryDocValues = DocValues.getBinary(context.reader(), getName());
         return new SingleVector(binaryDocValues);

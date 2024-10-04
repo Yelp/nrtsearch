@@ -17,9 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver.search.collectors.additional;
 
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.luceneserver.doc.DocLookup;
+import com.yelp.nrtsearch.server.luceneserver.query.QueryUtils;
 import com.yelp.nrtsearch.server.luceneserver.script.ScoreScript;
 import com.yelp.nrtsearch.server.luceneserver.script.ScriptService;
-import com.yelp.nrtsearch.server.luceneserver.search.query.QueryUtils;
 import com.yelp.nrtsearch.server.utils.ScriptParamsUtils;
 import java.io.IOException;
 import org.apache.lucene.index.LeafReaderContext;

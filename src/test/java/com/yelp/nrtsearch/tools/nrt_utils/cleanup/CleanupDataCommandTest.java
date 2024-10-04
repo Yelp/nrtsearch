@@ -36,7 +36,7 @@ import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -269,8 +269,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testValidatePSNameAndGetTimestampMs() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long expectedTimeMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long expectedTimeMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     String testPSName = timeString + "-" + UUID.randomUUID() + "-1";
     long actualTimeMs = CleanupDataCommand.validatePSNameAndGetTimestampMs(testPSName);
@@ -279,7 +279,7 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testValidatePSNameAndGetTimestampMs_invalidStructure() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
+    String timeString = TimeStringUtils.generateTimeStringSec();
     String testPSName = timeString + "-2-1";
     try {
       CleanupDataCommand.validatePSNameAndGetTimestampMs(testPSName);
@@ -291,7 +291,7 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testValidatePSNameAndGetTimestampMs_invalidTimeString() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
+    String timeString = TimeStringUtils.generateTimeStringSec();
     String testPSName = timeString + "000-" + UUID.randomUUID() + "-1";
     try {
       CleanupDataCommand.validatePSNameAndGetTimestampMs(testPSName);
@@ -303,7 +303,7 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testValidatePSNameAndGetTimestampMs_invalidUUID() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
+    String timeString = TimeStringUtils.generateTimeStringSec();
     String testPSName = timeString + "-" + "5d65b454-fa30-49-invalid-8e0e5" + "-1";
     try {
       CleanupDataCommand.validatePSNameAndGetTimestampMs(testPSName);
@@ -315,7 +315,7 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testValidatePSNameAndGetTimestampMs_invalidVersionNumber() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
+    String timeString = TimeStringUtils.generateTimeStringSec();
     String testPSName = timeString + "-" + UUID.randomUUID() + "-invalid";
     try {
       CleanupDataCommand.validatePSNameAndGetTimestampMs(testPSName);
@@ -327,8 +327,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testValidateDataNameAndGetTimestampMs() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long expectedTimeMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long expectedTimeMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     String testPSName = timeString + "-" + UUID.randomUUID() + "-_indexFile";
     long actualTimeMs = CleanupDataCommand.validateDataNameAndGetTimestampMs(testPSName);
@@ -337,7 +337,7 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testValidateDataNameAndGetTimestampMs_invalidStructure() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
+    String timeString = TimeStringUtils.generateTimeStringSec();
     String testPSName = timeString + "-2-1";
     try {
       CleanupDataCommand.validateDataNameAndGetTimestampMs(testPSName);
@@ -349,7 +349,7 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testValidateDataNameAndGetTimestampMs_invalidTimeString() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
+    String timeString = TimeStringUtils.generateTimeStringSec();
     String testPSName = timeString + "000-" + UUID.randomUUID() + "-_indexFile";
     try {
       CleanupDataCommand.validateDataNameAndGetTimestampMs(testPSName);
@@ -361,7 +361,7 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testValidateDataNameAndGetTimestampMs_invalidUUID() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
+    String timeString = TimeStringUtils.generateTimeStringSec();
     String testPSName = timeString + "-" + "5d65b454-fa30-49-invalid-8e0e5" + "-_indexFile";
     try {
       CleanupDataCommand.validateDataNameAndGetTimestampMs(testPSName);
@@ -373,7 +373,7 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testValidateDataNameAndGetTimestampMs_invalidIndexFile() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
+    String timeString = TimeStringUtils.generateTimeStringSec();
     String testPSName = timeString + "-" + UUID.randomUUID() + "-invalid";
     try {
       CleanupDataCommand.validateDataNameAndGetTimestampMs(testPSName);
@@ -385,8 +385,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testPointStateDeletionDecider_delete() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long timestampMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long timestampMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     CleanupDataCommand.PointStateDeletionDecider decider =
         new CleanupDataCommand.PointStateDeletionDecider(timestampMs + 1000);
@@ -398,8 +398,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testPointStateDeletionDecider_retainGreaterTimeString() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long timestampMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long timestampMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     CleanupDataCommand.PointStateDeletionDecider decider =
         new CleanupDataCommand.PointStateDeletionDecider(timestampMs - 1000);
@@ -411,8 +411,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testPointStateDeletionDecider_retainGreaterTimestamp() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long timestampMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long timestampMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     CleanupDataCommand.PointStateDeletionDecider decider =
         new CleanupDataCommand.PointStateDeletionDecider(timestampMs + 1000);
@@ -424,8 +424,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testPointStateDeletionDecider_retainCurrentVersion() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long timestampMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long timestampMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     CleanupDataCommand.PointStateDeletionDecider decider =
         new CleanupDataCommand.PointStateDeletionDecider(timestampMs);
@@ -436,8 +436,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testPointStateDeletionDecider_invalidName() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long timestampMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long timestampMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     CleanupDataCommand.PointStateDeletionDecider decider =
         new CleanupDataCommand.PointStateDeletionDecider(timestampMs + 1000);
@@ -452,8 +452,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testIndexDataDeletionDecider_delete() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long timestampMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long timestampMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     CleanupDataCommand.IndexDataDeletionDecider decider =
         new CleanupDataCommand.IndexDataDeletionDecider(timestampMs + 1000, Set.of());
@@ -464,8 +464,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testIndexDataDeletionDecider_retainActiveFiles() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long timestampMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long timestampMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     String fileName = timeString + "-" + UUID.randomUUID() + "-_indexFile";
     CleanupDataCommand.IndexDataDeletionDecider decider =
@@ -476,8 +476,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testIndexDataDeletionDecider_retainGreaterTimeString() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long timestampMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long timestampMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     CleanupDataCommand.IndexDataDeletionDecider decider =
         new CleanupDataCommand.IndexDataDeletionDecider(timestampMs - 1000, Set.of());
@@ -488,8 +488,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testIndexDataDeletionDecider_retainGreaterTimestamp() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long timestampMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long timestampMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     CleanupDataCommand.IndexDataDeletionDecider decider =
         new CleanupDataCommand.IndexDataDeletionDecider(timestampMs + 1000, Set.of());
@@ -500,8 +500,8 @@ public class CleanupDataCommandTest {
 
   @Test
   public void testIndexDataDeletionDecider_invalidName() {
-    String timeString = TimeStringUtil.generateTimeStringSec();
-    long timestampMs = TimeStringUtil.parseTimeStringSec(timeString).toEpochMilli();
+    String timeString = TimeStringUtils.generateTimeStringSec();
+    long timestampMs = TimeStringUtils.parseTimeStringSec(timeString).toEpochMilli();
 
     CleanupDataCommand.IndexDataDeletionDecider decider =
         new CleanupDataCommand.IndexDataDeletionDecider(timestampMs + 1000, Set.of());

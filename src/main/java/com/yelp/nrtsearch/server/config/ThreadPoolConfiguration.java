@@ -16,8 +16,8 @@
 package com.yelp.nrtsearch.server.config;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.yelp.nrtsearch.server.luceneserver.concurrent.ThreadPoolExecutorFactory;
 import com.yelp.nrtsearch.server.utils.JsonUtils;
-import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,7 +56,7 @@ public class ThreadPoolConfiguration {
       Math.max(100, 2 * DEFAULT_VECTOR_MERGE_THREADS);
 
   /**
-   * Settings for a {@link com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory.ExecutorType}.
+   * Settings for a {@link ThreadPoolExecutorFactory.ExecutorType}.
    *
    * @param maxThreads max number of threads
    * @param maxBufferedItems max number of buffered items

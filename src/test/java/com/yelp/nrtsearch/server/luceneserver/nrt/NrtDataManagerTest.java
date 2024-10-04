@@ -34,12 +34,11 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.yelp.nrtsearch.server.grpc.RestoreIndex;
-import com.yelp.nrtsearch.server.luceneserver.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -915,7 +914,7 @@ public class NrtDataManagerTest {
           assertEquals(value.primaryId, actualValue.primaryId);
           assertArrayEquals(value.header, actualValue.header);
           assertArrayEquals(value.footer, actualValue.footer);
-          assertTrue(TimeStringUtil.isTimeStringSec(actualValue.timeString));
+          assertTrue(TimeStringUtils.isTimeStringSec(actualValue.timeString));
         });
   }
 }

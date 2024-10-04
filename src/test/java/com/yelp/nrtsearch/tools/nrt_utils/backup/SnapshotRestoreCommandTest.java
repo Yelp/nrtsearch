@@ -44,7 +44,7 @@ import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -221,7 +221,7 @@ public class SnapshotRestoreCommandTest {
     assertEquals(1, timeStrings.size());
     String snapshotTimeString = timeStrings.get(0);
 
-    String restoreId = TimeStringUtil.generateTimeStringMs();
+    String restoreId = TimeStringUtils.generateTimeStringMs();
     CommandLine restoreCmd = getInjectedRestoreCommand();
     exitCode =
         restoreCmd.execute(
@@ -259,7 +259,7 @@ public class SnapshotRestoreCommandTest {
     assertEquals(1, timeStrings.size());
     String snapshotTimeString = timeStrings.get(0);
 
-    String restoreId = TimeStringUtil.generateTimeStringMs();
+    String restoreId = TimeStringUtils.generateTimeStringMs();
     CommandLine restoreCmd = getInjectedRestoreCommand();
     exitCode =
         restoreCmd.execute(
@@ -298,7 +298,7 @@ public class SnapshotRestoreCommandTest {
     assertEquals(1, timeStrings.size());
     String snapshotTimeString = timeStrings.get(0);
 
-    String restoreId = TimeStringUtil.generateTimeStringMs();
+    String restoreId = TimeStringUtils.generateTimeStringMs();
     CommandLine restoreCmd = getInjectedRestoreCommand();
     exitCode =
         restoreCmd.execute(
@@ -336,7 +336,7 @@ public class SnapshotRestoreCommandTest {
     assertEquals(1, timeStrings.size());
     String snapshotTimeString = timeStrings.get(0);
 
-    String restoreId = TimeStringUtil.generateTimeStringMs();
+    String restoreId = TimeStringUtils.generateTimeStringMs();
     CommandLine restoreCmd = getInjectedRestoreCommand();
     exitCode =
         restoreCmd.execute(

@@ -24,7 +24,7 @@ import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
@@ -103,7 +103,7 @@ public class UpdateGlobalIndexStateCommand implements Callable<Integer> {
       }
     }
     if (dateTimeString != null) {
-      if (!TimeStringUtil.isTimeStringMs(dateTimeString)) {
+      if (!TimeStringUtils.isTimeStringMs(dateTimeString)) {
         System.out.println("Invalid date time format: " + dateTimeString);
         return false;
       }

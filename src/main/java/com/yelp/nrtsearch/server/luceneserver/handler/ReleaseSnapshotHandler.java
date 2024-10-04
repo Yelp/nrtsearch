@@ -17,9 +17,9 @@ package com.yelp.nrtsearch.server.luceneserver.handler;
 
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotRequest;
 import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotResponse;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
-import com.yelp.nrtsearch.server.luceneserver.IndexState;
-import com.yelp.nrtsearch.server.luceneserver.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.index.IndexState;
+import com.yelp.nrtsearch.server.luceneserver.index.ShardState;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;

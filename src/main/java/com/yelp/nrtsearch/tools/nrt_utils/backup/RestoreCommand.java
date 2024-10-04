@@ -33,7 +33,7 @@ import com.yelp.nrtsearch.server.luceneserver.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.tools.nrt_utils.state.StateCommandUtils;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -312,9 +312,9 @@ public class RestoreCommand implements Callable<Integer> {
 
   private String getRestoreIndexId() {
     if (restoreIndexId == null) {
-      return TimeStringUtil.generateTimeStringMs();
+      return TimeStringUtils.generateTimeStringMs();
     } else {
-      if (!TimeStringUtil.isTimeStringMs(restoreIndexId)) {
+      if (!TimeStringUtils.isTimeStringMs(restoreIndexId)) {
         throw new IllegalStateException(
             "restoreIndexId must be a time string of the form yyyyMMddHHmmssSSS, got: "
                 + restoreIndexId);

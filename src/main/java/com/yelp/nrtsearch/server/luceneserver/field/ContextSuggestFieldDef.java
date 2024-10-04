@@ -19,7 +19,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.luceneserver.analysis.AnalyzerCreator;
-import com.yelp.nrtsearch.server.luceneserver.suggest.protocol.ContextSuggestFieldData;
+import com.yelp.nrtsearch.server.luceneserver.suggest.ContextSuggestFieldData;
 import java.util.List;
 import java.util.Optional;
 import org.apache.lucene.analysis.Analyzer;

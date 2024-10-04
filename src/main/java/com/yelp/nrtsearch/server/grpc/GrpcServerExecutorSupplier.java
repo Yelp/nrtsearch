@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
-import com.yelp.nrtsearch.server.utils.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.luceneserver.concurrent.ThreadPoolExecutorFactory;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallExecutorSupplier;

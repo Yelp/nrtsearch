@@ -33,7 +33,7 @@ import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteBackend.IndexResourceType;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
-import com.yelp.nrtsearch.server.utils.TimeStringUtil;
+import com.yelp.nrtsearch.server.utils.TimeStringUtils;
 import com.yelp.nrtsearch.test_utils.AmazonS3Provider;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -285,7 +285,7 @@ public class S3BackendTest {
     String[] splits = globalStateVersion.split("-", 2);
     assertEquals(2, splits.length);
     // check parsable
-    assertTrue(TimeStringUtil.isTimeStringSec(splits[0]));
+    assertTrue(TimeStringUtils.isTimeStringSec(splits[0]));
     UUID.fromString(splits[1]);
   }
 
@@ -436,7 +436,7 @@ public class S3BackendTest {
     String[] splits = indexStateVersion.split("-", 2);
     assertEquals(2, splits.length);
     // check parsable
-    assertTrue(TimeStringUtil.isTimeStringSec(splits[0]));
+    assertTrue(TimeStringUtils.isTimeStringSec(splits[0]));
     UUID.fromString(splits[1]);
   }
 
@@ -587,7 +587,7 @@ public class S3BackendTest {
     String[] splits = warmingVersion.split("-", 2);
     assertEquals(2, splits.length);
     // check parsable
-    assertTrue(TimeStringUtil.isTimeStringSec(splits[0]));
+    assertTrue(TimeStringUtils.isTimeStringSec(splits[0]));
     UUID.fromString(splits[1]);
   }
 
@@ -791,7 +791,7 @@ public class S3BackendTest {
     String fileName = S3Backend.getPointStateFileName(pointState);
     String[] components = fileName.split("-");
     assertEquals(3, components.length);
-    assertTrue(TimeStringUtil.isTimeStringSec(components[0]));
+    assertTrue(TimeStringUtils.isTimeStringSec(components[0]));
     assertEquals("primaryId", components[1]);
     assertEquals("1", components[2]);
   }

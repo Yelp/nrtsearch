@@ -17,8 +17,8 @@ package com.yelp.nrtsearch.server.luceneserver.handler;
 
 import com.yelp.nrtsearch.server.grpc.CustomRequest;
 import com.yelp.nrtsearch.server.grpc.CustomResponse;
-import com.yelp.nrtsearch.server.luceneserver.GlobalState;
 import com.yelp.nrtsearch.server.luceneserver.custom.request.CustomRequestProcessor;
+import com.yelp.nrtsearch.server.luceneserver.state.GlobalState;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
