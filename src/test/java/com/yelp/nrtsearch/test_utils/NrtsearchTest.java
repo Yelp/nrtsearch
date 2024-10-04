@@ -20,6 +20,7 @@ import static com.yelp.nrtsearch.test_utils.DefaultTestProperties.REPLICATION_PO
 import static com.yelp.nrtsearch.test_utils.DefaultTestProperties.S3_BUCKET_NAME;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
 import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
 import java.io.ByteArrayInputStream;
@@ -36,9 +37,9 @@ import org.yaml.snakeyaml.Yaml;
 
 /**
  * Base class for tests which need to initialize an Nrtsearch instance. Unlike {@link
- * com.yelp.nrtsearch.server.luceneserver.ServerTestCase} which directly creates a gRPC server using
- * {@link com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl}, this class creates and
- * starts {@link com.yelp.nrtsearch.server.grpc.LuceneServer} using a custom guice module ({@link
+ * ServerTestCase} which directly creates a gRPC server using {@link
+ * com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl}, this class creates and starts
+ * {@link com.yelp.nrtsearch.server.grpc.LuceneServer} using a custom guice module ({@link
  * com.yelp.nrtsearch.module.TestLuceneServerModule}. This class is useful for tests which require
  * testing the initialization path of {@link com.yelp.nrtsearch.server.grpc.LuceneServer}.
  */

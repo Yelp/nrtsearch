@@ -17,10 +17,10 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static org.junit.Assert.assertEquals;
 
+import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.grpc.TotalHits.Relation;
-import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.ArrayList;

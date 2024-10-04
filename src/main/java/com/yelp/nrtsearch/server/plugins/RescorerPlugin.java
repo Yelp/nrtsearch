@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import com.yelp.nrtsearch.server.luceneserver.rescore.RescoreOperation;
-import com.yelp.nrtsearch.server.luceneserver.rescore.RescorerProvider;
+import com.yelp.nrtsearch.server.rescore.RescoreOperation;
+import com.yelp.nrtsearch.server.rescore.RescorerProvider;
 import java.util.Collections;
 import java.util.Map;
 

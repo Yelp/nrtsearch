@@ -17,8 +17,8 @@ package com.yelp.nrtsearch.tools.cli;
 
 import static org.junit.Assert.*;
 
+import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
-import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;

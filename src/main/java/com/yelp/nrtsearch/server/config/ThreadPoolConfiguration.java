@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.config;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.yelp.nrtsearch.server.luceneserver.concurrent.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
 import com.yelp.nrtsearch.server.utils.JsonUtils;
 import java.util.HashMap;
 import java.util.Map;

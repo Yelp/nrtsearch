@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.remote;
 
-import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
-import com.yelp.nrtsearch.server.luceneserver.state.StateUtils;
+import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
+import com.yelp.nrtsearch.server.state.StateUtils;
 import com.yelp.nrtsearch.server.utils.JsonUtils;
 import java.io.IOException;
 

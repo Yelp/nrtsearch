@@ -32,7 +32,7 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.TestServer;
-import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointState;
+import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.RemoteUtils;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;

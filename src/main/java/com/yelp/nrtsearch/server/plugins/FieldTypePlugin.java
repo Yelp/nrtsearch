@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import com.yelp.nrtsearch.server.luceneserver.field.FieldDef;
-import com.yelp.nrtsearch.server.luceneserver.field.FieldDefProvider;
+import com.yelp.nrtsearch.server.field.FieldDef;
+import com.yelp.nrtsearch.server.field.FieldDefProvider;
 import java.util.Collections;
 import java.util.Map;
 

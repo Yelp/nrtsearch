@@ -15,7 +15,8 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import com.yelp.nrtsearch.server.luceneserver.highlights.Highlighter;
+import com.yelp.nrtsearch.server.highlights.Highlighter;
+import com.yelp.nrtsearch.server.highlights.HighlighterService;
 import java.util.Collections;
 
 /**
@@ -27,7 +28,7 @@ import java.util.Collections;
 public interface HighlighterPlugin {
   /**
    * Provides custom {@link Highlighter} implementations for registration with the {@link
-   * com.yelp.nrtsearch.server.luceneserver.highlights.HighlighterService}.
+   * HighlighterService}.
    *
    * @return list of provided {@link Highlighter} implementations
    */

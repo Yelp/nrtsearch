@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.grpc;
 import static org.junit.Assert.*;
 
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
-import com.yelp.nrtsearch.server.luceneserver.handler.Handler;
+import com.yelp.nrtsearch.server.handler.Handler;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;

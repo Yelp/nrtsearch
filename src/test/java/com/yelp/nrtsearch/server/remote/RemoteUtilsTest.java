@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.remote;
 
 import static org.junit.Assert.assertArrayEquals;
 
-import com.yelp.nrtsearch.server.luceneserver.nrt.state.NrtPointStateTest;
+import com.yelp.nrtsearch.server.nrt.state.NrtPointStateTest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import org.junit.Test;

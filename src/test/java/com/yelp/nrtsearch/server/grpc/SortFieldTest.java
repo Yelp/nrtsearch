@@ -19,7 +19,7 @@ import static org.junit.Assert.assertEquals;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.type.LatLng;
-import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
+import com.yelp.nrtsearch.server.ServerTestCase;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.IOException;
 import java.util.Arrays;
