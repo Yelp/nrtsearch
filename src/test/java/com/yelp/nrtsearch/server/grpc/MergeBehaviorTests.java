@@ -16,11 +16,11 @@
 package com.yelp.nrtsearch.server.grpc;
 
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
-import static com.yelp.nrtsearch.server.grpc.LuceneServerTest.RETRIEVED_VALUES;
+import static com.yelp.nrtsearch.server.grpc.NrtsearchServerTest.RETRIEVED_VALUES;
 import static org.junit.Assert.*;
 
 import com.google.common.collect.Sets;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.state.BackendGlobalState;
 import com.yelp.nrtsearch.server.utils.LuceneServerTestConfigurationFactory;
 import io.grpc.testing.GrpcCleanupRule;
@@ -85,7 +85,7 @@ public class MergeBehaviorTests {
 
   private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
     String testIndex = "test_index";
-    LuceneServerConfiguration luceneServerConfiguration =
+    NrtsearchConfig luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     return new GrpcServer(
         prometheusRegistry,

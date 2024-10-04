@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.similarity;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.SimilarityPlugin;
 import java.util.HashMap;
@@ -36,7 +36,7 @@ public class SimilarityCreator {
   private final Map<String, SimilarityProvider<? extends Similarity>> similarityMap =
       new HashMap<>();
 
-  public SimilarityCreator(LuceneServerConfiguration configuration) {
+  public SimilarityCreator(NrtsearchConfig configuration) {
     register("classic", params -> new ClassicSimilarity());
     register("BM25", params -> new BM25Similarity());
     register("boolean", params -> new BooleanSimilarity());
@@ -81,7 +81,7 @@ public class SimilarityCreator {
    * @param configuration service configuration
    * @param plugins list of loaded plugins
    */
-  public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
+  public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new SimilarityCreator(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof SimilarityPlugin) {

@@ -122,7 +122,7 @@ public class MultiIndexAddDocumentsTest extends ServerTestCase {
     Path filePath = Paths.get(ServerTestCase.class.getResource(docsResourceFile).toURI());
     Reader reader = Files.newBufferedReader(filePath);
     CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
-    return new LuceneServerClientBuilder.AddDocumentsClientBuilder(index, csvParser)
+    return new NrtsearchClientBuilder.AddDocumentsClientBuilder(index, csvParser)
         .buildRequest(filePath);
   }
 

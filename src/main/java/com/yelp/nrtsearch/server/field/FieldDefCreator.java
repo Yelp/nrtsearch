@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.field;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldType;
 import com.yelp.nrtsearch.server.plugins.FieldTypePlugin;
@@ -34,7 +34,7 @@ public class FieldDefCreator {
 
   private final Map<String, FieldDefProvider<? extends FieldDef>> fieldDefMap = new HashMap<>();
 
-  public FieldDefCreator(LuceneServerConfiguration configuration) {
+  public FieldDefCreator(NrtsearchConfig configuration) {
     register("ATOM", AtomFieldDef::new);
     register("TEXT", TextFieldDef::new);
     register("BOOLEAN", BooleanFieldDef::new);
@@ -119,7 +119,7 @@ public class FieldDefCreator {
    * @param configuration service configuration
    * @param plugins list of loaded plugins
    */
-  public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
+  public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new FieldDefCreator(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof FieldTypePlugin) {

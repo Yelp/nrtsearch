@@ -19,7 +19,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ScriptCacheConfig;
 import com.yelp.nrtsearch.server.grpc.Script;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -53,7 +53,7 @@ public class ScriptService {
   private final Map<String, ScriptEngine> scriptEngineMap = new HashMap<>();
   private final LoadingCache<ScriptCacheKey, Object> scriptCache;
 
-  private ScriptService(LuceneServerConfiguration configuration) {
+  private ScriptService(NrtsearchConfig configuration) {
     // add provided javascript engine
     scriptEngineMap.put("js", new JsScriptEngine());
 
@@ -118,7 +118,7 @@ public class ScriptService {
    * @param configuration server configuration
    * @param plugins loaded plugins
    */
-  public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
+  public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new ScriptService(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof ScriptPlugin) {

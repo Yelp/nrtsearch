@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.state;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import org.junit.Rule;
@@ -29,8 +29,8 @@ public class GlobalStateTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private LuceneServerConfiguration getConfig(String config) {
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+  private NrtsearchConfig getConfig(String config) {
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
   @Test
@@ -41,7 +41,7 @@ public class GlobalStateTest {
             "stateConfig:",
             "  backendType: LOCAL",
             "stateDir: " + folder.getRoot().getAbsolutePath());
-    LuceneServerConfiguration configuration = getConfig(configFile);
+    NrtsearchConfig configuration = getConfig(configFile);
     GlobalState globalState = GlobalState.createState(configuration, null);
     assertTrue(globalState instanceof BackendGlobalState);
   }
@@ -49,7 +49,7 @@ public class GlobalStateTest {
   @Test
   public void testGetGeneration() throws IOException {
     String configFile = String.join("\n", "stateConfig:", "  backendType: LOCAL");
-    LuceneServerConfiguration configuration = getConfig(configFile);
+    NrtsearchConfig configuration = getConfig(configFile);
     GlobalState globalState = GlobalState.createState(configuration, null);
     long gen = globalState.getGeneration();
     assertTrue(gen > 0);

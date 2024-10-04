@@ -15,13 +15,13 @@
  */
 package com.yelp.nrtsearch.server.analysis;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 
 /**
  * Interface to provide additional nrtsearch related information to components of {@link
  * org.apache.lucene.analysis.custom.CustomAnalyzer}s. The {@link
- * #initializeComponent(LuceneServerConfiguration)} method is called after the custom analyzer is
- * built, but before it is returned to the caller.
+ * #initializeComponent(NrtsearchConfig)} method is called after the custom analyzer is built, but
+ * before it is returned to the caller.
  *
  * <p>This is intended mainly to be used by custom implementations registered by plugins (currently
  * only token filters supported). This is needed because the custom analyzer building does not give
@@ -35,5 +35,5 @@ public interface AnalysisComponent {
    *
    * @param configuration nrtsearch config accessor
    */
-  void initializeComponent(LuceneServerConfiguration configuration);
+  void initializeComponent(NrtsearchConfig configuration);
 }

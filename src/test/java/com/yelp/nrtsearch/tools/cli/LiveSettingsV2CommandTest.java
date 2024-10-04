@@ -53,7 +53,7 @@ public class LiveSettingsV2CommandTest {
 
     assertFalse(server.getGlobalState().getIndex("test_index").getVerboseMetrics());
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",
@@ -99,7 +99,7 @@ public class LiveSettingsV2CommandTest {
     server.createSimpleIndex("test_index");
     server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",
@@ -119,7 +119,7 @@ public class LiveSettingsV2CommandTest {
     assertEquals(
         0.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",
@@ -146,7 +146,7 @@ public class LiveSettingsV2CommandTest {
     assertEquals(
         0.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",

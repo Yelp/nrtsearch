@@ -20,7 +20,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.Collector;
@@ -112,7 +112,7 @@ public class CollectorStatsWrapperTest extends ServerTestCase {
   }
 
   @Override
-  public List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
+  public List<Plugin> getPlugins(NrtsearchConfig configuration) {
     return Collections.singletonList(new TestScriptPlugin());
   }
 

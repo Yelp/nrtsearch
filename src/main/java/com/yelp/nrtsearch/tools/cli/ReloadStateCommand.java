@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
@@ -25,11 +25,11 @@ import picocli.CommandLine;
 public class ReloadStateCommand implements Callable<Integer> {
   public static final String RELOAD_STATE = "reloadState";
 
-  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
+  @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
   @Override
   public Integer call() throws Exception {
-    LuceneServerClient client = baseCmd.getClient();
+    NrtsearchClient client = baseCmd.getClient();
     try {
       client.reloadState();
     } finally {

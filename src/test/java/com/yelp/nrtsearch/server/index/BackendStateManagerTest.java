@@ -30,7 +30,7 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.FieldType;
@@ -68,8 +68,8 @@ public class BackendStateManagerTest {
   @BeforeClass
   public static void setup() {
     String configFile = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration dummyConfig =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    NrtsearchConfig dummyConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
     List<Plugin> dummyPlugins = Collections.emptyList();
     // these must be initialized to create an IndexState
     FieldDefCreator.initialize(dummyConfig, dummyPlugins);

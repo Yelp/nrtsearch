@@ -20,14 +20,14 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.s3.S3Util;
 
 public class S3Module extends AbstractModule {
   @Inject
   @Singleton
   @Provides
-  protected AmazonS3 providesAmazonS3(LuceneServerConfiguration luceneServerConfiguration) {
+  protected AmazonS3 providesAmazonS3(NrtsearchConfig luceneServerConfiguration) {
     return S3Util.buildS3Client(luceneServerConfiguration);
   }
 }

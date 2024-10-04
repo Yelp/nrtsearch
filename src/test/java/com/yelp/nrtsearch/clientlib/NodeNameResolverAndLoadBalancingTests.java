@@ -21,7 +21,7 @@ import static org.junit.Assert.fail;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.CommitRequest;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
@@ -111,7 +111,7 @@ public class NodeNameResolverAndLoadBalancingTests {
   }
 
   private GrpcServer createGrpcServer() throws IOException {
-    LuceneServerConfiguration luceneServerConfiguration =
+    NrtsearchConfig luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     return new GrpcServer(
         grpcCleanup,

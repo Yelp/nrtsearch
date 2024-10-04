@@ -31,7 +31,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.AmazonS3URI;
 import com.google.common.base.Strings;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.slf4j.Logger;
@@ -49,7 +49,7 @@ public class S3Util {
    * @param luceneServerConfiguration configuration
    * @return s3 client
    */
-  public static AmazonS3 buildS3Client(LuceneServerConfiguration luceneServerConfiguration) {
+  public static AmazonS3 buildS3Client(NrtsearchConfig luceneServerConfiguration) {
     AWSCredentialsProvider awsCredentialsProvider;
     if (luceneServerConfiguration.getBotoCfgPath() == null) {
       awsCredentialsProvider = new DefaultAWSCredentialsProviderChain();

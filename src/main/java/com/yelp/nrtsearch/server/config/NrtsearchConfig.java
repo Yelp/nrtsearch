@@ -37,7 +37,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormat.FSTLoadMode;
 
-public class LuceneServerConfiguration {
+public class NrtsearchConfig {
   private static final Pattern ENV_VAR_PATTERN = Pattern.compile("\\$\\{([A-Za-z0-9_]+)}");
 
   private static final long AS_LARGE_AS_INFINITE = TimeUnit.DAYS.toSeconds(1000L);
@@ -110,7 +110,7 @@ public class LuceneServerConfiguration {
   private final boolean useKeepAliveForReplication;
 
   @Inject
-  public LuceneServerConfiguration(InputStream yamlStream) {
+  public NrtsearchConfig(InputStream yamlStream) {
     configReader = new YamlConfigReader(yamlStream);
 
     port = configReader.getInteger("port", DEFAULT_PORT);
@@ -148,7 +148,7 @@ public class LuceneServerConfiguration {
     pluginSearchPath =
         configReader.get(
             "pluginSearchPath",
-            LuceneServerConfiguration::getPluginSearchPath,
+            NrtsearchConfig::getPluginSearchPath,
             List.of(DEFAULT_PLUGIN_SEARCH_PATH.toString()));
     serviceName = configReader.getString("serviceName", DEFAULT_SERVICE_NAME);
     preloadConfig = IndexPreloadConfig.fromConfig(configReader);

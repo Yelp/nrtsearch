@@ -30,7 +30,7 @@ import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.amazonaws.services.s3.transfer.Upload;
 import com.google.common.annotations.VisibleForTesting;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -95,7 +95,7 @@ public class S3Backend implements RemoteBackend {
    * @param configuration configuration
    * @param s3 s3 client
    */
-  public S3Backend(LuceneServerConfiguration configuration, AmazonS3 s3) {
+  public S3Backend(NrtsearchConfig configuration, AmazonS3 s3) {
     this(configuration.getBucketName(), configuration.getSavePluginBeforeUnzip(), s3);
   }
 

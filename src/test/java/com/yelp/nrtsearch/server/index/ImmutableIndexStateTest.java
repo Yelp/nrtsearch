@@ -37,7 +37,7 @@ import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
 import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.AtomFieldDef;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.FieldDefCreator;
@@ -88,8 +88,8 @@ public class ImmutableIndexStateTest {
   @BeforeClass
   public static void setup() {
     String configFile = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration dummyConfig =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    NrtsearchConfig dummyConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
     List<Plugin> dummyPlugins = Collections.emptyList();
     // these must be initialized to create an IndexState
     FieldDefCreator.initialize(dummyConfig, dummyPlugins);
@@ -130,8 +130,8 @@ public class ImmutableIndexStateTest {
     GlobalState mockGlobalState = mock(GlobalState.class);
 
     String configFile = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration dummyConfig =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    NrtsearchConfig dummyConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
 
     when(mockGlobalState.getIndexDirBase()).thenReturn(folder.getRoot().toPath());
     when(mockGlobalState.getConfiguration()).thenReturn(dummyConfig);
@@ -623,8 +623,8 @@ public class ImmutableIndexStateTest {
     GlobalState mockGlobalState = mock(GlobalState.class);
 
     String configFile = "virtualSharding: " + (enabled ? "true" : "false");
-    LuceneServerConfiguration dummyConfig =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    NrtsearchConfig dummyConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
 
     when(mockGlobalState.getIndexDirBase()).thenReturn(folder.getRoot().toPath());
     when(mockGlobalState.getConfiguration()).thenReturn(dummyConfig);
@@ -873,8 +873,7 @@ public class ImmutableIndexStateTest {
     GlobalState mockGlobalState = mock(GlobalState.class);
 
     String configFile = "threadPoolConfiguration:\n  fetch:\n    maxThreads: 10";
-    LuceneServerConfiguration config =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
 
     when(mockGlobalState.getIndexDirBase()).thenReturn(folder.getRoot().toPath());
     when(mockGlobalState.getConfiguration()).thenReturn(config);
@@ -949,8 +948,8 @@ public class ImmutableIndexStateTest {
     GlobalState mockGlobalState = mock(GlobalState.class);
 
     String configFile = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration dummyConfig =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    NrtsearchConfig dummyConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
 
     when(mockGlobalState.getIndexDirBase()).thenReturn(folder.getRoot().toPath());
     when(mockGlobalState.getConfiguration()).thenReturn(dummyConfig);

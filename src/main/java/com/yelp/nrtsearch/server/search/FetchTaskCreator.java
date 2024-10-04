@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.search;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.FetchTask;
 import com.yelp.nrtsearch.server.plugins.FetchTaskPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -35,7 +35,7 @@ public class FetchTaskCreator {
    *
    * @param configuration server configuration
    */
-  public FetchTaskCreator(LuceneServerConfiguration configuration) {}
+  public FetchTaskCreator(NrtsearchConfig configuration) {}
 
   /**
    * Create a {@link FetchTasks.FetchTask} instance given the {@link FetchTask} message from the
@@ -70,7 +70,7 @@ public class FetchTaskCreator {
    * @param configuration service configuration
    * @param plugins list of loaded plugins
    */
-  public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
+  public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new FetchTaskCreator(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof FetchTaskPlugin) {

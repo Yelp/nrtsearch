@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.PluginDownloader;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.File;
@@ -33,23 +33,23 @@ import org.slf4j.LoggerFactory;
 /**
  * Class to handle the loading and registration of nrtsearch plugins.
  *
- * <p>Loads the plugins specified by the {@link LuceneServerConfiguration}. Plugins are located by
- * searching the config provided plugin search path for a folder matching the plugin name. A
- * classloader is created with the jars provided in the plugin directory. The plugin provides a
- * config file containing the {@link Plugin} classname that should be loaded. Reflection is used to
- * give the loaded plugin access to the lucene server config.
+ * <p>Loads the plugins specified by the {@link NrtsearchConfig}. Plugins are located by searching
+ * the config provided plugin search path for a folder matching the plugin name. A classloader is
+ * created with the jars provided in the plugin directory. The plugin provides a config file
+ * containing the {@link Plugin} classname that should be loaded. Reflection is used to give the
+ * loaded plugin access to the lucene server config.
  */
 public class PluginsService {
   private static final Logger logger = LoggerFactory.getLogger(PluginsService.class);
 
-  private final LuceneServerConfiguration config;
+  private final NrtsearchConfig config;
   private final PrometheusRegistry prometheusRegistry;
   private final List<PluginDescriptor> loadedPluginDescriptors = new ArrayList<>();
 
   private final PluginDownloader pluginDownloader;
 
   public PluginsService(
-      LuceneServerConfiguration config,
+      NrtsearchConfig config,
       PluginDownloader pluginDownloader,
       PrometheusRegistry prometheusRegistry) {
     this.config = config;
@@ -58,8 +58,8 @@ public class PluginsService {
   }
 
   /**
-   * Load the list of plugins specified in the {@link LuceneServerConfiguration}. This handles both
-   * the loading of the plugin class from provided jars and creation of a new instance.
+   * Load the list of plugins specified in the {@link NrtsearchConfig}. This handles both the
+   * loading of the plugin class from provided jars and creation of a new instance.
    *
    * @return list of loaded plugin instances
    */
@@ -190,7 +190,7 @@ public class PluginsService {
     try {
       Plugin plugin =
           pluginClass
-              .getDeclaredConstructor(new Class[] {LuceneServerConfiguration.class})
+              .getDeclaredConstructor(new Class[] {NrtsearchConfig.class})
               .newInstance(config);
       if (plugin instanceof MetricsPlugin) {
         ((MetricsPlugin) plugin).registerMetrics(prometheusRegistry);

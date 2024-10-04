@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.state;
 
 import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DummyResponse;
@@ -55,7 +55,7 @@ public abstract class GlobalState implements Closeable {
 
   private final String nodeName;
 
-  private final LuceneServerConfiguration configuration;
+  private final NrtsearchConfig configuration;
 
   /** Server shuts down once this latch is decremented. */
   private final CountDownLatch shutdownNow = new CountDownLatch(1);
@@ -68,8 +68,7 @@ public abstract class GlobalState implements Closeable {
   private final ThreadPoolExecutor searchThreadPoolExecutor;
 
   public static GlobalState createState(
-      LuceneServerConfiguration luceneServerConfiguration, RemoteBackend remoteBackend)
-      throws IOException {
+      NrtsearchConfig luceneServerConfiguration, RemoteBackend remoteBackend) throws IOException {
     return new BackendGlobalState(luceneServerConfiguration, remoteBackend);
   }
 
@@ -77,8 +76,7 @@ public abstract class GlobalState implements Closeable {
     return remoteBackend;
   }
 
-  protected GlobalState(
-      LuceneServerConfiguration luceneServerConfiguration, RemoteBackend remoteBackend)
+  protected GlobalState(NrtsearchConfig luceneServerConfiguration, RemoteBackend remoteBackend)
       throws IOException {
     this.remoteBackend = remoteBackend;
     this.nodeName = luceneServerConfiguration.getNodeName();
@@ -104,7 +102,7 @@ public abstract class GlobalState implements Closeable {
     this.configuration = luceneServerConfiguration;
   }
 
-  public LuceneServerConfiguration getConfiguration() {
+  public NrtsearchConfig getConfiguration() {
     return configuration;
   }
 

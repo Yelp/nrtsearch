@@ -19,20 +19,20 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.LuceneServer;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.Optional;
 
-public class LuceneServerModule extends AbstractModule {
+public class NrtsearchModule extends AbstractModule {
   private static final String DEFAULT_CONFIG_FILE_RESOURCE =
       "/lucene_server_default_configuration.yaml";
-  private final LuceneServer.LuceneServerCommand args;
+  private final NrtsearchServer.NrtsearchServerCommand args;
 
-  public LuceneServerModule(LuceneServer.LuceneServerCommand args) {
+  public NrtsearchModule(NrtsearchServer.NrtsearchServerCommand args) {
     this.args = args;
   }
 
@@ -52,17 +52,14 @@ public class LuceneServerModule extends AbstractModule {
   @Inject
   @Singleton
   @Provides
-  protected LuceneServerConfiguration providesLuceneServerConfiguration()
-      throws FileNotFoundException {
-    LuceneServerConfiguration luceneServerConfiguration;
+  protected NrtsearchConfig providesNrtsearchConfig() throws FileNotFoundException {
+    NrtsearchConfig luceneServerConfiguration;
     Optional<File> maybeConfigFile = args.maybeConfigFile();
     if (maybeConfigFile.isEmpty()) {
       luceneServerConfiguration =
-          new LuceneServerConfiguration(
-              getClass().getResourceAsStream(DEFAULT_CONFIG_FILE_RESOURCE));
+          new NrtsearchConfig(getClass().getResourceAsStream(DEFAULT_CONFIG_FILE_RESOURCE));
     } else {
-      luceneServerConfiguration =
-          new LuceneServerConfiguration(new FileInputStream(maybeConfigFile.get()));
+      luceneServerConfiguration = new NrtsearchConfig(new FileInputStream(maybeConfigFile.get()));
     }
     return luceneServerConfiguration;
   }

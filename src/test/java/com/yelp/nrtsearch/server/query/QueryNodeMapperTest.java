@@ -19,7 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Diagnostics;
@@ -58,9 +58,9 @@ public class QueryNodeMapperTest extends ServerTestCase {
     ScriptService.initialize(getEmptyConfig(), plugins);
   }
 
-  private LuceneServerConfiguration getEmptyConfig() {
+  private NrtsearchConfig getEmptyConfig() {
     String config = "nodeName: \"lucene_server_foo\"";
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
   @Override

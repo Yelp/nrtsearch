@@ -20,7 +20,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.RescorerPlugin;
@@ -45,9 +45,9 @@ public class RescorerCreatorTest {
     RescorerCreator.initialize(getEmptyConfig(), plugins);
   }
 
-  private LuceneServerConfiguration getEmptyConfig() {
+  private NrtsearchConfig getEmptyConfig() {
     String config = "nodeName: \"lucene_server_foo\"";
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
   public static class TestRescorerPlugin extends Plugin implements RescorerPlugin {

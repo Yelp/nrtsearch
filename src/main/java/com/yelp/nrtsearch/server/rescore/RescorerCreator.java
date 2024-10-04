@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.rescore;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.PluginRescorer;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.plugins.RescorerPlugin;
@@ -34,7 +34,7 @@ public class RescorerCreator {
   private final Map<String, RescorerProvider<? extends RescoreOperation>> rescorersMap =
       new HashMap<>();
 
-  public RescorerCreator(LuceneServerConfiguration configuration) {}
+  public RescorerCreator(NrtsearchConfig configuration) {}
 
   /**
    * Get a {@link RescoreOperation} implementation by name, and with the given parameters. Valid
@@ -73,7 +73,7 @@ public class RescorerCreator {
    * @param configuration service configuration
    * @param plugins list of loaded plugins
    */
-  public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
+  public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new RescorerCreator(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof RescorerPlugin) {

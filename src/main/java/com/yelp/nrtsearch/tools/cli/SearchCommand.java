@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
@@ -25,7 +25,7 @@ import picocli.CommandLine;
 public class SearchCommand implements Callable<Integer> {
   public static final String SEARCH = "search";
 
-  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
+  @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-f", "--fileName"},
@@ -39,7 +39,7 @@ public class SearchCommand implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    LuceneServerClient client = baseCmd.getClient();
+    NrtsearchClient client = baseCmd.getClient();
     try {
       Path filePath = Paths.get(getFileName());
       client.search(filePath);

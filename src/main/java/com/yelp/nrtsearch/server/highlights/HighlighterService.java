@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.highlights;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.plugins.HighlighterPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.util.HashMap;
@@ -32,7 +32,7 @@ public class HighlighterService {
    *
    * @param configuration server configuration
    */
-  public HighlighterService(LuceneServerConfiguration configuration) {}
+  public HighlighterService(NrtsearchConfig configuration) {}
 
   private void register(Iterable<Highlighter> highlighters) {
     highlighters.forEach(highlighter -> register(highlighter.getName(), highlighter));
@@ -58,7 +58,7 @@ public class HighlighterService {
    * @param configuration service configuration
    * @param plugins list of loaded plugins
    */
-  public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
+  public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new HighlighterService(configuration);
     initializeBuiltinHighlighters();
     for (Plugin plugin : plugins) {

@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.modules;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.google.inject.*;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 
@@ -26,8 +26,7 @@ public class BackendModule extends AbstractModule {
   @Inject
   @Singleton
   @Provides
-  protected RemoteBackend providesRemoteBackend(
-      LuceneServerConfiguration configuration, AmazonS3 s3) {
+  protected RemoteBackend providesRemoteBackend(NrtsearchConfig configuration, AmazonS3 s3) {
     return new S3Backend(configuration, s3);
   }
 }

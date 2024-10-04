@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.tools.cli;
 
 import com.yelp.nrtsearch.server.Version;
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
@@ -52,8 +52,9 @@ import picocli.CommandLine;
       WriteNRTPointCommand.class,
       CommandLine.HelpCommand.class
     })
-public class LuceneClientCommand implements Runnable {
-  public static final Logger logger = LoggerFactory.getLogger(LuceneClientCommand.class.getName());
+public class NrtsearchClientCommand implements Runnable {
+  public static final Logger logger =
+      LoggerFactory.getLogger(NrtsearchClientCommand.class.getName());
 
   @CommandLine.Option(
       names = {"-p", "--port"},
@@ -80,12 +81,12 @@ public class LuceneClientCommand implements Runnable {
     return hostname;
   }
 
-  public LuceneServerClient getClient() {
-    return new LuceneServerClient(getHostname(), getPort());
+  public NrtsearchClient getClient() {
+    return new NrtsearchClient(getHostname(), getPort());
   }
 
   public static void main(String[] args) {
-    System.exit(new CommandLine(new LuceneClientCommand()).execute(args));
+    System.exit(new CommandLine(new NrtsearchClientCommand()).execute(args));
   }
 
   @Override

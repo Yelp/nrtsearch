@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.yelp_reviews.utils;
 
 import com.google.gson.Gson;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -27,13 +27,13 @@ import org.slf4j.LoggerFactory;
 public class DocumentGeneratorAndIndexer implements Callable<Long> {
   private final Stream<String> lines;
   private final Gson gson = new Gson();
-  final LuceneServerClient luceneServerClient;
+  final NrtsearchClient luceneServerClient;
   private static final Logger logger =
       LoggerFactory.getLogger(DocumentGeneratorAndIndexer.class.getName());
   private final OneDocBuilder oneDocBuilder;
 
   public DocumentGeneratorAndIndexer(
-      OneDocBuilder oneDocBuilder, Stream<String> lines, LuceneServerClient luceneServerClient) {
+      OneDocBuilder oneDocBuilder, Stream<String> lines, NrtsearchClient luceneServerClient) {
     this.lines = lines;
     this.luceneServerClient = luceneServerClient;
     this.oneDocBuilder = oneDocBuilder;

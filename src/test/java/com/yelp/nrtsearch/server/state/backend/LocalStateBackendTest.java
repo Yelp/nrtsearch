@@ -28,7 +28,7 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
@@ -52,19 +52,19 @@ public class LocalStateBackendTest {
 
   @Rule public final TemporaryFolder folder = new TemporaryFolder();
 
-  private LuceneServerConfiguration getConfig() throws IOException {
+  private NrtsearchConfig getConfig() throws IOException {
     String configFile =
         String.join(
             "\n",
             "stateConfig:",
             "  backendType: LOCAL",
             "stateDir: " + folder.getRoot().getAbsolutePath());
-    return new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
   }
 
   private GlobalState getMockGlobalState() throws IOException {
     GlobalState mockState = mock(GlobalState.class);
-    LuceneServerConfiguration serverConfiguration = getConfig();
+    NrtsearchConfig serverConfiguration = getConfig();
     when(mockState.getConfiguration()).thenReturn(serverConfiguration);
     when(mockState.getStateDir()).thenReturn(Paths.get(serverConfiguration.getStateDir()));
     return mockState;

@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.custom.request;
 import static org.junit.Assert.assertEquals;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.CustomRequest;
 import com.yelp.nrtsearch.server.grpc.CustomResponse;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -33,7 +33,7 @@ public class CustomRpcTest extends ServerTestCase {
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
-  protected List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
+  protected List<Plugin> getPlugins(NrtsearchConfig configuration) {
     return List.of(new CustomRequestTestPlugin());
   }
 

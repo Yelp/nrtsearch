@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.analysis;
 import static org.junit.Assert.assertEquals;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -44,9 +44,9 @@ public class SynonymV2GraphFilterFactoryITest extends ServerTestCase {
     AnalyzerCreator.initialize(getEmptyConfig(), plugins);
   }
 
-  private LuceneServerConfiguration getEmptyConfig() {
+  private NrtsearchConfig getEmptyConfig() {
     String config = "nodeName: \"lucene_server_foo\"";
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
   protected List<String> getIndices() {

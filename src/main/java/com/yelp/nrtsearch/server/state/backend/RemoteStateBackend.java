@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.state.backend;
 
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.StateConfig;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexStateInfo;
@@ -54,8 +54,7 @@ public class RemoteStateBackend implements StateBackend {
      * @param luceneServerConfiguration server configuration
      * @return config for remote backend
      */
-    public static RemoteBackendConfig fromConfig(
-        LuceneServerConfiguration luceneServerConfiguration) {
+    public static RemoteBackendConfig fromConfig(NrtsearchConfig luceneServerConfiguration) {
       boolean readOnly =
           luceneServerConfiguration.getConfigReader().getBoolean(CONFIG_PREFIX + "readOnly", true);
       return new RemoteBackendConfig(readOnly);

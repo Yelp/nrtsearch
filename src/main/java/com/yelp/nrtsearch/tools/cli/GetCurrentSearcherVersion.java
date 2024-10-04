@@ -15,9 +15,9 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
-import static com.yelp.nrtsearch.tools.cli.LuceneClientCommand.logger;
+import static com.yelp.nrtsearch.tools.cli.NrtsearchClientCommand.logger;
 
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.SearcherVersion;
 import java.util.concurrent.Callable;
@@ -30,7 +30,7 @@ import picocli.CommandLine;
 public class GetCurrentSearcherVersion implements Callable<Integer> {
   public static final String CURRENT_SEARCHER_VERSION = "currSearcherVer";
 
-  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
+  @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
@@ -64,7 +64,7 @@ public class GetCurrentSearcherVersion implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    LuceneServerClient client = baseCmd.getClient();
+    NrtsearchClient client = baseCmd.getClient();
     try {
       ReplicationServerClient replServerClient =
           new ReplicationServerClient(getHostName(), getPort());

@@ -21,7 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.utils.LuceneServerTestConfigurationFactory;
@@ -188,7 +188,7 @@ public class ReplicationServerTest {
                     .setStartHit(0)
                     .setTopHits(10)
                     .setVersion(searcherVersionPrimary.getVersion())
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
 
     // replica should too!
@@ -201,7 +201,7 @@ public class ReplicationServerTest {
                     .setStartHit(0)
                     .setTopHits(10)
                     .setVersion(searcherVersionPrimary.getVersion())
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
 
     validateSearchResults(searchResponsePrimary);
@@ -246,7 +246,7 @@ public class ReplicationServerTest {
                     .setIndexName(luceneServerSecondary.getTestIndex())
                     .setStartHit(0)
                     .setTopHits(10)
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
     assertEquals(0, searchResponseSecondary.getHitsCount());
 
@@ -271,7 +271,7 @@ public class ReplicationServerTest {
                     .setStartHit(0)
                     .setTopHits(10)
                     .setVersion(searcherVersionPrimary.getVersion())
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
     validateSearchResults(searchResponseSecondary);
   }
@@ -303,7 +303,7 @@ public class ReplicationServerTest {
                     .setIndexName(luceneServerSecondary.getTestIndex())
                     .setStartHit(0)
                     .setTopHits(10)
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
     assertEquals(0, searchResponseSecondary.getHitsCount());
 
@@ -324,7 +324,7 @@ public class ReplicationServerTest {
                     .setStartHit(0)
                     .setTopHits(10)
                     .setVersion(searcherVersionPrimary.getVersion())
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
     validateSearchResults(searchResponseSecondary);
   }
@@ -356,7 +356,7 @@ public class ReplicationServerTest {
                     .setIndexName(luceneServerSecondary.getTestIndex())
                     .setStartHit(0)
                     .setTopHits(10)
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
     assertEquals(0, searchResponseSecondary.getHitsCount());
 
@@ -376,7 +376,7 @@ public class ReplicationServerTest {
                     .setIndexName(luceneServerSecondary.getTestIndex())
                     .setStartHit(0)
                     .setTopHits(10)
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
     assertEquals(0, searchResponseSecondary.getHitsCount());
   }
@@ -397,7 +397,7 @@ public class ReplicationServerTest {
                     .setIndexName(luceneServerSecondary.getTestIndex())
                     .setStartHit(0)
                     .setTopHits(10)
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
     assertEquals(0, searchResponseSecondary.getHitsCount());
 
@@ -439,7 +439,7 @@ public class ReplicationServerTest {
                     .setIndexName(luceneServerSecondary.getTestIndex())
                     .setStartHit(0)
                     .setTopHits(10)
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
     assertEquals(0, searchResponseSecondary.getHitsCount());
 
@@ -468,7 +468,7 @@ public class ReplicationServerTest {
                     .setStartHit(0)
                     .setTopHits(10)
                     .setVersion(searcherVersionPrimary.getVersion())
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
     validateSearchResults(searchResponseSecondary);
   }
@@ -477,9 +477,9 @@ public class ReplicationServerTest {
     assertEquals(4, searchResponse.getTotalHits().getValue());
     assertEquals(4, searchResponse.getHitsList().size());
     SearchResponse.Hit firstHit = searchResponse.getHits(0);
-    LuceneServerTest.checkHits(firstHit);
+    NrtsearchServerTest.checkHits(firstHit);
     SearchResponse.Hit secondHit = searchResponse.getHits(1);
-    LuceneServerTest.checkHits(secondHit);
+    NrtsearchServerTest.checkHits(secondHit);
   }
 
   @Test
@@ -517,7 +517,7 @@ public class ReplicationServerTest {
 
     // set up primary servers
     String testIndex = "test_index";
-    LuceneServerConfiguration luceneServerPrimaryConfiguration =
+    NrtsearchConfig luceneServerPrimaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot(), extraConfig);
     RemoteBackend remoteBackend = new S3Backend(luceneServerPrimaryConfiguration, s3);
     luceneServerPrimary =
@@ -544,7 +544,7 @@ public class ReplicationServerTest {
         .getGlobalState()
         .replicationStarted(luceneServerPrimaryConfiguration.getReplicationPort());
     // set up secondary servers
-    LuceneServerConfiguration luceneServerSecondaryConfiguration =
+    NrtsearchConfig luceneServerSecondaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot(), extraConfig);
 
     luceneServerSecondary =

@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.tools.cli;
 
 import static org.junit.Assert.assertEquals;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.GrpcServer;
 import com.yelp.nrtsearch.server.grpc.Mode;
@@ -48,7 +48,7 @@ public class ReadyCommandTest {
   private GrpcServer server;
 
   private void startServer() throws IOException {
-    LuceneServerConfiguration luceneServerPrimaryConfiguration =
+    NrtsearchConfig luceneServerPrimaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot());
     server =
         new GrpcServer(
@@ -77,7 +77,7 @@ public class ReadyCommandTest {
 
   @Test
   public void testNoServer() {
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode = cmd.execute("--hostname=localhost", "--port=12345", "ready");
     assertEquals(1, exitCode);
   }
@@ -85,7 +85,7 @@ public class ReadyCommandTest {
   @Test
   public void testNoIndices() throws IOException {
     startServer();
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute("--hostname=localhost", "--port=" + server.getGlobalState().getPort(), "ready");
     assertEquals(0, exitCode);
@@ -124,7 +124,7 @@ public class ReadyCommandTest {
     verifyIndicesReady("test_index,test_index_2", 0);
     verifyIndicesReady("test_index,test_index_3", 1);
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute("--hostname=localhost", "--port=" + server.getGlobalState().getPort(), "ready");
     assertEquals(0, exitCode);
@@ -144,14 +144,14 @@ public class ReadyCommandTest {
     verifyIndicesReady("test_index,test_index_2", 1);
     verifyIndicesReady("test_index,test_index_3", 0);
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute("--hostname=localhost", "--port=" + server.getGlobalState().getPort(), "ready");
     assertEquals(0, exitCode);
   }
 
   private void verifyIndicesReady(String indices, int expectedExitCode) {
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",

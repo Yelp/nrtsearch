@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.utils.LuceneServerTestConfigurationFactory;
 import io.grpc.StatusRuntimeException;
 import io.grpc.testing.GrpcCleanupRule;
@@ -39,7 +39,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class LuceneServerIdFieldTest {
+public class NrtsearchServerIdFieldTest {
 
   /**
    * This rule manages automatic graceful shutdown for the registered servers and channels at the
@@ -75,7 +75,7 @@ public class LuceneServerIdFieldTest {
 
   private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
     String testIndex = "test_index";
-    LuceneServerConfiguration luceneServerConfiguration =
+    NrtsearchConfig luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     return new GrpcServer(
         prometheusRegistry,

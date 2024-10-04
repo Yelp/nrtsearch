@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.logging;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.plugins.HitsLoggerPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -33,7 +33,7 @@ public class HitsLoggerCreator {
    *
    * @param configuration server configuration
    */
-  public HitsLoggerCreator(LuceneServerConfiguration configuration) {}
+  public HitsLoggerCreator(NrtsearchConfig configuration) {}
 
   private void register(Map<String, HitsLoggerProvider<? extends HitsLogger>> hitsLoggers) {
     hitsLoggers.forEach(this::register);
@@ -53,7 +53,7 @@ public class HitsLoggerCreator {
    * @param configuration service configuration
    * @param plugins list of loaded plugins
    */
-  public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
+  public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new HitsLoggerCreator(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof HitsLoggerPlugin loggerPlugin) {

@@ -15,15 +15,16 @@
  */
 package com.yelp.nrtsearch.server.plugins;
 
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import com.yelp.nrtsearch.server.highlights.Highlighter;
 import com.yelp.nrtsearch.server.highlights.HighlighterService;
 import java.util.Collections;
 
 /**
  * Plugin interface for providing custom highlighters. The plugins will be loaded at the startup
- * time of the {@link com.yelp.nrtsearch.server.grpc.LuceneServer}. The highlighter instances
- * provided from the getHighlighters will be responsible for handling the corresponding highlight
- * tasks (identified by name). Therefore, do not alter the instance object for any requests.
+ * time of the {@link NrtsearchServer}. The highlighter instances provided from the getHighlighters
+ * will be responsible for handling the corresponding highlight tasks (identified by name).
+ * Therefore, do not alter the instance object for any requests.
  */
 public interface HighlighterPlugin {
   /**

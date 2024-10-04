@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
@@ -23,7 +23,7 @@ import picocli.CommandLine;
 public class DeleteIndexCommand implements Callable<Integer> {
   public static final String DELETE_INDEX = "deleteIndex";
 
-  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
+  @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
@@ -37,7 +37,7 @@ public class DeleteIndexCommand implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    LuceneServerClient client = baseCmd.getClient();
+    NrtsearchClient client = baseCmd.getClient();
     try {
       client.deleteIndex(getIndexName());
     } finally {

@@ -27,7 +27,7 @@ import com.google.protobuf.Empty;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
 import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.QueryCacheConfig;
 import com.yelp.nrtsearch.server.custom.request.CustomRequestProcessor;
 import com.yelp.nrtsearch.server.field.FieldDefCreator;
@@ -77,14 +77,14 @@ import com.yelp.nrtsearch.server.handler.UpdateFieldsHandler;
 import com.yelp.nrtsearch.server.handler.WriteNRTPointHandler;
 import com.yelp.nrtsearch.server.highlights.HighlighterService;
 import com.yelp.nrtsearch.server.logging.HitsLoggerCreator;
-import com.yelp.nrtsearch.server.modules.LuceneServerModule;
+import com.yelp.nrtsearch.server.modules.NrtsearchModule;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
 import com.yelp.nrtsearch.server.monitoring.DeadlineMetrics;
 import com.yelp.nrtsearch.server.monitoring.DirSizeCollector;
 import com.yelp.nrtsearch.server.monitoring.IndexMetrics;
-import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.monitoring.MergeSchedulerCollector;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
+import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.monitoring.ProcStatCollector;
 import com.yelp.nrtsearch.server.monitoring.QueryCacheCollector;
 import com.yelp.nrtsearch.server.monitoring.SearchResponseCollector;
@@ -123,19 +123,19 @@ import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
 /** Server that manages startup/shutdown of a {@code LuceneServer} server. */
-public class LuceneServer {
-  private static final Logger logger = LoggerFactory.getLogger(LuceneServer.class.getName());
+public class NrtsearchServer {
+  private static final Logger logger = LoggerFactory.getLogger(NrtsearchServer.class.getName());
   private final RemoteBackend remoteBackend;
   private final PrometheusRegistry prometheusRegistry;
   private final PluginsService pluginsService;
 
   private Server server;
   private Server replicationServer;
-  private final LuceneServerConfiguration luceneServerConfiguration;
+  private final NrtsearchConfig luceneServerConfiguration;
 
   @Inject
-  public LuceneServer(
-      LuceneServerConfiguration luceneServerConfiguration,
+  public NrtsearchServer(
+      NrtsearchConfig luceneServerConfiguration,
       RemoteBackend remoteBackend,
       PrometheusRegistry prometheusRegistry) {
     this.luceneServerConfiguration = luceneServerConfiguration;
@@ -197,8 +197,8 @@ public class LuceneServer {
     // Inform global state that the replication server is started, and it is safe to start indices
     globalState.replicationStarted(replicationServer.getPort());
 
-    LuceneServerMonitoringServerInterceptor monitoringInterceptor =
-        LuceneServerMonitoringServerInterceptor.create(
+    NrtsearchMonitoringServerInterceptor monitoringInterceptor =
+        NrtsearchMonitoringServerInterceptor.create(
             Configuration.allMetrics()
                 .withLatencyBuckets(luceneServerConfiguration.getMetricsBuckets())
                 .withPrometheusRegistry(prometheusRegistry));
@@ -267,7 +267,7 @@ public class LuceneServer {
 
   /** Main launches the server from the command line. */
   public static void main(String[] args) {
-    System.exit(new CommandLine(new LuceneServerCommand()).execute(args));
+    System.exit(new CommandLine(new NrtsearchServerCommand()).execute(args));
   }
 
   @CommandLine.Command(
@@ -275,7 +275,7 @@ public class LuceneServer {
       mixinStandardHelpOptions = true,
       versionProvider = VersionProvider.class,
       description = "Start NRT search server")
-  public static class LuceneServerCommand implements Callable<Integer> {
+  public static class NrtsearchServerCommand implements Callable<Integer> {
     @CommandLine.Parameters(
         arity = "0..1",
         paramLabel = "server_yaml_config_file",
@@ -289,10 +289,10 @@ public class LuceneServer {
 
     @Override
     public Integer call() throws Exception {
-      LuceneServer luceneServer;
+      NrtsearchServer luceneServer;
       try {
-        Injector injector = Guice.createInjector(new LuceneServerModule(this));
-        luceneServer = injector.getInstance(LuceneServer.class);
+        Injector injector = Guice.createInjector(new NrtsearchModule(this));
+        luceneServer = injector.getInstance(NrtsearchServer.class);
         luceneServer.start();
 
         Runtime.getRuntime()
@@ -365,7 +365,7 @@ public class LuceneServer {
      * @throws IOException
      */
     LuceneServerImpl(
-        LuceneServerConfiguration configuration,
+        NrtsearchConfig configuration,
         RemoteBackend remoteBackend,
         PrometheusRegistry prometheusRegistry,
         List<Plugin> plugins)
@@ -419,7 +419,7 @@ public class LuceneServer {
     }
 
     @VisibleForTesting
-    static void initQueryCache(LuceneServerConfiguration configuration) {
+    static void initQueryCache(NrtsearchConfig configuration) {
       QueryCacheConfig cacheConfig = configuration.getQueryCacheConfig();
       QueryCache queryCache = null;
       if (cacheConfig.getEnabled()) {
@@ -433,8 +433,7 @@ public class LuceneServer {
       IndexSearcher.setDefaultQueryCache(queryCache);
     }
 
-    private void initExtendableComponents(
-        LuceneServerConfiguration configuration, List<Plugin> plugins) {
+    private void initExtendableComponents(NrtsearchConfig configuration, List<Plugin> plugins) {
       // this block should be in alphabetical order
       AnalyzerCreator.initialize(configuration, plugins);
       CollectorCreator.initialize(configuration, plugins);

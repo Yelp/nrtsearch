@@ -20,9 +20,11 @@ import static com.yelp.nrtsearch.test_utils.DefaultTestProperties.REPLICATION_PO
 import static com.yelp.nrtsearch.test_utils.DefaultTestProperties.S3_BUCKET_NAME;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.yelp.nrtsearch.module.TestNrtsearchModule;
 import com.yelp.nrtsearch.server.ServerTestCase;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -38,10 +40,9 @@ import org.yaml.snakeyaml.Yaml;
 /**
  * Base class for tests which need to initialize an Nrtsearch instance. Unlike {@link
  * ServerTestCase} which directly creates a gRPC server using {@link
- * com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl}, this class creates and starts
- * {@link com.yelp.nrtsearch.server.grpc.LuceneServer} using a custom guice module ({@link
- * com.yelp.nrtsearch.module.TestLuceneServerModule}. This class is useful for tests which require
- * testing the initialization path of {@link com.yelp.nrtsearch.server.grpc.LuceneServer}.
+ * NrtsearchServer.LuceneServerImpl}, this class creates and starts {@link NrtsearchServer} using a
+ * custom guice module ({@link TestNrtsearchModule}. This class is useful for tests which require
+ * testing the initialization path of {@link NrtsearchServer}.
  */
 public class NrtsearchTest {
 
@@ -82,11 +83,11 @@ public class NrtsearchTest {
 
   /**
    * Override this method to add any additional configuration which will be used to build {@link
-   * LuceneServerConfiguration} for the test Nrtsearch instance. When overriding this method
-   * remember to call {@code super.addNrtsearchConfigs(config)} so that the default configs get
-   * added as well, unless you don't need the defaults.
+   * NrtsearchConfig} for the test Nrtsearch instance. When overriding this method remember to call
+   * {@code super.addNrtsearchConfigs(config)} so that the default configs get added as well, unless
+   * you don't need the defaults.
    *
-   * @param config A {@link Map} which will be used to built {@link LuceneServerConfiguration}
+   * @param config A {@link Map} which will be used to built {@link NrtsearchConfig}
    */
   protected void addNrtsearchConfigs(Map<String, Object> config) {
     config.put("port", PORT);
@@ -102,7 +103,7 @@ public class NrtsearchTest {
     }
   }
 
-  private LuceneServerConfiguration getConfig() {
+  private NrtsearchConfig getConfig() {
     Map<String, Object> config = new HashMap<>();
     addNrtsearchConfigs(config);
 
@@ -111,15 +112,15 @@ public class NrtsearchTest {
     options.setPrettyFlow(false);
 
     String yamlConfig = yaml.dump(config);
-    return new LuceneServerConfiguration(new ByteArrayInputStream(yamlConfig.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(yamlConfig.getBytes()));
   }
 
   /**
-   * Get the {@link LuceneServerClient} for the test Nrtsearch instance
+   * Get the {@link NrtsearchClient} for the test Nrtsearch instance
    *
-   * @return {@link LuceneServerClient}
+   * @return {@link NrtsearchClient}
    */
-  protected LuceneServerClient getClient() {
+  protected NrtsearchClient getClient() {
     return testLuceneServer.getClient();
   }
 

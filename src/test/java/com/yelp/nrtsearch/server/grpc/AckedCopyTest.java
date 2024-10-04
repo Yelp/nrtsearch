@@ -19,7 +19,7 @@ import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static com.yelp.nrtsearch.server.grpc.ReplicationServerTest.validateSearchResults;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
 import com.yelp.nrtsearch.server.utils.LuceneServerTestConfigurationFactory;
@@ -78,7 +78,7 @@ public class AckedCopyTest {
 
     // set up primary servers
     String testIndex = "test_index";
-    LuceneServerConfiguration luceneServerPrimaryConfiguration =
+    NrtsearchConfig luceneServerPrimaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.PRIMARY, folder.getRoot(), extraConfig);
     remoteBackend = new S3Backend(luceneServerPrimaryConfiguration, s3);
     luceneServerPrimary =
@@ -105,7 +105,7 @@ public class AckedCopyTest {
         .getGlobalState()
         .replicationStarted(luceneServerPrimaryConfiguration.getReplicationPort());
     // set up secondary servers
-    LuceneServerConfiguration luceneServerSecondaryConfiguration =
+    NrtsearchConfig luceneServerSecondaryConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.REPLICA, folder.getRoot(), extraConfig);
 
     luceneServerSecondary =
@@ -188,7 +188,7 @@ public class AckedCopyTest {
                     .setStartHit(0)
                     .setTopHits(10)
                     .setVersion(searcherVersionPrimary.getVersion())
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
 
     // replica should too!
@@ -201,7 +201,7 @@ public class AckedCopyTest {
                     .setStartHit(0)
                     .setTopHits(10)
                     .setVersion(searcherVersionPrimary.getVersion())
-                    .addAllRetrieveFields(LuceneServerTest.RETRIEVED_VALUES)
+                    .addAllRetrieveFields(NrtsearchServerTest.RETRIEVED_VALUES)
                     .build());
 
     validateSearchResults(searchResponsePrimary);

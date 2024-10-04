@@ -18,25 +18,25 @@ package com.yelp.nrtsearch.test_utils;
 import com.amazonaws.services.s3.AmazonS3;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
-import com.yelp.nrtsearch.module.TestLuceneServerModule;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.LuceneServer;
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.module.TestNrtsearchModule;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import java.io.IOException;
 import org.junit.rules.ExternalResource;
 
 /**
- * A JUnit {@link org.junit.Rule} that creates a {@link LuceneServer} instance and starts the grpc
- * server from it. After the test it will delete the index data and stop the server.
+ * A JUnit {@link org.junit.Rule} that creates a {@link NrtsearchServer} instance and starts the
+ * grpc server from it. After the test it will delete the index data and stop the server.
  */
 public class TestLuceneServer extends ExternalResource {
 
-  private final LuceneServerConfiguration luceneServerConfiguration;
+  private final NrtsearchConfig luceneServerConfiguration;
   private final AmazonS3 amazonS3;
-  private LuceneServer luceneServer;
-  private LuceneServerClient client;
+  private NrtsearchServer luceneServer;
+  private NrtsearchClient client;
 
-  public TestLuceneServer(LuceneServerConfiguration luceneServerConfiguration, AmazonS3 amazonS3) {
+  public TestLuceneServer(NrtsearchConfig luceneServerConfiguration, AmazonS3 amazonS3) {
     this.luceneServerConfiguration = luceneServerConfiguration;
     this.amazonS3 = amazonS3;
   }
@@ -44,7 +44,7 @@ public class TestLuceneServer extends ExternalResource {
   @Override
   protected void before() throws Throwable {
     this.luceneServer = createTestServer();
-    this.client = new LuceneServerClient("localhost", luceneServerConfiguration.getPort());
+    this.client = new NrtsearchClient("localhost", luceneServerConfiguration.getPort());
   }
 
   @Override
@@ -54,14 +54,14 @@ public class TestLuceneServer extends ExternalResource {
     luceneServer.stop();
   }
 
-  protected LuceneServerClient getClient() {
+  protected NrtsearchClient getClient() {
     return client;
   }
 
-  private LuceneServer createTestServer() throws IOException {
+  private NrtsearchServer createTestServer() throws IOException {
     Injector injector =
-        Guice.createInjector(new TestLuceneServerModule(luceneServerConfiguration, amazonS3));
-    LuceneServer luceneServer = injector.getInstance(LuceneServer.class);
+        Guice.createInjector(new TestNrtsearchModule(luceneServerConfiguration, amazonS3));
+    NrtsearchServer luceneServer = injector.getInstance(NrtsearchServer.class);
     luceneServer.start();
     return luceneServer;
   }

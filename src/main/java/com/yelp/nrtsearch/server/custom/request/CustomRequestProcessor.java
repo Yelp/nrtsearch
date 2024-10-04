@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.custom.request;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.CustomRequest;
 import com.yelp.nrtsearch.server.grpc.CustomResponse;
 import com.yelp.nrtsearch.server.plugins.CustomRequestPlugin;
@@ -29,9 +29,9 @@ public class CustomRequestProcessor {
   private final Map<String, Map<String, CustomRequestPlugin.RequestProcessor>> routeMapping =
       new HashMap<>();
 
-  public CustomRequestProcessor(LuceneServerConfiguration configuration) {}
+  public CustomRequestProcessor(NrtsearchConfig configuration) {}
 
-  public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
+  public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new CustomRequestProcessor(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof CustomRequestPlugin) {

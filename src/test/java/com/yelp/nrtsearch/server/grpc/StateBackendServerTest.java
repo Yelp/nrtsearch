@@ -32,10 +32,10 @@ import com.google.protobuf.StringValue;
 import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.clientlib.Node;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
-import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
-import com.yelp.nrtsearch.server.grpc.LuceneServer.ReplicationServerImpl;
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer.LuceneServerImpl;
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer.ReplicationServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.index.ImmutableIndexState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -77,11 +77,11 @@ public class StateBackendServerTest {
 
   private Server primaryServer;
   private Server primaryReplicationServer;
-  private LuceneServerClient primaryClient;
+  private NrtsearchClient primaryClient;
 
   private Server replicaServer;
   private Server replicaReplicationServer;
-  private LuceneServerClient replicaClient;
+  private NrtsearchClient replicaClient;
 
   private static final String TEST_BUCKET = "state-backend-server-test";
   private static final String TEST_SERVICE_NAME = "state-backend-test-service";
@@ -156,7 +156,7 @@ public class StateBackendServerTest {
     remoteBackendReplica = new S3Backend(TEST_BUCKET, false, s3);
   }
 
-  private LuceneServerConfiguration getPrimaryConfig() {
+  private NrtsearchConfig getPrimaryConfig() {
     String configStr =
         String.join(
             "\n",
@@ -166,10 +166,10 @@ public class StateBackendServerTest {
             "indexDir: " + getPrimaryIndexDir(),
             "stateConfig:",
             "  backendType: LOCAL");
-    return new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
   }
 
-  private LuceneServerConfiguration getPrimaryRemoteConfig() {
+  private NrtsearchConfig getPrimaryRemoteConfig() {
     String configStr =
         String.join(
             "\n",
@@ -184,10 +184,10 @@ public class StateBackendServerTest {
             "indexStartConfig:",
             "  mode: PRIMARY",
             "  dataLocationType: REMOTE");
-    return new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
   }
 
-  private LuceneServerConfiguration getReplicaConfig() {
+  private NrtsearchConfig getReplicaConfig() {
     String configStr =
         String.join(
             "\n",
@@ -198,10 +198,10 @@ public class StateBackendServerTest {
             "syncInitialNrtPoint: true",
             "stateConfig:",
             "  backendType: LOCAL");
-    return new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
   }
 
-  private LuceneServerConfiguration getReplicaRemoteConfig() {
+  private NrtsearchConfig getReplicaRemoteConfig() {
     String configStr =
         String.join(
             "\n",
@@ -216,7 +216,7 @@ public class StateBackendServerTest {
             "indexStartConfig:",
             "  mode: REPLICA",
             "  dataLocationType: REMOTE");
-    return new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
   }
 
   private void restartPrimary() throws IOException {
@@ -231,7 +231,7 @@ public class StateBackendServerTest {
             .build()
             .start();
     primaryServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
-    primaryClient = new LuceneServerClient("localhost", primaryServer.getPort());
+    primaryClient = new NrtsearchClient("localhost", primaryServer.getPort());
   }
 
   private void restartPrimaryWithRemote() throws IOException {
@@ -249,7 +249,7 @@ public class StateBackendServerTest {
             .build()
             .start();
     primaryServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
-    primaryClient = new LuceneServerClient("localhost", primaryServer.getPort());
+    primaryClient = new NrtsearchClient("localhost", primaryServer.getPort());
   }
 
   private void restartReplica() throws IOException {
@@ -264,7 +264,7 @@ public class StateBackendServerTest {
             .build()
             .start();
     replicaServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
-    replicaClient = new LuceneServerClient("localhost", replicaServer.getPort());
+    replicaClient = new NrtsearchClient("localhost", replicaServer.getPort());
   }
 
   private void restartReplicaWithRemote() throws IOException {
@@ -282,7 +282,7 @@ public class StateBackendServerTest {
             .build()
             .start();
     replicaServer = ServerBuilder.forPort(0).addService(serverImpl).build().start();
-    replicaClient = new LuceneServerClient("localhost", replicaServer.getPort());
+    replicaClient = new NrtsearchClient("localhost", replicaServer.getPort());
   }
 
   private Path getStateDir() {
@@ -349,7 +349,7 @@ public class StateBackendServerTest {
             FieldDefRequest.newBuilder().setIndexName("test_index").addAllField(fields2).build());
   }
 
-  private IndexStateInfo getIndexState(String indexName, LuceneServerClient client)
+  private IndexStateInfo getIndexState(String indexName, NrtsearchClient client)
       throws IOException {
     StateResponse response =
         client.getBlockingStub().state(StateRequest.newBuilder().setIndexName(indexName).build());
@@ -441,7 +441,7 @@ public class StateBackendServerTest {
   private final List<String> fieldList = List.of("id", "field1", "field2", "field3", "field4");
   private final List<String> subFieldList = List.of("id", "field1", "field2");
 
-  private void verifyDocs(int expectedCount, LuceneServerClient client) {
+  private void verifyDocs(int expectedCount, NrtsearchClient client) {
     SearchResponse response =
         client
             .getBlockingStub()
@@ -484,7 +484,7 @@ public class StateBackendServerTest {
     }
   }
 
-  private void verifySubFieldDocs(int expectedCount, LuceneServerClient client) {
+  private void verifySubFieldDocs(int expectedCount, NrtsearchClient client) {
     SearchResponse response =
         client
             .getBlockingStub()
@@ -564,11 +564,11 @@ public class StateBackendServerTest {
     return response.get();
   }
 
-  private StartIndexResponse startIndex(LuceneServerClient client, Mode mode) {
+  private StartIndexResponse startIndex(NrtsearchClient client, Mode mode) {
     return startIndex(client, mode, 0);
   }
 
-  private StartIndexResponse startIndex(LuceneServerClient client, Mode mode, long primaryGen) {
+  private StartIndexResponse startIndex(NrtsearchClient client, Mode mode, long primaryGen) {
     if (mode.equals(Mode.REPLICA)) {
       return client
           .getBlockingStub()
@@ -589,7 +589,7 @@ public class StateBackendServerTest {
   }
 
   private StartIndexResponse startIndexWithRestore(
-      LuceneServerClient client, Mode mode, boolean deleteExistingData) {
+      NrtsearchClient client, Mode mode, boolean deleteExistingData) {
     if (mode.equals(Mode.REPLICA)) {
       return client
           .getBlockingStub()
@@ -623,7 +623,7 @@ public class StateBackendServerTest {
     }
   }
 
-  private DummyResponse stopIndex(LuceneServerClient client) {
+  private DummyResponse stopIndex(NrtsearchClient client) {
     DummyResponse response =
         client
             .getBlockingStub()
@@ -632,13 +632,13 @@ public class StateBackendServerTest {
     return response;
   }
 
-  private CommitResponse commitIndex(LuceneServerClient client) {
+  private CommitResponse commitIndex(NrtsearchClient client) {
     return client
         .getBlockingStub()
         .commit(CommitRequest.newBuilder().setIndexName("test_index").build());
   }
 
-  private RefreshResponse refreshIndex(LuceneServerClient client) {
+  private RefreshResponse refreshIndex(NrtsearchClient client) {
     return client
         .getBlockingStub()
         .refresh(RefreshRequest.newBuilder().setIndexName("test_index").build());

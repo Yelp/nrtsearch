@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.tools.cli;
 
 import static com.yelp.nrtsearch.tools.cli.StartIndexCommand.START_INDEX;
 
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
@@ -27,7 +27,7 @@ import picocli.CommandLine;
 public class StartIndexCommand implements Callable<Integer> {
   public static final String START_INDEX = "startIndex";
 
-  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
+  @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-f", "--fileName"},
@@ -41,7 +41,7 @@ public class StartIndexCommand implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    LuceneServerClient client = baseCmd.getClient();
+    NrtsearchClient client = baseCmd.getClient();
     try {
       Path filePath = Paths.get(getFileName());
       client.startIndex(filePath);

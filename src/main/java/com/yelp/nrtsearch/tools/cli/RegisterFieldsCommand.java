@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
@@ -27,7 +27,7 @@ import picocli.CommandLine;
 public class RegisterFieldsCommand implements Callable<Integer> {
   public static final String REGISTER_FIELDS = "registerFields";
 
-  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
+  @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-f", "--fileName"},
@@ -41,7 +41,7 @@ public class RegisterFieldsCommand implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    LuceneServerClient client = baseCmd.getClient();
+    NrtsearchClient client = baseCmd.getClient();
     try {
       String jsonStr = Files.readString(Paths.get(getFileName()));
       client.registerFields(jsonStr);
