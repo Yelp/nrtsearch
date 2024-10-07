@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.analysis;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -48,9 +48,9 @@ public class SynonymV2GraphFilterFactoryTest extends LuceneTestCase {
     AnalyzerCreator.initialize(getEmptyConfig(), plugins);
   }
 
-  private LuceneServerConfiguration getEmptyConfig() {
+  private NrtsearchConfig getEmptyConfig() {
     String config = "nodeName: \"lucene_server_foo\"";
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
   public void testNoSynonymMappings() throws IOException, ParseException {

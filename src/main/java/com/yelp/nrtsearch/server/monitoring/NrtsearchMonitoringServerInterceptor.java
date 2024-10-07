@@ -23,17 +23,17 @@ import io.grpc.ServerInterceptor;
 import java.time.Clock;
 
 /** A {@link ServerInterceptor} which sends stats about incoming grpc calls to Prometheus. */
-public class LuceneServerMonitoringServerInterceptor implements ServerInterceptor {
+public class NrtsearchMonitoringServerInterceptor implements ServerInterceptor {
   private final Clock clock;
   private final Configuration configuration;
   private final ServerMetrics.Factory serverMetricsFactory;
 
-  public static LuceneServerMonitoringServerInterceptor create(Configuration configuration) {
-    return new LuceneServerMonitoringServerInterceptor(
+  public static NrtsearchMonitoringServerInterceptor create(Configuration configuration) {
+    return new NrtsearchMonitoringServerInterceptor(
         Clock.systemDefaultZone(), configuration, new ServerMetrics.Factory(configuration));
   }
 
-  private LuceneServerMonitoringServerInterceptor(
+  private NrtsearchMonitoringServerInterceptor(
       Clock clock, Configuration configuration, ServerMetrics.Factory serverMetricsFactory) {
     this.clock = clock;
     this.configuration = configuration;

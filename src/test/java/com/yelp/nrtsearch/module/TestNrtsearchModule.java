@@ -20,21 +20,18 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Inject;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import com.yelp.nrtsearch.server.modules.BackendModule;
 
-/**
- * A Guice module to initialize {@link com.yelp.nrtsearch.server.grpc.LuceneServer} instance for
- * tests.
- */
-public class TestLuceneServerModule extends AbstractModule {
+/** A Guice module to initialize {@link NrtsearchServer} instance for tests. */
+public class TestNrtsearchModule extends AbstractModule {
 
-  private final LuceneServerConfiguration luceneServerConfiguration;
+  private final NrtsearchConfig nrtsearchConfig;
   private final AmazonS3 amazonS3;
 
-  public TestLuceneServerModule(
-      LuceneServerConfiguration luceneServerConfiguration, AmazonS3 amazonS3) {
-    this.luceneServerConfiguration = luceneServerConfiguration;
+  public TestNrtsearchModule(NrtsearchConfig nrtsearchConfig, AmazonS3 amazonS3) {
+    this.nrtsearchConfig = nrtsearchConfig;
     this.amazonS3 = amazonS3;
   }
 
@@ -45,8 +42,8 @@ public class TestLuceneServerModule extends AbstractModule {
   @Inject
   @Singleton
   @Provides
-  protected LuceneServerConfiguration providesLuceneServerConfiguration() {
-    return luceneServerConfiguration;
+  protected NrtsearchConfig providesNrtsearchConfig() {
+    return nrtsearchConfig;
   }
 
   @Inject

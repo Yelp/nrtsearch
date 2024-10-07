@@ -31,11 +31,11 @@ import org.apache.commons.csv.CSVRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public interface LuceneServerClientBuilder<T> {
+public interface NrtsearchClientBuilder<T> {
 
   T buildRequest(Path filePath) throws IOException;
 
-  class SettingsClientBuilder implements LuceneServerClientBuilder<SettingsRequest> {
+  class SettingsClientBuilder implements NrtsearchClientBuilder<SettingsRequest> {
     private static final Logger logger =
         LoggerFactory.getLogger(SettingsClientBuilder.class.getName());
 
@@ -70,7 +70,7 @@ public interface LuceneServerClientBuilder<T> {
     }
   }
 
-  class SettingsV2ClientBuilder implements LuceneServerClientBuilder<SettingsV2Request> {
+  class SettingsV2ClientBuilder implements NrtsearchClientBuilder<SettingsV2Request> {
     private static final Logger logger =
         LoggerFactory.getLogger(SettingsClientBuilder.class.getName());
 
@@ -94,7 +94,7 @@ public interface LuceneServerClientBuilder<T> {
     }
   }
 
-  class StartIndexClientBuilder implements LuceneServerClientBuilder<StartIndexRequest> {
+  class StartIndexClientBuilder implements NrtsearchClientBuilder<StartIndexRequest> {
     private static final Logger logger =
         LoggerFactory.getLogger(StartIndexClientBuilder.class.getName());
 
@@ -116,7 +116,7 @@ public interface LuceneServerClientBuilder<T> {
     }
   }
 
-  class AddDocumentsClientBuilder implements LuceneServerClientBuilder<Stream<AddDocumentRequest>> {
+  class AddDocumentsClientBuilder implements NrtsearchClientBuilder<Stream<AddDocumentRequest>> {
     private static final Logger logger =
         LoggerFactory.getLogger(AddDocumentsClientBuilder.class.getName());
     private final String indexName;
@@ -153,7 +153,7 @@ public interface LuceneServerClientBuilder<T> {
   }
 
   class AddJsonDocumentsClientBuilder
-      implements LuceneServerClientBuilder<Stream<AddDocumentRequest>> {
+      implements NrtsearchClientBuilder<Stream<AddDocumentRequest>> {
     private static final Logger logger =
         LoggerFactory.getLogger(AddJsonDocumentsClientBuilder.class.getName());
     private final String indexName;
@@ -231,7 +231,7 @@ public interface LuceneServerClientBuilder<T> {
     }
   }
 
-  class SearchClientBuilder implements LuceneServerClientBuilder<SearchRequest> {
+  class SearchClientBuilder implements NrtsearchClientBuilder<SearchRequest> {
     private static final Logger logger =
         LoggerFactory.getLogger(SearchClientBuilder.class.getName());
 
@@ -253,7 +253,7 @@ public interface LuceneServerClientBuilder<T> {
     }
   }
 
-  class DeleteDocumentsBuilder implements LuceneServerClientBuilder<AddDocumentRequest> {
+  class DeleteDocumentsBuilder implements NrtsearchClientBuilder<AddDocumentRequest> {
     private static final Logger logger =
         LoggerFactory.getLogger(DeleteDocumentsBuilder.class.getName());
 

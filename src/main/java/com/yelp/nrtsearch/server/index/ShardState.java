@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.index;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef.FacetValueType;
 import com.yelp.nrtsearch.server.field.properties.GlobalOrdinalable;
@@ -940,7 +940,7 @@ public class ShardState implements Closeable {
       throw new IllegalStateException("index \"" + name + "\" was already started");
     }
     IndexState indexState = indexStateManager.getCurrent();
-    LuceneServerConfiguration configuration = indexState.getGlobalState().getConfiguration();
+    NrtsearchConfig configuration = indexState.getGlobalState().getConfiguration();
 
     // nocommit share code better w/ start and startPrimary!
     try {

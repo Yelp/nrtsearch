@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.concurrent;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import java.io.ByteArrayInputStream;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -31,8 +31,8 @@ public class ThreadPoolExecutorFactoryTest {
   }
 
   private void init(String config) {
-    LuceneServerConfiguration luceneServerConfiguration =
-        new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    NrtsearchConfig luceneServerConfiguration =
+        new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
     ThreadPoolExecutorFactory.init(luceneServerConfiguration.getThreadPoolConfiguration());
   }
 

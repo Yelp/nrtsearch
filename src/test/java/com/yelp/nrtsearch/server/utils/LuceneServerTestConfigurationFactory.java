@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.utils;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.Mode;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -25,12 +25,11 @@ import java.util.concurrent.atomic.AtomicLong;
 public class LuceneServerTestConfigurationFactory {
   static AtomicLong atomicLong = new AtomicLong();
 
-  public static LuceneServerConfiguration getConfig(Mode mode, File dataRootDir) {
+  public static NrtsearchConfig getConfig(Mode mode, File dataRootDir) {
     return getConfig(mode, dataRootDir, "");
   }
 
-  public static LuceneServerConfiguration getConfig(
-      Mode mode, File dataRootDir, String extraConfig) {
+  public static NrtsearchConfig getConfig(Mode mode, File dataRootDir, String extraConfig) {
     String dirNum = String.valueOf(atomicLong.addAndGet(1));
     if (mode.equals(Mode.STANDALONE)) {
       String stateDir =
@@ -46,7 +45,7 @@ public class LuceneServerTestConfigurationFactory {
               "port: " + (9700 + atomicLong.intValue()),
               "replicationPort: " + (17000 + atomicLong.intValue()),
               extraConfig);
-      return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+      return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
     } else if (mode.equals(Mode.PRIMARY)) {
       String stateDir =
           Paths.get(dataRootDir.getAbsolutePath(), "primary", dirNum, "state").toString();
@@ -61,7 +60,7 @@ public class LuceneServerTestConfigurationFactory {
               "port: " + 9900,
               "replicationPort: " + 9001,
               extraConfig);
-      return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+      return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
     } else if (mode.equals(Mode.REPLICA)) {
       String stateDir =
           Paths.get(dataRootDir.getAbsolutePath(), "replica", dirNum, "state").toString();
@@ -76,7 +75,7 @@ public class LuceneServerTestConfigurationFactory {
               "port: " + 9902,
               "replicationPort: " + 9003,
               extraConfig);
-      return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+      return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
     }
     throw new RuntimeException("Invalid mode %s, cannot build config" + mode);
   }

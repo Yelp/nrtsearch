@@ -20,16 +20,16 @@ import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.GrpcServer;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
-import com.yelp.nrtsearch.server.grpc.LuceneServerClientBuilder;
 import com.yelp.nrtsearch.server.grpc.LuceneServerGrpc;
 import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClientBuilder;
 import com.yelp.nrtsearch.server.grpc.RefreshRequest;
 import com.yelp.nrtsearch.server.grpc.SettingsRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
@@ -171,7 +171,7 @@ public class ServerTestCase {
     Reader reader = Files.newBufferedReader(filePath);
     CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
     Stream<AddDocumentRequest> requestStream =
-        new LuceneServerClientBuilder.AddDocumentsClientBuilder(index, csvParser)
+        new NrtsearchClientBuilder.AddDocumentsClientBuilder(index, csvParser)
             .buildRequest(filePath);
     addDocuments(requestStream);
   }
@@ -181,7 +181,7 @@ public class ServerTestCase {
     Path filePath = Paths.get(ServerTestCase.class.getResource(resourceFile).toURI());
     int maxBufferLen = 10;
     Stream<AddDocumentRequest> requestStream =
-        new LuceneServerClientBuilder.AddJsonDocumentsClientBuilder(
+        new NrtsearchClientBuilder.AddJsonDocumentsClientBuilder(
                 index, new Gson(), filePath, maxBufferLen)
             .buildRequest();
     addDocuments(requestStream);
@@ -217,7 +217,7 @@ public class ServerTestCase {
 
   private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
     String testIndex = "test_index";
-    LuceneServerConfiguration luceneServerConfiguration =
+    NrtsearchConfig luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), getExtraConfig());
     GrpcServer server =
@@ -286,7 +286,7 @@ public class ServerTestCase {
 
   protected void initIndex(String name) throws Exception {}
 
-  protected List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
+  protected List<Plugin> getPlugins(NrtsearchConfig configuration) {
     return Collections.emptyList();
   }
 

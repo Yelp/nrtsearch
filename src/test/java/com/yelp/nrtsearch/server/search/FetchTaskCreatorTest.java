@@ -20,7 +20,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.FetchTask;
 import com.yelp.nrtsearch.server.plugins.FetchTaskPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -42,9 +42,9 @@ public class FetchTaskCreatorTest {
     FetchTaskCreator.initialize(getEmptyConfig(), plugins);
   }
 
-  private LuceneServerConfiguration getEmptyConfig() {
+  private NrtsearchConfig getEmptyConfig() {
     String config = "nodeName: \"lucene_server_foo\"";
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
   public static class TestFetchTaskPlugin extends Plugin implements FetchTaskPlugin {

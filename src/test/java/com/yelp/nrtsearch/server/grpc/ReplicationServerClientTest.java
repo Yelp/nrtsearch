@@ -28,8 +28,8 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yelp.nrtsearch.clientlib.Node;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.LuceneServer.ReplicationServerImpl;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer.ReplicationServerImpl;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient.DiscoveryFileAndPort;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import io.grpc.ManagedChannelBuilder;
@@ -73,7 +73,7 @@ public class ReplicationServerClientTest {
     // we only need to test connectivity for now
     GlobalState mockGlobalState = mock(GlobalState.class);
     when(mockGlobalState.getIndex(any(String.class))).thenThrow(new RuntimeException("Expected"));
-    LuceneServerConfiguration mockConfiguration = mock(LuceneServerConfiguration.class);
+    NrtsearchConfig mockConfiguration = mock(NrtsearchConfig.class);
     when(mockGlobalState.getConfiguration()).thenReturn(mockConfiguration);
     when(mockConfiguration.getUseKeepAliveForReplication()).thenReturn(true);
 

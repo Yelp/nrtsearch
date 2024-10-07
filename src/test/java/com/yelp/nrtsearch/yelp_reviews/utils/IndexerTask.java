@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.yelp_reviews.utils;
 
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import io.grpc.stub.StreamObserver;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -30,7 +30,7 @@ public class IndexerTask {
   private String genId;
 
   public Long index(
-      LuceneServerClient luceneServerClient, Stream<AddDocumentRequest> addDocumentRequestStream)
+      NrtsearchClient luceneServerClient, Stream<AddDocumentRequest> addDocumentRequestStream)
       throws Exception {
     String threadId = Thread.currentThread().getName() + Thread.currentThread().getId();
 

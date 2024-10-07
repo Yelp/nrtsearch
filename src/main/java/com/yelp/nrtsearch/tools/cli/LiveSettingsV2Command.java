@@ -21,7 +21,7 @@ import com.google.protobuf.Int32Value;
 import com.google.protobuf.UInt64Value;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsV2Request;
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
@@ -31,7 +31,7 @@ import picocli.CommandLine;
 public class LiveSettingsV2Command implements Callable<Integer> {
   public static final String LIVE_SETTINGS_V2 = "liveSettingsV2";
 
-  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
+  @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
@@ -136,7 +136,7 @@ public class LiveSettingsV2Command implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    LuceneServerClient client = baseCmd.getClient();
+    NrtsearchClient client = baseCmd.getClient();
     try {
       LiveSettingsV2Request.Builder settingsRequestV2Builder = LiveSettingsV2Request.newBuilder();
       settingsRequestV2Builder.setIndexName(indexName);

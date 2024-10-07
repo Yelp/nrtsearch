@@ -29,7 +29,7 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
@@ -67,7 +67,7 @@ public class RemoteStateBackendTest {
     remoteBackend = new S3Backend(TEST_BUCKET, false, s3Provider.getAmazonS3());
   }
 
-  private LuceneServerConfiguration getConfig(boolean readOnly) throws IOException {
+  private NrtsearchConfig getConfig(boolean readOnly) throws IOException {
     String configFile =
         String.join(
             "\n",
@@ -77,12 +77,12 @@ public class RemoteStateBackendTest {
             "    readOnly: " + readOnly,
             "stateDir: " + folder.getRoot().getAbsolutePath(),
             "serviceName: " + TEST_SERVICE_NAME);
-    return new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
   }
 
   private GlobalState getMockGlobalState(boolean readOnly) throws IOException {
     GlobalState mockState = mock(GlobalState.class);
-    LuceneServerConfiguration serverConfiguration = getConfig(readOnly);
+    NrtsearchConfig serverConfiguration = getConfig(readOnly);
     when(mockState.getConfiguration()).thenReturn(serverConfiguration);
     when(mockState.getStateDir()).thenReturn(Paths.get(serverConfiguration.getStateDir()));
     when(mockState.getRemoteBackend()).thenReturn(remoteBackend);

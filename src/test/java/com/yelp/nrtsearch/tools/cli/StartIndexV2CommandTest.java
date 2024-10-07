@@ -52,7 +52,7 @@ public class StartIndexV2CommandTest {
     assertTrue(server.indices().contains("test_index"));
     assertFalse(server.isStarted("test_index"));
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",

@@ -20,7 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.google.protobuf.ByteString;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
@@ -57,7 +57,7 @@ public class CopyFileTest {
     String serverName = InProcessServerBuilder.generateName();
 
     GlobalState mockGlobalState = mock(GlobalState.class);
-    LuceneServerConfiguration mockConfiguration = mock(LuceneServerConfiguration.class);
+    NrtsearchConfig mockConfiguration = mock(NrtsearchConfig.class);
     when(mockGlobalState.getConfiguration()).thenReturn(mockConfiguration);
     when(mockConfiguration.getUseKeepAliveForReplication()).thenReturn(true);
 
@@ -65,7 +65,7 @@ public class CopyFileTest {
     grpcCleanup.register(
         InProcessServerBuilder.forName(serverName)
             .directExecutor()
-            .addService(new LuceneServer.ReplicationServerImpl(mockGlobalState, false))
+            .addService(new NrtsearchServer.ReplicationServerImpl(mockGlobalState, false))
             .build()
             .start());
 

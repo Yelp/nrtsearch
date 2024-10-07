@@ -29,7 +29,7 @@ import static org.junit.Assert.fail;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.IntObject;
 import com.yelp.nrtsearch.server.grpc.NameAndParams;
@@ -80,9 +80,9 @@ public class AnalyzerCreatorTest {
     AnalyzerCreator.initialize(getEmptyConfig(), plugins);
   }
 
-  private LuceneServerConfiguration getEmptyConfig() {
+  private NrtsearchConfig getEmptyConfig() {
     String config = "nodeName: \"lucene_server_foo\"";
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
   // Tests for predefined analyzers
@@ -576,14 +576,14 @@ public class AnalyzerCreatorTest {
 
   public static class TokenFilterAnalysisComponent extends LowerCaseFilterFactory
       implements AnalysisComponent {
-    LuceneServerConfiguration configuration;
+    NrtsearchConfig configuration;
 
     public TokenFilterAnalysisComponent(Map<String, String> args) {
       super(args);
     }
 
     @Override
-    public void initializeComponent(LuceneServerConfiguration configuration) {
+    public void initializeComponent(NrtsearchConfig configuration) {
       this.configuration = configuration;
     }
   }
@@ -780,14 +780,14 @@ public class AnalyzerCreatorTest {
 
   public static class CharFilterAnalysisComponent extends MappingCharFilterFactory
       implements AnalysisComponent {
-    LuceneServerConfiguration configuration;
+    NrtsearchConfig configuration;
 
     public CharFilterAnalysisComponent(Map<String, String> args) {
       super(args);
     }
 
     @Override
-    public void initializeComponent(LuceneServerConfiguration configuration) {
+    public void initializeComponent(NrtsearchConfig configuration) {
       this.configuration = configuration;
     }
   }

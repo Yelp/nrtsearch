@@ -35,9 +35,9 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** A simple client that requests a greeting from the {@link LuceneServer}. */
-public class LuceneServerClient implements Closeable {
-  private static final Logger logger = LoggerFactory.getLogger(LuceneServerClient.class.getName());
+/** A simple client that requests a greeting from the {@link NrtsearchServer}. */
+public class NrtsearchClient implements Closeable {
+  private static final Logger logger = LoggerFactory.getLogger(NrtsearchClient.class.getName());
 
   private final ManagedChannel channel;
 
@@ -53,7 +53,7 @@ public class LuceneServerClient implements Closeable {
   private final LuceneServerGrpc.LuceneServerStub asyncStub;
 
   /** Construct client connecting to LuceneServer server at {@code host:port}. */
-  public LuceneServerClient(String host, int port) {
+  public NrtsearchClient(String host, int port) {
     this(
         ManagedChannelBuilder.forAddress(host, port)
             // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
@@ -64,7 +64,7 @@ public class LuceneServerClient implements Closeable {
   }
 
   /** Construct client for accessing LuceneServer server using the existing channel. */
-  LuceneServerClient(ManagedChannel channel) {
+  NrtsearchClient(ManagedChannel channel) {
     this.channel = channel;
     blockingStub =
         LuceneServerGrpc.newBlockingStub(channel)
@@ -159,8 +159,7 @@ public class LuceneServerClient implements Closeable {
   public void settingsV2(String indexName, Path filePath) throws IOException {
     SettingsV2Request settingsRequest;
     if (filePath != null) {
-      settingsRequest =
-          new LuceneServerClientBuilder.SettingsV2ClientBuilder().buildRequest(filePath);
+      settingsRequest = new NrtsearchClientBuilder.SettingsV2ClientBuilder().buildRequest(filePath);
       settingsRequest = settingsRequest.toBuilder().setIndexName(indexName).build();
     } else {
       settingsRequest = SettingsV2Request.newBuilder().setIndexName(indexName).build();
@@ -181,7 +180,7 @@ public class LuceneServerClient implements Closeable {
 
   public void startIndex(Path filePath) throws IOException {
     StartIndexRequest startIndexRequest =
-        new LuceneServerClientBuilder.StartIndexClientBuilder().buildRequest(filePath);
+        new NrtsearchClientBuilder.StartIndexClientBuilder().buildRequest(filePath);
     StartIndexResponse response;
     try {
       response = blockingStub.startIndex(startIndexRequest);
@@ -321,7 +320,7 @@ public class LuceneServerClient implements Closeable {
 
   public void search(Path filePath) throws IOException {
     SearchRequest searchRequest =
-        new LuceneServerClientBuilder.SearchClientBuilder().buildRequest(filePath);
+        new NrtsearchClientBuilder.SearchClientBuilder().buildRequest(filePath);
     SearchResponse response;
     try {
       response = blockingStub.search(searchRequest);
@@ -334,7 +333,7 @@ public class LuceneServerClient implements Closeable {
 
   public void delete(Path filePath) throws IOException {
     AddDocumentRequest addDocumentRequest =
-        new LuceneServerClientBuilder.DeleteDocumentsBuilder().buildRequest(filePath);
+        new NrtsearchClientBuilder.DeleteDocumentsBuilder().buildRequest(filePath);
     AddDocumentResponse response;
     try {
       response = blockingStub.delete(addDocumentRequest);

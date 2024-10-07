@@ -27,7 +27,7 @@ import com.amazonaws.services.s3.model.InitiateMultipartUploadResult;
 import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.nrt.state.NrtFileMetaData;
 import com.yelp.nrtsearch.server.nrt.state.NrtPointState;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
@@ -72,8 +72,7 @@ public class S3BackendTest {
   @BeforeClass
   public static void setup() throws IOException {
     String configStr = "bucketName: " + BUCKET_NAME;
-    LuceneServerConfiguration config =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     s3 = S3_PROVIDER.getAmazonS3();
     s3Backend = new S3Backend(config, s3);
     s3.putObject(BUCKET_NAME, KEY, CONTENT);

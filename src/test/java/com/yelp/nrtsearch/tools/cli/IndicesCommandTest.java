@@ -80,7 +80,7 @@ public class IndicesCommandTest extends ServerTestCase {
   }
 
   private int runIndicesCommand() {
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     return cmd.execute(
         "--hostname=localhost", "--port=" + getGrpcServer().getGlobalState().getPort(), "indices");
   }

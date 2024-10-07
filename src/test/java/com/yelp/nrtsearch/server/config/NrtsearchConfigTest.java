@@ -25,16 +25,16 @@ import java.io.ByteArrayInputStream;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormat.FSTLoadMode;
 import org.junit.Test;
 
-public class LuceneServerConfigurationTest {
+public class NrtsearchConfigTest {
 
-  private LuceneServerConfiguration getForConfig(String config) {
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+  private NrtsearchConfig getForConfig(String config) {
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
   @Test
   public void testGetsHostName() {
     String config = String.join("\n", "nodeName: \"lucene_server_foo\"", "hostName: my_host_name");
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals("my_host_name", luceneConfig.getHostName());
   }
 
@@ -42,7 +42,7 @@ public class LuceneServerConfigurationTest {
   public void testGetEnvHostName() {
     String config =
         String.join("\n", "nodeName: \"lucene_server_foo\"", "hostName: ${CUSTOM_HOST}");
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals("my_custom_host", luceneConfig.getHostName());
   }
 
@@ -51,7 +51,7 @@ public class LuceneServerConfigurationTest {
     String config =
         String.join(
             "\n", "nodeName: \"lucene_server_foo\"", "hostName: my_${VAR1}_${VAR2}_${VAR1}_host");
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals("my_v1_v2_v1_host", luceneConfig.getHostName());
   }
 
@@ -60,14 +60,14 @@ public class LuceneServerConfigurationTest {
     String config =
         String.join(
             "\n", "nodeName: \"lucene_server_foo\"", "hostName: my_${VAR4}_${VAR3}_${VAR4}_host");
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals("my__v3__host", luceneConfig.getHostName());
   }
 
   @Test
   public void testDefaultDiscoveryFileUpdateInterval() {
     String config = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(
         ReplicationServerClient.FILE_UPDATE_INTERVAL_MS,
         luceneConfig.getDiscoveryFileUpdateIntervalMs());
@@ -77,76 +77,74 @@ public class LuceneServerConfigurationTest {
   public void testSetDiscoveryFileUpdateInterval() {
     String config =
         String.join("\n", "nodeName: \"lucene_server_foo\"", "discoveryFileUpdateIntervalMs: 100");
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(100, luceneConfig.getDiscoveryFileUpdateIntervalMs());
   }
 
   @Test
   public void testDefaultCompletionCodecLoadMode() {
     String config = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(FSTLoadMode.ON_HEAP, luceneConfig.getCompletionCodecLoadMode());
   }
 
   @Test
   public void testSetCompletionCodecLoadMode() {
     String config = "completionCodecLoadMode: OFF_HEAP";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(FSTLoadMode.OFF_HEAP, luceneConfig.getCompletionCodecLoadMode());
   }
 
   @Test
   public void testInitialSyncPrimaryWaitMs_default() {
     String config = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(
-        LuceneServerConfiguration.DEFAULT_INITIAL_SYNC_PRIMARY_WAIT_MS,
+        NrtsearchConfig.DEFAULT_INITIAL_SYNC_PRIMARY_WAIT_MS,
         luceneConfig.getInitialSyncPrimaryWaitMs());
   }
 
   @Test
   public void testInitialSyncPrimaryWaitMs_set() {
     String config = "initialSyncPrimaryWaitMs: 100";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(100L, luceneConfig.getInitialSyncPrimaryWaitMs());
   }
 
   @Test
   public void testInitialSyncMaxTimeMs_default() {
     String config = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(
-        LuceneServerConfiguration.DEFAULT_INITIAL_SYNC_MAX_TIME_MS,
-        luceneConfig.getInitialSyncMaxTimeMs());
+        NrtsearchConfig.DEFAULT_INITIAL_SYNC_MAX_TIME_MS, luceneConfig.getInitialSyncMaxTimeMs());
   }
 
   @Test
   public void testInitialSyncMaxTimeMs_set() {
     String config = "initialSyncMaxTimeMs: 100";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(100L, luceneConfig.getInitialSyncMaxTimeMs());
   }
 
   @Test
   public void testMaxS3ClientRetries_default() {
     String config = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(
-        LuceneServerConfiguration.DEFAULT_MAX_S3_CLIENT_RETRIES,
-        luceneConfig.getMaxS3ClientRetries());
+        NrtsearchConfig.DEFAULT_MAX_S3_CLIENT_RETRIES, luceneConfig.getMaxS3ClientRetries());
   }
 
   @Test
   public void testMaxS3ClientRetries_set() {
     String config = "maxS3ClientRetries: 10";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(10, luceneConfig.getMaxS3ClientRetries());
   }
 
   @Test
   public void testLiveSettingsOverride_default() {
     String config = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(
         IndexLiveSettings.newBuilder().build(), luceneConfig.getLiveSettingsOverride("test_index"));
   }
@@ -163,7 +161,7 @@ public class LuceneServerConfigurationTest {
             "  test_index_2:",
             "    defaultSearchTimeoutSec: 10.25",
             "    segmentsPerTier: 30");
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(
         IndexLiveSettings.newBuilder()
             .setSliceMaxDocs(Int32Value.newBuilder().setValue(1).build())
@@ -184,28 +182,28 @@ public class LuceneServerConfigurationTest {
   @Test
   public void testLowPriorityCopyPercentage_default() {
     String config = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(0, luceneConfig.getLowPriorityCopyPercentage());
   }
 
   @Test
   public void testLowPriorityCopyPercentage_set() {
     String config = "lowPriorityCopyPercentage: 10";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertEquals(10, luceneConfig.getLowPriorityCopyPercentage());
   }
 
   @Test
   public void testVerifyReplicationIndexId_default() {
     String config = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertTrue(luceneConfig.getVerifyReplicationIndexId());
   }
 
   @Test
   public void testVerifyReplicationIndexId_set() {
     String config = "verifyReplicationIndexId: false";
-    LuceneServerConfiguration luceneConfig = getForConfig(config);
+    NrtsearchConfig luceneConfig = getForConfig(config);
     assertFalse(luceneConfig.getVerifyReplicationIndexId());
   }
 }

@@ -26,7 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.AtomFieldDef;
 import com.yelp.nrtsearch.server.field.BooleanFieldDef;
 import com.yelp.nrtsearch.server.field.DoubleFieldDef;
@@ -85,8 +85,8 @@ public class FieldUpdateUtilsTest {
   @BeforeClass
   public static void setup() {
     String configFile = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration dummyConfig =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    NrtsearchConfig dummyConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
     List<Plugin> dummyPlugins = Collections.emptyList();
     // these must be initialized to create an IndexState
     FieldDefCreator.initialize(dummyConfig, dummyPlugins);

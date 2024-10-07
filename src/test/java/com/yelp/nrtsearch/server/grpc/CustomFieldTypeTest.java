@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.grpc;
 import static com.yelp.nrtsearch.server.grpc.GrpcServer.rmDir;
 import static org.junit.Assert.assertEquals;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.FieldDefProvider;
@@ -81,7 +81,7 @@ public class CustomFieldTypeTest {
 
   private GrpcServer setUpGrpcServer(PrometheusRegistry prometheusRegistry) throws IOException {
     String testIndex = "test_index";
-    LuceneServerConfiguration luceneServerConfiguration =
+    NrtsearchConfig luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(Mode.STANDALONE, folder.getRoot());
     return new GrpcServer(
         prometheusRegistry,

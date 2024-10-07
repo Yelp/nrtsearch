@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.index;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonObject;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.doc.SegmentDocLookup;
@@ -257,7 +257,7 @@ public abstract class IndexState implements Closeable {
   }
 
   public void initWarmer(RemoteBackend remoteBackend, String indexName) {
-    LuceneServerConfiguration configuration = globalState.getConfiguration();
+    NrtsearchConfig configuration = globalState.getConfiguration();
     WarmerConfig warmerConfig = configuration.getWarmerConfig();
     if (warmerConfig.isWarmOnStartup() || warmerConfig.getMaxWarmingQueries() > 0) {
       this.warmer =

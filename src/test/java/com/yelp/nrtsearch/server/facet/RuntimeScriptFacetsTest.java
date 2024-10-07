@@ -19,7 +19,7 @@ import static org.junit.Assert.assertEquals;
 
 import com.google.protobuf.Value;
 import com.yelp.nrtsearch.server.ServerTestCase;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.doc.DocLookup;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.grpc.*;
@@ -225,7 +225,7 @@ public class RuntimeScriptFacetsTest extends ServerTestCase {
   }
 
   @Override
-  protected List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
+  protected List<Plugin> getPlugins(NrtsearchConfig configuration) {
     return Collections.singletonList(new TestRuntimeScriptPlugin());
   }
 

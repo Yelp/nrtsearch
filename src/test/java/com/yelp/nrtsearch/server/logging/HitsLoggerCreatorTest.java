@@ -21,7 +21,7 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.LoggingHits;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
 import com.yelp.nrtsearch.server.plugins.HitsLoggerPlugin;
@@ -44,9 +44,9 @@ public class HitsLoggerCreatorTest {
     HitsLoggerCreator.initialize(getEmptyConfig(), plugins);
   }
 
-  private LuceneServerConfiguration getEmptyConfig() {
+  private NrtsearchConfig getEmptyConfig() {
     String config = "nodeName: \"lucene_server_foo\"";
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
   public static class TestHitsLoggerPlugin extends Plugin implements HitsLoggerPlugin {

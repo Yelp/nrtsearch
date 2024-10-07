@@ -17,10 +17,10 @@ package com.yelp.nrtsearch.server.grpc;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.monitoring.Configuration;
-import com.yelp.nrtsearch.server.monitoring.LuceneServerMonitoringServerInterceptor;
+import com.yelp.nrtsearch.server.monitoring.NrtsearchMonitoringServerInterceptor;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.state.GlobalState;
@@ -64,7 +64,7 @@ public class GrpcServer {
   private ReplicationServerGrpc.ReplicationServerStub replicationServerStub;
 
   private GlobalState globalState;
-  private LuceneServerConfiguration configuration;
+  private NrtsearchConfig configuration;
   private Server luceneServer;
   private ManagedChannel luceneServerManagedChannel;
   private Server replicationServer;
@@ -73,7 +73,7 @@ public class GrpcServer {
   public GrpcServer(
       PrometheusRegistry prometheusRegistry,
       GrpcCleanupRule grpcCleanup,
-      LuceneServerConfiguration configuration,
+      NrtsearchConfig configuration,
       TemporaryFolder temporaryFolder,
       GlobalState replicationGlobalState,
       String indexDir,
@@ -94,7 +94,7 @@ public class GrpcServer {
 
   public GrpcServer(
       GrpcCleanupRule grpcCleanup,
-      LuceneServerConfiguration configuration,
+      NrtsearchConfig configuration,
       TemporaryFolder temporaryFolder,
       GlobalState replicationGlobalState,
       String indexDir,
@@ -117,7 +117,7 @@ public class GrpcServer {
 
   public GrpcServer(
       GrpcCleanupRule grpcCleanup,
-      LuceneServerConfiguration configuration,
+      NrtsearchConfig configuration,
       TemporaryFolder temporaryFolder,
       GlobalState replicationGlobalState,
       String indexDir,
@@ -214,7 +214,7 @@ public class GrpcServer {
       Server server;
       if (prometheusRegistry == null) {
         LuceneServerImpl serverImpl =
-            new LuceneServer.LuceneServerImpl(
+            new NrtsearchServer.LuceneServerImpl(
                 configuration, remoteBackend, prometheusRegistry, plugins);
         globalState = serverImpl.getGlobalState();
         // Create a server, add service, start, and register for automatic graceful shutdown.
@@ -226,11 +226,11 @@ public class GrpcServer {
                 .build()
                 .start();
       } else {
-        LuceneServerMonitoringServerInterceptor monitoringInterceptor =
-            LuceneServerMonitoringServerInterceptor.create(
+        NrtsearchMonitoringServerInterceptor monitoringInterceptor =
+            NrtsearchMonitoringServerInterceptor.create(
                 Configuration.allMetrics().withPrometheusRegistry(prometheusRegistry));
         LuceneServerImpl serverImpl =
-            new LuceneServer.LuceneServerImpl(
+            new NrtsearchServer.LuceneServerImpl(
                 configuration, remoteBackend, prometheusRegistry, plugins);
         globalState = serverImpl.getGlobalState();
         // Create a server, add service, start, and register for automatic graceful shutdown.
@@ -261,7 +261,7 @@ public class GrpcServer {
       // Create a server, add service, start, and register for automatic graceful shutdown.
       Server server =
           ServerBuilder.forPort(port)
-              .addService(new LuceneServer.ReplicationServerImpl(globalState, false))
+              .addService(new NrtsearchServer.ReplicationServerImpl(globalState, false))
               .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
               .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
               .build()
@@ -401,7 +401,7 @@ public class GrpcServer {
       Path filePath = Paths.get("src", "test", "resources", addDocsFile);
       Reader reader = Files.newBufferedReader(filePath);
       CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
-      return new LuceneServerClientBuilder.AddDocumentsClientBuilder(
+      return new NrtsearchClientBuilder.AddDocumentsClientBuilder(
               grpcServer.getTestIndex(), csvParser)
           .buildRequest(filePath);
     }

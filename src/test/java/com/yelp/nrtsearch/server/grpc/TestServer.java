@@ -28,11 +28,11 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.yelp.nrtsearch.clientlib.Node;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.StateConfig.StateBackendType;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
-import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
-import com.yelp.nrtsearch.server.grpc.LuceneServer.ReplicationServerImpl;
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer.LuceneServerImpl;
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer.ReplicationServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
@@ -98,12 +98,12 @@ public class TestServer {
 
   private static S3Mock api;
 
-  private final LuceneServerConfiguration configuration;
+  private final NrtsearchConfig configuration;
   private final boolean writeDiscoveryFile;
   private final Path discoveryFilePath;
   private Server server;
   private Server replicationServer;
-  private LuceneServerClient client;
+  private NrtsearchClient client;
   private ReplicationServerClient replicationClient;
   private LuceneServerImpl serverImpl;
   private RemoteBackend remoteBackend;
@@ -126,7 +126,7 @@ public class TestServer {
   }
 
   public TestServer(
-      LuceneServerConfiguration configuration, boolean writeDiscoveryFile, Path discoveryFilePath)
+      NrtsearchConfig configuration, boolean writeDiscoveryFile, Path discoveryFilePath)
       throws IOException {
     this.configuration = configuration;
     this.writeDiscoveryFile = writeDiscoveryFile;
@@ -167,7 +167,7 @@ public class TestServer {
     }
 
     server = ServerBuilder.forPort(0).addService(serverImpl).build().start();
-    client = new LuceneServerClient("localhost", server.getPort());
+    client = new NrtsearchClient("localhost", server.getPort());
     replicationClient = new ReplicationServerClient("localhost", replicationServer.getPort());
   }
 
@@ -203,7 +203,7 @@ public class TestServer {
     return serverImpl.getGlobalState();
   }
 
-  public LuceneServerClient getClient() {
+  public NrtsearchClient getClient() {
     return client;
   }
 
@@ -687,7 +687,7 @@ public class TestServer {
               "syncInitialNrtPoint: " + syncInitialNrtPoint,
               additionalConfig);
       return new TestServer(
-          new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes())),
+          new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes())),
           writeDiscoveryFile,
           Paths.get(folder.getRoot().toString(), DISCOVERY_FILE));
     }

@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.field;
 
 import static org.junit.Assert.assertEquals;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.TextDocValuesType;
 import com.yelp.nrtsearch.server.similarity.SimilarityCreator;
@@ -33,8 +33,8 @@ public class AtomFieldDefTest {
   @BeforeClass
   public static void init() {
     String configStr = "node: node1";
-    LuceneServerConfiguration configuration =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    NrtsearchConfig configuration =
+        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     SimilarityCreator.initialize(configuration, Collections.emptyList());
   }
 

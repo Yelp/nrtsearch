@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.yelp_reviews.utils;
 
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -37,7 +37,7 @@ public class ParallelDocumentIndexer {
       OneDocBuilder oneDocBuilder,
       Path path,
       ExecutorService executorService,
-      LuceneServerClient luceneServerClient)
+      NrtsearchClient luceneServerClient)
       throws IOException, InterruptedException {
     try (BufferedReader br = new BufferedReader(new FileReader(path.toFile()))) {
       String line;
@@ -71,7 +71,7 @@ public class ParallelDocumentIndexer {
   private static Future<Long> submitTask(
       OneDocBuilder oneDocBuilder,
       ExecutorService executorService,
-      LuceneServerClient luceneServerClient,
+      NrtsearchClient luceneServerClient,
       List<String> rawLines)
       throws InterruptedException {
     Future<Long> genIdFuture;

@@ -20,7 +20,7 @@ import static org.junit.Assert.assertEquals;
 import com.google.protobuf.Struct;
 import com.google.protobuf.Value;
 import com.yelp.nrtsearch.server.ServerTestCase;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.LoggingHits;
@@ -47,7 +47,7 @@ public class HitsLoggerTest extends ServerTestCase {
   @ClassRule public static final GrpcCleanupRule grpcCleanup = new GrpcCleanupRule();
 
   @Override
-  protected List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
+  protected List<Plugin> getPlugins(NrtsearchConfig configuration) {
     return Collections.singletonList(new HitsLoggerTest.TestHitsLoggerPlugin());
   }
 

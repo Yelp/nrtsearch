@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.search.collectors;
 
 import com.yelp.nrtsearch.server.collectors.BucketOrder;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.Collector;
 import com.yelp.nrtsearch.server.grpc.CollectorResult;
 import com.yelp.nrtsearch.server.grpc.PluginCollector;
@@ -50,7 +50,7 @@ public class CollectorCreator {
                       ? extends org.apache.lucene.search.Collector, CollectorResult>>>
       collectorsMap = new HashMap<>();
 
-  private CollectorCreator(LuceneServerConfiguration configuration) {}
+  private CollectorCreator(NrtsearchConfig configuration) {}
 
   /**
    * Create {@link AdditionalCollectorManager} for the given {@link Collector} definition message.
@@ -157,7 +157,7 @@ public class CollectorCreator {
    * @param configuration service configuration
    * @param plugins list of loaded plugins
    */
-  public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
+  public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new CollectorCreator(configuration);
     for (Plugin plugin : plugins) {
       if (plugin instanceof CollectorPlugin) {

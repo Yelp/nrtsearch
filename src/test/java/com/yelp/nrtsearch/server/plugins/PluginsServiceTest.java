@@ -19,7 +19,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -36,22 +36,22 @@ public class PluginsServiceTest {
 
   @Rule public TemporaryFolder folder = new TemporaryFolder();
 
-  private LuceneServerConfiguration getEmptyConfig() {
+  private NrtsearchConfig getEmptyConfig() {
     String config = "nodeName: \"lucene_server_foo\"";
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
-  private LuceneServerConfiguration getConfigWithSearchPath(String path) {
+  private NrtsearchConfig getConfigWithSearchPath(String path) {
     String config = "pluginSearchPath: \"" + path + "\"";
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 
-  private LuceneServerConfiguration getConfigWithSearchPaths(String... paths) {
+  private NrtsearchConfig getConfigWithSearchPaths(String... paths) {
     StringBuilder config = new StringBuilder("pluginSearchPath:").append("\n");
     for (String path : paths) {
       config.append("  - ").append(path).append("\n");
     }
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.toString().getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(config.toString().getBytes()));
   }
 
   private PrometheusRegistry getPrometheusRegistry() {
@@ -60,7 +60,7 @@ public class PluginsServiceTest {
 
   @Test
   public void testGetSinglePluginSearchPath() {
-    LuceneServerConfiguration config = getConfigWithSearchPath("some/plugin/path");
+    NrtsearchConfig config = getConfigWithSearchPath("some/plugin/path");
     PluginsService pluginsService = new PluginsService(config, null, getPrometheusRegistry());
     List<File> expectedPaths = new ArrayList<>();
     expectedPaths.add(new File("some/plugin/path"));
@@ -69,7 +69,7 @@ public class PluginsServiceTest {
 
   @Test
   public void testGetMultiPluginSearchPath() {
-    LuceneServerConfiguration config =
+    NrtsearchConfig config =
         getConfigWithSearchPaths(
             "some1/plugin1/path1", "some2/plugin2/path2", "some3/plugin3/path3");
     PluginsService pluginsService = new PluginsService(config, null, getPrometheusRegistry());
@@ -141,10 +141,10 @@ public class PluginsServiceTest {
   }
 
   public static class LoadTestPlugin extends Plugin {
-    public LuceneServerConfiguration config;
+    public NrtsearchConfig config;
     public PrometheusRegistry prometheusRegistry;
 
-    public LoadTestPlugin(LuceneServerConfiguration config) {
+    public LoadTestPlugin(NrtsearchConfig config) {
       this.config = config;
     }
 
@@ -159,10 +159,10 @@ public class PluginsServiceTest {
   }
 
   public static class LoadTestPluginWithMetrics extends Plugin implements MetricsPlugin {
-    public LuceneServerConfiguration config;
+    public NrtsearchConfig config;
     public PrometheusRegistry prometheusRegistry;
 
-    public LoadTestPluginWithMetrics(LuceneServerConfiguration config) {
+    public LoadTestPluginWithMetrics(NrtsearchConfig config) {
       this.config = config;
     }
 
@@ -217,7 +217,7 @@ public class PluginsServiceTest {
 
   @Test
   public void testGetPluginInstanceHasConfig() {
-    LuceneServerConfiguration config = getEmptyConfig();
+    NrtsearchConfig config = getEmptyConfig();
     PluginsService pluginsService = new PluginsService(config, null, getPrometheusRegistry());
     Plugin loadedPlugin = pluginsService.getPluginInstance(LoadTestPlugin.class);
     LoadTestPlugin loadTestPlugin = (LoadTestPlugin) loadedPlugin;

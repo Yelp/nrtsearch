@@ -19,7 +19,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.*;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IndexableFieldDef;
 import com.yelp.nrtsearch.server.field.VectorFieldDef;
@@ -43,8 +43,7 @@ public class ServerCodecTest {
   @BeforeClass
   public static void beforeClass() {
     SimilarityCreator.initialize(
-        new LuceneServerConfiguration(new ByteArrayInputStream("name: node1".getBytes())),
-        List.of());
+        new NrtsearchConfig(new ByteArrayInputStream("name: node1".getBytes())), List.of());
   }
 
   private IndexStateManager getManager(FieldDef fieldDef) {

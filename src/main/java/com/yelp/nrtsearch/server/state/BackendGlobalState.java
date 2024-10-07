@@ -20,7 +20,7 @@ import static com.yelp.nrtsearch.server.utils.TimeStringUtils.generateTimeString
 import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.config.IndexStartConfig;
 import com.yelp.nrtsearch.server.config.IndexStartConfig.IndexDataLocationType;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DummyResponse;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
@@ -103,8 +103,7 @@ public class BackendGlobalState extends GlobalState {
    * @param remoteBackend backend for persistent remote storage
    * @throws IOException on filesystem error
    */
-  public BackendGlobalState(
-      LuceneServerConfiguration luceneServerConfiguration, RemoteBackend remoteBackend)
+  public BackendGlobalState(NrtsearchConfig luceneServerConfiguration, RemoteBackend remoteBackend)
       throws IOException {
     super(luceneServerConfiguration, remoteBackend);
     stateBackend = createStateBackend();

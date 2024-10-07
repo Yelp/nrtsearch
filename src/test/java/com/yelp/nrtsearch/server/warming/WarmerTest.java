@@ -21,7 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.TermQuery;
@@ -61,8 +61,7 @@ public class WarmerTest {
   @Before
   public void setup() throws IOException {
     String configStr = "bucketName: " + bucketName;
-    LuceneServerConfiguration config =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     s3 = s3Provider.getAmazonS3();
     remoteBackend = new S3Backend(config, s3);
     warmer = new Warmer(remoteBackend, service, index, 2);

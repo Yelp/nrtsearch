@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.server.doc;
 import static org.junit.Assert.assertEquals;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.Query;
@@ -110,7 +110,7 @@ public class SharedDocContextTest extends ServerTestCase {
   }
 
   @Override
-  public List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
+  public List<Plugin> getPlugins(NrtsearchConfig configuration) {
     return Collections.singletonList(new TestSharedContextPlugin());
   }
 

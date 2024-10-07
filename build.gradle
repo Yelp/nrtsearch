@@ -125,7 +125,7 @@ dependencies {
 startScripts.enabled = false
 
 task luceneServer(type: CreateStartScripts) {
-    mainClass = 'com.yelp.nrtsearch.server.grpc.LuceneServer'
+    mainClass = 'com.yelp.nrtsearch.server.grpc.NrtsearchServer'
     applicationName = 'lucene-server'
     outputDir = new File(project.buildDir, 'tmp-app')
     classpath = startScripts.classpath
@@ -134,7 +134,7 @@ task luceneServer(type: CreateStartScripts) {
 }
 
 task luceneServerClient(type: CreateStartScripts) {
-    mainClass = 'com.yelp.nrtsearch.tools.cli.LuceneClientCommand'
+    mainClass = 'com.yelp.nrtsearch.tools.cli.NrtsearchClientCommand'
     applicationName = 'lucene-client'
     outputDir = new File(project.buildDir, 'tmp-app')
     classpath = startScripts.classpath

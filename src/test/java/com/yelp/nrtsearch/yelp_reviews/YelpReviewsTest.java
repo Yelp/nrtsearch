@@ -18,7 +18,7 @@ package com.yelp.nrtsearch.yelp_reviews;
 import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.CreateIndexResponse;
@@ -29,8 +29,8 @@ import com.yelp.nrtsearch.server.grpc.HealthCheckRequest;
 import com.yelp.nrtsearch.server.grpc.HealthCheckResponse;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsRequest;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsResponse;
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
 import com.yelp.nrtsearch.server.grpc.Mode;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
@@ -257,10 +257,10 @@ public class YelpReviewsTest {
 
     HostPort primaryHostPort = new HostPort(getLuceneServerPrimaryConfigurationYaml());
     HostPort secondaryHostPort = new HostPort(getLuceneServerReplicaConfigurationYaml());
-    LuceneServerClient primaryServerClient =
-        new LuceneServerClient(primaryHostPort.hostName, primaryHostPort.port);
-    LuceneServerClient secondaryServerClient =
-        new LuceneServerClient(secondaryHostPort.hostName, secondaryHostPort.port);
+    NrtsearchClient primaryServerClient =
+        new NrtsearchClient(primaryHostPort.hostName, primaryHostPort.port);
+    NrtsearchClient secondaryServerClient =
+        new NrtsearchClient(secondaryHostPort.hostName, secondaryHostPort.port);
 
     // healthcheck, make sure servers are up
     ensureServersUp(primaryServerClient);
@@ -367,8 +367,7 @@ public class YelpReviewsTest {
     }
   }
 
-  public static void startIndex(
-      LuceneServerClient serverClient, StartIndexRequest startIndexRequest) {
+  public static void startIndex(NrtsearchClient serverClient, StartIndexRequest startIndexRequest) {
     StartIndexResponse startIndexResponse =
         serverClient.getBlockingStub().startIndex(startIndexRequest);
     logger.info(
@@ -379,7 +378,7 @@ public class YelpReviewsTest {
         startIndexResponse.getStartTimeMS());
   }
 
-  private static void settings(LuceneServerClient serverClient, ServerType serverType)
+  private static void settings(NrtsearchClient serverClient, ServerType serverType)
       throws IOException {
     String settingsJson = readResourceAsString("settings.json", serverType);
     SettingsRequest settingsRequest = getSettings(settingsJson);
@@ -387,7 +386,7 @@ public class YelpReviewsTest {
     logger.info(settingsResponse.getResponse());
   }
 
-  private static void registerFields(LuceneServerClient serverClient) throws IOException {
+  private static void registerFields(NrtsearchClient serverClient) throws IOException {
     String registerFieldsJson = readResourceAsString("register_fields.json", ServerType.unknown);
     FieldDefRequest fieldDefRequest = getFieldDefRequest(registerFieldsJson);
     FieldDefResponse fieldDefResponse =
@@ -395,7 +394,7 @@ public class YelpReviewsTest {
     logger.info(fieldDefResponse.getResponse());
   }
 
-  private static void liveSettings(LuceneServerClient serverClient) {
+  private static void liveSettings(NrtsearchClient serverClient) {
     LiveSettingsRequest liveSettingsRequest =
         LiveSettingsRequest.newBuilder()
             .setIndexName(INDEX_NAME)
@@ -407,7 +406,7 @@ public class YelpReviewsTest {
     logger.info(liveSettingsResponse.getResponse());
   }
 
-  private static void createIndex(LuceneServerClient serverClient) {
+  private static void createIndex(NrtsearchClient serverClient) {
     CreateIndexResponse response =
         serverClient
             .getBlockingStub()
@@ -490,8 +489,8 @@ public class YelpReviewsTest {
     }
 
     HostPort(String confiFileName) throws FileNotFoundException {
-      LuceneServerConfiguration luceneServerConfiguration =
-          new LuceneServerConfiguration(new FileInputStream(confiFileName));
+      NrtsearchConfig luceneServerConfiguration =
+          new NrtsearchConfig(new FileInputStream(confiFileName));
       this.hostName = luceneServerConfiguration.getHostName();
       this.port = luceneServerConfiguration.getPort();
       this.replicationPort = luceneServerConfiguration.getReplicationPort();
@@ -524,7 +523,7 @@ public class YelpReviewsTest {
     return settingsRequest;
   }
 
-  private static void ensureServersUp(LuceneServerClient serverClient) throws InterruptedException {
+  private static void ensureServersUp(NrtsearchClient serverClient) throws InterruptedException {
     int retry = 0;
     final int RETRY_LIMIT = 10;
     while (retry < RETRY_LIMIT) {
@@ -570,10 +569,10 @@ public class YelpReviewsTest {
 
   private static class SearchTask implements Callable<Double> {
 
-    private final LuceneServerClient luceneServerClient;
+    private final NrtsearchClient luceneServerClient;
     private final AtomicBoolean indexingDone;
 
-    SearchTask(LuceneServerClient luceneServerClient, AtomicBoolean indexingDone) {
+    SearchTask(NrtsearchClient luceneServerClient, AtomicBoolean indexingDone) {
       this.luceneServerClient = luceneServerClient;
       this.indexingDone = indexingDone;
     }

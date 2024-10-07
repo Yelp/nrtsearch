@@ -26,14 +26,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.Test;
 
-public class LuceneServerClientBuilderTest {
+public class NrtsearchClientBuilderTest {
 
   @Test
   public void buildRequest() throws IOException {
     Path filePath = Paths.get("src", "test", "resources", "addDocs.txt");
     int maxBufferLen = 10;
-    LuceneServerClientBuilder.AddJsonDocumentsClientBuilder addJsonDocumentsClientBuilder =
-        new LuceneServerClientBuilder.AddJsonDocumentsClientBuilder(
+    NrtsearchClientBuilder.AddJsonDocumentsClientBuilder addJsonDocumentsClientBuilder =
+        new NrtsearchClientBuilder.AddJsonDocumentsClientBuilder(
             "test_index", new Gson(), filePath, maxBufferLen);
     Stream<AddDocumentRequest> addDocumentRequestStream =
         addJsonDocumentsClientBuilder.buildRequest(filePath);

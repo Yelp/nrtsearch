@@ -27,8 +27,8 @@ import static org.junit.Assert.fail;
 import com.amazonaws.services.s3.AmazonS3;
 import com.google.api.HttpBody;
 import com.google.protobuf.Empty;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.grpc.LuceneServer.LuceneServerImpl;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
+import com.yelp.nrtsearch.server.grpc.NrtsearchServer.LuceneServerImpl;
 import com.yelp.nrtsearch.server.grpc.SearchResponse.Hit.CompositeFieldValue;
 import com.yelp.nrtsearch.server.remote.RemoteBackend;
 import com.yelp.nrtsearch.server.remote.s3.S3Backend;
@@ -72,7 +72,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 @RunWith(JUnit4.class)
-public class LuceneServerTest {
+public class NrtsearchServerTest {
   public static final List<String> RETRIEVED_VALUES =
       Arrays.asList(
           "doc_id",
@@ -141,7 +141,7 @@ public class LuceneServerTest {
 
   @Before
   public void setUp() throws IOException {
-    LuceneServerConfiguration luceneServerConfiguration =
+    NrtsearchConfig luceneServerConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.STANDALONE, folder.getRoot(), "bucketName: " + bucketName);
 
@@ -152,8 +152,7 @@ public class LuceneServerTest {
     setUpWarmer();
   }
 
-  private RemoteBackend setUpRemoteBackend(LuceneServerConfiguration configuration)
-      throws IOException {
+  private RemoteBackend setUpRemoteBackend(NrtsearchConfig configuration) throws IOException {
     s3 = s3Provider.getAmazonS3();
     return new S3Backend(configuration, s3);
   }
@@ -179,7 +178,7 @@ public class LuceneServerTest {
   }
 
   private GrpcServer setUpGrpcServer(
-      LuceneServerConfiguration luceneServerConfiguration, PrometheusRegistry prometheusRegistry)
+      NrtsearchConfig luceneServerConfiguration, PrometheusRegistry prometheusRegistry)
       throws IOException {
     String testIndex = "test_index";
 
@@ -199,7 +198,7 @@ public class LuceneServerTest {
   private GrpcServer setUpReplicaGrpcServer(PrometheusRegistry prometheusRegistry)
       throws IOException {
     String testIndex = "test_index";
-    LuceneServerConfiguration luceneServerReplicaConfiguration =
+    NrtsearchConfig luceneServerReplicaConfiguration =
         LuceneServerTestConfigurationFactory.getConfig(
             Mode.REPLICA, folder.getRoot(), getExtraConfig());
 
@@ -1237,13 +1236,13 @@ public class LuceneServerTest {
     assertTrue(queryCache instanceof NrtQueryCache);
 
     String configStr = String.join("\n", "queryCache:", "  enabled: false");
-    LuceneServerConfiguration configuration =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    NrtsearchConfig configuration =
+        new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     LuceneServerImpl.initQueryCache(configuration);
     assertNull(IndexSearcher.getDefaultQueryCache());
 
     configStr = String.join("\n", "queryCache:", "  enabled: true");
-    configuration = new LuceneServerConfiguration(new ByteArrayInputStream(configStr.getBytes()));
+    configuration = new NrtsearchConfig(new ByteArrayInputStream(configStr.getBytes()));
     LuceneServerImpl.initQueryCache(configuration);
     queryCache = IndexSearcher.getDefaultQueryCache();
     assertTrue(queryCache instanceof NrtQueryCache);

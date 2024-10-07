@@ -38,8 +38,7 @@ public class ThreadPoolConfigurationTest {
   public void testConfiguration() throws FileNotFoundException {
     String config =
         Paths.get("src", "test", "resources", "config.yaml").toAbsolutePath().toString();
-    LuceneServerConfiguration luceneServerConfiguration =
-        new LuceneServerConfiguration(new FileInputStream(config));
+    NrtsearchConfig luceneServerConfiguration = new NrtsearchConfig(new FileInputStream(config));
     assertEquals("lucene_server_foo", luceneServerConfiguration.getNodeName());
     assertEquals("foohost", luceneServerConfiguration.getHostName());
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =

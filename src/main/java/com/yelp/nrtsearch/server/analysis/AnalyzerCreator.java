@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.analysis;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.ConditionalTokenFilter;
 import com.yelp.nrtsearch.server.grpc.Field;
 import com.yelp.nrtsearch.server.grpc.NameAndParams;
@@ -45,12 +45,12 @@ public class AnalyzerCreator {
 
   private static AnalyzerCreator instance;
 
-  private final LuceneServerConfiguration configuration;
+  private final NrtsearchConfig configuration;
   private final Map<String, AnalysisProvider<? extends Analyzer>> analyzerMap = new HashMap<>();
   private final Map<String, Class<? extends TokenFilterFactory>> tokenFilterMap = new HashMap<>();
   private final Map<String, Class<? extends CharFilterFactory>> charFilterMap = new HashMap<>();
 
-  public AnalyzerCreator(LuceneServerConfiguration configuration) {
+  public AnalyzerCreator(NrtsearchConfig configuration) {
     this.configuration = configuration;
     registerAnalyzer(STANDARD, name -> new StandardAnalyzer());
     registerAnalyzer(CLASSIC, name -> new ClassicAnalyzer());
@@ -131,7 +131,7 @@ public class AnalyzerCreator {
     charFilterMap.put(name, filterClass);
   }
 
-  public static void initialize(LuceneServerConfiguration configuration, Iterable<Plugin> plugins) {
+  public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new AnalyzerCreator(configuration);
     Set<String> builtInTokenFilters =
         TokenFilterFactory.availableTokenFilters().stream()

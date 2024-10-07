@@ -56,7 +56,7 @@ public class CreateIndexCommandTest {
   public void testCreateIndex() throws IOException {
     TestServer server = getTestServer();
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",
@@ -76,7 +76,7 @@ public class CreateIndexCommandTest {
   public void testCreateIndexWithSettings() throws IOException {
     TestServer server = getTestServer();
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",
@@ -99,7 +99,7 @@ public class CreateIndexCommandTest {
   public void testCreateIndexWithLiveSettings() throws IOException {
     TestServer server = getTestServer();
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",
@@ -122,7 +122,7 @@ public class CreateIndexCommandTest {
   public void testCreateIndexWithFields() throws IOException {
     TestServer server = getTestServer();
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",
@@ -154,7 +154,7 @@ public class CreateIndexCommandTest {
   public void testCreateIndexWithAll() throws IOException {
     TestServer server = getTestServer();
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",
@@ -191,7 +191,7 @@ public class CreateIndexCommandTest {
   public void testCreateAndStartIndex() throws IOException {
     TestServer server = getTestServer();
 
-    CommandLine cmd = new CommandLine(new LuceneClientCommand());
+    CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
         cmd.execute(
             "--hostname=localhost",

@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
 import com.yelp.nrtsearch.server.grpc.IndexGlobalState;
@@ -84,8 +84,8 @@ public class BackendGlobalStateTest {
   @BeforeClass
   public static void setup() {
     String configFile = "nodeName: \"lucene_server_foo\"";
-    LuceneServerConfiguration dummyConfig =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    NrtsearchConfig dummyConfig =
+        new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
     List<Plugin> dummyPlugins = Collections.emptyList();
     // these must be initialized to create an IndexState
     FieldDefCreator.initialize(dummyConfig, dummyPlugins);
@@ -111,8 +111,7 @@ public class BackendGlobalStateTest {
      * @param luceneServerConfiguration server config
      * @throws IOException on filesystem error
      */
-    public MockBackendGlobalState(LuceneServerConfiguration luceneServerConfiguration)
-        throws IOException {
+    public MockBackendGlobalState(NrtsearchConfig luceneServerConfiguration) throws IOException {
       super(luceneServerConfiguration, null);
     }
 
@@ -138,7 +137,7 @@ public class BackendGlobalStateTest {
     }
   }
 
-  private LuceneServerConfiguration getConfig() throws IOException {
+  private NrtsearchConfig getConfig() throws IOException {
     String configFile =
         String.join(
             "\n",
@@ -146,10 +145,10 @@ public class BackendGlobalStateTest {
             "  backendType: LOCAL",
             "stateDir: " + folder.newFolder("state").getAbsolutePath(),
             "indexDir: " + folder.newFolder("index").getAbsolutePath());
-    return new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
   }
 
-  private LuceneServerConfiguration getConfigWithLiveSettingsOverrides() throws IOException {
+  private NrtsearchConfig getConfigWithLiveSettingsOverrides() throws IOException {
     String configFile =
         String.join(
             "\n",
@@ -161,7 +160,7 @@ public class BackendGlobalStateTest {
             "  test_index:",
             "    sliceMaxDocs: 1",
             "    virtualShards: 100");
-    return new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
   }
 
   @Test
@@ -730,8 +729,7 @@ public class BackendGlobalStateTest {
             "  backendType: LOCAL",
             "stateDir: " + folder.newFolder("state").getAbsolutePath(),
             "indexDir: " + folder.newFolder("index").getAbsolutePath());
-    LuceneServerConfiguration config =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
     BackendGlobalState backendGlobalState = new BackendGlobalState(config, null);
     assertTrue(backendGlobalState.getStateBackend() instanceof LocalStateBackend);
   }
@@ -747,8 +745,7 @@ public class BackendGlobalStateTest {
             "    readOnly: false",
             "stateDir: " + folder.newFolder("state").getAbsolutePath(),
             "indexDir: " + folder.newFolder("index").getAbsolutePath());
-    LuceneServerConfiguration config =
-        new LuceneServerConfiguration(new ByteArrayInputStream(configFile.getBytes()));
+    NrtsearchConfig config = new NrtsearchConfig(new ByteArrayInputStream(configFile.getBytes()));
 
     Path tmpStateFolder =
         Paths.get(folder.getRoot().getAbsolutePath(), StateUtils.GLOBAL_STATE_FOLDER);

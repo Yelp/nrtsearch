@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.tools.cli;
 
 import com.yelp.nrtsearch.server.grpc.ForceMergeRequest;
 import com.yelp.nrtsearch.server.grpc.ForceMergeResponse;
-import com.yelp.nrtsearch.server.grpc.LuceneServerClient;
+import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.util.concurrent.Callable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +28,7 @@ public class ForceMergeCommand implements Callable<Integer> {
   private static final Logger logger = LoggerFactory.getLogger(ForceMergeCommand.class);
   public static final String FORCE_MERGE = "forceMerge";
 
-  @CommandLine.ParentCommand private LuceneClientCommand baseCmd;
+  @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
   @CommandLine.Option(
       names = {"-i", "--indexName"},
@@ -63,7 +63,7 @@ public class ForceMergeCommand implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    LuceneServerClient client = baseCmd.getClient();
+    NrtsearchClient client = baseCmd.getClient();
     try {
       ForceMergeResponse response =
           client
