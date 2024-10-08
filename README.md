@@ -1,4 +1,4 @@
-[![Coverage](.github/badges/jacoco.svg)](jacoco.svg) [![Docs](https://readthedocs.org/projects/nrtsearch/badge/?version=latest)](https://nrtsearch.readthedocs.io/en/latest/)
+[![Coverage](https://raw.githubusercontent.com/Yelp/nrtsearch/refs/heads/badge_main/jacoco.svg)](jacoco.svg) [![Docs](https://readthedocs.org/projects/nrtsearch/badge/?version=latest)](https://nrtsearch.readthedocs.io/en/latest/)
 # nrtSearch
 A high performance gRPC server, with optional REST APIs on top of [Apache Lucene](http://lucene.apache.org/) version 8.x source, exposing Lucene's
 core functionality over a simple gRPC based API.

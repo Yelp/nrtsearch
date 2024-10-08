@@ -14,3 +14,4 @@ jobs:
     uses: Yelp/nrtsearch/.github/workflows/gradle.yml@main
     with:
       branch: main
+      badge_branch: badge_main
