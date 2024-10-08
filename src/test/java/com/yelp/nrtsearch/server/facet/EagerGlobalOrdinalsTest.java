@@ -80,9 +80,10 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
   @Test
   public void testEagerOrdinals() throws Exception {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    ShardState shardState = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0);
+    ShardState shardState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0);
     try {
-      FieldDef fieldDef = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getField(EAGER_FIELD);
+      FieldDef fieldDef =
+          getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getFieldOrThrow(EAGER_FIELD);
       addDocAndRefresh();
       s = shardState.acquire();
       assertGlobalOrdinals(s.searcher.getIndexReader(), fieldDef);
@@ -105,9 +106,10 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
   @Test
   public void testWithoutEagerOrdinals() throws Exception {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    ShardState shardState = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0);
+    ShardState shardState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0);
     try {
-      FieldDef fieldDef = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getField(NOT_EAGER_FIELD);
+      FieldDef fieldDef =
+          getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getFieldOrThrow(NOT_EAGER_FIELD);
       addDocAndRefresh();
       s = shardState.acquire();
       assertNoGlobalOrdinals(s.searcher.getIndexReader(), fieldDef);
@@ -132,7 +134,7 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
   private void assertNoGlobalOrdinals(IndexReader reader, FieldDef fieldDef) throws IOException {
     Map<String, SortedSetDocValuesReaderState> readerSSDVStates =
         getGlobalState()
-            .getIndex(DEFAULT_TEST_INDEX)
+            .getIndexOrThrow(DEFAULT_TEST_INDEX)
             .getShard(0)
             .ssdvStates
             .get(reader.getReaderCacheHelper().getKey());
@@ -140,7 +142,7 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
     if (readerSSDVStates != null) {
       FacetsConfig.DimConfig dimConfig =
           getGlobalState()
-              .getIndex(DEFAULT_TEST_INDEX)
+              .getIndexOrThrow(DEFAULT_TEST_INDEX)
               .getFacetsConfig()
               .getDimConfig(fieldDef.getName());
       SortedSetDocValuesReaderState ssdvState = readerSSDVStates.get(dimConfig.indexFieldName);
@@ -151,7 +153,7 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
   private void assertGlobalOrdinals(IndexReader reader, FieldDef fieldDef) throws IOException {
     Map<String, SortedSetDocValuesReaderState> readerSSDVStates =
         getGlobalState()
-            .getIndex(DEFAULT_TEST_INDEX)
+            .getIndexOrThrow(DEFAULT_TEST_INDEX)
             .getShard(0)
             .ssdvStates
             .get(reader.getReaderCacheHelper().getKey());
@@ -159,7 +161,7 @@ public class EagerGlobalOrdinalsTest extends ServerTestCase {
 
     FacetsConfig.DimConfig dimConfig =
         getGlobalState()
-            .getIndex(DEFAULT_TEST_INDEX)
+            .getIndexOrThrow(DEFAULT_TEST_INDEX)
             .getFacetsConfig()
             .getDimConfig(fieldDef.getName());
     SortedSetDocValuesReaderState ssdvState = readerSSDVStates.get(dimConfig.indexFieldName);

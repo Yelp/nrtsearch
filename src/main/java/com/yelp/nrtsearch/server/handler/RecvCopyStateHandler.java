@@ -48,7 +48,7 @@ public class RecvCopyStateHandler extends Handler<CopyStateRequest, CopyState> {
   public void handle(CopyStateRequest request, StreamObserver<CopyState> responseObserver) {
     try {
       IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManager(request.getIndexName());
+          getGlobalState().getIndexStateManagerOrThrow(request.getIndexName());
       checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
 
       IndexState indexState = indexStateManager.getCurrent();

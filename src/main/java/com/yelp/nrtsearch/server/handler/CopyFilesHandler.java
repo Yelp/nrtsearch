@@ -50,7 +50,7 @@ public class CopyFilesHandler extends Handler<CopyFiles, TransferStatus> {
   public void handle(CopyFiles request, StreamObserver<TransferStatus> responseObserver) {
     try {
       IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManager(request.getIndexName());
+          getGlobalState().getIndexStateManagerOrThrow(request.getIndexName());
       checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
 
       IndexState indexState = indexStateManager.getCurrent();

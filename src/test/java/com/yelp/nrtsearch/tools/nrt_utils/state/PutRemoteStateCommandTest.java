@@ -117,7 +117,7 @@ public class PutRemoteStateCommandTest {
   public void testPutIndexState() throws IOException {
     TestServer server = getTestServer();
     IndexStateInfo currentState =
-        ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
+        ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
             .getCurrentStateInfo();
     IndexStateInfo updatedState =
         currentState.toBuilder()
@@ -141,7 +141,7 @@ public class PutRemoteStateCommandTest {
 
     server.restart();
     IndexStateInfo newCurrentState =
-        ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
+        ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
             .getCurrentStateInfo();
     assertEquals(updatedState, newCurrentState);
     assertNotEquals(currentState, newCurrentState);
@@ -151,7 +151,7 @@ public class PutRemoteStateCommandTest {
   public void testPutIndexStateExact() throws IOException {
     TestServer server = getTestServer();
     IndexStateInfo currentState =
-        ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
+        ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
             .getCurrentStateInfo();
     IndexStateInfo updatedState =
         currentState.toBuilder()
@@ -176,7 +176,7 @@ public class PutRemoteStateCommandTest {
 
     server.restart();
     IndexStateInfo newCurrentState =
-        ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
+        ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
             .getCurrentStateInfo();
     assertEquals(updatedState, newCurrentState);
     assertNotEquals(currentState, newCurrentState);

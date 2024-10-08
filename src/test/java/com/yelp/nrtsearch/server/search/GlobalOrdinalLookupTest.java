@@ -53,26 +53,26 @@ public class GlobalOrdinalLookupTest extends ServerTestCase {
   }
 
   protected void initIndex(String name) throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(name).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(name).getShard(0).writer;
     // don't want any merges for these tests
     writer.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
   }
 
   @Before
   public void clearIndex() throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).writer;
     writer.deleteAll();
   }
 
   @Test
   public void testEmptyIndex() throws IOException {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     ShardState shardState = indexState.getShard(0);
     try {
       s = shardState.acquire();
-      assertEmptyLookup(indexState.getField(VALUE_FIELD), s.searcher.getIndexReader());
-      assertEmptyLookup(indexState.getField(VALUE_MULTI_FIELD), s.searcher.getIndexReader());
+      assertEmptyLookup(indexState.getFieldOrThrow(VALUE_FIELD), s.searcher.getIndexReader());
+      assertEmptyLookup(indexState.getFieldOrThrow(VALUE_MULTI_FIELD), s.searcher.getIndexReader());
     } finally {
       if (s != null) {
         shardState.release(s);
@@ -99,12 +99,13 @@ public class GlobalOrdinalLookupTest extends ServerTestCase {
     addData("1");
 
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     ShardState shardState = indexState.getShard(0);
     try {
       s = shardState.acquire();
-      assertSingleLookup(indexState.getField(VALUE_FIELD), s.searcher.getIndexReader());
-      assertSingleLookup(indexState.getField(VALUE_MULTI_FIELD), s.searcher.getIndexReader());
+      assertSingleLookup(indexState.getFieldOrThrow(VALUE_FIELD), s.searcher.getIndexReader());
+      assertSingleLookup(
+          indexState.getFieldOrThrow(VALUE_MULTI_FIELD), s.searcher.getIndexReader());
     } finally {
       if (s != null) {
         shardState.release(s);
@@ -127,12 +128,12 @@ public class GlobalOrdinalLookupTest extends ServerTestCase {
     addData("3");
 
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     ShardState shardState = indexState.getShard(0);
     try {
       s = shardState.acquire();
-      assertMultiLookup(indexState.getField(VALUE_FIELD), s.searcher.getIndexReader());
-      assertMultiLookup(indexState.getField(VALUE_MULTI_FIELD), s.searcher.getIndexReader());
+      assertMultiLookup(indexState.getFieldOrThrow(VALUE_FIELD), s.searcher.getIndexReader());
+      assertMultiLookup(indexState.getFieldOrThrow(VALUE_MULTI_FIELD), s.searcher.getIndexReader());
     } finally {
       if (s != null) {
         shardState.release(s);
@@ -156,7 +157,7 @@ public class GlobalOrdinalLookupTest extends ServerTestCase {
   }
 
   private void addData(String value) throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).writer;
 
     AddDocumentRequest request =
         AddDocumentRequest.newBuilder()
@@ -170,6 +171,6 @@ public class GlobalOrdinalLookupTest extends ServerTestCase {
             .build();
     addDocuments(Stream.of(request));
     writer.flush();
-    getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).maybeRefreshBlocking();
+    getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).maybeRefreshBlocking();
   }
 }

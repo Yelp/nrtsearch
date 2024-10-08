@@ -82,7 +82,7 @@ public class FacetTopDocs {
   private static FacetResult facetFromTopDocs(
       TopDocs topDocs, Facet facet, IndexState indexState, IndexSearcher searcher)
       throws IOException {
-    FieldDef fieldDef = indexState.getField(facet.getDim());
+    FieldDef fieldDef = indexState.getFieldOrThrow(facet.getDim());
     if (!(fieldDef instanceof IndexableFieldDef)) {
       throw new IllegalArgumentException(
           "Sampling facet field must be indexable: " + facet.getDim());

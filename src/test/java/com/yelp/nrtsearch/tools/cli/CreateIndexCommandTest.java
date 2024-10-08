@@ -212,14 +212,14 @@ public class CreateIndexCommandTest {
   }
 
   private IndexSettings getIndexSettings(TestServer server) throws IOException {
-    return server.getGlobalState().getIndexStateManager("test_index").getSettings();
+    return server.getGlobalState().getIndexStateManagerOrThrow("test_index").getSettings();
   }
 
   private IndexLiveSettings getIndexLiveSettings(TestServer server) throws IOException {
-    return server.getGlobalState().getIndexStateManager("test_index").getLiveSettings(false);
+    return server.getGlobalState().getIndexStateManagerOrThrow("test_index").getLiveSettings(false);
   }
 
   private Map<String, FieldDef> getIndexFields(TestServer server) throws IOException {
-    return server.getGlobalState().getIndex("test_index").getAllFields();
+    return server.getGlobalState().getIndexOrThrow("test_index").getAllFields();
   }
 }

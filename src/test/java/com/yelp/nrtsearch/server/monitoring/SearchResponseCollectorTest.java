@@ -70,7 +70,7 @@ public class SearchResponseCollectorTest {
 
     when(mockIndexState.getVerboseMetrics()).thenReturn(false);
     when(mockGlobalState.getIndexNames()).thenReturn(Collections.singleton("test_index"));
-    when(mockGlobalState.getIndex("test_index")).thenReturn(mockIndexState);
+    when(mockGlobalState.getIndexOrThrow("test_index")).thenReturn(mockIndexState);
 
     SearchResponseCollector collector = new SearchResponseCollector(mockGlobalState);
     MetricSnapshots metrics = collector.collect();
@@ -92,7 +92,7 @@ public class SearchResponseCollectorTest {
 
     when(mockIndexState.getVerboseMetrics()).thenReturn(true);
     when(mockGlobalState.getIndexNames()).thenReturn(Collections.singleton("test_index"));
-    when(mockGlobalState.getIndex("test_index")).thenReturn(mockIndexState);
+    when(mockGlobalState.getIndexOrThrow("test_index")).thenReturn(mockIndexState);
 
     SearchResponseCollector collector = new SearchResponseCollector(mockGlobalState);
     MetricSnapshots metrics = collector.collect();

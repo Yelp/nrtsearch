@@ -38,7 +38,7 @@ public class UpdateFieldsHandler extends Handler<FieldDefRequest, FieldDefRespon
     logger.info("Received update fields request: {}", fieldDefRequest);
     try {
       IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManager(fieldDefRequest.getIndexName());
+          getGlobalState().getIndexStateManagerOrThrow(fieldDefRequest.getIndexName());
       String updatedFields = indexStateManager.updateFields(fieldDefRequest.getFieldList());
       FieldDefResponse reply = FieldDefResponse.newBuilder().setResponse(updatedFields).build();
       logger.info("UpdateFieldsHandler registered fields " + reply);

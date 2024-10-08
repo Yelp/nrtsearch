@@ -38,7 +38,7 @@ public class IndexAnalyzer extends AnalyzerWrapper {
 
   @Override
   protected Analyzer getWrappedAnalyzer(String name) {
-    FieldDef fd = stateManager.getCurrent().getField(name);
+    FieldDef fd = stateManager.getCurrent().getFieldOrThrow(name);
     if (fd instanceof TextBaseFieldDef || fd instanceof ContextSuggestFieldDef) {
       Optional<Analyzer> maybeAnalyzer;
       if (fd instanceof TextBaseFieldDef) {

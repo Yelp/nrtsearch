@@ -224,7 +224,7 @@ public class TestServer {
       GlobalState globalState = serverImpl.getGlobalState();
       for (String indexName : globalState.getIndexNames()) {
         try {
-          IndexState indexState = globalState.getIndex(indexName);
+          IndexState indexState = globalState.getIndexOrThrow(indexName);
           if (indexState.isStarted()) {
             indexState.close();
           }
@@ -526,7 +526,7 @@ public class TestServer {
   }
 
   public void waitForReplication(String indexName, long timeoutMs) throws IOException {
-    ShardState shardState = getGlobalState().getIndex(indexName).getShard(0);
+    ShardState shardState = getGlobalState().getIndexOrThrow(indexName).getShard(0);
     if (!shardState.isReplica()) {
       throw new IllegalStateException("Must be called on replica index");
     }
@@ -549,7 +549,7 @@ public class TestServer {
   }
 
   public void registerWithPrimary(String indexName, long timeoutMs) throws IOException {
-    IndexStateManager indexStateManager = getGlobalState().getIndexStateManager(indexName);
+    IndexStateManager indexStateManager = getGlobalState().getIndexStateManagerOrThrow(indexName);
     ShardState shardState = indexStateManager.getCurrent().getShard(0);
     if (!shardState.isReplica()) {
       throw new IllegalStateException("Must be called on replica index");

@@ -387,7 +387,7 @@ public class MergeBehaviorTests {
             grpcServer.getTestIndex(),
             grpcServer
                 .getGlobalState()
-                .getIndexStateManager(grpcServer.getTestIndex())
+                .getIndexStateManagerOrThrow(grpcServer.getTestIndex())
                 .getIndexId()),
         "shard0",
         "index");

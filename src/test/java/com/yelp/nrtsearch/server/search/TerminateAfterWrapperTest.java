@@ -56,7 +56,7 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
 
   @Override
   public void initIndex(String name) throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(name).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(name).getShard(0).writer;
     // don't want any merges for these tests
     writer.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
 
@@ -124,7 +124,7 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
 
   @Test
   public void testDefaultTerminateAfter() throws IOException {
-    IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     try {
       setDefaultTerminateAfter(15);
       SearchResponse response = doQuery(0, 0, 0.0, false);
@@ -138,7 +138,7 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
 
   @Test
   public void testOverrideDefaultTerminateAfter() throws IOException {
-    IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     try {
       setDefaultTerminateAfter(15);
       SearchResponse response = doQuery(5, 0, 0.0, false);
@@ -184,7 +184,7 @@ public class TerminateAfterWrapperTest extends ServerTestCase {
 
   private void setDefaultTerminateAfter(int defaultTerminateAfter) throws IOException {
     getGlobalState()
-        .getIndexStateManager(DEFAULT_TEST_INDEX)
+        .getIndexStateManagerOrThrow(DEFAULT_TEST_INDEX)
         .updateLiveSettings(
             IndexLiveSettings.newBuilder()
                 .setDefaultTerminateAfter(

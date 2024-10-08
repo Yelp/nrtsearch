@@ -16,6 +16,7 @@
 package com.yelp.nrtsearch.server.state;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -182,7 +183,7 @@ public class BackendGlobalStateTest {
 
     assertEquals(1, backendGlobalState.getIndexNames().size());
     assertTrue(backendGlobalState.getIndexNames().contains("test_index"));
-    assertSame(mockState, backendGlobalState.getIndex("test_index"));
+    assertSame(mockState, backendGlobalState.getIndexOrThrow("test_index"));
 
     verify(mockBackend, times(1)).loadOrCreateGlobalState();
 
@@ -223,7 +224,7 @@ public class BackendGlobalStateTest {
 
     assertEquals(1, backendGlobalState.getIndexNames().size());
     assertTrue(backendGlobalState.getIndexNames().contains("test_index"));
-    assertSame(mockState, backendGlobalState.getIndex("test_index"));
+    assertSame(mockState, backendGlobalState.getIndexOrThrow("test_index"));
 
     verify(mockBackend, times(1)).loadOrCreateGlobalState();
 
@@ -288,11 +289,59 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
+    assertNull(backendGlobalState.getIndexStateManager("invalid"));
+  }
+
+  @Test
+  public void testGetIndexStateManagerOrThrow() throws IOException {
+    StateBackend mockBackend = mock(StateBackend.class);
+    GlobalStateInfo initialState = GlobalStateInfo.newBuilder().build();
+    when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
+
+    Map<String, IndexStateManager> mockManagers = new HashMap<>();
+    IndexStateManager mockManager = mock(IndexStateManager.class);
+    IndexState mockState = mock(IndexState.class);
+    when(mockManager.getCurrent()).thenReturn(mockState);
+    mockManagers.put(BackendGlobalState.getUniqueIndexName("test_index", "0"), mockManager);
+
+    MockBackendGlobalState.stateBackend = mockBackend;
+    MockBackendGlobalState.stateManagers = mockManagers;
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
+    backendGlobalState.createIndex("test_index");
+
+    assertSame(mockManager, backendGlobalState.getIndexStateManagerOrThrow("test_index"));
+
+    verify(mockBackend, times(1)).loadOrCreateGlobalState();
+
+    ArgumentCaptor<GlobalStateInfo> stateArgumentCaptor =
+        ArgumentCaptor.forClass(GlobalStateInfo.class);
+    verify(mockBackend, times(1)).commitGlobalState(stateArgumentCaptor.capture());
+    GlobalStateInfo committedState = stateArgumentCaptor.getValue();
+    assertEquals(1, committedState.getGen());
+    assertEquals(1, committedState.getIndicesMap().size());
+    assertEquals(
+        IndexGlobalState.newBuilder().setId("0").setStarted(false).build(),
+        committedState.getIndicesMap().get("test_index"));
+
+    verify(mockManager, times(1)).getCurrent();
+    verify(mockManager, times(1)).create();
+
+    verifyNoMoreInteractions(mockBackend, mockManager, mockState);
+  }
+
+  @Test
+  public void testGetIndexStateManagerOrThrowNotPresent() throws IOException {
+    StateBackend mockBackend = mock(StateBackend.class);
+    GlobalStateInfo initialState = GlobalStateInfo.newBuilder().build();
+    when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
+
+    MockBackendGlobalState.stateBackend = mockBackend;
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     try {
-      backendGlobalState.getIndexStateManager("invalid");
+      backendGlobalState.getIndexStateManagerOrThrow("invalid");
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("index \"invalid\" was not saved or committed", e.getMessage());
+      assertEquals("index \"invalid\" not found", e.getMessage());
     }
   }
 
@@ -322,8 +371,8 @@ public class BackendGlobalStateTest {
     assertEquals(2, backendGlobalState.getIndexNames().size());
     assertTrue(backendGlobalState.getIndexNames().contains("test_index"));
     assertTrue(backendGlobalState.getIndexNames().contains("test_index_2"));
-    assertSame(mockState, backendGlobalState.getIndex("test_index"));
-    assertSame(mockState2, backendGlobalState.getIndex("test_index_2"));
+    assertSame(mockState, backendGlobalState.getIndexOrThrow("test_index"));
+    assertSame(mockState2, backendGlobalState.getIndexOrThrow("test_index_2"));
 
     verify(mockBackend, times(1)).loadOrCreateGlobalState();
 
@@ -426,10 +475,10 @@ public class BackendGlobalStateTest {
 
     assertEquals(1, backendGlobalState.getIndexNames().size());
     assertTrue(backendGlobalState.getIndexNames().contains("test_index"));
-    IndexState createdState = backendGlobalState.getIndex("test_index");
+    IndexState createdState = backendGlobalState.getIndexOrThrow("test_index");
     assertSame(mockState, createdState);
 
-    IndexState getIndexState = backendGlobalState.getIndex("test_index");
+    IndexState getIndexState = backendGlobalState.getIndexOrThrow("test_index");
     assertSame(createdState, getIndexState);
 
     verify(mockBackend, times(1)).loadOrCreateGlobalState();
@@ -471,7 +520,7 @@ public class BackendGlobalStateTest {
     MockBackendGlobalState.stateBackend = mockBackend;
     MockBackendGlobalState.stateManagers = mockManagers;
     BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
-    assertSame(mockState, backendGlobalState.getIndex("test_index"));
+    assertSame(mockState, backendGlobalState.getIndexOrThrow("test_index"));
 
     verify(mockBackend, times(1)).loadOrCreateGlobalState();
 
@@ -504,7 +553,7 @@ public class BackendGlobalStateTest {
     MockBackendGlobalState.expectedLiveSettingsOverrides = LIVE_SETTINGS_OVERRIDES;
     BackendGlobalState backendGlobalState =
         new MockBackendGlobalState(getConfigWithLiveSettingsOverrides());
-    assertSame(mockState, backendGlobalState.getIndex("test_index"));
+    assertSame(mockState, backendGlobalState.getIndexOrThrow("test_index"));
 
     verify(mockBackend, times(1)).loadOrCreateGlobalState();
 
@@ -522,11 +571,22 @@ public class BackendGlobalStateTest {
 
     MockBackendGlobalState.stateBackend = mockBackend;
     BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
+    assertNull(backendGlobalState.getIndex("test_index"));
+  }
+
+  @Test
+  public void testGetIndexOrThrowNotExists() throws IOException {
+    StateBackend mockBackend = mock(StateBackend.class);
+    GlobalStateInfo initialState = GlobalStateInfo.newBuilder().build();
+    when(mockBackend.loadOrCreateGlobalState()).thenReturn(initialState);
+
+    MockBackendGlobalState.stateBackend = mockBackend;
+    BackendGlobalState backendGlobalState = new MockBackendGlobalState(getConfig());
     try {
-      backendGlobalState.getIndex("test_index");
+      backendGlobalState.getIndexOrThrow("test_index");
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("index \"test_index\" was not saved or committed", e.getMessage());
+      assertEquals("index \"test_index\" not found", e.getMessage());
     }
   }
 
@@ -556,12 +616,12 @@ public class BackendGlobalStateTest {
     assertEquals(2, backendGlobalState.getIndexNames().size());
     assertTrue(backendGlobalState.getIndexNames().contains("test_index"));
     assertTrue(backendGlobalState.getIndexNames().contains("test_index_2"));
-    assertSame(mockState, backendGlobalState.getIndex("test_index"));
-    assertSame(mockState2, backendGlobalState.getIndex("test_index_2"));
+    assertSame(mockState, backendGlobalState.getIndexOrThrow("test_index"));
+    assertSame(mockState2, backendGlobalState.getIndexOrThrow("test_index_2"));
 
     backendGlobalState.deleteIndex("test_index");
     assertEquals(1, backendGlobalState.getIndexNames().size());
-    assertSame(mockState2, backendGlobalState.getIndex("test_index_2"));
+    assertSame(mockState2, backendGlobalState.getIndexOrThrow("test_index_2"));
 
     verify(mockBackend, times(1)).loadOrCreateGlobalState();
 
@@ -678,7 +738,7 @@ public class BackendGlobalStateTest {
 
     assertEquals(1, backendGlobalState.getIndexNames().size());
     assertTrue(backendGlobalState.getIndexNames().contains("test_index"));
-    assertSame(mockState, backendGlobalState.getIndex("test_index"));
+    assertSame(mockState, backendGlobalState.getIndexOrThrow("test_index"));
 
     backendGlobalState.deleteIndex("test_index");
     assertEquals(0, backendGlobalState.getIndexNames().size());
@@ -687,7 +747,7 @@ public class BackendGlobalStateTest {
 
     assertEquals(1, backendGlobalState.getIndexNames().size());
     assertTrue(backendGlobalState.getIndexNames().contains("test_index"));
-    assertSame(mockState2, backendGlobalState.getIndex("test_index"));
+    assertSame(mockState2, backendGlobalState.getIndexOrThrow("test_index"));
 
     verify(mockBackend, times(1)).loadOrCreateGlobalState();
 
@@ -887,7 +947,7 @@ public class BackendGlobalStateTest {
       backendGlobalState.startIndex(request);
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("index \"test_index\" was not saved or committed", e.getMessage());
+      assertEquals("index \"test_index\" not found", e.getMessage());
     }
   }
 
@@ -1129,7 +1189,7 @@ public class BackendGlobalStateTest {
       backendGlobalState.stopIndex(request);
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals("index \"test_index\" was not saved or committed", e.getMessage());
+      assertEquals("index \"test_index\" not found", e.getMessage());
     }
   }
 

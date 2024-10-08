@@ -105,7 +105,8 @@ public class UpdateGlobalIndexStateCommandTest {
     server.commit("test_index");
     server.verifySimpleDocs("test_index", 3);
 
-    String firstIndexId = server.getGlobalState().getIndexStateManager("test_index").getIndexId();
+    String firstIndexId =
+        server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
     server.deleteIndex("test_index");
 
     server.createSimpleIndex("test_index");
@@ -114,7 +115,8 @@ public class UpdateGlobalIndexStateCommandTest {
     server.refresh("test_index");
     server.commit("test_index");
     server.verifySimpleDocs("test_index", 5);
-    String secondIndexId = server.getGlobalState().getIndexStateManager("test_index").getIndexId();
+    String secondIndexId =
+        server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
     assertNotEquals(firstIndexId, secondIndexId);
 
     CommandLine cmd = getInjectedCommand();
@@ -128,7 +130,8 @@ public class UpdateGlobalIndexStateCommandTest {
     server.restart();
     assertTrue(server.isStarted("test_index"));
 
-    String thirdIndexId = server.getGlobalState().getIndexStateManager("test_index").getIndexId();
+    String thirdIndexId =
+        server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
     assertEquals(firstIndexId, thirdIndexId);
     server.verifySimpleDocs("test_index", 3);
   }
@@ -138,8 +141,9 @@ public class UpdateGlobalIndexStateCommandTest {
     TestServer server = getTestServer();
     server.startPrimaryIndex("test_index", -1, null);
     server.createSimpleIndex("test_index_2");
-    String indexId = server.getGlobalState().getIndexStateManager("test_index").getIndexId();
-    String index2Id = server.getGlobalState().getIndexStateManager("test_index_2").getIndexId();
+    String indexId = server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
+    String index2Id =
+        server.getGlobalState().getIndexStateManagerOrThrow("test_index_2").getIndexId();
 
     CommandLine cmd = getInjectedCommand();
     int exitCode =
@@ -159,9 +163,10 @@ public class UpdateGlobalIndexStateCommandTest {
     server.restart();
     assertTrue(server.isStarted("test_index"));
     assertFalse(server.isStarted("test_index_2"));
-    assertEquals(indexId, server.getGlobalState().getIndexStateManager("test_index").getIndexId());
     assertEquals(
-        index2Id, server.getGlobalState().getIndexStateManager("test_index_2").getIndexId());
+        indexId, server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId());
+    assertEquals(
+        index2Id, server.getGlobalState().getIndexStateManagerOrThrow("test_index_2").getIndexId());
   }
 
   @Test
@@ -194,7 +199,7 @@ public class UpdateGlobalIndexStateCommandTest {
   public void testIndexIDNotInBackend() throws IOException {
     TestServer server = getTestServer();
     server.startPrimaryIndex("test_index", -1, null);
-    String indexId = server.getGlobalState().getIndexStateManager("test_index").getIndexId();
+    String indexId = server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
 
     CommandLine cmd = getInjectedCommand();
     int exitCode =
@@ -207,7 +212,8 @@ public class UpdateGlobalIndexStateCommandTest {
     server.restart();
 
     assertTrue(server.isStarted("test_index"));
-    assertEquals(indexId, server.getGlobalState().getIndexStateManager("test_index").getIndexId());
+    assertEquals(
+        indexId, server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId());
   }
 
   @Test

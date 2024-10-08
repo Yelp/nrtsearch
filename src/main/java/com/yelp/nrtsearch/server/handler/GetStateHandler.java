@@ -37,7 +37,7 @@ public class GetStateHandler extends Handler<StateRequest, StateResponse> {
   @Override
   public void handle(StateRequest request, StreamObserver<StateResponse> responseObserver) {
     try {
-      IndexState indexState = getGlobalState().getIndex(request.getIndexName());
+      IndexState indexState = getGlobalState().getIndexOrThrow(request.getIndexName());
       StateResponse reply = handle(indexState);
       logger.debug("GetStateHandler returned " + reply);
       responseObserver.onNext(reply);

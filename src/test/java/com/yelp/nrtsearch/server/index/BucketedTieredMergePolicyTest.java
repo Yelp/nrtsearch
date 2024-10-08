@@ -72,7 +72,7 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
 
   @Before
   public void clearIndex() throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).writer;
     writer.deleteAll();
   }
 
@@ -81,7 +81,7 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
     setLiveSettings(5, 10000, 100);
     addData(500);
 
-    ShardState shardState = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0);
+    ShardState shardState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0);
     MergePolicy policy = shardState.writer.getConfig().getMergePolicy();
     assertTrue(policy instanceof BucketedTieredMergePolicy);
 
@@ -90,7 +90,7 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
 
     SearcherAndTaxonomy s = null;
     try {
-      s = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).acquire();
+      s = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).acquire();
       assertEquals(5, s.searcher.getSlices().length);
       for (LeafSlice slice : s.searcher.getSlices()) {
         assertTrue(slice.leaves.length < 100);
@@ -113,14 +113,14 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
     setLiveSettings(10, 10000, 100);
     addData(600);
 
-    ShardState shardState = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0);
+    ShardState shardState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0);
     shardState.writer.forceMerge(1, true);
     waitForMerges(shardState);
     shardState.maybeRefreshBlocking();
 
     SearcherAndTaxonomy s = null;
     try {
-      s = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).acquire();
+      s = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).acquire();
       assertEquals(10, s.searcher.getSlices().length);
       for (LeafSlice slice : s.searcher.getSlices()) {
         assertEquals(1, slice.leaves.length);
@@ -145,7 +145,7 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
 
     s = null;
     try {
-      s = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).acquire();
+      s = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).acquire();
       assertEquals(5, s.searcher.getSlices().length);
       for (LeafSlice slice : s.searcher.getSlices()) {
         assertEquals(1, slice.leaves.length);
@@ -184,7 +184,7 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
 
   private void setLiveSettings(int virtualShards, int maxDocs, int maxSegments) throws IOException {
     getGlobalState()
-        .getIndexStateManager(DEFAULT_TEST_INDEX)
+        .getIndexStateManagerOrThrow(DEFAULT_TEST_INDEX)
         .updateLiveSettings(
             IndexLiveSettings.newBuilder()
                 .setVirtualShards(Int32Value.newBuilder().setValue(virtualShards).build())
@@ -195,7 +195,7 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
   }
 
   private void addData(int count) throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).writer;
 
     for (int i = 0; i < count; ++i) {
       AddDocumentRequest request =
@@ -220,7 +220,7 @@ public class BucketedTieredMergePolicyTest extends ServerTestCase {
       addDocuments(Stream.of(request));
       writer.flush();
     }
-    getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).maybeRefreshBlocking();
+    getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).maybeRefreshBlocking();
   }
 
   private void verifyData(int docs) {

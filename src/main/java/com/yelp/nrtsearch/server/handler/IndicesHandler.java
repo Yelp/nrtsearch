@@ -57,7 +57,7 @@ public class IndicesHandler extends Handler<IndicesRequest, IndicesResponse> {
     Set<String> indexNames = globalState.getIndexNames();
     IndicesResponse.Builder builder = IndicesResponse.newBuilder();
     for (String indexName : indexNames) {
-      IndexState indexState = globalState.getIndex(indexName);
+      IndexState indexState = globalState.getIndexOrThrow(indexName);
       if (indexState.isStarted()) {
         StatsResponse statsResponse = StatsHandler.process(indexState);
         builder.addIndicesResponse(

@@ -48,7 +48,7 @@ public class StatsHandler extends Handler<StatsRequest, StatsResponse> {
   @Override
   public void handle(StatsRequest statsRequest, StreamObserver<StatsResponse> responseObserver) {
     try {
-      IndexState indexState = getGlobalState().getIndex(statsRequest.getIndexName());
+      IndexState indexState = getGlobalState().getIndexOrThrow(statsRequest.getIndexName());
       indexState.verifyStarted();
       StatsResponse reply = process(indexState);
       logger.debug("StatsHandler retrieved stats for index: {} ", reply);

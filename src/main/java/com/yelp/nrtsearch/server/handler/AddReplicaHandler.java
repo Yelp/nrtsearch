@@ -46,7 +46,7 @@ public class AddReplicaHandler extends Handler<AddReplicaRequest, AddReplicaResp
       AddReplicaRequest addReplicaRequest, StreamObserver<AddReplicaResponse> responseObserver) {
     try {
       IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManager(addReplicaRequest.getIndexName());
+          getGlobalState().getIndexStateManagerOrThrow(addReplicaRequest.getIndexName());
       checkIndexId(addReplicaRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
 
       IndexState indexState = indexStateManager.getCurrent();

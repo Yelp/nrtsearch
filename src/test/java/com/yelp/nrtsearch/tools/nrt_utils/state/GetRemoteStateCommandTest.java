@@ -153,7 +153,7 @@ public class GetRemoteStateCommandTest {
     JsonFormat.parser().merge(contents, builder);
     IndexStateInfo stateInfo = builder.build();
     IndexStateInfo expected =
-        ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
+        ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
             .getCurrentStateInfo();
     assertEquals(expected, stateInfo);
   }
@@ -179,7 +179,7 @@ public class GetRemoteStateCommandTest {
     JsonFormat.parser().merge(contents, builder);
     IndexStateInfo stateInfo = builder.build();
     IndexStateInfo expected =
-        ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
+        ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
             .getCurrentStateInfo();
     assertEquals(expected, stateInfo);
   }

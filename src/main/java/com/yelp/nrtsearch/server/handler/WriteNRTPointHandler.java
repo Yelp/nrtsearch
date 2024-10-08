@@ -45,7 +45,7 @@ public class WriteNRTPointHandler extends Handler<IndexName, SearcherVersion> {
   public void handle(IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
     try {
       IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManager(indexNameRequest.getIndexName());
+          getGlobalState().getIndexStateManagerOrThrow(indexNameRequest.getIndexName());
       String indexId = indexStateManager.getIndexId();
       IndexState indexState = indexStateManager.getCurrent();
       SearcherVersion reply = handle(indexState, indexId);

@@ -66,7 +66,7 @@ public class MergeSchedulerCollectorTest {
     when(mockShardState.getWriter()).thenReturn(mockIndexWriter);
     when(mockIndexState.getShard(0)).thenReturn(mockShardState);
     when(mockGlobalState.getIndexNames()).thenReturn(Collections.singleton("test_index"));
-    when(mockGlobalState.getIndex("test_index")).thenReturn(mockIndexState);
+    when(mockGlobalState.getIndexOrThrow("test_index")).thenReturn(mockIndexState);
 
     MergeSchedulerCollector collector = new MergeSchedulerCollector(mockGlobalState);
     MetricSnapshots metrics = collector.collect();

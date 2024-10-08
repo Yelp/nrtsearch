@@ -43,7 +43,7 @@ public class TermsCollectorManagerTest extends ServerTestCase {
   @Test
   public void testFieldNotExist() throws IOException {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     ShardState shardState = indexState.getShard(0);
     try {
       s = shardState.acquire();
@@ -77,7 +77,7 @@ public class TermsCollectorManagerTest extends ServerTestCase {
   @Test
   public void testNoDocValues() throws IOException {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    IndexState indexState = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
+    IndexState indexState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     ShardState shardState = indexState.getShard(0);
     try {
       s = shardState.acquire();

@@ -64,7 +64,7 @@ public class MyIndexSearcherTest extends ServerTestCase {
 
   @Override
   public void initIndex(String name) throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(name).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(name).getShard(0).writer;
     // don't want any merges for these tests
     writer.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
 
@@ -132,7 +132,7 @@ public class MyIndexSearcherTest extends ServerTestCase {
 
   private void assertSliceParams(String index, int maxDocs, int maxSegments) throws IOException {
     SearcherAndTaxonomy s = null;
-    IndexState indexState = getGlobalState().getIndex(index);
+    IndexState indexState = getGlobalState().getIndexOrThrow(index);
     ShardState shardState = indexState.getShard(0);
     try {
       s = shardState.acquire();
@@ -154,7 +154,7 @@ public class MyIndexSearcherTest extends ServerTestCase {
   @Test
   public void testSliceDocsLimit() throws IOException {
     SearcherAndTaxonomy s = null;
-    ShardState shardState = getGlobalState().getIndex(DOCS_INDEX).getShard(0);
+    ShardState shardState = getGlobalState().getIndexOrThrow(DOCS_INDEX).getShard(0);
     try {
       s = shardState.acquire();
       LeafSlice[] slices = s.searcher.getSlices();
@@ -173,7 +173,7 @@ public class MyIndexSearcherTest extends ServerTestCase {
   @Test
   public void testSliceSegmentsLimit() throws IOException {
     SearcherAndTaxonomy s = null;
-    ShardState shardState = getGlobalState().getIndex(SEGMENTS_INDEX).getShard(0);
+    ShardState shardState = getGlobalState().getIndexOrThrow(SEGMENTS_INDEX).getShard(0);
     try {
       s = shardState.acquire();
       LeafSlice[] slices = s.searcher.getSlices();

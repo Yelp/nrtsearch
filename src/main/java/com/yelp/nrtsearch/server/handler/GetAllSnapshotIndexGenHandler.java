@@ -39,7 +39,7 @@ public class GetAllSnapshotIndexGenHandler
     try {
       Set<Long> snapshotGens =
           getGlobalState()
-              .getIndex(request.getIndexName())
+              .getIndexOrThrow(request.getIndexName())
               .getShard(0)
               .snapshotGenToVersion
               .keySet();

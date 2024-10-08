@@ -71,7 +71,7 @@ public class MergeSchedulerCollector implements MultiCollector {
     try {
       Set<String> indexNames = globalState.getIndexNames();
       for (String indexName : indexNames) {
-        IndexWriter writer = globalState.getIndex(indexName).getShard(0).getWriter();
+        IndexWriter writer = globalState.getIndexOrThrow(indexName).getShard(0).getWriter();
         if (writer != null) {
           MergeScheduler mergeScheduler = writer.getConfig().getMergeScheduler();
           if (mergeScheduler instanceof ConcurrentMergeScheduler concurrentMergeScheduler) {

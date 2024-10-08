@@ -72,7 +72,7 @@ public class RescorerTest extends ServerTestCase {
 
   @Override
   public void initIndex(String name) throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(name).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(name).getShard(0).writer;
     // don't want any merges for these tests
     writer.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
 
@@ -143,7 +143,7 @@ public class RescorerTest extends ServerTestCase {
           LoadedDocValues<Integer> docValues =
               ((LoadedDocValues<Integer>)
                   ((IndexableFieldDef)
-                          context.getSearchContext().getIndexState().getField("int_score"))
+                          context.getSearchContext().getIndexState().getFieldOrThrow("int_score"))
                       .getDocValues(leaf));
           docValues.setDocId(doc.doc - leaf.docBase);
           int score = docValues.get(0);

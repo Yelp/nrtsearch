@@ -302,7 +302,7 @@ public class MultivaluedObjectTest extends ServerTestCase {
         exception
             .getMessage()
             .contains(
-                "field \"multivalued_object.inner_object1.inner_object2.object\" is unknown: it was not registered with registerField"));
+                "field \"multivalued_object.inner_object1.inner_object2.object\" is unknown"));
 
     exception = null;
     try {

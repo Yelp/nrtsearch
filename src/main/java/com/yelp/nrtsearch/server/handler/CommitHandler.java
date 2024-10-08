@@ -45,7 +45,7 @@ public class CommitHandler extends Handler<CommitRequest, CommitResponse> {
                       () -> {
                         try {
                           IndexState indexState =
-                              getGlobalState().getIndex(commitRequest.getIndexName());
+                              getGlobalState().getIndexOrThrow(commitRequest.getIndexName());
                           long gen = indexState.commit();
                           CommitResponse reply =
                               CommitResponse.newBuilder()

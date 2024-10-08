@@ -42,7 +42,7 @@ public class NewNRTPointHandler extends Handler<NewNRTPoint, TransferStatus> {
   public void handle(NewNRTPoint request, StreamObserver<TransferStatus> responseObserver) {
     try {
       IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManager(request.getIndexName());
+          getGlobalState().getIndexStateManagerOrThrow(request.getIndexName());
       checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
 
       IndexState indexState = indexStateManager.getCurrent();

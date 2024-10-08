@@ -73,7 +73,7 @@ public class HighlightFetchTask implements FetchTask {
     for (Entry<String, HighlightSettings> fieldSetting : fieldSettings.entrySet()) {
       String fieldName = fieldSetting.getKey();
       Highlighter highlighter = fieldSetting.getValue().getHighlighter();
-      FieldDef fieldDef = indexState.getField(fieldName);
+      FieldDef fieldDef = indexState.getFieldOrThrow(fieldName);
       TextBaseFieldDef textBaseFieldDef =
           (TextBaseFieldDef) fieldDef; // This is safe as we verified earlier
       String[] highlights =
@@ -112,7 +112,7 @@ public class HighlightFetchTask implements FetchTask {
     for (Entry<String, HighlightSettings> entry : fieldSettings.entrySet()) {
       String fieldName = entry.getKey();
       Highlighter highlighter = entry.getValue().getHighlighter();
-      FieldDef field = indexState.getField(fieldName);
+      FieldDef field = indexState.getFieldOrThrow(fieldName);
       if (!(field instanceof TextBaseFieldDef)) {
         throw new IllegalArgumentException(
             String.format(

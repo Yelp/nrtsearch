@@ -320,7 +320,7 @@ public class QueryNodeMapper {
 
   private Query getTermQuery(com.yelp.nrtsearch.server.grpc.TermQuery termQuery, IndexState state) {
     String fieldName = termQuery.getField();
-    FieldDef fieldDef = state.getField(fieldName);
+    FieldDef fieldDef = state.getFieldOrThrow(fieldName);
 
     if (fieldDef instanceof TermQueryable) {
       validateTermQueryIsSearchable(fieldDef);
@@ -344,7 +344,7 @@ public class QueryNodeMapper {
   private Query getTermInSetQuery(
       com.yelp.nrtsearch.server.grpc.TermInSetQuery termInSetQuery, IndexState state) {
     String fieldName = termInSetQuery.getField();
-    FieldDef fieldDef = state.getField(fieldName);
+    FieldDef fieldDef = state.getFieldOrThrow(fieldName);
 
     if (fieldDef instanceof TermQueryable) {
       validateTermQueryIsSearchable(fieldDef);
@@ -510,7 +510,7 @@ public class QueryNodeMapper {
       Collection<String> fields, MultiMatchQuery multiMatchQuery, IndexState state) {
     Analyzer analyzer = null;
     for (String field : fields) {
-      FieldDef fieldDef = state.getField(field);
+      FieldDef fieldDef = state.getFieldOrThrow(field);
       if (!(fieldDef instanceof TextBaseFieldDef)) {
         throw new IllegalArgumentException("Field must be analyzable: " + field);
       }
@@ -540,7 +540,7 @@ public class QueryNodeMapper {
 
   private Query getRangeQuery(RangeQuery rangeQuery, IndexState state) {
     String fieldName = rangeQuery.getField();
-    FieldDef field = state.getField(fieldName);
+    FieldDef field = state.getFieldOrThrow(fieldName);
 
     if (!(field instanceof RangeQueryable)) {
       throw new IllegalArgumentException("Field: " + fieldName + " does not support RangeQuery");
@@ -551,7 +551,7 @@ public class QueryNodeMapper {
 
   private Query getGeoBoundingBoxQuery(GeoBoundingBoxQuery geoBoundingBoxQuery, IndexState state) {
     String fieldName = geoBoundingBoxQuery.getField();
-    FieldDef field = state.getField(fieldName);
+    FieldDef field = state.getFieldOrThrow(fieldName);
 
     if (!(field instanceof GeoQueryable)) {
       throw new IllegalArgumentException(
@@ -563,7 +563,7 @@ public class QueryNodeMapper {
 
   private Query getGeoRadiusQuery(GeoRadiusQuery geoRadiusQuery, IndexState state) {
     String fieldName = geoRadiusQuery.getField();
-    FieldDef field = state.getField(fieldName);
+    FieldDef field = state.getFieldOrThrow(fieldName);
     if (!(field instanceof GeoQueryable)) {
       throw new IllegalArgumentException(
           "Field: " + fieldName + " does not support GeoRadiusQuery");
@@ -573,7 +573,7 @@ public class QueryNodeMapper {
 
   private Query getGeoPointQuery(GeoPointQuery geoPolygonQuery, IndexState state) {
     String fieldName = geoPolygonQuery.getField();
-    FieldDef field = state.getField(fieldName);
+    FieldDef field = state.getFieldOrThrow(fieldName);
 
     if (!(field instanceof PolygonQueryable)) {
       throw new IllegalArgumentException("Field " + fieldName + "does not support GeoPolygonQuery");
@@ -583,7 +583,7 @@ public class QueryNodeMapper {
 
   private Query getGeoPolygonQuery(GeoPolygonQuery geoPolygonQuery, IndexState state) {
     String fieldName = geoPolygonQuery.getField();
-    FieldDef field = state.getField(fieldName);
+    FieldDef field = state.getFieldOrThrow(fieldName);
 
     if (!(field instanceof GeoQueryable)) {
       throw new IllegalArgumentException(
@@ -608,7 +608,7 @@ public class QueryNodeMapper {
   }
 
   private static Query getPrefixQuery(PrefixQuery prefixQuery, IndexState state) {
-    FieldDef fieldDef = state.getField(prefixQuery.getField());
+    FieldDef fieldDef = state.getFieldOrThrow(prefixQuery.getField());
     if (!(fieldDef instanceof IndexableFieldDef)) {
       throw new IllegalArgumentException(
           "Field \"" + prefixQuery.getPrefix() + "\" is not indexable");

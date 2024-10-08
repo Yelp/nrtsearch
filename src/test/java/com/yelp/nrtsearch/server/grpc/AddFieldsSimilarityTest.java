@@ -68,7 +68,7 @@ public class AddFieldsSimilarityTest {
     Similarity writerSim =
         server
             .getGlobalState()
-            .getIndex("test_index")
+            .getIndexOrThrow("test_index")
             .getShard(0)
             .writer
             .getConfig()

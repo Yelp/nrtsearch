@@ -70,8 +70,7 @@ public class ReadyHandler extends Handler<ReadyCheckRequest, HealthCheckResponse
     try {
       List<String> indicesNotStarted = new ArrayList<>();
       for (String indexName : indexNames) {
-        // The ready endpoint should skip loading index state
-        IndexState indexState = getGlobalState().getIndex(indexName, true);
+        IndexState indexState = getGlobalState().getIndexOrThrow(indexName);
         if (!indexState.isStarted()) {
           indicesNotStarted.add(indexName);
         }

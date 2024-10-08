@@ -112,9 +112,7 @@ public class PrefixQueryTest extends ServerTestCase {
       doQuery("invalid", "prefix");
       fail();
     } catch (StatusRuntimeException e) {
-      assertTrue(
-          e.getMessage()
-              .contains("field \"invalid\" is unknown: it was not registered with registerField"));
+      assertTrue(e.getMessage().contains("field \"invalid\" is unknown"));
     }
   }
 
@@ -193,7 +191,7 @@ public class PrefixQueryTest extends ServerTestCase {
   private RewriteMethod getRewriteMethodOfBuiltQuery(
       com.yelp.nrtsearch.server.grpc.RewriteMethod rewriteMethodGrpc, int topTermsSize)
       throws IOException {
-    IndexState state = getGlobalState().getIndex(DEFAULT_TEST_INDEX);
+    IndexState state = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX);
     org.apache.lucene.search.Query query =
         QueryNodeMapper.getInstance()
             .getQuery(

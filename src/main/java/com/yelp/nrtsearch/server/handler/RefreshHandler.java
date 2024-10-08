@@ -37,7 +37,7 @@ public class RefreshHandler extends Handler<RefreshRequest, RefreshResponse> {
   public void handle(
       RefreshRequest refreshRequest, StreamObserver<RefreshResponse> responseObserver) {
     try {
-      IndexState indexState = getGlobalState().getIndex(refreshRequest.getIndexName());
+      IndexState indexState = getGlobalState().getIndexOrThrow(refreshRequest.getIndexName());
       final ShardState shardState = indexState.getShard(0);
       long t0 = System.nanoTime();
       shardState.maybeRefreshBlocking();

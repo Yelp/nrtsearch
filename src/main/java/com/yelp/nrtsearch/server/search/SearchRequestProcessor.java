@@ -265,7 +265,7 @@ public class SearchRequestProcessor {
    */
   private static Query buildKnnQuery(KnnQuery knnQuery, IndexState indexState) {
     String field = knnQuery.getField();
-    FieldDef fieldDef = indexState.getField(field);
+    FieldDef fieldDef = indexState.getFieldOrThrow(field);
     if (!(fieldDef instanceof VectorQueryable vectorQueryable)) {
       throw new IllegalArgumentException("Field does not support vector search: " + field);
     }

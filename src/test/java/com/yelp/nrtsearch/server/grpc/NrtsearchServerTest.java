@@ -944,10 +944,13 @@ public class NrtsearchServerTest {
         new GrpcServer.TestServer(replicaGrpcServer, true, Mode.REPLICA);
     replicaGrpcServer
         .getGlobalState()
-        .getIndex(replicaGrpcServer.getTestIndex())
+        .getIndexOrThrow(replicaGrpcServer.getTestIndex())
         .initWarmer(remoteBackend);
     assertNotNull(
-        replicaGrpcServer.getGlobalState().getIndex(replicaGrpcServer.getTestIndex()).getWarmer());
+        replicaGrpcServer
+            .getGlobalState()
+            .getIndexOrThrow(replicaGrpcServer.getTestIndex())
+            .getWarmer());
     // Average case should pass
     replicaGrpcServer
         .getBlockingStub()
@@ -1189,7 +1192,7 @@ public class NrtsearchServerTest {
       assertEquals(0, startIndexResponse.getNumDocs());
     }
 
-    grpcServer.getGlobalState().getIndex(index3).getShard(0).writer.close();
+    grpcServer.getGlobalState().getIndexOrThrow(index3).getShard(0).writer.close();
 
     try {
       blockingStub.ready(ReadyCheckRequest.newBuilder().setIndexNames("").build());

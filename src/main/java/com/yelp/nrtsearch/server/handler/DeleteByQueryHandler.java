@@ -43,7 +43,7 @@ public class DeleteByQueryHandler extends Handler<DeleteByQueryRequest, AddDocum
       DeleteByQueryRequest deleteByQueryRequest,
       StreamObserver<AddDocumentResponse> responseObserver) {
     try {
-      IndexState indexState = getGlobalState().getIndex(deleteByQueryRequest.getIndexName());
+      IndexState indexState = getGlobalState().getIndexOrThrow(deleteByQueryRequest.getIndexName());
       AddDocumentResponse reply = handle(indexState, deleteByQueryRequest);
       logger.debug("DeleteDocumentsHandler returned " + reply.toString());
       responseObserver.onNext(reply);

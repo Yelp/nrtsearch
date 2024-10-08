@@ -40,7 +40,8 @@ public class DeleteAllDocumentsHandler
       StreamObserver<DeleteAllDocumentsResponse> responseObserver) {
     logger.info("Received delete all documents request: {}", deleteAllDocumentsRequest);
     try {
-      IndexState indexState = getGlobalState().getIndex(deleteAllDocumentsRequest.getIndexName());
+      IndexState indexState =
+          getGlobalState().getIndexOrThrow(deleteAllDocumentsRequest.getIndexName());
       DeleteAllDocumentsResponse reply = handle(indexState);
       logger.info("DeleteAllDocumentsHandler returned " + reply);
       responseObserver.onNext(reply);

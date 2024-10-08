@@ -50,7 +50,7 @@ public class IndexSimilarity extends PerFieldSimilarityWrapper {
    */
   public static Similarity getFromState(String name, IndexState indexState) {
     try {
-      FieldDef fd = indexState.getField(name);
+      FieldDef fd = indexState.getFieldOrThrow(name);
       if (fd instanceof IndexableFieldDef) {
         return ((IndexableFieldDef) fd).getSimilarity();
       }

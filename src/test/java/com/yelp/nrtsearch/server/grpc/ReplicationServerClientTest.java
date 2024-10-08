@@ -72,7 +72,8 @@ public class ReplicationServerClientTest {
   private Server getBasicReplicationServer() throws IOException {
     // we only need to test connectivity for now
     GlobalState mockGlobalState = mock(GlobalState.class);
-    when(mockGlobalState.getIndex(any(String.class))).thenThrow(new RuntimeException("Expected"));
+    when(mockGlobalState.getIndexOrThrow(any(String.class)))
+        .thenThrow(new RuntimeException("Expected"));
     NrtsearchConfig mockConfiguration = mock(NrtsearchConfig.class);
     when(mockGlobalState.getConfiguration()).thenReturn(mockConfiguration);
     when(mockConfiguration.getUseKeepAliveForReplication()).thenReturn(true);

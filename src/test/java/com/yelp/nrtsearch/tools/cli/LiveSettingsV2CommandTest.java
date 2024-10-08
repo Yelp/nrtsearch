@@ -51,7 +51,7 @@ public class LiveSettingsV2CommandTest {
     server.createSimpleIndex("test_index");
     server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
 
-    assertFalse(server.getGlobalState().getIndex("test_index").getVerboseMetrics());
+    assertFalse(server.getGlobalState().getIndexOrThrow("test_index").getVerboseMetrics());
 
     CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
@@ -61,7 +61,7 @@ public class LiveSettingsV2CommandTest {
             "liveSettingsV2",
             "--indexName=test_index");
     assertEquals(0, exitCode);
-    assertFalse(server.getGlobalState().getIndex("test_index").getVerboseMetrics());
+    assertFalse(server.getGlobalState().getIndexOrThrow("test_index").getVerboseMetrics());
 
     exitCode =
         cmd.execute(
@@ -71,7 +71,7 @@ public class LiveSettingsV2CommandTest {
             "--indexName=test_index",
             "--verboseMetrics=true");
     assertEquals(0, exitCode);
-    assertTrue(server.getGlobalState().getIndex("test_index").getVerboseMetrics());
+    assertTrue(server.getGlobalState().getIndexOrThrow("test_index").getVerboseMetrics());
 
     exitCode =
         cmd.execute(
@@ -80,7 +80,7 @@ public class LiveSettingsV2CommandTest {
             "liveSettingsV2",
             "--indexName=test_index");
     assertEquals(0, exitCode);
-    assertTrue(server.getGlobalState().getIndex("test_index").getVerboseMetrics());
+    assertTrue(server.getGlobalState().getIndexOrThrow("test_index").getVerboseMetrics());
 
     exitCode =
         cmd.execute(
@@ -90,7 +90,7 @@ public class LiveSettingsV2CommandTest {
             "--indexName=test_index",
             "--verboseMetrics=false");
     assertEquals(0, exitCode);
-    assertFalse(server.getGlobalState().getIndex("test_index").getVerboseMetrics());
+    assertFalse(server.getGlobalState().getIndexOrThrow("test_index").getVerboseMetrics());
   }
 
   @Test
@@ -117,7 +117,7 @@ public class LiveSettingsV2CommandTest {
     server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
 
     assertEquals(
-        0.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+        0.0, server.getGlobalState().getIndexOrThrow("test_index").getDefaultSearchTimeoutSec(), 0);
 
     CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
@@ -129,12 +129,12 @@ public class LiveSettingsV2CommandTest {
             "--defaultSearchTimeoutSec=1.0");
     assertEquals(0, exitCode);
     assertEquals(
-        1.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+        1.0, server.getGlobalState().getIndexOrThrow("test_index").getDefaultSearchTimeoutSec(), 0);
 
     server.restart();
 
     assertEquals(
-        1.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+        1.0, server.getGlobalState().getIndexOrThrow("test_index").getDefaultSearchTimeoutSec(), 0);
   }
 
   @Test
@@ -144,7 +144,7 @@ public class LiveSettingsV2CommandTest {
     server.startIndexV2(StartIndexV2Request.newBuilder().setIndexName("test_index").build());
 
     assertEquals(
-        0.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+        0.0, server.getGlobalState().getIndexOrThrow("test_index").getDefaultSearchTimeoutSec(), 0);
 
     CommandLine cmd = new CommandLine(new NrtsearchClientCommand());
     int exitCode =
@@ -157,11 +157,11 @@ public class LiveSettingsV2CommandTest {
             "--local");
     assertEquals(0, exitCode);
     assertEquals(
-        1.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+        1.0, server.getGlobalState().getIndexOrThrow("test_index").getDefaultSearchTimeoutSec(), 0);
 
     server.restart();
 
     assertEquals(
-        0.0, server.getGlobalState().getIndex("test_index").getDefaultSearchTimeoutSec(), 0);
+        0.0, server.getGlobalState().getIndexOrThrow("test_index").getDefaultSearchTimeoutSec(), 0);
   }
 }

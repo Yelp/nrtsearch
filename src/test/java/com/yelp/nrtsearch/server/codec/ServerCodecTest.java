@@ -50,7 +50,7 @@ public class ServerCodecTest {
     IndexStateManager mockStateManager = mock(IndexStateManager.class);
     IndexState mockIndexState = mock(IndexState.class);
     when(mockStateManager.getCurrent()).thenReturn(mockIndexState);
-    when(mockIndexState.getField("field")).thenReturn(fieldDef);
+    when(mockIndexState.getFieldOrThrow("field")).thenReturn(fieldDef);
     when(mockIndexState.getInternalFacetFieldNames()).thenReturn(Set.of("internal_field"));
     return mockStateManager;
   }

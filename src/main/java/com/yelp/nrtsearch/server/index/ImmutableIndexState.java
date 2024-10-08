@@ -435,13 +435,7 @@ public class ImmutableIndexState extends IndexState {
     if (fd != null) {
       return fd;
     }
-    fd = fieldAndFacetState.getFields().get(fieldName);
-    if (fd == null) {
-      String message =
-          "field \"" + fieldName + "\" is unknown: it was not registered with registerField";
-      throw new IllegalArgumentException(message);
-    }
-    return fd;
+    return fieldAndFacetState.getFields().get(fieldName);
   }
 
   @Override

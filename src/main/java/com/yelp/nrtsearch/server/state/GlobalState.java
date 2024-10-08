@@ -193,10 +193,30 @@ public abstract class GlobalState implements Closeable {
   /** Create a new index based on the given create request. */
   public abstract IndexState createIndex(CreateIndexRequest createIndexRequest) throws IOException;
 
-  public abstract IndexState getIndex(String name, boolean hasRestore) throws IOException;
-
-  /** Get the {@link IndexState} by index name. */
+  /**
+   * Get the {@link IndexState} by index name.
+   *
+   * @param name index name
+   * @return index state, or null if index does not exist
+   * @throws IOException on error reading index data
+   */
   public abstract IndexState getIndex(String name) throws IOException;
+
+  /**
+   * Get the {@link IndexState} by index name. Throws an exception if the index does not exist.
+   *
+   * @param name index name
+   * @return index state
+   * @throws IllegalArgumentException if the index does not exist
+   * @throws IOException on error reading index data
+   */
+  public IndexState getIndexOrThrow(String name) throws IOException {
+    IndexState indexState = getIndex(name);
+    if (indexState == null) {
+      throw new IllegalArgumentException("index \"" + name + "\" not found");
+    }
+    return indexState;
+  }
 
   /**
    * Get the state manager for a given index.
@@ -206,6 +226,22 @@ public abstract class GlobalState implements Closeable {
    * @throws IOException on error reading index data
    */
   public abstract IndexStateManager getIndexStateManager(String name) throws IOException;
+
+  /**
+   * Get the state manager for a given index. Throws an exception if the index does not exist.
+   *
+   * @param name index name
+   * @return state manager
+   * @throws IllegalArgumentException if the index does not exist
+   * @throws IOException on error reading index data
+   */
+  public IndexStateManager getIndexStateManagerOrThrow(String name) throws IOException {
+    IndexStateManager indexStateManager = getIndexStateManager(name);
+    if (indexStateManager == null) {
+      throw new IllegalArgumentException("index \"" + name + "\" not found");
+    }
+    return indexStateManager;
+  }
 
   /**
    * Reload state from backend
