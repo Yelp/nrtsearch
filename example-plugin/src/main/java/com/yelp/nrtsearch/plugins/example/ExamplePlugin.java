@@ -15,8 +15,8 @@
  */
 package com.yelp.nrtsearch.plugins.example;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
-import com.yelp.nrtsearch.server.luceneserver.analysis.AnalysisProvider;
+import com.yelp.nrtsearch.server.analysis.AnalysisProvider;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.plugins.AnalysisPlugin;
 import com.yelp.nrtsearch.server.plugins.CustomRequestPlugin;
 import com.yelp.nrtsearch.server.plugins.Plugin;
@@ -30,7 +30,7 @@ public class ExamplePlugin extends Plugin implements AnalysisPlugin, CustomReque
   private final String availableAnalyzers = String.join(",", getAnalyzers().keySet());
 
   // Constructor that accepts LuceneServerConfiguration object is required
-  public ExamplePlugin(LuceneServerConfiguration configuration) {}
+  public ExamplePlugin(NrtsearchConfig configuration) {}
 
   @Override
   public String id() {

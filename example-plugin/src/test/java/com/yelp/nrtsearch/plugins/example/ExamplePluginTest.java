@@ -17,7 +17,8 @@ package com.yelp.nrtsearch.plugins.example;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.yelp.nrtsearch.server.config.LuceneServerConfiguration;
+import com.yelp.nrtsearch.server.ServerTestCase;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest;
 import com.yelp.nrtsearch.server.grpc.AddDocumentRequest.MultiValuedField;
 import com.yelp.nrtsearch.server.grpc.CustomRequest;
@@ -27,7 +28,6 @@ import com.yelp.nrtsearch.server.grpc.MatchQuery;
 import com.yelp.nrtsearch.server.grpc.Query;
 import com.yelp.nrtsearch.server.grpc.SearchRequest;
 import com.yelp.nrtsearch.server.grpc.SearchResponse;
-import com.yelp.nrtsearch.server.luceneserver.ServerTestCase;
 import com.yelp.nrtsearch.server.plugins.Plugin;
 import io.grpc.testing.GrpcCleanupRule;
 import java.io.ByteArrayInputStream;
@@ -46,7 +46,7 @@ public class ExamplePluginTest extends ServerTestCase {
   private static final ExamplePlugin examplePlugin = new ExamplePlugin(getConfig());
 
   @Override
-  protected List<Plugin> getPlugins(LuceneServerConfiguration configuration) {
+  protected List<Plugin> getPlugins(NrtsearchConfig configuration) {
     return List.of(examplePlugin);
   }
 
@@ -121,8 +121,8 @@ public class ExamplePluginTest extends ServerTestCase {
     assertThat(response.getHitsCount()).isEqualTo(1);
   }
 
-  private static LuceneServerConfiguration getConfig() {
+  private static NrtsearchConfig getConfig() {
     String config = "nodeName: \"lucene_server_foo\"";
-    return new LuceneServerConfiguration(new ByteArrayInputStream(config.getBytes()));
+    return new NrtsearchConfig(new ByteArrayInputStream(config.getBytes()));
   }
 }
