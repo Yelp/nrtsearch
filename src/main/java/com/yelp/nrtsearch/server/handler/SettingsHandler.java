@@ -44,7 +44,7 @@ public class SettingsHandler extends Handler<SettingsRequest, SettingsResponse> 
       SettingsRequest settingsRequest, StreamObserver<SettingsResponse> responseObserver) {
     logger.info("Received settings request: {}", settingsRequest);
     try {
-      IndexState indexState = getGlobalState().getIndex(settingsRequest.getIndexName());
+      IndexState indexState = getGlobalState().getIndexOrThrow(settingsRequest.getIndexName());
       SettingsResponse reply = handle(indexState, settingsRequest);
       logger.info("SettingsHandler returned " + reply);
       responseObserver.onNext(reply);
@@ -85,7 +85,8 @@ public class SettingsHandler extends Handler<SettingsRequest, SettingsResponse> 
       IndexState indexState, SettingsRequest settingsRequest) throws SettingsHandlerException {
     IndexStateManager indexStateManager;
     try {
-      indexStateManager = indexState.getGlobalState().getIndexStateManager(indexState.getName());
+      indexStateManager =
+          indexState.getGlobalState().getIndexStateManagerOrThrow(indexState.getName());
     } catch (IOException e) {
       throw new SettingsHandlerException("Unable to get index state manager", e);
     }

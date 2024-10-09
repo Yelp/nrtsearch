@@ -69,7 +69,7 @@ public class GeoPointDecayFilterFunction extends DecayFilterFunction {
             ? GeoUtils.getDistance(decayFunction.getOffset())
             : 0.0;
     this.indexState = indexState;
-    validateLatLonField(indexState.getField(fieldName));
+    validateLatLonField(indexState.getFieldOrThrow(fieldName));
   }
 
   public void validateLatLonField(FieldDef fieldDef) {

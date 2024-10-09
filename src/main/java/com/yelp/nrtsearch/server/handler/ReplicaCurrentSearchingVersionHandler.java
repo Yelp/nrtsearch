@@ -37,7 +37,7 @@ public class ReplicaCurrentSearchingVersionHandler extends Handler<IndexName, Se
   @Override
   public void handle(IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
     try {
-      IndexState indexState = getGlobalState().getIndex(indexNameRequest.getIndexName());
+      IndexState indexState = getGlobalState().getIndexOrThrow(indexNameRequest.getIndexName());
       SearcherVersion reply = handle(indexState, indexNameRequest);
       logger.info("ReplicaCurrentSearchingVersionHandler returned version " + reply.getVersion());
       responseObserver.onNext(reply);

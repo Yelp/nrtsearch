@@ -41,7 +41,7 @@ public class LiveSettingsV2Handler extends Handler<LiveSettingsV2Request, LiveSe
     logger.info("Received live settings V2 request: {}", req);
     try {
       IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManager(req.getIndexName());
+          getGlobalState().getIndexStateManagerOrThrow(req.getIndexName());
       LiveSettingsV2Response reply = handle(indexStateManager, req);
       logger.info("LiveSettingsV2Handler returned " + JsonFormat.printer().print(reply));
       responseObserver.onNext(reply);

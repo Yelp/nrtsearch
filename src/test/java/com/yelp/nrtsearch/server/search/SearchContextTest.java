@@ -75,8 +75,8 @@ public class SearchContextTest extends ServerTestCase {
 
   private SearchContext.Builder getCompleteBuilder() throws IOException {
     return SearchContext.newBuilder()
-        .setIndexState(getGlobalState().getIndex(DEFAULT_TEST_INDEX))
-        .setShardState(getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0))
+        .setIndexState(getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX))
+        .setShardState(getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0))
         .setSearcherAndTaxonomy(new SearcherAndTaxonomy(null, null))
         .setResponseBuilder(SearchResponse.newBuilder())
         .setTimestampSec(1)
@@ -88,7 +88,8 @@ public class SearchContextTest extends ServerTestCase {
         .setCollector(new DummyCollector())
         .setFetchTasks(new FetchTasks(Collections.emptyList()))
         .setRescorers(Collections.emptyList())
-        .setDocLookup(new DocLookup(getGlobalState().getIndex(DEFAULT_TEST_INDEX)::getField))
+        .setDocLookup(
+            new DocLookup(getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX)::getFieldOrThrow))
         .setSharedDocContext(new DefaultSharedDocContext());
   }
 

@@ -143,7 +143,7 @@ public class SearchResponseCollector implements MultiCollector {
       boolean publishVerboseMetrics = false;
       Set<String> indexNames = globalState.getIndexNames();
       for (String indexName : indexNames) {
-        if (globalState.getIndex(indexName).getVerboseMetrics()) {
+        if (globalState.getIndexOrThrow(indexName).getVerboseMetrics()) {
           publishVerboseMetrics = true;
           break;
         }

@@ -309,7 +309,7 @@ public class ReplicationServerTest {
 
     luceneServerSecondary
         .getGlobalState()
-        .getIndex("test_index")
+        .getIndexOrThrow("test_index")
         .getShard(0)
         .nrtReplicaNode
         .syncFromCurrentPrimary(120000, 300000);
@@ -362,7 +362,7 @@ public class ReplicationServerTest {
 
     luceneServerSecondary
         .getGlobalState()
-        .getIndex("test_index")
+        .getIndexOrThrow("test_index")
         .getShard(0)
         .nrtReplicaNode
         .syncFromCurrentPrimary(120000, 0);
@@ -404,7 +404,7 @@ public class ReplicationServerTest {
     long startTime = System.currentTimeMillis();
     luceneServerSecondary
         .getGlobalState()
-        .getIndex("test_index")
+        .getIndexOrThrow("test_index")
         .getShard(0)
         .nrtReplicaNode
         .syncFromCurrentPrimary(2000, 30000);
@@ -445,7 +445,7 @@ public class ReplicationServerTest {
 
     luceneServerSecondary
         .getGlobalState()
-        .getIndex("test_index")
+        .getIndexOrThrow("test_index")
         .getShard(0)
         .nrtReplicaNode
         .syncFromCurrentPrimary(120000, 300000);
@@ -453,7 +453,7 @@ public class ReplicationServerTest {
     // sync again after we already have the current version
     luceneServerSecondary
         .getGlobalState()
-        .getIndex("test_index")
+        .getIndexOrThrow("test_index")
         .getShard(0)
         .nrtReplicaNode
         .syncFromCurrentPrimary(120000, 300000);

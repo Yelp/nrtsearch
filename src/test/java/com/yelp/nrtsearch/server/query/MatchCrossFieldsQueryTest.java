@@ -323,9 +323,7 @@ public class MatchCrossFieldsQueryTest extends ServerTestCase {
               .build());
       fail();
     } catch (StatusRuntimeException e) {
-      assertTrue(
-          e.getMessage()
-              .contains("field \"unknown\" is unknown: it was not registered with registerField"));
+      assertTrue(e.getMessage().contains("field \"unknown\" is unknown"));
     }
   }
 

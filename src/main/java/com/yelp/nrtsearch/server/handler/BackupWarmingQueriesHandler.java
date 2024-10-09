@@ -42,7 +42,7 @@ public class BackupWarmingQueriesHandler
     logger.info("Received backup warming queries request: {}", request);
     String index = request.getIndex();
     try {
-      IndexState indexState = getGlobalState().getIndex(index);
+      IndexState indexState = getGlobalState().getIndexOrThrow(index);
       Warmer warmer = indexState.getWarmer();
       if (warmer == null) {
         logger.warn("Unable to backup warming queries as warmer not found for index: {}", index);

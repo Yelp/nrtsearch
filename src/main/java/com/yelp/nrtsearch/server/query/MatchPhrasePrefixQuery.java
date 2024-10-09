@@ -79,7 +79,7 @@ public class MatchPhrasePrefixQuery extends Query {
   public static Query build(
       com.yelp.nrtsearch.server.grpc.MatchPhrasePrefixQuery matchPhrasePrefixQueryGrpc,
       IndexState indexState) {
-    FieldDef fieldDef = indexState.getField(matchPhrasePrefixQueryGrpc.getField());
+    FieldDef fieldDef = indexState.getFieldOrThrow(matchPhrasePrefixQueryGrpc.getField());
     if (!(fieldDef instanceof IndexableFieldDef)) {
       throw new IllegalArgumentException("MatchPhrasePrefixQuery requires an indexable field");
     }

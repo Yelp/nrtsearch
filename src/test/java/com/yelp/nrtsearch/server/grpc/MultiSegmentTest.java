@@ -49,7 +49,7 @@ public class MultiSegmentTest extends ServerTestCase {
 
   @Override
   public void initIndex(String name) throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(name).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(name).getShard(0).writer;
     // don't want any merges for these tests
     writer.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
 
@@ -96,14 +96,14 @@ public class MultiSegmentTest extends ServerTestCase {
   public void testNumSegments() throws Exception {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
     try {
-      s = getGlobalState().getIndex(TEST_INDEX).getShard(0).acquire();
+      s = getGlobalState().getIndexOrThrow(TEST_INDEX).getShard(0).acquire();
       assertEquals(NUM_DOCS / SEGMENT_CHUNK, s.searcher.getIndexReader().leaves().size());
       for (LeafReaderContext context : s.searcher.getIndexReader().leaves()) {
         assertEquals(SEGMENT_CHUNK, context.reader().maxDoc());
       }
     } finally {
       if (s != null) {
-        getGlobalState().getIndex(TEST_INDEX).getShard(0).release(s);
+        getGlobalState().getIndexOrThrow(TEST_INDEX).getShard(0).release(s);
       }
     }
   }

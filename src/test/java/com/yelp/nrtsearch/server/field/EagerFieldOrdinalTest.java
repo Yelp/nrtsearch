@@ -122,10 +122,11 @@ public class EagerFieldOrdinalTest extends ServerTestCase {
   @Test
   public void testEagerOrdinals() throws Exception {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    ShardState shardState = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0);
+    ShardState shardState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0);
     try {
       for (String field : EAGER_FIELDS) {
-        FieldDef fieldDef = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getField(field);
+        FieldDef fieldDef =
+            getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getFieldOrThrow(field);
         addDocAndRefresh();
         s = shardState.acquire();
         assertGlobalOrdinals(s.searcher.getIndexReader(), fieldDef);
@@ -149,10 +150,11 @@ public class EagerFieldOrdinalTest extends ServerTestCase {
   @Test
   public void testWithoutEagerOrdinals() throws Exception {
     SearcherTaxonomyManager.SearcherAndTaxonomy s = null;
-    ShardState shardState = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0);
+    ShardState shardState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0);
     try {
       for (String field : NOT_EAGER_FIELDS) {
-        FieldDef fieldDef = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getField(field);
+        FieldDef fieldDef =
+            getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getFieldOrThrow(field);
         addDocAndRefresh();
         s = shardState.acquire();
         assertNoGlobalOrdinals(s.searcher.getIndexReader(), fieldDef);

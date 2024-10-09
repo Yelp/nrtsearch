@@ -49,7 +49,7 @@ public class NestedFieldTest {
     primaryServer.refresh("test_index");
 
     primaryServer.verifySimpleDocs("test_index", 3);
-    IndexState indexState = primaryServer.getGlobalState().getIndex("test_index");
+    IndexState indexState = primaryServer.getGlobalState().getIndexOrThrow("test_index");
     assertFalse(indexState.hasNestedChildFields());
 
     String nestedFieldJson =
@@ -74,7 +74,7 @@ public class NestedFieldTest {
     primaryServer
         .getClient()
         .registerFields("{\"indexName\": \"test_index\", \"field\": [" + nestedFieldJson + "]}");
-    indexState = primaryServer.getGlobalState().getIndex("test_index");
+    indexState = primaryServer.getGlobalState().getIndexOrThrow("test_index");
     assertTrue(indexState.hasNestedChildFields());
 
     // add more documents

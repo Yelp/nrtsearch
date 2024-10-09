@@ -114,7 +114,7 @@ public abstract class IndexState implements Closeable {
       new AnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
         @Override
         public Analyzer getWrappedAnalyzer(String name) {
-          FieldDef fd = getField(name);
+          FieldDef fd = getFieldOrThrow(name);
           if (fd instanceof TextBaseFieldDef) {
             Optional<Analyzer> maybeAnalyzer = ((TextBaseFieldDef) fd).getSearchAnalyzer();
             if (maybeAnalyzer.isEmpty()) {
@@ -317,7 +317,7 @@ public abstract class IndexState implements Closeable {
     if (path == null || path.length() == 0 || path.equals(IndexState.ROOT)) {
       return IndexState.ROOT;
     }
-    FieldDef fieldDef = getField(path);
+    FieldDef fieldDef = getFieldOrThrow(path);
     if ((fieldDef instanceof ObjectFieldDef) && ((ObjectFieldDef) fieldDef).isNestedDoc()) {
       return path;
     }
@@ -344,11 +344,27 @@ public abstract class IndexState implements Closeable {
       throws IOException;
 
   /**
-   * Retrieve the field's type.
+   * Retrieve definition of field by name.
    *
-   * @throws IllegalArgumentException if the field was not registered.
+   * @param fieldName name of the field
+   * @return field definition or null if the field does not exist
    */
   public abstract FieldDef getField(String fieldName);
+
+  /**
+   * Retrieve definition of field by name. Throws an exception if the field does not exist.
+   *
+   * @param fieldName name of the field
+   * @return field definition
+   * @throws IllegalArgumentException if the field does not exist.
+   */
+  public FieldDef getFieldOrThrow(String fieldName) {
+    FieldDef fieldDef = getField(fieldName);
+    if (fieldDef == null) {
+      throw new IllegalArgumentException("field \"" + fieldName + "\" is unknown");
+    }
+    return fieldDef;
+  }
 
   /** Get all registered fields. */
   public abstract Map<String, FieldDef> getAllFields();

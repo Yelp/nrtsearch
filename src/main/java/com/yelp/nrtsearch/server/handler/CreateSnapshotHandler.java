@@ -46,7 +46,8 @@ public class CreateSnapshotHandler extends Handler<CreateSnapshotRequest, Create
       CreateSnapshotRequest createSnapshotRequest,
       StreamObserver<CreateSnapshotResponse> responseObserver) {
     try {
-      IndexState indexState = getGlobalState().getIndex(createSnapshotRequest.getIndexName());
+      IndexState indexState =
+          getGlobalState().getIndexOrThrow(createSnapshotRequest.getIndexName());
       CreateSnapshotResponse reply = createSnapshot(indexState, createSnapshotRequest);
       logger.info(String.format("CreateSnapshotHandler returned results %s", reply.toString()));
       responseObserver.onNext(reply);

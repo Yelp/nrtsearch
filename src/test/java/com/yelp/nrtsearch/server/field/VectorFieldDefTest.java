@@ -84,11 +84,12 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   private void indexVectorSearchDocs() throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(VECTOR_SEARCH_INDEX_NAME).getShard(0).writer;
+    IndexWriter writer =
+        getGlobalState().getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME).getShard(0).writer;
     // don't want any merges for these tests to verify parallel search
     writer.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
     getGlobalState()
-        .getIndexStateManager(DEFAULT_TEST_INDEX)
+        .getIndexStateManagerOrThrow(DEFAULT_TEST_INDEX)
         .updateLiveSettings(
             IndexLiveSettings.newBuilder().setSliceMaxSegments(Int32Value.of(1)).build(), false);
 
@@ -216,7 +217,7 @@ public class VectorFieldDefTest extends ServerTestCase {
   }
 
   public FieldDef getFieldDef(String testIndex, String fieldName) throws IOException {
-    return getGrpcServer().getGlobalState().getIndex(testIndex).getField(fieldName);
+    return getGrpcServer().getGlobalState().getIndexOrThrow(testIndex).getFieldOrThrow(fieldName);
   }
 
   @Test
@@ -1049,45 +1050,48 @@ public class VectorFieldDefTest extends ServerTestCase {
     return (VectorFieldDef.FloatVectorFieldDef)
         getGrpcServer()
             .getGlobalState()
-            .getIndex(VECTOR_SEARCH_INDEX_NAME)
-            .getField("vector_cosine");
+            .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
+            .getFieldOrThrow("vector_cosine");
   }
 
   private VectorFieldDef.FloatVectorFieldDef getL2Field() throws IOException {
     return (VectorFieldDef.FloatVectorFieldDef)
         getGrpcServer()
             .getGlobalState()
-            .getIndex(VECTOR_SEARCH_INDEX_NAME)
-            .getField("vector_l2_norm");
+            .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
+            .getFieldOrThrow("vector_l2_norm");
   }
 
   private VectorFieldDef.FloatVectorFieldDef getDotField() throws IOException {
     return (VectorFieldDef.FloatVectorFieldDef)
-        getGrpcServer().getGlobalState().getIndex(VECTOR_SEARCH_INDEX_NAME).getField("vector_dot");
+        getGrpcServer()
+            .getGlobalState()
+            .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
+            .getFieldOrThrow("vector_dot");
   }
 
   private VectorFieldDef.ByteVectorFieldDef getCosineByteField() throws IOException {
     return (VectorFieldDef.ByteVectorFieldDef)
         getGrpcServer()
             .getGlobalState()
-            .getIndex(VECTOR_SEARCH_INDEX_NAME)
-            .getField("byte_vector_cosine");
+            .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
+            .getFieldOrThrow("byte_vector_cosine");
   }
 
   private VectorFieldDef.ByteVectorFieldDef getL2ByteField() throws IOException {
     return (VectorFieldDef.ByteVectorFieldDef)
         getGrpcServer()
             .getGlobalState()
-            .getIndex(VECTOR_SEARCH_INDEX_NAME)
-            .getField("byte_vector_l2_norm");
+            .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
+            .getFieldOrThrow("byte_vector_l2_norm");
   }
 
   private VectorFieldDef.FloatVectorFieldDef getQuantizedField() throws IOException {
     return (VectorFieldDef.FloatVectorFieldDef)
         getGrpcServer()
             .getGlobalState()
-            .getIndex(VECTOR_SEARCH_INDEX_NAME)
-            .getField("quantized_vector_7");
+            .getIndexOrThrow(VECTOR_SEARCH_INDEX_NAME)
+            .getFieldOrThrow("quantized_vector_7");
   }
 
   @Test
@@ -1110,10 +1114,7 @@ public class VectorFieldDefTest extends ServerTestCase {
                   .build());
       fail();
     } catch (StatusRuntimeException e) {
-      assertTrue(
-          e.getMessage()
-              .contains(
-                  "field \"non_existent_field\" is unknown: it was not registered with registerField"));
+      assertTrue(e.getMessage().contains("field \"non_existent_field\" is unknown"));
     }
   }
 

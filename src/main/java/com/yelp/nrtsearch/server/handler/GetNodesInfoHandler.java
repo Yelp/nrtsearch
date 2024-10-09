@@ -40,7 +40,7 @@ public class GetNodesInfoHandler extends Handler<GetNodesRequest, GetNodesRespon
   public void handle(
       GetNodesRequest getNodesRequest, StreamObserver<GetNodesResponse> responseObserver) {
     try {
-      IndexState indexState = getGlobalState().getIndex(getNodesRequest.getIndexName());
+      IndexState indexState = getGlobalState().getIndexOrThrow(getNodesRequest.getIndexName());
       GetNodesResponse reply = handle(indexState);
       logger.debug("GetNodesInfoHandler returned GetNodeResponse of size " + reply.getNodesCount());
       responseObserver.onNext(reply);

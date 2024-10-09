@@ -39,7 +39,8 @@ public class ReleaseSnapshotHandler
       ReleaseSnapshotRequest releaseSnapshotRequest,
       StreamObserver<ReleaseSnapshotResponse> responseObserver) {
     try {
-      IndexState indexState = getGlobalState().getIndex(releaseSnapshotRequest.getIndexName());
+      IndexState indexState =
+          getGlobalState().getIndexOrThrow(releaseSnapshotRequest.getIndexName());
       ReleaseSnapshotResponse reply = handle(indexState, releaseSnapshotRequest);
       logger.info(String.format("CreateSnapshotHandler returned results %s", reply.toString()));
       responseObserver.onNext(reply);

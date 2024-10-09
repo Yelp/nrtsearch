@@ -45,7 +45,7 @@ public class GlobalStateTest {
     TestServer server = TestServer.builder(folder).build();
     server.createSimpleIndex("test_index");
     server.startPrimaryIndex("test_index", -1, null);
-    String indexId = server.getGlobalState().getIndexStateManager("test_index").getIndexId();
+    String indexId = server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
     GlobalStateResponse response =
         server.getClient().getBlockingStub().globalState(GlobalStateRequest.newBuilder().build());
     GlobalStateInfo expected =

@@ -70,11 +70,11 @@ public class MinMaxUtilTest extends ServerTestCase {
   }
 
   protected void initIndex(String name) throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(name).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(name).getShard(0).writer;
     // don't want any merges for these tests
     writer.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
     getGlobalState()
-        .getIndexStateManager(DEFAULT_TEST_INDEX)
+        .getIndexStateManagerOrThrow(DEFAULT_TEST_INDEX)
         .updateLiveSettings(
             IndexLiveSettings.newBuilder().setSliceMaxSegments(Int32Value.of(1)).build(), false);
 

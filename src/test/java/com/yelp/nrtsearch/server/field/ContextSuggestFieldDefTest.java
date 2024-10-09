@@ -46,7 +46,7 @@ public class ContextSuggestFieldDefTest extends ServerTestCase {
   private static final String FIELD_TYPE = "CONTEXT_SUGGEST";
 
   public FieldDef getFieldDef(String testIndex, String fieldName) throws IOException {
-    return getGrpcServer().getGlobalState().getIndex(testIndex).getField(fieldName);
+    return getGrpcServer().getGlobalState().getIndexOrThrow(testIndex).getFieldOrThrow(fieldName);
   }
 
   @Override

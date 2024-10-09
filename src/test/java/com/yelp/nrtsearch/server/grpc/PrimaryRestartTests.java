@@ -348,7 +348,12 @@ public class PrimaryRestartTests {
         currentLeaves2, Set.of("_0", "_1", "_2", "_3", "_4"), Collections.emptySet());
 
     Thread.sleep(3000);
-    replicaServer.getGlobalState().getIndex("test_index").getShard(0).slm.prune(new PruneByAge(1));
+    replicaServer
+        .getGlobalState()
+        .getIndexOrThrow("test_index")
+        .getShard(0)
+        .slm
+        .prune(new PruneByAge(1));
 
     verifySegmentReaderStatus(previousLeaves1, Set.of("_0"), Set.of("_1"));
     verifySegmentReaderStatus(previousLeaves2, Set.of("_0"), Set.of("_1", "_2"));
@@ -361,9 +366,9 @@ public class PrimaryRestartTests {
   private List<LeafReaderContext> getVersionLeaves(TestServer server, long version)
       throws IOException {
     IndexSearcher searcher =
-        server.getGlobalState().getIndex("test_index").getShard(0).slm.acquire(version);
+        server.getGlobalState().getIndexOrThrow("test_index").getShard(0).slm.acquire(version);
     List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
-    server.getGlobalState().getIndex("test_index").getShard(0).slm.release(searcher);
+    server.getGlobalState().getIndexOrThrow("test_index").getShard(0).slm.release(searcher);
     return leaves;
   }
 

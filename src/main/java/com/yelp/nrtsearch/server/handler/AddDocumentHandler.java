@@ -70,7 +70,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
 
       private int getAddDocumentsMaxBufferLen(String indexName) {
         try {
-          return getGlobalState().getIndex(indexName).getAddDocumentsMaxBufferLen();
+          return getGlobalState().getIndexOrThrow(indexName).getAddDocumentsMaxBufferLen();
         } catch (Exception e) {
           String error =
               String.format("Index %s does not exist, unable to add documents", indexName);
@@ -327,7 +327,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         DocumentsContext documentsContext,
         IndexState indexState)
         throws AddDocumentHandlerException {
-      parseMultiValueField(indexState.getField(fieldName), value, documentsContext);
+      parseMultiValueField(indexState.getFieldOrThrow(fieldName), value, documentsContext);
     }
 
     /** Parse MultiValuedField for a single field, which is always a List<String>. */
@@ -401,7 +401,7 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
       IdFieldDef idFieldDef;
 
       try {
-        indexState = globalState.getIndex(this.indexName);
+        indexState = globalState.getIndexOrThrow(this.indexName);
         shardState = indexState.getShard(0);
         idFieldDef = indexState.getIdFieldDef().orElse(null);
         for (AddDocumentRequest addDocumentRequest : addDocumentRequestList) {

@@ -1039,12 +1039,43 @@ public class ImmutableIndexStateTest {
   @Test
   public void testGetFieldNotRegistered() throws IOException {
     ImmutableIndexState indexState = getIndexState(getEmptyState());
+    assertNull(indexState.getField("invalid"));
+  }
+
+  @Test
+  public void testGetFieldOrThrow() throws IOException {
+    Field field =
+        Field.newBuilder()
+            .setName("field1")
+            .setType(FieldType.INT)
+            .setStoreDocValues(true)
+            .setSearch(true)
+            .build();
+    UpdatedFieldInfo fieldInfo =
+        FieldUpdateUtils.updateFields(
+            new FieldAndFacetState(), Collections.emptyMap(), Collections.singleton(field));
+    IndexStateInfo indexStateInfo =
+        getEmptyState().toBuilder().putAllFields(fieldInfo.fields).build();
+    ImmutableIndexState indexState = getIndexState(indexStateInfo, fieldInfo.fieldAndFacetState);
+    FieldDef fieldDef = indexState.getFieldOrThrow("field1");
+    assertTrue(fieldDef instanceof IntFieldDef);
+  }
+
+  @Test
+  public void testGetMetaFieldOrThrow() throws IOException {
+    ImmutableIndexState indexState = getIndexState(getEmptyState());
+    FieldDef fieldDef = indexState.getFieldOrThrow(IndexState.NESTED_PATH);
+    assertTrue(fieldDef instanceof AtomFieldDef);
+  }
+
+  @Test
+  public void testGetFieldOrThrowNotRegistered() throws IOException {
+    ImmutableIndexState indexState = getIndexState(getEmptyState());
     try {
-      indexState.getField("invalid");
+      indexState.getFieldOrThrow("invalid");
       fail();
     } catch (IllegalArgumentException e) {
-      assertEquals(
-          "field \"invalid\" is unknown: it was not registered with registerField", e.getMessage());
+      assertEquals("field \"invalid\" is unknown", e.getMessage());
     }
   }
 

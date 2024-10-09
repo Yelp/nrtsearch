@@ -211,7 +211,7 @@ public class IndexStartTest {
     ReplicaDeleterManager rdm =
         replicaServer
             .getGlobalState()
-            .getIndex("test_index")
+            .getIndexOrThrow("test_index")
             .getShard(0)
             .nrtReplicaNode
             .getReplicaDeleterManager();
@@ -588,7 +588,7 @@ public class IndexStartTest {
     ReplicationServerClient replicationClient =
         replicaServer
             .getGlobalState()
-            .getIndex("test_index")
+            .getIndexOrThrow("test_index")
             .getShard(0)
             .nrtReplicaNode
             .getPrimaryAddress();
@@ -606,7 +606,7 @@ public class IndexStartTest {
     replicationClient =
         replicaServer2
             .getGlobalState()
-            .getIndex("test_index")
+            .getIndexOrThrow("test_index")
             .getShard(0)
             .nrtReplicaNode
             .getPrimaryAddress();
@@ -687,7 +687,7 @@ public class IndexStartTest {
 
     assertTrue(server.indices().contains("test_index"));
     assertTrue(server.isStarted("test_index"));
-    assertTrue(server.getGlobalState().getIndex("test_index").getShard(0).isPrimary());
+    assertTrue(server.getGlobalState().getIndexOrThrow("test_index").getShard(0).isPrimary());
 
     verifyCreateProperties(server);
   }
@@ -710,12 +710,12 @@ public class IndexStartTest {
 
     assertTrue(server.indices().contains("test_index"));
     assertTrue(server.isStarted("test_index"));
-    assertTrue(server.getGlobalState().getIndex("test_index").getShard(0).isPrimary());
+    assertTrue(server.getGlobalState().getIndexOrThrow("test_index").getShard(0).isPrimary());
 
     server.restart();
     assertTrue(server.indices().contains("test_index"));
     assertTrue(server.isStarted("test_index"));
-    assertTrue(server.getGlobalState().getIndex("test_index").getShard(0).isPrimary());
+    assertTrue(server.getGlobalState().getIndexOrThrow("test_index").getShard(0).isPrimary());
 
     verifyCreateProperties(server);
   }
@@ -748,7 +748,7 @@ public class IndexStartTest {
 
     assertTrue(replica.indices().contains("test_index"));
     assertTrue(replica.isStarted("test_index"));
-    assertTrue(replica.getGlobalState().getIndex("test_index").getShard(0).isReplica());
+    assertTrue(replica.getGlobalState().getIndexOrThrow("test_index").getShard(0).isReplica());
   }
 
   private CreateIndexRequest getCreateWithPropertiesRequest() {
@@ -772,7 +772,7 @@ public class IndexStartTest {
     assertTrue(
         server
             .getGlobalState()
-            .getIndexStateManager("test_index")
+            .getIndexStateManagerOrThrow("test_index")
             .getSettings()
             .getIndexMergeSchedulerAutoThrottle()
             .getValue());
@@ -780,13 +780,13 @@ public class IndexStartTest {
         1000,
         server
             .getGlobalState()
-            .getIndexStateManager("test_index")
+            .getIndexStateManagerOrThrow("test_index")
             .getLiveSettings(false)
             .getAddDocumentsMaxBufferLen()
             .getValue());
     assertEquals(
         new HashSet<>(TestServer.simpleFieldNames),
-        server.getGlobalState().getIndex("test_index").getAllFields().keySet());
+        server.getGlobalState().getIndexOrThrow("test_index").getAllFields().keySet());
   }
 
   @Test
@@ -816,7 +816,7 @@ public class IndexStartTest {
     assertTrue(replicaServer.isStarted("test_index"));
     replicaServer.verifySimpleDocs("test_index", 3);
     NRTReplicaNode nrtReplicaNode =
-        replicaServer.getGlobalState().getIndex("test_index").getShard(0).nrtReplicaNode;
+        replicaServer.getGlobalState().getIndexOrThrow("test_index").getShard(0).nrtReplicaNode;
     ReplicaDeleterManager rdm = nrtReplicaNode.getReplicaDeleterManager();
 
     assertFalse(rdm == null);
@@ -845,7 +845,7 @@ public class IndexStartTest {
     assertFalse(
         server
             .getGlobalState()
-            .getIndex("test_index")
+            .getIndexOrThrow("test_index")
             .getShard(0)
             .nrtPrimaryNode
             .getNrtDataManager()
@@ -863,7 +863,7 @@ public class IndexStartTest {
     assertTrue(
         server
             .getGlobalState()
-            .getIndex("test_index")
+            .getIndexOrThrow("test_index")
             .getShard(0)
             .nrtPrimaryNode
             .getNrtDataManager()

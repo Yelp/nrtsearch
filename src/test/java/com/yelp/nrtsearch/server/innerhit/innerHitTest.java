@@ -561,8 +561,7 @@ public class innerHitTest extends ServerTestCase {
                                     .build())
                             .build()))
         .isInstanceOf(StatusRuntimeException.class)
-        .hasMessageContaining(
-            "field \"abcdefg\" is unknown: it was not registered with registerField");
+        .hasMessageContaining("field \"abcdefg\" is unknown");
   }
 
   @Test

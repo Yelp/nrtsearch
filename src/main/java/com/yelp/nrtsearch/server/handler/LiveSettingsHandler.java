@@ -42,7 +42,7 @@ public class LiveSettingsHandler extends Handler<LiveSettingsRequest, LiveSettin
       LiveSettingsRequest req, StreamObserver<LiveSettingsResponse> responseObserver) {
     logger.info("Received live settings request: {}", req);
     try {
-      IndexState indexState = getGlobalState().getIndex(req.getIndexName());
+      IndexState indexState = getGlobalState().getIndexOrThrow(req.getIndexName());
       LiveSettingsResponse reply = handle(indexState, req);
       logger.info("LiveSettingsHandler returned {}", reply.toString());
       responseObserver.onNext(reply);
@@ -80,7 +80,7 @@ public class LiveSettingsHandler extends Handler<LiveSettingsRequest, LiveSettin
     IndexStateManager indexStateManager;
     try {
       indexStateManager =
-          indexStateIn.getGlobalState().getIndexStateManager(indexStateIn.getName());
+          indexStateIn.getGlobalState().getIndexStateManagerOrThrow(indexStateIn.getName());
     } catch (IOException e) {
       throw new RuntimeException("Unable to get index state manager", e);
     }

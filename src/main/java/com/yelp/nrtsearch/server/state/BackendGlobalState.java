@@ -203,7 +203,7 @@ public class BackendGlobalState extends GlobalState {
   @Override
   public Path getIndexDir(String indexName) {
     try {
-      return getIndex(indexName).getRootDir();
+      return getIndexOrThrow(indexName).getRootDir();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -315,22 +315,14 @@ public class BackendGlobalState extends GlobalState {
   }
 
   @Override
-  public IndexState getIndex(String name, boolean hasRestore) throws IOException {
-    return getIndexStateManager(name).getCurrent();
-  }
-
-  @Override
   public IndexState getIndex(String name) throws IOException {
-    return getIndex(name, false);
+    IndexStateManager indexStateManager = getIndexStateManager(name);
+    return indexStateManager != null ? indexStateManager.getCurrent() : null;
   }
 
   @Override
   public IndexStateManager getIndexStateManager(String name) throws IOException {
-    IndexStateManager stateManager = immutableState.indexStateManagerMap.get(name);
-    if (stateManager == null) {
-      throw new IllegalArgumentException("index \"" + name + "\" was not saved or committed");
-    }
-    return stateManager;
+    return immutableState.indexStateManagerMap.get(name);
   }
 
   @Override
@@ -354,7 +346,8 @@ public class BackendGlobalState extends GlobalState {
   @Override
   public synchronized StartIndexResponse startIndex(StartIndexRequest startIndexRequest)
       throws IOException {
-    IndexStateManager indexStateManager = getIndexStateManager(startIndexRequest.getIndexName());
+    IndexStateManager indexStateManager =
+        getIndexStateManagerOrThrow(startIndexRequest.getIndexName());
     IndexGlobalState indexGlobalState =
         immutableState.globalStateInfo.getIndicesMap().get(startIndexRequest.getIndexName());
 
@@ -409,7 +402,7 @@ public class BackendGlobalState extends GlobalState {
   @Override
   public synchronized StartIndexResponse startIndexV2(StartIndexV2Request startIndexRequest)
       throws IOException {
-    IndexStateManager stateManager = getIndexStateManager(startIndexRequest.getIndexName());
+    IndexStateManager stateManager = getIndexStateManagerOrThrow(startIndexRequest.getIndexName());
     IndexGlobalState indexGlobalState =
         immutableState.globalStateInfo.getIndicesOrThrow(startIndexRequest.getIndexName());
     IndexGlobalState updatedIndexGlobalState =
@@ -455,7 +448,8 @@ public class BackendGlobalState extends GlobalState {
   @Override
   public synchronized DummyResponse stopIndex(StopIndexRequest stopIndexRequest)
       throws IOException {
-    IndexStateManager indexStateManager = getIndexStateManager(stopIndexRequest.getIndexName());
+    IndexStateManager indexStateManager =
+        getIndexStateManagerOrThrow(stopIndexRequest.getIndexName());
     if (!indexStateManager.getCurrent().isStarted()) {
       throw new IllegalArgumentException(
           "Index \"" + stopIndexRequest.getIndexName() + "\" is not started");

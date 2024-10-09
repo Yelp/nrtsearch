@@ -48,7 +48,7 @@ public class ForceMergeHandler extends Handler<ForceMergeRequest, ForceMergeResp
     }
 
     try {
-      IndexState indexState = getGlobalState().getIndex(forceMergeRequest.getIndexName());
+      IndexState indexState = getGlobalState().getIndexOrThrow(forceMergeRequest.getIndexName());
       ShardState shardState = indexState.getShards().get(0);
       logger.info("Beginning force merge for index: {}", forceMergeRequest.getIndexName());
       shardState.writer.forceMerge(

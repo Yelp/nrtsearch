@@ -41,7 +41,7 @@ public class SettingsV2Handler extends Handler<SettingsV2Request, SettingsV2Resp
     logger.info("Received settings V2 request: {}", settingsRequest);
     try {
       IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManager(settingsRequest.getIndexName());
+          getGlobalState().getIndexStateManagerOrThrow(settingsRequest.getIndexName());
       SettingsV2Response reply = handle(indexStateManager, settingsRequest);
       logger.info("SettingsV2Handler returned: " + JsonFormat.printer().print(reply));
       responseObserver.onNext(reply);

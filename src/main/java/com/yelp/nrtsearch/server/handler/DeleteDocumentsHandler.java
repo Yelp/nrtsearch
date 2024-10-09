@@ -43,7 +43,7 @@ public class DeleteDocumentsHandler extends Handler<AddDocumentRequest, AddDocum
   public void handle(
       AddDocumentRequest addDocumentRequest, StreamObserver<AddDocumentResponse> responseObserver) {
     try {
-      IndexState indexState = getGlobalState().getIndex(addDocumentRequest.getIndexName());
+      IndexState indexState = getGlobalState().getIndexOrThrow(addDocumentRequest.getIndexName());
       AddDocumentResponse reply = handleInternal(indexState, addDocumentRequest);
       logger.debug("DeleteDocumentsHandler returned {}", reply);
       responseObserver.onNext(reply);

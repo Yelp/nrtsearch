@@ -144,7 +144,7 @@ public class StateCommandUtilsTest {
     JsonFormat.parser().merge(contents, builder);
     IndexStateInfo stateInfo = builder.build();
     IndexStateInfo expected =
-        ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
+        ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
             .getCurrentStateInfo();
     assertEquals(expected, stateInfo);
   }
@@ -185,7 +185,7 @@ public class StateCommandUtilsTest {
   public void testWriteIndexStateDataToBackend() throws IOException {
     TestServer server = getTestServer();
     IndexStateInfo currentState =
-        ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
+        ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
             .getCurrentStateInfo();
     IndexStateInfo updatedState =
         currentState.toBuilder()
@@ -203,7 +203,7 @@ public class StateCommandUtilsTest {
 
     server.restart();
     IndexStateInfo newCurrentState =
-        ((ImmutableIndexState) server.getGlobalState().getIndex("test_index"))
+        ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
             .getCurrentStateInfo();
     assertEquals(updatedState, newCurrentState);
     assertNotEquals(currentState, newCurrentState);

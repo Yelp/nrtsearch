@@ -49,7 +49,7 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
 
   @Override
   public void initIndex(String name) throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(name).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(name).getShard(0).writer;
     // don't want any merges for these tests
     writer.getConfig().setMergePolicy(NoMergePolicy.INSTANCE);
   }
@@ -61,7 +61,7 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
 
   @Before
   public void clearIndex() throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).writer;
     writer.deleteAll();
   }
 
@@ -112,7 +112,7 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
     setLiveSettings(111, 10000, 2);
     addSegments(Collections.emptyList());
     SearcherAndTaxonomy s = null;
-    ShardState shardState = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0);
+    ShardState shardState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0);
     try {
       s = shardState.acquire();
       assertTrue(s.searcher instanceof MyIndexSearcher);
@@ -130,7 +130,7 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
 
   private void setLiveSettings(int virtualShards, int maxDocs, int maxSegments) throws IOException {
     getGlobalState()
-        .getIndexStateManager(DEFAULT_TEST_INDEX)
+        .getIndexStateManagerOrThrow(DEFAULT_TEST_INDEX)
         .updateLiveSettings(
             IndexLiveSettings.newBuilder()
                 .setVirtualShards(Int32Value.newBuilder().setValue(virtualShards).build())
@@ -141,7 +141,7 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
   }
 
   private void addSegments(Iterable<Integer> sizes) throws Exception {
-    IndexWriter writer = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).writer;
+    IndexWriter writer = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).writer;
 
     int currentVal = 0;
     for (Integer size : sizes) {
@@ -171,7 +171,7 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
       addDocuments(requestChunk.stream());
       writer.commit();
     }
-    getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0).maybeRefreshBlocking();
+    getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0).maybeRefreshBlocking();
   }
 
   private void assertSlices(List<Integer> docCounts, List<Integer> segmentCounts)
@@ -179,7 +179,7 @@ public class MyIndexSearcherVirtualShardsTest extends ServerTestCase {
     assertEquals(docCounts.size(), segmentCounts.size());
 
     SearcherAndTaxonomy s = null;
-    ShardState shardState = getGlobalState().getIndex(DEFAULT_TEST_INDEX).getShard(0);
+    ShardState shardState = getGlobalState().getIndexOrThrow(DEFAULT_TEST_INDEX).getShard(0);
     try {
       s = shardState.acquire();
       LeafSlice[] slices = s.searcher.getSlices();

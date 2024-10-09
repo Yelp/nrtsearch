@@ -151,7 +151,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
   public SearchResponse getSearchResponse(SearchRequest searchRequest)
       throws IOException, SearchHandlerException {
-    IndexState indexState = getGlobalState().getIndex(searchRequest.getIndexName());
+    IndexState indexState = getGlobalState().getIndexOrThrow(searchRequest.getIndexName());
     return handle(indexState, searchRequest);
   }
 

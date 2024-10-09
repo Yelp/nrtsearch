@@ -299,7 +299,7 @@ public class SetResourceVersionCommandTest {
     TestServer server = getTestServer();
     server.startPrimaryIndex("test_index", -1, null);
     S3Backend s3Backend = new S3Backend(TEST_BUCKET, false, getS3());
-    String indexId = server.getGlobalState().getIndexStateManager("test_index").getIndexId();
+    String indexId = server.getGlobalState().getIndexStateManagerOrThrow("test_index").getIndexId();
     String prefix =
         S3Backend.getIndexResourcePrefix(
             SERVICE_NAME,
