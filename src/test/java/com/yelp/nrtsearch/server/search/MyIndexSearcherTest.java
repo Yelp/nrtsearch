@@ -141,7 +141,7 @@ public class MyIndexSearcherTest extends ServerTestCase {
       assertTrue(searcher.getExecutor() instanceof MyIndexSearcher.ExecutorWithParams);
       MyIndexSearcher.ExecutorWithParams params =
           (MyIndexSearcher.ExecutorWithParams) searcher.getExecutor();
-      assertSame(indexState.getSearchThreadPoolExecutor(), params.wrapped);
+      assertSame(indexState.getSearchExecutor(), params.wrapped);
       assertEquals(maxDocs, params.sliceMaxDocs);
       assertEquals(maxSegments, params.sliceMaxSegments);
     } finally {

@@ -137,7 +137,7 @@ public class ImmutableIndexStateTest {
     when(mockGlobalState.getConfiguration()).thenReturn(dummyConfig);
     when(mockGlobalState.getThreadPoolConfiguration())
         .thenReturn(dummyConfig.getThreadPoolConfiguration());
-    when(mockGlobalState.getFetchService()).thenReturn(mock(ExecutorService.class));
+    when(mockGlobalState.getFetchExecutor()).thenReturn(mock(ExecutorService.class));
     return new ImmutableIndexState(
         mockManager,
         mockGlobalState,
@@ -630,7 +630,7 @@ public class ImmutableIndexStateTest {
     when(mockGlobalState.getConfiguration()).thenReturn(dummyConfig);
     when(mockGlobalState.getThreadPoolConfiguration())
         .thenReturn(dummyConfig.getThreadPoolConfiguration());
-    when(mockGlobalState.getFetchService()).thenReturn(mock(ExecutorService.class));
+    when(mockGlobalState.getFetchExecutor()).thenReturn(mock(ExecutorService.class));
     return new ImmutableIndexState(
         mockManager,
         mockGlobalState,
@@ -879,7 +879,7 @@ public class ImmutableIndexStateTest {
     when(mockGlobalState.getConfiguration()).thenReturn(config);
     when(mockGlobalState.getThreadPoolConfiguration())
         .thenReturn(config.getThreadPoolConfiguration());
-    when(mockGlobalState.getFetchService()).thenReturn(mock(ExecutorService.class));
+    when(mockGlobalState.getFetchExecutor()).thenReturn(mock(ExecutorService.class));
     IndexState indexState =
         new ImmutableIndexState(
             mockManager,
@@ -955,7 +955,7 @@ public class ImmutableIndexStateTest {
     when(mockGlobalState.getConfiguration()).thenReturn(dummyConfig);
     when(mockGlobalState.getThreadPoolConfiguration())
         .thenReturn(dummyConfig.getThreadPoolConfiguration());
-    when(mockGlobalState.getFetchService()).thenReturn(mock(ExecutorService.class));
+    when(mockGlobalState.getFetchExecutor()).thenReturn(mock(ExecutorService.class));
     return new ImmutableIndexState(
         mockManager,
         mockGlobalState,

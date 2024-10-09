@@ -15,7 +15,7 @@
  */
 package com.yelp.nrtsearch.server.state;
 
-import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
@@ -38,7 +38,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadPoolExecutor;
 import org.apache.lucene.search.TimeLimitingCollector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,9 +62,9 @@ public abstract class GlobalState implements Closeable {
   private final Path stateDir;
   private final Path indexDirBase;
 
-  private final ExecutorService indexService;
-  private final ExecutorService fetchService;
-  private final ThreadPoolExecutor searchThreadPoolExecutor;
+  private final ExecutorService indexExecutor;
+  private final ExecutorService fetchExecutor;
+  private final ExecutorService searchExecutor;
 
   public static GlobalState createState(
       NrtsearchConfig luceneServerConfiguration, RemoteBackend remoteBackend) throws IOException {
@@ -90,15 +89,12 @@ public abstract class GlobalState implements Closeable {
     if (Files.exists(stateDir) == false) {
       Files.createDirectories(stateDir);
     }
-    this.indexService =
-        ThreadPoolExecutorFactory.getInstance()
-            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.INDEX);
-    this.searchThreadPoolExecutor =
-        ThreadPoolExecutorFactory.getInstance()
-            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.SEARCH);
-    this.fetchService =
-        ThreadPoolExecutorFactory.getInstance()
-            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.FETCH);
+    this.indexExecutor =
+        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.INDEX);
+    this.searchExecutor =
+        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.SEARCH);
+    this.fetchExecutor =
+        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.FETCH);
     this.configuration = luceneServerConfiguration;
   }
 
@@ -136,7 +132,7 @@ public abstract class GlobalState implements Closeable {
 
   @Override
   public void close() throws IOException {
-    indexService.shutdown();
+    indexExecutor.shutdown();
     TimeLimitingCollector.getGlobalTimerThread().stopTimer();
     try {
       TimeLimitingCollector.getGlobalTimerThread().join();
@@ -284,19 +280,19 @@ public abstract class GlobalState implements Closeable {
   public abstract DummyResponse stopIndex(StopIndexRequest stopIndexRequest) throws IOException;
 
   public Future<Long> submitIndexingTask(Callable<Long> job) {
-    return indexService.submit(job);
+    return indexExecutor.submit(job);
   }
 
   public ThreadPoolConfiguration getThreadPoolConfiguration() {
     return threadPoolConfiguration;
   }
 
-  public ThreadPoolExecutor getSearchThreadPoolExecutor() {
-    return searchThreadPoolExecutor;
+  public ExecutorService getSearchExecutor() {
+    return searchExecutor;
   }
 
-  public ExecutorService getFetchService() {
-    return fetchService;
+  public ExecutorService getFetchExecutor() {
+    return fetchExecutor;
   }
 
   public String getEphemeralId() {

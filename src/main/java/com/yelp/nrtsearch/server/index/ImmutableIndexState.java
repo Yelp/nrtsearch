@@ -29,7 +29,7 @@ import com.google.protobuf.UInt64Value;
 import com.google.protobuf.util.FieldMaskUtil;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.codec.ServerCodec;
-import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.field.FieldDef;
 import com.yelp.nrtsearch.server.field.IdFieldDef;
 import com.yelp.nrtsearch.server.field.properties.GlobalOrdinalable;
@@ -267,7 +267,7 @@ public class ImmutableIndexState extends IndexState {
     int maxParallelism =
         globalState
             .getThreadPoolConfiguration()
-            .getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.FETCH)
+            .getThreadPoolSettings(ExecutorFactory.ExecutorType.FETCH)
             .maxThreads();
     boolean parallelFetchByField = mergedLiveSettingsWithLocal.getParallelFetchByField().getValue();
     int parallelFetchChunkSize = mergedLiveSettingsWithLocal.getParallelFetchChunkSize().getValue();
@@ -276,7 +276,7 @@ public class ImmutableIndexState extends IndexState {
             maxParallelism,
             parallelFetchByField,
             parallelFetchChunkSize,
-            globalState.getFetchService());
+            globalState.getFetchExecutor());
 
     // If there is previous shard state, use it. Otherwise, initialize the shard.
     if (previousShardState != null) {
@@ -292,7 +292,7 @@ public class ImmutableIndexState extends IndexState {
                       indexStateManager,
                       getName(),
                       getRootDir(),
-                      getSearchThreadPoolExecutor(),
+                      getSearchExecutor(),
                       0,
                       !currentStateInfo.getCommitted()))
               .build();

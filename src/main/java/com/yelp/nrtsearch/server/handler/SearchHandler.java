@@ -82,23 +82,22 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       ProtoMessagePrinter.omittingInsignificantWhitespace();
 
   private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
-  private final ThreadPoolExecutor threadPoolExecutor;
+  private final ExecutorService searchExecutor;
   private final boolean warming;
 
   public SearchHandler(GlobalState globalState) {
     super(globalState);
-    this.threadPoolExecutor = globalState.getSearchThreadPoolExecutor();
+    this.searchExecutor = globalState.getSearchExecutor();
     this.warming = false;
   }
 
   /**
-   * @param threadPoolExecutor Threadpool to execute a parallel search
+   * @param searchExecutor executor for parallel search
    * @param warming set to true if we are warming the index right now
    */
-  public SearchHandler(
-      GlobalState globalState, ThreadPoolExecutor threadPoolExecutor, boolean warming) {
+  public SearchHandler(GlobalState globalState, ExecutorService searchExecutor, boolean warming) {
     super(globalState);
-    this.threadPoolExecutor = threadPoolExecutor;
+    this.searchExecutor = searchExecutor;
     this.warming = warming;
   }
 
@@ -174,7 +173,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
     try {
       s =
           getSearcherAndTaxonomy(
-              searchRequest, indexState, shardState, diagnostics, threadPoolExecutor);
+              searchRequest, indexState, shardState, diagnostics, searchExecutor);
 
       ProfileResult.Builder profileResultBuilder = null;
       if (searchRequest.getProfile()) {
@@ -556,7 +555,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       IndexState indexState,
       ShardState state,
       SearchResponse.Diagnostics.Builder diagnostics,
-      ThreadPoolExecutor threadPoolExecutor)
+      ExecutorService searchExecutor)
       throws InterruptedException, IOException {
     // TODO: Figure out which searcher to use:
     // final long searcherVersion; e.g. searcher.getLong("version")
@@ -585,7 +584,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
           // against since this server started, or the call
           // to createSnapshot didn't specify
           // openSearcher=true; now open the reader:
-          s = openSnapshotReader(indexState, state, snapshot, diagnostics, threadPoolExecutor);
+          s = openSnapshotReader(indexState, state, snapshot, diagnostics, searchExecutor);
         } else {
           SearcherTaxonomyManager.SearcherAndTaxonomy current = state.acquire();
           long currentVersion = ((DirectoryReader) current.searcher.getIndexReader()).getVersion();
@@ -721,7 +720,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       ShardState state,
       IndexState.Gens snapshot,
       SearchResponse.Diagnostics.Builder diagnostics,
-      ThreadPoolExecutor threadPoolExecutor)
+      ExecutorService searchExecutor)
       throws IOException {
     // TODO: this "reverse-NRT" is ridiculous: we acquire
     // the latest reader, and from that do a reopen to an
@@ -750,7 +749,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
               new MyIndexSearcher(
                   r,
                   new MyIndexSearcher.ExecutorWithParams(
-                      threadPoolExecutor,
+                      searchExecutor,
                       indexState.getSliceMaxDocs(),
                       indexState.getSliceMaxSegments(),
                       indexState.getVirtualShards())),

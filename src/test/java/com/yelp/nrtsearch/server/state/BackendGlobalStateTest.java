@@ -30,7 +30,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.protobuf.Int32Value;
-import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.field.FieldDefCreator;
 import com.yelp.nrtsearch.server.grpc.GlobalStateInfo;
@@ -91,7 +91,7 @@ public class BackendGlobalStateTest {
     // these must be initialized to create an IndexState
     FieldDefCreator.initialize(dummyConfig, dummyPlugins);
     SimilarityCreator.initialize(dummyConfig, dummyPlugins);
-    ThreadPoolExecutorFactory.init(dummyConfig.getThreadPoolConfiguration());
+    ExecutorFactory.init(dummyConfig.getThreadPoolConfiguration());
   }
 
   @Before

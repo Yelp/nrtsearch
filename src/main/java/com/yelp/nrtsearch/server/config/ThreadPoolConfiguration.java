@@ -16,7 +16,7 @@
 package com.yelp.nrtsearch.server.config;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.utils.JsonUtils;
 import java.util.HashMap;
 import java.util.Map;
@@ -56,7 +56,7 @@ public class ThreadPoolConfiguration {
       Math.max(100, 2 * DEFAULT_VECTOR_MERGE_THREADS);
 
   /**
-   * Settings for a {@link ThreadPoolExecutorFactory.ExecutorType}.
+   * Settings for a {@link ExecutorFactory.ExecutorType}.
    *
    * @param maxThreads max number of threads
    * @param maxBufferedItems max number of buffered items
@@ -64,48 +64,47 @@ public class ThreadPoolConfiguration {
    */
   public record ThreadPoolSettings(int maxThreads, int maxBufferedItems, String threadNamePrefix) {}
 
-  private static final Map<ThreadPoolExecutorFactory.ExecutorType, ThreadPoolSettings>
+  private static final Map<ExecutorFactory.ExecutorType, ThreadPoolSettings>
       defaultThreadPoolSettings =
           Map.of(
-              ThreadPoolExecutorFactory.ExecutorType.SEARCH,
+              ExecutorFactory.ExecutorType.SEARCH,
               new ThreadPoolSettings(
                   DEFAULT_SEARCHING_THREADS, DEFAULT_SEARCH_BUFFERED_ITEMS, "LuceneSearchExecutor"),
-              ThreadPoolExecutorFactory.ExecutorType.INDEX,
+              ExecutorFactory.ExecutorType.INDEX,
               new ThreadPoolSettings(
                   DEFAULT_INDEXING_THREADS,
                   DEFAULT_INDEXING_BUFFERED_ITEMS,
                   "LuceneIndexingExecutor"),
-              ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER,
+              ExecutorFactory.ExecutorType.LUCENESERVER,
               new ThreadPoolSettings(
                   DEFAULT_GRPC_LUCENESERVER_THREADS,
                   DEFAULT_GRPC_LUCENESERVER_BUFFERED_ITEMS,
                   "GrpcLuceneServerExecutor"),
-              ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER,
+              ExecutorFactory.ExecutorType.REPLICATIONSERVER,
               new ThreadPoolSettings(
                   DEFAULT_GRPC_REPLICATIONSERVER_THREADS,
                   DEFAULT_GRPC_REPLICATIONSERVER_BUFFERED_ITEMS,
                   "GrpcReplicationServerExecutor"),
-              ThreadPoolExecutorFactory.ExecutorType.FETCH,
+              ExecutorFactory.ExecutorType.FETCH,
               new ThreadPoolSettings(
                   DEFAULT_FETCH_THREADS, DEFAULT_FETCH_BUFFERED_ITEMS, "LuceneFetchExecutor"),
-              ThreadPoolExecutorFactory.ExecutorType.GRPC,
+              ExecutorFactory.ExecutorType.GRPC,
               new ThreadPoolSettings(
                   DEFAULT_GRPC_THREADS, DEFAULT_GRPC_BUFFERED_ITEMS, "GrpcExecutor"),
-              ThreadPoolExecutorFactory.ExecutorType.METRICS,
+              ExecutorFactory.ExecutorType.METRICS,
               new ThreadPoolSettings(
                   DEFAULT_METRICS_THREADS, DEFAULT_METRICS_BUFFERED_ITEMS, "MetricsExecutor"),
-              ThreadPoolExecutorFactory.ExecutorType.VECTORMERGE,
+              ExecutorFactory.ExecutorType.VECTORMERGE,
               new ThreadPoolSettings(
                   DEFAULT_VECTOR_MERGE_THREADS,
                   DEFAULT_VECTOR_MERGE_BUFFERED_ITEMS,
                   "VectorMergeExecutor"));
 
-  private final Map<ThreadPoolExecutorFactory.ExecutorType, ThreadPoolSettings> threadPoolSettings;
+  private final Map<ExecutorFactory.ExecutorType, ThreadPoolSettings> threadPoolSettings;
 
   public ThreadPoolConfiguration(YamlConfigReader configReader) {
     threadPoolSettings = new HashMap<>();
-    for (ThreadPoolExecutorFactory.ExecutorType executorType :
-        ThreadPoolExecutorFactory.ExecutorType.values()) {
+    for (ExecutorFactory.ExecutorType executorType : ExecutorFactory.ExecutorType.values()) {
       ThreadPoolSettings defaultSettings = defaultThreadPoolSettings.get(executorType);
       String poolConfigPrefix = CONFIG_PREFIX + executorType.name().toLowerCase() + ".";
       int maxThreads =
@@ -175,8 +174,7 @@ public class ThreadPoolConfiguration {
         defaultValue);
   }
 
-  public ThreadPoolSettings getThreadPoolSettings(
-      ThreadPoolExecutorFactory.ExecutorType executorType) {
+  public ThreadPoolSettings getThreadPoolSettings(ExecutorFactory.ExecutorType executorType) {
     return threadPoolSettings.get(executorType);
   }
 }
