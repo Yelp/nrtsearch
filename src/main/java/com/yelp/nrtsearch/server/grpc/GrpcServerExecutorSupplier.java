@@ -15,20 +15,20 @@
  */
 package com.yelp.nrtsearch.server.grpc;
 
-import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallExecutorSupplier;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ExecutorService;
 import javax.annotation.Nullable;
 
 /**
- * GrpcServerExecutorSupplier provides the thread pool executors for the gRPC server. It provides
- * LuceneServer executor for all methods except metrics, for which it provides a separate executor
- * so that even if all LuceneServer threads are occupied by search/index requests, metrics requests
- * will still keep working. The {@link ServerCallExecutorSupplier} is an experimental API, see these
- * links for more details:
+ * GrpcServerExecutorSupplier provides the executors for the gRPC server. It provides the server
+ * executor for all methods except metrics, for which it provides a separate executor so that even
+ * if all server threads are occupied by search/index requests, metrics requests will still keep
+ * working. The {@link ServerCallExecutorSupplier} is an experimental API, see these links for more
+ * details:
  *
  * <ul>
  *   <li><a href="https://github.com/grpc/grpc-java/issues/7874">grpc-java#7874</a>
@@ -38,40 +38,36 @@ import javax.annotation.Nullable;
  */
 public class GrpcServerExecutorSupplier implements ServerCallExecutorSupplier {
 
-  private final ThreadPoolExecutor luceneServerThreadPoolExecutor;
-  private final ThreadPoolExecutor metricsThreadPoolExecutor;
-  private final ThreadPoolExecutor grpcThreadPoolExecutor;
+  private final ExecutorService serverExecutor;
+  private final ExecutorService metricsExecutor;
+  private final ExecutorService grpcExecutor;
 
   public GrpcServerExecutorSupplier() {
-    luceneServerThreadPoolExecutor =
-        ThreadPoolExecutorFactory.getInstance()
-            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER);
-    metricsThreadPoolExecutor =
-        ThreadPoolExecutorFactory.getInstance()
-            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.METRICS);
-    grpcThreadPoolExecutor =
-        ThreadPoolExecutorFactory.getInstance()
-            .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.GRPC);
+    serverExecutor =
+        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.LUCENESERVER);
+    metricsExecutor =
+        ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.METRICS);
+    grpcExecutor = ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.GRPC);
   }
 
-  public ThreadPoolExecutor getLuceneServerThreadPoolExecutor() {
-    return luceneServerThreadPoolExecutor;
+  public ExecutorService getServerExecutor() {
+    return serverExecutor;
   }
 
-  public ThreadPoolExecutor getMetricsThreadPoolExecutor() {
-    return metricsThreadPoolExecutor;
+  public ExecutorService getMetricsExecutor() {
+    return metricsExecutor;
   }
 
-  public ThreadPoolExecutor getGrpcThreadPoolExecutor() {
-    return grpcThreadPoolExecutor;
+  public ExecutorService getGrpcExecutor() {
+    return grpcExecutor;
   }
 
   @Nullable
   @Override
   public <ReqT, RespT> Executor getExecutor(ServerCall<ReqT, RespT> serverCall, Metadata metadata) {
     if ("metrics".equals(serverCall.getMethodDescriptor().getBareMethodName())) {
-      return metricsThreadPoolExecutor;
+      return metricsExecutor;
     }
-    return luceneServerThreadPoolExecutor;
+    return serverExecutor;
   }
 }

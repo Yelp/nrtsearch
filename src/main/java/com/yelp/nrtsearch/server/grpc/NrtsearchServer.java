@@ -26,7 +26,7 @@ import com.google.protobuf.Any;
 import com.google.protobuf.Empty;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.analysis.AnalyzerCreator;
-import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.QueryCacheConfig;
 import com.yelp.nrtsearch.server.custom.request.CustomRequestProcessor;
@@ -162,9 +162,8 @@ public class NrtsearchServer {
                   new ReplicationServerImpl(
                       globalState, luceneServerConfiguration.getVerifyReplicationIndexId()))
               .executor(
-                  ThreadPoolExecutorFactory.getInstance()
-                      .getThreadPoolExecutor(
-                          ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER))
+                  ExecutorFactory.getInstance()
+                      .getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
               .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
               .maxConcurrentCallsPerConnection(
                   luceneServerConfiguration.getMaxConcurrentCallsPerConnectionForReplication())
@@ -182,9 +181,8 @@ public class NrtsearchServer {
                   new ReplicationServerImpl(
                       globalState, luceneServerConfiguration.getVerifyReplicationIndexId()))
               .executor(
-                  ThreadPoolExecutorFactory.getInstance()
-                      .getThreadPoolExecutor(
-                          ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER))
+                  ExecutorFactory.getInstance()
+                      .getExecutor(ExecutorFactory.ExecutorType.REPLICATIONSERVER))
               .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
               .build()
               .start();
@@ -212,7 +210,7 @@ public class NrtsearchServer {
             .callExecutor(executorSupplier)
             // We still need this executor to run tasks before the point when executorSupplier can
             // be called (https://github.com/grpc/grpc-java/issues/8274)
-            .executor(executorSupplier.getGrpcThreadPoolExecutor())
+            .executor(executorSupplier.getGrpcExecutor())
             .maxInboundMessageSize(MAX_MESSAGE_BYTES_SIZE)
             .compressorRegistry(LuceneServerStubBuilder.COMPRESSOR_REGISTRY)
             .decompressorRegistry(LuceneServerStubBuilder.DECOMPRESSOR_REGISTRY)
@@ -374,7 +372,7 @@ public class NrtsearchServer {
       DeadlineUtils.setCancellationEnabled(configuration.getDeadlineCancellation());
       CompletionPostingsFormatUtil.setCompletionCodecLoadMode(
           configuration.getCompletionCodecLoadMode());
-      ThreadPoolExecutorFactory.init(configuration.getThreadPoolConfiguration());
+      ExecutorFactory.init(configuration.getThreadPoolConfiguration());
 
       initQueryCache(configuration);
       initExtendableComponents(configuration, plugins);

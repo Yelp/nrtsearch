@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.config;
 
 import static org.junit.Assert.*;
 
-import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -44,7 +44,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
         luceneServerConfiguration
             .getThreadPoolConfiguration()
-            .getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.SEARCH);
+            .getThreadPoolSettings(ExecutorFactory.ExecutorType.SEARCH);
     assertEquals(threadPoolSettings.maxThreads(), 16);
     assertEquals(threadPoolSettings.maxBufferedItems(), 100);
   }
@@ -55,8 +55,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.SEARCH);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.SEARCH);
     assertEquals(
         threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_SEARCHING_THREADS);
     assertEquals(
@@ -78,8 +77,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.SEARCH);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.SEARCH);
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
@@ -91,7 +89,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.INDEX);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.INDEX);
     assertEquals(threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_INDEXING_THREADS);
     assertEquals(
         threadPoolSettings.maxBufferedItems(),
@@ -112,7 +110,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.INDEX);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.INDEX);
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
@@ -124,8 +122,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.LUCENESERVER);
     assertEquals(
         threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_GRPC_LUCENESERVER_THREADS);
     assertEquals(
@@ -147,8 +144,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.LUCENESERVER);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.LUCENESERVER);
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
@@ -161,7 +157,7 @@ public class ThreadPoolConfigurationTest {
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
         threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER);
+            ExecutorFactory.ExecutorType.REPLICATIONSERVER);
     assertEquals(
         threadPoolSettings.maxThreads(),
         ThreadPoolConfiguration.DEFAULT_GRPC_REPLICATIONSERVER_THREADS);
@@ -185,7 +181,7 @@ public class ThreadPoolConfigurationTest {
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
         threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.REPLICATIONSERVER);
+            ExecutorFactory.ExecutorType.REPLICATIONSERVER);
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
@@ -197,7 +193,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.FETCH);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.FETCH);
     assertEquals(threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_FETCH_THREADS);
     assertEquals(
         threadPoolSettings.maxBufferedItems(),
@@ -218,7 +214,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.FETCH);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.FETCH);
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
@@ -230,7 +226,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.GRPC);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.GRPC);
     assertEquals(threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_GRPC_THREADS);
     assertEquals(
         threadPoolSettings.maxBufferedItems(), ThreadPoolConfiguration.DEFAULT_GRPC_BUFFERED_ITEMS);
@@ -250,7 +246,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.GRPC);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.GRPC);
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
@@ -262,8 +258,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.METRICS);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.METRICS);
     assertEquals(threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_METRICS_THREADS);
     assertEquals(
         threadPoolSettings.maxBufferedItems(),
@@ -284,8 +279,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.METRICS);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.METRICS);
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
@@ -297,8 +291,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.VECTORMERGE);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.VECTORMERGE);
     assertEquals(
         threadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_VECTOR_MERGE_THREADS);
     assertEquals(
@@ -320,8 +313,7 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.VECTORMERGE);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.VECTORMERGE);
     assertEquals(threadPoolSettings.maxThreads(), 5);
     assertEquals(threadPoolSettings.maxBufferedItems(), 10);
     assertEquals("customName", threadPoolSettings.threadNamePrefix());
@@ -341,15 +333,14 @@ public class ThreadPoolConfigurationTest {
     ThreadPoolConfiguration threadPoolConfiguration =
         new ThreadPoolConfiguration(getReaderForConfig(config));
     ThreadPoolConfiguration.ThreadPoolSettings searchThreadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(
-            ThreadPoolExecutorFactory.ExecutorType.SEARCH);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.SEARCH);
     assertEquals(searchThreadPoolSettings.maxThreads(), 5);
     assertEquals(
         searchThreadPoolSettings.maxBufferedItems(),
         ThreadPoolConfiguration.DEFAULT_SEARCH_BUFFERED_ITEMS);
     assertEquals("customName", searchThreadPoolSettings.threadNamePrefix());
     ThreadPoolConfiguration.ThreadPoolSettings indexThreadPoolSettings =
-        threadPoolConfiguration.getThreadPoolSettings(ThreadPoolExecutorFactory.ExecutorType.INDEX);
+        threadPoolConfiguration.getThreadPoolSettings(ExecutorFactory.ExecutorType.INDEX);
     assertEquals(
         indexThreadPoolSettings.maxThreads(), ThreadPoolConfiguration.DEFAULT_INDEXING_THREADS);
     assertEquals(indexThreadPoolSettings.maxBufferedItems(), 14);

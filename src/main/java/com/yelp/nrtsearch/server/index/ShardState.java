@@ -85,7 +85,7 @@ public class ShardState implements Closeable {
   public static final int REPLICA_ID = 0;
   public static final String INDEX_DATA_DIR_NAME = "index";
   public static final String TAXONOMY_DATA_DIR_NAME = "taxonomy";
-  final ThreadPoolExecutor searchExecutor;
+  final ExecutorService searchExecutor;
 
   /** {@link IndexStateManager} for the index this shard belongs to */
   private final IndexStateManager indexStateManager;
@@ -283,7 +283,7 @@ public class ShardState implements Closeable {
    * @param indexStateManager state manager for index
    * @param indexName index name
    * @param rootDir this index data root directory
-   * @param searchExecutor search thread pool
+   * @param searchExecutor search executor
    * @param shardOrd shard number
    * @param doCreate if index should be created when started
    */
@@ -291,7 +291,7 @@ public class ShardState implements Closeable {
       IndexStateManager indexStateManager,
       String indexName,
       Path rootDir,
-      ThreadPoolExecutor searchExecutor,
+      ExecutorService searchExecutor,
       int shardOrd,
       boolean doCreate)
       throws IOException {

@@ -18,15 +18,21 @@ package com.yelp.nrtsearch.server.concurrent;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.monitoring.ThreadPoolCollector;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import org.apache.lucene.util.NamedThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Static Factory to generate {@link ThreadPoolExecutor} as per the {@link ExecutorType} provided
+ * Static Factory to generate {@link java.util.concurrent.ExecutorService} as per the {@link
+ * ExecutorType} provided.
  */
-public class ThreadPoolExecutorFactory {
+public class ExecutorFactory {
   public enum ExecutorType {
     SEARCH,
     INDEX,
@@ -38,12 +44,12 @@ public class ThreadPoolExecutorFactory {
     VECTORMERGE
   }
 
-  private static final Logger logger = LoggerFactory.getLogger(ThreadPoolExecutorFactory.class);
+  private static final Logger logger = LoggerFactory.getLogger(ExecutorFactory.class);
 
-  private static ThreadPoolExecutorFactory instance;
+  private static ExecutorFactory instance;
 
   private final ThreadPoolConfiguration threadPoolConfiguration;
-  private final Map<ExecutorType, ThreadPoolExecutor> executorMap = new ConcurrentHashMap<>();
+  private final Map<ExecutorType, ExecutorService> executorMap = new ConcurrentHashMap<>();
 
   /**
    * Initialize the factory with the provided {@link ThreadPoolConfiguration}.
@@ -51,7 +57,7 @@ public class ThreadPoolExecutorFactory {
    * @param threadPoolConfiguration thread pool configuration
    */
   public static void init(ThreadPoolConfiguration threadPoolConfiguration) {
-    instance = new ThreadPoolExecutorFactory(threadPoolConfiguration);
+    instance = new ExecutorFactory(threadPoolConfiguration);
   }
 
   /**
@@ -60,9 +66,9 @@ public class ThreadPoolExecutorFactory {
    * @return instance of the factory
    * @throws IllegalStateException if the factory is not initialized
    */
-  public static ThreadPoolExecutorFactory getInstance() {
+  public static ExecutorFactory getInstance() {
     if (instance == null) {
-      throw new IllegalStateException("ThreadPoolExecutorFactory not initialized");
+      throw new IllegalStateException("ExecutorFactory not initialized");
     }
     return instance;
   }
@@ -72,22 +78,22 @@ public class ThreadPoolExecutorFactory {
    *
    * @param threadPoolConfiguration thread pool configuration
    */
-  public ThreadPoolExecutorFactory(ThreadPoolConfiguration threadPoolConfiguration) {
+  public ExecutorFactory(ThreadPoolConfiguration threadPoolConfiguration) {
     this.threadPoolConfiguration = threadPoolConfiguration;
   }
 
   /**
-   * Get the {@link ThreadPoolExecutor} for the provided {@link ExecutorType}. The executor is
-   * cached, so subsequent calls with the same {@link ExecutorType} will return the same executor.
+   * Get the {@link ExecutorService} for the provided {@link ExecutorType}. The executor is cached,
+   * so subsequent calls with the same {@link ExecutorType} will return the same executor.
    *
    * @param executorType {@link ExecutorType}
-   * @return {@link ThreadPoolExecutor}
+   * @return {@link ExecutorService}
    */
-  public ThreadPoolExecutor getThreadPoolExecutor(ExecutorType executorType) {
-    return executorMap.computeIfAbsent(executorType, this::createThreadPoolExecutor);
+  public ExecutorService getExecutor(ExecutorType executorType) {
+    return executorMap.computeIfAbsent(executorType, this::createExecutor);
   }
 
-  private ThreadPoolExecutor createThreadPoolExecutor(ExecutorType executorType) {
+  private ExecutorService createExecutor(ExecutorType executorType) {
     ThreadPoolConfiguration.ThreadPoolSettings threadPoolSettings =
         threadPoolConfiguration.getThreadPoolSettings(executorType);
     logger.info(

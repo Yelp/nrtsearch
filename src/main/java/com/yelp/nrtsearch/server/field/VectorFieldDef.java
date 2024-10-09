@@ -17,7 +17,7 @@ package com.yelp.nrtsearch.server.field;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleSearchVector;
 import com.yelp.nrtsearch.server.doc.LoadedDocValues.SingleVector;
@@ -143,8 +143,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
         vectorIndexingOptions.hasMergeWorkers() ? vectorIndexingOptions.getMergeWorkers() : 1;
     ExecutorService executorService =
         mergeWorkers > 1
-            ? ThreadPoolExecutorFactory.getInstance()
-                .getThreadPoolExecutor(ThreadPoolExecutorFactory.ExecutorType.VECTORMERGE)
+            ? ExecutorFactory.getInstance().getExecutor(ExecutorFactory.ExecutorType.VECTORMERGE)
             : null;
     KnnVectorsFormat vectorsFormat =
         switch (vectorSearchType) {

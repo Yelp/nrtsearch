@@ -19,7 +19,7 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.yelp.nrtsearch.server.concurrent.ThreadPoolExecutorFactory;
+import com.yelp.nrtsearch.server.concurrent.ExecutorFactory;
 import com.yelp.nrtsearch.server.config.ThreadPoolConfiguration;
 import com.yelp.nrtsearch.server.config.YamlConfigReader;
 import io.grpc.Metadata;
@@ -41,7 +41,7 @@ public class GrpcServerExecutorSupplierTest {
             new YamlConfigReader(
                 new ByteArrayInputStream(
                     "threadPoolConfiguration:\n  search:\n    maxThreads: 1".getBytes())));
-    ThreadPoolExecutorFactory.init(threadPoolConfiguration);
+    ExecutorFactory.init(threadPoolConfiguration);
   }
 
   @Test
@@ -54,10 +54,10 @@ public class GrpcServerExecutorSupplierTest {
     Metadata mockMetadata = mock(Metadata.class);
 
     assertEquals(
-        grpcServerExecutorSupplier.getMetricsThreadPoolExecutor(),
+        grpcServerExecutorSupplier.getMetricsExecutor(),
         grpcServerExecutorSupplier.getExecutor(metricsServerCall, mockMetadata));
     assertEquals(
-        grpcServerExecutorSupplier.getLuceneServerThreadPoolExecutor(),
+        grpcServerExecutorSupplier.getServerExecutor(),
         grpcServerExecutorSupplier.getExecutor(searchServerCall, mockMetadata));
   }
 

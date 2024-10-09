@@ -105,8 +105,7 @@ public class Warmer {
   public void warmFromS3(IndexState indexState, int parallelism)
       throws IOException, SearchHandler.SearchHandlerException, InterruptedException {
     SearchHandler searchHandler =
-        new SearchHandler(
-            indexState.getGlobalState(), indexState.getSearchThreadPoolExecutor(), true);
+        new SearchHandler(indexState.getGlobalState(), indexState.getSearchExecutor(), true);
     warmFromS3(indexState, parallelism, searchHandler);
   }
 
