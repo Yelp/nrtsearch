@@ -276,8 +276,8 @@ public class NrtDataManagerTest {
   @Test
   public void testWriteSegmentsFile() throws IOException {
     NrtDataManager.writeSegmentsFile(new byte[] {1, 2, 3, 4, 5}, 14, folder.getRoot().toPath());
-    assertArrayEquals(new String[] {"segments_14"}, folder.getRoot().list());
-    byte[] fileBytes = Files.readAllBytes(folder.getRoot().toPath().resolve("segments_14"));
+    assertArrayEquals(new String[] {"segments_e"}, folder.getRoot().list());
+    byte[] fileBytes = Files.readAllBytes(folder.getRoot().toPath().resolve("segments_e"));
     assertArrayEquals(new byte[] {1, 2, 3, 4, 5}, fileBytes);
   }
 
