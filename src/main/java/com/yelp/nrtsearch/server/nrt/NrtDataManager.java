@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.replicator.nrt.CopyState;
 import org.apache.lucene.replicator.nrt.FileMetaData;
 import org.slf4j.Logger;
@@ -52,7 +53,6 @@ import org.slf4j.LoggerFactory;
  */
 public class NrtDataManager implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(NrtDataManager.class);
-  private static final String SEGMENTS_FILE_FORMAT = "segments_%d";
   private final String serviceName;
   private final String ephemeralId;
   private final String indexIdentifier;
@@ -205,7 +205,9 @@ public class NrtDataManager implements Closeable {
   @VisibleForTesting
   static void writeSegmentsFile(byte[] segmentBytes, long gen, Path shardDataDir)
       throws IOException {
-    Path segmentsFile = shardDataDir.resolve(String.format(SEGMENTS_FILE_FORMAT, gen));
+    String segmentsFileName =
+        IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", gen);
+    Path segmentsFile = shardDataDir.resolve(segmentsFileName);
     try (OutputStream os = new FileOutputStream(segmentsFile.toFile())) {
       os.write(segmentBytes);
     }
