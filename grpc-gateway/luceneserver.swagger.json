@@ -579,6 +579,29 @@
         ]
       }
     },
+    "/v1/node_info": {
+      "get": {
+        "summary": "* Get information about this node",
+        "operationId": "LuceneServer_nodeInfo",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverNodeInfoResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/ready": {
       "get": {
         "summary": "Checks if a node is ready to receive traffic by checking if all the indices (which can be preloaded)\nare started. Can specify comma-separated list of index name to only check specific indices if needed.",
@@ -4115,6 +4138,31 @@
         "port": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "luceneserverNodeInfoResponse": {
+      "type": "object",
+      "properties": {
+        "nodeName": {
+          "type": "string",
+          "title": "node name"
+        },
+        "serviceName": {
+          "type": "string",
+          "title": "service name"
+        },
+        "hostName": {
+          "type": "string",
+          "title": "host name"
+        },
+        "version": {
+          "type": "string",
+          "title": "nrtsearch version"
+        },
+        "ephemeralId": {
+          "type": "string",
+          "title": "node ephemeral id"
         }
       }
     },
