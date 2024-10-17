@@ -514,6 +514,10 @@ message SpanNearQuery {
     bool inOrder = 3;
 }
 
+// A query that matches all documents.
+message MatchAllQuery {
+}
+
 // Defines different types of QueryNodes.
 enum QueryType {
     NONE = 0;
@@ -570,6 +574,7 @@ message Query {
         ConstantScoreQuery constantScoreQuery = 23;
         GeoPolygonQuery geoPolygonQuery = 24;
         SpanQuery spanQuery = 25;
+        MatchAllQuery matchAllQuery = 26;
     }
 }
 
