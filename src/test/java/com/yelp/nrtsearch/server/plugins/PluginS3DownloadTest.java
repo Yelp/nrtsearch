@@ -26,7 +26,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -59,7 +58,6 @@ public class PluginS3DownloadTest extends NrtsearchTest {
     return List.of(path);
   }
 
-  @Ignore("Fix and enable this after the new server artifact is published")
   @Test
   public void testPluginS3Path() {
     assertTrue(Files.exists(getPluginSearchPath().resolve("example-plugin-0.0.1")));
