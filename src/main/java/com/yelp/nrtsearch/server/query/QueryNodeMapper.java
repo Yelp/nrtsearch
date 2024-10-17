@@ -190,7 +190,7 @@ public class QueryNodeMapper {
         return getSpanQuery(query.getSpanQuery(), state);
       case GEOPOLYGONQUERY:
         return getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
-      case QUERYNODE_NOT_SET:
+      case MATCHALLQUERY, QUERYNODE_NOT_SET:
         return new MatchAllDocsQuery();
       default:
         throw new UnsupportedOperationException(

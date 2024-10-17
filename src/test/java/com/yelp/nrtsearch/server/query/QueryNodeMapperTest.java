@@ -17,6 +17,8 @@ package com.yelp.nrtsearch.server.query;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import com.yelp.nrtsearch.server.ServerTestCase;
 import com.yelp.nrtsearch.server.config.NrtsearchConfig;
@@ -238,5 +240,15 @@ public class QueryNodeMapperTest extends ServerTestCase {
             .setScript(Script.newBuilder().setLang("test_lang").setSource("return 2*2;").build())
             .build());
     return fields;
+  }
+
+  @Test
+  public void testMatchAllQuery() {
+    org.apache.lucene.search.Query query =
+        QueryNodeMapper.getInstance()
+            .getQuery(
+                Query.newBuilder().setMatchAllQuery(MatchAllQuery.newBuilder().build()).build(),
+                mock(IndexState.class));
+    assertTrue(query instanceof org.apache.lucene.search.MatchAllDocsQuery);
   }
 }

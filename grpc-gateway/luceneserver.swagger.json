@@ -3902,6 +3902,10 @@
         }
       }
     },
+    "luceneserverMatchAllQuery": {
+      "type": "object",
+      "description": "A query that matches all documents."
+    },
     "luceneserverMatchOperator": {
       "type": "string",
       "enum": [
@@ -4385,6 +4389,9 @@
         },
         "spanQuery": {
           "$ref": "#/definitions/luceneserverSpanQuery"
+        },
+        "matchAllQuery": {
+          "$ref": "#/definitions/luceneserverMatchAllQuery"
         }
       },
       "description": "Defines a full query consisting of a QueryNode which may be one of several types."
