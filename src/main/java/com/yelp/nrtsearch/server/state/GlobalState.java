@@ -53,6 +53,7 @@ public abstract class GlobalState implements Closeable {
   private final long generation = System.currentTimeMillis();
 
   private final String nodeName;
+  private final String serviceName;
 
   private final NrtsearchConfig configuration;
 
@@ -79,6 +80,7 @@ public abstract class GlobalState implements Closeable {
       throws IOException {
     this.remoteBackend = remoteBackend;
     this.nodeName = luceneServerConfiguration.getNodeName();
+    this.serviceName = luceneServerConfiguration.getServiceName();
     this.stateDir = Paths.get(luceneServerConfiguration.getStateDir());
     this.indexDirBase = Paths.get(luceneServerConfiguration.getIndexDir());
     this.hostName = luceneServerConfiguration.getHostName();
@@ -104,6 +106,15 @@ public abstract class GlobalState implements Closeable {
 
   public String getNodeName() {
     return nodeName;
+  }
+
+  /**
+   * Get the service name.
+   *
+   * @return service name
+   */
+  public String getServiceName() {
+    return serviceName;
   }
 
   public String getHostName() {

@@ -17,11 +17,14 @@ package com.yelp.nrtsearch.server.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.yelp.nrtsearch.server.grpc.LuceneServerStubBuilder;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
 import com.yelp.nrtsearch.server.state.GlobalState;
+import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
@@ -55,8 +58,49 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
     throw new UnsupportedOperationException("This method is not supported");
   }
 
+  public S handle(T protoRequest) {
+    throw new UnsupportedOperationException("This method is not supported");
+  }
+
   public StreamObserver<T> handle(StreamObserver<S> responseObserver) {
     throw new UnsupportedOperationException("This method is not supported");
+  }
+
+  /**
+   * Handle a unary request, catching any exceptions and returning an error status to the client.
+   *
+   * @param name name of the request
+   * @param protoRequest request object
+   * @param responseObserver observer to send response to
+   * @param handler handler to process the request
+   * @param <T> request type
+   * @param <S> response type
+   */
+  public static <T extends GeneratedMessageV3, S extends GeneratedMessageV3>
+      void handleUnaryRequest(
+          String name, T protoRequest, StreamObserver<S> responseObserver, Handler<T, S> handler) {
+    try {
+      S response = handler.handle(protoRequest);
+      responseObserver.onNext(response);
+      responseObserver.onCompleted();
+    } catch (Exception e) {
+      String requestStr;
+      try {
+        requestStr = ProtoMessagePrinter.omittingInsignificantWhitespace().print(protoRequest);
+      } catch (InvalidProtocolBufferException ignore) {
+        requestStr = protoRequest.toString();
+      }
+      logger.warn("Error handling " + name + " request: " + requestStr, e);
+      if (e instanceof StatusRuntimeException) {
+        responseObserver.onError(e);
+      } else {
+        responseObserver.onError(
+            Status.INTERNAL
+                .withDescription("Error handling " + name + " request")
+                .augmentDescription(e.getMessage())
+                .asException());
+      }
+    }
   }
 
   /**

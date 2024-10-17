@@ -264,6 +264,13 @@ service LuceneServer {
     };
     }
 
+    /** Get information about this node */
+    rpc nodeInfo (NodeInfoRequest) returns (NodeInfoResponse) {
+        option (google.api.http) = {
+      get: "/v1/node_info"
+    };
+    }
+
     /* Get the global state of the cluster */
     rpc globalState (GlobalStateRequest) returns (GlobalStateResponse) {
         option (google.api.http) = {
@@ -873,6 +880,22 @@ message RestoreIndex {
     string serviceName = 1; // remote storage namespace qualifier for service
     string resourceName = 2; //remote storage namespace qualifier for resource e.g. indexName
     bool deleteExistingData = 3; // delete any existing data for the index
+}
+
+message NodeInfoRequest {
+}
+
+message NodeInfoResponse {
+    // node name
+    string node_name = 1;
+    // service name
+    string service_name = 2;
+    // host name
+    string host_name = 3;
+    // nrtsearch version
+    string version = 4;
+    // node ephemeral id
+    string ephemeral_id = 5;
 }
 
 message GlobalStateRequest {

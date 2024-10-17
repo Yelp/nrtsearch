@@ -49,11 +49,13 @@ import com.yelp.nrtsearch.server.handler.GetAllSnapshotIndexGenHandler;
 import com.yelp.nrtsearch.server.handler.GetNodesInfoHandler;
 import com.yelp.nrtsearch.server.handler.GetStateHandler;
 import com.yelp.nrtsearch.server.handler.GlobalStateHandler;
+import com.yelp.nrtsearch.server.handler.Handler;
 import com.yelp.nrtsearch.server.handler.IndicesHandler;
 import com.yelp.nrtsearch.server.handler.LiveSettingsHandler;
 import com.yelp.nrtsearch.server.handler.LiveSettingsV2Handler;
 import com.yelp.nrtsearch.server.handler.MetricsHandler;
 import com.yelp.nrtsearch.server.handler.NewNRTPointHandler;
+import com.yelp.nrtsearch.server.handler.NodeInfoHandler;
 import com.yelp.nrtsearch.server.handler.ReadyHandler;
 import com.yelp.nrtsearch.server.handler.RecvCopyStateHandler;
 import com.yelp.nrtsearch.server.handler.RecvRawFileHandler;
@@ -336,6 +338,7 @@ public class NrtsearchServer {
     private final LiveSettingsHandler liveSettingsHandler;
     private final LiveSettingsV2Handler liveSettingsV2Handler;
     private final MetricsHandler metricsHandler;
+    private final NodeInfoHandler nodeInfoHandler;
     private final ReadyHandler readyHandler;
     private final RefreshHandler refreshHandler;
     private final RegisterFieldsHandler registerFieldsHandler;
@@ -399,6 +402,7 @@ public class NrtsearchServer {
       liveSettingsHandler = new LiveSettingsHandler(globalState);
       liveSettingsV2Handler = new LiveSettingsV2Handler(globalState);
       metricsHandler = new MetricsHandler(prometheusRegistry);
+      nodeInfoHandler = new NodeInfoHandler(globalState);
       readyHandler = new ReadyHandler(globalState);
       refreshHandler = new RefreshHandler(globalState);
       registerFieldsHandler = new RegisterFieldsHandler(globalState);
@@ -635,6 +639,12 @@ public class NrtsearchServer {
     @Override
     public void indices(IndicesRequest request, StreamObserver<IndicesResponse> responseObserver) {
       indicesHandler.handle(request, responseObserver);
+    }
+
+    @Override
+    public void nodeInfo(
+        NodeInfoRequest request, StreamObserver<NodeInfoResponse> responseStreamObserver) {
+      Handler.handleUnaryRequest("nodeInfo", request, responseStreamObserver, nodeInfoHandler);
     }
 
     @Override
