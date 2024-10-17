@@ -19,14 +19,14 @@ import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.grpc.NodeInfoRequest;
 import com.yelp.nrtsearch.server.grpc.NodeInfoResponse;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.stub.StreamObserver;
 
 public class NodeInfoHandler extends Handler<NodeInfoRequest, NodeInfoResponse> {
   public NodeInfoHandler(GlobalState globalState) {
     super(globalState);
   }
 
-  public void handle(NodeInfoRequest request, StreamObserver<NodeInfoResponse> responseObserver) {
+  @Override
+  public NodeInfoResponse handle(NodeInfoRequest request) {
     GlobalState globalState = getGlobalState();
     NodeInfoResponse.Builder builder = NodeInfoResponse.newBuilder();
     builder.setNodeName(globalState.getNodeName());
@@ -35,7 +35,6 @@ public class NodeInfoHandler extends Handler<NodeInfoRequest, NodeInfoResponse> 
     builder.setVersion(Version.CURRENT.toString());
     builder.setEphemeralId(globalState.getEphemeralId());
 
-    responseObserver.onNext(builder.build());
-    responseObserver.onCompleted();
+    return builder.build();
   }
 }

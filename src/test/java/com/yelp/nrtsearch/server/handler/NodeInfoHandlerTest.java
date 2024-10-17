@@ -16,18 +16,14 @@
 package com.yelp.nrtsearch.server.handler;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.yelp.nrtsearch.server.Version;
 import com.yelp.nrtsearch.server.grpc.NodeInfoRequest;
 import com.yelp.nrtsearch.server.grpc.NodeInfoResponse;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.stub.StreamObserver;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 
 public class NodeInfoHandlerTest {
 
@@ -39,18 +35,13 @@ public class NodeInfoHandlerTest {
     when(mockGlobalState.getHostName()).thenReturn("hostName");
     when(mockGlobalState.getEphemeralId()).thenReturn("ephemeralId");
     NodeInfoHandler nodeInfoHandler = new NodeInfoHandler(mockGlobalState);
-    StreamObserver<NodeInfoResponse> mockResponseObserver = mock(StreamObserver.class);
 
-    nodeInfoHandler.handle(NodeInfoRequest.newBuilder().build(), mockResponseObserver);
+    NodeInfoResponse response = nodeInfoHandler.handle(NodeInfoRequest.newBuilder().build());
 
-    ArgumentCaptor<NodeInfoResponse> captor = ArgumentCaptor.forClass(NodeInfoResponse.class);
-    verify(mockResponseObserver, times(1)).onNext(captor.capture());
-    NodeInfoResponse response = captor.getValue();
     assertEquals("nodeName", response.getNodeName());
     assertEquals("serviceName", response.getServiceName());
     assertEquals("hostName", response.getHostName());
     assertEquals("ephemeralId", response.getEphemeralId());
-    assertFalse(response.getVersion().isEmpty());
-    verify(mockResponseObserver, times(1)).onCompleted();
+    assertEquals(Version.CURRENT.toString(), response.getVersion());
   }
 }

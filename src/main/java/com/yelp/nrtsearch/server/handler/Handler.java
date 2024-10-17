@@ -58,6 +58,10 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
     throw new UnsupportedOperationException("This method is not supported");
   }
 
+  public S handle(T protoRequest) {
+    throw new UnsupportedOperationException("This method is not supported");
+  }
+
   public StreamObserver<T> handle(StreamObserver<S> responseObserver) {
     throw new UnsupportedOperationException("This method is not supported");
   }
@@ -76,7 +80,9 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
       void handleUnaryRequest(
           String name, T protoRequest, StreamObserver<S> responseObserver, Handler<T, S> handler) {
     try {
-      handler.handle(protoRequest, responseObserver);
+      S response = handler.handle(protoRequest);
+      responseObserver.onNext(response);
+      responseObserver.onCompleted();
     } catch (Exception e) {
       String requestStr;
       try {
