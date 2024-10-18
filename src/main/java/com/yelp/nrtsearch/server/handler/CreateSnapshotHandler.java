@@ -22,8 +22,6 @@ import com.yelp.nrtsearch.server.grpc.SnapshotId;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
 import org.apache.lucene.index.DirectoryReader;
@@ -42,31 +40,12 @@ public class CreateSnapshotHandler extends Handler<CreateSnapshotRequest, Create
   }
 
   @Override
-  public void handle(
-      CreateSnapshotRequest createSnapshotRequest,
-      StreamObserver<CreateSnapshotResponse> responseObserver) {
-    try {
-      IndexState indexState =
-          getGlobalState().getIndexOrThrow(createSnapshotRequest.getIndexName());
-      CreateSnapshotResponse reply = createSnapshot(indexState, createSnapshotRequest);
-      logger.info(String.format("CreateSnapshotHandler returned results %s", reply.toString()));
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn(
-          String.format(
-              "error while trying to createSnapshot for index %s",
-              createSnapshotRequest.getIndexName()),
-          e);
-      responseObserver.onError(
-          Status.UNKNOWN
-              .withDescription(
-                  String.format(
-                      "error while trying to createSnapshot for index %s",
-                      createSnapshotRequest.getIndexName()))
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public CreateSnapshotResponse handle(CreateSnapshotRequest createSnapshotRequest)
+      throws Exception {
+    IndexState indexState = getIndexState(createSnapshotRequest.getIndexName());
+    CreateSnapshotResponse reply = createSnapshot(indexState, createSnapshotRequest);
+    logger.info(String.format("CreateSnapshotHandler returned results %s", reply));
+    return reply;
   }
 
   private CreateSnapshotResponse createSnapshot(

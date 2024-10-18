@@ -18,8 +18,6 @@ package com.yelp.nrtsearch.server.handler;
 import com.yelp.nrtsearch.server.grpc.GlobalStateRequest;
 import com.yelp.nrtsearch.server.grpc.GlobalStateResponse;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,19 +29,7 @@ public class GlobalStateHandler extends Handler<GlobalStateRequest, GlobalStateR
   }
 
   @Override
-  public void handle(
-      GlobalStateRequest request, StreamObserver<GlobalStateResponse> responseObserver) {
-    try {
-      responseObserver.onNext(
-          GlobalStateResponse.newBuilder().setGlobalState(getGlobalState().getStateInfo()).build());
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn("error while trying to get global state", e);
-      responseObserver.onError(
-          Status.UNKNOWN
-              .withDescription("error while trying to get global state")
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public GlobalStateResponse handle(GlobalStateRequest request) throws Exception {
+    return GlobalStateResponse.newBuilder().setGlobalState(getGlobalState().getStateInfo()).build();
   }
 }

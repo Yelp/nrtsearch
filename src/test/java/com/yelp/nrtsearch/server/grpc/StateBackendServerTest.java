@@ -1251,9 +1251,7 @@ public class StateBackendServerTest {
       fail();
     } catch (StatusRuntimeException e) {
       assertEquals(Status.ALREADY_EXISTS.getCode(), e.getStatus().getCode());
-      assertEquals(
-          "ALREADY_EXISTS: invalid indexName: test_index\nIllegalArgumentException()",
-          e.getMessage());
+      assertEquals("ALREADY_EXISTS: Index test_index already exists", e.getMessage());
     }
   }
 
@@ -1452,7 +1450,7 @@ public class StateBackendServerTest {
       fail();
     } catch (StatusRuntimeException e) {
       assertEquals(
-          "INVALID_ARGUMENT: error while trying to start index: test_index\nIndex test_index is already started",
+          "INTERNAL: Error handling startIndex request\nIndex test_index is already started",
           e.getMessage());
     }
   }

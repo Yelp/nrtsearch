@@ -22,8 +22,6 @@ import com.yelp.nrtsearch.server.grpc.Taxonomy;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,37 +44,12 @@ public class StatsHandler extends Handler<StatsRequest, StatsResponse> {
   }
 
   @Override
-  public void handle(StatsRequest statsRequest, StreamObserver<StatsResponse> responseObserver) {
-    try {
-      IndexState indexState = getGlobalState().getIndexOrThrow(statsRequest.getIndexName());
-      indexState.verifyStarted();
-      StatsResponse reply = process(indexState);
-      logger.debug("StatsHandler retrieved stats for index: {} ", reply);
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (IOException e) {
-      logger.warn(
-          "error while trying to read index state dir for indexName: {}",
-          statsRequest.getIndexName(),
-          e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "error while trying to read index state dir for indexName: "
-                      + statsRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .withCause(e)
-              .asRuntimeException());
-    } catch (Exception e) {
-      logger.warn(
-          "error while trying to retrieve stats for index {}", statsRequest.getIndexName(), e);
-      responseObserver.onError(
-          Status.UNKNOWN
-              .withDescription(
-                  "error while trying to retrieve stats for index: " + statsRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public StatsResponse handle(StatsRequest statsRequest) throws Exception {
+    IndexState indexState = getIndexState(statsRequest.getIndexName());
+    indexState.verifyStarted();
+    StatsResponse reply = process(indexState);
+    logger.debug("StatsHandler retrieved stats for index: {} ", reply);
+    return reply;
   }
 
   // Public because it's used by IndicesHandler

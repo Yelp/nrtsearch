@@ -23,7 +23,6 @@ import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -40,8 +39,7 @@ public class ReadyHandler extends Handler<ReadyCheckRequest, HealthCheckResponse
   }
 
   @Override
-  public void handle(
-      ReadyCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
+  public HealthCheckResponse handle(ReadyCheckRequest request) throws Exception {
     Set<String> indexNames;
 
     // If specific index names are provided we will check only those indices, otherwise check all
@@ -56,46 +54,33 @@ public class ReadyHandler extends Handler<ReadyCheckRequest, HealthCheckResponse
           Sets.difference(Set.copyOf(indexNamesToCheck), allIndices);
       if (!nonExistentIndices.isEmpty()) {
         logger.warn("Indices: {} do not exist", nonExistentIndices);
-        responseObserver.onError(
-            Status.UNAVAILABLE
-                .withDescription(String.format("Indices do not exist: %s", nonExistentIndices))
-                .asRuntimeException());
-        return;
+        throw Status.UNAVAILABLE
+            .withDescription(String.format("Indices do not exist: %s", nonExistentIndices))
+            .asRuntimeException();
       }
 
       indexNames =
           allIndices.stream().filter(indexNamesToCheck::contains).collect(Collectors.toSet());
     }
 
-    try {
-      List<String> indicesNotStarted = new ArrayList<>();
-      for (String indexName : indexNames) {
-        IndexState indexState = getGlobalState().getIndexOrThrow(indexName);
-        if (!indexState.isStarted()) {
-          indicesNotStarted.add(indexName);
-        }
+    List<String> indicesNotStarted = new ArrayList<>();
+    for (String indexName : indexNames) {
+      IndexState indexState = getGlobalState().getIndexOrThrow(indexName);
+      if (!indexState.isStarted()) {
+        indicesNotStarted.add(indexName);
       }
+    }
 
-      if (indicesNotStarted.isEmpty()) {
-        HealthCheckResponse reply =
-            HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
-        logger.debug("Ready check returned " + reply);
-        responseObserver.onNext(reply);
-        responseObserver.onCompleted();
-      } else {
-        logger.warn("Indices not started: {}", indicesNotStarted);
-        responseObserver.onError(
-            Status.UNAVAILABLE
-                .withDescription(String.format("Indices not started: %s", indicesNotStarted))
-                .asRuntimeException());
-      }
-    } catch (Exception e) {
-      logger.warn("error while trying to check if all required indices are started", e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription("error while trying to check if all required indices are started")
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
+    if (indicesNotStarted.isEmpty()) {
+      HealthCheckResponse reply =
+          HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
+      logger.debug("Ready check returned " + reply);
+      return reply;
+    } else {
+      logger.warn("Indices not started: {}", indicesNotStarted);
+      throw Status.UNAVAILABLE
+          .withDescription(String.format("Indices not started: %s", indicesNotStarted))
+          .asRuntimeException();
     }
   }
 }

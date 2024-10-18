@@ -21,8 +21,6 @@ import com.yelp.nrtsearch.server.grpc.LiveSettingsV2Request;
 import com.yelp.nrtsearch.server.grpc.LiveSettingsV2Response;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,36 +34,12 @@ public class LiveSettingsV2Handler extends Handler<LiveSettingsV2Request, LiveSe
   }
 
   @Override
-  public void handle(
-      LiveSettingsV2Request req, StreamObserver<LiveSettingsV2Response> responseObserver) {
+  public LiveSettingsV2Response handle(LiveSettingsV2Request req) throws Exception {
     logger.info("Received live settings V2 request: {}", req);
-    try {
-      IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManagerOrThrow(req.getIndexName());
-      LiveSettingsV2Response reply = handle(indexStateManager, req);
-      logger.info("LiveSettingsV2Handler returned " + JsonFormat.printer().print(reply));
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (IllegalArgumentException e) {
-      logger.warn("index: " + req.getIndexName() + " was not yet created", e);
-      responseObserver.onError(
-          Status.ALREADY_EXISTS
-              .withDescription("invalid indexName: " + req.getIndexName())
-              .augmentDescription("IllegalArgumentException()")
-              .withCause(e)
-              .asRuntimeException());
-    } catch (Exception e) {
-      logger.warn(
-          "error while trying to process live settings for indexName: " + req.getIndexName(), e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "error while trying to process live settings for indexName: "
-                      + req.getIndexName())
-              .augmentDescription("Exception()")
-              .withCause(e)
-              .asRuntimeException());
-    }
+    IndexStateManager indexStateManager = getIndexStateManager(req.getIndexName());
+    LiveSettingsV2Response reply = handle(indexStateManager, req);
+    logger.info("LiveSettingsV2Handler returned " + JsonFormat.printer().print(reply));
+    return reply;
   }
 
   /**

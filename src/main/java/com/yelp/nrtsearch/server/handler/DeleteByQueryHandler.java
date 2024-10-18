@@ -21,8 +21,6 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.query.QueryNodeMapper;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,28 +37,11 @@ public class DeleteByQueryHandler extends Handler<DeleteByQueryRequest, AddDocum
   }
 
   @Override
-  public void handle(
-      DeleteByQueryRequest deleteByQueryRequest,
-      StreamObserver<AddDocumentResponse> responseObserver) {
-    try {
-      IndexState indexState = getGlobalState().getIndexOrThrow(deleteByQueryRequest.getIndexName());
-      AddDocumentResponse reply = handle(indexState, deleteByQueryRequest);
-      logger.debug("DeleteDocumentsHandler returned " + reply.toString());
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn(
-          "Error while trying to delete documents from index: {}",
-          deleteByQueryRequest.getIndexName(),
-          e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription(
-                  "Error while trying to delete documents from index: "
-                      + deleteByQueryRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public AddDocumentResponse handle(DeleteByQueryRequest deleteByQueryRequest) throws Exception {
+    IndexState indexState = getGlobalState().getIndexOrThrow(deleteByQueryRequest.getIndexName());
+    AddDocumentResponse reply = handle(indexState, deleteByQueryRequest);
+    logger.debug("DeleteDocumentsHandler returned " + reply);
+    return reply;
   }
 
   private AddDocumentResponse handle(

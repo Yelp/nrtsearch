@@ -20,8 +20,6 @@ import com.yelp.nrtsearch.server.grpc.ReleaseSnapshotResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,31 +33,12 @@ public class ReleaseSnapshotHandler
   }
 
   @Override
-  public void handle(
-      ReleaseSnapshotRequest releaseSnapshotRequest,
-      StreamObserver<ReleaseSnapshotResponse> responseObserver) {
-    try {
-      IndexState indexState =
-          getGlobalState().getIndexOrThrow(releaseSnapshotRequest.getIndexName());
-      ReleaseSnapshotResponse reply = handle(indexState, releaseSnapshotRequest);
-      logger.info(String.format("CreateSnapshotHandler returned results %s", reply.toString()));
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn(
-          String.format(
-              "error while trying to releaseSnapshot for index %s",
-              releaseSnapshotRequest.getIndexName()),
-          e);
-      responseObserver.onError(
-          Status.UNKNOWN
-              .withDescription(
-                  String.format(
-                      "error while trying to releaseSnapshot for index %s",
-                      releaseSnapshotRequest.getIndexName()))
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public ReleaseSnapshotResponse handle(ReleaseSnapshotRequest releaseSnapshotRequest)
+      throws Exception {
+    IndexState indexState = getIndexState(releaseSnapshotRequest.getIndexName());
+    ReleaseSnapshotResponse reply = handle(indexState, releaseSnapshotRequest);
+    logger.info(String.format("CreateSnapshotHandler returned results %s", reply));
+    return reply;
   }
 
   private ReleaseSnapshotResponse handle(

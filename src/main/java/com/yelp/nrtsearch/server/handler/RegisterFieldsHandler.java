@@ -19,9 +19,6 @@ import com.yelp.nrtsearch.server.grpc.FieldDefRequest;
 import com.yelp.nrtsearch.server.grpc.FieldDefResponse;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,40 +30,12 @@ public class RegisterFieldsHandler extends Handler<FieldDefRequest, FieldDefResp
   }
 
   @Override
-  public void handle(
-      FieldDefRequest fieldDefRequest, StreamObserver<FieldDefResponse> responseObserver) {
+  public FieldDefResponse handle(FieldDefRequest fieldDefRequest) throws Exception {
     logger.info("Received register fields request: {}", fieldDefRequest);
-    try {
-      IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManagerOrThrow(fieldDefRequest.getIndexName());
-      String updatedFields = indexStateManager.updateFields(fieldDefRequest.getFieldList());
-      FieldDefResponse reply = FieldDefResponse.newBuilder().setResponse(updatedFields).build();
-      logger.info("RegisterFieldsHandler registered fields " + reply);
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (IOException e) {
-      logger.warn(
-          "error while trying to read index state dir for indexName: "
-              + fieldDefRequest.getIndexName(),
-          e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "error while trying to read index state dir for indexName: "
-                      + fieldDefRequest.getIndexName())
-              .augmentDescription("IOException()")
-              .withCause(e)
-              .asRuntimeException());
-    } catch (Exception e) {
-      logger.warn(
-          "error while trying to RegisterFields for index " + fieldDefRequest.getIndexName(), e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription(
-                  "error while trying to RegisterFields for index: "
-                      + fieldDefRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+    IndexStateManager indexStateManager = getIndexStateManager(fieldDefRequest.getIndexName());
+    String updatedFields = indexStateManager.updateFields(fieldDefRequest.getFieldList());
+    FieldDefResponse reply = FieldDefResponse.newBuilder().setResponse(updatedFields).build();
+    logger.info("RegisterFieldsHandler registered fields " + reply);
+    return reply;
   }
 }

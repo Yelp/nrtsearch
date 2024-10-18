@@ -20,8 +20,6 @@ import com.yelp.nrtsearch.server.grpc.StateRequest;
 import com.yelp.nrtsearch.server.grpc.StateResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,22 +33,11 @@ public class GetStateHandler extends Handler<StateRequest, StateResponse> {
   }
 
   @Override
-  public void handle(StateRequest request, StreamObserver<StateResponse> responseObserver) {
-    try {
-      IndexState indexState = getGlobalState().getIndexOrThrow(request.getIndexName());
-      StateResponse reply = handle(indexState);
-      logger.debug("GetStateHandler returned " + reply);
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn("error while trying to get state for index " + request.getIndexName(), e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription(
-                  "error while trying to get state for index " + request.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public StateResponse handle(StateRequest request) throws Exception {
+    IndexState indexState = getIndexState(request.getIndexName());
+    StateResponse reply = handle(indexState);
+    logger.debug("GetStateHandler returned {}", reply);
+    return reply;
   }
 
   private StateResponse handle(IndexState indexState) throws HandlerException {

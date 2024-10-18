@@ -263,7 +263,7 @@ public class NrtsearchServerIdFieldTest {
                   .build());
     } catch (RuntimeException e) {
       String message =
-          "INVALID_ARGUMENT: error while trying to UpdateFieldsHandler for index: test_index\n"
+          "INTERNAL: Error handling updateFields request\n"
               + "Index can only register one id field, found: doc_id and new_text_field";
       assertEquals(message, e.getMessage());
       throw e;
@@ -276,7 +276,7 @@ public class NrtsearchServerIdFieldTest {
       registerFields(List.of(getFieldBuilder("doc_id", true, true, true)));
     } catch (RuntimeException e) {
       String message =
-          "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index\n"
+          "INTERNAL: Error handling registerFields request\n"
               + "field: doc_id cannot have multivalued fields as it's an _ID field";
       assertEquals(message, e.getMessage());
       throw e;
@@ -289,7 +289,7 @@ public class NrtsearchServerIdFieldTest {
       registerFields(List.of(getFieldBuilder("doc_id", false, false, false)));
     } catch (RuntimeException e) {
       String message =
-          "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index\n"
+          "INTERNAL: Error handling registerFields request\n"
               + "field: doc_id is an _ID field and should be retrievable by either store=true or storeDocValues=true";
       assertEquals(message, e.getMessage());
       throw e;
@@ -315,7 +315,7 @@ public class NrtsearchServerIdFieldTest {
               getFieldBuilder("doc_id_2", true, true, false)));
     } catch (RuntimeException e) {
       String message =
-          "INVALID_ARGUMENT: error while trying to RegisterFields for index: test_index\n"
+          "INTERNAL: Error handling registerFields request\n"
               + "Index can only register one id field, found: doc_id and doc_id_2";
       assertEquals(message, e.getMessage());
       throw e;

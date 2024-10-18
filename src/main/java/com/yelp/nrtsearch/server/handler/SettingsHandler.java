@@ -26,8 +26,6 @@ import com.yelp.nrtsearch.server.grpc.SettingsResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,40 +38,12 @@ public class SettingsHandler extends Handler<SettingsRequest, SettingsResponse> 
   }
 
   @Override
-  public void handle(
-      SettingsRequest settingsRequest, StreamObserver<SettingsResponse> responseObserver) {
+  public SettingsResponse handle(SettingsRequest settingsRequest) throws Exception {
     logger.info("Received settings request: {}", settingsRequest);
-    try {
-      IndexState indexState = getGlobalState().getIndexOrThrow(settingsRequest.getIndexName());
-      SettingsResponse reply = handle(indexState, settingsRequest);
-      logger.info("SettingsHandler returned " + reply);
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (IOException e) {
-      logger.warn(
-          "error while trying to read index state dir for indexName: "
-              + settingsRequest.getIndexName(),
-          e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "error while trying to read index state dir for indexName: "
-                      + settingsRequest.getIndexName())
-              .augmentDescription("IOException()")
-              .withCause(e)
-              .asRuntimeException());
-    } catch (Exception e) {
-      logger.warn(
-          "error while trying to update/get settings for index " + settingsRequest.getIndexName(),
-          e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription(
-                  "error while trying to update/get settings for index: "
-                      + settingsRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+    IndexState indexState = getIndexState(settingsRequest.getIndexName());
+    SettingsResponse reply = handle(indexState, settingsRequest);
+    logger.info("SettingsHandler returned " + reply);
+    return reply;
   }
 
   private SettingsResponse handle(final IndexState indexStateIn, SettingsRequest settingsRequest)

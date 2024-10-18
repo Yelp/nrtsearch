@@ -21,7 +21,6 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,13 +34,11 @@ public class ForceMergeDeletesHandler
   }
 
   @Override
-  public void handle(
-      ForceMergeDeletesRequest forceMergeRequest,
-      StreamObserver<ForceMergeDeletesResponse> responseObserver) {
+  public ForceMergeDeletesResponse handle(ForceMergeDeletesRequest forceMergeRequest)
+      throws Exception {
     logger.info("Received force merge deletes request: {}", forceMergeRequest);
     if (forceMergeRequest.getIndexName().isEmpty()) {
-      responseObserver.onError(new IllegalArgumentException("Index name in request is empty"));
-      return;
+      throw new IllegalArgumentException("Index name in request is empty");
     }
 
     try {
@@ -52,13 +49,11 @@ public class ForceMergeDeletesHandler
     } catch (IOException e) {
       logger.warn(
           "Error during force merge deletes for index {} ", forceMergeRequest.getIndexName(), e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "Error during force merge deletes for index " + forceMergeRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-      return;
+      throw Status.INTERNAL
+          .withDescription(
+              "Error during force merge deletes for index " + forceMergeRequest.getIndexName())
+          .augmentDescription(e.getMessage())
+          .asRuntimeException();
     }
 
     ForceMergeDeletesResponse.Status status =
@@ -66,9 +61,6 @@ public class ForceMergeDeletesHandler
             ? ForceMergeDeletesResponse.Status.FORCE_MERGE_DELETES_COMPLETED
             : ForceMergeDeletesResponse.Status.FORCE_MERGE_DELETES_SUBMITTED;
     logger.info("Force merge deletes status: {}", status);
-    ForceMergeDeletesResponse response =
-        ForceMergeDeletesResponse.newBuilder().setStatus(status).build();
-    responseObserver.onNext(response);
-    responseObserver.onCompleted();
+    return ForceMergeDeletesResponse.newBuilder().setStatus(status).build();
   }
 }

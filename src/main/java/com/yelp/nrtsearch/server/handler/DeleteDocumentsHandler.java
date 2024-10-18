@@ -21,8 +21,6 @@ import com.yelp.nrtsearch.server.grpc.AddDocumentResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,27 +38,11 @@ public class DeleteDocumentsHandler extends Handler<AddDocumentRequest, AddDocum
   }
 
   @Override
-  public void handle(
-      AddDocumentRequest addDocumentRequest, StreamObserver<AddDocumentResponse> responseObserver) {
-    try {
-      IndexState indexState = getGlobalState().getIndexOrThrow(addDocumentRequest.getIndexName());
-      AddDocumentResponse reply = handleInternal(indexState, addDocumentRequest);
-      logger.debug("DeleteDocumentsHandler returned {}", reply);
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.error(
-          "error while trying to delete documents for index {}",
-          addDocumentRequest.getIndexName(),
-          e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription(
-                  "error while trying to delete documents for index: "
-                      + addDocumentRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public AddDocumentResponse handle(AddDocumentRequest addDocumentRequest) throws Exception {
+    IndexState indexState = getGlobalState().getIndexOrThrow(addDocumentRequest.getIndexName());
+    AddDocumentResponse reply = handleInternal(indexState, addDocumentRequest);
+    logger.debug("DeleteDocumentsHandler returned {}", reply);
+    return reply;
   }
 
   private AddDocumentResponse handleInternal(
