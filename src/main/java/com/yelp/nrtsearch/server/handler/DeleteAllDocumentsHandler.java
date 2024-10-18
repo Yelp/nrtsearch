@@ -19,8 +19,6 @@ import com.yelp.nrtsearch.server.grpc.*;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,29 +33,13 @@ public class DeleteAllDocumentsHandler
   }
 
   @Override
-  public void handle(
-      DeleteAllDocumentsRequest deleteAllDocumentsRequest,
-      StreamObserver<DeleteAllDocumentsResponse> responseObserver) {
+  public DeleteAllDocumentsResponse handle(DeleteAllDocumentsRequest deleteAllDocumentsRequest)
+      throws Exception {
     logger.info("Received delete all documents request: {}", deleteAllDocumentsRequest);
-    try {
-      IndexState indexState =
-          getGlobalState().getIndexOrThrow(deleteAllDocumentsRequest.getIndexName());
-      DeleteAllDocumentsResponse reply = handle(indexState);
-      logger.info("DeleteAllDocumentsHandler returned " + reply);
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn(
-          "error while trying to deleteAll for index " + deleteAllDocumentsRequest.getIndexName(),
-          e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription(
-                  "error while trying to deleteAll for index: "
-                      + deleteAllDocumentsRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+    IndexState indexState = getIndexState(deleteAllDocumentsRequest.getIndexName());
+    DeleteAllDocumentsResponse reply = handle(indexState);
+    logger.info("DeleteAllDocumentsHandler returned " + reply);
+    return reply;
   }
 
   private DeleteAllDocumentsResponse handle(IndexState indexState)

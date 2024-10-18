@@ -19,8 +19,6 @@ import com.yelp.nrtsearch.server.grpc.DeleteIndexRequest;
 import com.yelp.nrtsearch.server.grpc.DeleteIndexResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,24 +31,12 @@ public class DeleteIndexHandler extends Handler<DeleteIndexRequest, DeleteIndexR
   }
 
   @Override
-  public void handle(
-      DeleteIndexRequest deleteIndexRequest, StreamObserver<DeleteIndexResponse> responseObserver) {
+  public DeleteIndexResponse handle(DeleteIndexRequest deleteIndexRequest) throws Exception {
     logger.info("Received delete index request: {}", deleteIndexRequest);
-    try {
-      IndexState indexState = getGlobalState().getIndexOrThrow(deleteIndexRequest.getIndexName());
-      DeleteIndexResponse reply = handle(indexState);
-      logger.info("DeleteIndexHandler returned " + reply);
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn("error while trying to delete index " + deleteIndexRequest.getIndexName(), e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription(
-                  "error while trying to delete index: " + deleteIndexRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+    IndexState indexState = getIndexState(deleteIndexRequest.getIndexName());
+    DeleteIndexResponse reply = handle(indexState);
+    logger.info("DeleteIndexHandler returned " + reply);
+    return reply;
   }
 
   private DeleteIndexResponse handle(IndexState indexState) throws DeleteIndexHandlerException {

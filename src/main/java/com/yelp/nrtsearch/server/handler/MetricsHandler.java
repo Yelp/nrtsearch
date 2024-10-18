@@ -18,8 +18,6 @@ package com.yelp.nrtsearch.server.handler;
 import com.google.api.HttpBody;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import io.prometheus.metrics.expositionformats.PrometheusTextFormatWriter;
 import io.prometheus.metrics.model.registry.PrometheusRegistry;
 import java.io.ByteArrayOutputStream;
@@ -37,20 +35,10 @@ public class MetricsHandler extends Handler<Empty, HttpBody> {
   }
 
   @Override
-  public void handle(Empty request, StreamObserver<HttpBody> responseObserver) {
-    try {
-      HttpBody reply = process();
-      logger.debug("MetricsRequestHandler returned " + reply.toString());
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn("error while trying to get metrics", e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription("error while trying to get metrics")
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public HttpBody handle(Empty request) throws Exception {
+    HttpBody reply = process();
+    logger.debug("MetricsRequestHandler returned {}", reply);
+    return reply;
   }
 
   private HttpBody process() throws IOException {

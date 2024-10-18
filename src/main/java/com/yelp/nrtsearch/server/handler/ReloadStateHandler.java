@@ -19,8 +19,6 @@ import com.yelp.nrtsearch.server.grpc.Mode;
 import com.yelp.nrtsearch.server.grpc.ReloadStateRequest;
 import com.yelp.nrtsearch.server.grpc.ReloadStateResponse;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,28 +30,12 @@ public class ReloadStateHandler extends Handler<ReloadStateRequest, ReloadStateR
   }
 
   @Override
-  public void handle(
-      ReloadStateRequest request, StreamObserver<ReloadStateResponse> responseObserver) {
-    try {
-      if (getGlobalState()
-          .getConfiguration()
-          .getIndexStartConfig()
-          .getMode()
-          .equals(Mode.REPLICA)) {
-        getGlobalState().reloadStateFromBackend();
-      } else {
-        logger.info("Skip reloading state since it is not replica");
-      }
-      ReloadStateResponse reloadStateResponse = ReloadStateResponse.newBuilder().build();
-      responseObserver.onNext(reloadStateResponse);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn("error while trying to sync the index state", e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription("error while trying to sync the index state")
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
+  public ReloadStateResponse handle(ReloadStateRequest request) throws Exception {
+    if (getGlobalState().getConfiguration().getIndexStartConfig().getMode().equals(Mode.REPLICA)) {
+      getGlobalState().reloadStateFromBackend();
+    } else {
+      logger.info("Skip reloading state since it is not replica");
     }
+    return ReloadStateResponse.newBuilder().build();
   }
 }

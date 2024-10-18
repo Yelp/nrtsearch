@@ -19,8 +19,6 @@ import com.yelp.nrtsearch.server.custom.request.CustomRequestProcessor;
 import com.yelp.nrtsearch.server.grpc.CustomRequest;
 import com.yelp.nrtsearch.server.grpc.CustomResponse;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,17 +30,8 @@ public class CustomHandler extends Handler<CustomRequest, CustomResponse> {
   }
 
   @Override
-  public void handle(CustomRequest request, StreamObserver<CustomResponse> responseObserver) {
+  public CustomResponse handle(CustomRequest request) throws Exception {
     logger.info("Received custom request: {}", request);
-    try {
-      CustomResponse response = CustomRequestProcessor.processCustomRequest(request);
-      responseObserver.onNext(response);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      String error =
-          String.format("Error processing custom request %s, error: %s", request, e.getMessage());
-      logger.error(error);
-      responseObserver.onError(Status.INTERNAL.withDescription(error).withCause(e).asException());
-    }
+    return CustomRequestProcessor.processCustomRequest(request);
   }
 }

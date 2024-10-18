@@ -20,57 +20,37 @@ import com.yelp.nrtsearch.server.grpc.ForceMergeResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ForceMergeHandler extends Handler<ForceMergeRequest, ForceMergeResponse> {
   private static final Logger logger = LoggerFactory.getLogger(ForceMergeHandler.class);
-  private static ForceMergeHandler instance;
 
   public ForceMergeHandler(GlobalState globalState) {
     super(globalState);
   }
 
   @Override
-  public void handle(
-      ForceMergeRequest forceMergeRequest, StreamObserver<ForceMergeResponse> responseObserver) {
+  public ForceMergeResponse handle(ForceMergeRequest forceMergeRequest) throws Exception {
     logger.info("Received force merge request: {}", forceMergeRequest);
     if (forceMergeRequest.getIndexName().isEmpty()) {
-      responseObserver.onError(new IllegalArgumentException("Index name in request is empty"));
-      return;
+      throw new IllegalArgumentException("Index name in request is empty");
     }
     if (forceMergeRequest.getMaxNumSegments() == 0) {
-      responseObserver.onError(new IllegalArgumentException("Cannot have 0 max segments"));
-      return;
+      throw new IllegalArgumentException("Cannot have 0 max segments");
     }
 
-    try {
-      IndexState indexState = getGlobalState().getIndexOrThrow(forceMergeRequest.getIndexName());
-      ShardState shardState = indexState.getShards().get(0);
-      logger.info("Beginning force merge for index: {}", forceMergeRequest.getIndexName());
-      shardState.writer.forceMerge(
-          forceMergeRequest.getMaxNumSegments(), forceMergeRequest.getDoWait());
-    } catch (IOException e) {
-      logger.warn("Error during force merge for index {} ", forceMergeRequest.getIndexName(), e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "Error during force merge for index " + forceMergeRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-      return;
-    }
+    IndexState indexState = getGlobalState().getIndexOrThrow(forceMergeRequest.getIndexName());
+    ShardState shardState = indexState.getShards().get(0);
+    logger.info("Beginning force merge for index: {}", forceMergeRequest.getIndexName());
+    shardState.writer.forceMerge(
+        forceMergeRequest.getMaxNumSegments(), forceMergeRequest.getDoWait());
 
     ForceMergeResponse.Status status =
         forceMergeRequest.getDoWait()
             ? ForceMergeResponse.Status.FORCE_MERGE_COMPLETED
             : ForceMergeResponse.Status.FORCE_MERGE_SUBMITTED;
     logger.info("Force merge status: {}", status);
-    ForceMergeResponse response = ForceMergeResponse.newBuilder().setStatus(status).build();
-    responseObserver.onNext(response);
-    responseObserver.onCompleted();
+    return ForceMergeResponse.newBuilder().setStatus(status).build();
   }
 }

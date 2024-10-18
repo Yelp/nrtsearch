@@ -19,8 +19,6 @@ import com.yelp.nrtsearch.server.grpc.StartIndexRequest;
 import com.yelp.nrtsearch.server.grpc.StartIndexResponse;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,46 +30,17 @@ public class StartIndexHandler extends Handler<StartIndexRequest, StartIndexResp
   }
 
   @Override
-  public void handle(
-      StartIndexRequest startIndexRequest, StreamObserver<StartIndexResponse> responseObserver) {
+  public StartIndexResponse handle(StartIndexRequest startIndexRequest) throws Exception {
     logger.info("Received start index request: {}", startIndexRequest);
     if (startIndexRequest.getIndexName().isEmpty()) {
       logger.warn("error while trying to start index with empty index name.");
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription(
-                  String.format("error while trying to start index since indexName was empty."))
-              .asRuntimeException());
-      return;
+      throw Status.INVALID_ARGUMENT
+          .withDescription("error while trying to start index since indexName was empty.")
+          .asRuntimeException();
     }
-    try {
-      StartIndexResponse reply = getGlobalState().startIndex(startIndexRequest);
 
-      logger.info("StartIndexHandler returned " + reply.toString());
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-
-    } catch (IOException e) {
-      logger.warn(
-          "error while trying to read index state dir for indexName: "
-              + startIndexRequest.getIndexName(),
-          e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "error while trying to read index state dir for indexName: "
-                      + startIndexRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .withCause(e)
-              .asRuntimeException());
-    } catch (Exception e) {
-      logger.warn("error while trying to start index " + startIndexRequest.getIndexName(), e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription(
-                  "error while trying to start index: " + startIndexRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+    StartIndexResponse reply = getGlobalState().startIndex(startIndexRequest);
+    logger.info("StartIndexHandler returned " + reply.toString());
+    return reply;
   }
 }

@@ -18,8 +18,6 @@ package com.yelp.nrtsearch.server.handler;
 import com.yelp.nrtsearch.server.grpc.GetAllSnapshotGenRequest;
 import com.yelp.nrtsearch.server.grpc.GetAllSnapshotGenResponse;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.stub.StreamObserver;
-import java.io.IOException;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,24 +31,13 @@ public class GetAllSnapshotIndexGenHandler
   }
 
   @Override
-  public void handle(
-      GetAllSnapshotGenRequest request,
-      StreamObserver<GetAllSnapshotGenResponse> responseObserver) {
-    try {
-      Set<Long> snapshotGens =
-          getGlobalState()
-              .getIndexOrThrow(request.getIndexName())
-              .getShard(0)
-              .snapshotGenToVersion
-              .keySet();
-      GetAllSnapshotGenResponse response =
-          GetAllSnapshotGenResponse.newBuilder().addAllIndexGens(snapshotGens).build();
-      responseObserver.onNext(response);
-      responseObserver.onCompleted();
-    } catch (IOException e) {
-      logger.error(
-          "Error getting all snapshotted index gens for index: {}", request.getIndexName(), e);
-      responseObserver.onError(e);
-    }
+  public GetAllSnapshotGenResponse handle(GetAllSnapshotGenRequest request) throws Exception {
+    Set<Long> snapshotGens =
+        getGlobalState()
+            .getIndexOrThrow(request.getIndexName())
+            .getShard(0)
+            .snapshotGenToVersion
+            .keySet();
+    return GetAllSnapshotGenResponse.newBuilder().addAllIndexGens(snapshotGens).build();
   }
 }

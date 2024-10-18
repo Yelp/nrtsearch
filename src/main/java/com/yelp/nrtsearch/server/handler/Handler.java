@@ -21,12 +21,15 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.yelp.nrtsearch.server.grpc.LuceneServerStubBuilder;
 import com.yelp.nrtsearch.server.grpc.NrtsearchServer;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.index.IndexState;
+import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
+import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,7 +61,7 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
     throw new UnsupportedOperationException("This method is not supported");
   }
 
-  public S handle(T protoRequest) {
+  public S handle(T protoRequest) throws Exception {
     throw new UnsupportedOperationException("This method is not supported");
   }
 
@@ -101,6 +104,27 @@ public abstract class Handler<T extends GeneratedMessageV3, S extends GeneratedM
                 .asException());
       }
     }
+  }
+
+  protected IndexState getIndexState(String indexName) throws IOException, StatusRuntimeException {
+    IndexState indexState = getGlobalState().getIndex(indexName);
+    if (indexState == null) {
+      throw Status.NOT_FOUND
+          .withDescription("Index " + indexName + " not found")
+          .asRuntimeException();
+    }
+    return indexState;
+  }
+
+  protected IndexStateManager getIndexStateManager(String indexName)
+      throws IOException, StatusRuntimeException {
+    IndexStateManager indexStateManager = getGlobalState().getIndexStateManager(indexName);
+    if (indexStateManager == null) {
+      throw Status.NOT_FOUND
+          .withDescription("Index " + indexName + " not found")
+          .asRuntimeException();
+    }
+    return indexStateManager;
   }
 
   /**

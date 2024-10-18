@@ -19,7 +19,6 @@ import com.yelp.nrtsearch.server.grpc.CreateIndexRequest;
 import com.yelp.nrtsearch.server.grpc.CreateIndexResponse;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,43 +30,27 @@ public class CreateIndexHandler extends Handler<CreateIndexRequest, CreateIndexR
   }
 
   @Override
-  public void handle(CreateIndexRequest req, StreamObserver<CreateIndexResponse> responseObserver) {
+  public CreateIndexResponse handle(CreateIndexRequest req) throws Exception {
     logger.info("Received create index request: {}", req);
     String indexName = req.getIndexName();
     String validIndexNameRegex = "[A-z0-9_-]+";
     if (!indexName.matches(validIndexNameRegex)) {
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription(
-                  String.format(
-                      "Index name %s is invalid - must contain only a-z, A-Z or 0-9", indexName))
-              .asRuntimeException());
-      return;
+      throw Status.INVALID_ARGUMENT
+          .withDescription(
+              String.format(
+                  "Index name %s is invalid - must contain only a-z, A-Z or 0-9", indexName))
+          .asRuntimeException();
     }
 
-    try {
+    synchronized (getGlobalState()) {
+      if (getGlobalState().getIndex(indexName) != null) {
+        throw Status.ALREADY_EXISTS
+            .withDescription(String.format("Index %s already exists", indexName))
+            .asRuntimeException();
+      }
       getGlobalState().createIndex(req);
-      String response = String.format("Created Index name: %s", indexName);
-      CreateIndexResponse reply = CreateIndexResponse.newBuilder().setResponse(response).build();
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (IllegalArgumentException e) {
-      logger.warn("invalid IndexName: " + indexName, e);
-      responseObserver.onError(
-          Status.ALREADY_EXISTS
-              .withDescription("invalid indexName: " + indexName)
-              .augmentDescription("IllegalArgumentException()")
-              .withCause(e)
-              .asRuntimeException());
-    } catch (Exception e) {
-      logger.warn("error while trying to save index state to disk for indexName: " + indexName, e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "error while trying to save index state to disk for indexName: " + indexName)
-              .augmentDescription(e.getMessage())
-              .withCause(e)
-              .asRuntimeException());
     }
+    String response = String.format("Created Index name: %s", indexName);
+    return CreateIndexResponse.newBuilder().setResponse(response).build();
   }
 }

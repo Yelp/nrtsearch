@@ -18,8 +18,6 @@ package com.yelp.nrtsearch.server.handler;
 import com.yelp.nrtsearch.server.grpc.HealthCheckRequest;
 import com.yelp.nrtsearch.server.grpc.HealthCheckResponse;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,21 +29,10 @@ public class StatusHandler extends Handler<HealthCheckRequest, HealthCheckRespon
   }
 
   @Override
-  public void handle(
-      HealthCheckRequest request, StreamObserver<HealthCheckResponse> responseObserver) {
-    try {
-      HealthCheckResponse reply =
-          HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
-      logger.debug("HealthCheckResponse returned " + reply);
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn("error while trying to get status", e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription("error while trying to get status")
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public HealthCheckResponse handle(HealthCheckRequest request) throws Exception {
+    HealthCheckResponse reply =
+        HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
+    logger.debug("HealthCheckResponse returned " + reply);
+    return reply;
   }
 }

@@ -24,8 +24,6 @@ import com.yelp.nrtsearch.server.grpc.LiveSettingsResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,36 +36,12 @@ public class LiveSettingsHandler extends Handler<LiveSettingsRequest, LiveSettin
   }
 
   @Override
-  public void handle(
-      LiveSettingsRequest req, StreamObserver<LiveSettingsResponse> responseObserver) {
+  public LiveSettingsResponse handle(LiveSettingsRequest req) throws Exception {
     logger.info("Received live settings request: {}", req);
-    try {
-      IndexState indexState = getGlobalState().getIndexOrThrow(req.getIndexName());
-      LiveSettingsResponse reply = handle(indexState, req);
-      logger.info("LiveSettingsHandler returned {}", reply.toString());
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (IllegalArgumentException e) {
-      logger.warn("index: {} was not yet created", req.getIndexName(), e);
-      responseObserver.onError(
-          Status.ALREADY_EXISTS
-              .withDescription("invalid indexName: " + req.getIndexName())
-              .augmentDescription("IllegalArgumentException()")
-              .withCause(e)
-              .asRuntimeException());
-    } catch (Exception e) {
-      logger.warn(
-          "error while trying to read index state dir for indexName: " + req.getIndexName(), e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "error while trying to read index state dir for indexName: "
-                      + req.getIndexName()
-                      + "at rootDir: ")
-              .augmentDescription("IOException()")
-              .withCause(e)
-              .asRuntimeException());
-    }
+    IndexState indexState = getIndexState(req.getIndexName());
+    LiveSettingsResponse reply = handle(indexState, req);
+    logger.info("LiveSettingsHandler returned {}", reply.toString());
+    return reply;
   }
 
   public LiveSettingsResponse handle(

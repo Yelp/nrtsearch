@@ -21,8 +21,6 @@ import com.yelp.nrtsearch.server.grpc.IndicesResponse;
 import com.yelp.nrtsearch.server.grpc.StatsResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -36,21 +34,10 @@ public class IndicesHandler extends Handler<IndicesRequest, IndicesResponse> {
   }
 
   @Override
-  public void handle(
-      IndicesRequest indicesRequest, StreamObserver<IndicesResponse> responseObserver) {
-    try {
-      IndicesResponse reply = getIndicesResponse(getGlobalState());
-      logger.debug("IndicesRequestHandler returned " + reply);
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn("error while trying to get indices stats", e);
-      responseObserver.onError(
-          Status.INVALID_ARGUMENT
-              .withDescription("error while trying to get indices stats")
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public IndicesResponse handle(IndicesRequest indicesRequest) throws Exception {
+    IndicesResponse reply = getIndicesResponse(getGlobalState());
+    logger.debug("IndicesRequestHandler returned {}", reply);
+    return reply;
   }
 
   private static IndicesResponse getIndicesResponse(GlobalState globalState) throws IOException {
