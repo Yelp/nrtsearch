@@ -33,11 +33,7 @@ public class GetAllSnapshotIndexGenHandler
   @Override
   public GetAllSnapshotGenResponse handle(GetAllSnapshotGenRequest request) throws Exception {
     Set<Long> snapshotGens =
-        getGlobalState()
-            .getIndexOrThrow(request.getIndexName())
-            .getShard(0)
-            .snapshotGenToVersion
-            .keySet();
+        getIndexState(request.getIndexName()).getShard(0).snapshotGenToVersion.keySet();
     return GetAllSnapshotGenResponse.newBuilder().addAllIndexGens(snapshotGens).build();
   }
 }

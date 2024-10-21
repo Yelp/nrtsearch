@@ -40,7 +40,7 @@ public class ForceMergeHandler extends Handler<ForceMergeRequest, ForceMergeResp
       throw new IllegalArgumentException("Cannot have 0 max segments");
     }
 
-    IndexState indexState = getGlobalState().getIndexOrThrow(forceMergeRequest.getIndexName());
+    IndexState indexState = getIndexState(forceMergeRequest.getIndexName());
     ShardState shardState = indexState.getShards().get(0);
     logger.info("Beginning force merge for index: {}", forceMergeRequest.getIndexName());
     shardState.writer.forceMerge(

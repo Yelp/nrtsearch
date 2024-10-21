@@ -35,7 +35,7 @@ public class DeleteIndexHandler extends Handler<DeleteIndexRequest, DeleteIndexR
     logger.info("Received delete index request: {}", deleteIndexRequest);
     IndexState indexState = getIndexState(deleteIndexRequest.getIndexName());
     DeleteIndexResponse reply = handle(indexState);
-    logger.info("DeleteIndexHandler returned " + reply);
+    logger.info("DeleteIndexHandler returned {}", reply);
     return reply;
   }
 

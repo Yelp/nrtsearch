@@ -40,7 +40,7 @@ public class StartIndexHandler extends Handler<StartIndexRequest, StartIndexResp
     }
 
     StartIndexResponse reply = getGlobalState().startIndex(startIndexRequest);
-    logger.info("StartIndexHandler returned " + reply.toString());
+    logger.info("StartIndexHandler returned {}", reply.toString());
     return reply;
   }
 }

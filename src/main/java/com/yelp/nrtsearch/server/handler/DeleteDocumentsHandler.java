@@ -39,7 +39,7 @@ public class DeleteDocumentsHandler extends Handler<AddDocumentRequest, AddDocum
 
   @Override
   public AddDocumentResponse handle(AddDocumentRequest addDocumentRequest) throws Exception {
-    IndexState indexState = getGlobalState().getIndexOrThrow(addDocumentRequest.getIndexName());
+    IndexState indexState = getIndexState(addDocumentRequest.getIndexName());
     AddDocumentResponse reply = handleInternal(indexState, addDocumentRequest);
     logger.debug("DeleteDocumentsHandler returned {}", reply);
     return reply;

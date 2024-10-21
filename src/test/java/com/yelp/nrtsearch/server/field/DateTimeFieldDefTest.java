@@ -350,7 +350,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
     } catch (RuntimeException e) {
       assertEquals(
           String.format(
-              "UNKNOWN: error while trying to execute search for index test_index. check logs for full searchRequest.\n"
+              "INTERNAL: Error while trying to execute search for index test_index. check logs for full searchRequest.\n"
                   + "Text \'%s\' could not be parsed, unparsed text found at index 23",
               dateTimeValueUpper),
           e.getMessage());
@@ -377,7 +377,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
     } catch (RuntimeException e) {
       assertEquals(
           String.format(
-              "UNKNOWN: error while trying to execute search for index test_index. check logs for full searchRequest.\n"
+              "INTERNAL: Error while trying to execute search for index test_index. check logs for full searchRequest.\n"
                   + "For input string: \"%s\"",
               dateTimeValueLower),
           e.getMessage());
@@ -404,7 +404,7 @@ public class DateTimeFieldDefTest extends ServerTestCase {
     } catch (RuntimeException e) {
       assertEquals(
           String.format(
-              "UNKNOWN: error while trying to execute search for index test_index. check logs for full searchRequest.\n"
+              "INTERNAL: Error while trying to execute search for index test_index. check logs for full searchRequest.\n"
                   + "Text '%s' could not be parsed at index 0",
               dateTimeValueLower),
           e.getMessage());

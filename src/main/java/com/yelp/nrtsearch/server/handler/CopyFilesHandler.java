@@ -15,6 +15,7 @@
  */
 package com.yelp.nrtsearch.server.handler;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.yelp.nrtsearch.server.grpc.CopyFiles;
 import com.yelp.nrtsearch.server.grpc.TransferStatus;
 import com.yelp.nrtsearch.server.grpc.TransferStatusCode;
@@ -24,6 +25,7 @@ import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.monitoring.NrtMetrics;
 import com.yelp.nrtsearch.server.nrt.NRTReplicaNode;
 import com.yelp.nrtsearch.server.state.GlobalState;
+import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -49,31 +51,33 @@ public class CopyFilesHandler extends Handler<CopyFiles, TransferStatus> {
   @Override
   public void handle(CopyFiles request, StreamObserver<TransferStatus> responseObserver) {
     try {
-      IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManagerOrThrow(request.getIndexName());
+      IndexStateManager indexStateManager = getIndexStateManager(request.getIndexName());
       checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
 
       IndexState indexState = indexStateManager.getCurrent();
       // we need to send multiple responses to client from this method
       handle(indexState, request, responseObserver);
-      logger.info("CopyFilesHandler returned successfully");
-    } catch (StatusRuntimeException e) {
-      logger.warn("error while trying copyFiles " + request.getIndexName(), e);
-      responseObserver.onError(e);
     } catch (Exception e) {
-      logger.warn(
-          String.format(
-              "error on copyFiles for primaryGen: %s, for index: %s",
-              request.getPrimaryGen(), request.getIndexName()),
-          e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  String.format(
-                      "error on copyFiles for primaryGen: %s, for index: %s",
-                      request.getPrimaryGen(), request.getIndexName()))
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
+      String requestStr;
+      try {
+        requestStr = ProtoMessagePrinter.omittingInsignificantWhitespace().print(request);
+      } catch (InvalidProtocolBufferException ignored) {
+        // Ignore as invalid proto would have thrown an exception earlier
+        requestStr = request.toString();
+      }
+      logger.warn(String.format("Error handling copyFiles request: %s", requestStr), e);
+      if (e instanceof StatusRuntimeException) {
+        responseObserver.onError(e);
+      } else {
+        responseObserver.onError(
+            Status.INTERNAL
+                .withDescription(
+                    String.format(
+                        "Error on copyFiles for primaryGen: %s, for index: %s",
+                        request.getPrimaryGen(), request.getIndexName()))
+                .augmentDescription(e.getMessage())
+                .asRuntimeException());
+      }
     }
   }
 

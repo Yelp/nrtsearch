@@ -108,39 +108,23 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
       setResponseCompression(searchRequest.getResponseCompression(), responseObserver);
       responseObserver.onNext(reply);
       responseObserver.onCompleted();
-    } catch (IOException e) {
-      logger.warn(
-          "error while trying to read index state dir for indexName: {}",
-          searchRequest.getIndexName(),
-          e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "error while trying to read index state dir for indexName: "
-                      + searchRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .withCause(e)
-              .asRuntimeException());
     } catch (Exception e) {
-      String searchRequestJson = null;
+      String requestStr;
       try {
-        searchRequestJson = protoMessagePrinter.print(searchRequest);
+        requestStr = protoMessagePrinter.print(searchRequest);
       } catch (InvalidProtocolBufferException ignored) {
         // Ignore as invalid proto would have thrown an exception earlier
+        requestStr = searchRequest.toString();
       }
-      logger.warn(
-          "error while trying to execute search for index {}: request: {}",
-          searchRequest.getIndexName(),
-          searchRequestJson,
-          e);
+      logger.warn("Error handling search request: {}", requestStr, e);
       if (e instanceof StatusRuntimeException) {
         responseObserver.onError(e);
       } else {
         responseObserver.onError(
-            Status.UNKNOWN
+            Status.INTERNAL
                 .withDescription(
                     String.format(
-                        "error while trying to execute search for index %s. check logs for full searchRequest.",
+                        "Error while trying to execute search for index %s. check logs for full searchRequest.",
                         searchRequest.getIndexName()))
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());
@@ -150,7 +134,7 @@ public class SearchHandler extends Handler<SearchRequest, SearchResponse> {
 
   public SearchResponse getSearchResponse(SearchRequest searchRequest)
       throws IOException, SearchHandlerException {
-    IndexState indexState = getGlobalState().getIndexOrThrow(searchRequest.getIndexName());
+    IndexState indexState = getIndexState(searchRequest.getIndexName());
     return handle(indexState, searchRequest);
   }
 
