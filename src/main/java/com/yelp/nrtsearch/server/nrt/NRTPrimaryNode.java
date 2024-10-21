@@ -216,18 +216,20 @@ public class NRTPrimaryNode extends PrimaryNode {
         Status status = e.getStatus();
         if (status.getCode().equals(Status.UNAVAILABLE.getCode())) {
           logger.warn(
-              "NRTPRimaryNode: sendNRTPoint, lost connection to replicaId: {} host: {} port: {}",
+              "NRTPrimaryNode: sendNRTPoint, lost connection to replicaId: {} host: {} port: {}",
               replicaDetails.replicaId,
               replicaDetails.replicationServerClient.getHost(),
               replicaDetails.replicationServerClient.getPort());
           currentReplicaServerClient.close();
           it.remove();
-        } else if (status.getCode().equals(Status.FAILED_PRECONDITION.getCode())) {
+        } else if (status.getCode().equals(Status.FAILED_PRECONDITION.getCode())
+            || status.getCode().equals(Status.NOT_FOUND.getCode())) {
           logger.warn(
-              "NRTPRimaryNode: sendNRTPoint, replicaId: {} host: {} port: {} cannot process nrt point, closing connection",
+              "NRTPrimaryNode: sendNRTPoint, replicaId: {} host: {} port: {} cannot process nrt point, closing connection: {}",
               replicaDetails.replicaId,
               replicaDetails.replicationServerClient.getHost(),
-              replicaDetails.replicationServerClient.getPort());
+              replicaDetails.replicationServerClient.getPort(),
+              status);
           currentReplicaServerClient.close();
           it.remove();
         }
