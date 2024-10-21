@@ -42,7 +42,7 @@ public class SettingsHandler extends Handler<SettingsRequest, SettingsResponse> 
     logger.info("Received settings request: {}", settingsRequest);
     IndexState indexState = getIndexState(settingsRequest.getIndexName());
     SettingsResponse reply = handle(indexState, settingsRequest);
-    logger.info("SettingsHandler returned " + reply);
+    logger.info("SettingsHandler returned {}", reply);
     return reply;
   }
 

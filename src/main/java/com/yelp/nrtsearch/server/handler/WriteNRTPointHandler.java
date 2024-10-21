@@ -25,7 +25,6 @@ import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
@@ -42,29 +41,13 @@ public class WriteNRTPointHandler extends Handler<IndexName, SearcherVersion> {
   }
 
   @Override
-  public void handle(IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
-    try {
-      IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManagerOrThrow(indexNameRequest.getIndexName());
-      String indexId = indexStateManager.getIndexId();
-      IndexState indexState = indexStateManager.getCurrent();
-      SearcherVersion reply = handle(indexState, indexId);
-      logger.debug("WriteNRTPointHandler returned version " + reply.getVersion());
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn(
-          String.format(
-              "error on writeNRTPoint for indexName: %s", indexNameRequest.getIndexName()),
-          e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  String.format(
-                      "error on writeNRTPoint for indexName: %s", indexNameRequest.getIndexName()))
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public SearcherVersion handle(IndexName indexNameRequest) throws Exception {
+    IndexStateManager indexStateManager = getIndexStateManager(indexNameRequest.getIndexName());
+    String indexId = indexStateManager.getIndexId();
+    IndexState indexState = indexStateManager.getCurrent();
+    SearcherVersion reply = handle(indexState, indexId);
+    logger.debug("WriteNRTPointHandler returned version {}", reply.getVersion());
+    return reply;
   }
 
   private SearcherVersion handle(IndexState indexState, String indexId) {

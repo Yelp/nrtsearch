@@ -22,9 +22,6 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,43 +36,15 @@ public class NewNRTPointHandler extends Handler<NewNRTPoint, TransferStatus> {
   }
 
   @Override
-  public void handle(NewNRTPoint request, StreamObserver<TransferStatus> responseObserver) {
-    try {
-      IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManagerOrThrow(request.getIndexName());
-      checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
+  public TransferStatus handle(NewNRTPoint request) throws Exception {
+    IndexStateManager indexStateManager = getIndexStateManager(request.getIndexName());
+    checkIndexId(request.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
 
-      IndexState indexState = indexStateManager.getCurrent();
-      TransferStatus reply = handle(indexState, request);
-      logger.debug(
-          "NewNRTPointHandler returned status "
-              + reply.getCode()
-              + " message: "
-              + reply.getMessage());
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (StatusRuntimeException e) {
-      logger.warn(
-          String.format(
-              "error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s",
-              request.getIndexName(), request.getVersion(), request.getPrimaryGen()),
-          e);
-      responseObserver.onError(e);
-    } catch (Exception e) {
-      logger.warn(
-          String.format(
-              "error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s",
-              request.getIndexName(), request.getVersion(), request.getPrimaryGen()),
-          e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  String.format(
-                      "error on newNRTPoint for indexName: %s, for version: %s, primaryGen: %s",
-                      request.getIndexName(), request.getVersion(), request.getPrimaryGen()))
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+    IndexState indexState = indexStateManager.getCurrent();
+    TransferStatus reply = handle(indexState, request);
+    logger.debug(
+        "NewNRTPointHandler returned status {} message: {}", reply.getCode(), reply.getMessage());
+    return reply;
   }
 
   private TransferStatus handle(IndexState indexState, NewNRTPoint newNRTPointRequest) {

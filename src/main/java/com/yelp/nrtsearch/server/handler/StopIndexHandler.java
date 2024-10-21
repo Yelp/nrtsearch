@@ -33,7 +33,7 @@ public class StopIndexHandler extends Handler<StopIndexRequest, DummyResponse> {
     logger.info("Received stop index request: {}", stopIndexRequest);
     DummyResponse reply = getGlobalState().stopIndex(stopIndexRequest);
 
-    logger.info("StopIndexHandler returned " + reply);
+    logger.info("StopIndexHandler returned {}", reply);
     return reply;
   }
 }

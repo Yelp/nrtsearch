@@ -38,9 +38,9 @@ public class DeleteByQueryHandler extends Handler<DeleteByQueryRequest, AddDocum
 
   @Override
   public AddDocumentResponse handle(DeleteByQueryRequest deleteByQueryRequest) throws Exception {
-    IndexState indexState = getGlobalState().getIndexOrThrow(deleteByQueryRequest.getIndexName());
+    IndexState indexState = getIndexState(deleteByQueryRequest.getIndexName());
     AddDocumentResponse reply = handle(indexState, deleteByQueryRequest);
-    logger.debug("DeleteDocumentsHandler returned " + reply);
+    logger.debug("DeleteDocumentsHandler returned {}", reply);
     return reply;
   }
 

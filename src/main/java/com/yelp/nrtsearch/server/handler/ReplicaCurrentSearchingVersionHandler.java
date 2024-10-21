@@ -20,8 +20,6 @@ import com.yelp.nrtsearch.server.grpc.SearcherVersion;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,28 +33,11 @@ public class ReplicaCurrentSearchingVersionHandler extends Handler<IndexName, Se
   }
 
   @Override
-  public void handle(IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
-    try {
-      IndexState indexState = getGlobalState().getIndexOrThrow(indexNameRequest.getIndexName());
-      SearcherVersion reply = handle(indexState, indexNameRequest);
-      logger.info("ReplicaCurrentSearchingVersionHandler returned version " + reply.getVersion());
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn(
-          String.format(
-              "error on getCurrentSearcherVersion for indexName: %s",
-              indexNameRequest.getIndexName()),
-          e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  String.format(
-                      "error on getCurrentSearcherVersion for indexName: %s",
-                      indexNameRequest.getIndexName()))
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public SearcherVersion handle(IndexName indexNameRequest) throws Exception {
+    IndexState indexState = getIndexState(indexNameRequest.getIndexName());
+    SearcherVersion reply = handle(indexState, indexNameRequest);
+    logger.info("ReplicaCurrentSearchingVersionHandler returned version {}", reply.getVersion());
+    return reply;
   }
 
   private SearcherVersion handle(IndexState indexState, IndexName indexNameRequest) {

@@ -694,9 +694,6 @@ public class NrtsearchServer {
   }
 
   static class ReplicationServerImpl extends ReplicationServerGrpc.ReplicationServerImplBase {
-    private final GlobalState globalState;
-    private final boolean verifyIndexId;
-
     private final AddReplicaHandler addReplicaHandler;
     private final CopyFilesHandler copyFilesHandler;
     private final GetNodesInfoHandler getNodesInfoHandler;
@@ -709,8 +706,6 @@ public class NrtsearchServer {
     private final WriteNRTPointHandler writeNRTPointHandler;
 
     public ReplicationServerImpl(GlobalState globalState, boolean verifyIndexId) {
-      this.globalState = globalState;
-      this.verifyIndexId = verifyIndexId;
 
       addReplicaHandler = new AddReplicaHandler(globalState, verifyIndexId);
       copyFilesHandler = new CopyFilesHandler(globalState, verifyIndexId);
@@ -729,7 +724,8 @@ public class NrtsearchServer {
     public void addReplicas(
         AddReplicaRequest addReplicaRequest,
         StreamObserver<AddReplicaResponse> responseStreamObserver) {
-      addReplicaHandler.handle(addReplicaRequest, responseStreamObserver);
+      Handler.handleUnaryRequest(
+          "addReplicas", addReplicaRequest, responseStreamObserver, addReplicaHandler);
     }
 
     @Override
@@ -753,7 +749,7 @@ public class NrtsearchServer {
     @Override
     public void recvCopyState(
         CopyStateRequest request, StreamObserver<CopyState> responseObserver) {
-      recvCopyStateHandler.handle(request, responseObserver);
+      Handler.handleUnaryRequest("recvCopyState", request, responseObserver, recvCopyStateHandler);
     }
 
     @Override
@@ -763,25 +759,31 @@ public class NrtsearchServer {
 
     @Override
     public void newNRTPoint(NewNRTPoint request, StreamObserver<TransferStatus> responseObserver) {
-      newNRTPointHandler.handle(request, responseObserver);
+      Handler.handleUnaryRequest("newNRTPoint", request, responseObserver, newNRTPointHandler);
     }
 
     @Override
     public void writeNRTPoint(
         IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
-      writeNRTPointHandler.handle(indexNameRequest, responseObserver);
+      Handler.handleUnaryRequest(
+          "writeNRTPoint", indexNameRequest, responseObserver, writeNRTPointHandler);
     }
 
     @Override
     public void getCurrentSearcherVersion(
         IndexName indexNameRequest, StreamObserver<SearcherVersion> responseObserver) {
-      replicaCurrentSearchingVersionHandler.handle(indexNameRequest, responseObserver);
+      Handler.handleUnaryRequest(
+          "getCurrentSearcherVersion",
+          indexNameRequest,
+          responseObserver,
+          replicaCurrentSearchingVersionHandler);
     }
 
     @Override
     public void getConnectedNodes(
         GetNodesRequest getNodesRequest, StreamObserver<GetNodesResponse> responseObserver) {
-      getNodesInfoHandler.handle(getNodesRequest, responseObserver);
+      Handler.handleUnaryRequest(
+          "getConnectedNodes", getNodesRequest, responseObserver, getNodesInfoHandler);
     }
   }
 }

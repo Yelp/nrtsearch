@@ -23,8 +23,6 @@ import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.nrt.NRTPrimaryNode;
 import com.yelp.nrtsearch.server.state.GlobalState;
 import com.yelp.nrtsearch.server.utils.HostPort;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 import java.util.Collection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,29 +35,18 @@ public class GetNodesInfoHandler extends Handler<GetNodesRequest, GetNodesRespon
   }
 
   @Override
-  public void handle(
-      GetNodesRequest getNodesRequest, StreamObserver<GetNodesResponse> responseObserver) {
-    try {
-      IndexState indexState = getGlobalState().getIndexOrThrow(getNodesRequest.getIndexName());
-      GetNodesResponse reply = handle(indexState);
-      logger.debug("GetNodesInfoHandler returned GetNodeResponse of size " + reply.getNodesCount());
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (Exception e) {
-      logger.warn("error on GetNodesInfoHandler", e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription("error on GetNodesInfoHandler")
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+  public GetNodesResponse handle(GetNodesRequest getNodesRequest) throws Exception {
+    IndexState indexState = getIndexState(getNodesRequest.getIndexName());
+    GetNodesResponse reply = handle(indexState);
+    logger.debug("GetNodesInfoHandler returned GetNodeResponse of size {}", reply.getNodesCount());
+    return reply;
   }
 
   private GetNodesResponse handle(IndexState indexState) {
     GetNodesResponse.Builder builder = GetNodesResponse.newBuilder();
     ShardState shardState = indexState.getShard(0);
     if (!shardState.isPrimary() || !shardState.isStarted()) {
-      logger.warn("index \"" + indexState.getName() + "\" is not a primary or was not started yet");
+      logger.warn("index \"{}\" is not a primary or was not started yet", indexState.getName());
     } else { // shard is a primary and started
       Collection<NRTPrimaryNode.ReplicaDetails> replicasInfo =
           shardState.nrtPrimaryNode.getNodesInfo();

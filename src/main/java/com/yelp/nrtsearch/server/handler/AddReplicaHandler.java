@@ -22,9 +22,6 @@ import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.index.IndexStateManager;
 import com.yelp.nrtsearch.server.index.ShardState;
 import com.yelp.nrtsearch.server.state.GlobalState;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,31 +39,14 @@ public class AddReplicaHandler extends Handler<AddReplicaRequest, AddReplicaResp
   }
 
   @Override
-  public void handle(
-      AddReplicaRequest addReplicaRequest, StreamObserver<AddReplicaResponse> responseObserver) {
-    try {
-      IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManagerOrThrow(addReplicaRequest.getIndexName());
-      checkIndexId(addReplicaRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
+  public AddReplicaResponse handle(AddReplicaRequest addReplicaRequest) throws Exception {
+    IndexStateManager indexStateManager = getIndexStateManager(addReplicaRequest.getIndexName());
+    checkIndexId(addReplicaRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
 
-      IndexState indexState = indexStateManager.getCurrent();
-      AddReplicaResponse reply = handle(indexState, addReplicaRequest);
-      logger.info("AddReplicaHandler returned " + reply);
-      responseObserver.onNext(reply);
-      responseObserver.onCompleted();
-    } catch (StatusRuntimeException e) {
-      logger.warn("error while trying addReplicas " + addReplicaRequest.getIndexName(), e);
-      responseObserver.onError(e);
-    } catch (Exception e) {
-      logger.warn("error while trying addReplicas " + addReplicaRequest.getIndexName(), e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "error while trying to addReplicas for index: "
-                      + addReplicaRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .asRuntimeException());
-    }
+    IndexState indexState = indexStateManager.getCurrent();
+    AddReplicaResponse reply = handle(indexState, addReplicaRequest);
+    logger.info("AddReplicaHandler returned {}", reply);
+    return reply;
   }
 
   private AddReplicaResponse handle(IndexState indexState, AddReplicaRequest addReplicaRequest) {

@@ -15,15 +15,16 @@
  */
 package com.yelp.nrtsearch.server.handler;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.yelp.nrtsearch.server.grpc.CommitRequest;
 import com.yelp.nrtsearch.server.grpc.CommitResponse;
 import com.yelp.nrtsearch.server.index.IndexState;
 import com.yelp.nrtsearch.server.state.GlobalState;
+import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
 import io.grpc.Context;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
-import java.io.IOException;
 import java.util.concurrent.RejectedExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,8 +45,7 @@ public class CommitHandler extends Handler<CommitRequest, CommitResponse> {
                   .wrap(
                       () -> {
                         try {
-                          IndexState indexState =
-                              getGlobalState().getIndexOrThrow(commitRequest.getIndexName());
+                          IndexState indexState = getIndexState(commitRequest.getIndexName());
                           long gen = indexState.commit();
                           CommitResponse reply =
                               CommitResponse.newBuilder()
@@ -53,36 +53,30 @@ public class CommitHandler extends Handler<CommitRequest, CommitResponse> {
                                   .setPrimaryId(getGlobalState().getEphemeralId())
                                   .build();
                           logger.debug(
-                              String.format(
-                                  "CommitHandler committed to index: %s for sequenceId: %s",
-                                  commitRequest.getIndexName(), gen));
+                              "CommitHandler committed to index: {} for sequenceId: {}",
+                              commitRequest.getIndexName(),
+                              gen);
                           responseObserver.onNext(reply);
                           responseObserver.onCompleted();
-                        } catch (IOException e) {
-                          logger.warn(
-                              "error while trying to read index state dir for indexName: "
-                                  + commitRequest.getIndexName(),
-                              e);
-                          responseObserver.onError(
-                              Status.INTERNAL
-                                  .withDescription(
-                                      "error while trying to read index state dir for indexName: "
-                                          + commitRequest.getIndexName())
-                                  .augmentDescription(e.getMessage())
-                                  .withCause(e)
-                                  .asRuntimeException());
                         } catch (Exception e) {
+                          String requestStr;
+                          try {
+                            requestStr =
+                                ProtoMessagePrinter.omittingInsignificantWhitespace()
+                                    .print(commitRequest);
+                          } catch (InvalidProtocolBufferException ignored) {
+                            // Ignore as invalid proto would have thrown an exception earlier
+                            requestStr = commitRequest.toString();
+                          }
                           logger.warn(
-                              "error while trying to commit to  index "
-                                  + commitRequest.getIndexName(),
-                              e);
+                              String.format("Error handling commit request: %s", requestStr), e);
                           if (e instanceof StatusRuntimeException) {
                             responseObserver.onError(e);
                           } else {
                             responseObserver.onError(
-                                Status.UNKNOWN
+                                Status.INTERNAL
                                     .withDescription(
-                                        "error while trying to commit to index: "
+                                        "Error while trying to commit to index: "
                                             + commitRequest.getIndexName())
                                     .augmentDescription(e.getMessage())
                                     .asRuntimeException());

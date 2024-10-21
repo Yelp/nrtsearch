@@ -42,8 +42,7 @@ public class RecvRawFileHandler extends Handler<FileInfo, RawFileChunk> {
   @Override
   public void handle(FileInfo fileInfoRequest, StreamObserver<RawFileChunk> responseObserver) {
     try {
-      IndexStateManager indexStateManager =
-          getGlobalState().getIndexStateManagerOrThrow(fileInfoRequest.getIndexName());
+      IndexStateManager indexStateManager = getIndexStateManager(fileInfoRequest.getIndexName());
       checkIndexId(fileInfoRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
 
       IndexState indexState = indexStateManager.getCurrent();

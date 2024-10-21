@@ -59,7 +59,7 @@ public class RecvRawFileV2Handler extends Handler<FileInfo, RawFileChunk> {
           if (indexState == null) {
             // Start transfer
             IndexStateManager indexStateManager =
-                getGlobalState().getIndexStateManagerOrThrow(fileInfoRequest.getIndexName());
+                getIndexStateManager(fileInfoRequest.getIndexName());
             checkIndexId(
                 fileInfoRequest.getIndexId(), indexStateManager.getIndexId(), verifyIndexId);
 

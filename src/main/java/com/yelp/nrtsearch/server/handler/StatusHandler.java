@@ -32,7 +32,7 @@ public class StatusHandler extends Handler<HealthCheckRequest, HealthCheckRespon
   public HealthCheckResponse handle(HealthCheckRequest request) throws Exception {
     HealthCheckResponse reply =
         HealthCheckResponse.newBuilder().setHealth(TransferStatusCode.Done).build();
-    logger.debug("HealthCheckResponse returned " + reply);
+    logger.debug("HealthCheckResponse returned {}", reply);
     return reply;
   }
 }

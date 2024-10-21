@@ -25,7 +25,6 @@ import com.yelp.nrtsearch.server.utils.ProtoMessagePrinter;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
-import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,39 +47,23 @@ public class SearchV2Handler extends Handler<SearchRequest, Any> {
       setResponseCompression(searchRequest.getResponseCompression(), responseObserver);
       responseObserver.onNext(Any.pack(searchResponse));
       responseObserver.onCompleted();
-    } catch (IOException e) {
-      logger.warn(
-          "error while trying to read index state dir for indexName: {}",
-          searchRequest.getIndexName(),
-          e);
-      responseObserver.onError(
-          Status.INTERNAL
-              .withDescription(
-                  "error while trying to read index state dir for indexName: "
-                      + searchRequest.getIndexName())
-              .augmentDescription(e.getMessage())
-              .withCause(e)
-              .asRuntimeException());
     } catch (Exception e) {
-      String searchRequestJson = null;
+      String requestStr;
       try {
-        searchRequestJson = protoMessagePrinter.print(searchRequest);
+        requestStr = protoMessagePrinter.print(searchRequest);
       } catch (InvalidProtocolBufferException ignored) {
         // Ignore as invalid proto would have thrown an exception earlier
+        requestStr = searchRequest.toString();
       }
-      logger.warn(
-          String.format(
-              "error while trying to execute search for index %s: request: %s",
-              searchRequest.getIndexName(), searchRequestJson),
-          e);
+      logger.warn(String.format("Error handling searchV2 request: %s", requestStr), e);
       if (e instanceof StatusRuntimeException) {
         responseObserver.onError(e);
       } else {
         responseObserver.onError(
-            Status.UNKNOWN
+            Status.INTERNAL
                 .withDescription(
                     String.format(
-                        "error while trying to execute search for index %s. check logs for full searchRequest.",
+                        "Error while trying to execute search for index %s. check logs for full searchRequest.",
                         searchRequest.getIndexName()))
                 .augmentDescription(e.getMessage())
                 .asRuntimeException());

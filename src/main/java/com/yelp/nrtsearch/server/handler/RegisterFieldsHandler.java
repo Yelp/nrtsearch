@@ -35,7 +35,7 @@ public class RegisterFieldsHandler extends Handler<FieldDefRequest, FieldDefResp
     IndexStateManager indexStateManager = getIndexStateManager(fieldDefRequest.getIndexName());
     String updatedFields = indexStateManager.updateFields(fieldDefRequest.getFieldList());
     FieldDefResponse reply = FieldDefResponse.newBuilder().setResponse(updatedFields).build();
-    logger.info("RegisterFieldsHandler registered fields " + reply);
+    logger.info("RegisterFieldsHandler registered fields {}", reply);
     return reply;
   }
 }
