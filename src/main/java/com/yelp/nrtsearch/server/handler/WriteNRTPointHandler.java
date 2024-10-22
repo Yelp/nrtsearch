@@ -76,7 +76,7 @@ public class WriteNRTPointHandler extends Handler<IndexName, SearcherVersion> {
         Iterator<NRTPrimaryNode.ReplicaDetails> it = replicasInfos.iterator();
         while (it.hasNext()) {
           NRTPrimaryNode.ReplicaDetails replicaDetails = it.next();
-          int replicaID = replicaDetails.getReplicaId();
+          String nodeName = replicaDetails.getNodeName();
           ReplicationServerClient currentReplicaServerClient =
               replicaDetails.getReplicationServerClient();
           try {
@@ -89,8 +89,8 @@ public class WriteNRTPointHandler extends Handler<IndexName, SearcherVersion> {
             Status status = e.getStatus();
             if (status.getCode().equals(Status.UNAVAILABLE.getCode())) {
               logger.info(
-                  "NRTPRimaryNode: sendNRTPoint, lost connection to replicaId: "
-                      + replicaDetails.getReplicaId()
+                  "NRTPRimaryNode: sendNRTPoint, lost connection to nodeName: "
+                      + nodeName
                       + " host: "
                       + replicaDetails.getHostPort().getHostName()
                       + " port: "
@@ -99,13 +99,13 @@ public class WriteNRTPointHandler extends Handler<IndexName, SearcherVersion> {
             }
           } catch (Exception e) {
             shardState.nrtPrimaryNode.message(
-                "top: failed to connect R"
-                    + replicaID
+                "top: failed to connect "
+                    + nodeName
                     + " for newNRTPoint; skipping: "
                     + e.getMessage());
             logger.info(
-                "top: failed to connect R"
-                    + replicaID
+                "top: failed to connect "
+                    + nodeName
                     + " for newNRTPoint; skipping: "
                     + e.getMessage());
           }

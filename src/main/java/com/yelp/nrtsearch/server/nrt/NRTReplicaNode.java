@@ -48,6 +48,7 @@ public class NRTReplicaNode extends ReplicaNode {
   private final ReplicaDeleterManager replicaDeleterManager;
   private final String indexName;
   private final String indexId;
+  private final String nodeName;
   private final boolean ackedCopy;
   private final boolean filterIncompatibleSegmentReaders;
   final NrtCopyThread nrtCopyThread;
@@ -62,7 +63,7 @@ public class NRTReplicaNode extends ReplicaNode {
       String indexId,
       ReplicationServerClient primaryAddress,
       HostPort hostPort,
-      int replicaId,
+      String nodeName,
       Directory indexDir,
       SearcherFactory searcherFactory,
       PrintStream printStream,
@@ -71,10 +72,12 @@ public class NRTReplicaNode extends ReplicaNode {
       boolean filterIncompatibleSegmentReaders,
       int lowPriorityCopyPercentage)
       throws IOException {
-    super(replicaId, indexDir, searcherFactory, printStream);
+    // the id is always 0, the nodeName is the identifier
+    super(0, indexDir, searcherFactory, printStream);
     this.primaryAddress = primaryAddress;
     this.indexName = indexName;
     this.indexId = indexId;
+    this.nodeName = nodeName;
     this.ackedCopy = ackedCopy;
     this.hostPort = hostPort;
     replicaDeleterManager = decInitialCommit ? new ReplicaDeleterManager(this) : null;
@@ -232,7 +235,7 @@ public class NRTReplicaNode extends ReplicaNode {
   protected void sendNewReplica() throws IOException {
     logger.info(String.format("send new_replica to primary: %s", primaryAddress));
     primaryAddress.addReplicas(
-        indexName, this.indexId, this.id, hostPort.getHostName(), hostPort.getPort());
+        indexName, this.indexId, this.nodeName, hostPort.getHostName(), hostPort.getPort());
   }
 
   public CopyJob launchPreCopyFiles(
@@ -281,6 +284,10 @@ public class NRTReplicaNode extends ReplicaNode {
     return primaryAddress;
   }
 
+  public String getNodeName() {
+    return nodeName;
+  }
+
   public HostPort getHostPort() {
     return hostPort;
   }
@@ -290,7 +297,8 @@ public class NRTReplicaNode extends ReplicaNode {
   public boolean isKnownToPrimary() {
     GetNodesResponse getNodesResponse = primaryAddress.getConnectedNodes(indexName);
     for (NodeInfo nodeInfo : getNodesResponse.getNodesList()) {
-      if (hostPort.equals(new HostPort(nodeInfo.getHostname(), nodeInfo.getPort()))) {
+      if (nodeName.equals(nodeInfo.getNodeName())
+          && hostPort.equals(new HostPort(nodeInfo.getHostname(), nodeInfo.getPort()))) {
         return true;
       }
     }

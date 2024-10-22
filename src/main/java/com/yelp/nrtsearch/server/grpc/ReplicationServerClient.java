@@ -190,13 +190,13 @@ public class ReplicationServerClient implements Closeable {
   }
 
   public void addReplicas(
-      String indexName, String indexId, int replicaId, String hostName, int port) {
+      String indexName, String indexId, String nodeName, String hostName, int port) {
     AddReplicaRequest addReplicaRequest =
         AddReplicaRequest.newBuilder()
             .setMagicNumber(BINARY_MAGIC)
             .setIndexName(indexName)
             .setIndexId(indexId)
-            .setReplicaId(replicaId)
+            .setNodeName(nodeName)
             .setHostName(hostName)
             .setPort(port)
             .build();

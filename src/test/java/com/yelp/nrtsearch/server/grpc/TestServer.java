@@ -560,7 +560,7 @@ public class TestServer {
             .setMagicNumber(BINARY_MAGIC)
             .setIndexName(indexName)
             .setIndexId(indexStateManager.getIndexId())
-            .setReplicaId(ShardState.REPLICA_ID)
+            .setNodeName(getGlobalState().getNodeName())
             .setHostName("localhost")
             .setPort(getGlobalState().getReplicationPort())
             .build();

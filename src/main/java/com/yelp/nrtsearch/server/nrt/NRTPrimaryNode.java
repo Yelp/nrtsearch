@@ -92,12 +92,12 @@ public class NRTPrimaryNode extends PrimaryNode {
   }
 
   public static class ReplicaDetails {
-    private final int replicaId;
+    private final String nodeName;
     private final HostPort hostPort;
     private final ReplicationServerClient replicationServerClient;
 
-    public int getReplicaId() {
-      return replicaId;
+    public String getNodeName() {
+      return nodeName;
     }
 
     public ReplicationServerClient getReplicationServerClient() {
@@ -108,9 +108,9 @@ public class NRTPrimaryNode extends PrimaryNode {
       return hostPort;
     }
 
-    ReplicaDetails(int replicaId, ReplicationServerClient replicationServerClient) {
-      this.replicaId = replicaId;
+    ReplicaDetails(String nodeName, ReplicationServerClient replicationServerClient) {
       this.replicationServerClient = replicationServerClient;
+      this.nodeName = nodeName;
       this.hostPort =
           new HostPort(replicationServerClient.getHost(), replicationServerClient.getPort());
     }
@@ -124,7 +124,7 @@ public class NRTPrimaryNode extends PrimaryNode {
       if (this == o) return true;
       if (o == null || getClass() != o.getClass()) return false;
       ReplicaDetails that = (ReplicaDetails) o;
-      return replicaId == that.replicaId && Objects.equals(hostPort, that.hostPort);
+      return Objects.equals(nodeName, that.nodeName) && Objects.equals(hostPort, that.hostPort);
     }
 
     /*
@@ -133,7 +133,7 @@ public class NRTPrimaryNode extends PrimaryNode {
      * */
     @Override
     public int hashCode() {
-      return Objects.hash(replicaId, hostPort);
+      return Objects.hash(nodeName, hostPort);
     }
   }
 
@@ -207,7 +207,7 @@ public class NRTPrimaryNode extends PrimaryNode {
     Iterator<ReplicaDetails> it = replicasInfos.iterator();
     while (it.hasNext()) {
       ReplicaDetails replicaDetails = it.next();
-      int replicaID = replicaDetails.replicaId;
+      String nodeName = replicaDetails.getNodeName();
       ReplicationServerClient currentReplicaServerClient = replicaDetails.replicationServerClient;
       try {
         currentReplicaServerClient.newNRTPoint(
@@ -216,8 +216,8 @@ public class NRTPrimaryNode extends PrimaryNode {
         Status status = e.getStatus();
         if (status.getCode().equals(Status.UNAVAILABLE.getCode())) {
           logger.warn(
-              "NRTPrimaryNode: sendNRTPoint, lost connection to replicaId: {} host: {} port: {}",
-              replicaDetails.replicaId,
+              "NRTPrimaryNode: sendNRTPoint, lost connection to nodeName: {} host: {} port: {}",
+              nodeName,
               replicaDetails.replicationServerClient.getHost(),
               replicaDetails.replicationServerClient.getPort());
           currentReplicaServerClient.close();
@@ -225,8 +225,8 @@ public class NRTPrimaryNode extends PrimaryNode {
         } else if (status.getCode().equals(Status.FAILED_PRECONDITION.getCode())
             || status.getCode().equals(Status.NOT_FOUND.getCode())) {
           logger.warn(
-              "NRTPrimaryNode: sendNRTPoint, replicaId: {} host: {} port: {} cannot process nrt point, closing connection: {}",
-              replicaDetails.replicaId,
+              "NRTPrimaryNode: sendNRTPoint, nodeName: {} host: {} port: {} cannot process nrt point, closing connection: {}",
+              nodeName,
               replicaDetails.replicationServerClient.getHost(),
               replicaDetails.replicationServerClient.getPort(),
               status);
@@ -236,8 +236,8 @@ public class NRTPrimaryNode extends PrimaryNode {
       } catch (Exception e) {
         String msg =
             String.format(
-                "top: failed to connect R%d for newNRTPoint; skipping: %s",
-                replicaID, e.getMessage());
+                "top: failed to connect %s for newNRTPoint; skipping: %s",
+                nodeName, e.getMessage());
         message(msg);
         logger.warn(msg);
       }
@@ -476,11 +476,34 @@ public class NRTPrimaryNode extends PrimaryNode {
     writer.getConfig().setRAMBufferSizeMB(mb);
   }
 
-  public void addReplica(int replicaID, ReplicationServerClient replicationServerClient)
+  public void addReplica(String nodeName, ReplicationServerClient replicationServerClient)
       throws IOException {
-    logMessage("add replica: " + warmingSegments.size() + " current warming merges ");
-    ReplicaDetails replicaDetails = new ReplicaDetails(replicaID, replicationServerClient);
+    ReplicaDetails replicaDetails = new ReplicaDetails(nodeName, replicationServerClient);
+    logMessage(
+        String.format(
+            "Add replica %s (%s:%d) : %d current warming merges ",
+            replicaDetails.nodeName,
+            replicaDetails.replicationServerClient.getHost(),
+            replicaDetails.replicationServerClient.getPort(),
+            warmingSegments.size()));
     if (!replicasInfos.contains(replicaDetails)) {
+      Iterator<ReplicaDetails> it = replicasInfos.iterator();
+      while (it.hasNext()) {
+        ReplicaDetails existingReplicaDetails = it.next();
+        // This replica may have reused the address of a previous one that has not been cleaned up
+        // yet. We should remove any existing replica with the same address to avoid duplicate
+        // requests.
+        if (existingReplicaDetails.hostPort.equals(replicaDetails.hostPort)) {
+          logMessage(
+              String.format(
+                  "Removing existing replica with same address %s (%s:%d)",
+                  existingReplicaDetails.nodeName,
+                  existingReplicaDetails.hostPort.getHostName(),
+                  existingReplicaDetails.hostPort.getPort()));
+          existingReplicaDetails.replicationServerClient.close();
+          it.remove();
+        }
+      }
       replicasInfos.add(replicaDetails);
     }
     // Step through all currently warming segments and try to add this replica if it isn't there
@@ -492,7 +515,8 @@ public class NRTPrimaryNode extends PrimaryNode {
         if (preCopy.connections.contains(replicationServerClient)) {
           logMessage(
               String.format(
-                  "Replica %s:%d is already warming this segment",
+                  "Replica %s (%s:%d) is already warming this segment",
+                  replicaDetails.nodeName,
                   replicaDetails.replicationServerClient.getHost(),
                   replicaDetails.replicationServerClient.getPort()));
           // It's possible (maybe) that the replica started up, then a merge kicked off, and it
@@ -513,7 +537,8 @@ public class NRTPrimaryNode extends PrimaryNode {
             filesMetadata)) {
           logMessage(
               String.format(
-                  "Start precopying merged segments for new replica %s:%d",
+                  "Start precopying merged segments for new replica %s (%s:%d)",
+                  replicaDetails.nodeName,
                   replicaDetails.replicationServerClient.getHost(),
                   replicaDetails.replicationServerClient.getPort()));
         } else {
@@ -522,7 +547,8 @@ public class NRTPrimaryNode extends PrimaryNode {
           // nrt point sent to this replica
           logMessage(
               String.format(
-                  "Merge precopy already completed, unable to add new replica %s:%d",
+                  "Merge precopy already completed, unable to add new replica %s (%s:%d)",
+                  replicaDetails.nodeName,
                   replicaDetails.replicationServerClient.getHost(),
                   replicaDetails.replicationServerClient.getPort()));
         }
@@ -543,7 +569,8 @@ public class NRTPrimaryNode extends PrimaryNode {
       ReplicationServerClient replicationServerClient = replicaDetails.getReplicationServerClient();
       HostPort replicaHostPort = replicaDetails.getHostPort();
       logger.info(
-          "CLOSE NRT PRIMARY, closing replica channel host:{}, port:{}",
+          "CLOSE NRT PRIMARY, closing replica channel nodeName: {} host:{}, port:{}",
+          replicaDetails.getNodeName(),
           replicaHostPort.getHostName(),
           replicaHostPort.getPort());
       replicationServerClient.close();
