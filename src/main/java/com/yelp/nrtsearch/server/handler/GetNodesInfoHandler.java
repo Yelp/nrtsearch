@@ -56,6 +56,7 @@ public class GetNodesInfoHandler extends Handler<GetNodesRequest, GetNodesRespon
             NodeInfo.newBuilder()
                 .setHostname(hostPort.getHostName())
                 .setPort(hostPort.getPort())
+                .setNodeName(replica.getNodeName())
                 .build());
       }
     }

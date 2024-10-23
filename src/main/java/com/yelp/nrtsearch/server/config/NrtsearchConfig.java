@@ -125,7 +125,7 @@ public class NrtsearchConfig {
         configReader.getLong("maxConnectionAgeForReplication", AS_LARGE_AS_INFINITE);
     maxConnectionAgeGraceForReplication =
         configReader.getLong("maxConnectionAgeGraceForReplication", AS_LARGE_AS_INFINITE);
-    nodeName = configReader.getString("nodeName", DEFAULT_NODE_NAME);
+    nodeName = substituteEnvVariables(configReader.getString("nodeName", DEFAULT_NODE_NAME));
     hostName = substituteEnvVariables(configReader.getString("hostName", DEFAULT_HOSTNAME));
     stateDir = configReader.getString("stateDir", DEFAULT_STATE_DIR.toString());
     indexDir = configReader.getString("indexDir", DEFAULT_INDEX_DIR.toString());

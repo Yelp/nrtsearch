@@ -82,7 +82,6 @@ import org.slf4j.LoggerFactory;
 
 public class ShardState implements Closeable {
   private static final Logger logger = LoggerFactory.getLogger(ShardState.class);
-  public static final int REPLICA_ID = 0;
   public static final String INDEX_DATA_DIR_NAME = "index";
   public static final String TAXONOMY_DATA_DIR_NAME = "taxonomy";
   final ExecutorService searchExecutor;
@@ -980,7 +979,7 @@ public class ShardState implements Closeable {
               indexStateManager.getIndexId(),
               primaryAddress,
               hostPort,
-              REPLICA_ID,
+              configuration.getNodeName(),
               indexDir,
               new ShardSearcherFactory(true, false),
               verbose ? System.out : new PrintStream(OutputStream.nullOutputStream()),
@@ -1115,7 +1114,7 @@ public class ShardState implements Closeable {
                 .addReplicas(
                     shardState.indexStateManager.getCurrent().getName(),
                     shardState.indexStateManager.getIndexId(),
-                    REPLICA_ID,
+                    nrtReplicaNode.getNodeName(),
                     nrtReplicaNode.getHostPort().getHostName(),
                     nrtReplicaNode.getHostPort().getPort());
           }

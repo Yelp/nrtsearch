@@ -61,7 +61,7 @@ public class AddReplicaHandler extends Handler<AddReplicaRequest, AddReplicaResp
     }
     try {
       shardState.nrtPrimaryNode.addReplica(
-          addReplicaRequest.getReplicaId(),
+          addReplicaRequest.getNodeName(),
           // channel for primary to talk to replica
           new ReplicationServerClient(
               addReplicaRequest.getHostName(), addReplicaRequest.getPort(), useKeepAlive));

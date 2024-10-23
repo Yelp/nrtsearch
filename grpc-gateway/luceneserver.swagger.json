@@ -4142,6 +4142,9 @@
         "port": {
           "type": "integer",
           "format": "int32"
+        },
+        "nodeName": {
+          "type": "string"
         }
       }
     },

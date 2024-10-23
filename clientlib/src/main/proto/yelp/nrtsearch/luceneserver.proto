@@ -917,11 +917,13 @@ message StateResponse {
 message AddReplicaRequest {
     int32 magicNumber = 1; //magic number send on all requests since these are meant for internal communication only
     string indexName = 2; //index name
-    int32 replicaId = 3; //replica Id
+    int32 replicaId = 3 [deprecated = true]; //replica Id
     string hostName = 4; // replica host name
     int32 port = 5; // replica port number
     // index id
     string indexId = 6;
+    // node name
+    string nodeName = 7;
 }
 
 message AddReplicaResponse {
@@ -1046,6 +1048,7 @@ message GetNodesResponse {
 message NodeInfo {
     string hostname = 1; //name or ip address of the remote host that this node is connected to for binary replication
     int32 port = 2; //port number of the remote host that this node is connected to for binary replication
+    string nodeName = 3; //name of the remote node
 }
 
 message DeleteByQueryRequest {
