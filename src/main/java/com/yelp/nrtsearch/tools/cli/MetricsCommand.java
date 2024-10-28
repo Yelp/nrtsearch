@@ -15,8 +15,12 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
+import com.google.api.HttpBody;
+import com.google.protobuf.Empty;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -24,6 +28,7 @@ import picocli.CommandLine;
     description = "Get prometheus metrics for the server")
 public class MetricsCommand implements Callable<Integer> {
   public static final String METRICS = "metrics";
+  private static final Logger logger = LoggerFactory.getLogger(MetricsCommand.class);
 
   @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
@@ -31,8 +36,9 @@ public class MetricsCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      // Call the appropriate method to get metrics
-      client.metrics();
+      HttpBody response = client.getBlockingStub().metrics(Empty.newBuilder().build());
+      String metrics = new String(response.getData().toByteArray());
+      logger.info("Server returned metrics:\n{}", metrics);
     } finally {
       client.shutdown();
     }

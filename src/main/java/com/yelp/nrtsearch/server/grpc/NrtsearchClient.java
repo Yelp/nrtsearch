@@ -17,8 +17,6 @@ package com.yelp.nrtsearch.server.grpc;
 
 import static com.yelp.nrtsearch.server.grpc.ReplicationServerClient.MAX_MESSAGE_BYTES_SIZE;
 
-import com.google.api.HttpBody;
-import com.google.protobuf.Empty;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import io.grpc.ManagedChannel;
@@ -408,28 +406,6 @@ public class NrtsearchClient implements Closeable {
         .stream()
         .map(IndexStatsResponse::getIndexName)
         .collect(Collectors.toList());
-  }
-
-  public void nodeInfo() {
-    NodeInfoResponse response = blockingStub.nodeInfo(NodeInfoRequest.newBuilder().build());
-    logger.info("Server returned node info: {}", response);
-  }
-
-  public void globalState() {
-    GlobalStateResponse response =
-        blockingStub.globalState(GlobalStateRequest.newBuilder().build());
-    logger.info("Server returned global state: {}", response);
-  }
-
-  public void metrics() {
-    HttpBody response = blockingStub.metrics(Empty.newBuilder().build());
-    String metrics = new String(response.getData().toByteArray());
-    logger.info("Server returned metrics:\n{}", metrics);
-  }
-
-  public void custom(CustomRequest request) {
-    CustomResponse response = blockingStub.custom(request);
-    logger.info("Server returned : {}", response);
   }
 
   private FieldDefRequest getFieldDefRequest(String jsonStr) {

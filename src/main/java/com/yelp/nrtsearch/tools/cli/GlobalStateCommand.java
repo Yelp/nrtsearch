@@ -15,8 +15,12 @@
  */
 package com.yelp.nrtsearch.tools.cli;
 
+import com.yelp.nrtsearch.server.grpc.GlobalStateRequest;
+import com.yelp.nrtsearch.server.grpc.GlobalStateResponse;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -24,6 +28,7 @@ import picocli.CommandLine;
     description = "Get server global state")
 public class GlobalStateCommand implements Callable<Integer> {
   public static final String GLOBAL_STATE = "globalState";
+  private static final Logger logger = LoggerFactory.getLogger(GlobalStateCommand.class);
 
   @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
@@ -31,8 +36,9 @@ public class GlobalStateCommand implements Callable<Integer> {
   public Integer call() throws Exception {
     NrtsearchClient client = baseCmd.getClient();
     try {
-      // Call the appropriate method to get global state
-      client.globalState();
+      GlobalStateResponse response =
+          client.getBlockingStub().globalState(GlobalStateRequest.newBuilder().build());
+      logger.info("Server returned global state: {}", response);
     } finally {
       client.shutdown();
     }

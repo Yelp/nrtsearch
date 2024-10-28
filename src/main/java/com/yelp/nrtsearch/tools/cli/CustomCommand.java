@@ -16,8 +16,11 @@
 package com.yelp.nrtsearch.tools.cli;
 
 import com.yelp.nrtsearch.server.grpc.CustomRequest;
+import com.yelp.nrtsearch.server.grpc.CustomResponse;
 import com.yelp.nrtsearch.server.grpc.NrtsearchClient;
 import java.util.concurrent.Callable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -25,6 +28,7 @@ import picocli.CommandLine;
     description = "Sends a custom command to endpoint registered by a plugin")
 public class CustomCommand implements Callable<Integer> {
   public static final String CUSTOM_COMMAND = "custom";
+  private static final Logger logger = LoggerFactory.getLogger(CustomCommand.class);
 
   @CommandLine.ParentCommand private NrtsearchClientCommand baseCmd;
 
@@ -42,8 +46,8 @@ public class CustomCommand implements Callable<Integer> {
 
     NrtsearchClient client = baseCmd.getClient();
     try {
-      // Call the appropriate method to send the custom request
-      client.custom(requestBuilder.build());
+      CustomResponse response = client.getBlockingStub().custom(requestBuilder.build());
+      logger.info("Server returned : {}", response);
     } finally {
       client.shutdown();
     }
