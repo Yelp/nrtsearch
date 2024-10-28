@@ -21,6 +21,7 @@ import com.google.protobuf.DoubleValue;
 import com.google.protobuf.Int32Value;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.index.DirectoryFactory;
 import java.io.ByteArrayInputStream;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormat.FSTLoadMode;
 import org.junit.Test;
@@ -205,5 +206,19 @@ public class NrtsearchConfigTest {
     String config = "verifyReplicationIndexId: false";
     NrtsearchConfig luceneConfig = getForConfig(config);
     assertFalse(luceneConfig.getVerifyReplicationIndexId());
+  }
+
+  @Test
+  public void testMMapGrouping_default() {
+    String config = "nodeName: \"lucene_server_foo\"";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertEquals(DirectoryFactory.MMapGrouping.SEGMENT, luceneConfig.getMMapGrouping());
+  }
+
+  @Test
+  public void testMMapGrouping_set() {
+    String config = "mmapGrouping: NONE";
+    NrtsearchConfig luceneConfig = getForConfig(config);
+    assertEquals(DirectoryFactory.MMapGrouping.NONE, luceneConfig.getMMapGrouping());
   }
 }
