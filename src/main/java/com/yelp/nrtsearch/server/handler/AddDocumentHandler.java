@@ -520,6 +520,10 @@ public class AddDocumentHandler extends Handler<AddDocumentRequest, AddDocumentR
         IndexState indexState,
         ShardState shardState)
         throws IOException {
+      if (shardState.isReplica()) {
+        throw new IllegalStateException(
+            "Adding documents to an index on a replica node is not supported");
+      }
       for (Document nextDoc : documents) {
         nextDoc = handleFacets(indexState, shardState, nextDoc);
         shardState.writer.updateDocument(idFieldDef.getTerm(nextDoc), nextDoc);
