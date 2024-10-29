@@ -36,6 +36,7 @@ import picocli.CommandLine;
       DeleteIndexCommand.class,
       ForceMergeCommand.class,
       ForceMergeDeletesCommand.class,
+      IndexStateCommand.class,
       IndicesCommand.class,
       LiveSettingsV2Command.class,
       ReadyCommand.class,

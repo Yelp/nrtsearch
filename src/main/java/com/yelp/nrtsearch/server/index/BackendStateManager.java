@@ -144,7 +144,7 @@ public class BackendStateManager implements IndexStateManager {
     if (currentState.isStarted()) {
       throw new IllegalStateException("Cannot change setting for started index: " + indexName);
     }
-    IndexStateInfo updatedStateInfo = mergeSettings(currentState.getCurrentStateInfo(), settings);
+    IndexStateInfo updatedStateInfo = mergeSettings(currentState.getIndexStateInfo(), settings);
     ImmutableIndexState updatedIndexState =
         createIndexState(
             updatedStateInfo, currentState.getFieldAndFacetState(), liveSettingsOverrides);
@@ -175,13 +175,13 @@ public class BackendStateManager implements IndexStateManager {
           ImmutableIndexState.mergeLiveSettings(liveSettingsOverrides, liveSettings);
       updatedIndexState =
           createIndexState(
-              currentState.getCurrentStateInfo(),
+              currentState.getIndexStateInfo(),
               currentState.getFieldAndFacetState(),
               updatedLiveSettingsOverrides);
       liveSettingsOverrides = updatedLiveSettingsOverrides;
     } else {
       IndexStateInfo updatedStateInfo =
-          mergeLiveSettings(currentState.getCurrentStateInfo(), liveSettings);
+          mergeLiveSettings(currentState.getIndexStateInfo(), liveSettings);
       updatedIndexState =
           createIndexState(
               updatedStateInfo, currentState.getFieldAndFacetState(), liveSettingsOverrides);
@@ -202,10 +202,10 @@ public class BackendStateManager implements IndexStateManager {
     UpdatedFieldInfo updatedFieldInfo =
         FieldUpdateUtils.updateFields(
             currentState.getFieldAndFacetState(),
-            currentState.getCurrentStateInfo().getFieldsMap(),
+            currentState.getIndexStateInfo().getFieldsMap(),
             fields);
     IndexStateInfo updatedStateInfo =
-        replaceFields(currentState.getCurrentStateInfo(), updatedFieldInfo.fields);
+        replaceFields(currentState.getIndexStateInfo(), updatedFieldInfo.fields);
     ImmutableIndexState updatedIndexState =
         createIndexState(
             updatedStateInfo, updatedFieldInfo.fieldAndFacetState, liveSettingsOverrides);
@@ -228,13 +228,13 @@ public class BackendStateManager implements IndexStateManager {
       throw new IllegalStateException("Index already started: " + indexName);
     }
     currentState.start(serverMode, nrtDataManager, primaryGen, primaryClient);
-    if (serverMode != Mode.REPLICA && !currentState.getCurrentStateInfo().getCommitted()) {
+    if (serverMode != Mode.REPLICA && !currentState.getIndexStateInfo().getCommitted()) {
       logger.info("Doing initial commit for index: " + indexName);
       currentState.commit();
       IndexStateInfo updatedStateInfo =
-          currentState.getCurrentStateInfo().toBuilder()
+          currentState.getIndexStateInfo().toBuilder()
               .setCommitted(true)
-              .setGen(currentState.getCurrentStateInfo().getGen() + 1)
+              .setGen(currentState.getIndexStateInfo().getGen() + 1)
               .build();
       ImmutableIndexState updatedIndexState =
           createIndexState(
