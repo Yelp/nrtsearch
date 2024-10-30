@@ -131,12 +131,6 @@ public abstract class IndexState implements Closeable {
           }
           throw new IllegalArgumentException("field \"" + name + "\" does not support analysis");
         }
-
-        @Override
-        protected TokenStreamComponents wrapComponents(
-            String fieldName, TokenStreamComponents components) {
-          return components;
-        }
       };
 
   /** Per-field wrapper that provides the similarity for searcher */
@@ -313,7 +307,7 @@ public abstract class IndexState implements Closeable {
    * @throws IllegalArgumentException if the non-root path is invalid
    */
   public String resolveQueryNestedPath(String path) {
-    if (path == null || path.length() == 0 || path.equals(IndexState.ROOT)) {
+    if (path == null || path.isEmpty() || path.equals(IndexState.ROOT)) {
       return IndexState.ROOT;
     }
     FieldDef fieldDef = getFieldOrThrow(path);

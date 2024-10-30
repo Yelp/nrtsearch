@@ -27,7 +27,7 @@ import com.yelp.nrtsearch.server.search.FieldFetchContext;
 import com.yelp.nrtsearch.server.search.SearchContext;
 import com.yelp.nrtsearch.server.search.sort.SortContext;
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.lucene.facet.taxonomy.SearcherTaxonomyManager;
@@ -61,7 +61,7 @@ public class InnerHitContext implements FieldFetchContext {
   private final Map<String, FieldDef> retrieveFields;
   private final SortContext sortContext;
 
-  private final CollectorManager<? extends TopDocsCollector, ? extends TopDocs>
+  private final CollectorManager<? extends TopDocsCollector<?>, ? extends TopDocs>
       topDocsCollectorManager;
   private final FetchTasks fetchTasks;
   private SearchContext searchContext = null;
@@ -86,8 +86,7 @@ public class InnerHitContext implements FieldFetchContext {
     this.queryFields = builder.queryFields;
     this.retrieveFields = builder.retrieveFields;
     this.explain = builder.explain;
-    this.fetchTasks =
-        new FetchTasks(Collections.EMPTY_LIST, builder.highlightFetchTask, null, null);
+    this.fetchTasks = new FetchTasks(List.of(), builder.highlightFetchTask, null, null);
 
     if (builder.querySort == null) {
       // relevance collector
@@ -235,7 +234,7 @@ public class InnerHitContext implements FieldFetchContext {
   }
 
   /** Get the topDocsCollectorManager to collect the search results. */
-  public CollectorManager<? extends TopDocsCollector, ? extends TopDocs>
+  public CollectorManager<? extends TopDocsCollector<?>, ? extends TopDocs>
       getTopDocsCollectorManager() {
     return topDocsCollectorManager;
   }

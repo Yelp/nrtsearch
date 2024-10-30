@@ -49,10 +49,6 @@ public class HostPort {
 
   @Override
   public String toString() {
-    final StringBuilder sb = new StringBuilder("HostPort{");
-    sb.append("hostname='").append(hostName).append('\'');
-    sb.append(", port=").append(port);
-    sb.append('}');
-    return sb.toString();
+    return "HostPort{" + "hostname='" + hostName + '\'' + ", port=" + port + '}';
   }
 }

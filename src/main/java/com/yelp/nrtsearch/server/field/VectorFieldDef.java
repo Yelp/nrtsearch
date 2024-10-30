@@ -148,8 +148,9 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     KnnVectorsFormat vectorsFormat =
         switch (vectorSearchType) {
           case HNSW -> getHnswVectorsFormat(m, efConstruction, mergeWorkers, executorService);
-          case HNSW_SCALAR_QUANTIZED -> getHnswScalarQuantizedVectorsFormat(
-              m, efConstruction, mergeWorkers, executorService, vectorIndexingOptions);
+          case HNSW_SCALAR_QUANTIZED ->
+              getHnswScalarQuantizedVectorsFormat(
+                  m, efConstruction, mergeWorkers, executorService, vectorIndexingOptions);
         };
 
     return new KnnVectorsFormat(vectorsFormat.getName()) {
@@ -196,8 +197,7 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
             : DEFAULT_QUANTIZED_BITS;
     boolean compress =
         vectorIndexingOptions.hasQuantizedCompress()
-            ? vectorIndexingOptions.getQuantizedCompress()
-            : false;
+            && vectorIndexingOptions.getQuantizedCompress();
 
     return new Lucene99HnswScalarQuantizedVectorsFormat(
         m, efConstruction, mergeWorkers, bits, compress, confidenceInterval, executorService);
@@ -214,8 +214,8 @@ public abstract class VectorFieldDef<T> extends IndexableFieldDef<T> implements 
     return switch (field.getVectorElementType()) {
       case VECTOR_ELEMENT_FLOAT -> new FloatVectorFieldDef(name, field);
       case VECTOR_ELEMENT_BYTE -> new ByteVectorFieldDef(name, field);
-      default -> throw new IllegalArgumentException(
-          "Invalid field type: " + field.getVectorElementType());
+      default ->
+          throw new IllegalArgumentException("Invalid field type: " + field.getVectorElementType());
     };
   }
 

@@ -42,7 +42,7 @@ import org.apache.lucene.search.ScoreMode;
 
 /** Collector manager that aggregates terms from Float doc values into buckets. */
 public class FloatTermsCollectorManager extends TermsCollectorManager {
-  private final IndexableFieldDef fieldDef;
+  private final IndexableFieldDef<?> fieldDef;
 
   /**
    * Constructor.
@@ -58,7 +58,7 @@ public class FloatTermsCollectorManager extends TermsCollectorManager {
       String name,
       com.yelp.nrtsearch.server.grpc.TermsCollector grpcTermsCollector,
       CollectorCreatorContext context,
-      IndexableFieldDef indexableFieldDef,
+      IndexableFieldDef<?> indexableFieldDef,
       Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
           nestedCollectorSuppliers,
       BucketOrder bucketOrder) {

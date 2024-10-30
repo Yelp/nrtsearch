@@ -61,13 +61,7 @@ public final class GeoPoint implements DoubleDoublePair {
 
   @Override
   public String toString() {
-    return new StringBuilder("GeoPoint(")
-        .append("latitude=")
-        .append(latitude)
-        .append(", longitude=")
-        .append(longitude)
-        .append(")")
-        .toString();
+    return "GeoPoint(" + "latitude=" + latitude + ", longitude=" + longitude + ")";
   }
 
   @Override

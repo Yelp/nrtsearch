@@ -583,7 +583,7 @@ public class ShardState implements Closeable {
 
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
-      if ((origIndexDir instanceof MMapDirectory) == false) {
+      if (!(origIndexDir instanceof MMapDirectory)) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
         double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
         if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
@@ -609,12 +609,7 @@ public class ShardState implements Closeable {
         openMode = IndexWriterConfig.OpenMode.APPEND;
       }
 
-      Path taxoDirFile;
-      if (rootDir == null) {
-        taxoDirFile = null;
-      } else {
-        taxoDirFile = rootDir.resolve(TAXONOMY_DATA_DIR_NAME);
-      }
+      Path taxoDirFile = rootDir.resolve(TAXONOMY_DATA_DIR_NAME);
       taxoDir =
           indexState
               .getDirectoryFactory()
@@ -718,7 +713,7 @@ public class ShardState implements Closeable {
               .open(
                   indexDirFile, indexState.getGlobalState().getConfiguration().getPreloadConfig());
 
-      if ((origIndexDir instanceof MMapDirectory) == false) {
+      if (!(origIndexDir instanceof MMapDirectory)) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
         double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
         if (maxMergeSizeMB > 0 && maxSizeMB > 0) {
@@ -952,7 +947,7 @@ public class ShardState implements Closeable {
           indexState.getDirectoryFactory().open(indexDirFile, configuration.getPreloadConfig());
       // nocommit don't allow RAMDir
       // nocommit remove NRTCachingDir too?
-      if ((origIndexDir instanceof MMapDirectory) == false) {
+      if (!(origIndexDir instanceof MMapDirectory)) {
         double maxMergeSizeMB = indexState.getNrtCachingDirectoryMaxMergeSizeMB();
         double maxSizeMB = indexState.getNrtCachingDirectoryMaxSizeMB();
         if (maxMergeSizeMB > 0 && maxSizeMB > 0) {

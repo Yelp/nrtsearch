@@ -51,7 +51,7 @@ import org.apache.lucene.util.LongValues;
 /** Collector manager that aggregates terms using global ordinals into buckets. */
 public class OrdinalTermsCollectorManager extends TermsCollectorManager {
 
-  private final IndexableFieldDef fieldDef;
+  private final IndexableFieldDef<?> fieldDef;
   private final GlobalOrdinalLookup globalOrdinalLookup;
 
   /**
@@ -69,7 +69,7 @@ public class OrdinalTermsCollectorManager extends TermsCollectorManager {
       String name,
       com.yelp.nrtsearch.server.grpc.TermsCollector grpcTermsCollector,
       CollectorCreatorContext context,
-      IndexableFieldDef indexableFieldDef,
+      IndexableFieldDef<?> indexableFieldDef,
       GlobalOrdinalable globalOrdinalable,
       Map<String, Supplier<AdditionalCollectorManager<? extends Collector, CollectorResult>>>
           nestedCollectorSuppliers,

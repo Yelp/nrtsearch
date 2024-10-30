@@ -140,7 +140,7 @@ public class FilterCollectorManager
    * of building a scorer is high.
    */
   private static class SetQueryFilter implements Filter {
-    final IndexableFieldDef filterField;
+    final IndexableFieldDef<?> filterField;
     final Set<Object> filterSet = new HashSet<>();
 
     /**
@@ -159,7 +159,7 @@ public class FilterCollectorManager
         throw new IllegalArgumentException(
             "Filter field is not indexable: " + grpcTermInSetQuery.getField());
       }
-      filterField = (IndexableFieldDef) fieldDef;
+      filterField = (IndexableFieldDef<?>) fieldDef;
       if (!filterField.hasDocValues()) {
         throw new IllegalArgumentException(
             "Filter field must have doc values enabled: " + grpcTermInSetQuery.getField());

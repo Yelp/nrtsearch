@@ -42,9 +42,10 @@ public abstract class DecayFilterFunction extends FilterFunction {
       case DECAY_TYPE_GUASSIAN -> new GuassianDecayFunction();
       case DECAY_TYPE_EXPONENTIAL -> new ExponentialDecayFunction();
       case DECAY_TYPE_LINEAR -> new LinearDecayFunction();
-      default -> throw new IllegalArgumentException(
-          decayType
-              + " not supported. Only exponential, guassian and linear decay functions are supported");
+      default ->
+          throw new IllegalArgumentException(
+              decayType
+                  + " not supported. Only exponential, guassian and linear decay functions are supported");
     };
   }
 }

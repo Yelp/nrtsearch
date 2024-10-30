@@ -35,20 +35,17 @@ public class GeoUtils {
     }
 
     try {
-      double distanceNumber = Double.valueOf(distanceList[0]);
+      double distanceNumber = Double.parseDouble(distanceList[0]);
       if (distanceList.length == 1) {
         return distanceNumber;
       }
       String distanceUnit = distanceList[1];
-      if (distanceUnit.equals("m")) {
-        return distanceNumber;
-      } else if (distanceUnit.equals("km")) {
-        return distanceNumber * KM_TO_M;
-      } else if (distanceUnit.equals("mi")) {
-        return distanceNumber * MI_TO_M;
-      } else {
-        throw new IllegalArgumentException("Invalid distance " + rawDistance);
-      }
+      return switch (distanceUnit) {
+        case "m" -> distanceNumber;
+        case "km" -> distanceNumber * KM_TO_M;
+        case "mi" -> distanceNumber * MI_TO_M;
+        default -> throw new IllegalArgumentException("Invalid distance " + rawDistance);
+      };
     } catch (NumberFormatException e) {
       throw new IllegalArgumentException("Invalid distance " + rawDistance);
     }

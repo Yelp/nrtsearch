@@ -91,13 +91,11 @@ public abstract class NrtCopyThread extends Thread implements Closeable {
 
       this.setName("jobs o" + topJob.ord);
 
-      assert topJob != null;
-
       boolean result;
       try {
         result = topJob.visit();
       } catch (Throwable t) {
-        if ((t instanceof AlreadyClosedException) == false) {
+        if (!(t instanceof AlreadyClosedException)) {
           logWarning("exception during job.visit job=" + topJob + "; now cancel", t);
 
         } else {
@@ -116,7 +114,7 @@ public abstract class NrtCopyThread extends Thread implements Closeable {
         continue;
       }
 
-      if (result == false) {
+      if (!result) {
         // Job isn't done yet; put it back:
         synchronized (this) {
           addJob(topJob);
@@ -161,7 +159,7 @@ public abstract class NrtCopyThread extends Thread implements Closeable {
   }
 
   public synchronized void launch(CopyJob job) {
-    if (finish == false) {
+    if (!finish) {
       addJob(job);
       notify();
     } else {

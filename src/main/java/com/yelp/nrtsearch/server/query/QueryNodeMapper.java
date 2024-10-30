@@ -143,81 +143,58 @@ public class QueryNodeMapper {
 
   private Query getQueryNode(
       com.yelp.nrtsearch.server.grpc.Query query, IndexState state, DocLookup docLookup) {
-    switch (query.getQueryNodeCase()) {
-      case BOOLEANQUERY:
-        return getBooleanQuery(query.getBooleanQuery(), state, docLookup);
-      case PHRASEQUERY:
-        return getPhraseQuery(query.getPhraseQuery());
-      case FUNCTIONSCOREQUERY:
-        return getFunctionScoreQuery(query.getFunctionScoreQuery(), state, docLookup);
-      case TERMQUERY:
-        return getTermQuery(query.getTermQuery(), state);
-      case TERMINSETQUERY:
-        return getTermInSetQuery(query.getTermInSetQuery(), state);
-      case DISJUNCTIONMAXQUERY:
-        return getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), state, docLookup);
-      case MATCHQUERY:
-        return getMatchQuery(query.getMatchQuery(), state);
-      case MATCHPHRASEQUERY:
-        return getMatchPhraseQuery(query.getMatchPhraseQuery(), state);
-      case MULTIMATCHQUERY:
-        return getMultiMatchQuery(query.getMultiMatchQuery(), state);
-      case RANGEQUERY:
-        return getRangeQuery(query.getRangeQuery(), state);
-      case GEOBOUNDINGBOXQUERY:
-        return getGeoBoundingBoxQuery(query.getGeoBoundingBoxQuery(), state);
-      case GEOPOINTQUERY:
-        return getGeoPointQuery(query.getGeoPointQuery(), state);
-      case NESTEDQUERY:
-        return getNestedQuery(query.getNestedQuery(), state, docLookup);
-      case EXISTSQUERY:
-        return getExistsQuery(query.getExistsQuery(), state);
-      case GEORADIUSQUERY:
-        return getGeoRadiusQuery(query.getGeoRadiusQuery(), state);
-      case FUNCTIONFILTERQUERY:
-        return getFunctionFilterQuery(query.getFunctionFilterQuery(), state);
-      case COMPLETIONQUERY:
-        return getCompletionQuery(query.getCompletionQuery(), state);
-      case MULTIFUNCTIONSCOREQUERY:
-        return MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), state);
-      case MATCHPHRASEPREFIXQUERY:
-        return MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), state);
-      case PREFIXQUERY:
-        return getPrefixQuery(query.getPrefixQuery(), state);
-      case CONSTANTSCOREQUERY:
-        return getConstantScoreQuery(query.getConstantScoreQuery(), state, docLookup);
-      case SPANQUERY:
-        return getSpanQuery(query.getSpanQuery(), state);
-      case GEOPOLYGONQUERY:
-        return getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
-      case MATCHALLQUERY, QUERYNODE_NOT_SET:
-        return new MatchAllDocsQuery();
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported query type received: " + query.getQueryNodeCase());
-    }
+    return switch (query.getQueryNodeCase()) {
+      case BOOLEANQUERY -> getBooleanQuery(query.getBooleanQuery(), state, docLookup);
+      case PHRASEQUERY -> getPhraseQuery(query.getPhraseQuery());
+      case FUNCTIONSCOREQUERY ->
+          getFunctionScoreQuery(query.getFunctionScoreQuery(), state, docLookup);
+      case TERMQUERY -> getTermQuery(query.getTermQuery(), state);
+      case TERMINSETQUERY -> getTermInSetQuery(query.getTermInSetQuery(), state);
+      case DISJUNCTIONMAXQUERY ->
+          getDisjunctionMaxQuery(query.getDisjunctionMaxQuery(), state, docLookup);
+      case MATCHQUERY -> getMatchQuery(query.getMatchQuery(), state);
+      case MATCHPHRASEQUERY -> getMatchPhraseQuery(query.getMatchPhraseQuery(), state);
+      case MULTIMATCHQUERY -> getMultiMatchQuery(query.getMultiMatchQuery(), state);
+      case RANGEQUERY -> getRangeQuery(query.getRangeQuery(), state);
+      case GEOBOUNDINGBOXQUERY -> getGeoBoundingBoxQuery(query.getGeoBoundingBoxQuery(), state);
+      case GEOPOINTQUERY -> getGeoPointQuery(query.getGeoPointQuery(), state);
+      case NESTEDQUERY -> getNestedQuery(query.getNestedQuery(), state, docLookup);
+      case EXISTSQUERY -> getExistsQuery(query.getExistsQuery(), state);
+      case GEORADIUSQUERY -> getGeoRadiusQuery(query.getGeoRadiusQuery(), state);
+      case FUNCTIONFILTERQUERY -> getFunctionFilterQuery(query.getFunctionFilterQuery(), state);
+      case COMPLETIONQUERY -> getCompletionQuery(query.getCompletionQuery(), state);
+      case MULTIFUNCTIONSCOREQUERY ->
+          MultiFunctionScoreQuery.build(query.getMultiFunctionScoreQuery(), state);
+      case MATCHPHRASEPREFIXQUERY ->
+          MatchPhrasePrefixQuery.build(query.getMatchPhrasePrefixQuery(), state);
+      case PREFIXQUERY -> getPrefixQuery(query.getPrefixQuery(), state);
+      case CONSTANTSCOREQUERY ->
+          getConstantScoreQuery(query.getConstantScoreQuery(), state, docLookup);
+      case SPANQUERY -> getSpanQuery(query.getSpanQuery(), state);
+      case GEOPOLYGONQUERY -> getGeoPolygonQuery(query.getGeoPolygonQuery(), state);
+      case MATCHALLQUERY, QUERYNODE_NOT_SET -> new MatchAllDocsQuery();
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported query type received: " + query.getQueryNodeCase());
+    };
   }
 
   private Query getCompletionQuery(
       com.yelp.nrtsearch.server.grpc.CompletionQuery completionQueryDef, IndexState state) {
-    CompletionQuery completionQuery;
-    switch (completionQueryDef.getQueryType()) {
-      case PREFIX_QUERY:
-        completionQuery =
-            new PrefixCompletionQuery(
-                state.searchAnalyzer,
-                new Term(completionQueryDef.getField(), completionQueryDef.getText()));
-        break;
-      case FUZZY_QUERY:
-        completionQuery =
-            new FuzzyCompletionQuery(
-                state.searchAnalyzer,
-                new Term(completionQueryDef.getField(), completionQueryDef.getText()));
-        break;
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported suggest query type received: " + completionQueryDef.getQueryType());
-    }
+    CompletionQuery completionQuery =
+        switch (completionQueryDef.getQueryType()) {
+          case PREFIX_QUERY ->
+              new PrefixCompletionQuery(
+                  state.searchAnalyzer,
+                  new Term(completionQueryDef.getField(), completionQueryDef.getText()));
+          case FUZZY_QUERY ->
+              new FuzzyCompletionQuery(
+                  state.searchAnalyzer,
+                  new Term(completionQueryDef.getField(), completionQueryDef.getText()));
+          default ->
+              throw new UnsupportedOperationException(
+                  "Unsupported suggest query type received: " + completionQueryDef.getQueryType());
+        };
     MyContextQuery contextQuery = new MyContextQuery(completionQuery);
     contextQuery.addContexts(completionQueryDef.getContextsList());
     return contextQuery;
@@ -239,21 +216,16 @@ public class QueryNodeMapper {
   }
 
   private ScoreMode getScoreMode(com.yelp.nrtsearch.server.grpc.NestedQuery nestedQuery) {
-    switch (nestedQuery.getScoreMode()) {
-      case NONE:
-        return ScoreMode.None;
-      case AVG:
-        return ScoreMode.Avg;
-      case MAX:
-        return ScoreMode.Max;
-      case MIN:
-        return ScoreMode.Min;
-      case SUM:
-        return ScoreMode.Total;
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported score mode received: " + nestedQuery.getScoreMode());
-    }
+    return switch (nestedQuery.getScoreMode()) {
+      case NONE -> ScoreMode.None;
+      case AVG -> ScoreMode.Avg;
+      case MAX -> ScoreMode.Max;
+      case MIN -> ScoreMode.Min;
+      case SUM -> ScoreMode.Total;
+      default ->
+          throw new UnsupportedOperationException(
+              "Unsupported score mode received: " + nestedQuery.getScoreMode());
+    };
   }
 
   private BooleanQuery getBooleanQuery(
@@ -333,7 +305,8 @@ public class QueryNodeMapper {
   }
 
   private void validateTermQueryIsSearchable(FieldDef fieldDef) {
-    if (fieldDef instanceof IndexableFieldDef && !((IndexableFieldDef) fieldDef).isSearchable()) {
+    if (fieldDef instanceof IndexableFieldDef
+        && !((IndexableFieldDef<?>) fieldDef).isSearchable()) {
       throw new IllegalStateException(
           "Field "
               + fieldDef.getName()
@@ -427,9 +400,10 @@ public class QueryNodeMapper {
         case ALL_ZERO_TERMS -> {
           return new MatchAllDocsQuery();
         }
-        default -> throw new IllegalArgumentException(
-            zeroTermsQuery
-                + " not valid. ZeroTermsQuery should be NONE_ZERO_TERMS or ALL_ZERO_TERMS");
+        default ->
+            throw new IllegalArgumentException(
+                zeroTermsQuery
+                    + " not valid. ZeroTermsQuery should be NONE_ZERO_TERMS or ALL_ZERO_TERMS");
       }
     }
     return phraseQuery;
@@ -454,41 +428,40 @@ public class QueryNodeMapper {
         fields.stream()
             .map(
                 field -> {
-                  Query query;
-                  switch (multiMatchQuery.getType()) {
-                    case BEST_FIELDS:
-                      MatchQuery matchQuery =
-                          MatchQuery.newBuilder()
-                              .setField(field)
-                              .setQuery(multiMatchQuery.getQuery())
-                              .setOperator(multiMatchQuery.getOperator())
-                              .setMinimumNumberShouldMatch(
-                                  multiMatchQuery.getMinimumNumberShouldMatch())
-                              .setAnalyzer(
-                                  multiMatchQuery
-                                      .getAnalyzer()) // TODO: making the analyzer once and using it
-                              // for
-                              // all match queries would be more efficient
-                              .setFuzzyParams(multiMatchQuery.getFuzzyParams())
-                              .build();
-                      query = getMatchQuery(matchQuery, state);
-                      break;
-                    case PHRASE_PREFIX:
-                      query =
-                          MatchPhrasePrefixQuery.build(
-                              com.yelp.nrtsearch.server.grpc.MatchPhrasePrefixQuery.newBuilder()
+                  Query query =
+                      switch (multiMatchQuery.getType()) {
+                        case BEST_FIELDS -> {
+                          MatchQuery matchQuery =
+                              MatchQuery.newBuilder()
                                   .setField(field)
                                   .setQuery(multiMatchQuery.getQuery())
-                                  .setAnalyzer(multiMatchQuery.getAnalyzer())
-                                  .setSlop(multiMatchQuery.getSlop())
-                                  .setMaxExpansions(multiMatchQuery.getMaxExpansions())
-                                  .build(),
-                              state);
-                      break;
-                    default:
-                      throw new IllegalArgumentException(
-                          "Unknown multi match type: " + multiMatchQuery.getType());
-                  }
+                                  .setOperator(multiMatchQuery.getOperator())
+                                  .setMinimumNumberShouldMatch(
+                                      multiMatchQuery.getMinimumNumberShouldMatch())
+                                  .setAnalyzer(
+                                      multiMatchQuery
+                                          .getAnalyzer()) // TODO: making the analyzer once and
+                                  // using it
+                                  // for
+                                  // all match queries would be more efficient
+                                  .setFuzzyParams(multiMatchQuery.getFuzzyParams())
+                                  .build();
+                          yield getMatchQuery(matchQuery, state);
+                        }
+                        case PHRASE_PREFIX ->
+                            MatchPhrasePrefixQuery.build(
+                                com.yelp.nrtsearch.server.grpc.MatchPhrasePrefixQuery.newBuilder()
+                                    .setField(field)
+                                    .setQuery(multiMatchQuery.getQuery())
+                                    .setAnalyzer(multiMatchQuery.getAnalyzer())
+                                    .setSlop(multiMatchQuery.getSlop())
+                                    .setMaxExpansions(multiMatchQuery.getMaxExpansions())
+                                    .build(),
+                                state);
+                        default ->
+                            throw new IllegalArgumentException(
+                                "Unknown multi match type: " + multiMatchQuery.getType());
+                      };
                   Float boost = fieldBoosts.get(field);
                   if (boost != null) {
                     if (boost < 0) {
@@ -511,10 +484,9 @@ public class QueryNodeMapper {
     Analyzer analyzer = null;
     for (String field : fields) {
       FieldDef fieldDef = state.getFieldOrThrow(field);
-      if (!(fieldDef instanceof TextBaseFieldDef)) {
+      if (!(fieldDef instanceof TextBaseFieldDef textBaseFieldDef)) {
         throw new IllegalArgumentException("Field must be analyzable: " + field);
       }
-      TextBaseFieldDef textBaseFieldDef = (TextBaseFieldDef) fieldDef;
       if (!textBaseFieldDef.isSearchable()) {
         throw new IllegalArgumentException("Field must be searchable: " + field);
       }
@@ -613,7 +585,7 @@ public class QueryNodeMapper {
       throw new IllegalArgumentException(
           "Field \"" + prefixQuery.getPrefix() + "\" is not indexable");
     }
-    IndexOptions indexOptions = ((IndexableFieldDef) fieldDef).getFieldType().indexOptions();
+    IndexOptions indexOptions = ((IndexableFieldDef<?>) fieldDef).getFieldType().indexOptions();
     if (indexOptions == IndexOptions.NONE) {
       throw new IllegalArgumentException(
           "Field \"" + prefixQuery.getField() + "\" is not indexed with terms");
@@ -687,7 +659,7 @@ public class QueryNodeMapper {
     }
   }
 
-  private SpanMultiTermQueryWrapper getSpanMultiTermQueryWrapper(
+  private SpanMultiTermQueryWrapper<?> getSpanMultiTermQueryWrapper(
       com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery protoSpanMultiTermQuery, IndexState state) {
 
     com.yelp.nrtsearch.server.grpc.SpanMultiTermQuery.WrappedQueryCase wrappedQueryCase =

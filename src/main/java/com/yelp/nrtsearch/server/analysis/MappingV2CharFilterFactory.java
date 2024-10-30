@@ -61,7 +61,7 @@ public class MappingV2CharFilterFactory extends CharFilterFactory {
   /**
    * Initialize this factory via a set of key-value pairs.
    *
-   * @param args
+   * @param args filter arguments
    */
   public MappingV2CharFilterFactory(Map<String, String> args) {
     super(args);

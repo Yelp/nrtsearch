@@ -65,14 +65,14 @@ import org.yaml.snakeyaml.Yaml;
 public class YamlConfigReader {
   private static final Logger logger = LoggerFactory.getLogger(YamlConfigReader.class.getName());
 
-  private static Function<Object, String> STR_READER =
+  private static final Function<Object, String> STR_READER =
       (node) -> {
         if (!(node instanceof Collection) && !(node instanceof Map)) {
           return node.toString();
         }
         return null;
       };
-  private static Function<Object, Boolean> BOOL_READER =
+  private static final Function<Object, Boolean> BOOL_READER =
       (node) -> {
         if (node instanceof Boolean) {
           return (Boolean) node;
@@ -83,16 +83,16 @@ public class YamlConfigReader {
         }
         return null;
       };
-  private static Function<Object, Integer> INT_READER =
+  private static final Function<Object, Integer> INT_READER =
       new NumberReaderFunc<>(Integer.class, Number::intValue, Integer::parseInt);
-  private static Function<Object, Long> LONG_READER =
+  private static final Function<Object, Long> LONG_READER =
       new NumberReaderFunc<>(Long.class, Number::longValue, Long::parseLong);
-  private static Function<Object, Float> FLOAT_READER =
+  private static final Function<Object, Float> FLOAT_READER =
       new NumberReaderFunc<>(Float.class, Number::floatValue, Float::parseFloat);
-  private static Function<Object, Double> DOUBLE_READER =
+  private static final Function<Object, Double> DOUBLE_READER =
       new NumberReaderFunc<>(Double.class, Number::doubleValue, Double::parseDouble);
 
-  private static String SPLIT_REGEX = "[.]";
+  private static final String SPLIT_REGEX = "[.]";
 
   private final Map<?, ?> configRoot;
 
@@ -496,7 +496,7 @@ public class YamlConfigReader {
       throw new ConfigReadException("Not instance of Map, path: " + path);
     }
     List<String> keys = new ArrayList<>();
-    for (Object mapKey : ((Map) node).keySet()) {
+    for (Object mapKey : ((Map<?, ?>) node).keySet()) {
       if (!(mapKey instanceof String)) {
         throw new ConfigReadException("Map contain non String key: " + mapKey + ", path: " + path);
       }

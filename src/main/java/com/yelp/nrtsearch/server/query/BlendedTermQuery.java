@@ -255,14 +255,14 @@ public abstract class BlendedTermQuery extends Query {
   public void visit(QueryVisitor visitor) {
     Set<String> fields = Arrays.stream(terms).map(Term::field).collect(Collectors.toSet());
     for (String field : fields) {
-      if (visitor.acceptField(field) == false) {
+      if (!visitor.acceptField(field)) {
         return;
       }
     }
     visitor.getSubVisitor(BooleanClause.Occur.SHOULD, this).consumeTerms(this, terms);
   }
 
-  private class TermAndBoost implements Comparable<TermAndBoost> {
+  private static class TermAndBoost implements Comparable<TermAndBoost> {
     protected final Term term;
     protected float boost;
 
@@ -285,11 +285,10 @@ public abstract class BlendedTermQuery extends Query {
       if (this == o) {
         return true;
       }
-      if (o instanceof TermAndBoost == false) {
+      if (!(o instanceof TermAndBoost that)) {
         return false;
       }
 
-      TermAndBoost that = (TermAndBoost) o;
       return term.equals(that.term) && (Float.compare(boost, that.boost) == 0);
     }
 
@@ -326,7 +325,7 @@ public abstract class BlendedTermQuery extends Query {
     if (this == o) {
       return true;
     }
-    if (sameClassAs(o) == false) {
+    if (!sameClassAs(o)) {
       return false;
     }
 

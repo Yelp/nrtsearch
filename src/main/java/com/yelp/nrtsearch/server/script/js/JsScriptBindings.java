@@ -79,8 +79,7 @@ public final class JsScriptBindings extends Bindings {
       double valueAsDouble;
       if (paramObject instanceof Number) {
         valueAsDouble = ((Number) paramObject).doubleValue();
-      } else if (paramObject instanceof Boolean) {
-        Boolean value = (Boolean) paramObject;
+      } else if (paramObject instanceof Boolean value) {
         valueAsDouble = value == Boolean.TRUE ? 1.0 : 0.0;
       } else {
         throw new IllegalArgumentException(
@@ -127,8 +126,7 @@ public final class JsScriptBindings extends Bindings {
 
     @Override
     public boolean equals(Object obj) {
-      if (obj instanceof ParamDoubleValuesSource) {
-        ParamDoubleValuesSource paramDoubleValuesSource = (ParamDoubleValuesSource) obj;
+      if (obj instanceof ParamDoubleValuesSource paramDoubleValuesSource) {
         return Double.compare(
                 paramDoubleValuesSource.paramDoubleValues.paramValue, paramDoubleValues.paramValue)
             == 0;

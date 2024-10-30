@@ -122,8 +122,7 @@ public class FieldDefCreator {
   public static void initialize(NrtsearchConfig configuration, Iterable<Plugin> plugins) {
     instance = new FieldDefCreator(configuration);
     for (Plugin plugin : plugins) {
-      if (plugin instanceof FieldTypePlugin) {
-        FieldTypePlugin fieldTypePlugin = (FieldTypePlugin) plugin;
+      if (plugin instanceof FieldTypePlugin fieldTypePlugin) {
         instance.register(fieldTypePlugin.getFieldTypes());
       }
     }

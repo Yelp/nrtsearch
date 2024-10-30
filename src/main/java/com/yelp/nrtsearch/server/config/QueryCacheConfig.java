@@ -73,15 +73,19 @@ public class QueryCacheConfig {
     long multiplier = 1;
     if (baseStr.length() > 2) {
       String suffix = baseStr.substring(baseStr.length() - 2).toLowerCase();
-      if ("kb".equals(suffix)) {
-        baseStr = baseStr.substring(0, baseStr.length() - 2);
-        multiplier = 1024;
-      } else if ("mb".equals(suffix)) {
-        baseStr = baseStr.substring(0, baseStr.length() - 2);
-        multiplier = 1024 * 1024;
-      } else if ("gb".equals(suffix)) {
-        baseStr = baseStr.substring(0, baseStr.length() - 2);
-        multiplier = 1024 * 1024 * 1024;
+      switch (suffix) {
+        case "kb" -> {
+          baseStr = baseStr.substring(0, baseStr.length() - 2);
+          multiplier = 1024;
+        }
+        case "mb" -> {
+          baseStr = baseStr.substring(0, baseStr.length() - 2);
+          multiplier = 1024 * 1024;
+        }
+        case "gb" -> {
+          baseStr = baseStr.substring(0, baseStr.length() - 2);
+          multiplier = 1024 * 1024 * 1024;
+        }
       }
     }
     if (baseStr.isEmpty()) {
