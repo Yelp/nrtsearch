@@ -290,6 +290,17 @@ service LuceneServer {
     };
     }
 
+    /* Gets the state information for an index, includes settings, live_settings, search schema */
+    rpc indexState (IndexStateRequest) returns (IndexStateResponse) {
+        option (google.api.http) = {
+            post: "/v1/index_state"
+            body: "*"
+            additional_bindings {
+                get: "/v1/index_state/{index_name}"
+            }
+        };
+    }
+
     //GET methods
     /* healthcheck */
     rpc status (HealthCheckRequest) returns (HealthCheckResponse) {
@@ -912,6 +923,16 @@ message StateRequest {
 
 message StateResponse {
     string response = 1; //json string of the current index state
+}
+
+message IndexStateRequest {
+    // index name
+    string index_name = 1;
+}
+
+message IndexStateResponse {
+    // index state
+    IndexStateInfo index_state = 1;
 }
 
 message AddReplicaRequest {

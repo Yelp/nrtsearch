@@ -154,7 +154,7 @@ public class GetRemoteStateCommandTest {
     IndexStateInfo stateInfo = builder.build();
     IndexStateInfo expected =
         ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
-            .getCurrentStateInfo();
+            .getIndexStateInfo();
     assertEquals(expected, stateInfo);
   }
 
@@ -180,7 +180,7 @@ public class GetRemoteStateCommandTest {
     IndexStateInfo stateInfo = builder.build();
     IndexStateInfo expected =
         ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
-            .getCurrentStateInfo();
+            .getIndexStateInfo();
     assertEquals(expected, stateInfo);
   }
 }

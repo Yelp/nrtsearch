@@ -523,6 +523,71 @@
         ]
       }
     },
+    "/v1/index_state": {
+      "post": {
+        "summary": "Gets the state information for an index, includes settings, live_settings, search schema",
+        "operationId": "LuceneServer_indexState",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverIndexStateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/luceneserverIndexStateRequest"
+            }
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
+    "/v1/index_state/{indexName}": {
+      "get": {
+        "summary": "Gets the state information for an index, includes settings, live_settings, search schema",
+        "operationId": "LuceneServer_indexState2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/luceneserverIndexStateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/googlerpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "indexName",
+            "description": "index name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "LuceneServer"
+        ]
+      }
+    },
     "/v1/indices": {
       "get": {
         "summary": "indices",
@@ -3632,6 +3697,57 @@
         "directory": {
           "type": "string",
           "title": "Base Directory implementation to use (NRTCachingDirectory will wrap this) either one of the core implementations (FSDirectory, MMapDirectory, NIOFSDirectory, or a fully qualified path to a Directory implementation that has a public constructor taking a single File argument default: FSDirectory"
+        }
+      }
+    },
+    "luceneserverIndexStateInfo": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string",
+          "title": "Name of the index"
+        },
+        "gen": {
+          "type": "string",
+          "format": "int64",
+          "title": "State version generation"
+        },
+        "committed": {
+          "type": "boolean",
+          "title": "If this index has ever been committed"
+        },
+        "settings": {
+          "$ref": "#/definitions/luceneserverIndexSettings",
+          "title": "Index settings"
+        },
+        "liveSettings": {
+          "$ref": "#/definitions/luceneserverIndexLiveSettings",
+          "title": "Index live settings"
+        },
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/luceneserverField"
+          },
+          "title": "Registered fields"
+        }
+      }
+    },
+    "luceneserverIndexStateRequest": {
+      "type": "object",
+      "properties": {
+        "indexName": {
+          "type": "string",
+          "title": "index name"
+        }
+      }
+    },
+    "luceneserverIndexStateResponse": {
+      "type": "object",
+      "properties": {
+        "indexState": {
+          "$ref": "#/definitions/luceneserverIndexStateInfo",
+          "title": "index state"
         }
       }
     },

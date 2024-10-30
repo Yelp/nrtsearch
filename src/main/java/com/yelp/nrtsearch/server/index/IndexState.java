@@ -323,6 +323,9 @@ public abstract class IndexState implements Closeable {
     throw new IllegalArgumentException("Nested path is not a nested object field: " + path);
   }
 
+  /** Get index state info. */
+  public abstract IndexStateInfo getIndexStateInfo();
+
   /** Get if the index is started. */
   public abstract boolean isStarted();
 

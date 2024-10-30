@@ -902,7 +902,7 @@ public class ImmutableIndexStateTest {
   public void testGetCurrentStateInfo() throws IOException {
     IndexStateInfo indexStateInfo = getEmptyState();
     ImmutableIndexState indexState = getIndexState(indexStateInfo);
-    assertSame(indexStateInfo, indexState.getCurrentStateInfo());
+    assertSame(indexStateInfo, indexState.getIndexStateInfo());
   }
 
   @Test

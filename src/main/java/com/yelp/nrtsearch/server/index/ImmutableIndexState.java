@@ -360,7 +360,8 @@ public class ImmutableIndexState extends IndexState {
   }
 
   /** Get the current index state message representation. */
-  public IndexStateInfo getCurrentStateInfo() {
+  @Override
+  public IndexStateInfo getIndexStateInfo() {
     return currentStateInfo;
   }
 
