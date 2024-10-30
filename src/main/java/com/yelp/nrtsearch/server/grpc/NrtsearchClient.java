@@ -361,6 +361,14 @@ public class NrtsearchClient implements Closeable {
     logger.info("Server returned genId : " + response.getGenId());
   }
 
+  public void deleteByQuery(String indexName, Query query) {
+    AddDocumentResponse response =
+        blockingStub.deleteByQuery(
+            DeleteByQueryRequest.newBuilder().setIndexName(indexName).addQuery(query).build());
+    logger.info(
+        "Server returned primaryId: {}, genId : {}", response.getPrimaryId(), response.getGenId());
+  }
+
   public void stopIndex(String indexName) {
     blockingStub.stopIndex(StopIndexRequest.newBuilder().setIndexName(indexName).build());
   }
