@@ -237,7 +237,9 @@ public class ImmutableIndexState extends IndexState {
     }
     indexMergeSchedulerAutoThrottle =
         mergedSettings.getIndexMergeSchedulerAutoThrottle().getValue();
-    directoryFactory = DirectoryFactory.get(mergedSettings.getDirectory().getValue());
+    directoryFactory =
+        DirectoryFactory.get(
+            mergedSettings.getDirectory().getValue(), globalState.getConfiguration());
 
     // live settings
     mergedLiveSettings =
@@ -358,7 +360,8 @@ public class ImmutableIndexState extends IndexState {
   }
 
   /** Get the current index state message representation. */
-  public IndexStateInfo getCurrentStateInfo() {
+  @Override
+  public IndexStateInfo getIndexStateInfo() {
     return currentStateInfo;
   }
 

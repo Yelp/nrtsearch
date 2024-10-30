@@ -1026,6 +1026,21 @@ public class NrtsearchServerTest {
   }
 
   @Test
+  public void testIndexState() throws IOException, InterruptedException {
+    GrpcServer.TestServer testAddDocs =
+        new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);
+    testAddDocs.addDocuments();
+    IndexStateResponse indexStateResponse =
+        grpcServer
+            .getBlockingStub()
+            .indexState(
+                IndexStateRequest.newBuilder().setIndexName(grpcServer.getTestIndex()).build());
+    assertEquals(
+        grpcServer.getGlobalState().getIndex(grpcServer.getTestIndex()).getIndexStateInfo(),
+        indexStateResponse.getIndexState());
+  }
+
+  @Test
   public void testForceMerge() throws IOException, InterruptedException {
     GrpcServer.TestServer testAddDocs =
         new GrpcServer.TestServer(grpcServer, true, Mode.STANDALONE);

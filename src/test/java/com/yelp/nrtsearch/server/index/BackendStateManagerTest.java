@@ -372,7 +372,7 @@ public class BackendStateManagerTest {
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
     when(mockState.isStarted()).thenReturn(false);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -397,7 +397,7 @@ public class BackendStateManagerTest {
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
     verify(mockState, times(1)).isStarted();
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedSettings();
 
@@ -422,7 +422,7 @@ public class BackendStateManagerTest {
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
     when(mockState.isStarted()).thenReturn(false);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -459,7 +459,7 @@ public class BackendStateManagerTest {
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
     verify(mockState, times(1)).isStarted();
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedSettings();
 
@@ -492,7 +492,7 @@ public class BackendStateManagerTest {
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
     when(mockState.isStarted()).thenReturn(false);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -539,7 +539,7 @@ public class BackendStateManagerTest {
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
     verify(mockState, times(1)).isStarted();
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedSettings();
 
@@ -573,7 +573,7 @@ public class BackendStateManagerTest {
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
     when(mockState.isStarted()).thenReturn(false);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -622,7 +622,7 @@ public class BackendStateManagerTest {
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
     verify(mockState, times(1)).isStarted();
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedSettings();
 
@@ -800,7 +800,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -829,7 +829,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(false);
     verify(mockState2, times(1)).getShards();
@@ -855,7 +855,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -895,7 +895,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(false);
     verify(mockState2, times(1)).getShards();
@@ -926,7 +926,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -976,7 +976,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(false);
     verify(mockState2, times(1)).getShards();
@@ -1008,7 +1008,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -1060,7 +1060,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedStateInfo);
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(false);
     verify(mockState2, times(1)).getShards();
@@ -1109,7 +1109,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -1148,7 +1148,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(true);
     verify(mockState2, times(1)).getShards();
@@ -1180,7 +1180,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(mock(FieldAndFacetState.class));
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -1224,7 +1224,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getMergedLiveSettings(true);
     verify(mockState2, times(1)).getShards();
@@ -1246,7 +1246,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(new FieldAndFacetState());
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -1297,7 +1297,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedState);
-    verify(mockState, times(2)).getCurrentStateInfo();
+    verify(mockState, times(2)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getAllFieldsJSON();
 
@@ -1318,7 +1318,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(new FieldAndFacetState());
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -1371,7 +1371,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedState);
-    verify(mockState, times(2)).getCurrentStateInfo();
+    verify(mockState, times(2)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getAllFieldsJSON();
 
@@ -1410,7 +1410,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(new FieldAndFacetState());
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -1470,7 +1470,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), expectedState);
-    verify(mockState, times(2)).getCurrentStateInfo();
+    verify(mockState, times(2)).getIndexStateInfo();
     verify(mockState, times(1)).getFieldAndFacetState();
     verify(mockState2, times(1)).getAllFieldsJSON();
 
@@ -1512,7 +1512,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.getFieldAndFacetState()).thenReturn(new FieldAndFacetState());
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -1564,7 +1564,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.isStarted()).thenReturn(false);
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -1578,7 +1578,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);
 
@@ -1599,7 +1599,7 @@ public class BackendStateManagerTest {
         .thenReturn(initialState);
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.isStarted()).thenReturn(false);
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -1614,7 +1614,7 @@ public class BackendStateManagerTest {
 
     verify(mockBackend, times(1))
         .loadIndexState(BackendGlobalState.getUniqueIndexName("test_index", "test_id"));
-    verify(mockState, times(1)).getCurrentStateInfo();
+    verify(mockState, times(1)).getIndexStateInfo();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);
 
@@ -1667,7 +1667,7 @@ public class BackendStateManagerTest {
 
     ImmutableIndexState mockState = mock(ImmutableIndexState.class);
     when(mockState.getFieldAndFacetState()).thenReturn(new FieldAndFacetState());
-    when(mockState.getCurrentStateInfo()).thenReturn(initialState);
+    when(mockState.getIndexStateInfo()).thenReturn(initialState);
     when(mockState.isStarted()).thenReturn(false);
     MockStateManager.nextState = mockState;
     MockStateManager.expectedState = initialState;
@@ -1690,7 +1690,7 @@ public class BackendStateManagerTest {
     verify(mockBackend, times(1))
         .commitIndexState(
             BackendGlobalState.getUniqueIndexName("test_index", "test_id"), updatedState);
-    verify(mockState, times(3)).getCurrentStateInfo();
+    verify(mockState, times(3)).getIndexStateInfo();
     verify(mockState, times(1)).isStarted();
     verify(mockState, times(1)).start(Mode.PRIMARY, mockDataManager, 1, mockReplicationClient);
     verify(mockState, times(1)).commit();

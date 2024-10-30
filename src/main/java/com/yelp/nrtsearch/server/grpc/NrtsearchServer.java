@@ -50,6 +50,7 @@ import com.yelp.nrtsearch.server.handler.GetNodesInfoHandler;
 import com.yelp.nrtsearch.server.handler.GetStateHandler;
 import com.yelp.nrtsearch.server.handler.GlobalStateHandler;
 import com.yelp.nrtsearch.server.handler.Handler;
+import com.yelp.nrtsearch.server.handler.IndexStateHandler;
 import com.yelp.nrtsearch.server.handler.IndicesHandler;
 import com.yelp.nrtsearch.server.handler.LiveSettingsHandler;
 import com.yelp.nrtsearch.server.handler.LiveSettingsV2Handler;
@@ -334,6 +335,7 @@ public class NrtsearchServer {
     private final GetAllSnapshotIndexGenHandler getAllSnapshotIndexGenHandler;
     private final GetStateHandler getStateHandler;
     private final GlobalStateHandler globalStateHandler;
+    private final IndexStateHandler indexStateHandler;
     private final IndicesHandler indicesHandler;
     private final LiveSettingsHandler liveSettingsHandler;
     private final LiveSettingsV2Handler liveSettingsV2Handler;
@@ -398,6 +400,7 @@ public class NrtsearchServer {
       getAllSnapshotIndexGenHandler = new GetAllSnapshotIndexGenHandler(globalState);
       getStateHandler = new GetStateHandler(globalState);
       globalStateHandler = new GlobalStateHandler(globalState);
+      indexStateHandler = new IndexStateHandler(globalState);
       indicesHandler = new IndicesHandler(globalState);
       liveSettingsHandler = new LiveSettingsHandler(globalState);
       liveSettingsV2Handler = new LiveSettingsV2Handler(globalState);
@@ -670,6 +673,12 @@ public class NrtsearchServer {
     @Override
     public void state(StateRequest request, StreamObserver<StateResponse> responseObserver) {
       Handler.handleUnaryRequest("state", request, responseObserver, getStateHandler);
+    }
+
+    @Override
+    public void indexState(
+        IndexStateRequest request, StreamObserver<IndexStateResponse> responseStreamObserver) {
+      Handler.handleUnaryRequest("indexState", request, responseStreamObserver, indexStateHandler);
     }
 
     @Override

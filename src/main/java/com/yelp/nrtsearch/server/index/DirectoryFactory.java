@@ -15,11 +15,15 @@
  */
 package com.yelp.nrtsearch.server.index;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
+import java.util.Optional;
+import java.util.function.Function;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.MMapDirectory;
@@ -27,6 +31,13 @@ import org.apache.lucene.store.NIOFSDirectory;
 
 /** A factory to open a {@link Directory} from a provided filesystem path. */
 public abstract class DirectoryFactory {
+
+  // How files should be grouped in memory Arenas when using MMapDirectory
+  public enum MMapGrouping {
+    SEGMENT,
+    SEGMENT_EXCEPT_SI,
+    NONE
+  }
 
   /** Sole constructor. */
   public DirectoryFactory() {}
@@ -43,7 +54,7 @@ public abstract class DirectoryFactory {
    * Returns an instance, using the specified implementation {FSDirectory, MMapDirectory,
    * NIOFSDirectory}.
    */
-  public static DirectoryFactory get(final String dirImpl) {
+  public static DirectoryFactory get(final String dirImpl, NrtsearchConfig config) {
     if (dirImpl.equals("FSDirectory")) {
       return new DirectoryFactory() {
         @Override
@@ -51,6 +62,7 @@ public abstract class DirectoryFactory {
           Directory directory = FSDirectory.open(path);
           if (directory instanceof MMapDirectory mMapDirectory) {
             mMapDirectory.setPreload(preloadConfig.preloadPredicate());
+            setMMapGrouping(mMapDirectory, config.getMMapGrouping());
           }
           return directory;
         }
@@ -61,6 +73,7 @@ public abstract class DirectoryFactory {
         public Directory open(Path path, IndexPreloadConfig preloadConfig) throws IOException {
           MMapDirectory mMapDirectory = new MMapDirectory(path);
           mMapDirectory.setPreload(preloadConfig.preloadPredicate());
+          setMMapGrouping(mMapDirectory, config.getMMapGrouping());
           return mMapDirectory;
         }
       };
@@ -105,7 +118,7 @@ public abstract class DirectoryFactory {
             } else {
               return finalCtor.newInstance(path, preloadConfig);
             }
-          } catch (InstantiationException ie) {
+          } catch (InstantiationException | InvocationTargetException | IllegalAccessException ie) {
             throw new RuntimeException(
                 "failed to instantiate directory class \""
                     + dirImpl
@@ -113,25 +126,49 @@ public abstract class DirectoryFactory {
                     + path
                     + "\"",
                 ie);
-          } catch (InvocationTargetException ite) {
-            throw new RuntimeException(
-                "failed to instantiate directory class \""
-                    + dirImpl
-                    + "\" on path=\""
-                    + path
-                    + "\"",
-                ite);
-          } catch (IllegalAccessException iae) {
-            throw new RuntimeException(
-                "failed to instantiate directory class \""
-                    + dirImpl
-                    + "\" on path=\""
-                    + path
-                    + "\"",
-                iae);
           }
         }
       };
     }
+  }
+
+  // Function to group segments by their names, excluding ".si" files
+  public static Function<String, Optional<String>> SEGMENT_EXCEPT_SI_FUNCTION =
+      (filename) -> {
+        if (filename.endsWith(".si")) {
+          return Optional.empty();
+        }
+        return MMapDirectory.GROUP_BY_SEGMENT.apply(filename);
+      };
+
+  /**
+   * Set MMapGrouping for the directory.
+   *
+   * @param directory the MMapDirectory
+   * @param grouping the MMapGrouping
+   */
+  @VisibleForTesting
+  static void setMMapGrouping(MMapDirectory directory, MMapGrouping grouping) {
+    switch (grouping) {
+      case SEGMENT -> directory.setGroupingFunction(MMapDirectory.GROUP_BY_SEGMENT);
+      case SEGMENT_EXCEPT_SI -> directory.setGroupingFunction(SEGMENT_EXCEPT_SI_FUNCTION);
+      case NONE -> directory.setGroupingFunction(MMapDirectory.NO_GROUPING);
+    }
+  }
+
+  /**
+   * Parse MMapGrouping from string.
+   *
+   * @param grouping the string representation of the grouping
+   * @return MMapGrouping
+   * @throws IllegalArgumentException if the grouping is invalid
+   */
+  public static MMapGrouping parseMMapGrouping(String grouping) {
+    return switch (grouping) {
+      case "SEGMENT" -> MMapGrouping.SEGMENT;
+      case "SEGMENT_EXCEPT_SI" -> MMapGrouping.SEGMENT_EXCEPT_SI;
+      case "NONE" -> MMapGrouping.NONE;
+      default -> throw new IllegalArgumentException("Invalid MMapGrouping: " + grouping);
+    };
   }
 }

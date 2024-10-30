@@ -383,4 +383,9 @@ public class NRTReplicaNode extends ReplicaNode {
     }
     logger.info("Finished syncing nrt point from current primary, current version: {}", curVersion);
   }
+
+  @Override
+  public FileMetaData readLocalFileMetaData(String fileName) throws IOException {
+    return NrtUtils.readOnceLocalFileMetaData(fileName, lastFileMetaData, this);
+  }
 }

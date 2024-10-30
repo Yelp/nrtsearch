@@ -19,6 +19,7 @@ import com.google.inject.Inject;
 import com.google.protobuf.util.JsonFormat;
 import com.yelp.nrtsearch.server.grpc.IndexLiveSettings;
 import com.yelp.nrtsearch.server.grpc.ReplicationServerClient;
+import com.yelp.nrtsearch.server.index.DirectoryFactory;
 import com.yelp.nrtsearch.server.utils.JsonUtils;
 import com.yelp.nrtsearch.server.warming.WarmerConfig;
 import java.io.IOException;
@@ -108,6 +109,7 @@ public class NrtsearchConfig {
   private final int lowPriorityCopyPercentage;
   private final boolean verifyReplicationIndexId;
   private final boolean useKeepAliveForReplication;
+  private final DirectoryFactory.MMapGrouping mmapGrouping;
 
   @Inject
   public NrtsearchConfig(InputStream yamlStream) {
@@ -180,6 +182,11 @@ public class NrtsearchConfig {
     lowPriorityCopyPercentage = configReader.getInteger("lowPriorityCopyPercentage", 0);
     verifyReplicationIndexId = configReader.getBoolean("verifyReplicationIndexId", true);
     useKeepAliveForReplication = configReader.getBoolean("useKeepAliveForReplication", false);
+    mmapGrouping =
+        configReader.get(
+            "mmapGrouping",
+            o -> DirectoryFactory.parseMMapGrouping(o.toString()),
+            DirectoryFactory.MMapGrouping.SEGMENT);
 
     List<String> indicesWithOverrides = configReader.getKeysOrEmpty("indexLiveSettingsOverrides");
     Map<String, IndexLiveSettings> liveSettingsMap = new HashMap<>();
@@ -358,6 +365,10 @@ public class NrtsearchConfig {
 
   public boolean getUseKeepAliveForReplication() {
     return useKeepAliveForReplication;
+  }
+
+  public DirectoryFactory.MMapGrouping getMMapGrouping() {
+    return mmapGrouping;
   }
 
   public IndexLiveSettings getLiveSettingsOverride(String indexName) {

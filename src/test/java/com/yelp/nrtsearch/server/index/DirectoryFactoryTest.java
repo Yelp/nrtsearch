@@ -15,10 +15,16 @@
  */
 package com.yelp.nrtsearch.server.index;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.yelp.nrtsearch.server.config.IndexPreloadConfig;
+import com.yelp.nrtsearch.server.config.NrtsearchConfig;
 import com.yelp.nrtsearch.server.config.YamlConfigReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -33,8 +39,16 @@ public class DirectoryFactoryTest {
 
   @ClassRule public static final TemporaryFolder folder = new TemporaryFolder();
 
-  private static final DirectoryFactory mmFactory = DirectoryFactory.get("MMapDirectory");
-  private static final DirectoryFactory fsFactory = DirectoryFactory.get("FSDirectory");
+  private static final DirectoryFactory mmFactory =
+      DirectoryFactory.get(
+          "MMapDirectory",
+          new NrtsearchConfig(
+              new ByteArrayInputStream("nodeName: \"lucene_server_foo\"".getBytes())));
+  private static final DirectoryFactory fsFactory =
+      DirectoryFactory.get(
+          "FSDirectory",
+          new NrtsearchConfig(
+              new ByteArrayInputStream("nodeName: \"lucene_server_foo\"".getBytes())));
 
   @Test
   public void testMMapDefault() throws IOException {
@@ -116,5 +130,41 @@ public class DirectoryFactoryTest {
       assertTrue(directory instanceof MMapDirectory);
       assertTrue(((MMapDirectory) directory).getPreload());
     }
+  }
+
+  @Test
+  public void testParseMMapGrouping() {
+    assertSame(
+        DirectoryFactory.MMapGrouping.SEGMENT, DirectoryFactory.parseMMapGrouping("SEGMENT"));
+    assertSame(
+        DirectoryFactory.MMapGrouping.SEGMENT_EXCEPT_SI,
+        DirectoryFactory.parseMMapGrouping("SEGMENT_EXCEPT_SI"));
+    assertSame(DirectoryFactory.MMapGrouping.NONE, DirectoryFactory.parseMMapGrouping("NONE"));
+  }
+
+  @Test
+  public void testParseMMapGroupingInvalid() {
+    try {
+      DirectoryFactory.parseMMapGrouping("INVALID");
+    } catch (IllegalArgumentException e) {
+      assertEquals("Invalid MMapGrouping: INVALID", e.getMessage());
+    }
+  }
+
+  @Test
+  public void testSetMMapGrouping() {
+    MMapDirectory mockMMapDirectory = mock(MMapDirectory.class);
+    DirectoryFactory.setMMapGrouping(mockMMapDirectory, DirectoryFactory.MMapGrouping.SEGMENT);
+    verify(mockMMapDirectory, times(1)).setGroupingFunction(MMapDirectory.GROUP_BY_SEGMENT);
+
+    mock(MMapDirectory.class);
+    DirectoryFactory.setMMapGrouping(
+        mockMMapDirectory, DirectoryFactory.MMapGrouping.SEGMENT_EXCEPT_SI);
+    verify(mockMMapDirectory, times(1))
+        .setGroupingFunction(DirectoryFactory.SEGMENT_EXCEPT_SI_FUNCTION);
+
+    mock(MMapDirectory.class);
+    DirectoryFactory.setMMapGrouping(mockMMapDirectory, DirectoryFactory.MMapGrouping.NONE);
+    verify(mockMMapDirectory, times(1)).setGroupingFunction(MMapDirectory.NO_GROUPING);
   }
 }

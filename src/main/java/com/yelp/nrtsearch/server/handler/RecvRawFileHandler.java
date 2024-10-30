@@ -48,7 +48,7 @@ public class RecvRawFileHandler extends Handler<FileInfo, RawFileChunk> {
       IndexState indexState = indexStateManager.getCurrent();
       ShardState shardState = indexState.getShard(0);
       try (IndexInput luceneFile =
-          shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.DEFAULT)) {
+          shardState.indexDir.openInput(fileInfoRequest.getFileName(), IOContext.READONCE)) {
         long len = luceneFile.length();
         long pos = fileInfoRequest.getFpStart();
         luceneFile.seek(pos);

@@ -579,4 +579,9 @@ public class NRTPrimaryNode extends PrimaryNode {
     nrtDataManager.close();
     super.close();
   }
+
+  @Override
+  public FileMetaData readLocalFileMetaData(String fileName) throws IOException {
+    return NrtUtils.readOnceLocalFileMetaData(fileName, lastFileMetaData, this);
+  }
 }

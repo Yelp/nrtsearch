@@ -145,7 +145,7 @@ public class StateCommandUtilsTest {
     IndexStateInfo stateInfo = builder.build();
     IndexStateInfo expected =
         ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
-            .getCurrentStateInfo();
+            .getIndexStateInfo();
     assertEquals(expected, stateInfo);
   }
 
@@ -186,7 +186,7 @@ public class StateCommandUtilsTest {
     TestServer server = getTestServer();
     IndexStateInfo currentState =
         ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
-            .getCurrentStateInfo();
+            .getIndexStateInfo();
     IndexStateInfo updatedState =
         currentState.toBuilder()
             .setLiveSettings(
@@ -204,7 +204,7 @@ public class StateCommandUtilsTest {
     server.restart();
     IndexStateInfo newCurrentState =
         ((ImmutableIndexState) server.getGlobalState().getIndexOrThrow("test_index"))
-            .getCurrentStateInfo();
+            .getIndexStateInfo();
     assertEquals(updatedState, newCurrentState);
     assertNotEquals(currentState, newCurrentState);
   }
